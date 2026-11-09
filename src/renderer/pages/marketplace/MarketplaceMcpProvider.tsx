@@ -1,6 +1,6 @@
-import { Check, ExternalLink, Plus } from 'lucide-react'
+import { Check, ExternalLink, Loader2, Plus } from 'lucide-react'
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Input } from '@cherrystudio/ui'
@@ -10,22 +10,32 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { SettingGroup, SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
+import { getProviderDisplayName, isSameMcpServerCandidate } from '@renderer/utils/mcpDiscovery'
+import { toCreateMcpServerDto } from '@renderer/utils/mcpServerDraft'
 import { cn } from '@renderer/utils/style'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
-import { getProviderDisplayName, type ProviderConfig } from './providers/config'
-import { isSameMcpServerCandidate, toCreateMcpServerDto } from './utils'
+import type { ProviderConfig } from './providers/config'
 
-const logger = loggerService.withContext('McpProviderSettings')
+const logger = loggerService.withContext('MarketplaceMcpProvider')
+
+const openProviderLink = (event: React.MouseEvent<HTMLAnchorElement>) => {
+  if (event.type === 'auxclick' && event.button !== 1) return
+  event.preventDefault()
+  void openExternalWebsite(event.currentTarget.href)
+}
 
 interface Props {
   provider: ProviderConfig
   existingServers: McpServer[]
 }
 
-const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => {
+const MarketplaceMcpProvider: React.FC<Props> = ({ provider, existingServers }) => {
   const { addMcpServer } = useMcpServers()
   const [isFetching, setIsFetching] = useState(false)
+  const pending = useRef(new Set<string>())
+  const [adding, setAdding] = useState<ReadonlySet<string>>(() => new Set())
   const [token, setToken] = useState<string>('')
   // Fetched marketplace servers are re-fetchable network data, so they live in
   // persist cache (one fixed key, keyed internally by provider).
@@ -67,8 +77,13 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       setToken(value)
       // Auto-save token when user types
       provider.saveToken(value)
+      setAllServers((previous) => {
+        const next = { ...previous }
+        delete next[provider.key]
+        return next
+      })
     },
-    [provider]
+    [provider, setAllServers]
   )
 
   const handleFetch = useCallback(async () => {
@@ -84,6 +99,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       const result = await provider.syncServers(token)
 
       if (result.success) {
+        if (provider.getToken() !== token) return
         // Functional updater: merge against the latest stored value, not a
         // render-time snapshot, so a concurrent write to another provider's
         // entry is never clobbered.
@@ -114,7 +130,13 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                   variant="ghost"
                   size="icon-sm"
                   className="size-6 rounded-md text-muted-foreground shadow-none hover:text-link">
-                  <a target="_blank" rel="noreferrer" href={provider.discoverUrl}>
+                  <a
+                    target="_blank"
+                    rel="noreferrer"
+                    href={provider.discoverUrl}
+                    aria-label={t('marketplace.open_website') + ': ' + getProviderDisplayName(provider, t)}
+                    onClick={openProviderLink}
+                    onAuxClick={openProviderLink}>
                     <ExternalLink size={13} />
                   </a>
                 </Button>
@@ -148,6 +170,8 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
             target="_blank"
             rel="noreferrer"
             href={provider.apiKeyUrl}
+            onClick={openProviderLink}
+            onAuxClick={openProviderLink}
             className="mt-3.5 inline-flex items-center text-xs text-link hover:underline">
             {t('settings.provider.get_api_key')}
           </a>
@@ -182,23 +206,37 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                 </div>
                 {(() => {
                   const isAlreadyAdded = existingServers.some((existing) => isSameMcpServerCandidate(existing, server))
+                  const isAdding = adding.has(server.id)
                   return (
                     <Button
-                      disabled={isAlreadyAdded}
+                      disabled={isAlreadyAdded || isAdding}
+                      aria-busy={isAdding}
+                      aria-label={t(isAlreadyAdded ? 'marketplace.added' : 'common.add') + ': ' + server.name}
                       variant="ghost"
                       size="icon-sm"
                       className="ml-2.5 size-7 min-h-7 shadow-none"
                       onClick={async () => {
-                        if (!isAlreadyAdded) {
+                        if (!isAlreadyAdded && !pending.current.has(server.id)) {
+                          pending.current.add(server.id)
+                          setAdding(new Set(pending.current))
                           try {
                             await addMcpServer(toCreateMcpServerDto(server))
                             toast.success(t('settings.mcp.addSuccess'))
                           } catch {
                             toast.error(t('settings.mcp.addError'))
+                          } finally {
+                            pending.current.delete(server.id)
+                            setAdding(new Set(pending.current))
                           }
                         }
                       }}>
-                      {isAlreadyAdded ? <Check size={12} /> : <Plus size={12} />}
+                      {isAdding ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : isAlreadyAdded ? (
+                        <Check size={12} />
+                      ) : (
+                        <Plus size={12} />
+                      )}
                     </Button>
                   )
                 })()}
@@ -256,4 +294,4 @@ const ServerDescription = ({ className, ...props }: React.ComponentPropsWithoutR
   <div className={cn('line-clamp-2 text-xs leading-5 text-muted-foreground', className)} {...props} />
 )
 
-export default McpProviderSettings
+export default MarketplaceMcpProvider

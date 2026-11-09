@@ -183,9 +183,9 @@ describe('HelpMenu', () => {
   })
 
   it.each([
-    ['zh-CN', 'https://docs.cherryai.com.cn/'],
-    ['zh-TW', 'https://docs.cherryai.com.cn/'],
-    ['en-US', 'https://docs.cherryai.com.cn/docs/en-us']
+    ['zh-CN', 'https://cherryai.com.cn/docs'],
+    ['zh-TW', 'https://cherryai.com.cn/docs'],
+    ['en-US', 'https://cherryai.com/docs']
   ])('opens the language-specific guide in app content for %s', async (language, expectedUrl) => {
     mocks.language = language
     render(<HelpMenu onFeedbackClick={mocks.openFeedback} />)

@@ -786,7 +786,9 @@ renderer.
 
 `reconcile()` carries live agent edits onto the warm connection: a
 `permission-mode` change awaits the SDK `setPermissionMode` before mutating
-the snapshot (short-circuiting an unchanged mode), and a `tool-policy`
+the snapshot (short-circuiting an unchanged mode). It applies during an active
+turn too: the SDK keeps the turn running and governs its next tool call by the
+new mode. A `tool-policy`
 change refreshes the snapshot's disabled set in place. Concurrent push/pull
 reconciles are serialized per connection. A rejected update is failed closed
 by the host (the connection is torn down) rather than left running under the
@@ -901,7 +903,7 @@ contract above.
 
 Warm Pi reconciles serialize push and pull calls per connection so a slower
 older snapshot cannot overwrite a newer policy result. `permission_mode` is
-live policy and stays frozen for an active turn. `disabledTools` has two jobs:
+live policy and applies at once, including to the active turn's next tool call. `disabledTools` has two jobs:
 the live gate applies newly disabled tools immediately, while the spawn-time
 `excludeTools` list controls which tools the model can see. It therefore remains
 a rebuild-signature fact; adding or removing a disabled tool returns `rebuild`
@@ -986,8 +988,7 @@ its archive cannot open as an independent writable root. Public projection code 
 
 ### Pi Durable behavior host
 
-`PiDurableRuntimeConnection` installs the same `agent-behavior` rules and host ports
-through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
+`PiDurableRuntimeDriver` owns one native backend per store and connections borrow root accesses. `DurableBackend` installs the same `agent-behavior` rules and routes host ports by the native conversation ownership tree through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
 question cards and tool rendering. Native SQLite owns execution history and task state;
 the existing backend/context tables bind it to product sessions. Strict identity checks
 prevent a missing store from silently becoming a fresh conversation.
@@ -1005,8 +1006,7 @@ from idle activity or an empty product-input map.
 Native submission and assistant metadata carry the consuming run's stable identity.
 Ordinary steer may start a later run after normal completion; it has no run-only constraint.
 Background continuation keeps the child identity. Independent continuation of a completed
-foreground child is rejected because native tool ownership is immutable. Desktop native
-fork/edit checkpoints and `vcc_recall` are not exposed. See the
+foreground child is rejected because native tool ownership is immutable. Successful committed boundaries support ownerless same-storage desktop forks; each root retains its own model options, approvals, extensions and environment. Before shared recovery resumes unfinished roots, their stored request selections and Main projection consumers are restored. Final release closes the backend once and drains observations before product writers stop. Edit and resend retains sibling-message branches, preparing an ownerless native fork at the predecessor or a fresh context for the first input. File rewind and `vcc_recall` remain unavailable. See the
 [driver README](../../../../src/main/ai/runtime/piDurable/README.md) for storage and recovery boundaries.
 
 ### Pi code mode
