@@ -3,7 +3,7 @@
 Portable React DOM previews for PDF, DOCX, PPTX, XLSX, RTF and images (including SVG).
 The package owns rendering, controls, structural selections, workers and translations.
 Hosts own file access, permissions, navigation, external opening and logging.
-HTML, Markdown and source-code previews remain in the desktop application. EPUB is rendered by a desktop-only plugin in the app.
+HTML, Markdown and source-code previews remain in the desktop application.
 
 Install a published version alongside React 19 and React DOM 19:
 
