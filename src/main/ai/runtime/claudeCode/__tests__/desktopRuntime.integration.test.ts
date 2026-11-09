@@ -20,6 +20,7 @@ import { agentSessionMessageTable as sessionMessagesTable } from '@data/db/schem
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
@@ -28,6 +29,7 @@ import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProj
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
+import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import { ClaudeFeed } from '../../../../../../packages/agent-runtime-claude-code/src/observation'
@@ -1102,7 +1104,18 @@ it.each([
       .insert(agentTable)
       .values({ id: agentId, type: 'claude-code', name: 'Agent', instructions: '', orderKey: 'a0' })
       .run()
+    const agent = agentService.getAgent(agentId)!
+    const snapshot = await createClaudeAgentToolPolicySnapshot({
+      ...agent,
+      configuration: { ...agent.configuration, permission_mode: from }
+    })
+    const refresh = snapshot.update
+    vi.spyOn(snapshot, 'update').mockImplementation(async (nextAgent) => {
+      expect(snapshot.getPermissionMode()).toBe(to)
+      await refresh(nextAgent)
+    })
     const built = await ports.build()
+    built.settings.toolPolicySnapshot = snapshot
     built.connectionConfig.live.toolPolicy.permissionMode = from
     const connection = await test.connect(undefined, undefined, true, { sessionId: test.sessionId, agentId, modelId })
     await connection.send(test.input('Write the marker'))
@@ -1114,6 +1127,7 @@ it.each([
       config: { ...built.connectionConfig, live: { ...live, toolPolicy: { ...live.toolPolicy, permissionMode: to } } }
     })
     expect(await connection.reconcile({ modelId })).toBe('patched')
+    expect(snapshot.getPermissionMode()).toBe(to)
     first.reply.block({
       type: 'tool_use',
       id: 'toolu_marker',

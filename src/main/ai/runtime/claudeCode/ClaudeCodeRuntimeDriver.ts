@@ -33,7 +33,6 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
-import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
@@ -387,13 +386,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       try {
         const agent = agentService.getAgent(this.input.agentId)
         if (!agent) return 'invalid'
+        const permissionMode = fresh.live.toolPolicy.permissionMode ?? 'default'
         if (baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode) {
-          const changed = await this.handle.claude.setPermissionMode(
-            (fresh.live.toolPolicy.permissionMode ?? 'default') as AgentPermissionMode
-          )
+          const changed = await this.handle.claude.setPermissionMode(permissionMode)
           if (changed.status !== 'confirmed') throw new Error(changed.error.message)
+          // Approval must use the confirmed mode while the tool catalog is refreshing.
+          this.toolPolicySnapshot?.setPermissionMode(permissionMode)
         }
-        // Refresh only after the SDK confirms, so the local gate never runs ahead of the subprocess.
         await this.toolPolicySnapshot?.update(agent)
       } catch (error) {
         logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
