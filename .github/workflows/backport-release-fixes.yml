@@ -54,7 +54,7 @@ jobs:
           export PR_BODY
 
           if [[ "$PR_TITLE" =~ $HOTFIX_TITLE_PATTERN ]]; then
-            gh label create "hotfix" --repo "$REPO" --color "D73A4A" --description "Urgent fix for the active draft release" --force
+            gh label create "hotfix" --repo "$REPO" --color "D73A4A" --description "Urgent fix for the active release" --force
             if [ "$HAS_LABEL" != "true" ]; then
               gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "hotfix"
             fi
@@ -114,7 +114,7 @@ jobs:
             exit 1
           fi
 
-          gh label create "hotfix" --repo "$REPO" --color "D73A4A" --description "Urgent fix for the active draft release" --force
+          gh label create "hotfix" --repo "$REPO" --color "D73A4A" --description "Urgent fix for the active release" --force
           if [ "$HAS_LABEL" != "true" ]; then
             gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "hotfix"
           fi
@@ -140,42 +140,19 @@ jobs:
             exit 0
           fi
 
-          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
-          RELEASE_REF_PAGES="$(gh api --paginate --slurp "repos/$REPO/git/matching-refs/heads/release/v?per_page=100")"
-          DRAFT_TAGS="$(jq -r '.[][] | select(.draft == true) | .tag_name' <<< "$RELEASE_PAGES")"
-          CANDIDATES=()
-          while IFS= read -r TAG; do
-            if [ -z "$TAG" ]; then
-              continue
-            fi
-
-            if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-              continue
-            fi
-
-            if jq -e --arg ref "refs/heads/release/$TAG" 'any(.[][]; .ref == $ref)' <<< "$RELEASE_REF_PAGES" >/dev/null; then
-              CANDIDATES+=("$TAG")
-            fi
-          done <<< "$DRAFT_TAGS"
-
-          if [ "${#CANDIDATES[@]}" -eq 0 ]; then
-            MESSAGE="No draft semantic-version release has a matching release branch"
+          cp scripts/release/backport-target.sh "$RUNNER_TEMP/backport-target.sh"
+          source "$RUNNER_TEMP/backport-target.sh"
+          TARGET="$(latest_backport_target)"
+          if [ -z "$TARGET" ]; then
+            MESSAGE="No release branch is newer than the published releases"
             gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$MESSAGE. No automatic backport was created."
             echo "$MESSAGE"
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if [ "${#CANDIDATES[@]}" -ne 1 ]; then
-            RELEASES="$(IFS=', '; echo "${CANDIDATES[*]}")"
-            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "Automatic backport stopped because multiple active release branches match draft releases: $RELEASES"
-            echo "Expected one active release branch, found: $RELEASES" >&2
-            exit 1
-          fi
-
-          TAG="${CANDIDATES[0]}"
-          BRANCH="release/$TAG"
-          RELEASE_HEAD="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          IFS=$'\t' read -r BRANCH RELEASE_HEAD <<< "$TARGET"
+          TAG="${BRANCH#release/}"
           echo "eligible=true" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
@@ -322,18 +299,9 @@ jobs:
           RELEASE_BRANCH: ${{ steps.release-ref.outputs.branch }}
           RELEASE_HEAD: ${{ steps.release-ref.outputs.release-head }}
           REPO: ${{ github.repository }}
-          TAG: ${{ steps.release-ref.outputs.tag }}
         run: |
-          RELEASE="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100" | jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty')"
-          CURRENT_HEAD="$(gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" --jq '.object.sha')"
-          if [ -z "$RELEASE" ] || [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ]; then
-            echo "Release $TAG is no longer a draft" >&2
-            exit 1
-          fi
-          if [ "$CURRENT_HEAD" != "$RELEASE_HEAD" ]; then
-            echo "$RELEASE_BRANCH moved from $RELEASE_HEAD to $CURRENT_HEAD while preparing the backport" >&2
-            exit 1
-          fi
+          source "$RUNNER_TEMP/backport-target.sh"
+          revalidate_backport_target
           if [ -n "$APPEND_PR_NUMBER" ]; then
             CURRENT_BACKPORT_HEAD="$(gh api "repos/$REPO/git/ref/heads/$BACKPORT_BRANCH" --jq '.object.sha')"
             if [ "$CURRENT_BACKPORT_HEAD" != "$BACKPORT_HEAD" ]; then
@@ -462,8 +430,12 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          RELEASE_BRANCH: ${{ steps.release-ref.outputs.branch }}
+          RELEASE_HEAD: ${{ steps.release-ref.outputs.release-head }}
           REPO: ${{ github.repository }}
         run: |
+          source "$RUNNER_TEMP/backport-target.sh"
+          revalidate_backport_target
           RESPONSE="$(gh api graphql --input "$RUNNER_TEMP/backport-commit.json")"
           COMMIT_SHA="$(jq -r '.data.createCommitOnBranch.commit.oid' <<< "$RESPONSE")"
           COMMIT_URL="$(jq -r '.data.createCommitOnBranch.commit.url' <<< "$RESPONSE")"
@@ -494,12 +466,8 @@ jobs:
           SOURCE_URL: ${{ github.event.pull_request.html_url }}
           TAG: ${{ steps.release-ref.outputs.tag }}
         run: |
-          RELEASE="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100" | jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty')"
-          CURRENT_HEAD="$(gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" --jq '.object.sha')"
-          if [ -z "$RELEASE" ] || [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ] || [ "$CURRENT_HEAD" != "$RELEASE_HEAD" ]; then
-            echo "Release state changed before the backport pull request could be created" >&2
-            exit 1
-          fi
+          source "$RUNNER_TEMP/backport-target.sh"
+          revalidate_backport_target
 
           TITLE="fix(release): backport #$SOURCE_PR to $TAG"
           MAIN_GAP="$(printf 'The fix from %s exists on `main` but not on `%s`.' "$SOURCE_URL" "$RELEASE_BRANCH")"
