@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-10-31-consecutive-code-block-tabs.md
+2026-10-31-consecutive-code-block-tabs.md: ee235a539ee7401c9f4c759f44db49a879c1cded
+2026-10-31-consecutive-code-block-tabs.zh.md: ca4452ea9ba4527ab9bcdd5c215db46892e33efa

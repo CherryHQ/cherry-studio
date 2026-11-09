@@ -2,6 +2,7 @@
 description: How CodeBlock classifies Markdown code and CodeBlockView renders the fenced-code workbench across streaming states
 sources:
   - src/renderer/components/CodeBlockView
+  - src/renderer/components/CodeBlockTabs.tsx
   - src/renderer/components/chat/messages/markdown
   - packages/ui/src/lib/code-block
   - src/renderer/components/CodeViewer.tsx
@@ -55,6 +56,27 @@ registry, inline HTML mode, and streaming state from one memoized render context
 
 Changing streaming state therefore updates renderer props without creating new React component types. Existing code,
 table, link, and image nodes keep their identity across stream updates.
+
+## Consecutive Code Tabs
+
+Chat messages display two or more consecutive sibling fenced code blocks as horizontal tabs. Blank lines do not
+interrupt a group; prose, other Markdown nodes, and fences rendered as file/navigation links do. Groups never cross
+message blocks or separate list/blockquote containers. Single blocks and non-chat Markdown hosts keep their existing
+presentation.
+
+Tabs show the fence language, with ordinals for repeated languages and a localized label for unnamed fences. The first
+tab is initially selected. The tabs replace the code-block header inside one shared frame, with the active block's
+toolbar on the right, revealed on hover or keyboard focus. The tab strip uses the shared `ScrollArea` and supports
+keyboard navigation and horizontal scrolling. Visited panels retain
+their drafts, undo history, and view modes; unvisited panels defer mounting. Hidden panels are excluded from keyboard
+navigation. HTML and diagram fences retain their existing previews and actions inside the active panel.
+
+Streaming partitions keep a consecutive run together. Appending a fence or completing the stream preserves the
+selected tab; a new content identity resets selection. Markdown persistence and export retain all original blocks in
+source order. Image captures render the active panel; an independently mounted topic capture starts with the first tab.
+
+The Remend dependency patch preserves parser-identified code ranges before completing surrounding Markdown. In
+particular, unfinished tilde fences retain their literal source instead of receiving strikethrough completion markers.
 
 ## View State
 

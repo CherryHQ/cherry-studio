@@ -1,7 +1,8 @@
 import type { Node } from 'mdast'
-import React, { memo, type ReactNode, useCallback, useMemo } from 'react'
+import React, { memo, type ReactNode, useCallback, use, useMemo } from 'react'
 
 import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
+import { CodeBlockTabContext } from '@renderer/components/codeBlockTabContext'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/components/CodeBlockView/constants'
 import HtmlArtifactsCard from '@renderer/components/CodeBlockView/HtmlArtifactsCard'
@@ -38,6 +39,7 @@ const CodeBlock: React.FC<Props> = ({
   blockId,
   isStreaming = false
 }) => {
+  const toolbarContainer = use(CodeBlockTabContext)
   const children = rawChildren ?? ''
   const { text, language, isIncomplete } = useMarkdownCode(children, className, sourceFormat)
   const { codeFancyBlock } = useMessageRenderConfig()
@@ -78,6 +80,7 @@ const CodeBlock: React.FC<Props> = ({
           if (isHtmlArtifactStreaming && htmlKind === 'document') {
             return (
               <CodeBlockView
+                toolbarContainer={toolbarContainer}
                 language={language}
                 editable={false}
                 isStreaming={isHtmlArtifactStreaming}
@@ -113,6 +116,7 @@ const CodeBlock: React.FC<Props> = ({
 
     return (
       <CodeBlockView
+        toolbarContainer={toolbarContainer}
         language={language}
         onSave={handleSave}
         editable={canSaveCodeBlock}
