@@ -8,20 +8,16 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { WindowType } from '@main/core/window/types'
 import type { SelectionAction } from '@shared/types/selection'
 
-const { getApplicationIdMock } = vi.hoisted(() => ({
-  getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio')
+const { getApplicationIdMock, platform } = vi.hoisted(() => ({
+  getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio'),
+  platform: { isDev: false, isLinux: false, isMac: true, isWin: false }
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
   getApplicationId: getApplicationIdMock
 }))
 
-vi.mock('@main/core/platform', () => ({
-  isDev: false,
-  isLinux: false,
-  isMac: true,
-  isWin: false
-}))
+vi.mock('@main/core/platform', () => platform)
 
 const { SelectionService } = await import('../SelectionService')
 
@@ -316,6 +312,68 @@ describe('SelectionService.processAction — agent routing', () => {
 
     expect(openAgentWindow).not.toHaveBeenCalled()
     expect(application.get('WindowManager').open).toHaveBeenCalledWith(WindowType.SelectionAction, expect.anything())
+  })
+})
+
+describe('SelectionService.processAction — fullscreen IME', () => {
+  const hideMacDockWhileShown = vi.fn()
+  const actionWindow = {}
+  const getWindow = vi.fn((): object | undefined => actionWindow)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    getWindow.mockReturnValue(actionWindow)
+    MockApplicationUtils.setService('WindowManager', {
+      open: vi.fn(() => 'selection-action-window'),
+      getWindow,
+      behavior: { hideMacDockWhileShown }
+    })
+  })
+
+  afterEach(() => {
+    platform.isMac = true
+    MockApplicationUtils.resetServices()
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  it.each([
+    { isMac: true, fullScreen: true, hidesDock: true },
+    { isMac: true, fullScreen: false, hidesDock: false },
+    { isMac: false, fullScreen: true, hidesDock: false },
+    { isMac: false, fullScreen: false, hidesDock: false }
+  ])(
+    'applies the existing dock behavior only on macOS fullscreen ($isMac/$fullScreen)',
+    ({ isMac, fullScreen, hidesDock }) => {
+      platform.isMac = isMac
+      const svc = new SelectionService()
+      const show = vi
+        .spyOn(svc as unknown as { showActionWindow(window: object, fullscreen: boolean): void }, 'showActionWindow')
+        .mockImplementation(() => {})
+
+      svc.processAction(
+        { id: 'custom-ime', name: 'Explain', enabled: true, isBuiltIn: false, runner: 'assistant', askInput: true },
+        fullScreen
+      )
+
+      expect(show).toHaveBeenCalledWith(actionWindow, fullScreen)
+      if (hidesDock) {
+        expect(hideMacDockWhileShown).toHaveBeenCalledExactlyOnceWith('selection-action-window')
+        expect(show.mock.invocationCallOrder[0]).toBeLessThan(hideMacDockWhileShown.mock.invocationCallOrder[0])
+      } else {
+        expect(hideMacDockWhileShown).not.toHaveBeenCalled()
+      }
+    }
+  )
+
+  it('does not apply dock behavior when no action window was created', () => {
+    getWindow.mockReturnValue(undefined)
+    new SelectionService().processAction(
+      { id: 'custom-ime', name: 'Explain', enabled: true, isBuiltIn: false, askInput: true },
+      true
+    )
+    expect(hideMacDockWhileShown).not.toHaveBeenCalled()
   })
 })
 

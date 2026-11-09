@@ -1327,6 +1327,8 @@ export class SelectionService extends BaseService implements Activatable {
     }
 
     this.showActionWindow(actionWindow, isFullScreen)
+    // Keep IME candidate panels in the fullscreen Space, as the selection Agent window does.
+    if (isMac && isFullScreen) wm.behavior.hideMacDockWhileShown(windowId)
   }
 
   /**
