@@ -14,10 +14,10 @@ import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { PreparedFileMutation } from '@renderer/services/fileEdit/FileEditSessionManager'
 import { consumeNotesDirectoryRootTransition } from '@renderer/services/notesDirectoryRootTransition'
 import { blockNotesActionsDuringMigration } from '@renderer/services/notesMigrationGuard'
+import type { SearchMatch } from '@renderer/services/NotesSearchService'
 import {
   addDir,
   addNote,
@@ -1149,17 +1149,8 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     return richContent ?? currentContent
   }, [currentContent])
 
-  // Listen for external requests to locate a specific line in a note
-  useEffect(() => {
-    const handleLocateNoteLine = ({
-      noteId,
-      lineNumber,
-      lineContent
-    }: {
-      noteId: string
-      lineNumber: number
-      lineContent?: string
-    }) => {
+  const handleLocateNoteLine = useCallback(
+    (noteId: string, { lineNumber, lineContent }: SearchMatch) => {
       const targetNode = findNode(notesTree, noteId)
 
       if (!targetNode || targetNode.type !== 'file') {
@@ -1189,13 +1180,9 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
           logger.error('Failed to scroll to line:', error as Error)
         }
       }
-    }
-
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.LOCATE_NOTE_LINE, handleLocateNoteLine)
-    return () => {
-      unsubscribe()
-    }
-  }, [activeNode?.id, activeFilePath, notesTree, requestFileTransition, setActiveFilePath])
+    },
+    [activeFilePath, notesTree, requestFileTransition, setActiveFilePath]
+  )
 
   return (
     <div
@@ -1232,6 +1219,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
                 onMoveNode={handleMoveNode}
                 onSortNodes={handleSortNodes}
                 onUploadFiles={handleUploadFiles}
+                onLocateNoteLine={handleLocateNoteLine}
               />
             </motion.div>
           )}

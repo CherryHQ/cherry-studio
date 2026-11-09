@@ -455,13 +455,15 @@ describe('FileEditService persistence contract', () => {
       expect(prefs.get('feature.notes.path')).not.toBe(elsewhere)
       // A write admitted during the flip is REFUSED, never slipped into the
       // gap between the drain resolving and the preference commit.
-      await expect(
-        service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('gap') })
-      ).rejects.toThrow(/migration is in progress/)
-
-      gate.resolve()
-      await writing
-      await flipping
+      try {
+        await expect(
+          service.write(owner, { editId: resource.editId, expected: snapshot.baseline, data: bytes('gap') })
+        ).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MIGRATION_BLOCKED })
+      } finally {
+        gate.resolve()
+        await writing
+        await flipping
+      }
       expect(flipped).toBe(true)
       expect(prefs.get('feature.notes.path')).toBe(elsewhere)
       // The write linearized before the flip: its bytes are on disk.

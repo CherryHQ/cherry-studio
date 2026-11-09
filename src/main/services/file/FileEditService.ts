@@ -172,6 +172,10 @@ export class FileEditService extends BaseService {
         logger.warn('File edit write did not commit', { editId: input.editId, code: failure.code })
         throw failure
       }
+    }).catch((error: unknown) => {
+      // Admission can reject before the callback runs, so normalize that path
+      // too: the renderer retries this bounded migration/root-flip barrier.
+      throw this.normalize(error)
     })
     lease.pending.add(task)
     try {

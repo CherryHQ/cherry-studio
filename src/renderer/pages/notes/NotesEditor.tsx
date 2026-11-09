@@ -326,7 +326,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   size="icon-sm"
                   aria-label={t('chat.message.read_aloud.label')}
                   disabled={!currentContent.trim()}
-                  onClick={readCurrentNote}>
+                  onClick={readCurrentNote}
+                  className="text-muted-foreground">
                   <Volume2 className="size-4" />
                 </Button>
               )}

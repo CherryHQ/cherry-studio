@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-11-03-main-dependency-bundling.md
-2026-11-03-main-dependency-bundling.md: 93c3dafc2d1d5c02547c532ace35a72e16ef9cd9
-2026-11-03-main-dependency-bundling.zh.md: 0e06db2ba48458381f387cfd9beb967cb2e6de94
+2026-11-03-main-dependency-bundling.md: 108861a6d08d2dceb79d5243374c775a2f49f553
+2026-11-03-main-dependency-bundling.zh.md: 774ada1a65efb496b976b49b3712787edf329939

@@ -40,6 +40,7 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { Pin } from '@shared/data/types/pin'
+import { isAgentSessionPinnedError } from '@shared/ipc/errors/ai'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
 const SESSION_PINS_QUERY = { entityType: 'session' } as const
@@ -372,8 +373,20 @@ export const useSessions = (
         }
         return { status: 'succeeded' }
       } catch (error) {
-        if (showFeedback) toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
-        return { status: 'failed', error: getErrorMessage(error) }
+        try {
+          await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+        } catch (refreshError) {
+          logger.warn('Failed to refresh after Agent Session deletion failed', refreshError as Error, { sessionId: id })
+        }
+        const pinned = isAgentSessionPinnedError(error)
+        if (showFeedback) {
+          toast.error(
+            pinned
+              ? t('recycle_bin.delete.pinned')
+              : formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed'))
+          )
+        }
+        return { status: 'failed', error: pinned ? t('recycle_bin.delete.pinned') : getErrorMessage(error) }
       }
     },
     [closeConversationTabs, invalidate, t]
