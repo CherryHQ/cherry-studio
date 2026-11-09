@@ -51,9 +51,9 @@ describe('generated image reference migrate-forward', () => {
         dbh.sqlite.prepare(`SELECT id,data,created_at,updated_at FROM ${table}`).all()
       )
     ).toEqual(messages)
-    expect(dbh.sqlite.pragma('table_info(agent_session)').map((column: { name: string }) => column.name)).toContain(
-      'task_id'
-    )
+    expect(
+      dbh.sqlite.prepare("SELECT name FROM pragma_table_info('agent_session') WHERE name = 'task_id'").get()
+    ).toEqual({ name: 'task_id' })
     insert(tables[0], 'ag', 'agent-message', 'generated')
     insert(tables[1], 'cg', 'chat-message', 'generated')
     expect(() => insert(tables[0], 'bad', 'agent-message', 'unknown')).toThrow()
