@@ -32,5 +32,5 @@ export function useBuiltinMcpCatalog() {
     setAdding(new Set(pending.current.keys()))
     return task
   }
-  return { presets, findInstalled, add, adding, isLoading, error, retry: refetch }
+  return { presets, mcpServers, findInstalled, add, adding, isLoading, error, retry: refetch }
 }
