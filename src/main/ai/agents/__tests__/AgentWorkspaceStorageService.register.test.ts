@@ -8,9 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import type * as Platform from '@main/core/platform'
 
 vi.mock('@main/core/platform', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/core/platform')>()),
+  ...(await importOriginal<typeof Platform>()),
   isPortable: false
 }))
 
@@ -71,4 +72,43 @@ describe('workspace registration installation guard', () => {
       expect.objectContaining({ id: workspace.id, path: workspacePath, name: 'My project' })
     ])
   })
+
+  it.each(['\\', '/', '\\\\', '//', '\\/', '/\\', '\\/work/..\\', '\\/work/..\\/work/..\\'])(
+    'rejects separator and parent traversal variants without DB writes or reservation leaks: %s',
+    (suffix) => {
+      for (const workspacePath of [installDirectory, path.join(installDirectory, 'work')]) {
+        expect(() => service.registerWorkspace(`  ${workspacePath}${suffix}  `)).toThrow(
+          expect.objectContaining({ workspacePath, installDirectory, reason: 'install_directory' })
+        )
+        expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+        const release = service.reserveWorkspaceStorage([workspacePath])
+        try {
+          expect(release).toBeTypeOf('function')
+        } finally {
+          release?.()
+        }
+      }
+    }
+  )
+
+  it.each(['\\', '\\/work/..\\', '\\/work/..\\/work/..\\'])(
+    'checks reservations against the stable normalized persisted path: %s',
+    (suffix) => {
+      const workspacePath = path.join(root, 'projects')
+      const release = service.reserveWorkspaceStorage([workspacePath])
+      try {
+        expect(release).toBeTypeOf('function')
+        expect(() => service.registerWorkspace(`  ${workspacePath}${suffix}  `)).toThrow('Workspace storage is in use')
+        expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+      } finally {
+        release?.()
+      }
+      const workspace = service.registerWorkspace(`  ${workspacePath}${suffix}  `)
+      expect(workspace.path).toBe(workspacePath)
+      expect(service.registerWorkspace(workspacePath).id).toBe(workspace.id)
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([
+        expect.objectContaining({ id: workspace.id, path: workspacePath })
+      ])
+    }
+  )
 })

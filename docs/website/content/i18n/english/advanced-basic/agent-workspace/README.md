@@ -38,7 +38,7 @@ If you already have a suitable Agent, select it directly. If not, click **Add Ag
 
 If you need to process local files, select the directory for this task. If no files are involved, you can use the default workspace created by the app. One task corresponds to one workspace, preventing the Agent from searching across unrelated directories.
 
-**Do not choose a work directory inside the Cherry Studio installation directory**: in-app upgrades replace the installation directory and delete the files inside it. The app refuses this selection, except in portable builds and development mode.
+**Do not choose a work directory inside the Cherry Studio installation directory**: in-app upgrades replace the installation directory and delete the files inside it. The app refuses this selection when adding a working directory, except in portable builds and development mode; existing working directory records remain usable.
 {% endstep %}
 
 {% step %}

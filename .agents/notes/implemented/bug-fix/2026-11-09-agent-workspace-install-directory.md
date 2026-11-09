@@ -14,7 +14,7 @@ Issue #23938 reports that a Windows in-app upgrade removes an Agent work directo
 
 ## Decision
 
-`src/main/ai/agents/agentWorkspaceInstallDirectory.ts` owns a pure policy using the existing `isSameOrInside` predicate. `AgentWorkspaceStorageService.registerWorkspace` rejects paths equal to or inside `application.getPath('app.install')` before reservation checks or database writes. Packaged non-portable builds enforce the policy. Portable builds intentionally colocate data and have no in-app upgrades; unpackaged development is exempt. Missing or nonabsolute installation-directory facts allow registration.
+`src/main/ai/agents/agentWorkspaceInstallDirectory.ts` owns a pure policy using the existing `isSameOrInside` predicate. `AgentWorkspaceStorageService.registerWorkspace` rejects paths equal to or inside `application.getPath('app.install')` before reservation checks or database writes. The guard evaluates the same normalization the database persists (`normalizeWorkspacePathInput`, shared with `AgentWorkspaceService`), so trailing-separator and parent-traversal spellings cannot pass the guard and then be stored as the installation directory. Windows equivalent namespaces (`\\?\`, `\\.\`, `\\?\UNC\`) are folded inside the policy module, leaving the shared comparison helper unchanged. Packaged non-portable builds enforce the policy. Portable builds intentionally colocate data and have no in-app upgrades; unpackaged development is exempt. Missing or nonabsolute installation-directory facts allow registration.
 
 The registration IPC handler maps `WorkspaceInstallDirectoryError` to `AI_AGENT_WORKSPACE_INSTALL_DIRECTORY` with both paths. The workspace selector and session creation show localized guidance to choose a directory outside the installation directory. Database-only services, existing workspace ID bindings, migration SQL, and the installer retain their responsibilities.
 
@@ -26,11 +26,11 @@ The registration IPC handler maps `WorkspaceInstallDirectoryError` to `AI_AGENT_
 
 ## Consequences
 
-Existing records are not automatically migrated; users receive the refusal when they next select that directory through registration. Existing session bindings continue using workspace IDs. Files already deleted by the installer cannot be recovered by this fix. Unknown installation facts fail open. The shared predicate uses host-platform case folding and lexical containment; filesystem identity and symlink resolution remain outside this policy.
+Existing records are not automatically migrated; users receive the refusal when they next select that directory through registration. Existing session bindings continue using workspace IDs. Files already deleted by the installer cannot be recovered by this fix. Unknown installation facts fail open. Containment uses host-platform case folding and lexical comparison over the persisted normalization, with Windows namespace folding applied in the policy; filesystem identity and symlink/junction resolution remain outside this policy.
 
 ## Verification
 
-- Regression — Policy and renderer errors: 2 files, 72 tests pass, covering Windows paths, equality, descendants, similar siblings, case variants, ancestors, other drives, development, portable builds, missing facts, localized guidance, and absent-path formatting.
-- Scoped main and error tests: 5 files, 169 tests pass, including real migrated SQLite persistence, no workspace row after rejection, storage still reservable, outside registration, IPC error data, and unrelated failures.
-- Renderer consumers: WorkspaceSelector and Sessions, 2 files, 157 tests pass; refusal preserves selection and displays the recovery message. Shared actionable-error formatting covers session creation.
-- Changed-file ESLint, all-locale i18n validation, and the repository documentation gate pass. No packaged Windows installer or interactive Electron upgrade is run.
+- Regression — Targeted suites at the delivered head: 7 files, 354 tests pass. They cover Windows path semantics (equality, descendants, the similar sibling `Cherry Studio2`, case variants, ancestor directories, another drive), Windows namespace forms (`\\?\`, `\\.\`, `\\?\UNC\`), UNC and drive-root installation directories, trailing-separator and parent-traversal spellings of the installation directory, the portable/unpackaged/missing-fact exemptions, the IPC error mapping with both paths, the localized message with and without a directory, and registration ordering (no workspace row, no leaked reservation).
+- Scoped main and error tests also run against real migrated SQLite and assert that a rejected registration writes no workspace row and leaves storage reservable, while an outside directory registers normally.
+- Renderer consumers: WorkspaceSelector and Sessions pass; a refusal preserves the current selection and shows the recovery message. Shared actionable-error formatting covers session creation.
+- Gates — `pnpm lint` (oxlint `--deny-warnings` plus ESLint), `pnpm typecheck`, all-locale i18n validation, and the repository documentation gate pass. No packaged Windows installer or interactive Electron upgrade is run.

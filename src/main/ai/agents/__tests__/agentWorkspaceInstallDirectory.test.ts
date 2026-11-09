@@ -1,11 +1,15 @@
+import type * as NodePath from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
+import type * as Platform from '@main/core/platform'
+
 vi.mock('node:path', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:path')>()
+  const actual = await importOriginal<typeof NodePath>()
   return { ...actual.win32, default: actual.win32 }
 })
 vi.mock('@main/core/platform', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/core/platform')>()),
+  ...(await importOriginal<typeof Platform>()),
   isWin: true,
   isMac: false
 }))
@@ -47,6 +51,62 @@ describe('workspace installation directory policy (Windows paths)', () => {
       allowed: false,
       reason: 'install_directory',
       installDirectory: input.installDirectory
+    })
+  })
+
+  it.each([
+    ['D:\\Cherry Studio', '\\\\?\\D:\\Cherry Studio'],
+    ['D:\\Cherry Studio', '\\\\?\\D:\\Cherry Studio\\work'],
+    ['D:\\Cherry Studio', '\\\\.\\D:\\Cherry Studio'],
+    ['D:\\Cherry Studio', '\\\\.\\D:\\Cherry Studio\\work'],
+    ['\\\\srv\\share\\Cherry Studio', '\\\\?\\UNC\\srv\\share\\Cherry Studio'],
+    ['\\\\srv\\share\\Cherry Studio', '\\\\?\\UNC\\srv\\share\\Cherry Studio\\work'],
+    ['\\\\?\\D:\\Cherry Studio', 'D:\\Cherry Studio\\work'],
+    ['\\\\.\\D:\\Cherry Studio', 'D:\\Cherry Studio\\work'],
+    ['\\\\?\\UNC\\srv\\share\\Cherry Studio', '\\\\srv\\share\\Cherry Studio\\work']
+  ])('rejects equivalent Windows namespaces: %s contains %s', (installDirectory, workspacePath) => {
+    expect(evaluate({ ...input, installDirectory, workspacePath })).toEqual({
+      allowed: false,
+      reason: 'install_directory',
+      installDirectory
+    })
+  })
+
+  it.each([
+    ['D:\\Cherry Studio', '\\\\?\\D:\\Cherry Studio2\\work'],
+    ['D:\\Cherry Studio', '\\\\.\\E:\\Cherry Studio\\work'],
+    ['\\\\srv\\share\\Cherry Studio', '\\\\?\\UNC\\srv\\share\\projects\\work']
+  ])('allows outside Windows namespaces: %s excludes %s', (installDirectory, workspacePath) => {
+    expect(evaluate({ ...input, installDirectory, workspacePath })).toEqual({ allowed: true })
+  })
+
+  it.each(['\\\\srv\\share\\Cherry Studio', '\\\\srv\\share\\Cherry Studio\\work'])(
+    'rejects a UNC installation directory and descendants: %s',
+    (workspacePath) => {
+      const installDirectory = '\\\\srv\\share\\Cherry Studio'
+      expect(evaluate({ ...input, installDirectory, workspacePath })).toEqual({
+        allowed: false,
+        reason: 'install_directory',
+        installDirectory
+      })
+    }
+  )
+
+  it.each(['D:\\', 'D:\\work'])('rejects a drive-root installation and descendants: %s', (workspacePath) => {
+    const installDirectory = 'D:\\'
+    expect(evaluate({ ...input, installDirectory, workspacePath })).toEqual({
+      allowed: false,
+      reason: 'install_directory',
+      installDirectory
+    })
+  })
+
+  it('rejects descendants when the installation directory has a trailing separator', () => {
+    const installDirectory = 'D:\\Cherry Studio\\'
+    expect(evaluate({ ...input, installDirectory })).toEqual({
+      allowed: false,
+      reason: 'install_directory',
+      installDirectory
     })
   })
 

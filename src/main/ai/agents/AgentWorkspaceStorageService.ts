@@ -5,7 +5,7 @@ import path from 'node:path'
 import { app } from 'electron'
 
 import { application } from '@application'
-import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { agentWorkspaceService, normalizeWorkspacePathInput } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { newestMtimeMs } from '@main/ai/runtime/orphanSessionReclaim'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
@@ -66,22 +66,28 @@ class AgentWorkspaceStorageService {
   private readonly reservations = new Set<{ paths: readonly string[]; overlaps: (candidate: string) => boolean }>()
 
   registerWorkspace(workspacePath: string, options: { name?: string } = {}) {
-    const resolvedWorkspacePath = path.resolve(workspacePath.trim())
+    let normalizedWorkspacePath = workspacePath
+    let previousWorkspacePath: string
+    // Removing trailing separators can expose another path segment to normalization.
+    do {
+      previousWorkspacePath = normalizedWorkspacePath
+      normalizedWorkspacePath = normalizeWorkspacePathInput(previousWorkspacePath)
+    } while (normalizedWorkspacePath !== previousWorkspacePath)
     // Reject before reservations or writes: in-app upgrades replace the installation directory (NSIS $INSTDIR).
     // Portable builds keep data beside the app without in-app upgrades; unpackaged development is also exempt.
     const policy = evaluateWorkspaceInstallDirectoryPolicy({
-      workspacePath: resolvedWorkspacePath,
+      workspacePath: normalizedWorkspacePath,
       installDirectory: application.getPath('app.install'),
       packaged: app.isPackaged,
       portableBuild: isPortable
     })
     if (!policy.allowed) {
-      throw new WorkspaceInstallDirectoryError(resolvedWorkspacePath, policy.installDirectory)
+      throw new WorkspaceInstallDirectoryError(normalizedWorkspacePath, policy.installDirectory)
     }
-    if ([...this.reservations].some((reservation) => reservation.overlaps(workspacePath.trim()))) {
+    if ([...this.reservations].some((reservation) => reservation.overlaps(normalizedWorkspacePath))) {
       throw new Error('Workspace storage is in use; retry after the operation completes')
     }
-    return agentWorkspaceService.findOrCreateByPathResult(workspacePath, options).workspace
+    return agentWorkspaceService.findOrCreateByPathResult(normalizedWorkspacePath, options).workspace
   }
 
   reserveWorkspaceStorage(

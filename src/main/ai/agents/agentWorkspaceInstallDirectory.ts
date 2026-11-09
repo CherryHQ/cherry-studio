@@ -13,6 +13,13 @@ export type WorkspaceInstallDirectoryPolicy =
   | { allowed: true }
   | { allowed: false; reason: 'install_directory'; installDirectory: string }
 
+// Installation protection must recognize equivalent Windows namespaces here
+// without changing shared path comparison semantics for other consumers.
+function normalizeWindowsNamespacePath(value: string): string {
+  if (/^\\\\\?\\UNC\\/i.test(value)) return `\\\\${value.slice(8)}`
+  return value.replace(/^\\\\[?.]\\/, '')
+}
+
 export function evaluateWorkspaceInstallDirectoryPolicy({
   workspacePath,
   installDirectory,
@@ -22,7 +29,7 @@ export function evaluateWorkspaceInstallDirectoryPolicy({
   if (!packaged || portableBuild || !installDirectory || !path.isAbsolute(installDirectory)) {
     return { allowed: true }
   }
-  return isSameOrInside(workspacePath, installDirectory)
+  return isSameOrInside(normalizeWindowsNamespacePath(workspacePath), normalizeWindowsNamespacePath(installDirectory))
     ? { allowed: false, reason: 'install_directory', installDirectory }
     : { allowed: true }
 }

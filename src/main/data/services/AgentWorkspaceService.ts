@@ -59,6 +59,21 @@ function normalizeWorkspaceName(rawName: string): string {
   return trimmed
 }
 
+export function normalizeWorkspacePathInput(rawPath: string): string {
+  const trimmed = rawPath.trim()
+  if (!trimmed) {
+    throw DataApiErrorFactory.validation({ path: ['Workspace path is required'] })
+  }
+  if (!path.isAbsolute(trimmed)) {
+    throw DataApiErrorFactory.validation({ path: ['Workspace path must be absolute'] })
+  }
+  const normalized = path.normalize(trimmed)
+  const root = path.parse(normalized).root
+  let end = normalized.length
+  while (end > root.length && /[\\/]/.test(normalized[end - 1])) end -= 1
+  return normalized.slice(0, end)
+}
+
 export class AgentWorkspaceService {
   relocateSystemWorkspaceTx(tx: DbOrTx, id: string, oldPath: string, newPath: string): void {
     const result = tx
@@ -96,18 +111,7 @@ export class AgentWorkspaceService {
   }
 
   private normalizeWorkspacePath(rawPath: string): string {
-    const trimmed = rawPath.trim()
-    if (!trimmed) {
-      throw DataApiErrorFactory.validation({ path: ['Workspace path is required'] })
-    }
-    if (!path.isAbsolute(trimmed)) {
-      throw DataApiErrorFactory.validation({ path: ['Workspace path must be absolute'] })
-    }
-    const normalized = path.normalize(trimmed)
-    const root = path.parse(normalized).root
-    let end = normalized.length
-    while (end > root.length && /[\\/]/.test(normalized[end - 1])) end -= 1
-    return normalized.slice(0, end)
+    return normalizeWorkspacePathInput(rawPath)
   }
 
   list(options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceEntity[] {
