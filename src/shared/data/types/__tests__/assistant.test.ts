@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { AssistantIdSchema, AssistantSchema, DEFAULT_ASSISTANT_SETTINGS } from '../assistant'
+import { AssistantIdSchema, AssistantSchema, AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS } from '../assistant'
 
 describe('AssistantIdSchema', () => {
   it.each([
@@ -46,5 +46,25 @@ describe('AssistantSchema', () => {
 
     expect(AssistantSchema.safeParse(missingEmbed).success).toBe(false)
     expect(AssistantSchema.parse(baseAssistant)).toMatchObject({ modelName })
+  })
+})
+
+describe('assistant image geometry settings', () => {
+  it.each([undefined, null, { aspectRatio: 'ASPECT_16_9' }, { size: '1792x1024' }])('round trips %j', (value) => {
+    expect(
+      AssistantSettingsSchema.parse({ ...DEFAULT_ASSISTANT_SETTINGS, imageGenerationGeometry: value })
+        .imageGenerationGeometry
+    ).toEqual(value)
+  })
+  it.each([
+    {},
+    { size: '' },
+    { aspectRatio: '  ' },
+    { size: '1x1', aspectRatio: 'ASPECT_1_1' },
+    { kind: 'size', value: '1x1' }
+  ])('rejects malformed %j', (value) => {
+    expect(
+      AssistantSettingsSchema.safeParse({ ...DEFAULT_ASSISTANT_SETTINGS, imageGenerationGeometry: value }).success
+    ).toBe(false)
   })
 })

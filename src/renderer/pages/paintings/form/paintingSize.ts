@@ -1,8 +1,9 @@
+import { deriveChipLabel, parseRatio } from '@renderer/utils/imageSize'
+
 import type { PaintingData } from '../model/types/paintingData'
 import { type BaseConfigItem, isOptionsConfigItem, type OptionsConfigItem } from './baseConfigItem'
 import { controlValue, optionalFiniteNumber } from './fieldValue'
 import { resolveOptions } from './resolveOptions'
-import { deriveChipLabel, parseRatio } from './sizeLabel'
 
 /**
  * Localized chip label for a single size-option value — the shared path behind

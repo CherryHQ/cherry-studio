@@ -76,6 +76,38 @@ function useGeneratedImageUrls(items: Array<{ id: string; name: string }>): {
   return state
 }
 
+function ImageDimensions({ url }: { url: string }) {
+  const { t } = useTranslation()
+  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null | undefined>()
+  useEffect(() => {
+    const image = new Image()
+    setDimensions(undefined)
+    image.onload = () => setDimensions({ width: image.naturalWidth, height: image.naturalHeight })
+    image.onerror = () => setDimensions(null)
+    image.src = url
+    return () => {
+      image.onload = null
+      image.onerror = null
+    }
+  }, [url])
+  if (dimensions === undefined) return null
+  if (dimensions === null) return <NoteText>{t('chat.input.tools.generate_image.dimensions_unavailable')}</NoteText>
+  const { width, height } = dimensions
+  let a = width
+  let b = height
+  while (b) [a, b] = [b, a % b]
+  const divisor = width && height ? a : 1
+  return (
+    <NoteText>
+      {t('chat.input.tools.generate_image.actual_dimensions', {
+        width,
+        height,
+        ratio: `${width / divisor}:${height / divisor}`
+      })}
+    </NoteText>
+  )
+}
+
 const NoteText = ({ children }: { children: React.ReactNode }) => (
   <span className="flex min-w-0 items-center py-0.5 text-[13px] text-muted-foreground leading-5">{children}</span>
 )
@@ -133,6 +165,9 @@ export const MessageGenerateImageToolTitle = ({
           ))}
         </div>
       )}
+      {images.map((image, index) => (
+        <ImageDimensions key={`${image.url}-${index}`} url={image.url} />
+      ))}
     </div>
   )
 }

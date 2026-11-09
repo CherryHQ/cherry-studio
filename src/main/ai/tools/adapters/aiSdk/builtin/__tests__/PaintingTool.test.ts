@@ -168,6 +168,23 @@ describe('generate_image', () => {
     )
   })
 
+  it('uses geometry from the request assistant snapshot', async () => {
+    generateImage.mockResolvedValue({ files: [] })
+    const selectedTool = buildTool(generateSupport)
+    const execute = selectedTool.execute as (args: unknown, options: ToolExecutionOptions) => Promise<unknown>
+    await execute(
+      { prompt: 'a cat' },
+      {
+        ...makeOptions(),
+        experimental_context: {
+          requestId: 'r1',
+          assistant: { settings: { imageGenerationGeometry: { size: '1792x1024' } } }
+        }
+      }
+    )
+    expect(generateImage).toHaveBeenCalledWith(expect.objectContaining({ paramValues: { size: '1792x1024' } }))
+  })
+
   it('maps dynamic model params into the canonical parameter bag', async () => {
     generateImage.mockResolvedValue({ files: [] })
 

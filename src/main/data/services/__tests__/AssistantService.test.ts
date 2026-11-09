@@ -868,6 +868,19 @@ describe('AssistantDataService', () => {
   })
 
   describe('duplicate', () => {
+    it('retains a saved image geometry through creation, update and duplication', () => {
+      const created = assistantDataService.create({
+        name: 'Geometry',
+        settings: { ...DEFAULT_ASSISTANT_SETTINGS, imageGenerationGeometry: { size: '1792x1024' } }
+      })
+      expect(assistantDataService.getById(created.id).settings.imageGenerationGeometry).toEqual({ size: '1792x1024' })
+      assistantDataService.update(created.id, { settings: { imageGenerationGeometry: { aspectRatio: 'ASPECT_16_9' } } })
+      const duplicate = assistantDataService.duplicate(created.id, { name: 'Geometry copy' })
+      expect(assistantDataService.getById(duplicate.id).settings.imageGenerationGeometry).toEqual({
+        aspectRatio: 'ASPECT_16_9'
+      })
+    })
+
     it('atomically copies Assistant state, relations, and contextual prompt order', async () => {
       const groupId = '11111111-1111-4111-8111-111111111111'
       await seedAssistantGroup(groupId, 'work')

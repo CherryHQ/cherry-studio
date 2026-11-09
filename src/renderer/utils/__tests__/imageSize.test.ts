@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { deriveChipLabel } from '../sizeLabel'
+import { deriveChipLabel } from '../imageSize'
 
 /**
  * Locks the single-label contract: every chip shows exactly one concise

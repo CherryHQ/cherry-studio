@@ -46,6 +46,16 @@ describe('AssistantMappings', () => {
       expect(result.knowledgeBases).toStrictEqual([{ assistantId: 'ast-1', knowledgeBaseId: 'kb-1' }])
     })
 
+    it('retains valid image geometry when importing settings', () => {
+      const source = {
+        id: 'ast-image',
+        settings: { temperature: 0.7, imageGenerationGeometry: { aspectRatio: 'ASPECT_16_9' } }
+      }
+      expect(transformAssistant(source).assistant.settings.imageGenerationGeometry).toEqual({
+        aspectRatio: 'ASPECT_16_9'
+      })
+    })
+
     it('should handle minimal assistant (only required fields)', () => {
       const result = transformAssistant({ id: 'ast-2', name: 'Minimal' })
 
