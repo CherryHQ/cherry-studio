@@ -157,7 +157,16 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
                   toast.error(message)
                   return
                 }
-                toastAppError(t('richEditor.imageUploader.invalidType'), err, {
+                const code = (err as { code?: unknown }).code
+                if (code === 'too-many-files') {
+                  toast.error(t('richEditor.imageUploader.tooManyFiles'))
+                  return
+                }
+                const summary =
+                  code === 'file-invalid-type'
+                    ? t('richEditor.imageUploader.invalidType')
+                    : t('richEditor.imageUploader.uploadError')
+                toastAppError(summary, err, {
                   source: 'richEditor.image',
                   operation: 'richEditor.image.validate'
                 })

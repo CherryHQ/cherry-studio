@@ -3666,6 +3666,7 @@
   "richEditor.imageUploader.processing": "Elaborazione dell'immagine...",
   "richEditor.imageUploader.title": "Aggiungi immagine",
   "richEditor.imageUploader.tooLarge": "L'immagine non può superare 10 MB",
+  "richEditor.imageUploader.tooManyFiles": "È possibile caricare una sola immagine alla volta",
   "richEditor.imageUploader.upload": "Carica",
   "richEditor.imageUploader.uploadError": "Caricamento dell'immagine non riuscito",
   "richEditor.imageUploader.uploadHint": "Supporta JPG, PNG, GIF e altri formati, massimo 10 MB",

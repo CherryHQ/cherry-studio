@@ -92,9 +92,21 @@ export function paintingDoctorModel(
   return paintingImageOnly(resolved) ? { modelId, imageOnly: true } : { modelId }
 }
 
+/** Record and catalog failures are not generation faults; they keep their own wording. */
+const OPERATION_FAILED_KEYS: Readonly<Record<string, string>> = {
+  'painting.persist': 'common.save_failed',
+  'painting.save': 'common.save_failed',
+  'painting.delete': 'common.delete_failed',
+  'painting.model.load': 'paintings.req_error_model'
+}
+
 export function presentPaintingGenerateError(error: unknown, meta: PaintingErrorPresentation = {}) {
   const normalized = normalizePaintingGenerateError(error)
-  const message = translatePaintingGenerateError(normalized)
+  const operationKey = meta.operation ? OPERATION_FAILED_KEYS[meta.operation] : undefined
+  const message =
+    operationKey && !(error instanceof PaintingGenerateError)
+      ? i18n.t(operationKey)
+      : translatePaintingGenerateError(normalized)
   const original =
     normalized instanceof PaintingGenerateError && normalized.cause !== undefined ? normalized.cause : error
   const params = summarizeErrorParams(meta.params, PAINTING_ERROR_PARAM_KEYS)

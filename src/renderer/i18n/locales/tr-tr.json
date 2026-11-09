@@ -3666,6 +3666,7 @@
   "richEditor.imageUploader.processing": "Görsel işleniyor...",
   "richEditor.imageUploader.title": "Görsel ekle",
   "richEditor.imageUploader.tooLarge": "Görsel boyutu 10MB'ı aşamaz",
+  "richEditor.imageUploader.tooManyFiles": "Aynı anda yalnızca bir görsel yüklenebilir",
   "richEditor.imageUploader.upload": "Yükle",
   "richEditor.imageUploader.uploadError": "Görsel yüklenemedi",
   "richEditor.imageUploader.uploadHint": "JPG, PNG, GIF ve diğer biçimleri destekler; en fazla 10MB",

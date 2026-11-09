@@ -3666,6 +3666,7 @@
   "richEditor.imageUploader.processing": "正在处理图片...",
   "richEditor.imageUploader.title": "添加图片",
   "richEditor.imageUploader.tooLarge": "图片大小不能超过 10MB",
+  "richEditor.imageUploader.tooManyFiles": "一次只能上传一张图片",
   "richEditor.imageUploader.upload": "上传",
   "richEditor.imageUploader.uploadError": "图片上传失败",
   "richEditor.imageUploader.uploadHint": "支持 JPG、PNG、GIF 等格式，最大 10MB",

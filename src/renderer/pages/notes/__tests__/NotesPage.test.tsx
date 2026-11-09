@@ -834,10 +834,11 @@ describe('NotesPage print payloads', () => {
         error: cause,
         message: 'notes.save_failure.description',
         source: 'notes',
-        operation: 'notes.file.write',
-        recordId: '/notes/note.md'
+        operation: 'notes.file.write'
       })
     )
+    // The note path is a home-directory path; it must stay out of the uploadable snapshot.
+    expect(detailMocks.open.mock.calls[0][0].recordId).toBeUndefined()
 
     detailMocks.open.mockClear()
     rerender(<NotesPage />)
@@ -861,8 +862,7 @@ describe('NotesPage print payloads', () => {
           error: cause,
           message: 'notes.save_failure.metadata_pending',
           source: 'notes',
-          operation: 'notes.metadata.recover',
-          recordId: '/notes/note.md'
+          operation: 'notes.metadata.recover'
         })
       )
     )

@@ -3666,6 +3666,7 @@
   "richEditor.imageUploader.processing": "写真を扱う...",
   "richEditor.imageUploader.title": "写真を追加します",
   "richEditor.imageUploader.tooLarge": "画像サイズは10MBを超えることはできません",
+  "richEditor.imageUploader.tooManyFiles": "一度にアップロードできる画像は1枚のみです",
   "richEditor.imageUploader.upload": "アップロード",
   "richEditor.imageUploader.uploadError": "画像のアップロードに失敗しました",
   "richEditor.imageUploader.uploadHint": "JPG、PNG、GIFおよびその他の形式をサポートし、最大10MB",

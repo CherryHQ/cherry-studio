@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type PreviewError, type PreviewSelection } from '@cherrystudio/file-preview/core'
@@ -36,15 +36,22 @@ export default function ElectronFilePreview({
   onSelectionReference
 }: FilePreviewPluginProps) {
   const { i18n, t } = useTranslation()
-  const [previewError, setPreviewError] = useState<PreviewError | null>(null)
-  useEffect(() => {
-    setPreviewError(null)
-  }, [filePath, refreshKey])
   const sourceMetadata = metadataRequest ?? metadata
   const source = useMemo(
     () => createElectronPreviewSource(filePath, fileName, sourceMetadata),
     [filePath, fileName, sourceMetadata]
   )
+  const previewRefreshKey = metadataRequest ? undefined : refreshKey
+  // Keyed like Preview's own failure, so a reload of the same file drops the stale action.
+  const [previewError, setPreviewError] = useState<{
+    error: PreviewError
+    source: typeof source
+    refreshKey: number | undefined
+  } | null>(null)
+  const currentError =
+    previewError?.source === source && previewError.refreshKey === previewRefreshKey ? previewError.error : null
+  // A size limit is a preview policy, not a fault for Doctor.
+  const faultError = currentError?.code === 'too_large' ? null : currentError
   const onSelection = useCallback(
     (selection: PreviewSelection | null) => {
       if (!selection) {
@@ -100,23 +107,23 @@ export default function ElectronFilePreview({
     <div className="relative h-full min-h-0">
       <Preview
         source={source}
-        refreshKey={metadataRequest ? undefined : refreshKey}
+        refreshKey={previewRefreshKey}
         locale={i18n.language}
         resources={resources}
         options={previewOptions}
         onSelection={onSelectionReference ? onSelection : undefined}
         onDiagnostic={onDiagnostic}
-        onError={setPreviewError}
+        onError={(error) => setPreviewError({ error, source, refreshKey: previewRefreshKey })}
         onRequestOpen={onRequestOpen}
       />
-      {previewError ? (
+      {faultError ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-6 z-10 flex justify-center">
           <div className="pointer-events-auto">
             <ErrorDetailAction
-              error={previewError}
+              error={faultError}
               message={t('file_preview.load_error.description')}
               source="file.preview"
-              operation={`file.preview.${previewError.code}`}
+              operation={`file.preview.${faultError.code}`}
             />
           </div>
         </div>

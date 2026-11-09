@@ -3666,6 +3666,7 @@
   "richEditor.imageUploader.processing": "Đang xử lý hình ảnh...",
   "richEditor.imageUploader.title": "Thêm một hình ảnh",
   "richEditor.imageUploader.tooLarge": "Kích thước hình ảnh không được vượt quá 10MB",
+  "richEditor.imageUploader.tooManyFiles": "Chỉ có thể tải lên một hình ảnh mỗi lần",
   "richEditor.imageUploader.upload": "Tải lên",
   "richEditor.imageUploader.uploadError": "Tải ảnh thất bại",
   "richEditor.imageUploader.uploadHint": "Hỗ trợ định dạng JPG, PNG, GIF và các định dạng khác, tối đa 10MB",

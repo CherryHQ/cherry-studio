@@ -3666,6 +3666,7 @@
   "richEditor.imageUploader.processing": "กำลังประมวลผลรูปภาพ...",
   "richEditor.imageUploader.title": "เพิ่มรูปภาพ",
   "richEditor.imageUploader.tooLarge": "ขนาดรูปภาพต้องไม่เกิน 10MB",
+  "richEditor.imageUploader.tooManyFiles": "อัปโหลดรูปภาพได้ครั้งละหนึ่งรูปเท่านั้น",
   "richEditor.imageUploader.upload": "อัปโหลด",
   "richEditor.imageUploader.uploadError": "อัปโหลดรูปภาพไม่สำเร็จ",
   "richEditor.imageUploader.uploadHint": "รองรับ JPG, PNG, GIF และรูปแบบอื่น ๆ สูงสุด 10MB",

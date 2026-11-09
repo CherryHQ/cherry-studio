@@ -3666,6 +3666,7 @@
   "richEditor.imageUploader.processing": "Επεξεργασία εικόνας...",
   "richEditor.imageUploader.title": "προσθήκη εικόνας",
   "richEditor.imageUploader.tooLarge": "Το μέγεθος της εικόνας δεν πρέπει να υπερβαίνει τα 10MB",
+  "richEditor.imageUploader.tooManyFiles": "Μπορείτε να ανεβάσετε μόνο μία εικόνα κάθε φορά",
   "richEditor.imageUploader.upload": "ανέβασμα",
   "richEditor.imageUploader.uploadError": "Η μεταφόρτωση της εικόνας απέτυχε",
   "richEditor.imageUploader.uploadHint": "Υποστηρίζει μορφές όπως JPG, PNG, GIF, μέγιστο μέγεθος 10MB",

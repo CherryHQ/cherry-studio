@@ -3666,6 +3666,7 @@
   "richEditor.imageUploader.processing": "Traitement de l'image en cours...",
   "richEditor.imageUploader.title": "ajouter une image",
   "richEditor.imageUploader.tooLarge": "La taille de l'image ne doit pas dépasser 10 Mo",
+  "richEditor.imageUploader.tooManyFiles": "Vous ne pouvez téléverser qu'une seule image à la fois",
   "richEditor.imageUploader.upload": "télécharger",
   "richEditor.imageUploader.uploadError": "Échec du téléversement de l'image",
   "richEditor.imageUploader.uploadHint": "prend en charge les formats JPG, PNG, GIF, etc., jusqu'à 10 Mo max.",

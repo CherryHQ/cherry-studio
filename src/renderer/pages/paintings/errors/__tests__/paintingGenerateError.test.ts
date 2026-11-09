@@ -55,6 +55,22 @@ describe('translatePaintingGenerateError', () => {
     )
   })
 
+  it.each([
+    ['painting.delete', 'common.delete_failed'],
+    ['painting.model.load', 'paintings.req_error_model']
+  ])('labels a %s failure with its own message, not image generation', (operation, key) => {
+    presentPaintingGenerateError(new Error('SQLITE_BUSY'), { operation, recordId: 'p1' })
+
+    expect(popup.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: i18n.t(key),
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({ operation, message: 'SQLITE_BUSY', recordId: 'p1' })
+        })
+      })
+    )
+  })
+
   it('wraps a non-domain error without dropping its message', () => {
     const error = new Error('socket hang up')
     presentPaintingGenerateError(error)

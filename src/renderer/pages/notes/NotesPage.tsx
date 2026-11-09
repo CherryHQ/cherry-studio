@@ -1124,7 +1124,6 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
                 )}
                 source="notes"
                 operation={fileSession.metadataRecoveryPending ? 'notes.metadata.recover' : 'notes.file.write'}
-                recordId={activeFilePath || undefined}
               />
               {!fileSession.metadataRecoveryPending && (
                 <Button
