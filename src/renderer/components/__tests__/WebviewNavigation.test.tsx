@@ -104,6 +104,15 @@ describe('Browser address history', () => {
     expect(loadURL).toHaveBeenCalledWith('http://localhost:3000/new')
   })
 
+  it('navigates to a bare IPv6 loopback address', async () => {
+    const user = userEvent.setup()
+    const { address, loadURL } = setup(false)
+    await user.click(address)
+    await user.clear(address)
+    await user.type(address, '::1/status{Enter}')
+    expect(loadURL).toHaveBeenCalledWith('http://[::1]/status')
+  })
+
   it('dismisses suggestions with Escape and restores the current address without navigation', async () => {
     const user = userEvent.setup()
     const { address, loadURL } = setup()

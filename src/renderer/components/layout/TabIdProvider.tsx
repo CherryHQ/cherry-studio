@@ -1,7 +1,13 @@
 import type { ReactNode } from 'react'
 
-import { TabIdContext } from '@renderer/hooks/tab'
+import { useCommandRuntime } from '@renderer/hooks/command'
+import { TabCommandRuntimeContext, TabIdContext } from '@renderer/hooks/tab'
 
 export function TabIdProvider({ tabId, children }: { tabId: string; children: ReactNode }) {
-  return <TabIdContext value={tabId}>{children}</TabIdContext>
+  const runtime = useCommandRuntime()
+  return (
+    <TabIdContext value={tabId}>
+      <TabCommandRuntimeContext value={runtime}>{children}</TabCommandRuntimeContext>
+    </TabIdContext>
+  )
 }
