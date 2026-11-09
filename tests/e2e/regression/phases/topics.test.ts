@@ -128,8 +128,9 @@ test(...caseDefinition('MP-05'), async ({ app, mainWindow }, testInfo) => {
         (await scroller.count()) > 0
           ? await collectVirtualizedText(page, scroller)
           : await page.evaluate(() => document.body.innerText)
+      const normalizedList = listed.replace(/\s+/g, ' ')
       expect(
-        sessions.filter(({ name }) => !listed.includes(name)).map(({ name }) => name),
+        sessions.filter(({ name }) => !normalizedList.includes(name.replace(/\s+/g, ' '))).map(({ name }) => name),
         'Every stored session must be listed'
       ).toEqual([])
     } else {

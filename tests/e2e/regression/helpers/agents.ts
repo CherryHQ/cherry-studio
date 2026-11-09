@@ -132,7 +132,7 @@ export async function createAgent(
   )
   expect(agents.status).toBe(200)
   if ((agents.data as { items: { name: string }[] }).items.some(({ name }) => name === options.name)) {
-    await selectAgent(page, options.name)
+    await startNewAgentTask(page, options.name)
     return
   }
 
@@ -150,7 +150,7 @@ export async function createAgent(
   })) as IpcResult<AgentEntity>
   expect(created.ok, JSON.stringify(created)).toBe(true)
   await page.reload()
-  await selectAgent(page, options.name)
+  await startNewAgentTask(page, options.name)
 }
 
 export async function selectAgentWorkspace(app: RegressionApp, page: Page): Promise<void> {
