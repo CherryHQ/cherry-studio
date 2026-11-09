@@ -5928,6 +5928,8 @@
   "settings.skills.launchFailed": "{{name}} denenemedi",
   "settings.skills.mirrorToggleFailed": "{{name}} becerisi eşitlemesi başarısız oldu",
   "settings.skills.notFound": "Beceri bulunamadı",
+  "settings.skills.note.label": "Kişisel not",
+  "settings.skills.note.placeholder": "Bu beceriyi seçmek için bir hatırlatıcı ekleyin",
   "settings.skills.readOnly": "Salt okunur",
   "settings.skills.remote.applyFailed": "Beceri güncellenemedi",
   "settings.skills.remote.check": "Güncellemeleri denetle",

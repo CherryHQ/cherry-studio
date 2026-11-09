@@ -5928,6 +5928,8 @@
   "settings.skills.launchFailed": "ลองใช้ {{name}} ไม่สำเร็จ",
   "settings.skills.mirrorToggleFailed": "ซิงก์สกิล {{name}} ไม่สำเร็จ",
   "settings.skills.notFound": "ไม่พบ Skill",
+  "settings.skills.note.label": "บันทึกส่วนตัว",
+  "settings.skills.note.placeholder": "เพิ่มข้อความเตือนสำหรับการเลือกทักษะนี้",
   "settings.skills.readOnly": "อ่านอย่างเดียว",
   "settings.skills.remote.applyFailed": "อัปเดต Skill ไม่สำเร็จ",
   "settings.skills.remote.check": "ตรวจสอบอัปเดต",
