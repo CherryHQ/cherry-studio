@@ -15,7 +15,8 @@ import {
 
 type Range = { from: number; to: number }
 type Span = Range & { className: string }
-type Marker = Range & { reveal: Range }
+/** `collapsesLine` removes the whole line while the marker is hidden, so it leaves no blank row. */
+type Marker = Range & { reveal: Range; collapsesLine?: boolean }
 
 /** Spans and markers are line-relative, so an untouched line compares equal after an edit above it. */
 interface LineMarkup {
@@ -79,9 +80,11 @@ function collectMarkup({ text, lines, tree }: MarkdownSession): LineMarkup[] {
       }
     })
   }
-  const addMarker = (from: number, to: number, reveal: Range) => {
+  const addMarker = (from: number, to: number, reveal: Range, options?: Pick<Marker, 'collapsesLine'>) => {
     const documentReveal = documentRange(reveal)
-    forEachLineSlice(from, to, (index, slice) => markup[index].markers.push({ ...slice, reveal: documentReveal }))
+    forEachLineSlice(from, to, (index, slice) =>
+      markup[index].markers.push({ ...slice, ...options, reveal: documentReveal })
+    )
   }
   const addDelimited = (node: SyntaxNode, markName: string, className: string) => {
     const marks = node.getChildren(markName)
@@ -148,6 +151,7 @@ function collectMarkup({ text, lines, tree }: MarkdownSession): LineMarkup[] {
           const underline = ref.node.getChild('HeaderMark')
           if (underline) {
             addSpan(ref.from, underline.from - 1, `composer-md-heading composer-md-heading-${setextLevel}`)
+            addMarker(underline.from, underline.to, ref.node, { collapsesLine: true })
           }
         }
       }
@@ -172,16 +176,18 @@ function renderLine(line: SourceLine, markup: LineMarkup, selection: Selection):
   const base = line.blockPosition + 1
   const inline = (range: Range, className: string) =>
     Decoration.inline(base + range.from, base + range.to, { class: className })
+  const isCollapsed = markup.markers.some((marker) => marker.collapsesLine && !isRevealed(marker, selection))
+  const blockClasses = isCollapsed ? [...markup.blockClasses, 'composer-md-line-hidden'] : markup.blockClasses
 
   return [
     ...markup.spans.map((span) => inline(span, span.className)),
     ...markup.markers.map((marker) =>
       inline(marker, isRevealed(marker, selection) ? SYNTAX_CLASS : HIDDEN_SYNTAX_CLASS)
     ),
-    ...(markup.blockClasses.length > 0
+    ...(blockClasses.length > 0
       ? [
           Decoration.node(line.blockPosition, line.blockPosition + line.blockSize, {
-            class: markup.blockClasses.join(' ')
+            class: blockClasses.join(' ')
           })
         ]
       : [])

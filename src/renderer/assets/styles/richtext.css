@@ -263,6 +263,12 @@
   background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat;
 }
 
+.composer-tiptap.tiptap p.composer-md-line-hidden {
+  height: 0;
+  overflow: hidden;
+  line-height: 0 !important;
+}
+
 .tiptap img:not([data-file-token-icon-thumbnail]) {
   max-width: 800px;
   width: 100%;

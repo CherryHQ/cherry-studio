@@ -264,6 +264,49 @@ describe('Markdown live preview', () => {
     })
   })
 
+  describe('Setext headings', () => {
+    const isCollapsed = (editor: ReturnType<typeof createEditor>, line: number) =>
+      lineElement(editor, line).classList.contains('composer-md-line-hidden')
+
+    it.each(['---', '==='])('collapses the %s underline while the caret is outside the heading', (underline) => {
+      const text = `Title\n${underline}\nend`
+      const editor = createEditor(text)
+      caretAt(editor, 2)
+
+      expect(isCollapsed(editor, 1)).toBe(true)
+      expect(serializeComposerDocument(editor).text).toBe(text)
+    })
+
+    it.each([
+      ['the title', 0, 2],
+      ['the underline', 1, 1]
+    ])('shows the underline while the caret is on %s and collapses it afterwards', (_name, line, column) => {
+      const editor = createEditor('Title\n---\nend')
+
+      caretAt(editor, line, column)
+      expect(isCollapsed(editor, 1)).toBe(false)
+      expect(hiddenMarkers(editor)).toEqual([])
+
+      caretAt(editor, 2)
+      expect(isCollapsed(editor, 1)).toBe(true)
+    })
+
+    it('shows the underline while the caret is on any line of a multi-line title', () => {
+      const editor = createEditor('one\ntwo\n---\nend')
+      caretAt(editor, 0, 1)
+
+      expect(isCollapsed(editor, 2)).toBe(false)
+    })
+
+    it('leaves lines with other hidden markers in place', () => {
+      const editor = createEditor('caret\n**bold**\n## Title\n> quote\n\n---')
+      caretAt(editor, 0)
+
+      expect(hiddenMarkers(editor)).toEqual(['**', '**', '## ', '> ', '---'])
+      expect(editor.view.dom.querySelector('.composer-md-line-hidden')).toBeNull()
+    })
+  })
+
   describe('composition', () => {
     const compose = (editor: Editor, type: 'compositionstart' | 'compositionend') =>
       editor.view.dom.dispatchEvent(new CompositionEvent(type, { bubbles: true }))
