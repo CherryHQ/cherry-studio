@@ -5,6 +5,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -108,6 +109,32 @@ export class AgentLifecycleService extends BaseService {
           agentService.notifyReadModelChange([agentId], 'membership')
           return agent
         })
+      )
+    )
+  }
+
+  deleteTaskWithSessions(taskId: string) {
+    return this.runOperation('delete-task:' + taskId, () =>
+      this.withStableSessions(
+        () => agentSessionService.listTaskSessionIds(taskId),
+        async () => {
+          await Promise.all(
+            agentSessionService
+              .listTaskSessionIds(taskId)
+              .map((id) => application.get('AgentSessionRuntimeService').closeSessionForArchive(id))
+          )
+          const result = application.get('DbService').withWriteTx((tx) => {
+            const ids = agentSessionService.listTaskSessionIds(taskId)
+            const trashed = agentSessionService.trashByIdsTx(tx, ids)
+            const deleted = jobScheduleService.deleteTx(tx, taskId)
+            return { ...trashed, deleted }
+          })
+          this.syncSchedules([taskId])
+          agentSessionService.notifyReadModelChange(result.trashedIds, 'membership')
+          await this.finishDeletion(result.trashedIds, result.deliveryResults)
+          return result.deleted
+        },
+        true
       )
     )
   }

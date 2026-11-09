@@ -184,6 +184,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
+      this.input.serviceTier,
       this.input.agentId,
       this.input.servesAcceptedTurn === true
     )
@@ -350,6 +351,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async reconcile(input: {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+    serviceTier?: AgentRuntimeConnectInput['serviceTier']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
@@ -367,6 +369,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+    serviceTier?: AgentRuntimeConnectInput['serviceTier']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
@@ -380,6 +383,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.reasoningEffort ?? 'default',
       input.fastMode === true,
       input.knowledgeBaseIds,
+      input.serviceTier,
       this.input.agentId
     )
     if (!derived.ok) return 'invalid'
