@@ -1,7 +1,7 @@
 import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Scrollbar } from '@cherrystudio/ui'
+import { Button, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { usePreviewHost } from '../../previewContext'
@@ -82,13 +82,15 @@ export function PdfOutline({ className, items, onNavigate, status }: PdfOutlineP
       <h2 className="flex h-10 shrink-0 items-center border-border-subtle border-b px-3 font-medium text-sm">
         {t('file_preview.pdf.outline.title')}
       </h2>
-      <Scrollbar
-        className="min-h-0 flex-1 px-2 py-2"
-        style={
-          options?.bottomInset === 'content'
-            ? { paddingBottom: 'calc(0.5rem + var(--file-preview-bottom-inset, 0px))' }
-            : undefined
-        }>
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewportProps={{
+          className: 'px-2 py-2',
+          style:
+            options?.bottomInset === 'content'
+              ? { paddingBottom: 'calc(0.5rem + var(--file-preview-bottom-inset, 0px))' }
+              : undefined
+        }}>
         {status === 'loading' ? (
           <p role="status" className="px-2 py-1 text-muted-foreground text-xs">
             {t('common.loading')}
@@ -102,7 +104,7 @@ export function PdfOutline({ className, items, onNavigate, status }: PdfOutlineP
         ) : (
           <PdfOutlineList items={items} onNavigate={onNavigate} />
         )}
-      </Scrollbar>
+      </ScrollArea>
     </nav>
   )
 }

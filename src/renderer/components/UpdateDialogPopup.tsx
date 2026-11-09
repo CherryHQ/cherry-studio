@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   Divider,
-  Scrollbar
+  ScrollArea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
@@ -78,9 +78,9 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
           </p>
         </DialogHeader>
         <Divider className="my-0" />
-        <Scrollbar className="min-h-0 max-h-96 overflow-x-hidden pr-2">
+        <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-2' }} className="min-h-0 max-h-96">
           {releaseInfo ? <UpgradeReleaseNotes releaseInfo={releaseInfo} /> : t('update.noReleaseNotes')}
-        </Scrollbar>
+        </ScrollArea>
         <Divider className="my-0" />
         <DialogFooter>
           <Button variant="outline" onClick={onIgnore} disabled={isInstalling}>

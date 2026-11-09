@@ -243,6 +243,109 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.options.headers).toBeUndefined()
   })
 
+  // Catch Fast being dropped by SDK namespaces/allowlists or overwritten by saved custom tiers.
+  describe.each([
+    ['openai-compatible', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'doubao', 'doubao-seed-2-0-pro-260215', 'fast'],
+    ['openai', ENDPOINT_TYPE.OPENAI_RESPONSES, 'doubao', 'doubao-seed-2-0-pro-260215', 'fast'],
+    ['openai', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai-codex', 'gpt-5.4', 'priority']
+  ] as const)('Fast HTTP delivery through %s / %s for %s', (adapter, endpoint, providerId, modelId, fastTier) => {
+    it.each([
+      { fastMode: true, supported: true, transport: 'openai-priority', custom: true, expected: 'fast' },
+      { fastMode: false, supported: true, transport: 'openai-priority', custom: true, expected: 'auto' },
+      { fastMode: true, supported: false, transport: 'openai-priority', custom: false, expected: undefined },
+      { fastMode: true, supported: true, transport: 'claude-code', custom: false, expected: undefined }
+    ] as const)('delivers the selected tier for %j', async ({ fastMode, supported, transport, custom, expected }) => {
+      let sentBody: Record<string, unknown> | undefined
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: {
+          providerId: adapter,
+          providerSettings: {
+            name: adapter === 'openai-compatible' ? providerId : 'openai',
+            apiKey: 'test-key',
+            baseURL: 'https://fast.test/v1',
+            fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+              sentBody = JSON.parse(String(init?.body))
+              return Response.json(
+                endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES
+                  ? {
+                      id: 'resp_fast',
+                      created_at: 0,
+                      model: modelId,
+                      output: [
+                        {
+                          type: 'message',
+                          id: 'msg_fast',
+                          role: 'assistant',
+                          content: [{ type: 'output_text', text: 'ok', annotations: [] }]
+                        }
+                      ],
+                      usage: { input_tokens: 1, output_tokens: 1 }
+                    }
+                  : {
+                      id: 'chat_fast',
+                      created: 0,
+                      model: modelId,
+                      choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }]
+                    }
+              )
+            }
+          }
+        },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const namespace = adapter === 'openai-compatible' ? providerId : 'openai'
+      const result = await buildAgentParams({
+        request: {
+          conversation: CONVERSATION,
+          fastMode,
+          disableTools: true,
+          callOverrides: custom
+            ? { providerOptions: { [namespace]: { serviceTier: 'auto', service_tier: 'auto' } } }
+            : undefined
+        },
+        signal: undefined,
+        provider: makeProvider({
+          id: providerId,
+          fastMode: { transport, serviceTier: fastTier },
+          defaultChatEndpoint: endpoint,
+          endpointConfigs: { [endpoint]: { adapterFamily: adapter, baseUrl: 'https://fast.test/v1' } }
+        }),
+        model: makeModel({
+          id: `${providerId}::${modelId}`,
+          providerId,
+          apiModelId: modelId,
+          endpointTypes: [endpoint],
+          supportsFastMode: supported,
+          maxOutputTokens: 256
+        }),
+        assistant: custom
+          ? makeAssistant({
+              settings: {
+                customParameters: [
+                  { name: 'service_tier', type: 'string', value: 'auto' },
+                  { name: 'route_hint', type: 'string', value: 'preserved' }
+                ]
+              }
+            })
+          : undefined
+      })
+      const generated = await aiCoreGenerateText<AppProviderSettingsMap>(
+        result.sdkConfig.providerId,
+        result.sdkConfig.providerSettings,
+        {
+          ...result.options,
+          model: result.sdkConfig.modelId,
+          prompt: 'Say ok.'
+        }
+      )
+      expect(generated.text).toBe('ok')
+      expect(sentBody?.service_tier).toBe(expected === 'fast' ? fastTier : expected)
+      if (fastMode && supported && transport === 'openai-priority') expect(sentBody).not.toHaveProperty('serviceTier')
+      expect(sentBody?.model).toBe(modelId)
+      if (custom) expect(sentBody?.route_hint).toBe('preserved')
+    })
+  })
+
   it('maps Groq service tiers after assistant custom parameters and before call overrides', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'groq', providerSettings: {} },
@@ -948,6 +1051,79 @@ describe('buildAgentParams standard model parameters', () => {
           expect(body).not.toHaveProperty('top_p')
         }
         expect(body).not.toHaveProperty('topP')
+      }
+    )
+
+    it.each(['flat custom', 'assistant namespace', 'gateway namespace'])(
+      'removes fixed-sampling Claude top-k from %s before serializing the request',
+      async (source) => {
+        let body: Record<string, unknown> | undefined
+        resolveProviderAiSdkConfigMock.mockResolvedValue({
+          config: {
+            providerId: 'anthropic',
+            providerSettings: {
+              fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+                body = JSON.parse(String(init?.body))
+                throw new Error('request captured')
+              }
+            }
+          },
+          credentialReceipt: { attribution: 'unknown' }
+        })
+        const namespace = { topK: 5, top_k: 5, user: 'probe-user' }
+        const result = await buildAgentParams({
+          request: {
+            conversation: CONVERSATION,
+            callOverrides: {
+              maxOutputTokens: 100,
+              ...(source === 'gateway namespace' && { providerOptions: { anthropic: namespace } })
+            }
+          },
+          signal: undefined,
+          provider: makeProvider({
+            id: 'anthropic',
+            defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+          }),
+          model: makeModel({
+            id: 'anthropic::claude-sonnet-5',
+            providerId: 'anthropic',
+            apiModelId: 'claude-sonnet-5'
+          }),
+          assistant:
+            source === 'gateway namespace'
+              ? undefined
+              : makeAssistant({
+                  settings: {
+                    customParameters:
+                      source === 'flat custom'
+                        ? [
+                            { name: 'top_k', type: 'number', value: 5 },
+                            { name: 'user', type: 'string', value: 'probe-user' }
+                          ]
+                        : [{ name: 'anthropic', type: 'json', value: JSON.stringify(namespace) }]
+                  }
+                })
+        })
+        const sdkModel = createAnthropic({
+          apiKey: 'test-key',
+          baseURL: 'https://provider.test/v1',
+          fetch: result.sdkConfig.providerSettings.fetch
+        })('claude-sonnet-5')
+        await expect(
+          sdkModel.doGenerate({
+            prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+            maxOutputTokens: result.options.maxOutputTokens,
+            providerOptions: result.options.providerOptions
+          })
+        ).rejects.toThrow('request captured')
+
+        expect(body).toMatchObject({ model: 'claude-sonnet-5', max_tokens: 100 })
+        expect(body).not.toHaveProperty('top_k')
+        expect(body).not.toHaveProperty('topK')
+        if (source === 'flat custom') expect(body).toHaveProperty('user', 'probe-user')
+        expect(result.options.providerOptions?.anthropic).toMatchObject({ user: 'probe-user' })
+        expect(result.options.providerOptions?.anthropic).not.toHaveProperty('top_k')
+        expect(result.options.providerOptions?.anthropic).not.toHaveProperty('topK')
       }
     )
 
@@ -2140,6 +2316,87 @@ describe('buildAgentParams retained context', () => {
     expect(result.fileAttachments).toEqual([{ fileEntryId: 'fe-1', handle: 'log.txt', displayName: 'log.txt' }])
     expect((result.options.context as RequestContext | undefined)?.persistedOutputPaths?.size).toBe(0)
   })
+})
+
+describe('buildAgentParams — caller-owned context', () => {
+  it.each([undefined, '', 'Explicit client instructions'])(
+    'preserves client system turns with instructions %s',
+    async (instructions) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'openai', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const provider = makeProvider({
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+      })
+      const model = makeModel({
+        apiModelId: 'gpt-5',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+      const clientTools = {
+        tool_search: { description: 'Client-owned lookup', inputSchema: z.object({ query: z.string() }) }
+      }
+      const built = await buildAgentParams({
+        request: {
+          conversation: CONVERSATION,
+          contextOwner: 'caller',
+          callOverrides: {
+            tools: clientTools,
+            providerOptions: instructions === undefined ? undefined : { openai: { instructions } }
+          }
+        },
+        signal: undefined,
+        provider,
+        model
+      })
+      let body: unknown
+      await aiCoreGenerateText<AppProviderSettingsMap>(
+        built.sdkConfig.providerId,
+        {
+          ...built.sdkConfig.providerSettings,
+          apiKey: 'fixture',
+          fetch: async (_url, init) => {
+            body = JSON.parse(String(init?.body))
+            return Response.json({
+              id: 'response',
+              created_at: 0,
+              model: 'gpt-5',
+              output: [],
+              usage: { input_tokens: 1, output_tokens: 0 }
+            })
+          }
+        },
+        {
+          model: built.sdkConfig.modelId,
+          system: built.system,
+          messages: [
+            { role: 'system', content: '<available_skills>actual-skill</available_skills>' },
+            { role: 'user', content: 'First question' },
+            { role: 'assistant', content: 'First answer' },
+            { role: 'system', content: 'Updated client instructions' },
+            { role: 'user', content: 'Which skills?' }
+          ],
+          tools: built.tools,
+          providerOptions: built.options.providerOptions
+        },
+        built.plugins
+      )
+      const wire = z
+        .object({
+          instructions: z.string().optional(),
+          input: z.array(z.object({ role: z.string(), content: z.unknown() })),
+          tools: z.array(z.object({ name: z.string(), strict: z.boolean() }))
+        })
+        .parse(body)
+      expect(wire.instructions).toBe(instructions)
+      expect(wire.input.map((item) => item.role)).toEqual(['developer', 'user', 'assistant', 'developer', 'user'])
+      expect(wire.input[0].content).toBe('<available_skills>actual-skill</available_skills>')
+      expect(wire.input[3].content).toBe('Updated client instructions')
+      expect(wire.tools).toEqual([{ name: 'tool_search', strict: false }])
+    }
+  )
 })
 
 describe('buildAgentParams — Responses instructions delivery', () => {
