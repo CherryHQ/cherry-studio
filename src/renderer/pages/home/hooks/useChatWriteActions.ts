@@ -275,13 +275,14 @@ export function useChatWriteActions(params: Params): Result {
       })
       try {
         await patchMessageTrigger({ params: { id: messageId }, body: { data: { parts: editedParts } } })
+        setMessages((messages) => messages.map((msg) => (msg.id === messageId ? { ...msg, parts: editedParts } : msg)))
         logger.info('Edited message', { messageId, partCount: editedParts.length })
       } catch (err) {
         await rollbackBranch()
         throw err
       }
     },
-    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch]
+    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages]
   )
 
   const capabilityBody = useMemo<Record<string, unknown>>(
@@ -308,8 +309,8 @@ export function useChatWriteActions(params: Params): Result {
         target?.role === 'assistant' &&
         targetStatus !== 'pending' &&
         (targetStatus === 'error' || targetStatus === 'paused' || (target.parts?.length ?? 0) === 0)
-      // Composer selection only overrides failed retries.
-      const regenerateModelId = options?.modelId ?? (isFailedAssistant ? composerModelId : undefined)
+      // Pending replies are not a regeneration target; otherwise use the current composer selection.
+      const regenerateModelId = options?.modelId ?? (targetStatus === 'pending' ? undefined : composerModelId)
       const retryModelId =
         target?.role === 'assistant'
           ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
