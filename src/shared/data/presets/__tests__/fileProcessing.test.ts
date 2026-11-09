@@ -88,6 +88,19 @@ describe('FileProcessorTemplatesSchema', () => {
     )
   })
 
+  it('keeps the Doc2X v3 default and exposes v3 export options', () => {
+    const doc2x = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === 'doc2x')
+    const capability = doc2x?.capabilities.find((item) => item.feature === 'document_to_markdown')
+
+    expect(capability).toEqual(
+      expect.objectContaining({
+        formulaLevel: 0,
+        mergeCrossPageForms: false,
+        modelId: 'v3-2026'
+      })
+    )
+  })
+
   it('declares the product PDF page limits for document processors', () => {
     const limits = Object.fromEntries(
       PRESETS_FILE_PROCESSORS.filter((preset) =>

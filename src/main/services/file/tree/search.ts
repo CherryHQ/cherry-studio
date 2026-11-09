@@ -8,10 +8,9 @@
  *   - List mode (`searchPattern === '.'`, the default): enumerate the
  *     directory tree. No result cap by default — set `maxEntries` only when
  *     truncation is desired (e.g. autocomplete dropdowns).
- *   - Search mode (`searchPattern` is a user query): ripgrep glob pre-filter
- *     plus JS-side fuzzy scoring. Caller controls `maxEntries` for the
- *     dropdown size; the fuzzy branch can scan all files before JS-side
- *     fuzzy matching when the glob misses everything.
+ *   - Search mode (`searchPattern` is a user query): ripgrep enumerates
+ *     eligible files before JS-side fuzzy matching and scoring. Caller
+ *     controls `maxEntries` for the dropdown size.
  */
 
 import { spawn } from 'node:child_process'
@@ -95,7 +94,7 @@ interface RipgrepResult {
   stderr: string
 }
 
-async function executeRipgrep(args: string[]): Promise<RipgrepResult> {
+async function executeRipgrep(args: string[], rootPath: string): Promise<RipgrepResult> {
   const ripgrepBinaryPath = await resolveRipgrepBinary()
   if (!ripgrepBinaryPath) {
     throw new Error('Ripgrep binary not available')
@@ -103,6 +102,7 @@ async function executeRipgrep(args: string[]): Promise<RipgrepResult> {
 
   return new Promise((resolve, reject) => {
     const child = spawn(ripgrepBinaryPath, ['--no-config', '--ignore-case', ...args], {
+      cwd: rootPath,
       env: { ...process.env, ...getBinaryExecutionEnv() },
       stdio: ['pipe', 'pipe', 'pipe']
     })
@@ -157,7 +157,7 @@ function getUsableRipgrepOutput(result: RipgrepResult): string {
   return result.stdout
 }
 
-function buildRipgrepBaseArgs(options: ResolvedOptions, resolvedPath: string): string[] {
+function buildRipgrepBaseArgs(options: ResolvedOptions): string[] {
   const args: string[] = ['--files']
 
   if (options.includeHidden) {
@@ -175,7 +175,7 @@ function buildRipgrepBaseArgs(options: ResolvedOptions, resolvedPath: string): s
     args.push('--max-depth', options.maxDepth.toString())
   }
 
-  args.push(resolvedPath)
+  args.push('.')
 
   return args
 }
@@ -247,16 +247,11 @@ async function searchByFilename(resolvedPath: string, options: ResolvedOptions):
       args.push('--max-depth', options.maxDepth.toString())
     }
 
-    args.push(resolvedPath)
+    args.push('.')
 
-    const output = getUsableRipgrepOutput(await executeRipgrep(args))
+    const output = getUsableRipgrepOutput(await executeRipgrep(args, resolvedPath))
 
-    files.push(
-      ...output
-        .split('\n')
-        .filter((line) => line.trim())
-        .map((line) => line.replace(/\\/g, '/'))
-    )
+    files.push(...parseRipgrepPaths(output, resolvedPath))
   }
 
   if (options.includeDirectories) {
@@ -346,23 +341,17 @@ function getFuzzyMatchScore(filePath: string, query: string): number {
   return score
 }
 
-function queryToGlobPattern(query: string): string {
-  // Escape special glob chars (including ! for negation), then interleave with *.
-  const escaped = query.replace(/[[\]{}()*+?.,\\^$|#!]/g, '\\$&')
-  return '*' + escaped.split('').join('*') + '*'
-}
-
 interface ScoredSearchEntry {
   path: string
   isDirectory: boolean
   score: number
 }
 
-function parseRipgrepPaths(output: string): string[] {
+function parseRipgrepPaths(output: string, rootPath: string): string[] {
   return output
     .split('\n')
     .filter((line) => line.trim())
-    .map((line) => line.replace(/\\/g, '/'))
+    .map((line) => path.resolve(rootPath, line).replace(/\\/g, '/'))
 }
 
 function scoreFuzzyPaths(
@@ -389,15 +378,9 @@ function compareScoredSearchEntries(a: ScoredSearchEntry, b: ScoredSearchEntry):
 
 async function searchFuzzyFiles(resolvedPath: string, options: ResolvedOptions): Promise<ScoredSearchEntry[]> {
   if (!options.includeFiles) return []
-  const args = buildRipgrepBaseArgs(options, resolvedPath)
-  const globPattern = queryToGlobPattern(options.searchPattern)
-  args.splice(args.length - 1, 0, '--iglob', globPattern)
-  const firstOutput = getUsableRipgrepOutput(await executeRipgrep(args))
-  const firstCandidates = scoreFuzzyPaths(parseRipgrepPaths(firstOutput), resolvedPath, options.searchPattern, false)
-  if (firstCandidates.length > 0) return firstCandidates
-  logger.debug('Fuzzy glob returned no results, scanning all files before JS fuzzy matching')
-  const fallbackOutput = getUsableRipgrepOutput(await executeRipgrep(buildRipgrepBaseArgs(options, resolvedPath)))
-  return scoreFuzzyPaths(parseRipgrepPaths(fallbackOutput), resolvedPath, options.searchPattern, false)
+  const args = ['--no-require-git', ...buildRipgrepBaseArgs(options)]
+  const output = getUsableRipgrepOutput(await executeRipgrep(args, resolvedPath))
+  return scoreFuzzyPaths(parseRipgrepPaths(output, resolvedPath), resolvedPath, options.searchPattern, false)
 }
 
 async function searchFuzzyDirectories(resolvedPath: string, options: ResolvedOptions): Promise<ScoredSearchEntry[]> {

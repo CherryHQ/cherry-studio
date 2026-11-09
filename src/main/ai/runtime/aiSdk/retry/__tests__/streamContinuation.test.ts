@@ -142,3 +142,140 @@ describe('withStreamContinuation', () => {
     expect(doStream).toHaveBeenCalledTimes(1)
   })
 })
+
+// Direct reader cancellation does not necessarily abort the provider signal.
+it('does not start another provider call when cancelled during continuation backoff', async () => {
+  vi.useFakeTimers()
+  try {
+    const { model, doStream } = scripted([
+      {
+        parts: [
+          { type: 'text-start', id: 'a' },
+          { type: 'text-delta', id: 'a', delta: 'partial' },
+          { type: 'error', error: new Error('reset') }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text-start', id: 'b' },
+          { type: 'text-delta', id: 'b', delta: 'unwanted' }
+        ]
+      }
+    ])
+    const onRetry = vi.fn()
+    const result = await withStreamContinuation(model, { ...opts, baseDelayMs: 1000, onRetry }).doStream(callOptions)
+    const reader = result.stream.getReader()
+    await reader.read()
+    await reader.read()
+    const pending = reader.read()
+    await vi.waitFor(() => expect(onRetry).toHaveBeenCalledOnce())
+    await reader.cancel()
+    await vi.advanceTimersByTimeAsync(1000)
+    await pending
+    expect(doStream).toHaveBeenCalledTimes(1)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('resumes an incomplete successful HTTP response body without retrying permanent API rejection', async () => {
+  const error = new APICallError({
+    message: 'terminated',
+    url: 'https://fixture.invalid',
+    requestBodyValues: {},
+    statusCode: 200,
+    isRetryable: false,
+    cause: new TypeError('terminated')
+  })
+  const { model, doStream } = scripted([
+    {
+      parts: [
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: 'partial' }
+      ],
+      readError: error
+    },
+    {
+      parts: [
+        { type: 'text-start', id: 'b' },
+        { type: 'text-delta', id: 'b', delta: ' rest' },
+        { type: 'text-end', id: 'b' },
+        finish
+      ]
+    }
+  ])
+  const parts = await collect((await withStreamContinuation(model, opts).doStream(callOptions)).stream)
+  expect(doStream).toHaveBeenCalledTimes(2)
+  expect(
+    parts
+      .filter((part) => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+  ).toBe('partial rest')
+})
+
+it('cancels a replacement stream that arrives after reader cancellation', async () => {
+  let resolveReplacement!: (value: { stream: ReadableStream<LanguageModelV3StreamPart> }) => void
+  const pendingReplacement = new Promise<{ stream: ReadableStream<LanguageModelV3StreamPart> }>((resolve) => {
+    resolveReplacement = resolve
+  })
+  const cancelled = vi.fn()
+  const replacement = new ReadableStream<LanguageModelV3StreamPart>({ cancel: cancelled })
+  const { model, doStream } = scripted([
+    {
+      parts: [
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: 'partial' },
+        { type: 'error', error: new Error('reset') }
+      ]
+    }
+  ])
+  doStream
+    .mockImplementationOnce(async () => ({
+      stream: new ReadableStream<LanguageModelV3StreamPart>({
+        start(controller) {
+          controller.enqueue({ type: 'text-start', id: 'a' })
+          controller.enqueue({ type: 'text-delta', id: 'a', delta: 'partial' })
+          controller.enqueue({ type: 'error', error: new Error('reset') })
+        }
+      })
+    }))
+    .mockImplementationOnce(() => pendingReplacement)
+  const onSettled = vi.fn()
+  const reader = (await withStreamContinuation(model, { ...opts, onSettled }).doStream(callOptions)).stream.getReader()
+  await reader.read()
+  await reader.read()
+  const reading = reader.read()
+  await vi.waitFor(() => expect(doStream).toHaveBeenCalledTimes(2))
+  await reader.cancel()
+  resolveReplacement({ stream: replacement })
+  await reading
+  await vi.waitFor(() => expect(cancelled).toHaveBeenCalledOnce())
+  expect(onSettled).toHaveBeenCalledOnce()
+})
+
+it.each([400, 401, 429, 500])(
+  'does not reinterpret permanent HTTP %s as a successful transport failure',
+  async (statusCode) => {
+    const error = new APICallError({
+      message: 'rejected',
+      url: 'https://fixture.invalid',
+      requestBodyValues: {},
+      statusCode,
+      isRetryable: false,
+      cause: new TypeError('terminated')
+    })
+    const { model, doStream } = scripted([
+      {
+        parts: [
+          { type: 'text-start', id: 'a' },
+          { type: 'text-delta', id: 'a', delta: 'partial' },
+          { type: 'error', error }
+        ]
+      }
+    ])
+    const parts = await collect((await withStreamContinuation(model, opts).doStream(callOptions)).stream)
+    expect(parts.at(-1)).toEqual({ type: 'error', error })
+    expect(doStream).toHaveBeenCalledOnce()
+  }
+)

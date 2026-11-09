@@ -111,6 +111,7 @@ export function useWindowRuntime(): void {
   }, [])
 
   useCommandHandler('app.fullscreen.exit', () => ipcApi.request('window.set_full_screen', false), {
+    allowInKeyboardLayer: true,
     enabled: isFullscreen,
     shouldHandleKeyEvent: (event) => !event.defaultPrevented
   })

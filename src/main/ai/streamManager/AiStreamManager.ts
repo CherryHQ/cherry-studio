@@ -28,6 +28,7 @@ import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
+import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -89,11 +90,20 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
   return {
     ...message,
     parts: message.parts.map((part) => {
-      if (!isToolUIPart(part) || part.state !== 'approval-requested') return part
+      if (!isToolUIPart(part) || !part.approval) return part
       const approved = exec.resolvedToolApprovals?.get(part.toolCallId)
-      return approved === undefined
-        ? part
-        : { ...part, state: 'approval-responded', approval: { ...part.approval, approved } }
+      if (approved === false) {
+        return {
+          ...part,
+          state: 'output-denied',
+          output: undefined,
+          errorText: undefined,
+          approval: { ...part.approval, approved: false as const }
+        }
+      }
+      return approved === true && part.state === 'approval-requested'
+        ? { ...part, state: 'approval-responded', approval: { ...part.approval, approved } }
+        : part
     })
   }
 }
@@ -256,7 +266,12 @@ function toActiveExecution(exec: StreamExecution): ActiveExecution {
 }
 
 function errorFromStreamChunk(errorText: string): SerializedError {
-  return { name: 'StreamError', message: errorText, stack: null }
+  return {
+    name: 'StreamError',
+    message: getSafeProviderErrorMessage({ message: errorText }),
+    stack: null,
+    streamStage: 'response-stream'
+  }
 }
 
 function findBufferedToolInput(exec: StreamExecution, toolCallId: string): UIMessageChunk | undefined {
@@ -2259,16 +2274,28 @@ export class AiStreamManager extends BaseService {
     }
 
     if (result.threw !== undefined) {
+      const abortShaped = signal.aborted && (result.threw.error === signal.reason || isAbortError(result.threw.error))
       const fromThrow = serializeError(result.threw.error)
-      if (signal.aborted) {
+      if (abortShaped) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
-        logger.error('Execution loop error', { topicId, modelId, err: chatErrorContext(result.threw.error) })
+        logger.error('AI stream error', {
+          topicId,
+          modelId,
+          attemptId: exec.attemptId,
+          stage: 'response-stream',
+          origin: 'throw',
+          cause: chatErrorContext(result.threw.error),
+          ...(result.streamErrorText !== undefined
+            ? { chunk: chatErrorContext({ message: result.streamErrorText }) }
+            : {})
+        })
       }
       const serialized =
-        result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow)
+        result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow) && !fromThrow.i18nKey
           ? errorFromStreamChunk(result.streamErrorText)
           : fromThrow
+      if (!abortShaped) serialized.streamStage = 'response-stream'
       await this.onExecutionError(topicId, modelId, serialized, exec)
       return
     }
@@ -2281,6 +2308,14 @@ export class AiStreamManager extends BaseService {
       if (exec.status === 'streaming') exec.status = 'aborted'
       await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
+      logger.error('AI stream error', {
+        topicId,
+        modelId,
+        attemptId: exec.attemptId,
+        stage: 'response-stream',
+        origin: 'error-chunk',
+        cause: chatErrorContext({ name: 'StreamError', message: result.streamErrorText })
+      })
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
     } else if (result.accumulationError !== undefined) {
       const error = serializeError(result.accumulationError.error)

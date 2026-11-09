@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
+
 /**
  * Builds the `wrapModel` closure that wraps a resolved chat model with
  * ai-retry: same-provider API-key failover on 401/429 first, same-model
@@ -166,32 +168,52 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
   // original call in `maxAttempts`, so +1 yields that many same-model retries.
   const retryCount = options.retryPolicy.maxAttempts
   const backoffEnabled = options.retryPolicy.backoffEnabled
-  const transientRetry = and(error.isRetryable(true), not(error.statusCode(401, 429))).retry({
-    maxAttempts: retryCount + 1,
-    delay: RETRY_BASE_DELAY_MS,
-    ...(backoffEnabled && { backoffFactor: 2 })
-  })
-  const retries: Retries<LanguageModel> = [
-    // Same-model transient retry on retryable errors: honors Retry-After headers,
-    // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
-    // holds since retryCount >= 1.)
-    apiKeyFallbacks.length > 0
-      ? transientRetry
-      : error.isRetryable(true).retry({
-          maxAttempts: retryCount + 1,
-          delay: RETRY_BASE_DELAY_MS,
-          ...(backoffEnabled && { backoffFactor: 2 })
-        }),
-    // Cross-model fallback, tried in user-configured order (one attempt each).
-    // Resolved lazily on first failure (memoized) so the happy path pays nothing;
-    // each fallback carries its own middleware + params (a per-retry override).
-    // Error-only (like a plain-model fallback): ai-retry also evaluates function
-    // retryables on *result* attempts (content-filter etc.), so guard on
-    // `isErrorAttempt` to avoid resolving — and falsely retrying — on success.
-    ...options.fallbacks.map((fallback) => lazyFallbackRetryable(fallback, options.onFallbackActivated))
-  ]
+  const retryScope = new AsyncLocalStorage<{ remaining: number }>()
+  const takeRetry = () => {
+    const budget = retryScope.getStore()
+    return !budget || (budget.remaining > 0 && (budget.remaining--, true))
+  }
+  const build = (base: LanguageModelV3): LanguageModelV3 => {
+    const transientRetry = and(error.isRetryable(true), not(error.statusCode(401, 429))).retry({
+      maxAttempts: retryCount + 1,
+      delay: RETRY_BASE_DELAY_MS,
+      ...(backoffEnabled && { backoffFactor: 2 })
+    })
+    const retries: Retries<LanguageModel> = [
+      // Same-model transient retry on retryable errors: honors Retry-After headers,
+      // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
+      // holds since retryCount >= 1.)
+      apiKeyFallbacks.length > 0
+        ? transientRetry
+        : error.isRetryable(true).retry({
+            maxAttempts: retryCount + 1,
+            delay: RETRY_BASE_DELAY_MS,
+            ...(backoffEnabled && { backoffFactor: 2 })
+          }),
+      // Cross-model fallback, tried in user-configured order (one attempt each).
+      // Resolved lazily on first failure (memoized) so the happy path pays nothing;
+      // each fallback carries its own middleware + params (a per-retry override).
+      // Error-only (like a plain-model fallback): ai-retry also evaluates function
+      // retryables on *result* attempts (content-filter etc.), so guard on
+      // `isErrorAttempt` to avoid resolving — and falsely retrying — on success.
+      ...options.fallbacks.map((fallback) => lazyFallbackRetryable(fallback, options.onFallbackActivated))
+    ]
 
-  return (base) => {
+    // Evaluate the native retry rule first. Consume only an eligible same-model retry,
+    // not a result probe, exhausted per-model rule, API-key switch or model fallback.
+    const budgeted =
+      (retry: Retryable<LanguageModel>): Retryable<LanguageModel> =>
+      async (context) => {
+        const candidate = await retry(context)
+        if (!candidate || !retryScope.getStore()) return candidate
+        const model = candidate.model
+        if (typeof model === 'string') return candidate
+        const used = context.attempts.filter(
+          (attempt) => attempt.model.provider === model.provider && attempt.model.modelId === model.modelId
+        ).length
+        if (used >= (candidate.maxAttempts ?? 1)) return undefined
+        return takeRetry() ? candidate : undefined
+      }
     const primary = options.onPrimaryActivated
       ? wrapLanguageModel({
           model: base,
@@ -214,7 +236,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       ? (model) =>
           createRetryableModel({
             model,
-            retries: [transientRetry],
+            retries: [budgeted(transientRetry as Retryable<LanguageModel>)],
             onRetry: (context) => {
               const event = describeAttempt(context)
               logger.info('retrying model call', { ...options.diagnosticContext, ...event })
@@ -286,7 +308,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
 
     const retryableModel = createRetryableModel({
       model: keyPoolModel,
-      retries,
+      retries: [budgeted(retries[0] as Retryable<LanguageModel>), ...retries.slice(1)],
       onRetry: (context) => {
         const event = describeAttempt(context)
         const failedModelId = context.attempts.at(-1)?.model.modelId
@@ -327,18 +349,40 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       }
     })
 
-    // ai-retry cannot recover once content has streamed; resume interrupted text replies.
-    return withStreamContinuation(retryableModel, {
-      maxAttempts: retryCount,
-      baseDelayMs: RETRY_BASE_DELAY_MS,
-      backoffEnabled,
-      onRetry: ({ attempt, reason }) => {
-        const event = { state: 'retrying' as const, modelId: base.modelId, attempt: attempt + 1, reason }
-        logger.info('resuming interrupted stream', { ...options.diagnosticContext, ...event })
-        retryActive = true
-        options.onRetryEvent?.(event)
-      },
-      onSettled: settleRetryStatus
+    return new Proxy(retryableModel, {
+      get(target, prop) {
+        if (prop === 'doStream')
+          return (callOptions: Parameters<LanguageModelV3['doStream']>[0]) => {
+            const budget = { remaining: retryCount }
+            const scopedModel = new Proxy(target, {
+              get(model, key) {
+                if (key === 'doStream')
+                  return (params: Parameters<LanguageModelV3['doStream']>[0]) =>
+                    retryScope.run(budget, () => model.doStream(params))
+                const value = Reflect.get(model, key, model)
+                return typeof value === 'function' ? value.bind(model) : value
+              }
+            })
+            const operation = withStreamContinuation(scopedModel, {
+              maxAttempts: retryCount,
+              takeRetry: () => budget.remaining > 0 && (budget.remaining--, true),
+              baseDelayMs: RETRY_BASE_DELAY_MS,
+              backoffEnabled,
+              onRetry: ({ attempt, reason }) => {
+                const event = { state: 'retrying' as const, modelId: base.modelId, attempt: attempt + 1, reason }
+                logger.info('resuming interrupted stream', { ...options.diagnosticContext, ...event })
+                retryActive = true
+                options.onRetryEvent?.(event)
+              },
+              onSettled: settleRetryStatus
+            })
+            return operation.doStream(callOptions)
+          }
+        const value = Reflect.get(target, prop, target)
+        return typeof value === 'function' ? value.bind(target) : value
+      }
     })
   }
+
+  return (base) => build(base)
 }

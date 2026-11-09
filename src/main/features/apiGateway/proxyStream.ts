@@ -1,44 +1,24 @@
-/**
- * Proxy Stream Service
- *
- * Routes API-gateway requests through main's `AiStreamManager` as an equal
- * subscriber (alongside WebContentsListener / ChannelAdapterListener), using a
- * one-shot non-persisting prompt stream. The resulting `UIMessageChunk` stream
- * is translated into each API's SSE / JSON shape by the adapter system, driven
- * from the listener via the adapter's push API.
- *
- * The gateway is assistant-agnostic: per-request sampling, client tools, and
- * provider options are passed as first-class `callOverrides` on the stream
- * request (merged at highest precedence inside `buildAgentParams`).
- *
- * Output is a Web-standard `Response`: streaming requests return a
- * `text/event-stream` `ReadableStream`; non-streaming requests return a JSON
- * `Response`. The Elysia route handlers return this `Response` directly.
- */
-
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
-import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { resolveAiSdkProviderId, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
-import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
-import { ENDPOINT_TYPE, ServiceTierSelectionSchema } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
-import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
-import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
+import type { ISseFormatter, IStreamAdapter } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame } from './errors'
+import { resolveGatewayRequest, type MessageConfig } from './gatewayRequest'
+
+export type { MessageConfig } from './gatewayRequest'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
 import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
-import { resolveGatewayModelAddress } from './utils/models'
 import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 
 const logger = loggerService.withContext('ProxyStreamService')
@@ -70,123 +50,43 @@ function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
  * this, a truncated reply is indistinguishable from a real completion.
  */
 function streamInterruptedError(): Error & { status: number } {
-  const error = new Error('Upstream stream ended before completion (idle timeout or abort)') as Error & {
+  const error = new Error('Upstream idle timeout exceeded') as Error & {
     status: number
+    cause?: string
   }
   error.status = 504
+  error.cause = 'UPSTREAM_IDLE_TIMEOUT'
   return error
 }
 
-/** Union of all supported input params. */
-type InputParams = InputParamsMap[InputFormat]
-
-/**
- * Configuration for a gateway message request (streaming or non-streaming).
- * Routes pass `{ params, inputFormat, outputFormat, signal }`.
- */
-export interface MessageConfig {
-  provider?: Provider
-  modelId?: string
-  /** Internal Agent-session hint carried by the Claude Code SDK gateway route. */
-  fastMode?: boolean
-  /**
-   * The loosely-validated gateway request body. Routes validate only the fields
-   * the gateway needs (`model`, `messages`/`input`, …) and pass the rest through,
-   * so this is `unknown` at the boundary and narrowed to the format's SDK type
-   * below — the converters parse the full payload defensively.
-   */
-  params: unknown
-  /**
-   * Explicit `"providerId:modelId"` addressing. The OpenAI/Anthropic dialects
-   * carry the model in the body (`params.model`); Gemini carries it in the URL
-   * path, so its route passes it here to override the body lookup.
-   */
-  modelString?: string
-  /**
-   * Explicit streaming flag. The OpenAI/Anthropic dialects signal streaming via
-   * `params.stream`; Gemini signals it via the `:streamGenerateContent` method,
-   * so its route passes the resolved flag here.
-   */
-  streaming?: boolean
-  inputFormat?: InputFormat
-  outputFormat?: OutputFormat
-  /** Request abort signal (`context.request.signal`); aborts the upstream stream on client disconnect. */
-  signal?: AbortSignal
-  /** Raw request headers used only to validate Cherry-internal usage correlation. */
-  requestHeaders?: Headers
-  onError?: (error: unknown) => void
-  onComplete?: () => void
-}
-
-/**
- * Process a gateway message request — auto-detects streaming from `params.stream`.
- * Returns a Web `Response` (SSE stream or JSON) to be returned from the route.
- */
 export async function processMessage(config: MessageConfig): Promise<Response> {
-  const { inputFormat = 'anthropic', outputFormat = 'anthropic', onError, onComplete, signal } = config
-  // Trust boundary: narrow the loosely-validated body to the format's SDK type once.
-  const params = config.params as InputParams
-
-  // Client-addressing mistakes are 400s, not 500s. Notably gemini-cli's internal
-  // utility calls (chat compression, classification) hardcode bare `gemini-*-flash-lite`
-  // model names that can never carry the gateway's providerId prefix — those requests
-  // fail here by design (gemini-cli swallows them silently) and must not read as
-  // gateway server errors in the logs.
-  const asClientError = (error: unknown): Error & { status: number } => {
-    const err = (error instanceof Error ? error : new Error(String(error))) as Error & { status: number }
-    err.status = 400
-    return err
-  }
-
-  // 1. Resolve the external "providerId:apiModelId" address from Gemini's URL-path
-  // override or the request body, then map it to the internal model id.
-  const modelString = config.modelString ?? ('model' in params ? (params as { model?: string }).model : undefined)
-  if (!modelString || typeof modelString !== 'string') {
-    throw asClientError(new Error('Request is missing a "model" field'))
-  }
-  const isInternalRequest = config.requestHeaders
-    ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
-    : false
-  const reasoningHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_REASONING_EFFORT_HEADER) : null
-  const tierHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_SERVICE_TIER_HEADER) : null
-  const reasoning = ReasoningEffortOptionSchema.safeParse(reasoningHeader ?? undefined)
-  const tier = ServiceTierSelectionSchema.safeParse(tierHeader ?? undefined)
-  if ((reasoningHeader && !reasoning.success) || (tierHeader && !tier.success))
-    throw asClientError(new Error('Invalid internal Agent request options'))
-  const turnOptions = {
-    ...(reasoning.success ? { reasoningEffort: reasoning.data } : {}),
-    ...(tier.success ? { serviceTier: tier.data } : {}),
-    fastMode:
-      config.fastMode === true || (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true')
-  }
-  const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
-  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
-  const agentSessionId = config.requestHeaders
-    ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
-    : undefined
-  // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
-  const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
-
-  const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
-
-  logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
-    ...logContext,
+  const request = await resolveGatewayRequest(config)
+  const {
     inputFormat,
+    outputFormat,
+    params,
+    provider,
+    model,
+    resolvedModel,
+    endpoint,
+    isInternalAnthropicAgentRequest,
+    isStreaming,
+    agentSessionId,
+    turnOptions,
+    reasoning,
+    uniqueModelId,
+    modelId,
+    logContext,
+    asClientError
+  } = request
+  logger.info('Converting gateway protocol request', {
+    ...logContext,
+    mode: 'sdk',
+    inputFormat,
+    target: endpoint.endpointType,
     outputFormat
   })
-
-  const provider: Provider = config.provider ?? resolvedProvider
-  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
-  const endpoint = resolveEffectiveEndpoint(
-    provider,
-    resolvedAddress.model,
-    isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
-  )
-  const model =
-    endpoint.endpointType && endpoint.endpointType !== resolvedAddress.model.endpointTypes?.[0]
-      ? { ...resolvedAddress.model, endpointTypes: [endpoint.endpointType] }
-      : resolvedAddress.model
-  const resolvedModel = { provider, model }
+  const { onError, onComplete, signal } = config
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
@@ -220,7 +120,21 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     openRouterReasoningCache
   })
 
-  const convertedMessages = converter.toUIMessages(effectiveParams)
+  // These adapters derive instructions from messages and ignore the provider option.
+  const instructionsInMessages = ['open-responses', 'xai-responses'].includes(
+    resolveAiSdkProviderId(provider, endpoint.endpointType)
+  )
+  const responsesInstructions =
+    inputFormat === 'openai-responses' &&
+    !instructionsInMessages &&
+    endpoint.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
+    'instructions' in effectiveParams &&
+    typeof effectiveParams.instructions === 'string'
+      ? effectiveParams.instructions
+      : undefined
+  const convertedMessages = converter.toUIMessages(
+    responsesInstructions !== undefined ? { ...effectiveParams, instructions: undefined } : effectiveParams
+  )
   // Leaving inline system messages in place is what keeps the prompt prefix cacheable
   // across turns; targets that reject them get a downgrade 400 or a fold.
   const positionedMessages = positionInlineSystemMessages(
@@ -235,19 +149,21 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const streamOptions = converter.extractStreamOptions(effectiveParams)
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
-  const extractedProviderOptions = reasoning.success
-    ? {}
-    : (converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {})
-  const fastModeProviderOptions = applyFastModeToProviderOptions(
-    provider,
-    model,
-    extractedProviderOptions,
-    turnOptions.fastMode
-  )
-
+  const extractedProviderOptions =
+    converter.extractProviderOptions(
+      provider,
+      model,
+      effectiveParams,
+      streamOptions.maxOutputTokens,
+      reasoning.success
+    ) ?? {}
+  if (responsesInstructions !== undefined) {
+    const key = resolveEndpointProviderOptionsKey(provider, endpoint)
+    extractedProviderOptions[key] = { ...extractedProviderOptions[key], instructions: responsesInstructions }
+  }
   const providerOptions = agentSessionId
-    ? applyAgentPromptCacheKey(provider, model, fastModeProviderOptions, agentSessionId)
-    : fastModeProviderOptions
+    ? applyAgentPromptCacheKey(provider, model, extractedProviderOptions, agentSessionId)
+    : extractedProviderOptions
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {
@@ -258,7 +174,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   // 4. Adapter + formatter translate UIMessageChunk → output format.
   const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, {
-    model: `${providerId}:${modelId}`,
+    model: `${provider.id}:${modelId}`,
     ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   })
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)

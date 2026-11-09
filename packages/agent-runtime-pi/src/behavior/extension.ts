@@ -1,11 +1,4 @@
-import {
-  type Api,
-  type AssistantMessage,
-  type AssistantMessageEventStream,
-  createAssistantMessageEventStream,
-  type Model,
-  type TSchema
-} from '@earendil-works/pi-ai'
+import { lazyStream } from '@earendil-works/pi-ai'
 import type {
   AgentSession,
   ContextEvent,
@@ -185,7 +178,7 @@ function nativeTool(adapter: Adapter, conv: Conversation, tool: ToolDefinition):
     name: tool.name,
     label: tool.name,
     description: tool.description,
-    parameters: tool.schema as unknown as TSchema,
+    parameters: tool.schema as object,
     executionMode: tool.executionMode,
     exposure: 'model-only',
     async execute(toolCallId, params, signal) {
@@ -228,7 +221,9 @@ export function meterRequests(adapter: Adapter, conv: Conversation, session: Age
     const allowance = allow(adapter, conv, run?.requests ?? 0)
     if (!allowance.ok) {
       if (run) run.refused = allowance.text
-      return refusal(model, allowance.text)
+      return lazyStream(model, async () => {
+        throw new Error(allowance.text)
+      })
     }
     if (run) run.requests += 1
     return stream(model, context, options)
@@ -279,29 +274,4 @@ export function compactionSummarizer(adapter: Adapter, conv: Conversation): Comp
     }
     return verdict.summary
   }
-}
-
-function refusal(model: Model<Api>, text: string): AssistantMessageEventStream {
-  const message: AssistantMessage = {
-    role: 'assistant',
-    content: [],
-    api: model.api,
-    provider: model.provider,
-    model: model.id,
-    usage: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 0,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
-    },
-    stopReason: 'error',
-    errorMessage: text,
-    timestamp: Date.now()
-  }
-  const stream = createAssistantMessageEventStream()
-  stream.push({ type: 'error', reason: 'error', error: message })
-  stream.end(message)
-  return stream
 }

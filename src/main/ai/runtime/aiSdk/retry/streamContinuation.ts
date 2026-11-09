@@ -19,6 +19,8 @@ import { isAbortError } from '@main/utils/error'
 export interface StreamContinuationOptions {
   /** Maximum number of continuation attempts per call. */
   maxAttempts: number
+  /** Shares remaining same-model retries with the pre-content retry layer. */
+  takeRetry?: () => boolean
   baseDelayMs: number
   backoffEnabled: boolean
   /** Called before each continuation attempt (1-based) with a short reason. */
@@ -29,7 +31,16 @@ export interface StreamContinuationOptions {
 
 function isResumableError(error: unknown, signal?: AbortSignal): boolean {
   if (signal?.aborted || isAbortError(error)) return false
-  if (APICallError.isInstance(error)) return error.isRetryable
+  if (APICallError.isInstance(error)) {
+    if (error.isRetryable) return true
+    // An accepted response can fail while its body is read; a permanent HTTP rejection cannot.
+    const successfulResponse = error.statusCode !== undefined && error.statusCode >= 200 && error.statusCode < 300
+    return (
+      successfulResponse &&
+      error.cause instanceof Error &&
+      /terminated|socket|network|incomplete.*chunk|connection.*(?:reset|closed)/i.test(error.cause.message)
+    )
+  }
   return !AISDKError.isInstance(error)
 }
 
@@ -92,7 +103,8 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
               text.length > 0 &&
               attempts < options.maxAttempts &&
               !cancelled &&
-              isResumableError(failure.error, signal)
+              isResumableError(failure.error, signal) &&
+              (options.takeRetry?.() ?? true)
             if (!canResume) {
               settle()
               if (part) controller.enqueue(part)
@@ -100,21 +112,33 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
               return
             }
             attempts += 1
+            resuming = true
             options.onRetry?.({
               attempt: attempts,
               reason: failure.error instanceof Error ? failure.error.message : String(failure.error)
             })
             await reader.cancel().catch(() => {})
             await sleep(options.baseDelayMs * (options.backoffEnabled ? 2 ** (attempts - 1) : 1), signal)
+            if (cancelled) {
+              settle()
+              return
+            }
             try {
               signal?.throwIfAborted()
               const resumed = await model.doStream({
                 ...callOptions,
                 prompt: [...callOptions.prompt, { role: 'assistant', content: [{ type: 'text', text }] }]
               })
-              reader = resumed.stream.getReader()
+              const replacement = resumed.stream.getReader()
+              if (cancelled) {
+                await replacement.cancel().catch(() => {})
+                settle()
+                return
+              }
+              reader = replacement
             } catch (error) {
               settle()
+              if (cancelled) return
               controller.error(error)
               return
             }
@@ -153,7 +177,8 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
       },
       async cancel(reason) {
         cancelled = true
-        await reader.cancel(reason)
+        settle()
+        await reader.cancel(reason).catch(() => {})
       }
     })
 

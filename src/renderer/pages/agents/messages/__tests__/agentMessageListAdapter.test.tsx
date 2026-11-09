@@ -246,7 +246,7 @@ describe('useAgentMessageListProviderValue', () => {
   })
 
   it.each(['success', 'workspace_changed', 'legacy_history', 'cancelled', 'unexpected'] as const)(
-    'offers completed messages without an availability flag and reports native fork errors: %s',
+    'offers Main-approved completed messages and reports native fork errors: %s',
     async (scenario) => {
       let value: MessageListProviderValue | undefined
       const Probe = () => {
@@ -258,6 +258,7 @@ describe('useAgentMessageListProviderValue', () => {
             messages: []
           } as unknown as Topic,
           messages: [],
+          historyActions: { 'selected-message': { fork: null, edit: 'invalid_target' } },
           partsByMessageId: {},
           isLoading: false,
           messageNavigation: 'anchor'

@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-06-legacy-image-catalog-publication.md
-2026-11-06-legacy-image-catalog-publication.md: ffb987bc43687292d72a35240e60b52e2b32daf5
-2026-11-06-legacy-image-catalog-publication.zh.md: bbaad2d095958ad9eff2669e4f45989bc47a43d2
+2026-11-06-legacy-image-catalog-publication.md: 7611cf43990794a83bcd28bd7c4c5083eebe508f
+2026-11-06-legacy-image-catalog-publication.zh.md: ddc148701d8f890bf0b596c1212a9ba41a11812a

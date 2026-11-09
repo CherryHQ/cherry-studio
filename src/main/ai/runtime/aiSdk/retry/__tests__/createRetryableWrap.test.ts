@@ -410,3 +410,85 @@ describe('createRetryableWrap', () => {
     ])
   })
 })
+
+it('shares the configured retry budget between pre-content errors and interrupted continuations', async () => {
+  vi.useFakeTimers()
+  try {
+    const doStream = vi.fn(async () => {
+      if (doStream.mock.calls.length % 3 !== 0) throw makeApiError(503)
+      return streamResult([
+        { type: 'text-start', id: 'partial' },
+        { type: 'text-delta', id: 'partial', delta: 'x' },
+        { type: 'error', error: new Error('connection reset') }
+      ])
+    })
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ maxAttempts: 2 }) })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn(), doStream))
+    const resultPromise = model.doStream({ prompt: [] })
+    await vi.runAllTimersAsync()
+    const result = await resultPromise
+    const collecting = collectStream(result.stream)
+    await vi.runAllTimersAsync()
+    await collecting
+    expect(doStream.mock.calls.length).toBeLessThanOrEqual(3)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('isolates the retry budget for simultaneous operations and resets it for a later stream', async () => {
+  vi.useFakeTimers()
+  try {
+    const counts = new Map<string, number>()
+    const doStream = vi.fn(async (options: { prompt: unknown[] }) => {
+      const key = JSON.stringify(options.prompt)
+      const count = (counts.get(key) ?? 0) + 1
+      counts.set(key, count)
+      if (count % 3 !== 0) throw makeApiError(503)
+      return streamResult([
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: 'done' },
+        { type: 'text-end', id: 'a' }
+      ])
+    })
+    const model = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ maxAttempts: 2 }) })!(
+      makeFakeLanguageModel('primary', vi.fn(), doStream)
+    )
+    const a = model.doStream({ prompt: [] })
+    const b = model.doStream({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'other' }] }] })
+    await vi.runAllTimersAsync()
+    await collectStream((await a).stream)
+    await collectStream((await b).stream)
+    expect(doStream).toHaveBeenCalledTimes(6)
+    const later = model.doStream({ prompt: [] })
+    await vi.runAllTimersAsync()
+    await collectStream((await later).stream)
+    expect(doStream).toHaveBeenCalledTimes(9)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('charges pre-content failures of a resumed request against the same budget', async () => {
+  vi.useFakeTimers()
+  try {
+    const doStream = vi.fn(async () => {
+      if (doStream.mock.calls.length > 1) throw makeApiError(503)
+      return streamResult([
+        { type: 'text-start', id: 'a' },
+        { type: 'text-delta', id: 'a', delta: 'partial' },
+        { type: 'error', error: new Error('socket reset') }
+      ])
+    })
+    const model = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ maxAttempts: 2 }) })!(
+      makeFakeLanguageModel('primary', vi.fn(), doStream)
+    )
+    const result = await model.doStream({ prompt: [] })
+    const consuming = collectStream(result.stream).catch((error) => error)
+    await vi.runAllTimersAsync()
+    expect(await consuming).toBeInstanceOf(Error)
+    expect(doStream).toHaveBeenCalledTimes(3)
+  } finally {
+    vi.useRealTimers()
+  }
+})
