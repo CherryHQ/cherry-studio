@@ -1509,6 +1509,8 @@
   "error.claude_code_exit.code": "Claude Code 意外退出（代码 {{code}}）。诊断参考号：{{reference}}",
   "error.claude_code_exit.signal": "Claude Code 意外停止（信号 {{signal}}）。诊断参考号：{{reference}}",
   "error.claude_code_exit.start": "Claude Code 无法启动。诊断参考号：{{reference}}",
+  "error.claude_code_session_bus_missing": "Claude Code 需要可用的 Linux 会话总线。",
+  "error.claude_code_session_bus_missing_detail": "请在启动 Cherry Studio 的桌面环境中设置 DBUS_SESSION_BUS_ADDRESS，然后重启应用。Claude Code 尚未启动。",
   "error.content": "内容",
   "error.data": "数据",
   "error.detail": "错误详情",
