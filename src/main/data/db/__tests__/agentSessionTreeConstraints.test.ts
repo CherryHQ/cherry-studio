@@ -129,6 +129,9 @@ describe('Session tree populated upgrade', () => {
     expect(dbh.sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
     applyMigrations(dbh.db, resolveMigrationsPath())
     expect(readAgentSessionPath(dbh.db, 'flat').map((row) => row.id)).toEqual(['a', 'b'])
+    dbh.sqlite.exec(
+      "INSERT INTO agent_session_message_fts(agent_session_message_fts, rank) VALUES ('integrity-check', 1)"
+    )
   })
 })
 
@@ -183,5 +186,14 @@ describe('Session tree upgrade before tree fields existed', () => {
         )
         .get()
     ).toEqual({ count: 1 })
+    dbh.sqlite.exec(
+      "INSERT INTO agent_session_message_fts(agent_session_message_fts, rank) VALUES ('integrity-check', 1)"
+    )
+    dbh.db.delete(sessions).where(eq(sessions.id, 'empty')).run()
+    dbh.db.delete(sessions).where(eq(sessions.id, 'flat')).run()
+    expect(dbh.db.select().from(messages).all()).toEqual([])
+    dbh.sqlite.exec(
+      "INSERT INTO agent_session_message_fts(agent_session_message_fts, rank) VALUES ('integrity-check', 1)"
+    )
   })
 })
