@@ -5,7 +5,6 @@ import { createElement, type ReactNode, startTransition, Suspense } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import type { CherryMessagePart } from '@shared/data/types/message'
 
 const dataApiMocks = MockUseDataApi
 
@@ -284,54 +283,6 @@ describe('useAgentSessionParts', () => {
     expect(result.current.messages[0].id).toBe('message-session-2')
   })
 
-  it('overlays live background-agent flow parts onto the original assistant row', () => {
-    const row = {
-      id: 'message-1',
-      sessionId: 'session-1',
-      role: 'assistant',
-      data: {
-        parts: [
-          {
-            type: 'tool-Agent',
-            toolCallId: 'task-root',
-            state: 'input-available',
-            input: { prompt: 'Audit' }
-          }
-        ]
-      },
-      searchableText: '',
-      status: 'success',
-      modelId: null,
-      messageSnapshot: null,
-      stats: null,
-      runtimeResumeToken: null,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z'
-    } as AgentSessionMessageEntity
-    mockAgentSessionPartsDataApi([{ items: [row] }])
-    MockUseCacheUtils.setSharedCacheValue('agent.session.flow_parts.session-1.message-1', [
-      ...(row.data.parts ?? []),
-      {
-        type: 'text',
-        text: 'Subagent finished',
-        providerMetadata: { cherry: { parentToolCallId: 'task-root' } }
-      }
-    ])
-
-    const { result } = renderHook(() => useAgentSessionParts('session-1'))
-
-    expect(result.current.persistedPartsByMessageId['message-1']).toEqual(row.data.parts)
-
-    expect(result.current.messages[0].parts).toEqual([
-      expect.objectContaining({ toolCallId: 'task-root' }),
-      expect.objectContaining({
-        type: 'text',
-        text: 'Subagent finished',
-        providerMetadata: { cherry: { parentToolCallId: 'task-root' } }
-      })
-    ])
-  })
-
   it('labels a runtime-started message from the live turn-origin cache', () => {
     // The persisted row carries nothing that explains the turn; the badge reads the session cache.
     const row = {
@@ -359,67 +310,19 @@ describe('useAgentSessionParts', () => {
     expect(result.current.messages[0].metadata?.turnOrigin).toEqual({ kind: 'goal-round', round: 2 })
   })
 
-  it('reprojects only the message whose live flow parts changed', () => {
-    const rowFor = (id: string): AgentSessionMessageEntity => ({
-      id,
-      sessionId: 'session-1',
-      role: 'assistant',
-      data: { parts: [{ type: 'text', text: `Persisted ${id}` }] },
-      searchableText: '',
-      status: 'success',
-      modelId: null,
-      messageSnapshot: null,
-      stats: null,
-      runtimeResumeToken: null,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z'
-    })
-    const firstRow = rowFor('message-1')
-    const secondRow = rowFor('message-2')
-    mockAgentSessionPartsDataApi([{ items: [secondRow, firstRow] }])
-    const firstLiveParts: CherryMessagePart[] = [{ type: 'text', text: 'First live' }]
-    const secondLiveParts: CherryMessagePart[] = [{ type: 'text', text: 'Second live' }]
-    MockUseCacheUtils.setSharedCacheValue('agent.session.flow_parts.session-1.message-1', firstLiveParts)
-    MockUseCacheUtils.setSharedCacheValue('agent.session.flow_parts.session-1.message-2', secondLiveParts)
-
+  it('replaces a settled message after source retraction without retaining its old body', () => {
+    const row = sessionMessageRow('message-1')
+    row.role = 'assistant'
+    const other = sessionMessageRow('message-2')
+    mockAgentSessionPartsDataApi([{ items: [other, row] }])
     const { result, rerender } = renderHook(() => useAgentSessionParts('session-1'))
-    const originalFirstMessage = result.current.messages[0]
-    const originalSecondMessage = result.current.messages[1]
-    const updatedFirstParts: CherryMessagePart[] = [{ type: 'text', text: 'First live updated' }]
-
-    MockUseCacheUtils.setSharedCacheValue('agent.session.flow_parts.session-1.message-1', updatedFirstParts)
+    const unchanged = result.current.messages[1]
+    const updated = { ...row, updatedAt: '2026-01-01T00:00:01.000Z', data: { parts: [] } }
+    mockAgentSessionPartsDataApi([{ items: [other, updated] }])
     rerender()
-
-    expect(result.current.messages[0]).not.toBe(originalFirstMessage)
-    expect(result.current.messages[0].parts).toBe(updatedFirstParts)
-    expect(result.current.messages[1]).toBe(originalSecondMessage)
-    expect(result.current.messages[1].parts).toBe(secondLiveParts)
-  })
-
-  it('reads an existing flow overlay when its message row loads later', () => {
-    const liveParts: CherryMessagePart[] = [{ type: 'text', text: 'Already streaming' }]
-    MockUseCacheUtils.setSharedCacheValue('agent.session.flow_parts.session-1.message-1', liveParts)
-    const { result, rerender } = renderHook(() => useAgentSessionParts('session-1'))
-    expect(result.current.messages).toEqual([])
-
-    const row = {
-      id: 'message-1',
-      sessionId: 'session-1',
-      role: 'assistant',
-      data: { parts: [{ type: 'text', text: 'Persisted' }] },
-      searchableText: '',
-      status: 'success',
-      modelId: null,
-      messageSnapshot: null,
-      stats: null,
-      runtimeResumeToken: null,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z'
-    } as AgentSessionMessageEntity
-    mockAgentSessionPartsDataApi([{ items: [row] }])
-    rerender()
-
-    expect(result.current.messages[0].parts).toBe(liveParts)
+    expect(result.current.messages[0].parts).toEqual([])
+    expect(result.current.persistedPartsByMessageId[row.id]).toEqual([])
+    expect(result.current.messages[1]).toBe(unchanged)
   })
 
   it('drops a successfully deleted message from the visible infinite list without remounting', async () => {

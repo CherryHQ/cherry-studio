@@ -15,6 +15,7 @@ export const testProjects = [
   'agent-runtime',
   'agent-runtime-pi',
   'agent-runtime-pi-durable',
+  'agent-runtime-acp',
   'agent-runtime-claude-code',
   'ai-sdk-provider',
   'remote-protocol',
@@ -28,6 +29,7 @@ export const checkTasks = {
   skills: { group: 'repository', args: ['skills:check'] },
   knowledge: { group: 'repository', args: ['build:builtin-knowledge:check'] },
   migrations: { group: 'repository', args: ['db:migrations:check'] },
+  theme: { group: 'repository', args: ['--filter', '@cherrystudio/ui', 'theme:check'] },
   lint: { group: 'lint', args: ['lint'] },
   'types-node': { group: 'types', args: ['typecheck:node'] },
   'types-web': { group: 'types', args: ['typecheck:web'] },
@@ -38,6 +40,7 @@ export const checkTasks = {
     group: 'types',
     args: ['--filter', '@cherrystudio/agent-runtime-pi-durable', 'typecheck']
   },
+  'types-agent-runtime-acp': { group: 'types', args: ['--filter', '@cherrystudio/agent-runtime-acp', 'typecheck'] },
   'types-agent-runtime': { group: 'types', args: ['--filter', '@cherrystudio/agent-runtime', 'typecheck'] },
   'types-agent-runtime-claude-code': {
     group: 'types',
@@ -65,11 +68,13 @@ const consumers = {
     'agent-behavior',
     'agent-runtime-pi',
     'agent-runtime-pi-durable',
+    'agent-runtime-acp',
     'agent-runtime-claude-code',
     'main'
   ],
   'agent-runtime-pi': ['agent-runtime-pi', 'main'],
   'agent-runtime-pi-durable': ['agent-runtime-pi-durable'],
+  'agent-runtime-acp': ['agent-runtime-acp'],
   'agent-runtime-claude-code': ['agent-runtime-claude-code'],
   'ai-sdk-provider': ['ai-sdk-provider', 'aiCore', 'main', 'preload', 'renderer'],
   ui: ['ui', 'file-preview', 'renderer'],
@@ -159,6 +164,7 @@ export function createPlan(files, fullReason) {
       continue
     }
     add('knowledge', file)
+    if (file.startsWith('src/renderer/') && /\.(?:tsx?|css)$/.test(file)) add('theme', file)
     const affected = scope === 'preload' ? ['main', 'preload', 'renderer'] : consumers[scope]
     for (const project of affected) projects.add(project)
     if (affected.some((project) => ['main', 'shared', 'scripts', 'provider-registry'].includes(project)))
@@ -169,6 +175,7 @@ export function createPlan(files, fullReason) {
     if (affected.includes('agent-runtime-pi')) add('types-agent-runtime-pi', file)
     if (affected.includes('agent-runtime-pi-durable')) add('types-agent-runtime-pi-durable', file)
     if (affected.includes('agent-runtime-claude-code')) add('types-agent-runtime-claude-code', file)
+    if (affected.includes('agent-runtime-acp')) add('types-agent-runtime-acp', file)
     if (affected.includes('agent-runtime')) add('types-agent-runtime', file)
     if (affected.includes('remote-protocol')) add('types-remote-protocol', file)
     if (affected.includes('remote-transport')) add('types-remote-transport', file)

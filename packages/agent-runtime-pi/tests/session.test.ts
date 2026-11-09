@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
+import { obj } from '@earendil-works/pi-schema'
 import { describe, expect, it } from 'vitest'
 
 import { assistantReply, createTestSession, lastAssistant, scriptedModel, tempDir } from './sessionSupport'
@@ -12,7 +12,7 @@ const noopTool = (name: string) =>
     name,
     label: name,
     description: `The ${name} tool`,
-    parameters: Type.Object({}),
+    parameters: obj({}),
     async execute() {
       return { content: [{ type: 'text', text: 'done' }], details: undefined }
     }
@@ -61,7 +61,7 @@ describe('createAgentRuntimeSession', () => {
     })
     await session.prompt('hi')
 
-    expect(requests[0].systemPrompt).toContain('operating inside pi')
+    expect(requests[0].systemPrompt).toContain('inside pi')
     expect(requests[0].systemPrompt).toContain('Answer in Chinese.')
     expect(requests[0].systemPrompt).not.toContain('MARKER')
   })

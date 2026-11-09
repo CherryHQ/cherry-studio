@@ -270,7 +270,7 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(expectedFallback).toHaveBeenCalledWith(content, `sample${ext}`)
   })
 
-  it.each(['.ppt', '.pptx', '.xls', '.xlsx'])(
+  it.each(['.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods', '.rtf'])(
     'throws instead of falling back to TextFileReader for %s when anydoc conversion fails',
     async (ext) => {
       const failure = new Error('anydoc conversion failed')

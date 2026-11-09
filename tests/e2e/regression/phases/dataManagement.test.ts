@@ -14,18 +14,16 @@ import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { readOwnedRecord } from '../../../../scripts/e2e/regression/lifecycle'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { dismissNativeMessageBox } from '../../../../scripts/e2e/regression/systemAutomation'
+import { chooseNativeFile, dismissNativeMessageBox } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { test, expect } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
-import { chooseImportFile } from '../helpers/chooseImportFile'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
 import { revealVirtualized } from '../helpers/virtualList'
 import { applicationDataMigration } from '../scenarios/applicationDataMigration'
 import { clearCacheItems } from '../scenarios/clearCacheItems'
 import { importConversationFixtures } from '../scenarios/importConversationFixtures'
-import { resetAppData } from '../scenarios/resetAppData'
 
 test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) => {
   testInfo.annotations.push({
@@ -293,6 +291,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       topicId
     )
 
+  let primaryFailure: unknown
   try {
     await openSettingsSection(page, 'Data')
     await page
@@ -360,6 +359,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
 
     const confirmation = await confirmRestore('MP-116-valid.zip')
     await attachScreenshot('MP-116 overwrite confirmation')
+    const nativeStartedAt = Date.now()
     const closed = page.waitForEvent('close', { timeout: 30_000 })
     // A development build ends the restore with a blocking native dialog before it exits,
     // so the box has to be acknowledged from the desktop while the click is still in flight.
@@ -367,8 +367,48 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       app.record.mode === 'branch'
         ? dismissNativeMessageBox(app.record.platform, app.paths, 'Manual Restart Required')
         : undefined
-    await confirmation.getByRole('button', { name: 'Confirm', exact: true }).click()
-    await Promise.all([closed, acknowledged])
+    if (app.record.platform === 'windows') {
+      const pending = Promise.allSettled([closed, acknowledged])
+      const failures: unknown[] = []
+      await confirmation
+        .getByRole('button', { name: 'Confirm', exact: true })
+        .click()
+        .catch((error) => failures.push(error))
+      const outcomes = await pending
+      for (const outcome of outcomes) {
+        if (outcome.status === 'rejected') failures.push(outcome.reason)
+      }
+      await testInfo
+        .attach('MP-116 restore close and native acknowledgement', {
+          body: JSON.stringify(
+            outcomes.map((outcome, index) => ({
+              operation: index === 0 ? 'page-close' : 'native-acknowledgement',
+              status: outcome.status,
+              errorName: outcome.status === 'rejected' && outcome.reason instanceof Error ? outcome.reason.name : null
+            }))
+          ),
+          contentType: 'application/json'
+        })
+        .catch((error) => failures.push(error))
+      if (app.record.mode === 'branch') {
+        const diagnostic = await readFile(join(app.paths.logs, 'native-message-box.json'), 'utf8')
+          .then((contents) => JSON.parse(contents))
+          .catch(() => null)
+        await testInfo
+          .attach('MP-116 native dialog state', {
+            body: JSON.stringify(
+              diagnostic && Date.parse(diagnostic.startedAt) >= nativeStartedAt ? diagnostic : { unavailable: true }
+            ),
+            contentType: 'application/json'
+          })
+          .catch((error) => failures.push(error))
+      }
+      if (failures.length)
+        throw new AggregateError(failures, 'Restore confirmation failed; click, close and native errors retained')
+    } else {
+      await confirmation.getByRole('button', { name: 'Confirm', exact: true }).click()
+      await Promise.all([closed, acknowledged])
+    }
     if (app.record.mode === 'branch') {
       const { runnerPid: runner, platform } = app.record
       const promotion = app.restart().then(
@@ -385,12 +425,12 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       // The packaged build relaunches itself; take ownership of the replacement before asserting.
       page = await app.adoptRelaunch()
     }
-    await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible()
+    await selectSidebarApp(page, 'Chat')
+    await expect(page.locator('#app-sidebar')).toBeVisible()
     const restored = await readTopic()
     expect(restored.status).toBe(200)
     expect(TopicSchema.parse(restored.data)).toMatchObject({ id: topicId, name: topicName, assistantId })
     expect(await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))).toBe(false)
-    await selectSidebarApp(page, 'Chat')
     const header = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await header.hover()
     const expand = header.getByRole('button', { name: 'Expand', exact: true })
@@ -411,25 +451,54 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(restoredManager.getByRole('row').filter({ hasText: 'MP-116-valid.zip' })).toBeVisible()
     await attachScreenshot('MP-116 manager lists the restored archive')
     await page.keyboard.press('Escape')
+  } catch (error) {
+    primaryFailure = error
+    throw error
   } finally {
     if (!page.isClosed()) {
-      await page.evaluate(
-        async ({ assistantId, originalPreferences }) => {
-          await window.api.preference.setMultiple({
-            'data.backup.local.dir': originalPreferences.dir,
-            'data.backup.local.auto_sync': originalPreferences.autoSync,
-            'data.backup.local.skip_backup_file': originalPreferences.slim,
-            'topic.naming.enabled': originalPreferences.naming
+      let cleanupTimer: ReturnType<typeof setTimeout> | undefined
+      try {
+        const cleanup = page.evaluate(
+          async ({ assistantId, originalPreferences }) => {
+            await window.api.preference.setMultiple({
+              'data.backup.local.dir': originalPreferences.dir,
+              'data.backup.local.auto_sync': originalPreferences.autoSync,
+              'data.backup.local.skip_backup_file': originalPreferences.slim,
+              'topic.naming.enabled': originalPreferences.naming
+            })
+            const permanentlyDeletedAssistant2 = (await window.api.ipcApi.request(
+              'trash.assistant.delete_permanently',
+              {
+                assistantId,
+                deleteTopics: true
+              }
+            )) as IpcResult<{ deleted: boolean }>
+            if (!permanentlyDeletedAssistant2.ok || !permanentlyDeletedAssistant2.data.deleted)
+              throw new Error('cleanup left the case assistant in the trash')
+          },
+          { assistantId, originalPreferences }
+        )
+        if (app.record.platform === 'windows') {
+          await Promise.race([
+            cleanup,
+            new Promise<never>((_resolve, reject) => {
+              cleanupTimer = setTimeout(
+                () => reject(new Error('MP-116 cleanup did not complete within 10 seconds')),
+                10_000
+              )
+            })
+          ])
+        } else await cleanup
+      } catch (cleanupError) {
+        if (primaryFailure !== undefined) {
+          throw new AggregateError([primaryFailure, cleanupError], 'MP-116 failed and cleanup also failed', {
+            cause: primaryFailure
           })
-          const permanentlyDeletedAssistant2 = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
-            assistantId,
-            deleteTopics: true
-          })) as IpcResult<{ deleted: boolean }>
-          if (!permanentlyDeletedAssistant2.ok || !permanentlyDeletedAssistant2.data.deleted)
-            throw new Error('cleanup left the case assistant in the trash')
-        },
-        { assistantId, originalPreferences }
-      )
+        }
+        throw cleanupError
+      } finally {
+        clearTimeout(cleanupTimer)
+      }
     }
   }
 })
@@ -455,7 +524,14 @@ test(...caseDefinition('MP-117'), async ({ app, mainWindow: page }, testInfo) =>
   const lastBackup = page.getByText(/^Last Backup: \d{2}:\d{2}:\d{2}$/)
   const selectInterval = async (name: string) => {
     await interval.click()
-    await page.getByRole('option', { name, exact: true }).click()
+    try {
+      await page.getByRole('listbox').hover()
+      await page.mouse.wheel(0, -1000)
+      await page.getByRole('option', { name, exact: true }).click()
+    } catch (error) {
+      await attachScreenshot(`MP-117 ${name} interval selection failure`)
+      throw error
+    }
     await expect(interval).toHaveText(name)
   }
 
@@ -620,7 +696,7 @@ test(...caseDefinition('MP-120'), async ({ app, mainWindow: page }, testInfo) =>
         const dialog = page.getByRole('dialog', { name: `Import ${source} Conversations`, exact: true })
         await expect(dialog).toBeVisible()
         await dialog.getByRole('button', { name: 'Select File', exact: true }).click()
-        chooseImportFile(app, path)
+        chooseNativeFile(app.record.platform, app.paths, path)
         return dialog
       }
       const before = await readState()
@@ -680,6 +756,9 @@ test(...caseDefinition('MP-120'), async ({ app, mainWindow: page }, testInfo) =>
       await attachScreenshot(`MP-120 ${source} invalid file rejected without partial data`)
       await invalidDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
     }
+  } catch (error) {
+    await attachScreenshot('MP-120 import failure before cleanup')
+    throw error
   } finally {
     const current = await readState()
     const ids = new Set([
@@ -697,8 +776,4 @@ test(...caseDefinition('MP-120'), async ({ app, mainWindow: page }, testInfo) =>
       }, assistantId)
     }
   }
-})
-
-test(...caseDefinition('MP-121'), async ({ app, mainWindow }, testInfo) => {
-  await resetAppData(app, mainWindow, testInfo)
 })

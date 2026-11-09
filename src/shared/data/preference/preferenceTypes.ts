@@ -43,6 +43,8 @@ export type AgentFilePaneTreePosition = 'left' | 'right'
 /** Prevent-sleep policy: never, only while tasks run, or while the app runs. */
 export type PreventSleepMode = 'off' | 'tasks' | 'always'
 
+export type AgentDetailsSectionConfig = { id: string; visible: boolean }
+
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
@@ -141,10 +143,14 @@ export type TopicTabPosition = 'left' | 'right'
 
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 
+export type BrowserStartPageMode = 'blank' | 'last' | 'custom'
+
 export const SIDEBAR_FAVORITES = [
   'assistants',
   'agents',
+  'scheduled_tasks',
   'paintings',
+  'marketplace',
   'translate',
   'mini_app',
   'knowledge',
@@ -455,6 +461,8 @@ export type FileProcessorOptions = {
 export type FileProcessorCapabilityOverride = {
   apiHost?: string
   modelId?: string
+  formulaLevel?: 0 | 1 | 2
+  mergeCrossPageForms?: boolean
 }
 
 export type FileProcessorCapabilityOverrides = Partial<Record<FileProcessorFeature, FileProcessorCapabilityOverride>>
@@ -487,6 +495,8 @@ export type CustomToolDefinition = {
   tool: string
   requestedVersion?: string
 }
+
+export type { SkillSubscriptionSource } from '@shared/types/skillMarketplace'
 
 export type AdvertisedRemoteEndpoint = DirectEndpoint & {
   /** Original validated input for display; transport endpoints omit this field. */
