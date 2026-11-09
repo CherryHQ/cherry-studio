@@ -20,7 +20,7 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
-import { withoutDiagnostics } from '@main/core/logger/diagnosticScope'
+import { areDiagnosticsSuppressed, withoutDiagnostics } from '@main/core/logger/diagnosticScope'
 import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
@@ -2170,7 +2170,7 @@ export class AiStreamManager extends BaseService {
           return this.onExecutionError(topicId, modelId, serializeError(err), exec)
         })
         .finally(() => activity.dispose())
-    if (temporaryChatService.hasTopic(topicId)) {
+    if (temporaryChatService.hasTopic(topicId) || areDiagnosticsSuppressed()) {
       this.privateExecutions.add(exec)
       exec.loopPromise = withoutDiagnostics(run)
     } else {

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiService } from '@main/ai/AiService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { areDiagnosticsSuppressed } from '@main/core/logger/diagnosticScope'
+import { areDiagnosticsSuppressed, withoutDiagnostics } from '@main/core/logger/diagnosticScope'
 import { diagnose } from '@main/services/diagnostics/scan/engine'
 import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
@@ -659,6 +659,27 @@ describe('AiStreamManager', () => {
       } finally {
         temporary.mockRestore()
       }
+    })
+
+    it('retains an explicit diagnostic scope for later main-process cancellation', async () => {
+      const controller = new AbortController()
+      let privateAbort = false
+      controller.signal.addEventListener('abort', () => {
+        privateAbort = areDiagnosticsSuppressed()
+      })
+      withoutDiagnostics(() =>
+        startSingle(mgr, {
+          topicId: 'private-internal-stream',
+          modelId: 'provider::model',
+          request: req('private-internal-stream'),
+          listeners: [],
+          abortController: controller
+        })
+      )
+      mgr.abort('private-internal-stream', 'app-shutdown')
+      expect(privateAbort).toBe(true)
+      expect(areDiagnosticsSuppressed()).toBe(false)
+      await flushMicrotasksUntil(() => !mgr.hasUnsettledTopicWork('private-internal-stream'))
     })
 
     it('creates an active stream and launches an execution loop against AiService.streamText', () => {
