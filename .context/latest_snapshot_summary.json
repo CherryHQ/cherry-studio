@@ -1,109 +1,200 @@
 {
-  "generated_at": "2026-11-08T18:00:00Z",
+  "generated_at": "2026-11-09T17:47:27.690234+00:00",
   "open_issues": {
-    "count": 1673,
-    "total_in_repo": 1673,
-    "delta_from_prev_day": "+469"
+    "count": 602,
+    "total_in_repo": null
   },
   "open_prs": {
-    "count": 200,
+    "count": 500,
     "by_base": {
-      "main": "~91%",
-      "feature_branches": "~9%"
+      "eurfelux/composer-markdown-literal-code": 1,
+      "eurfelux/composer-markdown-code-blocks": 1,
+      "eurfelux/composer-markdown-preview-core": 1,
+      "eurfelux/composer-markdown-line-model": 1,
+      "eurfelux/spike/composer-markdown-live-preview": 1,
+      "spec/message-list-subscriptions": 1,
+      "main": 436,
+      "side-chat/runtime": 1,
+      "side-chat/storage": 1,
+      "t3/tool-result-details": 1,
+      "side-chat/privacy": 1,
+      "docs/side-chat-plan": 1,
+      "investigate_timeout_cause": 1,
+      "t3/stream-rendering-list-jank": 1,
+      "feat/23721-assistant-avatar": 1,
+      "codex/local-history-import/opencode": 1,
+      "codex/local-history-import/codex": 1,
+      "codex/local-history-import/claude-code": 1,
+      "codex/local-history-import/design": 1,
+      "t3/speed-up-github-actions": 1,
+      "SiinXu/agent-profile-card": 1,
+      "SiinXu/agent-auto-create-skills": 1,
+      "SiinXu/agent-quick-create": 1,
+      "SiinXu/agent-profile-spec": 1,
+      "codex/issue-15970-knowledge-ui": 1,
+      "SiinXu/global-errors-6-settings": 1,
+      "SiinXu/global-errors-5-content": 1,
+      "SiinXu/global-errors-4-chat": 1,
+      "SiinXu/global-errors-3-boot": 1,
+      "SiinXu/global-errors-2-update": 1,
+      "SiinXu/global-errors-1-core": 1,
+      "SiinXu/global-errors-0-spec": 1,
+      "codex/shared-memory/dreaming": 1,
+      "codex/shared-memory/migration": 1,
+      "codex/shared-memory/tools": 1,
+      "codex/shared-memory/runtime": 1,
+      "codex/shared-memory/editor": 1,
+      "codex/shared-memory/access": 1,
+      "codex/shared-memory/storage": 1,
+      "codex/shared-memory/design": 1,
+      "DeJeune/gateway-provider-id": 1,
+      "feat/web-core-m2-agent": 1,
+      "feat/web-core-m1-chat": 1,
+      "feat/web-core-m0-database": 1,
+      "spec/web-core": 1,
+      "split/20440-b-hook": 1,
+      "split/20440-d-lifecycle": 1,
+      "split/20440-a-data-layer": 1,
+      "codex/shared-connector-credentials-spec": 1,
+      "spec/model-defaults-endpoint-routing": 1,
+      "DeJeune/openai-gemini-endpoints-implement": 1,
+      "codex/task-dashboard-runtime": 1,
+      "orca/video-stack-20261016-settings": 1,
+      "orca/video-stack-20261016-media": 1,
+      "orca/media-frame-analysis": 1,
+      "orca/video-stack-20261016-chat": 1,
+      "codex/generated-attachments": 1,
+      "codex/voice-renderer-foundation": 1,
+      "SiinXu/media-ffmpeg-linux-runtime": 1,
+      "DeJeune/native-tool-search-code-mode": 2,
+      "SiinXu/check-assigned-2.2.0-issues": 1,
+      "orca/fix-conditional-service-dependencies": 1,
+      "DeJeune/ai-sdk-v7-upgrade": 1,
+      "DeJeune/ai-sdk-v7-research": 1
     }
   },
-  "closed_issues_30d": 534,
-  "closed_prs_30d": 965,
+  "closed_issues_30d": 96,
+  "closed_prs_30d": 500,
   "label_distribution": [
     {
       "label": "bug",
-      "count": 605
-    },
-    {
-      "label": "feature",
-      "count": 467
+      "count": 340
     },
     {
       "label": "p2",
-      "count": 355
-    },
-    {
-      "label": "agent",
-      "count": 283
+      "count": 233
     },
     {
       "label": "p3",
-      "count": 281
+      "count": 228
     },
     {
-      "label": "models",
-      "count": 246
-    },
-    {
-      "label": "ui-ux",
-      "count": 224
-    },
-    {
-      "label": "needs-info",
-      "count": 205
+      "label": "feature",
+      "count": 216
     },
     {
       "label": "needs-review",
+      "count": 203
+    },
+    {
+      "label": "needs-info",
       "count": 196
     },
     {
-      "label": "ai:assign:coding",
-      "count": 148
+      "label": "agent",
+      "count": 195
     },
     {
-      "label": "chat",
-      "count": 132
+      "label": "ai:assign:coding",
+      "count": 153
+    },
+    {
+      "label": "models",
+      "count": 137
+    },
+    {
+      "label": "ui-ux",
+      "count": 134
     },
     {
       "label": "provider",
-      "count": 102
+      "count": 103
+    },
+    {
+      "label": "chat",
+      "count": 100
     },
     {
       "label": "windows",
-      "count": 86
+      "count": 33
     },
     {
-      "label": "p1",
-      "count": 85
-    },
-    {
-      "label": "internal-team",
-      "count": 82
-    },
-    {
-      "label": "Dev Team",
-      "count": 59
+      "label": "claude-code",
+      "count": 33
     },
     {
       "label": "data",
-      "count": 59
+      "count": 27
     },
     {
-      "label": "needs-triage",
-      "count": 58
+      "label": "rag",
+      "count": 21
+    },
+    {
+      "label": "connectivity",
+      "count": 20
     },
     {
       "label": "assistant",
-      "count": 49
+      "count": 19
+    },
+    {
+      "label": "Dev Team",
+      "count": 19
     },
     {
       "label": "mcp",
-      "count": 45
+      "count": 19
     }
   ],
-  "unlabeled_pct": 1.9,
+  "unlabeled_pct": 2.5,
   "p1_issues": [
+    {
+      "number": 23991,
+      "title": "[Bug]: plan mode has a security vulnerability",
+      "labels": [
+        "bug",
+        "p1",
+        "agent",
+        "claude-code",
+        "ai:assign:coding"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/23991"
+    },
+    {
+      "number": 23938,
+      "title": "[Bug]: Agent work directory and its files are removed by an in-app upgrade",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "agent",
+        "ai:assign:coding"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/23938"
+    },
     {
       "number": 23890,
       "title": "build: Windows typecheck fails on main (PlanModeHint casing collision + wrong e2e import path)",
-      "labels": ["bug","p1","macos","windows","agent","regression"],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/23890",
-      "note": "NEW today 2026-11-08"
+      "labels": [
+        "bug",
+        "p1",
+        "macos",
+        "windows",
+        "agent",
+        "regression"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/23890"
     },
     {
       "number": 23826,
@@ -187,18 +278,6 @@
       "url": "https://github.com/CherryHQ/cherry-studio/issues/22137"
     },
     {
-      "number": 22121,
-      "title": "[Bug]: Responses reasoning delta reaches chat consumers without an initialized reasoning part",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "v2",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22121"
-    },
-    {
       "number": 22026,
       "title": "[Discussion]: Data stored via WebDAV before v2.0 cannot be restored",
       "labels": [
@@ -230,853 +309,6 @@
         "claude-code"
       ],
       "url": "https://github.com/CherryHQ/cherry-studio/issues/21898"
-    },
-    {
-      "number": 21805,
-      "title": "[Bug]: SQLITE_CORRUPT blocks startup after reboot and persists after reinstall",
-      "labels": [
-        "bug",
-        "p1",
-        "data",
-        "needs-info"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/21805"
-    },
-    {
-      "number": 21418,
-      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM: rename \"Local Storage\"); backup archive corrupted (Bad archive) and old backup version incompatible (v6→v7) — data cannot be restored, perceived as a crash",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "data",
-        "v2"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/21418"
-    },
-    {
-      "number": 21085,
-      "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context",
-      "labels": [
-        "bug",
-        "p1",
-        "rag",
-        "assistant",
-        "performance",
-        "v2",
-        "chat",
-        "ai:assign:coding"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/21085"
-    },
-    {
-      "number": 20941,
-      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
-      "labels": [
-        "bug",
-        "p1",
-        "v2",
-        "agent",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20941"
-    },
-    {
-      "number": 20940,
-      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "v2",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20940"
-    },
-    {
-      "number": 20937,
-      "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "v2",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20937"
-    },
-    {
-      "number": 20695,
-      "title": "[Bug]: Parallel `edit` calls to the same file via built-in filesystem MCP cause lost updates and duplicated tail fragments",
-      "labels": [
-        "bug",
-        "p1"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20695"
-    },
-    {
-      "number": 20692,
-      "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
-      "labels": [
-        "bug",
-        "p1",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20692"
-    },
-    {
-      "number": 20476,
-      "title": "DeepSeek chat content can be serialized with an incomplete hex escape",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "models",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20476"
-    },
-    {
-      "number": 20460,
-      "title": "[Bug]: Volcano responses with reasoning_content break tool_calls parsing",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20460"
-    },
-    {
-      "number": 20458,
-      "title": "[Bug]: Hybrid Chat Completions response schema fails strict validation",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20458"
-    },
-    {
-      "number": 20374,
-      "title": "Unable to read Word and PDF documents",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-repro",
-        "data",
-        "v2"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20374"
-    },
-    {
-      "number": 20369,
-      "title": "[Bug]: Claude Code Agent exits on Linux when zypak cannot access the session bus",
-      "labels": [
-        "bug",
-        "p1",
-        "linux",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20369"
-    },
-    {
-      "number": 20365,
-      "title": "[Bug]: Clearing chat context still reports about 90K cached prompt tokens for a one-line request",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "models",
-        "performance",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20365"
-    },
-    {
-      "number": 20361,
-      "title": "[Bug]: All conversation tools report No tools are available on one Windows PC",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20361"
-    },
-    {
-      "number": 20344,
-      "title": "Windows Agent startup crashes when PATH contains a null byte",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20344"
-    },
-    {
-      "number": 20338,
-      "title": "[Bug]: Mac OS系统下，编程搭档启动失败",
-      "labels": [
-        "bug",
-        "p1",
-        "macos",
-        "code-mate"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20338"
-    },
-    {
-      "number": 20314,
-      "title": "[Bug]: Agent task model selection overwrites another task",
-      "labels": [
-        "bug",
-        "p1",
-        "ui-ux",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20314"
-    },
-    {
-      "number": 20300,
-      "title": "GPT Image 2 reference-image requests fail with ERR_SSL_PROTOCOL_ERROR",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "models",
-        "needs-info",
-        "network"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20300"
-    },
-    {
-      "number": 20285,
-      "title": "[Bug]: Built-in Hermes Agent model is unavailable through the API Gateway",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20285"
-    },
-    {
-      "number": 20265,
-      "title": "[Bug] Agent session white screen crash: TypeError: text.includes is not a function (bash tool output stored as object instead of string)",
-      "labels": [
-        "bug",
-        "p1",
-        "linux",
-        "data",
-        "ui-ux",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20265"
-    },
-    {
-      "number": 20258,
-      "title": "[Bug]: In the latest updated version, my uploaded images are severely compressed, and the model cannot recognize the text in my images",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-more-info",
-        "windows",
-        "models",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20258"
-    },
-    {
-      "number": 20232,
-      "title": "[Bug]: Code Mate Claude Code process crashes in embedded Bun 1.4.0 on Windows",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "needs-triage",
-        "agent",
-        "code-mate"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20232"
-    },
-    {
-      "number": 20231,
-      "title": "[Feature]: Pin managed tool versions to Cherry Studio releases and support rollback",
-      "labels": [
-        "p1",
-        "feature",
-        "needs-triage",
-        "agent",
-        "code-mate"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20231"
-    },
-    {
-      "number": 20217,
-      "title": "[Bug]: Selection Assistant reports insufficient balance while using a built-in free model",
-      "labels": [
-        "bug",
-        "p1",
-        "assistant",
-        "selection-assistant"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20217"
-    },
-    {
-      "number": 20216,
-      "title": "[Bug]: Nano Banana image generation builds an invalid /v1beta1/images/generations URL",
-      "labels": [
-        "bug",
-        "p1",
-        "models"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20216"
-    },
-    {
-      "number": 20097,
-      "title": "[Bug]: Windows cannot stop the managed DeepSeek Harness process tree cleanly",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20097"
-    },
-    {
-      "number": 20027,
-      "title": "Explain and recover when all generated images are filtered as invalid",
-      "labels": [
-        "bug",
-        "p1",
-        "ui-ux",
-        "models",
-        "v2"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20027"
-    },
-    {
-      "number": 20021,
-      "title": "Local OCR and embedding fail when onnxruntime_binding.node cannot initialize on Windows",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "rag",
-        "v2",
-        "ocr"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20021"
-    },
-    {
-      "number": 20007,
-      "title": "[Bug]: Model switching issue",
-      "labels": [
-        "bug",
-        "p1"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20007"
-    },
-    {
-      "number": 19999,
-      "title": "[Bug]: beta-cn macOS updater retries missing manifest with HTTP 503",
-      "labels": [
-        "bug",
-        "p1",
-        "macos",
-        "needs-triage"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19999"
-    },
-    {
-      "number": 19991,
-      "title": "[Bug]: GPT Image 2 edit returns HTTP 200 but response parsing fails and retries may still be billed",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "models"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19991"
-    },
-    {
-      "number": 19989,
-      "title": "[Bug]: Agent execution fails when API Gateway port 23333 is already in use",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "connectivity",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19989"
-    },
-    {
-      "number": 19948,
-      "title": "Windows Agent cannot locate the bundled Claude Code executable",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "agent",
-        "claude-code"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19948"
-    },
-    {
-      "number": 19929,
-      "title": "[Bug]: Windows Agent sessions fail to start with spawn EPERM",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "v2",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19929"
-    },
-    {
-      "number": 19917,
-      "title": "Cross-Agent delivery can execute a stale failed task instead of the accepted request",
-      "labels": [
-        "bug",
-        "p1",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19917"
-    },
-    {
-      "number": 19865,
-      "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "performance",
-        "agent",
-        "ai:assign:coding"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19865"
-    },
-    {
-      "number": 19864,
-      "title": "Large local Ollama context allocation ends in an opaque 500 and OOM",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19864"
-    },
-    {
-      "number": 19862,
-      "title": "Using the filesystem root as Agent workspace freezes macOS startup indexing",
-      "labels": [
-        "bug",
-        "p1",
-        "macos",
-        "needs-triage",
-        "performance",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19862"
-    },
-    {
-      "number": 19847,
-      "title": "[Bug]: Agent with DashScope Qwen3.8-Max terminates on a mid-response server error without recovery",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-triage",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19847"
-    },
-    {
-      "number": 19843,
-      "title": "Switching models mid-Agent conversation drops prior context",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-triage",
-        "models",
-        "agent",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19843"
-    },
-    {
-      "number": 19805,
-      "title": "[Bug]: Android model checks fail because the default React Native fetch cannot stream",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-triage",
-        "models"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19805"
-    },
-    {
-      "number": 19803,
-      "title": "[Bug]: Agent shows a PDF attachment but Claude Opus receives no file content",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-more-info",
-        "agent",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19803"
-    },
-    {
-      "number": 19793,
-      "title": "Chat fails when a response stream ends without a finish reason",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19793"
-    },
-    {
-      "number": 19788,
-      "title": "[Bug]: Gemini built-in tools with function calling fail unless server-side tool invocations are enabled",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-triage",
-        "models"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19788"
-    },
-    {
-      "number": 19706,
-      "title": "[Bug]: App crash (main-process V8 OOM / SIGTRAP) when sending a ~238MB PDF to gemini-3.7-flash — no size cap on native inline attachments",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "performance"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19706"
-    },
-    {
-      "number": 19625,
-      "title": "[Bug]: Windows in-app update exits but leaves the old 1.9.x version installed",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "needs-repro",
-        "needs-triage",
-        "v2"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19625"
-    },
-    {
-      "number": 19584,
-      "title": "Agent replies are generated but not delivered to WeChat after upgrading to 2.0.9",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "connectivity",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19584"
-    },
-    {
-      "number": 19582,
-      "title": "Assistant Management hides tags and assistants after upgrading to 2.0.9",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "assistant",
-        "ui-ux"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19582"
-    },
-    {
-      "number": 19578,
-      "title": "[Bug]: Linux arm64 main window continuously flickers",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-more-info",
-        "linux",
-        "ui-ux"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19578"
-    },
-    {
-      "number": 19452,
-      "title": "OneAPI-compatible providers leave knowledge-base search stuck",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "rag",
-        "connectivity",
-        "models"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19452"
-    },
-    {
-      "number": 19441,
-      "title": "[Feature]: Video generation feature urgently needed",
-      "labels": [
-        "p1",
-        "feature",
-        "models"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19441"
-    },
-    {
-      "number": 19379,
-      "title": "Pi runtime: report_artifacts deliverables never render (code mode masks the inner tool name)",
-      "labels": [
-        "bug",
-        "p1",
-        "ui-ux",
-        "v2",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19379"
-    },
-    {
-      "number": 19376,
-      "title": "Pi runtime: auto permission mode still prompts for every tool call",
-      "labels": [
-        "bug",
-        "p1",
-        "assistant",
-        "v2",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19376"
-    },
-    {
-      "number": 19326,
-      "title": "[Bug]: Retry state can persist after success and poison later conversation turns",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-more-info",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19326"
-    },
-    {
-      "number": 19322,
-      "title": "[Bug]: Newly created DSH Zstandard session logs fail the first-frame contract",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19322"
-    },
-    {
-      "number": 19321,
-      "title": "[Bug]: Local API drops DeepSeek reasoning_text on tool continuations",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19321"
-    },
-    {
-      "number": 19316,
-      "title": "[Bug]: DeepSeek Harness (dsh) Agent 会话报 400：所选服务商不接受 messages[0].role=developer",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19316"
-    },
-    {
-      "number": 19314,
-      "title": "[Bug]: DeepSeek V4 Pro reasoning can finish without a final answer",
-      "labels": [
-        "bug",
-        "p1",
-        "models"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19314"
-    },
-    {
-      "number": 19313,
-      "title": "[Bug]: Managed DSH fails to start because @deepseek-ai/dsh-scope is missing",
-      "labels": [
-        "bug",
-        "p1",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19313"
-    },
-    {
-      "number": 19290,
-      "title": "[Bug] Claude Agent SDK session injects the full Claude Code developer prompt twice (same billing header in both copies)",
-      "labels": [
-        "bug",
-        "p1",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19290"
-    },
-    {
-      "number": 19272,
-      "title": "[Bug]: I found a bug when I used it with augment claude type agent. who can tell me how to fix it?",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-more-info",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19272"
-    },
-    {
-      "number": 19271,
-      "title": "[Bug] MiniMax-M3 agent intermittent disconnection: reasoning part reasoning-0 not found (wrapped as Internal server error), cron task failures are not retried",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19271"
-    },
-    {
-      "number": 19254,
-      "title": "[Bug]: Multimodal content block built incorrectly in single-model chat — images not passed to vision models (GLM-4V-Flash 1213 / DeepSeek vision sees no image)",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19254"
-    },
-    {
-      "number": 19171,
-      "title": "Model connectivity check hardcodes reasoning_effort: \"none\", causing detection failure for models that don't accept this value",
-      "labels": [
-        "bug",
-        "p1",
-        "connectivity",
-        "models"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19171"
-    },
-    {
-      "number": 19124,
-      "title": "[Bug]: ClaudeCodeResultError - API Error 400 litellm.BadRequestError: System message must be at the beginning",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19124"
-    },
-    {
-      "number": 18957,
-      "title": "[Feature]: Direct Intermediate Installer and Resume for Required Upgrade Paths",
-      "labels": [
-        "p1",
-        "feature",
-        "needs-triage",
-        "data",
-        "internal-team"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18957"
-    },
-    {
-      "number": 18872,
-      "title": "[Bug]: After switching model from the top, sending new message still uses the previous model, can only bypass by creating new session",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18872"
-    },
-    {
-      "number": 18775,
-      "title": "[Feature]: Suggestions for Improving the Local OCR Feature in CherryStudio",
-      "labels": [
-        "p1",
-        "feature",
-        "ocr"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18775"
-    },
-    {
-      "number": 18765,
-      "title": "[Bug]: Agent mode sends Anthropic \"max_tokens\" to OpenAI-compatible gateways -> GPT-5.x 400: use \"max_completion_tokens\" instead",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18765"
-    },
-    {
-      "number": 18741,
-      "title": "[Bug]: DeepSeek V4 shows \"No tool output found for tool call\" after a long conversation; session becomes permanently broken with HTTP 400",
-      "labels": [
-        "bug",
-        "p1",
-        "agent",
-        "chat"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18741"
-    },
-    {
-      "number": 18643,
-      "title": "[Bug]: [Bug] Agent runtime + local Ollama model: all tool calls return 500 (OpenAI-format tools break gateway Ollama adapter)",
-      "labels": [
-        "bug",
-        "p1",
-        "needs-triage",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18643"
-    },
-    {
-      "number": 18382,
-      "title": "[Bug]:发送超过8000字符的文件会被截断",
-      "labels": [
-        "bug",
-        "p1"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18382"
-    },
-    {
-      "number": 18286,
-      "title": "[Bug]: 向纯文本模型发送图片时以 image_url 原生发送，OpenAI 兼容网关返回 400 报错中断对话",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18286"
     }
   ],
   "v2_prs": {
@@ -1085,64 +317,64 @@
   },
   "top_issues_by_comments": [
     {
-      "number": 20941,
-      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
-      "comments": 167,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20941"
-    },
-    {
-      "number": 20976,
-      "title": "[Bug]: Cherry adapter rejects mid-conversation system messages for models without the mid-conversation-system beta — 49 local 400s/day, each triggering a fallback chain",
-      "comments": 157,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20976"
-    },
-    {
-      "number": 20940,
-      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
-      "comments": 126,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20940"
-    },
-    {
-      "number": 18894,
-      "title": "[Bug]: Agent v2 context grows past provider window before auto-compaction",
-      "comments": 118,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18894"
-    },
-    {
-      "number": 19793,
-      "title": "Chat fails when a response stream ends without a finish reason",
-      "comments": 104,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/19793"
-    },
-    {
-      "number": 21191,
-      "title": "[Bug]: A single corrupt image permanently bricks an Agent session — every request 400s at a fixed message index, with no UI recovery path",
-      "comments": 94,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/21191"
-    },
-    {
       "number": 22775,
       "title": "[Bug]: DeepSeek Harness crashes on every work-conversation request (exit code 3, finalizer affected GC state) and surfaces only a generic \"unknown error\"",
-      "comments": 86,
+      "comments": 95,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/22775"
     },
     {
       "number": 21965,
       "title": "[Bug]: Turns fail with HTTP 400 \"Function tools with reasoning_effort are not supported\" when an OpenAI-compatible relay receives reasoning_effort together with function tools",
-      "comments": 68,
+      "comments": 73,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/21965"
     },
     {
       "number": 22265,
       "title": "[Bug]: Qwen home conversation reaches tool-call limit before producing final answer",
-      "comments": 62,
+      "comments": 65,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/22265"
     },
     {
       "number": 22197,
       "title": "[Bug] DeepSeek Flash normal chat rejects max_tokens with HTTP 400",
-      "comments": 43,
+      "comments": 44,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/22197"
+    },
+    {
+      "number": 22909,
+      "title": "[Bug]: Work conversation request body exceeds limit showing 'Unknown error occurred' (413 Failed to buffer the request body: length limit exceeded), no size pre-check or readable prompt",
+      "comments": 30,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22909"
+    },
+    {
+      "number": 22270,
+      "title": "[Bug]: Claude Code process exits with code 3221226505 in work conversation",
+      "comments": 30,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22270"
+    },
+    {
+      "number": 23706,
+      "title": "[Bug]: Chat turns fail with an opaque \"Failed to process successful response\" from HTTP 200 streams",
+      "comments": 28,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/23706"
+    },
+    {
+      "number": 22198,
+      "title": "[Bug]: Gemini rejects cron tool schema missing type for timeout_minutes",
+      "comments": 27,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22198"
+    },
+    {
+      "number": 22158,
+      "title": "Conversation: gpt-6-astra\r - HTTP 400 (Unsupported value: 'reasoning_effort' does not support 'max' with this model. Supported values are: ",
+      "comments": 23,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22158"
+    },
+    {
+      "number": 22726,
+      "title": "[Bug]: Normal chat sends unsupported max reasoning effort to GPT-5.6 Luna",
+      "comments": 20,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22726"
     }
   ]
 }
