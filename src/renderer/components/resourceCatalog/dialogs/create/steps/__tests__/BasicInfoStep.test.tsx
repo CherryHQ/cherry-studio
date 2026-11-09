@@ -6,7 +6,6 @@ vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () =>
 })
 
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,17 +54,17 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShare
 
 function Harness({
   modelId = null,
-  runtimeSelectable = false
+  showAgentFields = false
 }: {
   modelId?: UniqueModelId | null
-  runtimeSelectable?: boolean
+  showAgentFields?: boolean
 }) {
   const form = useForm<ResourceCreateWizardFormValues>({
     defaultValues: {
       avatar: '💬',
       name: '',
       description: '',
-      agentType: 'claude-code',
+      agentType: 'pi-durable',
       permissionMode: 'auto',
       modelId,
       prompt: '',
@@ -76,7 +75,7 @@ function Harness({
 
   return (
     <Form {...form}>
-      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" runtimeSelectable={runtimeSelectable} />
+      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" showAgentFields={showAgentFields} />
       <output data-testid="permission-mode">{form.watch('permissionMode')}</output>
     </Form>
   )
@@ -117,47 +116,16 @@ describe('BasicInfoStep', () => {
     ).toBeVisible()
   })
 
-  it('offers Pi and Pi Durable before Claude for creation without exposing DeepSeek Harness', () => {
-    render(<Harness runtimeSelectable />)
+  it('hides runtime configuration while keeping smart approval for new agents', () => {
+    render(<Harness showAgentFields />)
 
-    expect(screen.getAllByRole('radio')).toEqual([
-      screen.getByRole('radio', { name: /runtime\.option\.pi\b/ }),
-      screen.getByRole('radio', { name: /runtime\.option\.pi_durable\b/ }),
-      screen.getByRole('radio', { name: /runtime.option.claude_code/ })
-    ])
-    expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeVisible()
-    expect(screen.queryByRole('img', { name: /runtime\.immutable_hint/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /runtime.option.claude_code/ })).toBeChecked()
-    expect(screen.getByRole('radio', { name: /runtime\.option\.pi\b/ })).not.toBeChecked()
-    expect(screen.getByRole('radio', { name: /runtime\.option\.pi_durable\b/ })).not.toBeChecked()
-    expect(screen.queryByRole('radio', { name: /runtime.option.dsh/ })).not.toBeInTheDocument()
-    expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
-  })
-
-  it.each(['pi', 'pi_durable'])('uses smart approval when switching between Claude and %s', async (runtime) => {
-    const user = userEvent.setup()
-    render(<Harness runtimeSelectable />)
-
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.config.agent.field.runtime.label')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.config.agent.field.runtime.immutable_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.config.agent.field.runtime.option.pi_durable')).not.toBeInTheDocument()
     expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
       'agent.settings.tooling.permissionMode.auto.title'
     )
-
-    const runtimeOption = screen.getByRole('radio', { name: new RegExp(`runtime\\.option\\.${runtime}\\b`) })
-    await user.click(runtimeOption)
-
-    expect(runtimeOption).toBeChecked()
-    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
-      'agent.settings.tooling.permissionMode.auto.title'
-    )
-    expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
-
-    await user.click(screen.getByRole('radio', { name: /runtime.option.claude_code/ }))
-
-    expect(screen.getByRole('radio', { name: /runtime.option.claude_code/ })).toBeChecked()
-    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
-      'agent.settings.tooling.permissionMode.auto.title'
-    )
-    expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
   })
 
   it.each(['pi', 'claude-code'] as const)('still displays the runtime summary for an existing %s agent', (runtime) => {

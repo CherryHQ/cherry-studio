@@ -50,7 +50,7 @@ function getDefaultValues(
   initialName = '',
   initialValues: ResourceCreateWizardProps['initialValues'] = {}
 ): ResourceCreateWizardFormValues {
-  const agentType = kind === 'agent' ? 'pi' : 'claude-code'
+  const agentType = kind === 'agent' ? 'pi-durable' : 'claude-code'
   return {
     avatar: getResourceCreateDefaultAvatar(kind),
     name: initialName,
@@ -377,7 +377,7 @@ export function ResourceCreateWizard({
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
                     modelFilter={activeModelFilter}
-                    runtimeSelectable={kind === 'agent'}
+                    showAgentFields={kind === 'agent'}
                     onSettingsNavigate={closeBeforeAction}
                   />
                 ) : null}
