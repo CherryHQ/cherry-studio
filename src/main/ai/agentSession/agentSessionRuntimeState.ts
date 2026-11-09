@@ -308,7 +308,7 @@ function reduce<TTurn, TPendingTurn>(
       if (
         execution.kind === 'idle' ||
         execution.kind === 'steer-transition' ||
-        !isAgentSessionRuntimeAwaitingBackground(state)
+        !['open', 'attaching', 'unopened'].includes(execution.reply.delivery.kind)
       )
         return invalid(state, event)
       const resumed = { ...execution, reply: { ...execution.reply, terminal: undefined } }

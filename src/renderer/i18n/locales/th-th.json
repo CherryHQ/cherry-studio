@@ -405,7 +405,6 @@
   "agent.session_delivery.status.consumed": "ใช้งานแล้ว",
   "agent.session_delivery.status.delivering": "กำลังจัดส่ง",
   "agent.session_delivery.status.failed": "ล้มเหลว",
-  "agent.session_turn_origin.background_work": "ดำเนินการต่อหลังจากงานพื้นหลังเสร็จ",
   "agent.session_turn_origin.goal_round": "รอบเป้าหมาย {{round}}",
   "agent.settings.permissionMode.title": "โหมดสิทธิ์",
   "agent.settings.skills.addMore": "จัดการสกิล",

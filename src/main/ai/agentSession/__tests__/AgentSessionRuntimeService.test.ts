@@ -3144,7 +3144,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
@@ -3385,7 +3385,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       // Chunks stream while the wake turn's stream is not open yet — buffered, not dropped.
       ;(service as any).handleRuntimeEvent(entry, {
@@ -3444,7 +3444,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
@@ -3474,7 +3474,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'chunk',
@@ -3532,7 +3532,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(
         entry,
-        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } },
         connection
       )
       await vi.waitFor(() =>
@@ -3567,7 +3567,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
@@ -3621,7 +3621,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(
         entry,
-        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } },
         connection
       )
       ;(service as any).handleRuntimeEvent(
@@ -3719,7 +3719,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(
         entry,
-        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } },
         connection
       )
       ;(service as any).handleRuntimeEvent(
@@ -3788,7 +3788,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
       const receiveOnlyTurn = entry.currentTurn

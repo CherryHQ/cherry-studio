@@ -137,6 +137,18 @@ export class RootMessageProjection {
     return [...parts, ...this.pendingParts(messageId, parts), ...(this.extras.get(messageId) ?? [])]
   }
 
+  toolCallMessageId(toolCallId: string): string | undefined {
+    this.syncRemoved()
+    return [...this.sources.values()].find((source) =>
+      source.parts.some((part) => isToolUIPart(part) && part.toolCallId === toolCallId)
+    )?.messageId
+  }
+
+  get lastMessageId(): string | undefined {
+    this.syncRemoved()
+    return [...this.sources.values()].at(-1)?.messageId
+  }
+
   private pendingParts(messageId: string, sources: CherryUIMessage['parts']): CherryUIMessage['parts'] {
     const parts: CherryUIMessage['parts'] = []
     for (const [toolCallId, pending] of this.pendingTools) {
@@ -196,13 +208,10 @@ export class RootMessageProjection {
   }
 
   taskEvent(data: AgentTaskEventPartData): { messageId: string; parts: CherryUIMessage['parts'] } | undefined {
-    this.syncRemoved()
     if (!data.toolUseId) return undefined
-    const owner = [...this.sources.values()].find((source) =>
-      source.parts.some((part) => isToolUIPart(part) && part.toolCallId === data.toolUseId)
-    )
-    if (!owner) return undefined
-    const extras = this.extras.get(owner.messageId) ?? []
+    const messageId = this.toolCallMessageId(data.toolUseId)
+    if (!messageId) return undefined
+    const extras = this.extras.get(messageId) ?? []
     const next = {
       type: 'data-agent-task-event' as const,
       id: `task-${data.taskId}`,
@@ -210,11 +219,11 @@ export class RootMessageProjection {
     }
     const previous = extras.find((part) => part.type === next.type && part.data.taskId === data.taskId)
     if (isDeepStrictEqual(previous, next)) return undefined
-    this.extras.set(owner.messageId, [
+    this.extras.set(messageId, [
       ...extras.filter((part) => part.type !== next.type || part.data.taskId !== data.taskId),
       next
     ])
-    return { messageId: owner.messageId, parts: this.parts(owner.messageId)! }
+    return { messageId, parts: this.parts(messageId)! }
   }
 
   /** Normalize each owned source before flattening so checkpoint ranges describe the saved body. */
