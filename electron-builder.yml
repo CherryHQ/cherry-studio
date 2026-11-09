@@ -275,6 +275,7 @@ releaseInfo:
     - [Computer Use] Unconfirmed runtime cleanup can be recovered without restarting Cherry Studio.
     - [Claude] Claude Code installs on Windows ARM64, and Linux shows guidance instead of launching without a session bus.
     - [Tesseract] OCR loads its engine in packaged builds.
+    - [Agent] Remember the session details card's last open or closed state across all sessions and app restarts.
 
     ⚡ Performance
     - [Chat] Preparing large text attachments no longer blocks the interface.
@@ -357,6 +358,7 @@ releaseInfo:
     - [电脑操作] 未确认的运行时清理可在不重启 Cherry Studio 的情况下恢复。
     - [Claude] Claude Code 可在 Windows ARM64 上安装，Linux 在缺少会话总线时会显示指引而不是启动。
     - [Tesseract] 打包版本中 OCR 可正常加载引擎。
+    - [智能体] 记住会话详情卡片最后的打开或关闭状态，切换会话或重启应用后保持一致。
 
     ⚡ 性能优化
     - [对话] 准备大型文本附件不再阻塞界面。
