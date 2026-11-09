@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { createAssistantMessageEventStream, type AssistantMessage, type Usage } from '@earendil-works/pi-ai'
 import { AgentDoc, configure, createSession, type ConversationId } from '@earendil-works/pi-durable'
+import { trace } from '@opentelemetry/api'
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
@@ -27,10 +29,12 @@ import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSess
 import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
+import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
+import type { SpanEntity } from '@shared/data/types/trace'
 
 import {
   assistantReply,
@@ -722,6 +726,71 @@ describe('desktop Pi Durable connection', () => {
     await parent.connection.send({ message: message('continue source') })
     await done(parent.events)
     expect(text(parent.events)).toContain('source remains usable')
+  })
+
+  it('uses native Durable tool phases and forwards the generation phase parent', async () => {
+    const captured: SpanEntity[] = []
+    const provider = new BasicTracerProvider()
+    vi.spyOn(trace, 'getTracer').mockImplementation((name) => provider.getTracer(name))
+    const preferences = application.get('PreferenceService')
+    const previous = preferences.get('app.developer_mode.enabled')
+    await preferences.set('app.developer_mode.enabled', true)
+    observabilitySinks.register({
+      id: 'durable-native-test',
+      writeSpanEntity: (span) => {
+        captured.push(span)
+      }
+    })
+    input.trace = {
+      topicId: `agent-session:${input.sessionId}`,
+      sessionId: input.sessionId,
+      turnId: 'native-turn',
+      traceId: '11111111111111111111111111111111',
+      rootSpanId: '2222222222222222'
+    }
+    setScript([
+      {
+        ...assistantReply(''),
+        content: [toolCallPart('native-tool', 'bash', { command: 'printf native-telemetry' })],
+        stopReason: 'toolUse'
+      },
+      assistantReply('finished')
+    ])
+    const parents: ReturnType<typeof getPiTraceContext>[] = []
+    const original = script.model
+    script.model = (model, context, options) => {
+      parents.push(getPiTraceContext(options?.telemetry))
+      return original(model, context, options)
+    }
+    try {
+      const current = await connect()
+      await current.connection.send({ message: message('run a tool') })
+      await done(current.events)
+      await current.connection.close()
+      expect(text(current.events)).toContain('finished')
+      const submission = captured.find((span) => span.name === 'pi.durable.submit')
+      expect(submission).toMatchObject({ traceId: input.trace.traceId, parentId: input.trace.rootSpanId })
+      const tool = captured.find((span) => span.attributes?.['tool.call_id'] === 'native-tool')
+      expect(tool).toMatchObject({
+        name: 'pi.durable.phase',
+        status: 'OK',
+        attributes: { 'tool.name': 'bash', outcome: 'done' }
+      })
+      expect(tool?.events?.some((event) => event.name === 'pi.durable.entry')).toBe(true)
+      expect(parents).toHaveLength(2)
+      for (const parent of parents) {
+        expect(parent).toMatchObject({ sessionId: input.sessionId, traceId: input.trace.traceId })
+        expect(captured.find((span) => span.id === parent?.rootSpanId)?.name).toBe('pi.durable.phase')
+      }
+      expect(
+        captured.some((span) =>
+          ['pi.generate_content', 'pi.execute_tool', 'pi.ai.request', 'pi.ai.poll'].includes(span.name)
+        )
+      ).toBe(false)
+    } finally {
+      await preferences.set('app.developer_mode.enabled', previous)
+      await provider.shutdown()
+    }
   })
 
   function message(text: string) {

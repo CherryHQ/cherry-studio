@@ -3,17 +3,10 @@ import { readdirSync, lstatSync } from 'node:fs'
 
 import type { Usage } from '@earendil-works/pi-ai'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import { SpanKind, SpanStatusCode, type Span } from '@opentelemetry/api'
 
 import { application } from '@application'
 import type { BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
-import {
-  runtimeId,
-  type InputState,
-  type Observation,
-  type RuntimeMessage,
-  type Subagent
-} from '@cherrystudio/agent-runtime'
+import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
 import type {
   AgentRuntimeEvent as PiEvent,
   PiObservation,
@@ -34,7 +27,6 @@ import {
   applyNativeSubmissionResult
 } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
-import { startAgentRuntimeChildSpan, endAgentRuntimeSpan } from '@main/ai/observability'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
@@ -137,13 +129,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private mcpServerSnapshots: PiConnectionSnapshot['mcpServerSnapshots'] = new Map()
   private readonly pendingSteers = new Set<string>()
   private readonly pendingBindings = new Map<string, InputState>()
-  private readonly toolSpans = new Map<string, Span>()
-  private readonly toolNames = new Map<string, string>()
   private checkpoint?: string
   private readonly turnUsage = new PiTurnUsage()
   private readonly adapter = new PiMessageMetadata((name) => this.resolveMcpToolMetadata(name))
   private projection?: ThreadProjection
-  private readonly completedTools = new Set<string>()
 
   constructor(private readonly input: AgentRuntimeConnectInput) {}
 
@@ -461,7 +450,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             this.eventQueue.push({ type: 'steer-boundary', inputIds: [steer] })
           }
         }
-        if (event.type === 'message.upsert') this.observeTools(event.message)
         if (event.type === 'snapshot') {
           for (const relation of event.subagents ?? []) if (relation.child) void this.observeChild(relation.child.id)
           this.active = event.activity.state === 'active'
@@ -515,29 +503,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       void this.close().catch((closeError) =>
         logger.error('Failed to retire Pi after observation error', { error: closeError })
       )
-    }
-  }
-
-  private observeTools(message: RuntimeMessage): void {
-    for (const part of message.parts) {
-      if (part.type !== 'dynamic-tool' || this.completedTools.has(part.toolCallId)) continue
-      const id = part.toolCallId
-      if (!this.toolNames.has(id) && part.state !== 'input-streaming') {
-        const span = startAgentRuntimeChildSpan(this.input.trace, 'pi.execute_tool', SpanKind.INTERNAL, {
-          'gen_ai.operation.name': 'execute_tool',
-          'gen_ai.tool.name': part.toolName,
-          'gen_ai.tool.call.id': id
-        })
-        if (span) this.toolSpans.set(id, span)
-        this.toolNames.set(id, part.toolName)
-      }
-      if (part.state !== 'output-error' && (part.state !== 'output-available' || part.preliminary)) continue
-      const span = this.toolSpans.get(id)
-      if (span)
-        endAgentRuntimeSpan(span, { code: part.state === 'output-error' ? SpanStatusCode.ERROR : SpanStatusCode.OK })
-      this.toolSpans.delete(id)
-      this.toolNames.delete(id)
-      this.completedTools.add(id)
     }
   }
 
@@ -782,7 +747,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.cancelQueuedInputs()
     this.flushInputs()
     this.sending = false
-    this.endToolSpans('Pi turn ended before tool completion')
     if (this.failure) this.eventQueue.push({ type: 'error', error: this.failure })
     else {
       const checkpoint = PiForkCheckpointSchema.safeParse({
@@ -899,12 +863,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         }
   }
 
-  private endToolSpans(message: string): void {
-    for (const span of this.toolSpans.values()) endAgentRuntimeSpan(span, { code: SpanStatusCode.ERROR, message })
-    this.toolSpans.clear()
-    this.toolNames.clear()
-  }
-
   close(): Promise<void> {
     this.closing = true
     this.closingAccess.abort()
@@ -959,7 +917,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     await this.projection?.close()
     this.flushInputs()
     await this.handle?.release()
-    this.endToolSpans('Pi owner closed')
     this.eventQueue.close()
   }
 }
