@@ -141,7 +141,8 @@ patchedDependencies:
 
 allowBuilds:
   "@google/genai": false
-  "@j178/prek": true
+  # Local prepare installs prek on demand; CI does not need the Git hook binary.
+  "@j178/prek": false
   "@paymoapp/electron-shutdown-handler": true
   "@sentry/cli": true
   "@swc/core": true
