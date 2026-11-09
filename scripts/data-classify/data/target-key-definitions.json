@@ -5,6 +5,7 @@
     "lastUpdated": "2026-06-01"
   },
   "definitions": [
+    {"targetKey":"chat.side_chat.save_history","type":"boolean","defaultValue":true,"status":"classified","description":"Save newly created side chats by default; existing chats retain their persistence mode"},
     {
       "targetKey": "assistant.archive.related_topics",
       "type": "boolean",

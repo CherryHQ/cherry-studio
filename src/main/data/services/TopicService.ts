@@ -43,6 +43,7 @@ import {
   encodePinCursor
 } from './utils/pinnedListCursor'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
+import { sideChatRootFilter, sideChatSourceTopicId } from './utils/sideChatRoot'
 
 const logger = loggerService.withContext('DataApi:TopicService')
 
@@ -50,6 +51,38 @@ const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 const SQLITE_INARRAY_CHUNK = 500
 const SQLITE_INSERT_CHUNK = 100
+
+function ordinaryTopicFilter(): SQL {
+  return notInArray(
+    topicTable.id,
+    application
+      .get('DbService')
+      .getDb()
+      .select({ id: messageTable.topicId })
+      .from(messageTable)
+      .where(sideChatRootFilter())
+  )
+}
+
+function associatedSideChatIds(tx: DbOrTx, sourceIds: readonly string[], activeOnly = false): string[] {
+  const ids: string[] = []
+  for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
+    const rows = tx
+      .select({ id: messageTable.topicId })
+      .from(messageTable)
+      .innerJoin(topicTable, eq(topicTable.id, messageTable.topicId))
+      .where(
+        and(
+          sideChatRootFilter(),
+          inArray(sideChatSourceTopicId, sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)),
+          activeOnly ? isNull(topicTable.deletedAt) : undefined
+        )
+      )
+      .all()
+    ids.push(...rows.map((row) => row.id))
+  }
+  return ids
+}
 
 type TopicRow = typeof topicTable.$inferSelect
 type TopicEntitySearchItem = Extract<EntitySearchItem, { type: 'topic' }>
@@ -139,6 +172,8 @@ export class TopicService {
       { endpoint: '/topics', kind, entityIds },
       { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
       ...byIdEffects,
+      { endpoint: '/side-chats/:topicId' },
+      { endpoint: '/topics/:sourceTopicId/side-chats' },
       { endpoint: '/topics/latest' }
     ])
   }
@@ -196,7 +231,7 @@ export class TopicService {
       .select({ topic: topicTable })
       .from(topicTable)
       .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
-      .where(and(isNull(topicTable.deletedAt), ownerFilter))
+      .where(and(isNull(topicTable.deletedAt), ordinaryTopicFilter(), ownerFilter))
       .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
       .limit(1)
       .all()
@@ -216,6 +251,7 @@ export class TopicService {
         .where(
           and(
             isNull(topicTable.deletedAt),
+            ordinaryTopicFilter(),
             dto.assistantId ? eq(assistantTable.id, dto.assistantId) : isNull(topicTable.assistantId),
             dto.excludeTopicId ? notInArray(topicTable.id, [dto.excludeTopicId]) : undefined,
             isNull(topicTable.activeNodeId),
@@ -287,7 +323,7 @@ export class TopicService {
     return rowToTopic(row)
   }
 
-  private createTx(tx: DbOrTx, dto: CreateTopicDto): TopicRow {
+  createTx(tx: DbOrTx, dto: CreateTopicDto): TopicRow {
     const createdAt = Date.now()
     const topicRow = insertWithOrderKey(
       tx,
@@ -523,6 +559,9 @@ export class TopicService {
     }
     if (trashedIds.length === 0) return []
 
+    const alreadyTrashed = new Set(trashedIds)
+    trashedIds.push(...associatedSideChatIds(tx, trashedIds, true).filter((id) => !alreadyTrashed.has(id)))
+
     const deletedAt = options.deletedAt ?? Date.now()
     for (let i = 0; i < trashedIds.length; i += SQLITE_INARRAY_CHUNK) {
       tx.update(topicTable)
@@ -587,6 +626,9 @@ export class TopicService {
     }
 
     const messageService = getDataService('MessageService')
+    const children = associatedSideChatIds(tx, deletedIds)
+    const alreadyDeleted = new Set(deletedIds)
+    deletedIds.push(...children.filter((id) => !alreadyDeleted.has(id)))
     for (let i = 0; i < deletedIds.length; i += SQLITE_INARRAY_CHUNK) {
       const chunk = deletedIds.slice(i, i + SQLITE_INARRAY_CHUNK)
       messageService.purgeByTopicIdsTx(tx, chunk)
@@ -599,15 +641,23 @@ export class TopicService {
   }
 
   restore(id: string): Topic {
-    const [row] = application
-      .get('DbService')
-      .getDb()
-      .update(topicTable)
-      .set({ deletedAt: null })
-      .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
-      .returning()
-      .all()
-    if (!row) throw DataApiErrorFactory.notFound('Topic', id)
+    const row = application.get('DbService').withWriteTx((tx) => {
+      const original = tx
+        .select()
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
+        .get()
+      if (!original) throw DataApiErrorFactory.notFound('Topic', id)
+      const children = tx
+        .select({ id: messageTable.topicId })
+        .from(messageTable)
+        .where(and(sideChatRootFilter(), eq(sideChatSourceTopicId, id)))
+      tx.update(topicTable)
+        .set({ deletedAt: null })
+        .where(and(inArray(topicTable.id, children), eq(topicTable.deletedAt, original.deletedAt!)))
+        .run()
+      return tx.update(topicTable).set({ deletedAt: null }).where(eq(topicTable.id, id)).returning().get()
+    })
 
     this.notifyReadModelChange([id], 'membership')
     logger.info('Restored topic', { id })
@@ -727,7 +777,7 @@ export class TopicService {
         .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
         .from(topicTable)
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
-        .where(and(isNull(topicTable.deletedAt), idFilter, pinAfter, search))
+        .where(and(isNull(topicTable.deletedAt), ordinaryTopicFilter(), idFilter, pinAfter, search))
         .orderBy(asc(pinTable.orderKey), asc(topicTable.id))
         .limit(limit + 1)
         .all()
@@ -784,6 +834,7 @@ export class TopicService {
       .where(
         and(
           inTrash ? isNotNull(topicTable.deletedAt) : isNull(topicTable.deletedAt),
+          ordinaryTopicFilter(),
           idFilter,
           notInArray(topicTable.id, pinnedSubquery),
           topicAfter,
@@ -813,7 +864,7 @@ export class TopicService {
   search(query: { q: string; limit: number; updatedAtFrom?: number }): TopicEntitySearchItem[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
-    const filters: SQL[] = [isNull(topicTable.deletedAt)]
+    const filters: SQL[] = [isNull(topicTable.deletedAt), ordinaryTopicFilter()]
     const search = buildSearchPredicate(query.q)
     if (search) filters.push(search)
     if (query.updatedAtFrom !== undefined) {

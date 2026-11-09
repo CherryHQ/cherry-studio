@@ -33,10 +33,17 @@ parent via `parentId`. Multi-model responses (one user turn, N assistant replies
 ### Virtual root
 
 Every topic owns exactly **one content-less virtual root**: `role = 'root'`,
-`parentId = NULL`, `data = { parts: [] }`. Every real message hangs **below** it. The
+`parentId = NULL`, `data.parts = []`. Every real message hangs **below** it. The
 first user turn and its resends are ordinary siblings under this shared parent, so
 "resend the first message" is structurally identical to any other sibling creation — no
 multiple physical roots.
+
+Saved side-chat roots also carry `data.sideChat`: a versioned source-topic link,
+immutable source snapshot, and independent model/prompt configuration. This uses
+the existing JSON column; it adds no table or database column. Only the side-chat
+service writes this structural data. General message updates reject root-data
+edits. History, rendering, and text search exclude it; clearing content preserves
+it. Source deletion/restoration resolves the JSON links in the same transaction.
 
 ```
 root            (role='root', parentId=NULL, no content, never rendered)
