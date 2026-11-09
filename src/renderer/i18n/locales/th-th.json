@@ -6206,8 +6206,6 @@
   "settings.usage.export.png": "ส่งออกเป็น PNG",
   "settings.usage.export.progress": "กำลังอ่านบันทึกการใช้งาน ({{count}} จาก {{total}})…",
   "settings.usage.export.range": "{{from}} – {{to}} ({{timezone}})",
-  "settings.usage.export.sheets.metadata": "ข้อมูลเมตา",
-  "settings.usage.export.sheets.usage": "การใช้งาน",
   "settings.usage.export.success": "ส่งออกการใช้งานสำเร็จ",
   "settings.usage.export.title": "ส่งออก",
   "settings.usage.export.xlsx": "ส่งออกเป็น XLSX",

@@ -6206,8 +6206,6 @@
   "settings.usage.export.png": "Xuất dưới dạng PNG",
   "settings.usage.export.progress": "Đang đọc bản ghi sử dụng ({{count}} trên {{total}})…",
   "settings.usage.export.range": "{{from}} – {{to}} ({{timezone}})",
-  "settings.usage.export.sheets.metadata": "Siêu dữ liệu",
-  "settings.usage.export.sheets.usage": "Sử dụng",
   "settings.usage.export.success": "Đã xuất dữ liệu sử dụng",
   "settings.usage.export.title": "Xuất",
   "settings.usage.export.xlsx": "Xuất dưới dạng XLSX",
