@@ -45,15 +45,19 @@ The operation journal records the intended native context before preparation. Th
 
 ## Edit and resend within a session
 
-Pi and Pi Durable **Edit and resend** retain the original input and descendants, creates a
-sibling input, and selects the new branch. The common product prefix is shared.
+**Edit and resend** replaces the selected input and removes its descendant subtree
+in one product transaction. It does not retain a new history version. The common
+prefix, existing sibling branches outside that subtree, and independent fork sessions remain unchanged.
+Desktop asks for confirmation when saving an edit, before changing displayed history or dispatching the replacement. Cancelling keeps the draft and original messages.
+Hiding or closing the originating view invalidates its pending confirmation, even if the same session is shown again before the dialog is answered.
 Native fork starts at the checkpoint before the edited input. Each new branch
 has a native binding in `agent_session_context`; remapped checkpoints belong to
 that binding and do not overwrite the original prefix rows.
 
 For the first input, an empty prefix records a fresh intended native identity;
 Pi creates that context on dispatch. A nonempty prefix requires a valid native
-checkpoint immediately before the edited input. Editing is rejected while the session has unsettled work.
+checkpoint immediately before the edited input. Editing is rejected while the session has unsettled work,
+including outgoing cross-session deliveries. Failed preparation or publication preserves the original tree.
 Pi Durable noninitial edits publish the native fork's allocated product context identity and remapped checkpoints in the replacement input transaction. First-input edits reserve a fresh empty backend/context and create native storage only on dispatch. Native numeric IDs are local to a store, so publication and recovery check the exact context rather than matching an unrelated backend's token.
 Neither edit/resend nor branch selection restores workspace files.
 
@@ -62,8 +66,8 @@ only changes the stored view; it does not run the harness. The next send resolve
 that branch's native context. An idle connection on another branch is closed
 before connecting; an active connection prevents a cross-branch send.
 
-Claude Code **Edit and resend** reserves the new branch identity in the same
-transaction as its sibling input. Editing the first input starts an empty native
+Claude Code **Edit and resend** reserves the replacement's native identity in the same
+transaction as its input. Editing the first input starts an empty native
 session under that reserved identity. Startup resumes only a verified native
 history token from the captured branch; an allocated identity alone is not proof
 that native history exists. Other edits publish their verified native fork before
