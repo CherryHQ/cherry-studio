@@ -1,33 +1,7 @@
-import fs from 'node:fs'
-
 import type { Locator } from '@playwright/test'
-import { _electron as electron } from '@playwright/test'
 
 import { openLaunchpadApp } from '../regression/helpers/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend<{ isolatedProfile: string }>({
-  isolatedProfile: async ({}, provide, testInfo) => {
-    const directory = fs.mkdtempSync(testInfo.outputPath('profile-'))
-    try {
-      await provide(directory)
-    } finally {
-      fs.rmSync(directory, { recursive: true, force: true })
-    }
-  },
-  electronApp: async ({ isolatedProfile }, provide) => {
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, CS_DEV_PROFILE_ROOT: isolatedProfile, NODE_ENV: 'development' },
-      timeout: 60_000
-    })
-    try {
-      await provide(electronApp)
-    } finally {
-      await electronApp.close()
-    }
-  }
-})
+import { expect, test } from './fixtures/electron.fixture'
 
 // Opacity on any ancestor can hide a button that Playwright still considers visible.
 async function effectiveOpacity(control: Locator) {
@@ -103,7 +77,7 @@ test('Code Mate provider actions support touch, hover and keyboard input', async
   try {
     await page.evaluate(() => window.api.preference.set('app.language', 'en-US'))
     await page.reload()
-    const shell = page.locator('[data-ui~="app.shell"]').first()
+    const shell = page.locator('[data-ui~="app.content"]').first()
     const setUpLater = page.getByRole('button', { name: 'Set up later', exact: true })
     await expect(shell.or(setUpLater).first()).toBeVisible({ timeout: 120_000 })
     if (await setUpLater.isVisible()) await setUpLater.click()

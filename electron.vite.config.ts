@@ -247,6 +247,8 @@ export default defineConfig({
       }
     },
     build: {
+      externalizeDeps: false,
+      isolatedEntries: true,
       sourcemap: sentrySourceMap,
       rolldownOptions: {
         // Unlike renderer which auto-discovers entries from HTML files,

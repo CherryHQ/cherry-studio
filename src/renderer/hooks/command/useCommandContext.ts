@@ -1,9 +1,13 @@
-import { createContext, use, useEffect } from 'react'
+import { createContext, use, useLayoutEffect, useSyncExternalStore } from 'react'
 
 import { platform } from '@renderer/utils/platform'
 import type { ContextReader, ContextValue } from '@shared/types/command'
 
+import { CommandFocusScopeContext, readScopeContext } from './commandFocusScope'
+
 export type RendererCommandContextKey =
+  | 'resource.focused'
+  | 'input.focused'
   | 'platform'
   | 'feature.quick_assistant.enabled'
   | 'feature.selection.enabled'
@@ -27,14 +31,21 @@ export function useCommandContextSnapshot(): ReadonlyMap<string, ContextValue> {
   return use(ContextKeySnapshotContext) ?? fallbackSnapshot
 }
 
+const noSubscription = () => () => {}
+const zeroVersion = () => 0
+
 export function useCommandContextReader(): ContextReader {
-  return useCommandContextSnapshot()
+  const scope = use(CommandFocusScopeContext)
+  const base = useCommandContextSnapshot()
+  useSyncExternalStore(scope?.subscribe ?? noSubscription, scope?.getVersion ?? zeroVersion)
+  return readScopeContext(scope, base)
 }
 
 export function useCommandContextKey(key: RendererCommandContextKey, value: ContextValue): void {
   const register = use(ContextKeyRegisterContext)
+  const scope = use(CommandFocusScopeContext)
 
-  useEffect(() => {
-    return register?.(key, value)
-  }, [key, register, value])
+  useLayoutEffect(() => {
+    return scope ? scope.registerContext(key, value) : register?.(key, value)
+  }, [key, register, scope, value])
 }

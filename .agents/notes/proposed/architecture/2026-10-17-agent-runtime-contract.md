@@ -4,13 +4,19 @@ Status: proposed
 
 English | [中文](2026-10-17-agent-runtime-contract.zh.md)
 
+Legacy Pi executor source/test links are pinned to pre-contraction `46d76e4` as historical evidence. Current implementation and test ownership are defined in section 11 of the [runtime boundary contraction plan](../simplification/2026-11-05-agent-runtime-boundary-ownership.md); those legacy entry points have left the production path.
+
 ## Problem
 
 Cherry needs to open native contexts, submit input, observe work independently of a particular submission, and release resources across different harnesses. Requiring every harness to adopt Cherry's session engine would duplicate native scheduling and recovery. A large capability matrix would instead make every consumer interpret those differences itself.
 
 This note replaces the stack's runtime ownership and behavior design. It records the implemented v0 access boundary and its reasons, together with the host obligations still needed for integration. [Common types](../../../../packages/agent-runtime/src/contracts.ts), the [Pi adapter](../../../../packages/agent-runtime-pi/src/runtime.ts), and the [Pi Durable adapter](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) own exact signatures. Pi and Pi Durable desktop calls now use the common Runtime and independent child projections. The full acceptance below remains incomplete; delivered integration does not establish every recovery or performance guarantee. The [harness boundaries](2026-10-17-agent-harness-boundaries.md) own the broader division of responsibilities.
 
-The [SDK content protocol proposal](../simplification/2026-10-29-agent-runtime-content-protocol.md) now owns the planned replacement of `ContentItem` and the move of SDK content accumulation to the shared observation source. The item events and Main readers described below remain the current implementation until that migration; access, input admission, lifecycle, native recovery, and product ownership remain governed here.
+The [SDK content protocol](../simplification/2026-10-29-agent-runtime-content-protocol.md) owns the implemented replacement of `ContentItem` and SDK content accumulation at the shared observation source. Its `RuntimeMessage` contract supersedes the item events and Main readers described below. Access, input admission, lifecycle, native recovery, and product ownership remain governed here.
+
+The proposed [runtime boundary ownership follow-up](../simplification/2026-11-05-agent-runtime-boundary-ownership.md) would partially supersede the desktop input round-trip, child-access plumbing and placement of native control interpretation. It reuses this access/lifecycle contract and adds no product dependencies to the packages; the existing requirements remain in force until that follow-up is approved and implemented.
+
+The 2026-11-06 revision in that same follow-up proposes retiring unconsumed policies, input-response/snapshot-coverage outputs, receipt values and native-only facets, while retaining native identity, admission, observation, recovery and persistence. Its new removal scope is not covered by earlier approval; the follow-up owns the replacement public surface.
 
 ## Proposal
 
@@ -164,7 +170,7 @@ The Pi root desktop path now runs `AgentChatContextProvider → AgentSessionRunt
 | Location | Planned change | Responsibility retained there |
 | --- | --- | --- |
 | [Common contract](../../../../packages/agent-runtime/src/contracts.ts) | Use existing thread, optional input, relationship, and observation contracts first. Add a field only after native evidence and a consumer require it. | No product rows, delivery journal, scheduler, or UI lane. |
-| [Pi runtime](../../../../packages/agent-runtime-pi/src/runtime.ts), [projection](../../../../packages/agent-runtime-pi/src/runtimeProjection.ts), and [subagent owner](../../../../packages/agent-runtime-pi/src/subagent.ts) | Add verifiable input correlation and restore child access through its native owner. | Native sessions, child execution, result delivery, and typed Pi extensions. |
+| [Pi runtime](../../../../packages/agent-runtime-pi/src/runtime.ts), [projection](../../../../packages/agent-runtime-pi/src/runtimeProjection.ts), and [subagent owner](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagent.ts) | Add verifiable input correlation and restore child access through its native owner. | Native sessions, child execution, result delivery, and typed Pi extensions. |
 | [Durable runtime](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) | Reconcile persisted input mappings and child ownership against native submissions/tasks before scheduler activation. | Native Harness/storage ownership and recovery semantics. |
 | [Desktop Pi integration](../../../../src/main/ai/runtime/pi/README.md) | Reuse host configuration/materialization and bind native Pi providers to the internal gateway; replace execution and output routing incrementally. | Prompt, skills, MCP, approvals, shell environment, model policy, usage, and tracing. |
 | [AgentSessionRuntimeService](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts) and its persistence modules | Own configured runtime instances, logical input delivery, and a projection per thread. `ThreadProjection.ts` converts live content inside the existing module. | Product lifecycle, authorization, persistence barriers, and integration with delivery/fork operations. |
@@ -602,7 +608,7 @@ The P1 foundation now includes the additive backend/context migration, private `
 
 Strict opening uses small pinned dependency patches: `SessionManager.openExisting` validates a current-format header without initialization, and `SqliteStorage.openExisting` reads an already initialized schema without migrations. Node SQLite uses [`mode=rw`](https://www.sqlite.org/uri.html) so missing files cannot be created. Unsupported native format versions remain unavailable pending explicit migration. Runtime owners reconcile identity and projection writes; a failed write does not authorize resubmission. Native creation and observation fixtures stay in tests rather than exposing a parallel production submission path. The initial input path accepts retained text-only content and rejects other parts rather than storing a transformed-payload copy.
 
-The Agent tree step now adds an append-only schema migration and a registered `AgentSessionMessageTreeSeeder`. It preserves message IDs, timestamps, attachments, usage and delivery metadata, then selects the migrated leaf without inventing submission facts. Pending completion deliveries capture the sending branch. Existing context rows carry `anchorMessageId` and the `checkpointMapping.fork` namespace; shared prefix rows keep their original native provenance.
+The Agent tree step now adds an append-only schema migration and a registered `AgentSessionMessageTreeSeeder`. It preserves message IDs, timestamps, attachments, usage and delivery metadata, then selects the migrated leaf without inventing submission facts. Pending completion deliveries capture the sending branch. Existing context rows carry `anchorMessageId` and the `checkpointMapping.fork` namespace; shared prefix rows keep their original native provenance. Root display mappings use the typed `checkpointMapping.root` namespace, including source ranges and removals; saving a root projection preserves fork checkpoints.
 
 The current desktop driver path uses the shared sibling navigator. Selecting a sibling chooses its latest descendant without opening a harness; a later send resolves that branch's native target. A send captures its parent before asynchronous validation, rejects an advanced parent, and never follows a later UI selection. Runtime output, queued turns and completion/error deliveries keep their captured branch. Renderer acknowledgement refreshes Main's selected path rather than inserting off-branch reservations into its cache.
 
@@ -619,6 +625,7 @@ the response content. Native Pi providers call
 Cherry's internal gateway, which owns upstream provider selection, credentials and billing;
 Pi owns native history, streaming, tools and the execution loop.
 The Pi facet keeps history, context usage, tool lookup and manual compaction outside the common API.
+The proposed [harness-owned context usage follow-up](2026-10-30-agent-context-usage.md) supersedes only the context-usage placement with a common thread read implemented by each adapter. It does not change the other native facets or claim implementation acceptance.
 Queued inputs left unplaced after stop/error receive aborted evidence and are not automatically resent.
 
 Real native-loop/SQLite fixtures cover create, strict reopen, streamed output, tools, steering,

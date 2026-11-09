@@ -4,19 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { platform } from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import type {
-  CommandShortcutPreferenceKey,
-  ContextReader,
-  RegisteredKeybindingRule,
-  SupportedPlatform
-} from '@shared/types/command'
+import type { CommandShortcutPreferenceKey, SupportedPlatform } from '@shared/types/command'
 import type { ResolvedShortcut } from '@shared/types/shortcut'
 import {
   type CommandId,
   evaluateContextExpr,
   findCommandDefinition,
   getCommandDefaultShortcutPreference,
-  readContextValue,
   REGISTERED_KEYBINDINGS,
   resolveCommandShortcutPreference
 } from '@shared/utils/command'
@@ -26,12 +20,6 @@ import { useCommandContextReader } from './useCommandContext'
 
 export type ShortcutSettingsGroup = 'general' | 'chat' | 'topic' | 'assistant'
 type CommandShortcutKey = CommandShortcutPreferenceKey<CommandId>
-
-// Focus-dependent keys are transient, so a rule gated on either state still belongs in settings.
-const isAvailableInSettings = (when: RegisteredKeybindingRule['when'], context: ContextReader) =>
-  [true, false].some((focused) =>
-    evaluateContextExpr(when, (key) => (key === 'chat.messages.focused' ? focused : readContextValue(context, key)))
-  )
 
 const currentPlatform = platform as SupportedPlatform | undefined
 
@@ -136,7 +124,7 @@ export const useCommandShortcuts = () => {
           return []
         }
 
-        if (!evaluateContextExpr(command.enablement, context) || !isAvailableInSettings(rule.when, context)) {
+        if (!evaluateContextExpr(command.enablement, context)) {
           return []
         }
 

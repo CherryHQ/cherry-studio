@@ -22,7 +22,6 @@ import MessageAnchorLine from './list/MessageAnchorLine'
 import { MessageCaptureLeaseProvider, useMessageCaptureLeases } from './list/MessageCaptureLeaseContext'
 import MessageGroup from './list/MessageGroup'
 import { MessageListSearch } from './list/MessageListSearch'
-import MessageNavigation from './list/MessageNavigation'
 import {
   MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
   MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX,
@@ -40,11 +39,7 @@ import {
   useMessageRenderConfig
 } from './MessageListProvider'
 import { CHAT_CAPTURE_BACKDROP_VARIABLE, defaultMessageRenderConfig } from './types'
-import {
-  getLatestAssistantGroupKey,
-  getMessageGroupKey,
-  getOwningUserMessageIdByAssistantId
-} from './utils/messageGroupKey'
+import { getLatestAssistantGroupKey, getMessageGroupKey } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
@@ -345,39 +340,11 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     messageListRef.current?.scrollToBottom()
   }, [])
 
-  // Navigation buttons scroll through the virtua-aware runtime handle (smooth,
-  // remeasure-safe) rather than a raw scrollTo on the virtualized scroller.
-  const navigateToTop = useCallback(() => {
-    messageListRef.current?.scrollToTop('smooth')
-  }, [])
-
-  const navigateToBottom = useCallback(() => {
-    messageListRef.current?.scrollToBottom()
-  }, [])
-
   const scrollToMessageById = useCallback((messageId: string) => {
     const target = messageByIdRef.current.get(messageId)
     if (!target) return
     messageListRef.current?.scrollToKey(getMessageGroupKey(target), 'start')
   }, [])
-
-  const getNavigationBaseMessageId = useCallback(() => {
-    const key = messageListRef.current?.getNavigationBaseKey()
-    if (!key) return null
-
-    const groupMessages = groupedMessages.find(([groupKey]) => groupKey === key)?.[1]
-    if (!groupMessages) return null
-
-    const userMessage = groupMessages.find((message) => message.role === 'user')
-    if (userMessage) return userMessage.id
-
-    const owningUserMessageIdByAssistantId = getOwningUserMessageIdByAssistantId(messages)
-    for (const message of groupMessages) {
-      const ownerId = owningUserMessageIdByAssistantId.get(message.id)
-      if (ownerId) return ownerId
-    }
-    return null
-  }, [groupedMessages, messages])
 
   const scrollToOutlineElement = useCallback((element: HTMLElement) => {
     messageListRef.current?.scrollToElement(element)
@@ -964,17 +931,6 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
             onNavigateToElement={scrollToOutlineElement}
           />
         </Suspense>
-      )}
-      {messageNavigation === 'buttons' && (
-        <MessageNavigation
-          scrollContainerRef={scrollContainerRef}
-          getMessageElement={getMessageElement}
-          getNavigationBaseMessageId={getNavigationBaseMessageId}
-          messages={messages}
-          scrollToMessageId={scrollToMessageById}
-          scrollToTop={navigateToTop}
-          scrollToBottom={navigateToBottom}
-        />
       )}
       {meta.selectionLayer && (
         <SelectionBox

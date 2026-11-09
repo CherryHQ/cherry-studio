@@ -53,6 +53,22 @@ describe('command definitions', () => {
     }
   })
 
+  it('binds permanent delete to CommandOrControl+Backspace', () => {
+    expect(findCommandDefinition('resource.delete_permanently')).toMatchObject({
+      id: 'resource.delete_permanently',
+      scope: 'renderer',
+      titleKey: 'settings.shortcuts.delete_current_list_item'
+    })
+    expect(getCommandDefaultShortcutPreference('resource.delete_permanently')).toEqual({
+      binding: ['CommandOrControl', 'Backspace'],
+      enabled: true
+    })
+    expect(DefaultPreferences.default['shortcut.resource.delete_permanently']).toEqual({
+      binding: ['CommandOrControl', 'Backspace'],
+      enabled: true
+    })
+  })
+
   // Registration reads the preference default, never the rule: an empty binding there means
   // "the user cleared this", so it is deliberately not backfilled from `defaultBinding`. A rule
   // whose two defaults disagree therefore ships a shortcut that is dead on a fresh install.
@@ -660,6 +676,21 @@ describe('findKeybindingConflicts', () => {
         binding: ['Ctrl', 'Tab'],
         conflictingBinding: ['Ctrl', 'Tab']
       })
+    ])
+  })
+
+  it('keeps combined conversation cycling user-assignable without replacing topic arrow defaults', () => {
+    expect(getCommandDefaultShortcutPreference('chat.conversation.next', 'darwin')?.binding).toEqual([])
+    expect(getCommandDefaultShortcutPreference('chat.conversation.prev', 'darwin')?.binding).toEqual([])
+    expect(getCommandDefaultShortcutPreference('topic.next', 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      'Alt',
+      'Down'
+    ])
+    expect(getCommandDefaultShortcutPreference('topic.prev', 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      'Alt',
+      'Up'
     ])
   })
 
