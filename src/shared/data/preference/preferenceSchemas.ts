@@ -721,7 +721,7 @@ export interface PreferenceSchemas {
 export const DefaultPreferences: PreferenceSchemas = {
   default: {
     'agent.commit_attribution.enabled': true,
-    'agent.details.sections': [{ id: 'workspace', visible: true }, { id: 'plan', visible: true }, { id: 'subagents', visible: true }, { id: 'workflows', visible: true }, { id: 'shells', visible: true }, { id: 'other', visible: true }, { id: 'artifacts', visible: true }, { id: 'context', visible: true }],
+    'agent.details.sections': [{ id: 'workspace', visible: true }, { id: 'desktop_control', visible: true }, { id: 'plan', visible: true }, { id: 'subagents', visible: true }, { id: 'workflows', visible: true }, { id: 'shells', visible: true }, { id: 'other', visible: true }, { id: 'artifacts', visible: true }, { id: 'context', visible: true }],
     'agent.icon_type': 'emoji',
     'agent.input.toolbar.pinned_tools': ['composer:new-session', 'skills', 'permission-mode'],
     'agent.language': null,

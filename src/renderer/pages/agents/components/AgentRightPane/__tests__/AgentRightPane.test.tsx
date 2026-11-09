@@ -28,6 +28,7 @@ import type * as RendererIpc from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { ComputerUseControl } from '@shared/ipc/schemas/computerUse'
 import type { EventPayload } from '@shared/ipc/types'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot } from '@shared/utils/file'
@@ -35,6 +36,7 @@ import { TreeDir, TreeDirRoot } from '@shared/utils/file'
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
 const {
+  desktopState,
   backgroundTasksState,
   buildAgentToolFlowProjectionMock,
   fileSessionDiscardMock,
@@ -54,6 +56,11 @@ const {
   uiMockState,
   useAgentMessageListProviderValueMock
 } = vi.hoisted(() => ({
+  desktopState: {
+    controls: [] as ComputerUseControl[],
+    pending: new Set<string>(),
+    stopApp: vi.fn()
+  },
   backgroundTasksState: { value: [] as AgentSessionBackgroundTask[] },
   buildAgentToolFlowProjectionMock: vi.fn(),
   fileSessionDiscardMock: vi.fn(),
@@ -86,6 +93,10 @@ const {
   webviewBrowserMock: vi.fn(),
   uiMockState: { useRealHoverCard: false },
   useAgentMessageListProviderValueMock: vi.fn()
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentDesktopControls', () => ({
+  useAgentDesktopControls: () => ({ ...desktopState, loading: false, failed: false })
 }))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
@@ -711,6 +722,8 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    desktopState.controls = []
+    desktopState.pending = new Set()
     mockUsePreference.mockImplementation(defaultPreferenceImplementation)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.auto_open_panel', true)
     vi.spyOn(window.api.ipcApi, 'on').mockImplementation((event, listener) => {
@@ -2697,6 +2710,43 @@ describe('AgentRightPane', () => {
 
     expect(buildAgentToolFlowProjectionMock).toHaveBeenCalledTimes(callsWhileActive)
     expect(screen.getByTestId('message-list')).toBeInTheDocument()
+  })
+
+  it('scopes desktop control to the session and keeps a stop bound to its original app', async () => {
+    const user = userEvent.setup()
+    const first = {
+      ownerId: 'agent:session-a:agent',
+      label: 'Agent',
+      appId: 'a',
+      appName: 'First app',
+      status: 'active' as const
+    }
+    const second = {
+      ownerId: 'agent:session-b:agent',
+      label: 'Agent',
+      appId: 'b',
+      appName: 'Second app',
+      status: 'active' as const
+    }
+    desktopState.controls = [first, second]
+    desktopState.stopApp.mockImplementation(() => new Promise(() => {}))
+    const content = (sessionId: string) => (
+      <TestAgentRightPane sessionId={sessionId} agentId="agent" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const view = render(content('session-a'))
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
+    await user.click(screen.getByRole('button', { name: /agent.right_pane.info.desktop_control.title/ }))
+    expect(screen.getByText('First app')).toBeVisible()
+    expect(screen.queryByText('Second app')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.info.desktop_control.stop' }))
+    expect(desktopState.stopApp).toHaveBeenCalledWith(first)
+    desktopState.pending.add(JSON.stringify([first.ownerId, first.appId]))
+    view.rerender(content('session-b'))
+    expect(screen.queryByText('First app')).toBeNull()
+    expect(desktopState.stopApp).toHaveBeenCalledWith(first)
   })
 
   it('opens a subagent flow from the shortcut environment context', () => {
