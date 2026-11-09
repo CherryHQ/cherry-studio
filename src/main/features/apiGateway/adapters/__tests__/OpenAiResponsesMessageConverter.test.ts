@@ -1,3 +1,5 @@
+import { createOpenAI } from '@ai-sdk/openai'
+import { convertToModelMessages, generateText } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import type OpenAI from '@cherrystudio/openai'
@@ -78,7 +80,7 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
         })
       )
 
-      expect(msgs.map(({ role, parts }) => ({ role, parts }))).toEqual([
+      expect(msgs.map(({ role, parts }) => ({ role, parts }))).toMatchObject([
         { role: 'user', parts: [{ type: 'text', text: 'Choose a token, then check the weather.' }] },
         { role: 'assistant', parts: [{ type: 'reasoning', text: 'Remember the token before looking up weather.' }] },
         { role: 'assistant', parts: [{ type: 'text', text: 'The token is BLUE-739.' }] },
@@ -292,7 +294,7 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
     expect(msgs[1]?.parts[0]).toMatchObject({ type: 'dynamic-tool', toolCallId: 'c1' })
   })
 
-  it('prefers reasoning_text content over summary, and skips an item carrying neither', () => {
+  it('prefers reasoning_text content over summary and retains encrypted-only items', () => {
     const msgs = converter.toUIMessages(
       params({
         input: [
@@ -306,8 +308,62 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
         ] as ResponsesCreateParams['input']
       })
     )
-    expect(msgs).toHaveLength(1)
+    expect(msgs).toHaveLength(2)
     expect(msgs[0]).toMatchObject({ parts: [{ type: 'reasoning', text: 'the raw chain' }] })
+    expect(msgs[1]).toMatchObject({
+      parts: [
+        {
+          type: 'reasoning',
+          text: '',
+          providerMetadata: { openai: { itemId: 'rs_2', reasoningEncryptedContent: 'opaque' } }
+        }
+      ]
+    })
+  })
+
+  // Catches losing native reasoning identity/ciphertext on either leg of a gateway continuation.
+  it.each(['', 'weigh options'])('round-trips encrypted Responses reasoning with summary %j', async (summary) => {
+    const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-5' })
+    const metadata = { openai: { itemId: 'rs_provider', reasoningEncryptedContent: 'encrypted-state' } }
+    adapter.transformChunk({
+      type: 'reasoning-start',
+      id: 'rs_provider:0',
+      providerMetadata: { openai: { itemId: 'rs_provider', reasoningEncryptedContent: null } }
+    })
+    if (summary) adapter.transformChunk({ type: 'reasoning-delta', id: 'rs_provider:0', delta: summary })
+    adapter.transformChunk({ type: 'reasoning-end', id: 'rs_provider:0', providerMetadata: metadata })
+    adapter.transformChunk({ type: 'finish', finishReason: 'stop' })
+    const completed = adapter.finalizeEvents().find((event) => event.type === 'response.completed')!
+    const reasoning = completed.response.output.find((item) => item.type === 'reasoning')
+    expect(reasoning).toMatchObject({ id: 'rs_provider', encrypted_content: 'encrypted-state' })
+    expect(adapter.buildNonStreamingResponse().output).toContainEqual(reasoning)
+    let sent: { input: unknown[] } | undefined
+    const model = createOpenAI({
+      apiKey: 'fixture',
+      fetch: async (_url, init) => {
+        sent = JSON.parse(init!.body as string)
+        return Response.json({
+          id: 'resp_next',
+          created_at: 0,
+          model: 'gpt-5',
+          output: [],
+          usage: { input_tokens: 1, output_tokens: 0 }
+        })
+      }
+    }).responses('gpt-5')
+    await generateText({
+      model,
+      messages: await convertToModelMessages(
+        converter.toUIMessages(params({ input: [reasoning!, { role: 'user', content: 'continue' }] }))
+      ),
+      providerOptions: { openai: { store: false } }
+    })
+    expect(sent!.input).toContainEqual({
+      type: 'reasoning',
+      id: 'rs_provider',
+      encrypted_content: 'encrypted-state',
+      summary: summary ? [{ type: 'summary_text', text: summary }] : []
+    })
   })
 
   it('returns an empty list when there is no input', () => {

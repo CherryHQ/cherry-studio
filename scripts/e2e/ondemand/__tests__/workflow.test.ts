@@ -26,6 +26,12 @@ it('dispatches one validated platform and retains the machine-readable verdict a
   expect(source).not.toContain('inputs.plan }}\n        run:')
   expect(source).not.toContain('run-phase')
   expect(source).not.toContain('startup-smoke')
+  const steps = workflow.jobs.test.steps
+  const prepare = steps.findIndex((step: { name?: string }) => step.name === 'Prepare branch runtime')
+  const execute = steps.findIndex((step: { name?: string }) => step.name === 'Run one test')
+  expect(prepare).toBeLessThan(execute)
+  expect(steps[prepare].if).toBe("needs.resolve.outputs.mode == 'branch'")
+  expect(steps[prepare].run).toContain('exec dotenv -v CHERRY_EDITION=global -- electron-vite build')
 })
 
 it('keeps unrelated workflow diagnostics blocking the CI gate', () => {

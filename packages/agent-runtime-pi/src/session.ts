@@ -3,6 +3,7 @@ import {
   type AgentSession,
   createAgentSession,
   type CreateAgentSessionOptions,
+  createEventBus,
   DefaultResourceLoader,
   type ExtensionFactory,
   type ModelRuntime,
@@ -11,9 +12,12 @@ import {
   type ToolDefinition
 } from '@earendil-works/pi-coding-agent'
 
+import { type AgentRuntimeCompaction, compactionSummaryExtension } from './compaction'
+import { type AgentRuntimeEvent, SessionEvents } from './sessionEvents'
+
 export type AgentRuntimeModel = Model<Api>
 
-export type AgentRuntimeSettings = NonNullable<Parameters<typeof SettingsManager.inMemory>[0]>
+export type AgentRuntimeSettings = Omit<NonNullable<Parameters<typeof SettingsManager.inMemory>[0]>, 'compaction'>
 
 export interface AgentRuntimeSessionOptions {
   /** Borrowed native runtime; the caller owns provider registration and credentials. */
@@ -33,9 +37,14 @@ export interface AgentRuntimeSessionOptions {
   skillPaths?: string[]
   /** Native storage owner. Defaults to an in-memory session; pass create/open for persistence. */
   sessionManager?: SessionManager
+  /** Native entry observations and turn events; never used to restore the session. Must not throw. */
+  onEvent?: (event: AgentRuntimeEvent) => void
+  compaction?: AgentRuntimeCompaction
   tools?: ToolDefinition[]
   /** Pi built-in tools to enable, e.g. `read`, `bash`. None by default. */
   builtinTools?: string[]
+  /** Tools unavailable to this session, including extension and restored tool loadouts. */
+  excludeTools?: string[]
   extensionFactories?: ExtensionFactory[]
   settings?: AgentRuntimeSettings
   /** Native Pi thinking level (default `off`). */
@@ -44,16 +53,26 @@ export interface AgentRuntimeSessionOptions {
 
 export interface AgentRuntimeSession {
   session: AgentSession
+  /** The configured summary callback, for adapter wiring validation. */
+  readonly compactionSummarizer?: AgentRuntimeCompaction['summarize']
   /** Aborts the running turn, lets extensions shut down, then disposes the session. */
   dispose(): Promise<void>
+  /**
+   * `session.prompt`, for every user turn the host starts: until Pi starts the run (while commands and
+   * `input` handlers run), it reports the session idle, and a background result must not start a run
+   * then. Called while a run settles (from `onEvent`'s `turn-complete`), it runs once that settle and
+   * any run Pi started meanwhile are over, and resolves or rejects as that prompt does.
+   */
   prompt(text: string, options?: Parameters<AgentSession['prompt']>[1]): Promise<void>
+  /** `session.compact`, for every manual compaction the host starts, for the same reason. */
+  compact(customInstructions?: string): Promise<void>
+  /** Aborts the active native run; behavior rules own user-stop attribution. */
   abort(): Promise<void>
 }
 
 /**
  * Builds a Pi agent session using the caller's native model runtime and native session storage.
  * Workspace context files and skills load only when the host opts in.
- * @param beforeStart Attach native observers before startup extensions can execute work.
  */
 export async function createAgentRuntimeSession(
   options: AgentRuntimeSessionOptions,
@@ -61,8 +80,41 @@ export async function createAgentRuntimeSession(
 ): Promise<AgentRuntimeSession> {
   const { cwd, agentDir } = options
   const { modelRuntime, model } = options
-  const settingsManager = SettingsManager.inMemory(options.settings ?? {})
+  const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd)
+  const events = new SessionEvents(sessionManager, options.onEvent ?? (() => {}))
+  // Pi defers a prompt made while it dispatches agent_settled and returns before it runs; `held` waits instead.
+  let settling: { over: Promise<void>; end: () => void } | undefined
+  const settleWatch: ExtensionFactory = (pi) => {
+    pi.on('agent_settled', () => {
+      let end!: () => void
+      settling = { over: new Promise((resolve) => (end = resolve)), end }
+    })
+  }
+
+  const { compaction } = options
+  const summarize = compaction?.summarize
+  const extensionFactories = [
+    // First, so the watch covers every other extension's agent_settled handler.
+    settleWatch,
+    ...(options.extensionFactories ?? []),
+    ...(summarize ? [compactionSummaryExtension(summarize, (message) => (events.summaryFailure = message))] : [])
+  ]
+  const settingsManager = SettingsManager.inMemory(
+    {
+      ...options.settings,
+      ...(compaction && {
+        compaction: {
+          enabled: compaction.enabled ?? true,
+          reserveTokens: compaction.reserveTokens,
+          keepRecentTokens: compaction.keepRecentTokens
+        }
+      })
+    },
+    { projectTrusted: options.contextFiles === true }
+  )
+  const eventBus = createEventBus()
   const resourceLoader = new DefaultResourceLoader({
+    eventBus,
     cwd,
     agentDir,
     settingsManager,
@@ -72,14 +124,12 @@ export async function createAgentRuntimeSession(
     noThemes: true,
     noContextFiles: !options.contextFiles,
     additionalSkillPaths: options.skillPaths,
-    extensionFactories: options.extensionFactories ?? [],
+    extensionFactories,
     // Overriding (even with undefined) keeps disk-discovered SYSTEM.md / APPEND_SYSTEM.md out.
     systemPromptOverride: () => options.systemPrompt,
     appendSystemPromptOverride: () => options.appendSystemPrompt ?? []
   })
   await resourceLoader.reload()
-
-  const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd)
 
   const { session } = await createAgentSession({
     cwd,
@@ -93,11 +143,29 @@ export async function createAgentRuntimeSession(
     noTools: 'builtin',
     // `+name` entries add to the (empty) built-in selection without restricting custom/extension tools.
     tools: options.builtinTools?.length ? options.builtinTools.map((name) => `+${name}`) : undefined,
-    customTools: options.tools ?? []
+    customTools: options.tools ?? [],
+    excludeTools: options.excludeTools
   })
+  session.subscribe((event) => {
+    events.handle(event)
+    if (event.type !== 'agent_settled') return
+    settling?.end()
+    settling = undefined
+  })
+
+  const held = async (run: () => Promise<unknown>) => {
+    if (settling) {
+      await settling.over
+      // A run Pi deferred during the settle goes first, preserving native ordering.
+      await session.waitForIdle()
+    }
+    await run()
+  }
   const owner: AgentRuntimeSession = {
     session,
-    prompt: (text, promptOptions) => session.prompt(text, promptOptions),
+    compactionSummarizer: compaction?.summarize,
+    prompt: (text, promptOptions) => held(() => session.prompt(text, promptOptions)),
+    compact: (customInstructions) => held(() => session.compact(customInstructions)),
     abort: () => session.abort(),
     async dispose() {
       try {
@@ -106,7 +174,11 @@ export async function createAgentRuntimeSession(
         try {
           await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })
         } finally {
-          session.dispose()
+          try {
+            events.flush()
+          } finally {
+            session.dispose()
+          }
         }
       }
     }
@@ -114,6 +186,10 @@ export async function createAgentRuntimeSession(
   try {
     beforeStart?.(session)
     await session.bindExtensions({})
+    const baseTools = session.getActiveToolNames()
+    events.setBaseTools(baseTools)
+    if (events.activatedTools.length > 0) session.setActiveToolsByName([...baseTools, ...events.activatedTools])
+    events.flush()
     return owner
   } catch (cause) {
     await owner.dispose()

@@ -16,8 +16,10 @@ describe('settings page containers', () => {
   ])('keeps 24px padding around the %s', (_, Component) => {
     render(<Component data-testid="settings-content">Content</Component>)
 
-    expect(screen.getByTestId('settings-content')).toHaveClass('p-6')
-    expect(screen.getByTestId('settings-content')).not.toHaveClass('pt-3', 'py-4')
+    const content = screen.getByTestId('settings-content')
+    const paddedContent = content.querySelector('[data-slot=scroll-area-viewport]') ?? content
+    expect(paddedContent).toHaveClass('p-6')
+    expect(paddedContent).not.toHaveClass('pt-3', 'py-4')
   })
 })
 

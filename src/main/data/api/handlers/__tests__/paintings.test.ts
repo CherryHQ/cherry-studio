@@ -63,7 +63,7 @@ describe('paintingHandlers', () => {
       paintingHandlers['/paintings'].GET({
         query: {
           limit: PAINTINGS_MAX_LIMIT + 1
-        } as never
+        }
       })
     ).rejects.toHaveProperty('name', 'ZodError')
 
@@ -75,7 +75,7 @@ describe('paintingHandlers', () => {
       paintingHandlers['/paintings'].GET({
         query: {
           [legacyParentFieldKey]: 'painting-parent'
-        } as never
+        }
       })
     ).rejects.toHaveProperty('name', 'ZodError')
 
@@ -183,7 +183,7 @@ describe('paintingHandlers', () => {
   it('forwards inTrash to the service on list', async () => {
     listPaintingsMock.mockResolvedValueOnce({ items: [], total: 0, nextCursor: undefined })
 
-    await paintingHandlers['/paintings'].GET({ query: { inTrash: true } } as never)
+    await paintingHandlers['/paintings'].GET({ query: { inTrash: true } })
 
     expect(listPaintingsMock).toHaveBeenCalledWith({
       inTrash: true,
@@ -197,7 +197,7 @@ describe('paintingHandlers', () => {
     await paintingHandlers['/paintings/:id'].DELETE({
       params: { id: 'painting-1' },
       query: { permanent: true }
-    } as never)
+    })
 
     expect(deletePaintingMock).toHaveBeenCalledWith('painting-1', { permanent: true })
   })

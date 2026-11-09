@@ -25,7 +25,7 @@ application.getPath('invalid.key')
 | `constants.ts` | Earliest path constants (`CHERRY_HOME`, `BOOT_CONFIG_PATH`, `LOGS_DIR`) and dev-profile isolation — used before the registry exists; imported directly by the pre-registry bootstrappers (`LoggerService`, `BootConfigService`) |
 | `pathRegistry.ts` | `buildPathRegistry()` + `shouldAutoEnsure` + `PathKey` / `PathMap` types. Imported directly by `Application.ts`. ESLint-enforced key format |
 
-**No barrel.** The module's public access point is `application.getPath()`, not an `index.ts` — its two files are independent building blocks imported directly by their specific consumers (per [Naming §6.4](../../../../docs/references/architecture/naming-conventions.md): a directory that merely aggregates independent sub-modules gets no barrel).
+**No barrel.** The module's public access point is `application.getPath()`, not an `index.ts` — its two files are independent building blocks imported directly by their specific consumers (per [Naming §6.4](../../../../docs/dev/references/architecture/naming-conventions.md): a directory that merely aggregates independent sub-modules gets no barrel).
 
 ## Top-Level Namespaces
 
@@ -143,12 +143,14 @@ No object literals besides the registry itself — the ESLint rule validates eve
 `buildPathRegistry()` runs once during preboot (after `app.setPath('userData', ...)`, before `app.whenReady()`). Key implications:
 
 - Every value must depend only on sync Electron APIs, `process.resourcesPath`, or Node built-ins
+- Computer Use resolves its optional native SDK package on first path access in development. Missing native dependencies fail that feature's lookup without preventing application startup; packaged builds use `extraResources/computer-use`.
 - User-facing OS folders (`downloads`, `documents`, `desktop`) are best-effort: if Electron cannot resolve a
   redirected known folder, the registry logs a warning and falls back to the conventional directory under the
   user's home instead of aborting startup
 - Calling `application.getPath()` before `initPathRegistry()` throws
 - `LoggerService` and `BootConfigService` bypass the registry — they read from `paths/constants.ts` directly (they run before the registry exists)
 - Unpackaged runs can set `CS_DEV_PROFILE_ROOT` to keep Cherry home, BootConfig, legacy config discovery, Electron `userData`, and logs below one absolute non-root directory
+- Isolated development profiles do not register the global `cherrystudio://` handler. Direct launch arguments and protocol events still route within the instance.
 
 ## Testing
 

@@ -75,10 +75,8 @@ export function buildCherryCloudProviderConfig(
       } catch (error) {
         throw new ModelUnavailableError('Cherry Cloud model availability could not be refreshed', { cause: error })
       }
-      if (
-        !availability.entitledModelIds.includes(uniqueModelId) ||
-        availability.quotaExhaustedModelIds.includes(uniqueModelId)
-      ) {
+      // Quota is left to the server: its refusal carries the plan's wording and recovery time.
+      if (!availability.entitledModelIds.includes(uniqueModelId)) {
         throw new ModelUnavailableError('Cherry Cloud model is unavailable')
       }
 

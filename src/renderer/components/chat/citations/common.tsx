@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { Citation } from '@renderer/types/message'
+import { clampSurrogateBoundary } from '@shared/utils/text'
 import { isHttpUrl } from '@shared/utils/url'
 
 import { useOptionalMessageListActions } from '../messages/MessageListProvider'
@@ -17,7 +18,7 @@ export type CitationPanelActions = CitationCopyActions & {
 }
 
 export const truncateText = (text: string, maxLength = 100) =>
-  text.length > maxLength ? `${text.slice(0, maxLength)}...` : text
+  text.length > maxLength ? `${text.slice(0, clampSurrogateBoundary(text, maxLength))}...` : text
 
 export const getCitationHostname = (citation: Citation) => {
   if (!citation.url) return undefined
