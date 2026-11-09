@@ -65,6 +65,7 @@ import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@share
 import {
   createUniqueModelId,
   parseUniqueModelId,
+  UniqueModelIdSchema,
   type ServiceTierSelection,
   type UniqueModelId
 } from '@shared/data/types/model'
@@ -2339,29 +2340,63 @@ export class AgentSessionRuntimeService extends BaseService {
           this.handleAutonomousGenerationFinished(entry, connection)
           break
         }
-        if (
-          event.origin.kind === 'background-work' &&
-          this.ownsBackgroundNotification(entry, event.sourceToolCallIds)
-        ) {
-          this.applyRuntimeStateEvent(entry, { type: 'background-reply-resumed' })
-          break
+        const source = this.currentTurn(entry)
+        const background = event.origin.kind === 'background-work'
+        const projection = background
+          ? connection?.contextId
+            ? this.rootProjection(entry, connection.contextId)
+            : source?.projection
+          : undefined
+        const owners = new Set(event.sourceToolCallIds?.map((call) => projection?.toolCallMessageId(call)))
+        const sourceReply = source && getAgentSessionRuntimeReply(entry.runtimeState, source)
+        const assistantMessageId = background
+          ? sourceReply?.admission === 'pending' || !source
+            ? ((owners.size === 1 ? owners.values().next().value : undefined) ??
+              projection?.lastMessageId ??
+              source?.assistantMessageId)
+            : source.assistantMessageId
+          : undefined
+        if (background) {
+          if (!assistantMessageId) {
+            logger.warn('Background generation has no existing reply', { sessionId: entry.sessionId })
+            break
+          }
+          const current = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+          const reply = current && getAgentSessionRuntimeReply(entry.runtimeState, current)
+          if (
+            current?.assistantMessageId === assistantMessageId &&
+            reply &&
+            ['open', 'attaching', 'unopened'].includes(reply.delivery.kind)
+          ) {
+            this.applyRuntimeStateEvent(entry, { type: 'background-reply-resumed' })
+            break
+          }
         }
         if (
           entry.runtimeState.execution.kind === 'steer-transition' ||
           entry.runtimeState.execution.kind === 'autonomous-turn'
         )
           break
-        const source = this.currentTurn(entry)
         const headless = this.getInteractionState(entry.sessionId).userResponse === 'unavailable'
+        const saved =
+          assistantMessageId && assistantMessageId !== source?.assistantMessageId
+            ? agentSessionMessageService.getSessionMessage(entry.sessionId, assistantMessageId)
+            : undefined
+        const modelId = saved?.modelId ? UniqueModelIdSchema.parse(saved.modelId) : (source?.modelId ?? entry.modelId)
         const turn = createSessionTurn({
           ...this.connectionTarget(entry),
+          modelId: background ? modelId : entry.modelId,
           taskIds: [],
           userMessage: createSyntheticUserMessage(entry.sessionId),
           parentId: entry.branchHead,
-          messageSnapshot: entry.messageSnapshot,
+          messageSnapshot: background
+            ? (saved?.messageSnapshot ?? source?.messageSnapshot ?? entry.messageSnapshot)
+            : entry.messageSnapshot,
           headless,
-          origin: event.origin
+          origin: event.origin,
+          ...(background ? { assistantMessageId } : {})
         })
+        if (background) turn.projection = projection
         this.clearIdleTimer(entry)
         this.applyRuntimeStateEvent(entry, {
           type: 'autonomous-turn-started',
@@ -2616,14 +2651,6 @@ export class AgentSessionRuntimeService extends BaseService {
     const pending = getAgentSessionRuntimeReply(entry.runtimeState, turn)?.pendingResultToolCallIds ?? []
     const parts = turn.projection?.parts(turn.assistantMessageId) ?? []
     return new Set([...pending, ...parts.flatMap((part) => (isToolUIPart(part) ? [part.toolCallId] : []))])
-  }
-
-  private ownsBackgroundNotification(entry: AgentSessionRuntimeEntry, calls: readonly string[] | undefined): boolean {
-    if (!calls?.length || !isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) return false
-    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
-    if (!turn) return false
-    const owned = this.backgroundCallIds(entry, turn)
-    return calls.every((call) => owned.has(call))
   }
 
   private handleBackgroundResults(
@@ -3073,6 +3100,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private saveReply(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+    const background = turn.origin?.kind === 'background-work'
+    if (background) entry.persistedMessageIds?.delete(turn.assistantMessageId)
     agentSessionMessageService.saveMessage({
       sessionId: entry.sessionId,
       parentId: turn.parentId ? agentSessionMessageService.branchTip(entry.sessionId, turn.parentId) : undefined,
@@ -3080,12 +3109,12 @@ export class AgentSessionRuntimeService extends BaseService {
         id: turn.assistantMessageId,
         role: 'assistant',
         status: 'pending',
-        data: { parts: [] },
+        data: { parts: background ? (turn.projection?.parts(turn.assistantMessageId) ?? []) : [] },
         modelId: turn.modelId,
         messageSnapshot: turn.messageSnapshot
       }
     })
-    entry.branchHead = turn.assistantMessageId
+    if (!background) entry.branchHead = turn.assistantMessageId
     if (turn.origin)
       application
         .get('CacheService')

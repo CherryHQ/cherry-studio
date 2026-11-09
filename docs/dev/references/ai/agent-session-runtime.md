@@ -581,6 +581,14 @@ Compaction completion anchors use this same projection/control delivery path, in
 the stream has not opened. A direct stream enqueue would omit the anchor from the final saved
 message and leave a successful compaction looking like an empty response after reload.
 
+Background generation reuses an existing assistant message; it never creates a standalone
+background-continuation row or header badge. A new execution reopens the message's stream while
+retaining its existing body, native projection, author snapshot and billing identity. Running
+commands may remain detached without blocking Send. Once a new user input is admitted, its reply
+owns subsequent generation. Before admission, native call ownership or the last projected reply
+keeps an older notification out of the reserved user's reply. Goal rounds retain their separate
+turns and labels. Background origin metadata remains internal to automatic read-aloud eligibility.
+
 ## Resume token persistence
 
 Drivers may emit:

@@ -405,7 +405,6 @@
   "agent.session_delivery.status.consumed": "Elaborato",
   "agent.session_delivery.status.delivering": "Consegna in corso",
   "agent.session_delivery.status.failed": "Non riuscito",
-  "agent.session_turn_origin.background_work": "Ripreso dopo il lavoro in background",
   "agent.session_turn_origin.goal_round": "Ciclo {{round}} dell'obiettivo",
   "agent.settings.permissionMode.title": "Modalità autorizzazioni",
   "agent.settings.skills.addMore": "Gestisci competenze",

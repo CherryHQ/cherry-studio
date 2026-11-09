@@ -92,11 +92,15 @@ delivery of paired batches. Baseline and recovery are internal delivery modes; a
 retractions and live provenance are captured together. Batch state exposes captured `aborted`;
 `claude.state()` exposes current `active`. Background occupancy stays in private control state. Initial baseline includes current background
 occupancy and pending result origins without replaying historical completion or charges.
-`background-results` tracks child-agent runs by native run ID and current triggering tool-use ID;
+`background-results` tracks child-agent runs and received shell-completion notifications by native
+run ID and current triggering tool-use ID;
 a continuation does not reuse its creation call. Task notifications associate autonomous generation
 with those calls. Empty membership alone does not drain a result: its notification, parent answer
-and native idle barrier must finish. Resident commands retain occupancy without becoming pending
-child-agent results. Overflow recovery retains unseen control
+and native idle barrier must finish. Running shell commands retain occupancy without holding a
+product reply open; their completion notifications retain the root Bash call's identity. Nested
+shell calls and ambient notifications do not become root reply results. Main reuses an existing
+assistant message for background generation instead of creating a standalone continuation message.
+Overflow recovery retains unseen control
 and invocation facts after their matching body; an unrecoverable backlog reports a gap and closes.
 Slow or failing consumers cannot block native execution. After stopping production, hosts await
 `Observation.drain()` before final archive persistence, then detach and release. `runtime.settled()`
