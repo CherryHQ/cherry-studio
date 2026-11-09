@@ -119,18 +119,6 @@ export function createPromptProgressFetch(
             }
             if (
               record(parsed) &&
-              Object.hasOwn(parsed, 'prompt_progress') &&
-              (parsed.choices === undefined || (Array.isArray(parsed.choices) && parsed.choices.length === 0)) &&
-              !Object.hasOwn(parsed, 'error') &&
-              !Object.hasOwn(parsed, 'usage')
-            ) {
-              const value = progress(parsed.prompt_progress)
-              if (!retired && value) publish(value)
-              else if (!value) clear()
-              return
-            }
-            if (
-              record(parsed) &&
               (Object.hasOwn(parsed, 'error') ||
                 (Array.isArray(parsed.choices) &&
                   parsed.choices.some(
@@ -149,6 +137,16 @@ export function createPromptProgressFetch(
             ) {
               retired = true
               clear()
+            } else if (
+              record(parsed) &&
+              Object.hasOwn(parsed, 'prompt_progress') &&
+              !Object.hasOwn(parsed, 'error') &&
+              !Object.hasOwn(parsed, 'usage')
+            ) {
+              const value = progress(parsed.prompt_progress)
+              if (!retired && value) publish(value)
+              else if (!value) clear()
+              if (parsed.choices === undefined || (Array.isArray(parsed.choices) && parsed.choices.length === 0)) return
             }
             const lines = [
               event.event && `event: ${event.event}`,

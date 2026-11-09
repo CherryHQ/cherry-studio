@@ -16,6 +16,47 @@ describe('prompt progress fetch', () => {
     expect(sink).toHaveBeenCalledWith({ percent: 62, etaMs: expect.closeTo(6129.032, 2) })
     expect(sink).toHaveBeenLastCalledWith(null)
   })
+
+  it('reports progress alongside a role-only choice and forwards the event unchanged', async () => {
+    const sink = vi.fn()
+    const event =
+      'data: {"prompt_progress":{"total":1000,"processed":620,"cache":0,"time_ms":10000},"choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}]}\n\n'
+    const content = 'data: {"choices":[{"index":0,"delta":{"content":"Hello"}}]}\n\n'
+    const done = 'data: [DONE]\n\n'
+    const response = await createPromptProgressFetch(async () => new Response(event + content + done), sink)(
+      'https://example.com/v1/chat/completions',
+      { method: 'POST', body: JSON.stringify({ stream: true, messages: [] }) }
+    )
+    const output = await response.text()
+    expect(sink).toHaveBeenCalledWith({ percent: 62, etaMs: expect.closeTo(6129.032, 2) })
+    expect(output).toContain('"role":"assistant"')
+    expect(output).toBe(event + content + done)
+    expect(sink).toHaveBeenLastCalledWith(null)
+  })
+
+  it('forwards a role-only choice without progress without reporting anything', async () => {
+    const sink = vi.fn()
+    const event = 'data: {"choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}]}\n\n'
+    const response = await createPromptProgressFetch(async () => new Response(event), sink)(
+      'https://example.com/v1/chat/completions',
+      { method: 'POST', body: JSON.stringify({ stream: true, messages: [] }) }
+    )
+    expect(await response.text()).toBe(event)
+    expect(sink).not.toHaveBeenCalled()
+  })
+
+  it('does not report progress alongside a role-only choice after content has started', async () => {
+    const sink = vi.fn()
+    const content = 'data: {"choices":[{"index":0,"delta":{"content":"Hello"}}]}\n\n'
+    const event =
+      'data: {"prompt_progress":{"total":1000,"processed":620,"cache":0,"time_ms":10000},"choices":[{"index":0,"delta":{"role":"assistant","content":null},"finish_reason":null}]}\n\n'
+    const response = await createPromptProgressFetch(async () => new Response(content + event), sink)(
+      'https://example.com/v1/chat/completions',
+      { method: 'POST', body: JSON.stringify({ stream: true, messages: [] }) }
+    )
+    expect(await response.text()).toBe(content + event)
+    expect(sink).not.toHaveBeenCalled()
+  })
 })
 
 describe('prompt progress validation and negotiation', () => {
