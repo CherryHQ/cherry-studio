@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
   EmptyState,
   PageHeader,
-  Scrollbar
+  ScrollArea
 } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
@@ -938,16 +938,18 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
             />
           )}
 
-          <Scrollbar
-            ref={contentScrollRef}
-            className="relative flex-1"
-            onScroll={handleContentScroll}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setSelectedIds(new Set())
-                setRenamingId(null)
+          <ScrollArea
+            viewportProps={{
+              ref: contentScrollRef,
+              onScroll: handleContentScroll,
+              onClick: (e) => {
+                if (e.target === e.currentTarget) {
+                  setSelectedIds(new Set())
+                  setRenamingId(null)
+                }
               }
-            }}>
+            }}
+            className="relative flex-1">
             {filteredFiles.length === 0 ? (
               // While the first load is in flight, show loading feedback instead of
               // an empty state — otherwise the no-result state flashes before the
@@ -998,7 +1000,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
                 )}
               </>
             )}
-          </Scrollbar>
+          </ScrollArea>
         </div>
       </div>
 

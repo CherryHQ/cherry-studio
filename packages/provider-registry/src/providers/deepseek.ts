@@ -102,7 +102,7 @@ export default defineProvider({
   },
   overrides: [
     {
-      modelId: 'deepseek-flash',
+      apiModelId: 'deepseek-flash',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
       pricing: v4FlashPeakPricing,
       reasoningContracts: {
@@ -111,7 +111,7 @@ export default defineProvider({
       }
     },
     {
-      modelId: 'deepseek-v4-flash',
+      apiModelId: 'deepseek-v4-flash',
       endpointTypes: ['openai-responses', 'openai-chat-completions'],
       reasoningContracts: {
         'openai-chat-completions': { wire: v4ChatEffortWire },
@@ -119,7 +119,7 @@ export default defineProvider({
       }
     },
     {
-      modelId: 'deepseek-v4-pro',
+      apiModelId: 'deepseek-v4-pro',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
       limits: { maxOutputTokens: 384000 },
       pricing: v4ProPeakPricing,

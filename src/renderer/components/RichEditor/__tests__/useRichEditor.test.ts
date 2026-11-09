@@ -561,3 +561,29 @@ describe('useRichEditor notes relocation paste drain', () => {
     }
   })
 })
+
+describe('useRichEditor unfocused user command publication', () => {
+  it('publishes marked user commands without focus, but blocks unmarked and read-only updates', () => {
+    const onChange = vi.fn()
+    const { result, rerender } = renderHook(
+      ({ editable }) => useRichEditor({ initialContent: 'before', autoFocus: false, editable, onChange }),
+      { initialProps: { editable: true } }
+    )
+    const editor = getEditor(result)
+    Object.defineProperty(editor, 'isFocused', { configurable: true, get: () => false })
+    act(() => {
+      editor.commands.insertContent('ignored')
+    })
+    expect(onChange).not.toHaveBeenCalled()
+    act(() => {
+      editor.chain().setMeta('richEditorUserCommand', true).insertContent('accepted').run()
+    })
+    expect(onChange).toHaveBeenCalledWith(expect.stringContaining('accepted'))
+    onChange.mockClear()
+    rerender({ editable: false })
+    act(() => {
+      editor.chain().setMeta('richEditorUserCommand', true).insertContent('blocked').run()
+    })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+})

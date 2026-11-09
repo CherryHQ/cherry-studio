@@ -177,7 +177,7 @@ export default function ComposerDockTransitionFrame({
           // The whole dock stack stays click-through: the layer, the wrapper, and
           // any width-capped centering inside the composer all span or flank the
           // pane, so pointer events are re-enabled only by the composer content
-          // roots (ComposerSurface's NarrowLayout and the override composers).
+          // roots inside the width-capped layouts and in the override composers.
           'pointer-events-none absolute inset-x-0 w-full',
           composerElevated ? 'z-50' : 'z-10',
           isDocked

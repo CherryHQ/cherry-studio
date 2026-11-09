@@ -27,7 +27,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { assertOutsideManagedStorageMutation } from '@main/services/file'
-import { isNotesDirectoryAcceptedForLoading } from '@main/services/notesDirectoryValidation'
+import { validateNotesDirectory as validateNotesDirectoryPath } from '@main/services/notesDirectory'
 import { getFileType } from '@main/utils/file'
 import { extractLegacyDocText } from '@main/utils/legacyDoc'
 import {
@@ -734,16 +734,7 @@ class FileStorage {
   }
 
   public validateNotesDirectory = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<boolean> => {
-    try {
-      const accepted = isNotesDirectoryAcceptedForLoading(dirPath)
-      if (!accepted) {
-        logger.warn(`Invalid directory selection: ${path.resolve(dirPath)}`)
-      }
-      return accepted
-    } catch (error) {
-      logger.error('Failed to validate notes directory:', error as Error)
-      return false
-    }
+    return validateNotesDirectoryPath(dirPath)
   }
 
   public save = async (
