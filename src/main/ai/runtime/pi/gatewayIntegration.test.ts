@@ -2,10 +2,14 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { resolve } from 'node:path'
 
-import { Type } from '@earendil-works/pi-ai'
+import { normalizeContext } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
+import { GoogleGenAI } from '@google/genai'
+import { trace } from '@opentelemetry/api'
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
+import { Type } from 'typebox'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -22,13 +26,16 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
 import '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { AgentSessionUsageAttribution } from '@main/ai/agentSession/AgentSessionUsageAttribution'
 import { AiService } from '@main/ai/AiService'
+import { createPiTelemetry, observabilitySinks, type AgentRuntimeTraceContext } from '@main/ai/observability'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import type * as CustomFetch from '@main/ai/utils/customFetch'
 import { BaseService } from '@main/core/lifecycle'
 import type { InputFormat } from '@main/features/apiGateway/adapters/interfaces'
 import { processMessage } from '@main/features/apiGateway/proxyStream'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { SpanEntity } from '@shared/data/types/trace'
 
 import { createTestBehavior, tempDir } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
@@ -36,9 +43,11 @@ import { createPiBehaviorHost } from './piBehaviorHost'
 
 const mocks = vi.hoisted(() => ({
   messageId: 'original-answer',
+  captures: new Map<string, AgentRuntimeTraceContext>(),
   gatewayUrl: '',
   manager: undefined as AiStreamManager | undefined,
-  ai: undefined as AiService | undefined
+  ai: undefined as AiService | undefined,
+  attribution: undefined as AgentSessionUsageAttribution | undefined
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
@@ -50,15 +59,27 @@ vi.mock('@application', async () => {
     },
     AiService: { streamText: (input: Parameters<AiService['streamText']>[0]) => mocks.ai!.streamText(input) },
     ApiGatewayService: {
-      captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
+      captureAgentSessionUsage: (_session: string, _owner: string | undefined, parent?: AgentRuntimeTraceContext) => {
+        if (!parent) return { headers: {}, release: () => {} }
+        const key = String(mocks.captures.size + 1)
+        mocks.captures.set(key, parent)
+        return {
+          headers: { 'x-cherry-agent-usage-capture': key },
+          release: () => {
+            mocks.captures.delete(key)
+          }
+        }
+      },
       ensureInternalGateway: async () => ({ baseUrl: mocks.gatewayUrl, apiKey: 'internal-fixture-key' }),
       getAgentSessionUsageHeaders: (sessionId: string) => ({ 'x-cherry-agent-session-id': sessionId }),
       isInternalRequest: (headers: Headers) => headers.get('authorization') === 'Bearer internal-fixture-key',
       getAgentSessionId: (headers: Headers) => headers.get('x-cherry-agent-session-id'),
-      resolveAgentSessionUsage: (headers: Headers) => ({
+      resolveAgentSessionUsage: (headers: Headers, responseId: string) => ({
         agentSessionId: headers.get('x-cherry-agent-session-id')!,
         assistantMessageId: mocks.messageId,
-        source: null
+        source: null,
+        traceContext: mocks.captures.get(headers.get('x-cherry-agent-usage-capture') ?? ''),
+        ...(mocks.attribution && { recordInvocation: mocks.attribution.capture(responseId) })
       })
     },
     AgentSessionRuntimeService: { getActiveUsageContext: () => ({ assistantMessageId: mocks.messageId, source: null }) }
@@ -122,7 +143,10 @@ describe('native Pi through the production gateway', () => {
           params: JSON.parse(raw),
           inputFormat: protocol,
           outputFormat: protocol,
-          ...(protocol === 'gemini' && { modelString: 'port:wire-model', streaming: true }),
+          ...(protocol === 'gemini' && {
+            modelString: 'port:wire-model',
+            streaming: request.url?.includes(':streamGenerateContent')
+          }),
           signal: abort.signal,
           requestHeaders: headers
         })
@@ -141,6 +165,7 @@ describe('native Pi through the production gateway', () => {
     upstreamClosed = false
     protocol = 'openai'
     mocks.messageId = 'original-answer'
+    mocks.attribution = undefined
     call = () => ({ content: 'Model answer' })
     server = createServer(async (req, res) => {
       let raw = ''
@@ -201,6 +226,7 @@ describe('native Pi through the production gateway', () => {
         const reasoning = {
           type: 'reasoning',
           id: `rs_native_${requests.length}`,
+          status: 'completed',
           summary: [],
           encrypted_content: 'encrypted-native-state'
         }
@@ -227,6 +253,8 @@ describe('native Pi through the production gateway', () => {
             type: 'response.completed',
             response: {
               id: `resp_${requests.length}`,
+              object: 'response',
+              created_at: 1,
               model: 'wire-model',
               status: 'completed',
               output: [reasoning, message],
@@ -261,7 +289,9 @@ describe('native Pi through the production gateway', () => {
     vi.spyOn(application, 'getPath').mockImplementation((key, file) =>
       key === 'feature.provider_registry.data'
         ? resolve('packages/provider-registry/data', file ?? '')
-        : getPath(key, file)
+        : key === 'app.root'
+          ? resolve(process.cwd(), file ?? '')
+          : getPath(key, file)
     )
     dbh.db
       .insert(userProviderTable)
@@ -332,6 +362,177 @@ describe('native Pi through the production gateway', () => {
     })
   }
 
+  it.each([
+    { adapterFamily: undefined, presetProviderId: 'omlx', expected: 'instructions' },
+    { adapterFamily: 'open-responses', presetProviderId: null, expected: 'instructions' },
+    { adapterFamily: 'xai', presetProviderId: null, expected: 'message' },
+    { adapterFamily: 'openai', presetProviderId: null, expected: 'separate' }
+  ] as const)(
+    'preserves caller instructions through the $adapterFamily Responses adapter',
+    async ({ adapterFamily, presetProviderId, expected }) => {
+      protocol = 'openai-responses'
+      const endpoint = providerService.getByProviderId('port').endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          presetProviderId,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: endpoint!.baseUrl, ...(adapterFamily && { adapterFamily }) }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+        })
+        .where(eq(userProviderTable.providerId, 'port'))
+        .run()
+      dbh.db
+        .update(userModelTable)
+        .set({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+        .where(eq(userModelTable.id, 'port::wire-model'))
+        .run()
+      const response = await processMessage({
+        inputFormat: 'openai-responses',
+        outputFormat: 'openai-responses',
+        params: {
+          model: 'port:wire-model',
+          stream: true,
+          instructions: 'Caller instructions must survive.',
+          input: [
+            { role: 'developer', content: 'Keep the skill catalog.' },
+            { role: 'user', content: 'Hello' }
+          ]
+        }
+      })
+      await response.text()
+      expect(requests).toHaveLength(1)
+      const body = requests[0]
+      if (expected === 'instructions') {
+        expect(body.instructions).toContain('Caller instructions must survive.')
+        expect(body.instructions).toContain('Keep the skill catalog.')
+      } else if (expected === 'message') {
+        expect(body.input).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              role: 'system',
+              content: expect.stringContaining('Caller instructions must survive.')
+            }),
+            expect.objectContaining({ role: 'system', content: expect.stringContaining('Keep the skill catalog.') })
+          ])
+        )
+      } else {
+        expect(body.instructions).toBe('Caller instructions must survive.')
+        expect(JSON.stringify(body.input)).toContain('Keep the skill catalog.')
+        expect(JSON.stringify(body.input)).not.toContain('Caller instructions must survive.')
+      }
+    }
+  )
+
+  it('joins the SDK call to the native phase with one upstream request and billing record', async () => {
+    const captured: SpanEntity[] = []
+    const tracerProvider = new BasicTracerProvider()
+    vi.spyOn(trace, 'getTracer').mockImplementation((name) => tracerProvider.getTracer(name))
+    observabilitySinks.register({
+      id: 'pi-gateway-native-test',
+      writeSpanEntity: (span) => {
+        captured.push(span)
+      }
+    })
+    const preferences = application.get('PreferenceService')
+    const previous = preferences.get('app.developer_mode.enabled')
+    await preferences.set('app.developer_mode.enabled', true)
+    const owner = {
+      topicId: 'agent-session:native-parent',
+      sessionId: 'native-parent',
+      turnId: 'turn',
+      traceId: '11111111111111111111111111111111',
+      rootSpanId: '2222222222222222'
+    }
+    const native = createPiTelemetry({ getParent: () => owner, isEnabled: () => true })
+    try {
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: owner.sessionId },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      const answer = await native.startSpan({ name: 'pi.durable.phase', attributes: { 'task.id': 7 } }, (telemetry) =>
+        binding.modelRuntime.completeSimple(
+          binding.model,
+          normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] }),
+          { telemetry }
+        )
+      )
+      expect(answer.stopReason).toBe('stop')
+      const phase = captured.find((span) => span.name === 'pi.durable.phase')!
+      const sdk = captured.filter((span) => span.name === 'ai.streamText')
+      expect(sdk).toHaveLength(1)
+      expect(sdk[0]).toMatchObject({ traceId: owner.traceId, parentId: phase.id, topicId: owner.topicId })
+      expect(captured.filter((span) => span.name.startsWith('pi.')).map((span) => span.name)).toEqual([
+        'pi.durable.phase'
+      ])
+      expect(requests).toHaveLength(1)
+      const records = dbh.db.select().from(aiUsageRecordTable).all()
+      expect(records).toHaveLength(1)
+      expect(records[0]).toMatchObject({ inputTokens: 100, outputTokens: 25 })
+      await expect.poll(() => mocks.captures.size).toBe(0)
+    } finally {
+      await preferences.set('app.developer_mode.enabled', previous)
+      await tracerProvider.shutdown()
+    }
+  })
+
+  it('keeps concurrent roots with the same model on their own gateway session and request settings', async () => {
+    dbh.db
+      .update(userModelTable)
+      .set({
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+        reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }] }
+      })
+      .where(eq(userModelTable.id, 'port::wire-model'))
+      .run()
+    const headers: Headers[] = []
+    const provider = providerService.getByProviderId('port')
+    const model = modelService.getByKey('port', 'wire-model')
+    const first = await createPiGatewayModelBinding(
+      { sessionId: 'parent', serviceTier: 'fast', reasoningEffort: 'high' },
+      provider,
+      model
+    )
+    const child = await createPiGatewayModelBinding(
+      { sessionId: 'fork', serviceTier: 'standard', reasoningEffort: 'low' },
+      provider,
+      model,
+      undefined,
+      first.modelRuntime
+    )
+    const later = await createPiGatewayModelBinding(
+      { sessionId: 'third', serviceTier: 'fast', reasoningEffort: 'medium' },
+      provider,
+      model,
+      undefined,
+      first.modelRuntime
+    )
+    const saved = fetch
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      if (String(input).startsWith(mocks.gatewayUrl)) headers.push(new Headers(init?.headers))
+      return saved(input, init)
+    })
+    const results = await Promise.all(
+      [first, child, later].map((binding) =>
+        binding.modelRuntime.completeSimple(
+          binding.model,
+          normalizeContext({ messages: [{ role: 'user', content: binding.model.provider, timestamp: 1 }] })
+        )
+      )
+    )
+    expect(results.map((result) => result.stopReason)).toEqual(['stop', 'stop', 'stop'])
+    expect(
+      headers.map((header) => [header.get('x-cherry-agent-session-id'), header.get('x-cherry-service-tier')]).sort()
+    ).toEqual([
+      ['fork', 'standard'],
+      ['parent', 'fast'],
+      ['third', 'fast']
+    ])
+    expect(requests.map((request) => request.reasoning_effort).sort()).toEqual(['high', 'low', 'medium'])
+  })
+
   it('excludes a disabled provider with the same model name and preserves the inherited model', async () => {
     dbh.db
       .insert(userProviderTable)
@@ -351,7 +552,7 @@ describe('native Pi through the production gateway', () => {
       })
       .run()
     const { host } = await behaviorHost()
-    const candidates = await host.models.find('wire-model')
+    const candidates = await host.models.find('wire-model', runtimeId('root'))
     expect(candidates).toHaveLength(1)
     expect(candidates[0].provider).toBe('port')
     expect(await host.models.current(runtimeId('root'))).toMatchObject({
@@ -360,7 +561,7 @@ describe('native Pi through the production gateway', () => {
       supportsTools: true
     })
     dbh.db.update(userProviderTable).set({ isEnabled: false }).where(eq(userProviderTable.providerId, 'port')).run()
-    expect(await host.models.find('wire-model')).toEqual([])
+    expect(await host.models.find('wire-model', runtimeId('root'))).toEqual([])
     await expect(
       host.summarizer.summarize(
         { thread: runtimeId('root'), reason: 'manual', messages: ['conversation'] },
@@ -592,7 +793,100 @@ describe('native Pi through the production gateway', () => {
     await sendUser('question')
     expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([{ messageId: 'original-answer' }])
   })
-  it('keeps the explicit reasoning selection through native wire defaults and gateway execution', async () => {
+
+  it.each([true, false])(
+    'binds Google native root and child response identities to stored usage (streaming: %s)',
+    async (streaming) => {
+      protocol = 'gemini'
+      mocks.attribution = new AgentSessionUsageAttribution()
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          endpointConfigs: {
+            [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+              baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1beta`
+            }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+        })
+        .where(eq(userProviderTable.providerId, 'port'))
+        .run()
+      const received: string[] = []
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: 'session' },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      const client = new GoogleGenAI({
+        apiKey: 'internal-fixture-key',
+        httpOptions: {
+          baseUrl: mocks.gatewayUrl,
+          apiVersion: 'v1beta',
+          headers: { 'x-cherry-agent-session-id': 'session' }
+        }
+      })
+      for (const owner of ['root-message', 'child-message']) {
+        const response = streaming
+          ? await binding.modelRuntime
+              .streamSimple(
+                binding.model,
+                normalizeContext({ messages: [{ role: 'user', content: owner, timestamp: 1 }] }),
+                { sessionId: owner }
+              )
+              .result()
+          : await client.models.generateContent({ model: 'port:wire-model', contents: owner })
+        expect(response.responseId).toBeTruthy()
+        received.push(response.responseId!)
+        mocks.attribution.bind(response.responseId!, owner)
+        mocks.attribution.bind(response.responseId!, owner)
+      }
+      expect(new Set(received).size).toBe(2)
+      const charges = dbh.db.select().from(aiUsageRecordTable).all()
+      expect(charges).toHaveLength(2)
+      expect(
+        charges.map((row) => ({ messageId: row.messageId, kind: row.messageKind, total: row.totalTokens }))
+      ).toEqual([
+        { messageId: 'root-message', kind: 'agent-session', total: 125 },
+        { messageId: 'child-message', kind: 'agent-session', total: 125 }
+      ])
+    }
+  )
+  it.each(['high', 'ultra'] as const)(
+    'keeps %s reasoning through native wire defaults and gateway execution',
+    async (reasoningEffort) => {
+      dbh.db
+        .update(userModelTable)
+        .set({
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+          reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'ultra'] }] }
+        })
+        .where(eq(userModelTable.id, 'port::wire-model'))
+        .run()
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: 'session', reasoningEffort },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      const directory = tempDir('gateway-options')
+      session = await openSession({
+        ...binding,
+        cwd: directory,
+        agentDir: directory,
+        systemPrompt: 'Preserve the instructions through the gateway'
+      })
+      await sendUser('Think carefully')
+      expect(requests).toHaveLength(1)
+      expect(requests[0].reasoning_effort).toBe(reasoningEffort)
+      expect(requests[0].messages).toContainEqual(
+        expect.objectContaining({
+          role: 'system',
+          content: expect.stringContaining('Preserve the instructions through the gateway')
+        })
+      )
+    }
+  )
+
+  it('uses the original selection when an internal Anthropic request carries conflicting native thinking', async () => {
     dbh.db
       .update(userModelTable)
       .set({
@@ -601,16 +895,26 @@ describe('native Pi through the production gateway', () => {
       })
       .where(eq(userModelTable.id, 'port::wire-model'))
       .run()
-    const binding = await createPiGatewayModelBinding(
-      { sessionId: 'session', reasoningEffort: 'high' },
-      providerService.getByProviderId('port'),
-      modelService.getByKey('port', 'wire-model')
-    )
-    const directory = tempDir('gateway-options')
-    session = await openSession({ ...binding, cwd: directory, agentDir: directory })
-    await sendUser('Think carefully')
+    const response = await processMessage({
+      params: {
+        model: 'port:wire-model',
+        stream: true,
+        max_tokens: 256,
+        thinking: { type: 'enabled', budget_tokens: 16384 },
+        messages: [{ role: 'user', content: 'fixture' }]
+      },
+      inputFormat: 'anthropic',
+      outputFormat: 'anthropic',
+      requestHeaders: new Headers({
+        authorization: 'Bearer internal-fixture-key',
+        'x-cherry-reasoning-effort': 'low'
+      })
+    })
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('Model answer')
     expect(requests).toHaveLength(1)
-    expect(requests[0].reasoning_effort).toBe('high')
+    expect(requests[0]).toMatchObject({ reasoning_effort: 'low', max_tokens: 256 })
+    expect(requests[0]).not.toHaveProperty('thinking')
   })
 
   it('propagates a native stop through the gateway to the upstream request', async () => {

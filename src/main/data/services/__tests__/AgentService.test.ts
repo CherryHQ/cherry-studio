@@ -1656,7 +1656,8 @@ describe('AgentService', () => {
         agentId: id,
         name: '',
         workspaceId: 'workspace-default-detach',
-        taskScheduleId: task.id,
+        taskId: task.id,
+        isTaskReuseTarget: true,
         orderKey: 'a0'
       })
       agentService.deleteAgent(id)
@@ -1665,10 +1666,10 @@ describe('AgentService', () => {
       expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: true })
 
       const [session] = await dbh.db
-        .select({ agentId: agentSessionTable.agentId, taskScheduleId: agentSessionTable.taskScheduleId })
+        .select({ agentId: agentSessionTable.agentId, isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
         .from(agentSessionTable)
         .where(eq(agentSessionTable.id, 'session-default-detach'))
-      expect(session).toEqual({ agentId: null, taskScheduleId: null })
+      expect(session).toEqual({ agentId: null, isTaskReuseTarget: false })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-default-detach'] },
         {
