@@ -26,8 +26,10 @@ const SEEN_ID_LIMIT = 500
 const IDLE_TIMEOUT_MS = 45_000
 // One catch-up page, body included; a stalled transport must not keep the stream from reconnecting.
 const PAGE_TIMEOUT_MS = 30_000
+// The endpoints can go live while the app runs, so a 404 is rechecked on this slow cadence.
+const UNAVAILABLE_RETRY_MS = 5 * 60_000
 
-/** The backend has the notification endpoints switched off; focus refresh stays the only path. */
+/** The backend has the notification endpoints switched off; focus refresh covers until they return. */
 class NotificationsUnavailableError extends Error {}
 /** The stored cursor is no longer valid; the next connection starts from a new baseline. */
 class CursorRejectedError extends Error {}
@@ -126,6 +128,7 @@ export class CherryCloudNotificationService extends BaseService {
 
   private async run(accountId: string, scopeId: string, signal: AbortSignal): Promise<void> {
     let retryMs = RETRY_MIN_MS
+    let reportedUnavailable = false
     while (!signal.aborted) {
       let serverDelayMs = 0
       try {
@@ -134,7 +137,12 @@ export class CherryCloudNotificationService extends BaseService {
         await this.listen(accountId, scopeId, signal, () => (retryMs = RETRY_MIN_MS))
       } catch (error) {
         if (signal.aborted) return
-        if (error instanceof NotificationsUnavailableError) return
+        if (error instanceof NotificationsUnavailableError) {
+          if (!reportedUnavailable) logger.info('Cherry Cloud notifications unavailable; checking again later')
+          reportedUnavailable = true
+          await wait(UNAVAILABLE_RETRY_MS, signal)
+          continue
+        }
         if (error instanceof CursorRejectedError) {
           this.saveCursor(accountId, null)
           continue
