@@ -85,6 +85,29 @@ it('never replaces an existing or in-flight workspace file with a managed downlo
   })
 })
 
+it.each(['x'.repeat(248) + '.txt', '界'.repeat(80) + '.txt', 'name.' + 'e'.repeat(248)])(
+  'leaves native temporary filename headroom while reserving distinct paths for %s',
+  (filename) => {
+    const a = createGuest()
+    const session = new GuestSession(a.guest, 'managed')
+    sessions.push(session)
+    const paths: string[] = []
+    for (let index = 0; index < 2; index++) {
+      const item = Object.assign(new EventEmitter(), {
+        getFilename: () => filename,
+        setSavePath: (savePath: string) => paths.push(savePath)
+      })
+      a.mock.session.emit('will-download', {}, item, a.guest)
+    }
+    expect(paths).toHaveLength(2)
+    expect(new Set(paths).size).toBe(2)
+    for (const savePath of paths) {
+      expect(Buffer.byteLength(path.basename(savePath))).toBeLessThanOrEqual(200)
+      expect(existsSync(savePath)).toBe(true)
+    }
+  }
+)
+
 it('does not delete an unrelated empty file replacing a cancelled reservation', () => {
   const a = createGuest()
   const session = new GuestSession(a.guest, 'managed')
@@ -104,7 +127,9 @@ it('does not retain a progressing download when cancellation emits done synchron
   const a = createGuest()
   const session = new GuestSession(a.guest, 'managed')
   sessions.push(session)
-  const filename = 'x'.repeat(300) + '.txt'
+  const filename = 'report.txt'
+  rmSync(workspace, { recursive: true, force: true })
+  writeFileSync(workspace, 'not a directory')
   const item = Object.assign(new EventEmitter(), {
     getFilename: () => filename,
     setSavePath: vi.fn(),

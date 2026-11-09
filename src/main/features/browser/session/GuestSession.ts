@@ -34,6 +34,15 @@ import { WebMcpTools } from './WebMcpTools'
 
 const logger = loggerService.withContext('GuestSession')
 
+function truncateFilename(value: string, maxBytes: number): string {
+  let result = ''
+  for (const character of value) {
+    if (Buffer.byteLength(result) + Buffer.byteLength(character) > maxBytes) break
+    result += character
+  }
+  return result
+}
+
 /**
  * Reserve a destination in the MCP workspace that cannot replace an existing or
  * concurrently downloading file. The empty placeholder is created exclusively
@@ -42,11 +51,16 @@ const logger = loggerService.withContext('GuestSession')
 function reserveManagedDownload(suggested: string): { savePath: string; filename: string } {
   let base = path.basename(suggested)
   base = base && base !== '.' && base !== '..' ? base : 'download'
-  const { name, ext } = path.parse(base)
+  const parsed = path.parse(base)
+  const ext = truncateFilename(parsed.ext, 32)
+  const name = parsed.name
   const workspace = application.getPath('feature.mcp.workspace')
   mkdirSync(workspace, { recursive: true })
   for (let attempt = 0; attempt < 1000; attempt++) {
-    const filename = attempt === 0 ? base : `${name} (${attempt})${ext}`
+    const suffix = attempt === 0 ? '' : ` (${attempt})`
+    // Leave room for Chromium's intermediate download suffix and uniquifier.
+    const stem = truncateFilename(name, 200 - Buffer.byteLength(ext + suffix))
+    const filename = `${stem}${suffix}${ext}`
     const savePath = application.getPath('feature.mcp.workspace', filename)
     try {
       closeSync(openSync(savePath, 'wx'))
