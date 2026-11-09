@@ -380,51 +380,26 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!baseline) return 'rebuild'
 
     const fresh = derived.config
-    const permissionModeChanged = baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode
-    // Claude's set_permission_mode control request can terminate work already in flight. Keep the
-    // mode (and the local approval gate that mirrors it) frozen for the active turn; the host pulls
-    // reconcile again before admitting the next turn, when the SDK update is safe to apply.
-    const deferPermissionMode = permissionModeChanged && this.handle?.claude.state().active === true
-    const applicableToolPolicy = deferPermissionMode
-      ? { ...fresh.live.toolPolicy, permissionMode: baseline.live.toolPolicy.permissionMode }
-      : fresh.live.toolPolicy
     let patched = false
-    // Apply the tool-policy facts that are safe for this turn BEFORE the rebuild verdict. Newly
-    // disabled tools still tighten immediately; permission-mode changes wait for the next boundary.
-    if (!toolPolicyFactsEqual(baseline.live.toolPolicy, applicableToolPolicy)) {
+    // Apply the live tool-policy facts BEFORE the rebuild verdict, mid-turn included: the SDK applies
+    // a permission-mode change from the next tool call without interrupting the running turn.
+    if (!toolPolicyFactsEqual(baseline.live.toolPolicy, fresh.live.toolPolicy)) {
       try {
         const agent = agentService.getAgent(this.input.agentId)
         if (!agent) return 'invalid'
-        if (permissionModeChanged && !deferPermissionMode) {
+        if (baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode) {
           const changed = await this.handle.claude.setPermissionMode(
             (fresh.live.toolPolicy.permissionMode ?? 'default') as AgentPermissionMode
           )
           if (changed.status !== 'confirmed') throw new Error(changed.error.message)
         }
-        // Refresh only after the SDK confirms an applicable permission change. If the current turn
-        // keeps its old mode, preserve that mode in the snapshot while still applying other policy
-        // changes (for example, disabling a tool).
-        await this.toolPolicySnapshot?.update(
-          deferPermissionMode
-            ? {
-                ...agent,
-                configuration: {
-                  ...agent.configuration,
-                  permission_mode: (baseline.live.toolPolicy.permissionMode ?? undefined) as
-                    | AgentPermissionMode
-                    | undefined
-                }
-              }
-            : agent
-        )
+        // Refresh only after the SDK confirms, so the local gate never runs ahead of the subprocess.
+        await this.toolPolicySnapshot?.update(agent)
       } catch (error) {
         logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
         return 'failed'
       }
-      this.connectionConfig = {
-        ...baseline,
-        live: { ...fresh.live, toolPolicy: applicableToolPolicy }
-      }
+      this.connectionConfig = { ...baseline, live: fresh.live }
       patched = true
     }
 

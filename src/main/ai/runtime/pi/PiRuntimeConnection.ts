@@ -907,9 +907,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'
       throw error
     }
-    const nextPermissionMode = this.active
-      ? this.permissionMode
-      : (snapshot.agent.configuration?.permission_mode ?? 'default')
+    // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.
+    const nextPermissionMode = snapshot.agent.configuration?.permission_mode ?? 'default'
     const nextDisabled = normalizeDisabledTools(snapshot.agent.disabledTools, snapshot)
     const disabled = this.active ? new Set([...this.disabledTools, ...nextDisabled]) : nextDisabled
     const changed = nextPermissionMode !== this.permissionMode || !setsEqual(disabled, this.disabledTools)

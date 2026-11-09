@@ -786,7 +786,9 @@ renderer.
 
 `reconcile()` carries live agent edits onto the warm connection: a
 `permission-mode` change awaits the SDK `setPermissionMode` before mutating
-the snapshot (short-circuiting an unchanged mode), and a `tool-policy`
+the snapshot (short-circuiting an unchanged mode). It applies during an active
+turn too: the SDK keeps the turn running and governs its next tool call by the
+new mode. A `tool-policy`
 change refreshes the snapshot's disabled set in place. Concurrent push/pull
 reconciles are serialized per connection. A rejected update is failed closed
 by the host (the connection is torn down) rather than left running under the
@@ -901,7 +903,7 @@ contract above.
 
 Warm Pi reconciles serialize push and pull calls per connection so a slower
 older snapshot cannot overwrite a newer policy result. `permission_mode` is
-live policy and stays frozen for an active turn. `disabledTools` has two jobs:
+live policy and applies at once, including to the active turn's next tool call. `disabledTools` has two jobs:
 the live gate applies newly disabled tools immediately, while the spawn-time
 `excludeTools` list controls which tools the model can see. It therefore remains
 a rebuild-signature fact; adding or removing a disabled tool returns `rebuild`

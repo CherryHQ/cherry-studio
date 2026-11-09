@@ -237,10 +237,10 @@ export interface AgentRuntimeConnection {
   redirect?(input: AgentRuntimeCommand): boolean
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
-   * Live-appliable tool-policy facts are patched in place before the rebuild verdict, except for
-   * permission-mode changes: those stay frozen for an active turn and apply at the next turn
-   * boundary. Serialized per connection, concurrent push/pull reconciles queue instead of
-   * interleaving SDK and snapshot writes.
+   * Live-appliable tool-policy facts, permission mode included, are patched in place before the
+   * rebuild verdict, even during an active turn: the change governs the turn's next tool call.
+   * Serialized per connection, concurrent push/pull reconciles queue instead of interleaving SDK
+   * and snapshot writes.
    *
    * The input is the config the connection should serve right now (a live turn's frozen model,
    * reasoning, and knowledge selection, or the agent's latest model with defaults) — the same
