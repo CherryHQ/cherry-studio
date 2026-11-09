@@ -480,7 +480,6 @@
   "agent.tasks.guard.approveConfirmBody": "Cette tâche exécute la commande shell suivante avant chaque exécution planifiée. L'approbation autorise l'exécution de cette commande exacte sur votre ordinateur ; si la commande change, une nouvelle approbation est requise.",
   "agent.tasks.guard.approveConfirmTitle": "Approuver la condition de commande",
   "agent.tasks.guard.approveSuccess": "Condition de commande approuvée",
-  "agent.tasks.guard.approved": "Approuvée",
   "agent.tasks.guard.description": "Vérifiée à chaque heure planifiée. En cas d'échec, l'exécution est ignorée sans démarrer l'agent.",
   "agent.tasks.guard.label": "Condition d'exécution",
   "agent.tasks.guard.pendingApproval": "Approbation en attente",

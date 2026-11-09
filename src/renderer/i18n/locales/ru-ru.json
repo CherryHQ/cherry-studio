@@ -480,7 +480,6 @@
   "agent.tasks.guard.approveConfirmBody": "Эта задача выполняет следующую команду оболочки перед каждым запланированным запуском. Одобрение разрешает выполнение именно этой команды на вашем компьютере; если команда изменится, потребуется повторное одобрение.",
   "agent.tasks.guard.approveConfirmTitle": "Одобрить условие команды",
   "agent.tasks.guard.approveSuccess": "Условие команды одобрено",
-  "agent.tasks.guard.approved": "Одобрено",
   "agent.tasks.guard.description": "Проверяется при каждом запланированном запуске. Если не выполнено, запуск пропускается без старта агента.",
   "agent.tasks.guard.label": "Условие запуска",
   "agent.tasks.guard.pendingApproval": "Ожидает одобрения",

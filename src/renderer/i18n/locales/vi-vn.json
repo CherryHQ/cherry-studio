@@ -480,7 +480,6 @@
   "agent.tasks.guard.approveConfirmBody": "Tác vụ này chạy lệnh shell sau trước mỗi lần chạy đã lên lịch. Phê duyệt cho phép chính xác lệnh này chạy trên máy tính của bạn; nếu lệnh thay đổi, cần phê duyệt lại.",
   "agent.tasks.guard.approveConfirmTitle": "Phê duyệt điều kiện lệnh",
   "agent.tasks.guard.approveSuccess": "Đã phê duyệt điều kiện lệnh",
-  "agent.tasks.guard.approved": "Đã phê duyệt",
   "agent.tasks.guard.description": "Được kiểm tra vào mỗi thời điểm đã lên lịch. Nếu không đạt, lần chạy sẽ bị bỏ qua mà không khởi động tác tử.",
   "agent.tasks.guard.label": "Điều kiện chạy",
   "agent.tasks.guard.pendingApproval": "Đang chờ phê duyệt",

@@ -480,7 +480,6 @@
   "agent.tasks.guard.approveConfirmBody": "该任务会在每次计划运行前执行以下 shell 命令。批准后即允许此确切命令在你的电脑上运行；若命令发生更改，需要重新批准。",
   "agent.tasks.guard.approveConfirmTitle": "批准命令守卫",
   "agent.tasks.guard.approveSuccess": "命令守卫已批准",
-  "agent.tasks.guard.approved": "已批准",
   "agent.tasks.guard.description": "在每次计划时间检查。未满足时跳过本次运行，不会启动智能体。",
   "agent.tasks.guard.label": "运行条件",
   "agent.tasks.guard.pendingApproval": "待批准",

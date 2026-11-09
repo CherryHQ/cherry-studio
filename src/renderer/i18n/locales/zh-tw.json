@@ -480,7 +480,6 @@
   "agent.tasks.guard.approveConfirmBody": "此任務會在每次排程執行前執行以下 Shell 指令。核准即允許此確切指令在您的電腦上執行；若指令變更，需重新核准。",
   "agent.tasks.guard.approveConfirmTitle": "核准指令條件",
   "agent.tasks.guard.approveSuccess": "指令條件已核准",
-  "agent.tasks.guard.approved": "已核准",
   "agent.tasks.guard.description": "在每次排程時間檢查。未滿足時跳過本次執行，不會啟動智慧代理。",
   "agent.tasks.guard.label": "執行條件",
   "agent.tasks.guard.pendingApproval": "待核准",

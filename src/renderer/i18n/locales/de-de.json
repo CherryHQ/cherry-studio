@@ -480,7 +480,6 @@
   "agent.tasks.guard.approveConfirmBody": "Diese Aufgabe führt den folgenden Shell-Befehl vor jeder geplanten Ausführung aus. Durch die Genehmigung darf genau dieser Befehl auf Ihrem Computer ausgeführt werden; ändert sich der Befehl, ist eine erneute Genehmigung erforderlich.",
   "agent.tasks.guard.approveConfirmTitle": "Befehlsbedingung genehmigen",
   "agent.tasks.guard.approveSuccess": "Befehlsbedingung genehmigt",
-  "agent.tasks.guard.approved": "Genehmigt",
   "agent.tasks.guard.description": "Wird bei jedem geplanten Zeitpunkt geprüft. Schlägt sie fehl, wird der Lauf übersprungen, ohne den Agenten zu starten.",
   "agent.tasks.guard.label": "Ausführungsbedingung",
   "agent.tasks.guard.pendingApproval": "Genehmigung ausstehend",

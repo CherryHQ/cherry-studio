@@ -480,7 +480,6 @@
   "agent.tasks.guard.approveConfirmBody": "Această sarcină rulează următoarea comandă shell înainte de fiecare rulare programată. Aprobarea permite executarea exactă a acestei comenzi pe computerul dvs.; dacă comanda se schimbă, este necesară o nouă aprobare.",
   "agent.tasks.guard.approveConfirmTitle": "Aprobă condiția de comandă",
   "agent.tasks.guard.approveSuccess": "Condiție de comandă aprobată",
-  "agent.tasks.guard.approved": "Aprobată",
   "agent.tasks.guard.description": "Se verifică la fiecare oră programată. Dacă eșuează, rularea este omisă fără a porni agentul.",
   "agent.tasks.guard.label": "Condiție de rulare",
   "agent.tasks.guard.pendingApproval": "Aprobare în așteptare",

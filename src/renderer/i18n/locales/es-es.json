@@ -480,7 +480,6 @@
   "agent.tasks.guard.approveConfirmBody": "Esta tarea ejecuta el siguiente comando de shell antes de cada ejecución programada. Al aprobarlo, permites que este comando exacto se ejecute en tu equipo; si el comando cambia, se requerirá una nueva aprobación.",
   "agent.tasks.guard.approveConfirmTitle": "Aprobar condición de comando",
   "agent.tasks.guard.approveSuccess": "Condición de comando aprobada",
-  "agent.tasks.guard.approved": "Aprobado",
   "agent.tasks.guard.description": "Se comprueba en cada hora programada. Si falla, la ejecución se omite sin iniciar el agente.",
   "agent.tasks.guard.label": "Condición de ejecución",
   "agent.tasks.guard.pendingApproval": "Aprobación pendiente",

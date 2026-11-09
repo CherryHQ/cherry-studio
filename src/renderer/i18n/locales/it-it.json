@@ -480,7 +480,6 @@
   "agent.tasks.guard.approveConfirmBody": "Questa attività esegue il seguente comando shell prima di ogni esecuzione pianificata. L'approvazione consente l'esecuzione di questo esatto comando sul computer; se il comando cambia, è necessaria una nuova approvazione.",
   "agent.tasks.guard.approveConfirmTitle": "Approva condizione del comando",
   "agent.tasks.guard.approveSuccess": "Condizione del comando approvata",
-  "agent.tasks.guard.approved": "Approvata",
   "agent.tasks.guard.description": "Verificata a ogni orario pianificato. Se fallisce, l'esecuzione viene saltata senza avviare l'agente.",
   "agent.tasks.guard.label": "Condizione di esecuzione",
   "agent.tasks.guard.pendingApproval": "Approvazione in sospeso",
