@@ -161,7 +161,7 @@ describe('AgentSessionMessageService', () => {
           }
         ] as never)
         // Stop immediately after the real dependency gate; no native turn is launched.
-        const lookup = vi.spyOn(agentService, 'getAgent').mockReturnValue(undefined)
+        const lookup = vi.spyOn(agentService, 'getAgent').mockReturnValue(null)
         const ctx = {
           jobId: 'dependent-fire',
           input: { agentId: 'missing-after-gate', prompt: 'go', timeoutMinutes: 1 }
