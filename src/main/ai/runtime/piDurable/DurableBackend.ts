@@ -13,6 +13,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { prepareDurableRoot } from '@main/ai/agentSession/durableNativeContext'
+import { createPiTelemetry } from '@main/ai/observability'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
 
@@ -115,6 +116,14 @@ export class DurableBackend {
         backendId: runtimeId(context.backendId),
         openStorage: async () => root.storage,
         harness: {
+          telemetry: createPiTelemetry({
+            isEnabled: () => application.get('PreferenceService').get('app.developer_mode.enabled'),
+            getParent: (attributes) => {
+              const id = attributes['conversation.id']
+              const rootId = typeof id === 'number' && owner.nativeRoots.get(runtimeId(String(id)))
+              return rootId ? owner.roots.get(rootId)?.input.trace : undefined
+            }
+          }),
           models: owner.models!,
           registry: owner.registry,
           env: (target) => owner.forThread(runtimeId(String(target.conversationId))).desktop.environment,

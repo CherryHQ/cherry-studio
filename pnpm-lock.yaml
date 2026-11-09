@@ -568,6 +568,9 @@ importers:
       '@earendil-works/pi-schema':
         specifier: 1.5.0
         version: 1.5.0
+      '@earendil-works/pi-telemetry':
+        specifier: 1.5.0
+        version: 1.5.0
       '@electron-toolkit/eslint-config-ts':
         specifier: ^3.0.0
         version: 3.1.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)

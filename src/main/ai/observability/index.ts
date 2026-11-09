@@ -3,12 +3,11 @@ export { AiSdkSpanAdapter } from './adapters/aiSdk/aiSdkSpanAdapter'
 export type { ClaudeCodeTraceContext } from './adapters/claudeCode/ClaudeCodeOtlpAdapter'
 export { ClaudeCodeOtlpAdapter } from './adapters/claudeCode/ClaudeCodeOtlpAdapter'
 export { ClaudeCodeTraceBridgeService } from './adapters/claudeCode/ClaudeCodeTraceBridgeService'
+export { createPiTelemetry, getPiTraceContext } from './adapters/pi/piTelemetry'
 export { TRACER_NAME } from './constants'
 export type { AiTurnTraceHandle, AiTurnTraceMeta } from './core/AiTurnTrace'
 export {
   deriveRootSpanId,
-  endAgentRuntimeSpan,
-  startAgentRuntimeChildSpan,
   type AgentRuntimeTraceContext,
   startAiChildTurnSpan,
   startAiTurnTrace
