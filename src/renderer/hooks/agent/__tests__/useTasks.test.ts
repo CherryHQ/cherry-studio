@@ -16,8 +16,6 @@ import {
   useRunTask,
   useSetTaskEnabled,
   useTask,
-  useTaskLogs,
-  useTasks,
   useUpdateTask
 } from '../useTasks'
 
@@ -64,32 +62,6 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('useTasks', () => {
-  it('returns empty tasks list when data is undefined', () => {
-    MockUseDataApiUtils.mockQueryLoading('/agents/:agentId/tasks')
-
-    const { result } = renderHook(() => useTasks('agent-1'))
-
-    expect(result.current.tasks).toEqual([])
-    expect(result.current.isLoading).toBe(true)
-  })
-
-  it('returns tasks from data.items', () => {
-    const mockTasks = [
-      { id: 't-1', name: 'Task 1' },
-      { id: 't-2', name: 'Task 2' }
-    ]
-    MockUseDataApiUtils.mockQueryResult('/agents/:agentId/tasks', {
-      data: { items: mockTasks, total: 2 } as any
-    })
-
-    const { result } = renderHook(() => useTasks('agent-1'))
-
-    expect(result.current.tasks).toEqual(mockTasks)
-    expect(result.current.total).toBe(2)
-  })
-})
-
 describe('useAllTasks', () => {
   it('returns the cross-agent paginated task list and page count', () => {
     MockUseDataApiUtils.mockPaginatedData('/agent-tasks', [taskEntity], {
@@ -133,28 +105,6 @@ describe('useTask', () => {
     renderHook(() => useTask('t-1'))
 
     MockUseDataApiUtils.emitDataChange([{ endpoint: '/agent-tasks/:taskId', entityIds: ['t-1'] }])
-
-    expect(refetch).toHaveBeenCalled()
-  })
-})
-
-describe('useTaskLogs', () => {
-  it('refetches the run history when a run of the viewed task changes state', () => {
-    const refetch = vi.fn()
-    MockUseDataApiUtils.mockQueryResult('/agents/:agentId/tasks/:taskId/logs', {
-      data: { items: [], total: 0, page: 1 } as any,
-      refetch
-    })
-    renderHook(() => useTaskLogs('agent-1', 't-1'))
-
-    MockUseDataApiUtils.emitDataChange([
-      {
-        endpoint: '/agents/:agentId/tasks/:taskId/logs',
-        kind: 'projection',
-        routeParams: { taskId: 't-1' },
-        entityIds: ['job-1']
-      }
-    ])
 
     expect(refetch).toHaveBeenCalled()
   })

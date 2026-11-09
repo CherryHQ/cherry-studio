@@ -405,13 +405,15 @@ export class Application {
   public relaunch(options?: Electron.RelaunchOptions): void {
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
-      dialog.showMessageBoxSync({
-        type: 'info',
-        title: 'Manual Restart Required',
-        message: 'Auto-relaunch is not available in development mode.',
-        detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
-        buttons: ['OK']
-      })
+      if (app.isReady()) {
+        dialog.showMessageBoxSync({
+          type: 'info',
+          title: 'Manual Restart Required',
+          message: 'Auto-relaunch is not available in development mode.',
+          detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
+          buttons: ['OK']
+        })
+      }
       app.exit(0)
       return
     }
@@ -595,10 +597,6 @@ export class Application {
    * All application lifecycle operations exposed to renderer live here.
    */
   private registerApplicationIpc(): void {
-    handleGuarded(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
-      this.relaunch(options)
-    })
-
     handleGuarded(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
       const hold = this.preventQuit(reason)
       this.ipcQuitHolds.set(hold.id, hold)

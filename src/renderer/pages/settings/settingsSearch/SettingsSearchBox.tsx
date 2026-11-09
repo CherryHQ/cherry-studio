@@ -1,5 +1,5 @@
 import { useLocation, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SearchInput } from '@cherrystudio/ui'
@@ -41,6 +41,21 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
   // Distinguishes a new external URL value from an <Activity> re-show re-run
   // (unchanged urlQuery) that must not clobber input typed during the hide
   const appliedUrlRef = useRef(urlQuery)
+  const mirrorOwner = useId()
+  const mirrorRevisionRef = useRef(0)
+  const acknowledgedMirrorRef = useRef(0)
+  const mirrorState = useCallback(
+    (previous: typeof location.state) => ({
+      ...previous,
+      settingsSearchMirror: { owner: mirrorOwner, revision: ++mirrorRevisionRef.current }
+    }),
+    [mirrorOwner]
+  )
+  const mirror = (
+    location.state as typeof location.state & {
+      settingsSearchMirror?: { owner: string; revision: number }
+    }
+  )?.settingsSearchMirror
   // A second dismissal would overwrite the panel that back() returns to.
   const leaveInFlightRef = useRef(false)
   // Debounce handle kept reachable so Enter can flush the navigation early
@@ -72,18 +87,18 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
     }
   }, [location.pathname, isSearchPage, value, onCollapse])
 
-  // External URL updates (history back/forward, deep links in the same tab)
-  // sync back into the box. Our own debounced mirrors land as urlQuery ===
-  // value.trim() and are ignored; an unchanged urlQuery (Activity re-show)
-  // must not clobber input typed during the hide window.
+  // Only the first arrival of an own mirror is an acknowledgement; revisiting
+  // its history entry must still restore the query like any external navigation.
   useEffect(() => {
+    const isOwnMirror = mirror?.owner === mirrorOwner && mirror.revision > acknowledgedMirrorRef.current
+    if (isOwnMirror) acknowledgedMirrorRef.current = mirror.revision
     if (urlQuery === appliedUrlRef.current) return
     appliedUrlRef.current = urlQuery
-    if (urlQuery === value.trim()) return
+    if (isOwnMirror || urlQuery === value.trim()) return
     setValue(urlQuery)
     setLiveQuery(urlQuery)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlQuery])
+  }, [urlQuery, mirror, mirrorOwner])
 
   // Window-global store: hide/unmount clears it; Activity show re-runs this
   // with surviving state, re-publishing the input the hide phase cleared
@@ -128,6 +143,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
         void navigate({
           to: '/settings/search',
           replace: true,
+          state: mirrorState,
           search: (prev: Record<string, unknown>) => {
             const rest = { ...prev }
             delete rest.q
@@ -144,6 +160,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
       void navigate({
         to: '/settings/search',
         search: { q: trimmed },
+        state: mirrorState,
         replace: hasPushedRef.current
       })
       hasPushedRef.current = true
@@ -151,7 +168,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [value, navigate, isSearchPage])
+  }, [value, navigate, isSearchPage, mirrorState])
 
   // Expands horizontally over the header row at the standing box's width
   return (
@@ -208,6 +225,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
               void navigate({
                 to: '/settings/search',
                 search: { q: value.trim() },
+                state: mirrorState,
                 replace: hasPushedRef.current
               })
               hasPushedRef.current = true

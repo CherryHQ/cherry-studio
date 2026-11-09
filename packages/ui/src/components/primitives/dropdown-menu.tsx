@@ -1,13 +1,31 @@
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
+import { useControllableState } from '@radix-ui/react-use-controllable-state'
 import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react'
 import * as React from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 
+import {
+  KeyboardLayer,
+  KeyboardLayerOpenContext,
+  KeyboardLayerRoot,
+  useKeyboardLayerRef,
+  useKeyboardLayerState
+} from './keyboard-layer'
 import { usePortalContainer } from './portal-container'
 
-function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
+function DropdownMenu({
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
+  const [open, setOpen] = useControllableState({ prop: openProp, defaultProp: defaultOpen, onChange: onOpenChange })
+  return (
+    <KeyboardLayerRoot open={open}>
+      <DropdownMenuPrimitive.Root data-slot="dropdown-menu" open={open} onOpenChange={setOpen} {...props} />
+    </KeyboardLayerRoot>
+  )
 }
 
 function DropdownMenuPortal({ container, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
@@ -29,10 +47,25 @@ type DropdownMenuContentProps = React.ComponentProps<typeof DropdownMenuPrimitiv
   portalContainer?: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>['container']
 }
 
-function DropdownMenuContent({ className, sideOffset = 4, portalContainer, ...props }: DropdownMenuContentProps) {
+function DropdownMenuContent({
+  className,
+  sideOffset = 4,
+  portalContainer,
+  children,
+  ref: forwardedRef,
+  onCloseAutoFocus,
+  ...props
+}: DropdownMenuContentProps) {
+  const { element, ref } = useKeyboardLayerRef(forwardedRef)
+  const layer = useKeyboardLayerState(props.forceMount)
   return (
-    <DropdownMenuPortal container={portalContainer}>
+    <DropdownMenuPortal container={portalContainer} forceMount={props.forceMount}>
       <DropdownMenuPrimitive.Content
+        ref={ref}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          layer.onCloseAutoFocus()
+        }}
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
@@ -41,8 +74,14 @@ function DropdownMenuContent({ className, sideOffset = 4, portalContainer, ...pr
           'z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md [-webkit-app-region:no-drag] data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
           className
         )}
-        {...props}
-      />
+        {...props}>
+        <KeyboardLayer
+          releaseAfterFocusRestore={layer.releaseAfterFocusRestore}
+          active={layer.active}
+          element={element}>
+          {children}
+        </KeyboardLayer>
+      </DropdownMenuPrimitive.Content>
     </DropdownMenuPortal>
   )
 }
@@ -163,8 +202,18 @@ function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<'spa
   )
 }
 
-function DropdownMenuSub({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
-  return <DropdownMenuPrimitive.Sub data-slot="dropdown-menu-sub" {...props} />
+function DropdownMenuSub({
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
+  const [open, setOpen] = useControllableState({ prop: openProp, defaultProp: defaultOpen, onChange: onOpenChange })
+  return (
+    <KeyboardLayerRoot open={open}>
+      <DropdownMenuPrimitive.Sub data-slot="dropdown-menu-sub" open={open} onOpenChange={setOpen} {...props} />
+    </KeyboardLayerRoot>
+  )
 }
 
 function DropdownMenuSubTrigger({
@@ -192,17 +241,25 @@ function DropdownMenuSubTrigger({
 
 function DropdownMenuSubContent({
   className,
+  children,
+  ref: forwardedRef,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+  const { element, ref } = useKeyboardLayerRef(forwardedRef)
+  const open = React.use(KeyboardLayerOpenContext)
   return (
     <DropdownMenuPrimitive.SubContent
+      ref={ref}
       data-slot="dropdown-menu-sub-content"
       className={cn(
         'z-50 min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg [-webkit-app-region:no-drag] data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
         className
       )}
-      {...props}
-    />
+      {...props}>
+      <KeyboardLayer active={open} element={element}>
+        {children}
+      </KeyboardLayer>
+    </DropdownMenuPrimitive.SubContent>
   )
 }
 

@@ -41,6 +41,36 @@ describe('mock chat HTTP server', () => {
   })
 
   describe.each(providers)('$name SDK', ({ create }) => {
+    it.each([false, true])('delivers an executable function call over HTTP (stream=%s)', async (stream) => {
+      const model = create(server.baseUrl)
+      const requestCall = { id: 'sum-call', name: 'get_sum', arguments: { a: 31415, b: 27182 } }
+      const expectedCall = {
+        type: 'tool-call',
+        toolCallId: 'sum-call',
+        toolName: 'get_sum',
+        input: '{"a":31415,"b":27182}'
+      }
+      if (stream) {
+        const pending = model.doStream({ prompt })
+        const request = await server.nextRequest()
+        request.completeToolCall(requestCall)
+        const parts: LanguageModelV3StreamPart[] = []
+        for await (const part of (await pending).stream) parts.push(part)
+        expect(parts).toContainEqual(expect.objectContaining(expectedCall))
+        expect(parts).toContainEqual(
+          expect.objectContaining({ type: 'finish', finishReason: { unified: 'tool-calls', raw: 'tool_calls' } })
+        )
+      } else {
+        const pending = model.doGenerate({ prompt })
+        const request = await server.nextRequest()
+        request.completeToolCall(requestCall)
+        await expect(pending).resolves.toMatchObject({
+          content: [expect.objectContaining(expectedCall)],
+          finishReason: { unified: 'tool-calls' }
+        })
+      }
+    })
+
     it('receives a complete non-streaming response over HTTP', async () => {
       const result = create(server.baseUrl).doGenerate({ prompt })
       const request = await server.nextRequest()
@@ -142,6 +172,22 @@ describe('mock chat HTTP server', () => {
       body: JSON.stringify(body)
     })
   }
+
+  it.each([true, false])('exposes rejected store requests with a waiting consumer: %s', async (waitFirst) => {
+    await server.close()
+    server = await startMockChatServer({ rejectOwnStore: true })
+    const waiting = waitFirst ? server.nextRequest() : undefined
+    const response = await post({ model: 'glm', messages: [], stream: true, store: false })
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: { message: expect.stringContaining('extra_forbidden') } })
+    const request = await (waiting ?? server.nextRequest(1000))
+    expect(request).toMatchObject({ url: '/v1/chat/completions', method: 'POST', body: { model: 'glm', store: false } })
+    await request.closed
+    const error = 'Mock chat request was rejected before a response stream was opened'
+    expect(() => request.sendText('text')).toThrow(error)
+    expect(() => request.complete()).toThrow(error)
+    expect(() => request.fail('error')).toThrow(error)
+  })
 
   it('keeps concurrent requests independently controllable', async () => {
     const firstResponse = post({ model: 'first', messages: [], stream: true })

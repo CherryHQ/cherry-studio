@@ -76,7 +76,7 @@ describe('ScheduledTaskToolInline', () => {
     expect(screen.getByText('Enabled')).toBeInTheDocument()
     expect(screen.queryByText('Results are shown in the app')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'View task' }))
-    expect(navigateToRoute).toHaveBeenCalledWith({ path: '/settings/scheduled-tasks/task-1' })
+    expect(navigateToRoute).toHaveBeenCalledWith({ path: '/app/scheduled-tasks', query: { taskId: 'task-1' } })
   })
 
   it('distinguishes a consumed one-time schedule from a failed execution', () => {

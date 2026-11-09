@@ -1,5 +1,5 @@
 import { Bot, ChevronDown, CircleSlash, Folder } from 'lucide-react'
-import { type FC, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type FC, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -24,7 +24,7 @@ import {
   InputGroupText,
   ItemDescription,
   RowFlex,
-  Scrollbar,
+  ScrollArea,
   Select,
   SelectContent,
   SelectGroup,
@@ -450,7 +450,13 @@ const TaskGuardField: FC<{
           <SelectGroup>
             {GUARD_TYPES.map((guardType) => (
               <SelectItem key={guardType} value={guardType}>
-                {t(`agent.tasks.guard.type.${guardType}`)}
+                {t(
+                  {
+                    always: 'agent.tasks.guard.type.always',
+                    file_changed: 'agent.tasks.guard.type.file_changed',
+                    command: 'agent.tasks.guard.type.command'
+                  }[guardType]
+                )}
               </SelectItem>
             ))}
           </SelectGroup>
@@ -462,7 +468,11 @@ const TaskGuardField: FC<{
           disabled={disabled}
           aria-label={t('agent.tasks.guard.label')}
           aria-invalid={invalid || undefined}
-          placeholder={t(`agent.tasks.guard.placeholder.${type}`)}
+          placeholder={t(
+            type === 'file_changed'
+              ? 'agent.tasks.guard.placeholder.file_changed'
+              : 'agent.tasks.guard.placeholder.command'
+          )}
           onChange={(event) => onValueChange(event.target.value)}
         />
       )}
@@ -472,6 +482,7 @@ const TaskGuardField: FC<{
 }
 
 type TaskFormDialogProps = {
+  agentNotice?: ReactNode
   open: boolean
   agents: AgentInfo[]
   onOpenChange: (open: boolean) => void
@@ -636,7 +647,8 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
             {t(isEditing ? 'settings.scheduledTasks.editDescription' : 'settings.scheduledTasks.createDescription')}
           </DialogDescription>
         </DialogHeader>
-        <Scrollbar className="-m-1 max-h-[60vh] p-1 pr-3">
+        {props.agentNotice}
+        <ScrollArea viewportProps={{ className: 'p-1 pr-3' }} className="-m-1 max-h-[60vh]">
           <FieldGroup>
             <Field data-invalid={(submitted && !name.trim()) || undefined}>
               <FieldLabel required htmlFor="task-form-name">
@@ -754,7 +766,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
               onChange={setChannelIds}
             />
           </FieldGroup>
-        </Scrollbar>
+        </ScrollArea>
         <DialogFooter>
           <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
             {t('common.cancel')}

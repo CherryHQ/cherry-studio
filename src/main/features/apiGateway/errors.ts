@@ -1,5 +1,5 @@
 import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
-import { ElysiaCustomStatusResponse, type ErrorHandler } from 'elysia'
+import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from 'elysia'
 
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
@@ -91,6 +91,7 @@ function extractError(error: unknown): {
   type?: string
   name?: string
   code?: string
+  category?: string
 } {
   if (error === null || typeof error !== 'object') return {}
   const e = error as {
@@ -99,6 +100,7 @@ function extractError(error: unknown): {
     status?: unknown
     statusCode?: unknown
     message?: unknown
+    providerErrorCategory?: unknown
     error?: { type?: unknown; message?: unknown }
   }
   // Prefer `status` (HTTP libs / OpenAI APIError), then `statusCode` (AI-SDK APICallError / SerializedError).
@@ -109,7 +111,8 @@ function extractError(error: unknown): {
   const type = typeof e.error?.type === 'string' ? e.error.type : undefined
   const name = typeof e.name === 'string' ? e.name : undefined
   const code = typeof e.code === 'string' ? e.code : undefined
-  return { status, message, type, name, code }
+  const category = typeof e.providerErrorCategory === 'string' ? e.providerErrorCategory : undefined
+  return { status, message, type, name, code, category }
 }
 
 /**
@@ -125,10 +128,20 @@ function safeMessage(status: number | undefined, message: string | undefined): s
   return isDev && message && message.length > 0 ? message : fallback
 }
 
-function normalizeProviderError(error: unknown): { statusCode: number; message: string; type?: string } {
-  const { status, message, type, name, code } = extractError(error)
+function normalizeProviderError(error: unknown): {
+  statusCode: number
+  message: string
+  type?: string
+  category?: string
+} {
+  const { status, message, type, name, code, category } = extractError(error)
   if (status !== undefined)
-    return { statusCode: status >= 200 && status < 300 ? 502 : status, message: safeMessage(status, message), type }
+    return {
+      statusCode: status >= 200 && status < 300 ? 502 : status,
+      message: safeMessage(status, message),
+      type,
+      category
+    }
   if (
     name === 'TimeoutError' ||
     message === 'Upstream idle timeout exceeded' ||
@@ -194,8 +207,12 @@ function transformOpenAiError(error: unknown): {
   statusCode: number
   errorResponse: { error: { message: string; type: string; code: string } }
 } {
-  const { statusCode, message } = normalizeProviderError(error)
-  const { type, code } = openaiTypeAndCodeForStatus(statusCode)
+  const { statusCode, message, category } = normalizeProviderError(error)
+  // OpenAI's own quota code: clients such as Pi treat it as final instead of retrying a rate limit.
+  const { type, code } =
+    category === 'quota'
+      ? { type: 'insufficient_quota', code: 'insufficient_quota' }
+      : openaiTypeAndCodeForStatus(statusCode)
   return { statusCode, errorResponse: { error: { message, type, code } } }
 }
 
@@ -247,7 +264,9 @@ export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown
  */
 export function anthropicErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (code === 'VALIDATION') {
-    return status(400, anthropicEnvelope('invalid_request_error', messageOf(error, 'Invalid request parameters')))
+    const issue = error instanceof ValidationError ? error.all[0] : undefined
+    const message = issue ? `${issue.path}: ${issue.message}` : 'Invalid request parameters'
+    return status(400, anthropicEnvelope('invalid_request_error', message))
   }
   if (code === 'NOT_FOUND') {
     return status(404, anthropicEnvelope('not_found_error', 'Not found'))
@@ -333,6 +352,23 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   }
   if (code === 'PARSE') {
     return status(400, restEnvelope('BAD_REQUEST', 'Malformed request body'))
+  }
+
+  // Preserve classified HTTP status from errors that carry it (e.g. idle timeout → 504).
+  const explicitStatus = (error as { status?: number })?.status
+  if (explicitStatus && explicitStatus >= 500 && explicitStatus !== 500) {
+    const statusCode = explicitStatus
+    return status(
+      statusCode,
+      restEnvelope(
+        statusCode >= 503 ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_SERVER_ERROR',
+        isDev
+          ? messageOf(error, `Server error ${statusCode}`)
+          : statusCode === 504
+            ? 'Upstream idle timeout exceeded'
+            : 'Internal server error'
+      )
+    )
   }
 
   logger.error('API gateway request error', { code, error })

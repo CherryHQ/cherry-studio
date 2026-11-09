@@ -147,11 +147,6 @@ vi.stubGlobal('api', {
     read: vi.fn().mockResolvedValue('[]'),
     writeWithId: vi.fn().mockResolvedValue(undefined)
   },
-  // Legacy `window.api.application.*` bridge — `relaunch` stays on legacy IPC, so tests that
-  // trigger a restart flow reach this stub. Stubbed to a no-op resolving spy.
-  application: {
-    relaunch: vi.fn().mockResolvedValue(undefined)
-  },
   // Low-level IpcApi bridge — the typed `ipcApi` facade calls through this. Stubbed so
   // module-level `ipcApi.on(...)` side effects (e.g. the renderer notification singleton)
   // don't crash tests that transitively import them without a local `@renderer/ipc` mock.
@@ -169,6 +164,7 @@ vi.mock('@cherrystudio/ui', async () => {
   const React = require('react')
   // Real implementation: its filtering/normalization contract is what callers
   // are tested against, and a stub would drift from it.
+  const { KeyboardLayerProvider } = await import('@cherrystudio/ui/components/primitives/keyboard-layer')
   const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
   const { BarVisualizer } = await import('@cherrystudio/ui/components/primitives/bar-visualizer')
   const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
@@ -187,6 +183,7 @@ vi.mock('@cherrystudio/ui', async () => {
   const AccordionItemContext = React.createContext({ disabled: false, value: '' })
   const FormFieldNameContext = React.createContext(undefined)
   return {
+    KeyboardLayerProvider,
     BarVisualizer,
     createCodeHighlightPlugin,
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
@@ -709,8 +706,7 @@ vi.mock('@cherrystudio/ui', async () => {
       ),
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
-    Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, showOnHover: _showOnHover, ...props }) =>
-      React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Dropzone: ({
       children,
       getFilesFromEvent: _getFilesFromEvent,
@@ -924,6 +920,7 @@ vi.mock('@cherrystudio/ui', async () => {
         : tag
     },
     Spinner: ({ text, ...props }) => React.createElement('div', { ...props, 'data-testid': 'spinner' }, text),
+    IndicatorLight: () => React.createElement('div', { 'data-testid': 'indicator-light' }),
     CodeEditor: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'code-editor' }, children),
     Flex: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'flex' }, children),
@@ -990,8 +987,7 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement('div', { ...props, 'data-testid': 'help-tooltip' }, children),
     InfoTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'info-tooltip' }, children),
-    Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, showOnHover: _showOnHover, ...props }) =>
-      React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Avatar: ({ children, src, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
     AvatarImage: ({ src, ...props }) => React.createElement('img', { ...props, src, 'data-testid': 'avatar-image' }),

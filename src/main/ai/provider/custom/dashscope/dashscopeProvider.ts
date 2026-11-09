@@ -15,13 +15,12 @@ const DASHSCOPE_RERANK_BASE_PATH = '/compatible-api/v1'
 
 export interface DashScopeProviderSettings {
   apiKey?: string
-  /** Chat / embedding endpoint, e.g. `https://dashscope.aliyuncs.com/compatible-mode/v1/`. */
+  /** Chat / embedding endpoint, e.g. `https://maas.qianwenaiapi.com/compatible-mode/v1/`. */
   baseURL?: string
   /**
-   * Image endpoint origin (no `/compatible-mode/v1/` suffix), e.g.
-   * `https://dashscope.aliyuncs.com`. Derived by `buildDashScopeConfig` from
-   * the user's chat baseURL so cn / intl / proxy hosts work without
-   * hardcoded region URLs.
+   * Image endpoint origin (no `/compatible-mode/v1/` suffix); falls back to
+   * `DEFAULT_DASHSCOPE_IMAGE_BASE_URL`. QwenCloud sets it from the chat
+   * baseURL so custom hosts work without hardcoded region URLs.
    */
   imageBaseURL?: string
   headers?: Record<string, string>
@@ -54,7 +53,10 @@ export function buildDashScopeTransport(settings: DashScopeProviderSettings): Im
   return createDashScopeTransport({
     apiKey: settings.apiKey ?? '',
     imageBaseURL: settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL,
-    fetch: settings.fetch
+    // Route native image traffic through the same proxy-aware fetch and
+    // provider headers the chat models use.
+    fetch: settings.fetch,
+    headers: settings.headers
   })
 }
 

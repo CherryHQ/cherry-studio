@@ -21,6 +21,7 @@ import { jobService } from '@data/services/JobService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
+  type ListTasksQuery,
   type ScheduledTaskEntity,
   type TaskGuardApproval,
   type ScheduledTaskListItem,
@@ -357,6 +358,11 @@ export class AgentTaskService {
     return true
   }
 
+  deleteScheduleTx(tx: DbOrTx, taskId: string): boolean {
+    agentSessionService.clearTaskScheduleTx(tx, taskId)
+    return jobScheduleService.deleteTx(tx, taskId)
+  }
+
   setOwnerStateTx(
     tx: DbOrTx,
     agentId: string,
@@ -434,7 +440,7 @@ export class AgentTaskService {
     state: 'active' | 'trashed' | 'missing',
     now: number
   ): boolean {
-    if (state === 'missing') return jobScheduleService.deleteTx(tx, schedule.id)
+    if (state === 'missing') return this.deleteScheduleTx(tx, schedule.id)
     if (state === 'trashed') {
       if (!schedule.enabled) return false
       jobScheduleService.updateTx(tx, schedule.id, {
@@ -544,7 +550,7 @@ export class AgentTaskService {
   }
 
   /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
-  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean } = {}): {
+  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean; status?: ListTasksQuery['status'] } = {}): {
     tasks: ScheduledTaskListItem[]
     total: number
   } {
@@ -556,7 +562,9 @@ export class AgentTaskService {
     }
   }
 
-  private queryTasks(options: ListOptions & { includeHeartbeat?: boolean; agentId?: string }): {
+  private queryTasks(
+    options: ListOptions & { includeHeartbeat?: boolean; agentId?: string; status?: ListTasksQuery['status'] }
+  ): {
     tasks: ScheduledTaskEntity[]
     total: number
   } {
@@ -576,9 +584,14 @@ export class AgentTaskService {
         return template ? [template.agentId] : []
       })
     )
+    const statuses = options.status && (Array.isArray(options.status) ? options.status : [options.status])
     const filtered = candidates.filter((schedule) => {
       const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
-      return template !== null && activeAgentIds.has(template.agentId)
+      return (
+        template !== null &&
+        activeAgentIds.has(template.agentId) &&
+        (!statuses || statuses.includes(deriveStatus(schedule)))
+      )
     })
 
     const sorted = [...filtered].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
@@ -622,14 +635,8 @@ export class AgentTaskService {
   }
 
   getTaskLogs(taskId: string, options: ListOptions = {}): { logs: TaskRunLogEntity[]; total: number } {
-    const jobs = jobService.list({ scheduleId: taskId })
-    const total = jobs.length
-    const sliced =
-      options.limit !== undefined
-        ? options.offset !== undefined
-          ? jobs.slice(options.offset, options.offset + options.limit)
-          : jobs.slice(0, options.limit)
-        : jobs
+    const sliced = jobService.list({ scheduleId: taskId, limit: options.limit, offset: options.offset })
+    const total = jobService.count({ scheduleId: taskId })
 
     return {
       logs: sliced.map((j) => this.toTaskRunLogEntity(j)),
@@ -674,7 +681,7 @@ export class AgentTaskService {
   }
 
   private toTaskRunLogEntity(job: JobSnapshot): TaskRunLogEntity {
-    const output = job.output as { result?: string; sessionId?: string; skipped?: boolean } | null
+    const output = job.output as { kind?: string; result?: string; sessionId?: string; skipped?: boolean } | null
     // New runs persist the link before execution; older v2 job rows only have it in output.
     const sessionId = job.metadata.sessionId ?? output?.sessionId
     const startedAt = job.startedAt ?? job.scheduledAt
@@ -689,7 +696,7 @@ export class AgentTaskService {
       ? 'cancelled'
       : job.status === 'pending' || job.status === 'delayed'
         ? 'running'
-        : job.status === 'completed' && output?.skipped === true
+        : job.status === 'completed' && (output?.kind === 'skipped' || output?.skipped === true)
           ? 'skipped'
           : job.status
 

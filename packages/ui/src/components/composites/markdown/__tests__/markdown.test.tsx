@@ -10,7 +10,7 @@ import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { Markdown } from '../markdown'
-import { withChatPlugins, withFullMarkdown } from '../presets'
+import { withChatPlugins, withFullMarkdown } from '../mermaid-presets'
 
 describe('Markdown (static)', () => {
   it('renders a heading with the prefixed id', () => {

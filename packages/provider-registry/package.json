@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/provider-registry",
-  "version": "0.2.9",
+  "version": "0.4.0",
   "description": "Cross-platform AI provider and model catalogs, schemas, and lookup utilities",
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "bugs": {
@@ -138,7 +138,6 @@
   "devDependencies": {
     "@ai-sdk/provider-utils": "^4.0.40",
     "@types/node": "^24.10.2",
-    "dotenv": "^17.2.3",
     "tsdown": "^0.22.14",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^5.0.1",
