@@ -4,6 +4,7 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { type EditorState, Plugin, PluginKey, type Selection, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
+import { createCodePairPlugin } from './codeBlockPairs'
 import { createCodeHighlightPlugin } from './codeBlockPlugin'
 import {
   createMarkdownSession,
@@ -434,6 +435,10 @@ export const ComposerMarkdownLivePreview = Extension.create({
   name: 'composerMarkdownLivePreview',
 
   addProseMirrorPlugins() {
-    return [createLivePreviewPlugin(), createCodeHighlightPlugin(getMarkdownCodeBlocks)]
+    return [
+      createLivePreviewPlugin(),
+      createCodeHighlightPlugin(getMarkdownCodeBlocks),
+      createCodePairPlugin(findMarkdownCodeLine)
+    ]
   }
 })

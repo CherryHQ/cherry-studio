@@ -412,3 +412,245 @@ describe('code block keys', () => {
     expect(source(editor)).toBe('plain')
   })
 })
+
+describe('Enter between a bracket pair', () => {
+  it.each([
+    ['{', '}'],
+    ['[', ']'],
+    ['(', ')']
+  ])('moves %s%s apart with the caret on an indented middle line', (open, close) => {
+    const editor = createEditor(`\`\`\`\n  ${open}${close}\n\`\`\``)
+    caretAt(editor, 1, 3)
+
+    press(editor, 'Enter')
+
+    expect(source(editor)).toBe(`\`\`\`\n  ${open}\n    \n  ${close}\n\`\`\``)
+    expect(caret(editor)).toEqual([2, 4])
+  })
+
+  it('leaves a closing bracket at column zero when the line has no indentation', () => {
+    const editor = createEditor('```\nf() {}\n```')
+    caretAt(editor, 1, 5)
+
+    press(editor, 'Enter')
+
+    expect(source(editor)).toBe('```\nf() {\n  \n}\n```')
+    expect(caret(editor)).toEqual([2, 2])
+  })
+
+  it('keeps text after the closing bracket on the third line', () => {
+    const editor = createEditor('```\nfoo({});\n```')
+    caretAt(editor, 1, 5)
+
+    press(editor, 'Enter')
+
+    expect(source(editor)).toBe('```\nfoo({\n  \n});\n```')
+  })
+
+  it('does not split brackets of different kinds', () => {
+    const editor = createEditor('```\n{]\n```')
+    caretAt(editor, 1, 1)
+
+    press(editor, 'Enter')
+
+    expect(source(editor)).toBe('```\n{\n  ]\n```')
+  })
+})
+
+describe('code block bracket pairing', () => {
+  function inputCharacter(editor: Editor, character: string) {
+    const { from, to } = editor.state.selection
+    const insert = () => editor.state.tr.insertText(character, from, to)
+    const handled = editor.view.someProp('handleTextInput', (handler) =>
+      handler(editor.view, from, to, character, insert)
+    )
+    if (!handled) editor.view.dispatch(insert())
+  }
+  const typeText = (editor: Editor, text: string) => {
+    for (const character of text) inputCharacter(editor, character)
+  }
+  const backspace = (editor: Editor) =>
+    Boolean(
+      editor.view.someProp('handleKeyDown', (handler) =>
+        handler(editor.view, new KeyboardEvent('keydown', { key: 'Backspace' }))
+      )
+    )
+  const inCodeLine = (text: string) => `\`\`\`\n${text}\n\`\`\``
+  const selectedText = (editor: Editor) =>
+    editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, '\n')
+
+  function createCodeEditor(text = '', column = 0) {
+    const editor = createEditor(inCodeLine(text))
+    caretAt(editor, 1, column)
+    return editor
+  }
+
+  it.each([
+    ['(', ')'],
+    ['[', ']'],
+    ['{', '}'],
+    ['"', '"'],
+    ["'", "'"]
+  ])('adds the closer for %s and leaves the caret between', (open, close) => {
+    const editor = createCodeEditor()
+
+    typeText(editor, open)
+
+    expect(source(editor)).toBe(inCodeLine(open + close))
+    expect(caret(editor)).toEqual([1, 1])
+  })
+
+  it.each([
+    ['a word follows', 'abc', 0, '(', '(abc'],
+    ['a quote follows a word', 'don', 3, "'", "don'"],
+    ['a quote is typed before a word', 'abc', 0, '"', '"abc']
+  ])('does not pair when %s', (_name, text, column, character, expected) => {
+    const editor = createCodeEditor(text, column)
+
+    typeText(editor, character)
+
+    expect(source(editor)).toBe(inCodeLine(expected))
+  })
+
+  it.each([
+    ['whitespace', ' abc', '() abc'],
+    ['a closing bracket', ')', '())'],
+    ['a semicolon', ';', '();'],
+    ['a comma', ',', '(),']
+  ])('pairs before %s', (_name, text, expected) => {
+    const editor = createCodeEditor(text)
+
+    typeText(editor, '(')
+
+    expect(source(editor)).toBe(inCodeLine(expected))
+  })
+
+  it('steps over closers it inserted', () => {
+    const editor = createCodeEditor()
+
+    typeText(editor, '{[a]}')
+
+    expect(source(editor)).toBe(inCodeLine('{[a]}'))
+    expect(caret(editor)).toEqual([1, 5])
+  })
+
+  it('types a closer it did not insert', () => {
+    const editor = createCodeEditor('()', 1)
+
+    typeText(editor, ')')
+
+    expect(source(editor)).toBe(inCodeLine('())'))
+  })
+
+  it('forgets its closers once the caret leaves the line', () => {
+    const editor = createCodeEditor()
+    typeText(editor, '(')
+
+    caretAt(editor, 0)
+    caretAt(editor, 1, 1)
+    typeText(editor, ')')
+
+    expect(source(editor)).toBe(inCodeLine('())'))
+  })
+
+  it('deletes an empty pair it inserted with Backspace', () => {
+    const editor = createCodeEditor()
+    typeText(editor, '(')
+
+    expect(backspace(editor)).toBe(true)
+
+    expect(source(editor)).toBe(inCodeLine(''))
+    expect(caret(editor)).toEqual([1, 0])
+  })
+
+  it('leaves Backspace alone once the pair has content', () => {
+    const editor = createCodeEditor()
+    typeText(editor, '(a')
+
+    expect(backspace(editor)).toBe(false)
+  })
+
+  it('leaves Backspace alone in a pair it did not insert', () => {
+    const editor = createCodeEditor('()', 1)
+
+    expect(backspace(editor)).toBe(false)
+  })
+
+  it('undoes the opener and closer together', () => {
+    const editor = createCodeEditor()
+    typeText(editor, '(')
+
+    editor.commands.undo()
+
+    expect(source(editor)).toBe(inCodeLine(''))
+  })
+
+  it.each([
+    ['(', '(abc)'],
+    ['"', '"abc"']
+  ])('wraps a selection in %s and keeps it selected', (character, expected) => {
+    const editor = createCodeEditor('abc')
+    selectLines(editor, [1, 0], [1, 3])
+
+    typeText(editor, character)
+
+    expect(source(editor)).toBe(inCodeLine(expected))
+    expect(selectedText(editor)).toBe('abc')
+  })
+
+  it('wraps a selection across code lines', () => {
+    const editor = createEditor('```\na\nb\n```')
+    selectLines(editor, [1, 0], [2, 1])
+
+    typeText(editor, '[')
+
+    expect(source(editor)).toBe('```\n[a\nb]\n```')
+  })
+
+  it('replaces a selection that reaches outside the block', () => {
+    const editor = createEditor('```\nabc\n```\nplain')
+    selectLines(editor, [1, 1], [3, 2])
+
+    typeText(editor, '(')
+
+    expect(source(editor)).toBe('```\na(ain')
+  })
+
+  it('leaves backticks unpaired', () => {
+    const editor = createCodeEditor()
+
+    typeText(editor, '`')
+
+    expect(source(editor)).toBe(inCodeLine('`'))
+  })
+
+  it('leaves fence lines alone', () => {
+    const editor = createEditor('```\ncode\n```')
+    caretAt(editor, 0, 3)
+
+    typeText(editor, '{')
+
+    expect(source(editor)).toBe('```{\ncode\n```')
+  })
+
+  it.each([
+    ['plain text', 'plain', 0, 5],
+    ['a four-space line', 'intro\n\n    code', 2, 8]
+  ])('does not pair in %s', (_name, text, line, column) => {
+    const editor = createEditor(text)
+    caretAt(editor, line, column)
+
+    typeText(editor, '(')
+
+    expect(source(editor).match(/\)/g)).toBeNull()
+  })
+
+  it('leaves input to the input method during composition', () => {
+    const editor = createCodeEditor()
+    editor.view.dom.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+
+    typeText(editor, '(')
+
+    expect(source(editor)).toBe(inCodeLine('('))
+  })
+})

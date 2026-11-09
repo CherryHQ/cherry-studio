@@ -7,10 +7,11 @@ import { TOKEN_PLACEHOLDER } from './markdownSession'
 type CodeLineMatch = NonNullable<ReturnType<typeof findMarkdownCodeLine>>
 
 const CODE_INDENT = '  '
+const CLOSING_BRACKETS: Record<string, string> = { '{': '}', '[': ']', '(': ')' }
 
 function insertCodeNewline(view: EditorView, { block, line }: CodeLineMatch) {
   const { state } = view
-  const { $from, empty } = state.selection
+  const { $from, $to, empty } = state.selection
   const { paragraph } = state.schema.nodes
   const transaction = state.tr
 
@@ -22,6 +23,7 @@ function insertCodeNewline(view: EditorView, { block, line }: CodeLineMatch) {
   }
 
   const before = $from.parent.textBetween(0, $from.parentOffset, undefined, TOKEN_PLACEHOLDER)
+  const after = $to.parent.textBetween($to.parentOffset, $to.parent.content.size, undefined, TOKEN_PLACEHOLDER)
   const isAtLineEnd = $from.parentOffset === $from.parent.content.size
   if (!empty) transaction.deleteSelection()
   transaction.split(transaction.selection.from)
@@ -34,8 +36,17 @@ function insertCodeNewline(view: EditorView, { block, line }: CodeLineMatch) {
       transaction.setSelection(TextSelection.create(transaction.doc, nextLineStart))
     }
   } else if (line !== block.close) {
-    const indent = (/^[ \t]*/.exec(before)?.[0] ?? '') + (/[{[(]\s*$/.test(before) ? CODE_INDENT : '')
-    if (indent) transaction.insertText(indent, nextLineStart)
+    const baseIndent = /^[ \t]*/.exec(before)?.[0] ?? ''
+    if (after && after[0] === CLOSING_BRACKETS[before.at(-1) ?? '']) {
+      transaction.insertText(baseIndent + CODE_INDENT, nextLineStart)
+      const middleLineEnd = transaction.selection.from
+      transaction.split(middleLineEnd)
+      if (baseIndent) transaction.insertText(baseIndent, middleLineEnd + 2)
+      transaction.setSelection(TextSelection.create(transaction.doc, middleLineEnd))
+    } else {
+      const indent = baseIndent + (/[{[(]\s*$/.test(before) ? CODE_INDENT : '')
+      if (indent) transaction.insertText(indent, nextLineStart)
+    }
   }
   view.dispatch(transaction.scrollIntoView())
 }
