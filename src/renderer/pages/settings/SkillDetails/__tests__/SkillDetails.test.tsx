@@ -211,6 +211,14 @@ describe('SkillDetails', () => {
     await waitFor(() => expect(input).toHaveValue(''))
     expect(mocks.updateNote).toHaveBeenLastCalledWith(null)
   })
+
+  it('bounds the note editor height and scrolls long notes internally', () => {
+    render(<SkillDetails skillId="skill-1" />)
+    const input = screen.getByLabelText('settings.skills.note.label')
+    // Keep long notes from growing beyond the editor and hiding Save.
+    expect(input).toHaveClass('max-h-40', 'overflow-y-auto', 'resize-none')
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.query = { data: createSkill(), error: undefined, isLoading: false }

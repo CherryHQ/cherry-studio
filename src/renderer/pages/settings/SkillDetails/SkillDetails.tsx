@@ -318,6 +318,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
         <Label htmlFor={noteId}>{t('settings.skills.note.label')}</Label>
         <Textarea.Input
           id={noteId}
+          className="max-h-40 resize-none overflow-y-auto"
           value={noteState.id === skillId ? noteState.draft : ''}
           placeholder={t('settings.skills.note.placeholder')}
           onValueChange={(draft) => setNoteState((current) => ({ ...current, draft }))}
