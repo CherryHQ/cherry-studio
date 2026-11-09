@@ -172,7 +172,7 @@ describe('estimateAnthropicRequestTokens', () => {
 
   it('degrades to a raw-size heuristic (no 500) when blocks are malformed', async () => {
     resolveTo(textModel)
-    // `content: z.unknown()` lets null blocks through — conversion throws, the wrapper catches.
+    // Loose block elements (`z.unknown()`) let null blocks through — conversion throws, the wrapper catches.
     const count = await estimateAnthropicRequestTokens(body([{ role: 'user', content: [null] }], [null]))
     expect(Number.isFinite(count)).toBe(true)
     expect(count).toBeGreaterThan(0)

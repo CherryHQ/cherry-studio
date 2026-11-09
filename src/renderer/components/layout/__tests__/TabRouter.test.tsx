@@ -227,6 +227,49 @@ describe('TabRouter PageSidePanel portal isolation', () => {
 })
 
 describe('TabRouter', () => {
+  it('shows the latest external-store value after a hidden tab becomes visible', async () => {
+    let targetLanguage = 'en'
+    const listeners = new Set<() => void>()
+    const subscribe = (listener: () => void) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    }
+    const getSnapshot = () => targetLanguage
+
+    function TargetLanguage() {
+      const value = React.useSyncExternalStore(subscribe, getSnapshot)
+      const [revision, setRevision] = React.useState(0)
+      return (
+        <>
+          <button type="button" onClick={() => setRevision((value) => value + 1)}>
+            Rerender reader
+          </button>
+          <p role="status" data-revision={revision}>
+            Target language: {value}
+          </p>
+        </>
+      )
+    }
+
+    knobs.renderPage = () => <TargetLanguage />
+    const currentTab = tab('store-tab', '/a')
+    const onUrlChange = vi.fn()
+    const { rerender } = render(<TabRouter tab={currentTab} isActive onUrlChange={onUrlChange} />)
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Target language: en')
+    fireEvent.click(screen.getByRole('button', { name: 'Rerender reader' }))
+    expect(screen.getByRole('status')).toHaveAttribute('data-revision', '1')
+
+    rerender(<TabRouter tab={currentTab} isActive={false} onUrlChange={onUrlChange} />)
+    act(() => {
+      targetLanguage = 'ko'
+      listeners.forEach((listener) => listener())
+    })
+    rerender(<TabRouter tab={currentTab} isActive onUrlChange={onUrlChange} />)
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Target language: ko'))
+  })
+
   it('uses the tab entry URL as the initial history entry', async () => {
     render(
       <TabRouter

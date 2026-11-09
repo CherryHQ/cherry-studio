@@ -1,5 +1,23 @@
 # @cherrystudio/provider-registry
 
+## 0.4.0
+
+### Minor Changes
+
+- [#23684](https://github.com/CherryHQ/cherry-studio/pull/23684) [`7a3bb0b`](https://github.com/CherryHQ/cherry-studio/commit/7a3bb0b7af2ebe9a2a468edab2c018ebbbeba65f) Thanks [@ousugo](https://github.com/ousugo)! - Add GPT Image 2.6 scene complexity and animated GIF generation parameters, with a new catalog publication stream for compatible Desktop clients.
+
+## 0.3.6
+
+### Patch Changes
+
+- [#23535](https://github.com/CherryHQ/cherry-studio/pull/23535) [`4fb6b8a`](https://github.com/CherryHQ/cherry-studio/commit/4fb6b8a5dc954baf7a42020ac9bd8fe5c89989bb) Thanks [@Contentment003111](https://github.com/Contentment003111)! - Add the stable Hunyuan 4 model to the Tencent catalog and TokenHub with image input support.
+
+## 0.3.5
+
+### Patch Changes
+
+- [#23648](https://github.com/CherryHQ/cherry-studio/pull/23648) [`52aecc0`](https://github.com/CherryHQ/cherry-studio/commit/52aecc057f6140b279d6bc4d9872f0197574e99e) Thanks [@ousugo](https://github.com/ousugo)! - Add GPT Image 2.6 Sunburst and Flare with official image API IDs, generation and editing support, and supported painting controls.
+
 ## 0.3.4
 
 ### Patch Changes
