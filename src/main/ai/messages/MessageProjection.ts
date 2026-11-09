@@ -11,10 +11,13 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 
 const logger = loggerService.withContext('MessageProjection')
 
+type ProjectionView<S extends ProjectionState> = S & { messages: readonly CherryUIMessage[] }
+type ProjectionInput<S extends ProjectionState> = ProjectionView<S> | (() => ProjectionView<S>)
+
 /** Publishes current views; native observation and persistence remain with the owner. */
 export class MessageProjection<S extends ProjectionState> {
   private view: MessageProjectionView<S>
-  private pending?: S & { messages: readonly CherryUIMessage[] }
+  private pending?: ProjectionInput<S>
   private timer?: ReturnType<typeof setTimeout>
   private readonly listeners = new Set<(update: MessageProjectionUpdate<S>) => void>()
 
@@ -38,10 +41,12 @@ export class MessageProjection<S extends ProjectionState> {
     return this.listeners.size > 0
   }
 
-  update(next: S & { messages: readonly CherryUIMessage[] }, immediate = false): void {
+  /** A function `next` is resolved only when the coalesced batch is flushed. */
+  update(next: ProjectionInput<S>, immediate = false): void {
     this.pending = next
     if (immediate) this.flush()
-    else {
+    // Unobserved batches wait for snapshot(), which is how a new subscriber reads its baseline.
+    else if (this.observed) {
       this.timer ??= setTimeout(() => this.flush(), 80)
       this.timer.unref()
     }
@@ -51,8 +56,9 @@ export class MessageProjection<S extends ProjectionState> {
     if (this.timer) clearTimeout(this.timer)
     this.timer = undefined
     if (!this.pending) return
-    const next = structuredClone(this.pending)
+    const pending = this.pending
     this.pending = undefined
+    const next = structuredClone(typeof pending === 'function' ? pending() : pending)
     if (isDeepStrictEqual({ ...next, revision: this.view.revision }, this.view)) return
     const previous = new Map(this.view.messages.map((message) => [message.id, message]))
     const patches: MessageProjectionPatch[] = []

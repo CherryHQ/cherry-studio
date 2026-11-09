@@ -9,6 +9,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import SelectionToolbar from '../SelectionToolbar'
 
 const mocks = vi.hoisted(() => ({
+  translateOnly: false,
   actionItems: [
     { id: 'copy', name: 'Copy', enabled: true, isBuiltIn: true },
     {
@@ -33,6 +34,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
+    if (key === 'feature.selection.translate_only') return [mocks.translateOnly]
     if (key === 'feature.selection.compact') return [false]
     if (key === 'feature.selection.action_items') return [mocks.actionItems]
     return [undefined]
@@ -113,6 +115,7 @@ describe('SelectionToolbar actions', () => {
     vi.clearAllMocks()
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/agents', agentPage([]))
+    mocks.translateOnly = false
     mocks.actionItems = ACTION_ITEMS
     mocks.handlers.clear()
     mocks.ipcRequest.mockResolvedValue(true)
@@ -122,6 +125,58 @@ describe('SelectionToolbar actions', () => {
         quoteToMainWindow: mocks.quoteToMainWindow
       }
     })
+  })
+
+  it('dispatches Translate directly with the new selection when Translate Only is enabled', () => {
+    mocks.translateOnly = true
+    mocks.actionItems = [...ACTION_ITEMS, { id: 'translate', name: 'Translate', enabled: true, isBuiltIn: true }]
+    render(<SelectionToolbar />)
+    mocks.ipcRequest.mockClear()
+    pushSelection('fresh selected text', true, 'com.google.Chrome')
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('selection.process_action', {
+      actionItem: expect.objectContaining({
+        id: 'translate',
+        selectedText: 'fresh selected text',
+        programName: 'com.google.Chrome'
+      }),
+      isFullScreen: true
+    })
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('selection.hide_toolbar')
+  })
+
+  it('uses the full action list for Translate Only even when its toolbar button is disabled', () => {
+    mocks.translateOnly = true
+    mocks.actionItems = [...ACTION_ITEMS, { id: 'translate', name: 'Translate', enabled: false, isBuiltIn: true }]
+    render(<SelectionToolbar />)
+    mocks.ipcRequest.mockClear()
+    pushSelection('text')
+    expect(mocks.ipcRequest).toHaveBeenCalledWith(
+      'selection.process_action',
+      expect.objectContaining({
+        actionItem: expect.objectContaining({ id: 'translate', enabled: false, selectedText: 'text' })
+      })
+    )
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('selection.hide_toolbar')
+    expect(screen.queryByRole('button', { name: 'Translate' })).not.toBeInTheDocument()
+  })
+
+  it('leaves the toolbar available when Translate was deleted from the action list', () => {
+    mocks.translateOnly = true
+    render(<SelectionToolbar />)
+    mocks.ipcRequest.mockClear()
+    pushSelection('text')
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('selection.process_action', expect.anything())
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('selection.hide_toolbar')
+    expect(screen.getByRole('button', { name: 'Summary' })).toBeInTheDocument()
+  })
+
+  it('does not auto-dispatch Translate with the default opt-out', () => {
+    mocks.actionItems = [...ACTION_ITEMS, { id: 'translate', name: 'Translate', enabled: true, isBuiltIn: true }]
+    render(<SelectionToolbar />)
+    mocks.ipcRequest.mockClear()
+    pushSelection('text')
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('selection.process_action', expect.anything())
+    expect(screen.getByRole('button', { name: 'Translate' })).toBeInTheDocument()
   })
 
   it('forwards fresh selection data and fullscreen state to default actions', () => {
@@ -218,6 +273,7 @@ describe('SelectionToolbar actions', () => {
       configuration: { builtin_role: 'assistant' }
     }
     serveAgents(library)
+    mocks.translateOnly = false
     mocks.actionItems = ACTION_ITEMS.map((item) =>
       item.id === 'user-agent' ? { ...item, agentId: 'agent-550' } : item
     )
