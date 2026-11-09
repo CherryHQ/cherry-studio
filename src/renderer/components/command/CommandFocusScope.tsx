@@ -1,3 +1,4 @@
+import { isEqual } from 'es-toolkit'
 import { type ReactNode, type RefObject, use, useLayoutEffect, useMemo, useRef } from 'react'
 
 import {
@@ -39,9 +40,26 @@ function ScopeProvider({
     )
   }
   const scope = scopeRef.current
+  const publishedOptionsRef = useRef<{
+    element: HTMLElement | null
+    active: boolean
+    context: Readonly<Record<string, ContextValue>>
+  } | null>(null)
 
   useLayoutEffect(() => registry?.attach(scope))
-  useLayoutEffect(() => scope.publish())
+  useLayoutEffect(() => {
+    const next = { element: options.element(), active: options.active(), context: { ...options.context() } }
+    const previous = publishedOptionsRef.current
+    if (
+      previous?.element === next.element &&
+      previous.active === next.active &&
+      isEqual(previous.context, next.context)
+    ) {
+      return
+    }
+    publishedOptionsRef.current = next
+    scope.publish()
+  })
   const active = options.active()
   if (boundary) registry?.updateBoundaryActivation(scope, active)
   useLayoutEffect(() => {

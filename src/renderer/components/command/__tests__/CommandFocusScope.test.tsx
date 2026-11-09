@@ -1,9 +1,14 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen } from '@testing-library/react'
-import { type ReactNode, useRef, useState } from 'react'
+import { type ReactNode, use, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useCommandContextKey, useCommandContextReader, useCommandHandler } from '@renderer/hooks/command'
+import {
+  CommandFocusScopeContext,
+  useCommandContextKey,
+  useCommandContextReader,
+  useCommandHandler
+} from '@renderer/hooks/command'
 import type { RendererCommandContextKey } from '@renderer/hooks/command'
 import type { ContextValue } from '@shared/types/command'
 import type { CommandId } from '@shared/utils/command'
@@ -91,6 +96,33 @@ describe('CommandFocusScope', () => {
   })
 
   afterEach(cleanup)
+
+  it('settles a scope consumer that reports context to its parent and still publishes changed values', () => {
+    function ContextReporter({ onContext }: { onContext: (value: Readonly<Record<string, ContextValue>>) => void }) {
+      const scope = use(CommandFocusScopeContext)!
+      const version = useSyncExternalStore(scope.subscribe, scope.getVersion)
+      useLayoutEffect(() => onContext(scope.options.context()), [onContext, scope, version])
+      return null
+    }
+    function ContextOwner({ active }: { active: boolean }) {
+      const rootRef = useRef<HTMLDivElement>(null)
+      const [reported, setReported] = useState<Readonly<Record<string, ContextValue>>>({})
+      return (
+        <CommandFocusScope rootRef={rootRef} context={{ 'chat.active': active }}>
+          <div ref={rootRef}>
+            <ContextReporter onContext={setReported} />
+            <output aria-label="Reported context">{String(reported['chat.active'])}</output>
+          </div>
+        </CommandFocusScope>
+      )
+    }
+    const { rerender } = render(<ContextOwner active />)
+    expect(screen.getByLabelText('Reported context')).toHaveTextContent('true')
+    rerender(<ContextOwner active />)
+    expect(screen.getByLabelText('Reported context')).toHaveTextContent('true')
+    rerender(<ContextOwner active={false} />)
+    expect(screen.getByLabelText('Reported context')).toHaveTextContent('false')
+  })
 
   it.each([false, true])('routes sibling commands by keyboard target with reversed order %s', (reverse) => {
     const names = reverse ? ['B', 'A'] : ['A', 'B']
