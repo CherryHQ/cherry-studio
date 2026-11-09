@@ -57,11 +57,11 @@ export type RunState = {
   /** Pi has not entered the run yet. */
   pending: boolean
   stopRequested: boolean
-  /** Model requests the run made, for the request meter. */
+  /** Requests in the current input budget; a native follow-up after a final answer resets it. */
   requests: number
-  /** Approved top-level calls admitted in this root run. */
+  /** Approved top-level calls in the current root input budget. */
   admissions: number
-  /** The request meter's refusal that ended the run. */
+  /** The request meter or root budget refusal that ended the run. */
   refused?: string
   /** The run's calls in call order, for the gate's goal-round window. */
   readonly window: ToolCallFact[]

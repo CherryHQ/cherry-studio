@@ -11,8 +11,9 @@ import { expect, it, vi } from 'vitest'
 import type { Key, ToolDefinition } from '@cherrystudio/agent-behavior'
 import { runtimeId } from '@cherrystudio/agent-runtime'
 
-import { conversationExtension, meterRequests } from '../src/behavior/extension'
+import { compactionSummarizer, conversationExtension, meterRequests } from '../src/behavior/extension'
 import { PI_RUN_LIMIT_MESSAGE } from '../src/behavior/runBudget'
+import { endingOf, noteMessage } from '../src/behavior/runs'
 import { newConversation, type Adapter, type RunState } from '../src/behavior/state'
 import { openPiHarness } from './behaviorHarness'
 import { assistantReply, respondingModel, MODEL } from './sessionSupport'
@@ -20,7 +21,7 @@ import { assistantReply, respondingModel, MODEL } from './sessionSupport'
 const read = (pi: Awaited<ReturnType<typeof openPiHarness>>, thread: Parameters<typeof pi.harness.withCall>[0]) =>
   pi.harness.withCall(thread, (ports) => ports.ledger.read(thread))
 const call = { name: 'echo', args: {} }
-const tool = (run = vi.fn(async () => ({ text: 'echo', isError: false }))): ToolDefinition => ({
+const tool = (run: ToolDefinition['run'] = vi.fn(async () => ({ text: 'echo', isError: false }))): ToolDefinition => ({
   name: 'echo',
   description: 'echo',
   schema: { type: 'object' },
@@ -39,7 +40,7 @@ it('admits 20 calls, refuses call 21 before the policy gate, and resets next run
     ports.toolGate.register({ before, after: async () => undefined })
   })
   const t = await pi.harness.createThread()
-  pi.harness.script(t, [{ text: '', toolCalls: Array.from({ length: 21 }, () => call) }, { text: 'done' }])
+  pi.harness.script(t, [{ text: '', toolCalls: Array.from({ length: 21 }, () => call) }])
   await pi.harness.sendUser(t, 'go')
   await pi.harness.settle()
   expect(execute).toHaveBeenCalledTimes(20)
@@ -166,4 +167,104 @@ it('composes the root meter before installation policy without shrinking child p
   expect(child.active.requests).toBe(200)
   const refused = await (await childSession.agent.streamFunction(MODEL, normalizeContext({ messages: [] }))).result()
   expect(refused.errorMessage).toContain('child cap')
+})
+
+it('keeps a compaction allowance refusal as the terminal run limit', async () => {
+  const conv = newConversation(runtimeId('test'), SessionManager.inMemory('/tmp'), { kind: 'root' }, undefined, false)
+  conv.active = freshRun()
+  conv.active.requests = 20
+  const adapter = { installation: {} } as unknown as Adapter
+  await expect(compactionSummarizer(adapter, conv)({ reason: 'threshold' } as never)).rejects.toThrow(
+    PI_RUN_LIMIT_MESSAGE
+  )
+  expect(endingOf(conv.active, false).answer).toMatchObject({ outcome: 'limit_reached', error: PI_RUN_LIMIT_MESSAGE })
+})
+
+it('resets a native follow-up before its automatic compaction is metered', async () => {
+  let release!: () => void
+  let entered!: () => void
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const reached = new Promise<void>((resolve) => {
+    entered = resolve
+  })
+  let calls = 0
+  let summaries = 0
+  const pi = await openPiHarness(
+    (ports) => {
+      ports.tools.register(
+        tool(async () => {
+          if (++calls === 1) {
+            entered()
+            await held
+          }
+          return { text: 'echo', isError: false }
+        })
+      )
+      ports.lifecycle.register({
+        onOpen: async () => {},
+        onClose: async () => {},
+        onCompacted: async () => {},
+        onCompacting: async () => {
+          summaries++
+          return { summary: 'summary' }
+        }
+      })
+    },
+    [],
+    (request, open) =>
+      open(request, {
+        compaction: { enabled: true, reserveTokens: 16384, keepRecentTokens: 1, summarize: request.summarize }
+      })
+  )
+  const t = await pi.harness.createThread()
+  const usage = (tokens: number) => ({
+    input: tokens,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: tokens,
+    costUsd: 0
+  })
+  pi.harness.script(t, [
+    ...Array.from({ length: 19 }, () => ({ text: '', toolCalls: [call], usage: usage(1) })),
+    { text: 'first done', usage: usage(32000) },
+    { text: '', toolCalls: [call], usage: usage(1) },
+    { text: 'next done', usage: usage(1) }
+  ])
+  const first = pi.behavior.prompt(t, 'first')
+  await reached
+  try {
+    await pi.behavior.prompt(t, 'follow', { streamingBehavior: 'followUp' })
+  } finally {
+    release()
+  }
+  await first
+  await pi.harness.settle()
+  expect(calls).toBe(20)
+  expect(summaries).toBe(1)
+  expect(pi.requests(t)).toHaveLength(22)
+  expect((await read(pi, t)).live.runEnd?.outcome).toBe('completed')
+})
+
+it('keeps steering and child follow-on inputs on their existing budget', () => {
+  for (const kind of ['root', 'subagent'] as const) {
+    const conv = newConversation(
+      runtimeId(kind),
+      SessionManager.inMemory('/tmp'),
+      kind === 'root' ? { kind: 'root' } : ({ kind: 'subagent', parent: runtimeId('parent') } as never),
+      undefined,
+      false
+    )
+    conv.active = freshRun()
+    conv.active.requests = 12
+    conv.active.lastReply =
+      kind === 'root'
+        ? assistantReply([{ type: 'toolCall', id: 'c', name: 'echo', arguments: {} }], 'toolUse')
+        : assistantReply('child done')
+    noteMessage(conv, { role: 'user', content: 'more', timestamp: Date.now() })
+    expect(conv.active.requests).toBe(12)
+    expect(conv.active.admissions).toBe(20)
+  }
 })

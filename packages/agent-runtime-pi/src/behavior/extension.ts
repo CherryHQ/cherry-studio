@@ -36,9 +36,11 @@ import {
   withoutMarkers
 } from './history'
 import { readFacts } from './ledger'
-import { PI_RUN_LIMIT, PI_RUN_LIMIT_MESSAGE } from './runBudget'
-import { endingOf, finishRun, noteMessage, offerSteer } from './runs'
+import { PI_RUN_LIMIT, PI_RUN_LIMIT_MESSAGE, recordRunRefusal } from './runBudget'
+import { endingOf, finishRun, noteMessage, offerSteer, resetRunBudget } from './runs'
 import type { Adapter, Conversation } from './state'
+
+type AgentTurnDecision = Exclude<Awaited<ReturnType<NonNullable<AgentSession['agent']['finishTurn']>>>, void>
 
 const UNWIRED_SUMMARIZER =
   "Compaction cancelled: the session's compaction.summarize is not the adapter's summarize, so onCompacting was not asked"
@@ -233,10 +235,38 @@ function allow(adapter: Adapter, conv: Conversation, requestsInRun: number): Req
 
 /** H11: the meter decides before each model request of a run; a refusal fails the request before it goes out. */
 export function meterRequests(adapter: Adapter, conv: Conversation, session: AgentSession): void {
+  const prepare = session.agent.prepareNextTurnWithContext
+  if (prepare)
+    session.agent.prepareNextTurnWithContext = async (turn, signal) => {
+      const run = conv.active
+      // Pi prepares (and may compact) before it places the queued follow-up. Reset
+      // first so that compaction is charged to the new input, not the completed one.
+      if (
+        run &&
+        conv.lineage.kind === 'root' &&
+        run.refused === undefined &&
+        turn.message.stopReason === 'stop' &&
+        !turn.message.content.some((part) => part.type === 'toolCall') &&
+        session.getFollowUpMessages().length > 0
+      )
+        resetRunBudget(run)
+      return prepare(turn, signal)
+    }
+  const finishTurn = session.agent.finishTurn
+  session.agent.finishTurn = async (turn, signal): Promise<AgentTurnDecision | undefined> => {
+    const decision = (await finishTurn?.(turn, signal)) ?? undefined
+    const refused = conv.active?.refused
+    if (refused === undefined) return decision
+    recordRunRefusal(turn.message, refused)
+    // Pi's per-call terminate flag stops only an entirely refused batch. Enforce the
+    // run boundary here, after every admitted call has finished, including mixed batches.
+    return { action: 'end' }
+  }
   const stream = session.agent.streamFunction
   session.agent.streamFunction = (model, context, options) => {
     const run = conv.active
-    const allowance = allow(adapter, conv, run?.requests ?? 0)
+    const allowance =
+      run?.refused === undefined ? allow(adapter, conv, run?.requests ?? 0) : { ok: false as const, text: run.refused }
     if (!allowance.ok) {
       if (run) run.refused = allowance.text
       return lazyStream(model, async () => {
@@ -262,7 +292,10 @@ export function compactionSummarizer(adapter: Adapter, conv: Conversation): Comp
     const run = conv.active
     if (run) {
       const allowance = allow(adapter, conv, run.requests)
-      if (!allowance.ok) return decline(allowance.text)
+      if (!allowance.ok) {
+        if (conv.lineage.kind === 'root' && run.requests >= PI_RUN_LIMIT) run.refused = allowance.text
+        return decline(allowance.text)
+      }
       run.requests += 1
     }
     const handlers = adapter.installation.lifecycle

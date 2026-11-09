@@ -116,7 +116,13 @@ function beginRun(adapter: Adapter, conv: Conversation, key: string, number = co
 function failRun(adapter: Adapter, conv: Conversation, run: RunState, error: unknown): void {
   if (conv.active !== run) return
   const message = error instanceof Error ? error.message : String(error)
-  finishRun(adapter, conv, { live: 'error', answer: { outcome: 'failed', text: '', error: message } })
+  finishRun(
+    adapter,
+    conv,
+    run.refused === undefined
+      ? { live: 'error', answer: { outcome: 'failed', text: '', error: message } }
+      : endingOf(run, false)
+  )
 }
 
 /** Native preflight remains authoritative: commands and input hooks run before the busy policy. */
@@ -271,6 +277,14 @@ export function inputDone(conv: Conversation, key: string): boolean {
   return state === undefined || state === 'settled' || state === 'withdrawn'
 }
 
+/** A completed root input gives its queued native follow-up a fresh budget. */
+export function resetRunBudget(run: RunState): void {
+  run.requests = 0
+  run.admissions = 0
+  run.window.length = 0
+  run.lastReply = undefined
+}
+
 /** Message ends of the active run: its last reply and usage, and the steered messages Pi placed in it. */
 export function noteMessage(conv: Conversation, message: MessageEndEvent['message']): void {
   const run = conv.active
@@ -279,6 +293,18 @@ export function noteMessage(conv: Conversation, message: MessageEndEvent['messag
     run.lastReply = message
     conv.runUsage[run.run - 1] = addUsage(conv.runUsage[run.run - 1], usageFact(message.usage))
     return
+  }
+  // Native follow-ups run inside Pi's existing agent loop, without another agent_start.
+  // A person's input after a final answer starts a fresh root budget; mid-turn steering
+  // and child messages keep their existing budget and policy.
+  if (
+    message.role === 'user' &&
+    conv.lineage.kind === 'root' &&
+    run.refused === undefined &&
+    run.lastReply?.stopReason === 'stop' &&
+    !run.lastReply.content.some((part) => part.type === 'toolCall')
+  ) {
+    resetRunBudget(run)
   }
   if (message.role !== 'custom') return
   const key = keyOf(message.details)
@@ -344,7 +370,11 @@ function answerOpenCalls(conv: Conversation): void {
  * before the next request. A failed or aborted turn takes none; its run ends, which withdraws them.
  */
 export function offerSteer(conv: Conversation, reply: TurnEndEvent['message']): void {
-  if (!conv.active || (reply.role === 'assistant' && (reply.stopReason === 'error' || reply.stopReason === 'aborted')))
+  if (
+    !conv.active ||
+    conv.active.refused !== undefined ||
+    (reply.role === 'assistant' && (reply.stopReason === 'error' || reply.stopReason === 'aborted'))
+  )
     return
   const key = conv.held.shift()
   if (key === undefined) return
