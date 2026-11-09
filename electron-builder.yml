@@ -280,6 +280,7 @@ releaseInfo:
     - [Subscription] The China edition now picks up subscription changes once the server's notification service comes online, without restarting the app.
     - [Subscription] The China edition shows subscription changes (activation, renewal, expiry and more) in the notification center.
     - [Workspace] Consistent icon colors and sizing, clearer Chinese agent labels and settings, restored tooltip contrast, and smoother tabs, pane resizing, conversation shortcuts, and notifications
+    - [API Gateway] Preserve agent instructions, tool schemas, and cache hints when forwarding requests, and prevent unintended tool execution or retries inside the gateway.
 
     ⚡ Performance
     - [Chat] Preparing large text attachments no longer blocks the interface.
@@ -367,6 +368,7 @@ releaseInfo:
     - [订阅] 国内版在服务器通知服务上线后，无需重启应用即可收到订阅变更。
     - [订阅] 国内版会在通知中心显示订阅变化（开通、续费、到期等）。
     - [工作区] 统一图标颜色与尺寸、中文智能体文案及设置页样式，恢复提示框反色，并修复标签页、分栏拖动、会话快捷键和通知交互
+    - [API 网关] 修复转发请求时智能体提示词、工具定义和缓存标记丢失的问题，避免网关意外执行工具或重试。
 
     ⚡ 性能优化
     - [对话] 准备大型文本附件不再阻塞界面。

@@ -322,6 +322,27 @@ describe('ApiGatewayService internal gateway', () => {
     expect(service.resolveAgentSessionUsage(headers(child))).toBeUndefined()
   })
 
+  it('freezes the native phase parent without changing billing ownership', async () => {
+    const service = new ApiGatewayService()
+    const internal = await startInternalGateway(service)
+    const current = { agentSessionId: 'session-1', assistantMessageId: 'answer', source: null }
+    mockGetActiveUsageContext.mockReturnValue(current)
+    const parent = {
+      sessionId: 'session-1',
+      turnId: 'turn',
+      topicId: 'agent-session:session-1',
+      traceId: '11111111111111111111111111111111',
+      rootSpanId: '2222222222222222'
+    }
+    const captured = service.captureAgentSessionUsage('session-1', undefined, parent)
+    mockGetActiveUsageContext.mockReturnValue({ ...current, assistantMessageId: 'later' })
+    const headers = new Headers({ ...captured.headers, 'x-api-key': internal.apiKey })
+    expect(service.resolveAgentSessionUsage(headers)).toEqual({ ...current, traceContext: parent })
+    expect(Object.keys(captured.headers)).not.toContain('traceparent')
+    captured.release()
+    expect(service.resolveAgentSessionUsage(headers)).toBeUndefined()
+  })
+
   it('attributes usage to an Agent session only for the unrestricted internal key', async () => {
     const service = new ApiGatewayService()
     const internal = await startInternalGateway(service)
