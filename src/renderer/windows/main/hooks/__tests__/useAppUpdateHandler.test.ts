@@ -277,6 +277,41 @@ describe('useAppUpdateHandler', () => {
     })
   })
 
+  it('leaves downloading when main retires the channel for a write from a detached window', async () => {
+    mocks.ipcRequest.mockImplementation((channel: string) =>
+      Promise.resolve(channel === 'app.get_info' ? { isPortable: false } : undefined)
+    )
+    setWindowSource('mainWindow')
+    renderHook(() => useAppUpdateHandler())
+    emit('app.updater.available', releaseInfo)
+
+    emit('app.updater.channel_retired', undefined)
+
+    expect(mocks.updateAppUpdateState).toHaveBeenLastCalledWith(
+      expect.objectContaining({ downloading: false, downloaded: false, info: null, available: false })
+    )
+    expect(appUpdateCheckService.isActiveUpdateSession()).toBe(true)
+    await act(async () => {
+      await appUpdateCheckService.runAppUpdateCheck(
+        { checking: false, downloading: false, downloaded: false, info: null, manualCheck: false },
+        mocks.updateAppUpdateState
+      )
+    })
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('app.updater.check_for_update')
+  })
+
+  it('keeps a rejected write from this window failing after main retires its first write', () => {
+    renderHook(() => useAppUpdateHandler())
+    const epoch = appUpdateCheckService.invalidateSharedUpdateCheck()
+
+    emit('app.updater.channel_retired', undefined)
+    expect(appUpdateCheckService.isActiveUpdateSession()).toBe(false)
+    appUpdateCheckService.noteSharedUpdatePreferenceFailure(epoch)
+
+    expect(appUpdateCheckService.isActiveUpdateSession()).toBe(true)
+    expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateError')
+  })
+
   it('always resets failures and keeps a manual failure beside the check control', () => {
     const { rerender } = renderHook(() => useAppUpdateHandler())
 

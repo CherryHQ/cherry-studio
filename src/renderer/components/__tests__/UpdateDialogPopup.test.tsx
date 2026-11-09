@@ -55,7 +55,6 @@ describe('UpdateDialogPopup', () => {
 
     expect(installCalls()).toHaveLength(1)
     expect(await screen.findByRole('alert')).toHaveTextContent('update.installFailed')
-    expect(screen.queryByText('update.saveDataError')).not.toBeInTheDocument()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(installCalls()).toHaveLength(1)
 

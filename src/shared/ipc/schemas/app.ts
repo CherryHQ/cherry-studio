@@ -137,5 +137,7 @@ export type AppEventSchemas = {
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
   'app.updater.run_check': void
+  /** Main dropped the previous channel's check and download; renderers forget their snapshot. */
+  'app.updater.channel_retired': void
   'app.error.open': AppErrorContext
 }

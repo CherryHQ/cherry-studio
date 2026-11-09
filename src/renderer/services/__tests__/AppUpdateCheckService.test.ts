@@ -84,13 +84,29 @@ describe('runAppUpdateCheck', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
-  it('shows a local error and the releases page when update info cannot be read', async () => {
+  it('shows a local error without opening the browser when update info cannot be read', async () => {
     request.mockRejectedValue(new Error('ipc down'))
 
     await appUpdateCheckService.runAppUpdateCheck(idle, vi.fn())
 
     expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateError')
-    expect(openExternal).toHaveBeenCalledWith(OFFICIAL_RELEASES_URL)
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('leaves a rejected check retryable without opening the browser', async () => {
+    request.mockImplementation((channel: string) => {
+      if (channel === 'app.get_info') return Promise.resolve({ isPortable: false })
+      return Promise.reject(new Error('check failed'))
+    })
+    const update = vi.fn()
+
+    await appUpdateCheckService.runAppUpdateCheck(idle, update)
+
+    expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateError')
+    expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ checking: false, manualCheck: false }))
+    expect(openExternal).not.toHaveBeenCalled()
+    await appUpdateCheckService.runAppUpdateCheck(idle, update)
+    expect(callsTo('app.updater.check_for_update')).toHaveLength(2)
   })
 
   it('opens the install dialog for a downloaded update and does not install it', async () => {
@@ -325,7 +341,7 @@ describe('runAppUpdateCheck', () => {
 
     expect(callsTo('app.updater.present_check')).toHaveLength(1)
     expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateError')
-    expect(openExternal).toHaveBeenCalledWith(OFFICIAL_RELEASES_URL)
+    expect(openExternal).not.toHaveBeenCalled()
   })
 
   it('checks the latest acknowledged channel once when a later invalidation lets another click wait', async () => {
