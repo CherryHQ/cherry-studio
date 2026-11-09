@@ -101,6 +101,9 @@ export async function runPainting(
       // instead of collapsing to an empty `REMOTE_ERROR`.
       const detail = aiErrorDetail(error)
       logger.error('Image generation failed:', detail ?? error)
+      if (detail?.statusCode === 401 || detail?.providerErrorCategory === 'auth') {
+        throw createPaintingGenerateError('REQ_ERROR_TOKEN')
+      }
       if (detail) {
         throw createPaintingGenerateError('REMOTE_ERROR', { message: aiDetailMessage(detail) })
       }

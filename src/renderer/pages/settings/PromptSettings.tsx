@@ -15,7 +15,7 @@ import {
   EmojiIcon,
   EmptyState,
   ReorderableList,
-  Scrollbar,
+  ScrollArea,
   Skeleton,
   type SortableDragHandleProps
 } from '@cherrystudio/ui'
@@ -289,7 +289,7 @@ export function PromptSettings() {
             className="py-14"
           />
         ) : (
-          <Scrollbar className="min-h-0 flex-1 pb-3">
+          <ScrollArea viewportProps={{ className: 'pb-3' }} className="min-h-0 flex-1">
             <ReorderableList
               items={prompts}
               visibleItems={visiblePrompts}
@@ -316,7 +316,7 @@ export function PromptSettings() {
                 />
               )}
             />
-          </Scrollbar>
+          </ScrollArea>
         )}
       </div>
 

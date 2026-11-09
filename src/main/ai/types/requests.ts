@@ -1,7 +1,7 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
-import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { RecordAiInvocationInput, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { WindowId } from '@shared/ipc/types'
@@ -25,9 +25,11 @@ export interface AiTransportOptions {
 export interface InProcessUsageContext {
   agentSessionId: string
   /** Assistant message that owns this request: a reserved steer continuation or the active turn. */
-  assistantMessageId: string
+  assistantMessageId?: string
   /** Immutable source captured by the owning Agent turn. `null` means intentionally unavailable. */
   source: SourceSnapshot | null
+  /** Native correlation can arrive after the provider finishes. Captured prices and credentials stay immutable. */
+  recordInvocation?: (input: RecordAiInvocationInput) => void
 }
 
 /** Identifies which layer owns history shaping for an in-process AI request. */
