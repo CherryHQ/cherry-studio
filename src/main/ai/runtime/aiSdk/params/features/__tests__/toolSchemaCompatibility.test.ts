@@ -2,7 +2,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createAzure } from '@ai-sdk/azure'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { JSONSchema7, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { asSchema, generateText, jsonSchema, streamText, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
@@ -787,6 +787,194 @@ describe('toolSchemaCompatibilityFeature', () => {
     ).tools
     expect(untouched?.[0]).toBe(params.tools?.[0])
     expect(untouched?.[1]).toBe(params.tools?.[1])
+  })
+
+  it.each([
+    ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    ENDPOINT_TYPE.OPENAI_RESPONSES,
+    ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+    ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+  ])(
+    'removes empty additionalProperties recursively on %s without mutation and is idempotent',
+    async (endpointType) => {
+      const params: LanguageModelV3CallOptions = {
+        prompt: [],
+        tools: [
+          {
+            type: 'function',
+            name: 'search',
+            inputSchema: {
+              type: 'object',
+              additionalProperties: {},
+              properties: {
+                additionalProperties: {},
+                propertyNames: { type: 'string' },
+                nested: { type: 'object', properties: {}, additionalProperties: {} },
+                rows: { type: 'array', items: { type: 'object', properties: {}, additionalProperties: {} } },
+                choice: {
+                  oneOf: [{ type: 'object', properties: {}, additionalProperties: {} }],
+                  anyOf: [{ type: 'object', properties: {}, additionalProperties: {} }]
+                }
+              }
+            }
+          }
+        ]
+      }
+      const original = structuredClone(params)
+
+      const normalized = await transform(params, { endpointType })
+      const transformed = normalized.tools?.[0]
+      if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+
+      expect(transformed.inputSchema).toEqual({
+        type: 'object',
+        properties: {
+          additionalProperties: {},
+          propertyNames: { type: 'string' },
+          nested: { type: 'object', properties: {} },
+          rows: { type: 'array', items: { type: 'object', properties: {} } },
+          choice: {
+            oneOf: [{ type: 'object', properties: {} }],
+            anyOf: [{ type: 'object', properties: {} }]
+          }
+        }
+      })
+      expect(await transform(normalized, { endpointType })).toEqual(normalized)
+      expect(params).toEqual(original)
+    }
+  )
+
+  it('preserves own __proto__ keys when sibling schemas are normalized', async () => {
+    const inputSchema = JSON.parse(`{
+      "type": "object",
+      "properties": {
+        "__proto__": { "type": "string" },
+        "options": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {},
+          "__proto__": { "type": "number" }
+        }
+      },
+      "required": ["__proto__", "options"],
+      "additionalProperties": false,
+      "__proto__": { "type": "boolean" }
+    }`)
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [{ type: 'function', name: 'search', inputSchema }]
+    }
+
+    const transformed = (await transform(params)).tools?.[0]
+    if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+    const schema = transformed.inputSchema
+    const properties = schema.properties!
+
+    expect(Object.hasOwn(properties, '__proto__')).toBe(true)
+    expect(properties.__proto__).toEqual({ type: 'string' })
+    expect(Object.keys(properties)).toEqual(['__proto__', 'options'])
+    expect(schema.required).toEqual(['__proto__', 'options'])
+    expect(schema.additionalProperties).toBe(false)
+    expect(Object.hasOwn(schema, '__proto__')).toBe(true)
+    expect(schema).toHaveProperty('__proto__', { type: 'boolean' })
+    expect(Object.hasOwn(properties.options as JSONSchema7, '__proto__')).toBe(true)
+    expect(properties.options).toEqual({ type: 'object', properties: {}, ['__proto__']: { type: 'number' } })
+    expect(inputSchema.properties.options.additionalProperties).toEqual({})
+  })
+
+  it('preserves non-plain additionalProperties by identity while removing plain empty objects', async () => {
+    class StringSchema {
+      toJSON() {
+        return { type: 'string' }
+      }
+    }
+    const additionalProperties = new StringSchema() as JSONSchema7
+    const inputSchema = {
+      type: 'object' as const,
+      properties: {
+        typed: { type: 'object' as const, additionalProperties },
+        empty: { type: 'object' as const, additionalProperties: {} },
+        nullPrototype: { type: 'object' as const, additionalProperties: Object.create(null) }
+      }
+    }
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [{ type: 'function', name: 'search', inputSchema }]
+    }
+
+    const transformed = (await transform(params)).tools?.[0]
+    if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+
+    const properties = transformed.inputSchema.properties!
+    const typedSchema = properties.typed as { additionalProperties: unknown }
+    expect(typedSchema.additionalProperties).toBe(additionalProperties)
+    expect(JSON.stringify(typedSchema)).toBe('{"type":"object","additionalProperties":{"type":"string"}}')
+    expect(properties.empty).toEqual({ type: 'object' })
+    expect(properties.nullPrototype).toEqual({ type: 'object' })
+  })
+
+  it.each([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])(
+    'preserves absent, boolean, and typed additionalProperties and propertyNames on %s',
+    async (endpointType) => {
+      const inputSchema = {
+        type: 'object' as const,
+        properties: {
+          absent: { type: 'object' as const, properties: {} },
+          open: { type: 'object' as const, additionalProperties: true },
+          closed: { type: 'object' as const, additionalProperties: false },
+          typed: { type: 'object' as const, additionalProperties: { type: 'string' as const } }
+        },
+        propertyNames: { pattern: '^[a-z]+$' },
+        additionalProperties: true
+      }
+      const params: LanguageModelV3CallOptions = {
+        prompt: [],
+        tools: [{ type: 'function', name: 'search', inputSchema }]
+      }
+
+      const transformed = (await transform(params, { endpointType })).tools?.[0]
+      if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+
+      expect(transformed.inputSchema).toEqual(inputSchema)
+      expect(transformed.inputSchema.properties?.absent).not.toHaveProperty('additionalProperties')
+    }
+  )
+
+  it.each([true, false, undefined])('keeps the strict keyword policy with strict=%s', async (strict) => {
+    for (const endpointType of [
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_RESPONSES,
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    ]) {
+      const params: LanguageModelV3CallOptions = {
+        prompt: [],
+        tools: [
+          {
+            type: 'function',
+            name: 'search',
+            ...(strict === undefined ? {} : { strict }),
+            inputSchema: {
+              type: 'object',
+              properties: { query: { type: 'string', minLength: 1 } },
+              additionalProperties: {}
+            }
+          }
+        ]
+      }
+
+      const transformed = (await transform(params, { endpointType })).tools?.[0]
+      if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+
+      expect(transformed.inputSchema).toEqual({
+        type: 'object',
+        properties: { query: strict === true ? { type: 'string' } : { type: 'string', minLength: 1 } }
+      })
+      if (strict === undefined && endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES) {
+        expect(transformed).not.toHaveProperty('strict')
+      } else {
+        expect(transformed.strict).toBe(strict ?? false)
+      }
+    }
   })
 
   it('sends Gemini-shaped requests without propertyNames or additionalProperties', async () => {
