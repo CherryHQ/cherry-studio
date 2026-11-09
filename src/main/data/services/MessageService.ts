@@ -1208,6 +1208,11 @@ export class MessageService {
           .update(messageTable)
           .set({
             data: input.userMessage.data,
+            // An empty branch is only a reservation. Its first contentful
+            // submission owns the send time consumed by model-facing history.
+            // Existing-message replay never re-enters this fill-only path.
+            createdAt: activityTimestamp,
+            updatedAt: activityTimestamp,
             ...(input.userMessage.modelId ? { modelId: input.userMessage.modelId } : {})
           })
           .where(eq(messageTable.id, row.id))
