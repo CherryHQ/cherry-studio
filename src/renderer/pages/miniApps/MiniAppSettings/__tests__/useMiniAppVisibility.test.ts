@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import { useMiniAppVisibility } from '../useMiniAppVisibility'
@@ -81,6 +82,21 @@ describe('useMiniAppVisibility', () => {
       )
     })
     expect(mocks.updateAppStatus).toHaveBeenCalledWith('a', 'disabled')
+  })
+
+  it('shows why a rejected visibility change failed instead of a generic fault', async () => {
+    mocks.updateAppStatus.mockRejectedValueOnce(DataApiErrorFactory.notFound('MiniApp', 'a'))
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(mocks.miniApps[0]))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith({
+        title: i18n.t('miniApp.hide_failed'),
+        description: "MiniApp with id 'a' not found",
+        data: { suppressDetail: true }
+      })
+    )
   })
 
   it('show flips a single row to enabled via updateAppStatus', () => {
