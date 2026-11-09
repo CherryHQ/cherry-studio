@@ -1,3 +1,10 @@
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -330,7 +337,7 @@ beforeEach(() => {
   })
   createAgentMock.mockResolvedValue({
     id: 'created-agent',
-    type: 'pi',
+    type: 'pi-durable',
     name: 'Created Agent',
     description: 'Created from selector',
     accessiblePaths: [],
@@ -544,7 +551,7 @@ describe('AgentSelector', () => {
 
     await waitFor(() =>
       expect(createAgentMock).toHaveBeenCalledWith({
-        type: 'pi',
+        type: 'pi-durable',
         name: 'Created Agent',
         model: MODEL.id,
         description: 'Created from selector',

@@ -15,6 +15,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
+import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { forkPiSession } from '@main/ai/runtime/pi/piFork'
 import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile'
@@ -56,6 +57,7 @@ describe('Pi branch publication with native files', () => {
     runtimeDriverRegistry.register({
       type: 'pi',
       fork: forkPiSession,
+      isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
       validateSession() {},
       async connect() {
         throw new Error('Browsing and fork must not run a model')

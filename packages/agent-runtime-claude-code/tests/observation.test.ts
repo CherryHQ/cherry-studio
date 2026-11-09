@@ -10,6 +10,7 @@ import type {
 import { expect, it } from 'vitest'
 
 import { claudeThread, type ClaudeObservation } from '../src'
+import { ClaudeFeed } from '../src/observation'
 import { confirmed, observe, textOf } from './nativeFixture'
 import { assistantMessage, wireFixture } from './wireFixture'
 
@@ -552,4 +553,49 @@ it('retains native-only content and advisory events in the late baseline without
   } finally {
     await test.close()
   }
+})
+
+it('retains validated rejection identity for a late subscriber and overflow recovery', async () => {
+  const feed = new ClaudeFeed((error) => {
+    throw error
+  })
+  const source = assistantMessage(randomUUID(), [{ type: 'text', text: 'Refused request', citations: null }], {
+    error: 'rate_limit'
+  })
+  feed.publish([], [{ source: 'live', message: source }])
+  let release!: () => void
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const batches: ClaudeObservation[] = []
+  const observation = feed.observe(async (batch) => {
+    batches.push(batch)
+    if (batches.length === 1) await blocked
+  })
+  await Promise.resolve()
+  for (let index = 0; index < 110; index++)
+    feed.publish(
+      [],
+      [
+        {
+          source: 'live',
+          message: assistantMessage(source.session_id, [{ type: 'text', text: `ordinary ${index}`, citations: null }])
+        }
+      ]
+    )
+  release()
+  await observation.drain()
+  expect(batches[0].native.find((entry) => entry.message.uuid === source.uuid)?.isApiErrorMessage).toBe(true)
+  const gap = batches.findIndex((batch) => batch.events.some((event) => event.type === 'gap'))
+  expect(gap).toBeGreaterThan(0)
+  const recovery = batches.slice(gap + 1).find((batch) => batch.events.some((event) => event.type === 'snapshot'))
+  expect(recovery?.native.find((entry) => entry.message.uuid === source.uuid)?.isApiErrorMessage).toBe(true)
+  const late: ClaudeObservation[] = []
+  const lateObservation = feed.observe((batch) => {
+    late.push(batch)
+  })
+  await lateObservation.drain()
+  expect(late[0].native.find((entry) => entry.message.uuid === source.uuid)?.isApiErrorMessage).toBe(true)
+  await lateObservation.stop()
+  await observation.stop()
 })

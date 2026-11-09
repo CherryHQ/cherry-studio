@@ -19,11 +19,9 @@ import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio
 import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { getModelDisplayTags, ModelTag, SubscriptionTag } from '@renderer/components/tags/Model'
+import { ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
-import { trackSubscriptionEntryView } from '@renderer/services/cherryCloudSubscriptionAnalytics'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { getModelLogoRef } from '@renderer/utils/model'
@@ -35,13 +33,14 @@ import type { SettingsPath } from '@shared/data/types/settingsPath'
 import type { SelectorShellBottomAction, SelectorShellLayout } from '../SelectorShell'
 import { SelectorShell } from '../SelectorShell'
 import type { ModelSelectorTag } from './filters'
-import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
+import { ModelSelectorDetailCard, ModelSelectorHoverCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
 import type {
   FlatListItem,
   ModelSelectorFilter,
   ModelSelectorModelItem,
+  ModelSelectorNavigableItem,
   ModelSelectorProps,
   ModelSelectorSelectionType
 } from './types'
@@ -173,7 +172,7 @@ function ModelRow({
   item,
   disabled,
   description,
-  isFree,
+  tags,
   optionId,
   isFocused,
   onPin,
@@ -188,7 +187,7 @@ function ModelRow({
   item: ModelSelectorModelItem
   disabled: boolean
   description?: ReactNode
-  isFree: boolean
+  tags: readonly ModelSelectorTag[]
   optionId: string
   isFocused: boolean
   onPin: (modelId: UniqueModelId) => void
@@ -201,11 +200,6 @@ function ModelRow({
   t: (key: string) => string
 }) {
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
-  // Cherry Cloud free-plan models are free by entitlement, which the static model data cannot tell.
-  const rowTags = useMemo(() => {
-    const tags = getModelDisplayTags(item.model, undefined, item.provider)
-    return isFree && !tags.includes('free') ? [...tags, 'free' as const] : tags
-  }, [isFree, item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
   const disambiguationLabel = item.showIdentifier
     ? item.groupKind === 'pinned'
@@ -237,10 +231,9 @@ function ModelRow({
   ) : null
 
   const trailing =
-    rowTags.length > 0 || item.locked ? (
+    tags.length > 0 ? (
       <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
-        {item.locked && <SubscriptionTag size={ROW_TAG_SIZE} className="h-full" />}
-        {rowTags.map((tag) => (
+        {tags.map((tag) => (
           <ModelTag
             key={`${item.key}-${tag}`}
             tag={tag}
@@ -253,10 +246,7 @@ function ModelRow({
       </div>
     ) : null
 
-  const pinAction = !showPinActions ? null : item.locked ? (
-    // A locked row cannot be pinned, but keeps the slot so its tags line up with the other rows.
-    <span aria-hidden="true" className="size-4 shrink-0" />
-  ) : (
+  const pinAction = !showPinActions ? null : (
     <ModelSelectorRowActionButton
       disabled={isPinActionDisabled}
       aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
@@ -284,7 +274,8 @@ function ModelRow({
       item={item}
       provider={item.provider}
       portalContainer={detailPortalContainer}
-      description={description}>
+      description={description}
+      tags={tags}>
       <ModelSelectorRow
         disabled={disabled}
         selected={isSelected}
@@ -404,7 +395,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     defaultMultiSelectMode = false,
     onMultiSelectModeChange,
     onSettingsNavigate,
-    shortcut
+    shortcut,
+    composition
   } = props
   const { t } = useTranslation()
   const listboxId = useId()
@@ -539,14 +531,11 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const {
     availableTags,
-    getModelDescription,
-    isModelFree,
-    isModelUnavailable,
+    getModelPresentation,
     isLoading,
-    subscribedPlanName,
     isPinActionDisabled,
     listItems,
-    modelItems,
+    navigableItems,
     refetchModels,
     refetchPinnedModels,
     refetchProviders,
@@ -568,25 +557,21 @@ export function ModelSelector(props: ModelSelectorProps) {
     visibilityFilter: recoveryFilter,
     prioritizedProviderIds,
     showPinnedModels,
-    showTagFilter
+    showTagFilter,
+    composition,
+    actionVisibilityFilter: (action) => !recoveryProviderId || action.providerId === recoveryProviderId
   })
   const isSelectionDisabled = useCallback(
-    (model: Model, provider?: Provider) => isModelUnavailable(model) || Boolean(isModelDisabled?.(model, provider)),
-    [isModelDisabled, isModelUnavailable]
+    (model: Model, provider?: Provider) =>
+      Boolean(provider && getModelPresentation(model, provider).disabled) ||
+      Boolean(isModelDisabled?.(model, provider)),
+    [getModelPresentation, isModelDisabled]
   )
-  const showsLockedRows = modelItems.some((item) => item.locked)
-  const showsSubscribeLink =
-    !subscribedPlanName && listItems.some((item) => item.type === 'group' && item.isCherryAiGroup)
-  useEffect(() => {
-    if (!open) return
-    if (showsLockedRows) trackSubscriptionEntryView('selector_locked_row')
-    if (showsSubscribeLink) trackSubscriptionEntryView('selector_header')
-  }, [open, showsLockedRows, showsSubscribeLink])
   const listItemsRef = useRef(listItems)
-  const modelItemsRef = useRef(modelItems)
+  const navigableItemsRef = useRef(navigableItems)
   const visibleSelectedModelIdSetRef = useRef(visibleSelectedModelIdSet)
   listItemsRef.current = listItems
-  modelItemsRef.current = modelItems
+  navigableItemsRef.current = navigableItems
   visibleSelectedModelIdSetRef.current = visibleSelectedModelIdSet
   hasActiveTagFilterRef.current = selectedTags.length > 0
 
@@ -595,6 +580,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     [listItems.length]
   )
   const pageSize = DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE
+  const navigableKeys = navigableItems.map((item) => item.key).join('\0')
   const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
   const getListItemKey = useCallback((index: number) => listItems[index].key, [listItems])
   const isStickyListItem = useCallback((index: number) => listItems[index].type === 'group', [listItems])
@@ -668,10 +654,10 @@ export function ModelSelector(props: ModelSelectorProps) {
   )
 
   const handleSelectItem = useCallback(
-    (item: ModelSelectorModelItem) => {
-      if (item.locked) {
+    (item: ModelSelectorNavigableItem) => {
+      if (item.type === 'action') {
         setOpen(false)
-        void startCherryCloudSubscription('selector_locked_row', { modelId: item.model.id })
+        item.onAction()
         return
       }
       if (isSelectionDisabled(item.model, item.provider)) return
@@ -797,7 +783,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   useModelListKeyboardNav({
     open,
     focusedItemKey,
-    items: modelItems,
+    items: navigableItems,
     onClose: handleClose,
     onFocusItem: focusItem,
     onSelectItem: handleSelectItem,
@@ -874,8 +860,8 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [open, runPendingCloseAction])
 
   useLayoutEffect(() => {
-    const currentModelItems = modelItemsRef.current
-    if (!open || isLoading || currentModelItems.length === 0) {
+    const currentNavigableItems = navigableItemsRef.current
+    if (!open || isLoading || currentNavigableItems.length === 0) {
       return
     }
 
@@ -886,16 +872,17 @@ export function ModelSelector(props: ModelSelectorProps) {
 
     const targetKey =
       deferredSearchText || selectedTagsKey.length > 0
-        ? currentModelItems[0]?.key
-        : (currentModelItems.find((item) => visibleSelectedModelIdSetRef.current.has(item.modelId))?.key ??
-          currentModelItems[0]?.key)
+        ? currentNavigableItems[0]?.key
+        : (currentNavigableItems.find(
+            (item) => item.type === 'model' && visibleSelectedModelIdSetRef.current.has(item.modelId)
+          )?.key ?? currentNavigableItems[0]?.key)
 
     if (targetKey) {
       // Position the virtual list before paint so opening does not briefly show
       // the first rows before jumping to the selected model on the next frame.
       focusItemBeforePaint(targetKey, 'start')
     }
-  }, [deferredSearchText, focusItemBeforePaint, isLoading, open, selectedTagsKey])
+  }, [deferredSearchText, focusItemBeforePaint, isLoading, navigableKeys, open, selectedTagsKey])
 
   const rowRenderer = useCallback(
     (item: FlatListItem, detailPortalContainer?: SelectorShellLayout['portalContainer']) => {
@@ -924,34 +911,44 @@ export function ModelSelector(props: ModelSelectorProps) {
                 </Button>
               </Tooltip>
             )}
-            {item.isCherryAiGroup &&
-              (subscribedPlanName ? (
-                <span
-                  className={cn(
-                    'ml-auto truncate rounded-full border border-border px-1.5 font-medium text-[10px] text-foreground leading-4',
-                    groupActionInset
-                  )}>
-                  {subscribedPlanName}
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className={cn(
-                    'ml-auto cursor-pointer border-0 bg-transparent p-0 text-[11px] text-link hover:underline',
-                    groupActionInset
-                  )}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setOpen(false)
-                    void startCherryCloudSubscription('selector_header')
-                  }}>
-                  {t('settings.subscription.go_to_subscribe')}
-                </button>
-              ))}
+            {item.trailing ? <div className={cn('ml-auto', groupActionInset)}>{item.trailing}</div> : null}
           </div>
         )
       }
 
+      if (item.type === 'action') {
+        const row = (
+          <ModelSelectorRow
+            selected={false}
+            focused={focusedItemKey === item.key}
+            leading={item.leading}
+            trailing={item.trailing}
+            actions={showPinActions ? <span aria-hidden="true" className="size-4 shrink-0" /> : undefined}
+            onSelect={() => handleSelectItem(item)}
+            rootProps={{ className: 'pr-0.5' }}
+            optionProps={{ id: getModelSelectorOptionDomId(listboxId, item.key) }}>
+            <span className="min-w-0 max-w-full shrink-0 truncate" title={item.label}>
+              {item.label}
+            </span>
+          </ModelSelectorRow>
+        )
+        return (
+          <div
+            className="px-1 py-0.5"
+            onMouseEnter={() => {
+              if (!isScrollingRef.current) setFocusedItemKey(item.key)
+            }}>
+            {item.detail ? (
+              <ModelSelectorHoverCard content={item.detail} portalContainer={detailPortalContainer}>
+                {row}
+              </ModelSelectorHoverCard>
+            ) : (
+              row
+            )}
+          </div>
+        )
+      }
+      const presentation = getModelPresentation(item.model, item.provider)
       return (
         // 静态时 onMouseEnter 同步 focusedItemKey（让 Enter 命中鼠标所在行）。
         // 滚动中通过 isScrollingRef 跳过 setState，避免与 virtualizer flushSync 竞争。
@@ -963,9 +960,9 @@ export function ModelSelector(props: ModelSelectorProps) {
           }}>
           <ModelRow
             item={item}
-            disabled={!item.locked && isSelectionDisabled(item.model, item.provider)}
-            description={getModelDescription(item.model)}
-            isFree={isModelFree(item.model)}
+            disabled={isSelectionDisabled(item.model, item.provider)}
+            description={presentation.description}
+            tags={presentation.tags}
             optionId={getModelSelectorOptionDomId(listboxId, item.key)}
             isFocused={focusedItemKey === item.key}
             isPinActionDisabled={isPinActionDisabled}
@@ -984,11 +981,8 @@ export function ModelSelector(props: ModelSelectorProps) {
       focusedItemKey,
       handleNavigateToProviderSettings,
       handleSelectItem,
-      setOpen,
-      subscribedPlanName,
       handleTogglePin,
-      getModelDescription,
-      isModelFree,
+      getModelPresentation,
       isPinActionDisabled,
       isSelectionDisabled,
       listboxId,
@@ -1013,15 +1007,15 @@ export function ModelSelector(props: ModelSelectorProps) {
       value: searchText,
       onChange: setSearchText,
       placeholder: t('models.search.placeholder'),
-      ariaControls: modelItems.length > 0 ? listboxId : undefined,
+      ariaControls: navigableItems.length > 0 ? listboxId : undefined,
       activeDescendant:
-        open && modelItems.some((item) => item.key === focusedItemKey)
+        open && navigableItems.some((item) => item.key === focusedItemKey)
           ? getModelSelectorOptionDomId(listboxId, focusedItemKey)
           : undefined,
       dataTestId: 'model-selector-search',
       onKeyDown: handleSearchKeyDown
     }),
-    [focusedItemKey, handleSearchKeyDown, listboxId, modelItems, open, searchText, t]
+    [focusedItemKey, handleSearchKeyDown, listboxId, navigableItems, open, searchText, t]
   )
 
   const filterContent = useMemo(() => {
@@ -1125,18 +1119,7 @@ export function ModelSelector(props: ModelSelectorProps) {
               style={{ height: visibleListHeight }}
               data-testid="model-selector-empty">
               {t('models.no_matches')}
-              {/* Nothing to pick and nothing searched: Subscribe (signing in first) is the way to models. */}
-              {!subscribedPlanName && searchText.length === 0 && (
-                <button
-                  type="button"
-                  className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-link hover:underline"
-                  onClick={() => {
-                    setOpen(false)
-                    void startCherryCloudSubscription('selector_header')
-                  }}>
-                  {t('settings.subscription.go_to_subscribe')}
-                </button>
-              )}
+              {searchText.length === 0 ? composition?.emptyContent : null}
             </div>
           )
         }}

@@ -7,7 +7,6 @@ import {
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
-  Type,
   type FauxResponseStep
 } from '@earendil-works/pi-ai'
 import {
@@ -19,6 +18,7 @@ import {
   StorageRequestError
 } from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
+import { obj } from '@earendil-works/pi-schema'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { createScriptedHost } from '@cherrystudio/agent-behavior'
@@ -224,6 +224,13 @@ describe('Pi Durable runtime contract', () => {
         }
       })
     )
+    const events = await observe(access)
+    await expect.poll(() => current(events)).toBeDefined()
+    expect(
+      current(events)!.messages.flatMap((message) =>
+        message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : []))
+      )
+    ).toEqual(Array.from({ length: 129 }, (_, index) => `message-${index + 131}`))
     const archive = confirmed(await access.archive())
     expect(
       archive.messages.flatMap((item) =>
@@ -384,7 +391,7 @@ describe('Pi Durable runtime contract', () => {
           defineTool({
             name: 'hold',
             description: 'Hold the tool boundary',
-            parameters: Type.Object({}),
+            parameters: obj({}),
             async execute() {
               executing.resolve()
               await finish.promise
@@ -429,7 +436,7 @@ describe('Pi Durable runtime contract', () => {
           defineTool({
             name: 'delegate',
             description: 'Run a child',
-            parameters: Type.Object({}),
+            parameters: obj({}),
             async execute(_args, api, context) {
               const child = await api.commit(async (tx) => {
                 const head = (await tx.scanEntries({ conversationId: api.conversationId }, 1)).items[0]
@@ -697,7 +704,7 @@ it('measures committed prompt sources and codemode-only tools without executing 
           description: 'Only callable from codemode',
           contextSource: { kind: 'mcp-tools', source: 'server' },
           callers: ['tools'],
-          parameters: Type.Object({}),
+          parameters: obj({}),
           execute: async () => {
             throw new Error('Measurement must not execute tools')
           }

@@ -40,6 +40,8 @@ export type MenuPresentationMode = 'native' | 'cherry'
 /** Side of a wide Agent file pane that holds the file tree. */
 export type AgentFilePaneTreePosition = 'left' | 'right'
 
+export type AgentDetailsSectionConfig = { id: string; visible: boolean }
+
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
@@ -145,6 +147,7 @@ export const SIDEBAR_FAVORITES = [
   'agents',
   'scheduled_tasks',
   'paintings',
+  'marketplace',
   'translate',
   'mini_app',
   'knowledge',
@@ -489,6 +492,8 @@ export type CustomToolDefinition = {
   tool: string
   requestedVersion?: string
 }
+
+export type { SkillSubscriptionSource } from '@shared/types/skillMarketplace'
 
 export type AdvertisedRemoteEndpoint = DirectEndpoint & {
   /** Original validated input for display; transport endpoints omit this field. */

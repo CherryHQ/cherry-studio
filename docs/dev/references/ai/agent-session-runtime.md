@@ -252,6 +252,8 @@ Background notification generations whose native source calls belong to an unfin
 that reply and keep its assistant message ID. Main records intermediate native success but holds
 product completion while that reply has undrained results. Empty display task lists and connection
 release do not settle it; confirmed result drainage, ordered content and final persistence do.
+Before terminal persistence begins, an error or pause replaces held intermediate success;
+later success cannot erase that failure or pause. Events after settlement cannot reopen the reply.
 The model still chooses foreground/background through the native tool arguments. A resident command
 can retain the connection without holding a reply open. A notification without proven ownership
 cannot reopen a settled reply.
@@ -579,6 +581,14 @@ Compaction completion anchors use this same projection/control delivery path, in
 the stream has not opened. A direct stream enqueue would omit the anchor from the final saved
 message and leave a successful compaction looking like an empty response after reload.
 
+Background generation reuses an existing assistant message; it never creates a standalone
+background-continuation row or header badge. A new execution reopens the message's stream while
+retaining its existing body, native projection, author snapshot and billing identity. Running
+commands may remain detached without blocking Send. Once a new user input is admitted, its reply
+owns subsequent generation. Before admission, native call ownership or the last projected reply
+keeps an older notification out of the reserved user's reply. Goal rounds retain their separate
+turns and labels. Background origin metadata remains internal to automatic read-aloud eligibility.
+
 ## Resume token persistence
 
 Drivers may emit:
@@ -618,7 +628,11 @@ identities or replaying their inputs. Rows owned by persisted delivery turns rem
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
 checkpointing / `rewindFiles()` feature, which uses user-message UUIDs
-to restore files.
+to restore files and is not integrated into desktop history actions. Fork and
+edit/resend preserve the current file state. After `/clear`, the driver prepares
+a successor context at the current product head before switching the active
+native handle/context; results from the retired native session cannot overwrite
+the successor checkpoint.
 
 ## Native user-data SQLite guard
 
@@ -1059,7 +1073,8 @@ The seeder records each affected session in `app_state` and leaves native tokens
 Fork recovery retires already-published retired-runtime journals without deleting their files.
 After fork recovery and crash-message reconciliation, `retiredSessionHistory` imports the
 persisted Cherry transcript through Pi's `SessionManager`, validates the generated file,
-and transactionally replaces resume tokens, fork checkpoints, and edited native identities.
+and transactionally replaces resume tokens, fork checkpoints, and edited native identities
+while binding the imported native context to the product root branch.
 Tools appear as historical text and are never executed during import. Attachments retain
 managed file paths. Native DSH goals and child-process state are not carried over.
 

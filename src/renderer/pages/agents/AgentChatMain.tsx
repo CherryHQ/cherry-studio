@@ -11,6 +11,7 @@ import type {
 import type { ConversationComposerPlacement } from '@renderer/components/composer/ConversationComposerStage'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
+import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import { useAgentRightPaneActions } from './components/AgentRightPane'
@@ -24,6 +25,7 @@ interface AgentChatMainProps {
   sessionId: string
   workspacePath?: string
   messages: CherryUIMessage[]
+  historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   activeAgent: GetAgentResponse | undefined
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers: MessageStreamingLayers
@@ -49,6 +51,7 @@ export default function AgentChatMain({
   sessionId,
   workspacePath,
   messages,
+  historyActions,
   activeAgent,
   partsByMessageId,
   streamingLayers,
@@ -85,6 +88,7 @@ export default function AgentChatMain({
           sessionId={sessionId}
           workspacePath={workspacePath}
           messages={messages}
+          historyActions={historyActions}
           activeAgent={activeAgent}
           partsByMessageId={partsByMessageId}
           streamingLayers={streamingLayers}
