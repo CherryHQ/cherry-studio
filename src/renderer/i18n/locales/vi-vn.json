@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.code": "Claude Code đã thoát đột ngột (mã {{code}}). Mã tham chiếu chẩn đoán: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code đã dừng đột ngột (tín hiệu {{signal}}). Mã tham chiếu chẩn đoán: {{reference}}",
   "error.claude_code_exit.start": "Không thể khởi động Claude Code. Mã tham chiếu chẩn đoán: {{reference}}",
+  "error.claude_code_out_of_turn_approval": "Cherry Studio đã chặn một yêu cầu sử dụng công cụ vì không thể hiển thị yêu cầu phê duyệt trong lượt đang hoạt động. Hãy dừng mọi tác vụ còn đang chạy, sau đó gửi một tin nhắn mới trong phiên này để yêu cầu tác nhân thử lại. Yêu cầu bị chặn chưa được thực thi.",
   "error.content": "Nội dung",
   "error.data": "Dữ liệu",
   "error.detail": "Chi tiết lỗi",

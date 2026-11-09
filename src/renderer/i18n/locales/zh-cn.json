@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.code": "Claude Code 意外退出（代码 {{code}}）。诊断参考号：{{reference}}",
   "error.claude_code_exit.signal": "Claude Code 意外停止（信号 {{signal}}）。诊断参考号：{{reference}}",
   "error.claude_code_exit.start": "Claude Code 无法启动。诊断参考号：{{reference}}",
+  "error.claude_code_out_of_turn_approval": "Cherry Studio 已阻止一个工具请求，因为无法在当前轮次中显示其审批。请停止仍在运行的任务，然后在此会话中发送新消息，要求智能体重试。被阻止的请求并未执行。",
   "error.content": "内容",
   "error.data": "数据",
   "error.detail": "错误详情",

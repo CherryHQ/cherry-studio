@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.code": "Claude Code неожиданно завершил работу (код {{code}}). Ссылка на диагностику: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code был неожиданно остановлен (сигнал {{signal}}). Ссылка на диагностику: {{reference}}",
   "error.claude_code_exit.start": "Не удалось запустить Claude Code. Ссылка на диагностику: {{reference}}",
+  "error.claude_code_out_of_turn_approval": "Cherry Studio заблокировал запрос инструмента, поскольку не удалось показать запрос на подтверждение в текущем ходе. Остановите все оставшиеся запуски, затем отправьте новое сообщение в этой сессии с просьбой к агенту повторить попытку. Заблокированный запрос не был выполнен.",
   "error.content": "Содержание",
   "error.data": "данные",
   "error.detail": "Детали ошибки",

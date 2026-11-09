@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.code": "Claude Code ออกโดยไม่คาดคิด (รหัส {{code}}) เอกสารอ้างอิง: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code หยุดโดยไม่คาดคิด (สัญญาณ {{signal}}) เอกสารอ้างอิง: {{reference}}",
   "error.claude_code_exit.start": "ไม่สามารถเริ่ม Claude Code ได้ เอกสารอ้างอิง: {{reference}}",
+  "error.claude_code_out_of_turn_approval": "Cherry Studio บล็อกคำขอใช้เครื่องมือเนื่องจากไม่สามารถแสดงคำขออนุมัติในเทิร์นที่ใช้งานอยู่ได้ ให้หยุดการทำงานที่ยังดำเนินอยู่ แล้วส่งข้อความใหม่ในเซสชันนี้เพื่อขอให้เอเจนต์ลองอีกครั้ง คำขอที่ถูกบล็อกไม่ได้ถูกดำเนินการ",
   "error.content": "เนื้อหา",
   "error.data": "ข้อมูล",
   "error.detail": "รายละเอียดข้อผิดพลาด",

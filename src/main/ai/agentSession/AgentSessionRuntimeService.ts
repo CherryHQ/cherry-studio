@@ -3196,6 +3196,46 @@ export class AgentSessionRuntimeService extends BaseService {
     return { windowId, topicId: entry.topicId, model: entry.modelId }
   }
 
+  reportOutOfTurnApprovalDenied(sessionId: string): void {
+    const entry = this.entries.get(sessionId)
+    if (!entry || this.getInteractionState(sessionId).currentTurn === 'headless') return
+    const backgroundResponder = getAgentSessionRuntimeOccupancy(entry.runtimeState)?.background?.responder
+    if (backgroundResponder === 'headless') return
+    const turn = this.currentTurn(entry)
+    if (backgroundResponder !== 'interactive' && (!turn || turn.headless === true)) return
+
+    try {
+      agentSessionMessageService.saveMessage(
+        {
+          sessionId,
+          message: {
+            role: 'assistant',
+            status: 'error',
+            modelId: null,
+            messageSnapshot: null,
+            data: {
+              parts: [
+                {
+                  type: 'data-error',
+                  data: {
+                    name: 'OutOfTurnApprovalDenied',
+                    code: 'OUT_OF_TURN_APPROVAL_DENIED',
+                    i18nKey: 'claude_code_out_of_turn_approval',
+                    message:
+                      'Cherry Studio blocked a tool request because its approval could not be presented in the active turn. Stop any remaining run, then send a new message in this session asking the agent to retry. The blocked request was not executed.'
+                  }
+                }
+              ]
+            }
+          }
+        },
+        { publishDataChange: true }
+      )
+    } catch (error) {
+      logger.error('Failed to persist out-of-turn approval denial notice', { sessionId, error })
+    }
+  }
+
   getInteractionState(sessionId: string): AgentSessionInteractionState {
     const entry = this.entries.get(sessionId)
     if (!entry) return { currentTurn: 'none', userResponse: 'unavailable' }
