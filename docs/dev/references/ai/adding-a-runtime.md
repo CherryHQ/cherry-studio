@@ -86,6 +86,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      own native validation and opaque checkpoint remapping here, stage artifacts through
      the host, and declare the artifact paths the runtime owns. See
      [Managed workspace relocation](./agent-session-runtime.md#managed-workspace-relocation).
+   - Optional desktop history: implement `fork` and a synchronous, side-effect-free
+     `isForkCheckpoint(value)` using the adapter's native checkpoint schema. Message
+     listing uses this predicate without loading the SDK, opening storage or starting
+     execution. The fork operation still verifies native history before publication.
    - Optional: `prewarmSession` / `closeSessionWarm` / `onSessionIdle` for
      runtimes that benefit from idle warmup (see the Claude driver).
 

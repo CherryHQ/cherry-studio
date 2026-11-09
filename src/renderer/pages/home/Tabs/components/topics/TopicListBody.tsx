@@ -94,6 +94,8 @@ interface TopicListBodyProps {
   onAutoRename: (topic: Topic) => Promise<void>
   onClearMessages: (topic: Topic) => void
   onDeleteFromMenu: (topic: Topic) => Promise<void>
+  onDeletePermanently: (topic: Topic) => Promise<void>
+  permanentDeleteShortcut: string
   onMoveToAssistant: (topic: Topic, assistantId: string) => void | Promise<void>
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void
@@ -122,6 +124,8 @@ export function TopicListBody(props: TopicListBodyProps) {
     onAutoRename,
     onClearMessages,
     onDeleteFromMenu,
+    onDeletePermanently,
+    permanentDeleteShortcut,
     onMoveToAssistant,
     onOpenInNewTab,
     onOpenInNewWindow,
@@ -145,6 +149,8 @@ export function TopicListBody(props: TopicListBodyProps) {
       onAutoRename,
       onClearMessages,
       onDeleteFromMenu,
+      onDeletePermanently,
+      permanentDeleteShortcut,
       onMoveToAssistant,
       onOpenInNewTab,
       onOpenInNewWindow,
@@ -165,6 +171,8 @@ export function TopicListBody(props: TopicListBodyProps) {
       onAutoRename,
       onClearMessages,
       onDeleteFromMenu,
+      onDeletePermanently,
+      permanentDeleteShortcut,
       onMoveToAssistant,
       onOpenInNewTab,
       onOpenInNewWindow,
@@ -226,6 +234,8 @@ const TopicRow = memo(function TopicRow({
   onAutoRename,
   onClearMessages,
   onDeleteFromMenu,
+  onDeletePermanently,
+  permanentDeleteShortcut,
   onMoveToAssistant,
   onOpenInNewTab,
   onOpenInNewWindow,
@@ -299,6 +309,8 @@ const TopicRow = memo(function TopicRow({
     onClearMessages,
     onCopyImage: (topic) => onRequestTopicImageAction('copy', topic),
     onDelete: onDeleteFromMenu,
+    onDeletePermanently,
+    permanentDeleteShortcut,
     onExportImage: (topic) => onRequestTopicImageAction('export', topic),
     onMoveToAssistant,
     onOpenInNewTab,
