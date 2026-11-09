@@ -14,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ImageCaptureEvent } from '@renderer/utils/image'
 
+import { Chart } from '../../Chart'
+import type { PieChartProps } from '../../types'
 import { Echarts } from '../Echarts'
 
 const instance = vi.hoisted(() => ({
@@ -155,6 +157,42 @@ describe('Echarts', () => {
         replaceMerge: expect.not.arrayContaining(['legend', 'timeline'])
       })
     )
+  })
+})
+
+describe('Chart timeline selection', () => {
+  it('preserves the selected frame for equal prop values and applies changed data', async () => {
+    vi.useFakeTimers()
+    const frames = [10, 20, 30].map((value, index) => ({
+      label: `Day ${index + 1}`,
+      data: [{ name: 'Model A', value }]
+    }))
+    const props: PieChartProps = {
+      type: 'pie',
+      ariaLabel: 'Usage',
+      data: frames[2].data,
+      option: { legend: {} },
+      timeline: { currentIndex: 2, frames }
+    }
+    const view = render(<Chart {...props} />)
+    const container = view.container.querySelector<HTMLDivElement>('[data-image-capture-content]')!
+    const chart = echarts.getInstanceByDom(container)!
+    const currentIndex = () => (chart.getOption().timeline as TimelineComponentOption[])[0].currentIndex
+
+    await act(async () => vi.advanceTimersToNextFrame())
+    expect(currentIndex()).toBe(2)
+
+    act(() => chart.dispatchAction({ type: 'timelineChange', currentIndex: 0 }))
+    await act(async () => vi.advanceTimersToNextFrame())
+    expect(currentIndex()).toBe(0)
+
+    view.rerender(<Chart {...{ ...props }} />)
+    await act(async () => vi.advanceTimersToNextFrame())
+    expect(currentIndex()).toBe(0)
+
+    view.rerender(<Chart {...props} data={[{ name: 'Model B', value: 40 }]} />)
+    await act(async () => vi.advanceTimersToNextFrame())
+    expect(currentIndex()).toBe(2)
   })
 })
 

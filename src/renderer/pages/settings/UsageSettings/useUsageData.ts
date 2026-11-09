@@ -128,6 +128,7 @@ export function useUsageData({
   const aggregateResults = [
     timelineQueryResult,
     overviewStatsResult,
+    previousOverviewStatsResult,
     exploreStatsResult,
     ...(rollup === 'total' ? [] : [exploreTimelineResult])
   ]

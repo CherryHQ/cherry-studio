@@ -3,6 +3,7 @@ import { lazy, Suspense, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState, Skeleton } from '@cherrystudio/ui'
+import type { ChartProps } from '@renderer/components/Chart'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 import type {
@@ -139,9 +140,58 @@ export function UsageDistributionChart({
     },
     [dateFormatter, monthFormatter, range.from, range.to, rollup]
   )
-  const tooltip = {
-    valueFormatter: (value: unknown) => formatChartValue(Number(value))
-  }
+  const tooltip = useMemo(
+    () => ({ valueFormatter: (value: unknown) => formatChartValue(Number(value)) }),
+    [formatChartValue]
+  )
+  const names = useMemo(
+    () =>
+      makeUniqueNames(chartSeries.map((item) => (item.identity ? getBucketLabel(item.identity) : t('common.other')))),
+    [chartSeries, getBucketLabel, t]
+  )
+  const frames = useMemo(
+    () =>
+      rollup === 'total'
+        ? []
+        : periodKeys.map((periodKey, periodIndex) => ({
+            label: formatPeriod(periodKey),
+            data: chartSeries.map((item, seriesIndex) => ({
+              name: names[seriesIndex],
+              value: item.values[periodIndex] ?? 0
+            }))
+          })),
+    [chartSeries, formatPeriod, names, periodKeys, rollup]
+  )
+  const currentIndex = useMemo(() => {
+    let index = Math.max(0, frames.length - 1)
+    while (index > 0 && frames[index].data.every((item) => item.value <= 0)) index -= 1
+    return index
+  }, [frames])
+  const timeline = useMemo(() => ({ currentIndex, frames }), [currentIndex, frames])
+  const data = useMemo(
+    () =>
+      rollup === 'total'
+        ? chartSeries.map((item, index) => ({ name: names[index], value: item.total }))
+        : (frames[currentIndex]?.data ?? []),
+    [chartSeries, currentIndex, frames, names, rollup]
+  )
+  const pieOption = useMemo(() => ({ tooltip, legend: {} }), [tooltip])
+  const cartesianOption = useMemo<Extract<ChartProps, { type: 'bar' | 'line' }>['option']>(
+    () => ({
+      tooltip,
+      ...(rollup === 'total'
+        ? {}
+        : {
+            legend: {},
+            xAxis: { axisPointer: { type: chartType === 'bar' ? 'shadow' : 'line' } }
+          }),
+      yAxis: {
+        minInterval: chartMetric === 'cost' ? undefined : 1,
+        axisLabel: { formatter: (value: number) => formatChartValue(value) }
+      }
+    }),
+    [chartMetric, chartType, formatChartValue, rollup, tooltip]
+  )
   const isEmpty = periodKeys.length === 0 || chartSeries.every((series) => series.total <= 0)
 
   const isLoading = rollup === 'total' ? exploreStatsLoading : exploreTimelineLoading
@@ -164,10 +214,6 @@ export function UsageDistributionChart({
       />
     )
   }
-
-  const names = makeUniqueNames(
-    chartSeries.map((item) => (item.identity ? getBucketLabel(item.identity) : t('common.other')))
-  )
 
   if (rollup === 'total') {
     return (
@@ -202,8 +248,8 @@ export function UsageDistributionChart({
                   type="pie"
                   ariaLabel={t(CHART_TYPE_LABEL_KEYS.pie)}
                   className="h-80"
-                  data={chartSeries.map((item, index) => ({ name: names[index], value: item.total }))}
-                  option={{ tooltip, legend: {} }}
+                  data={data}
+                  option={pieOption}
                 />
               ) : (
                 <Chart
@@ -212,13 +258,7 @@ export function UsageDistributionChart({
                   className="h-80"
                   categories={names}
                   series={[{ name: t(METRIC_LABEL_KEYS[chartMetric]), values: chartSeries.map((item) => item.total) }]}
-                  option={{
-                    tooltip,
-                    yAxis: {
-                      minInterval: chartMetric === 'cost' ? undefined : 1,
-                      axisLabel: { formatter: (value: number) => formatChartValue(value) }
-                    }
-                  }}
+                  option={cartesianOption}
                 />
               )}
             </Suspense>
@@ -229,18 +269,6 @@ export function UsageDistributionChart({
   }
 
   if (chartType === 'pie') {
-    const frames = periodKeys.map((periodKey, periodIndex) => ({
-      label: formatPeriod(periodKey),
-      data: chartSeries.map((item, seriesIndex) => ({
-        name: names[seriesIndex],
-        value: item.values[periodIndex] ?? 0
-      }))
-    }))
-    let currentIndex = Math.max(0, frames.length - 1)
-    while (currentIndex > 0 && frames[currentIndex].data.every((item) => item.value <= 0)) {
-      currentIndex -= 1
-    }
-
     return (
       <div data-usage-export-chart data-usage-export-chart-pending={isLoading || undefined} className="min-w-0 p-3">
         <Suspense fallback={<Skeleton data-usage-export-chart-pending className="h-80 rounded-md" />}>
@@ -248,11 +276,11 @@ export function UsageDistributionChart({
             type="pie"
             ariaLabel={t(CHART_TYPE_LABEL_KEYS.pie)}
             className="h-80"
-            data={frames[currentIndex]?.data ?? []}
+            data={data}
             loading={exploreTimelineLoading}
             loadingLabel={t('settings.usage.explore.loading')}
-            timeline={{ currentIndex, frames }}
-            option={{ tooltip, legend: {} }}
+            timeline={timeline}
+            option={pieOption}
           />
         </Suspense>
       </div>
@@ -278,15 +306,7 @@ export function UsageDistributionChart({
           series={series}
           stack="total"
           visibleCategoryCount={rollup === 'daily' ? 30 : 16}
-          option={{
-            tooltip,
-            legend: {},
-            xAxis: { axisPointer: { type: chartType === 'bar' ? 'shadow' : 'line' } },
-            yAxis: {
-              minInterval: chartMetric === 'cost' ? undefined : 1,
-              axisLabel: { formatter: (value: number) => formatChartValue(value) }
-            }
-          }}
+          option={cartesianOption}
         />
       </Suspense>
     </div>
