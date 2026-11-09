@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import type * as CommandComponents from '@renderer/components/command'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { TreeNode, TreeResponse } from '@shared/data/types/message'
@@ -49,7 +50,7 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: { emit: mocks.eventEmit }
 }))
 
-vi.mock('@renderer/components/command', async () => {
+vi.mock('@renderer/components/command', async (importOriginal) => {
   const React = await import('react')
   type MockExtraItem = {
     id?: string
@@ -60,6 +61,7 @@ vi.mock('@renderer/components/command', async () => {
   }
 
   return {
+    ...(await importOriginal<typeof CommandComponents>()),
     CommandContextMenu: ({
       children,
       getExtraItems,

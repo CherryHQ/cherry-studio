@@ -223,6 +223,20 @@ describe('Topics helpers', () => {
     ])
   })
 
+  it('orders time-mode rows by orderKey inside each group when manualOrder is set', () => {
+    const now = new Date(2026, 4, 15, 12)
+    const topics = [
+      createTopic({ id: 'today-b', lastActivityAt: localIso(2026, 5, 15, 9), orderKey: 'b' }),
+      createTopic({ id: 'today-a', lastActivityAt: localIso(2026, 5, 15, 8), orderKey: 'a' }),
+      createTopic({ id: 'week', lastActivityAt: localIso(2026, 5, 13, 9), orderKey: '0' }),
+      createTopic({ id: 'pinned', pinned: true, lastActivityAt: localIso(2026, 5, 8, 23), orderKey: 'z' })
+    ]
+
+    expect(
+      sortTopicsForDisplayGroups(topics, { manualOrder: true, mode: 'time', now }).map((topic) => topic.id)
+    ).toEqual(['pinned', 'today-a', 'today-b', 'week'])
+  })
+
   it('keeps pinned topics inside their assistant display group', () => {
     const groupTopic = createTopicDisplayGroupResolver({
       assistantById: new Map([
