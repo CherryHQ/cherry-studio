@@ -12,7 +12,6 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
-import { sideChatTable } from '@data/db/schemas/sideChat'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -44,6 +43,7 @@ import {
   encodePinCursor
 } from './utils/pinnedListCursor'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
+import { sideChatRootFilter, sideChatSourceTopicId } from './utils/sideChatRoot'
 
 const logger = loggerService.withContext('DataApi:TopicService')
 
@@ -55,7 +55,12 @@ const SQLITE_INSERT_CHUNK = 100
 function ordinaryTopicFilter(): SQL {
   return notInArray(
     topicTable.id,
-    application.get('DbService').getDb().select({ id: sideChatTable.topicId }).from(sideChatTable)
+    application
+      .get('DbService')
+      .getDb()
+      .select({ id: messageTable.topicId })
+      .from(messageTable)
+      .where(sideChatRootFilter())
   )
 }
 
@@ -63,12 +68,13 @@ function associatedSideChatIds(tx: DbOrTx, sourceIds: readonly string[], activeO
   const ids: string[] = []
   for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
     const rows = tx
-      .select({ id: sideChatTable.topicId })
-      .from(sideChatTable)
-      .innerJoin(topicTable, eq(topicTable.id, sideChatTable.topicId))
+      .select({ id: messageTable.topicId })
+      .from(messageTable)
+      .innerJoin(topicTable, eq(topicTable.id, messageTable.topicId))
       .where(
         and(
-          inArray(sideChatTable.sourceTopicId, sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)),
+          sideChatRootFilter(),
+          inArray(sideChatSourceTopicId, sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)),
           activeOnly ? isNull(topicTable.deletedAt) : undefined
         )
       )
@@ -623,12 +629,6 @@ export class TopicService {
     const children = associatedSideChatIds(tx, deletedIds)
     const alreadyDeleted = new Set(deletedIds)
     deletedIds.push(...children.filter((id) => !alreadyDeleted.has(id)))
-    // Remove links first so a source and its children can be purged in separate SQL chunks.
-    for (let i = 0; i < deletedIds.length; i += SQLITE_INARRAY_CHUNK) {
-      tx.delete(sideChatTable)
-        .where(inArray(sideChatTable.topicId, deletedIds.slice(i, i + SQLITE_INARRAY_CHUNK)))
-        .run()
-    }
     for (let i = 0; i < deletedIds.length; i += SQLITE_INARRAY_CHUNK) {
       const chunk = deletedIds.slice(i, i + SQLITE_INARRAY_CHUNK)
       messageService.purgeByTopicIdsTx(tx, chunk)
@@ -649,9 +649,9 @@ export class TopicService {
         .get()
       if (!original) throw DataApiErrorFactory.notFound('Topic', id)
       const children = tx
-        .select({ id: sideChatTable.topicId })
-        .from(sideChatTable)
-        .where(eq(sideChatTable.sourceTopicId, id))
+        .select({ id: messageTable.topicId })
+        .from(messageTable)
+        .where(and(sideChatRootFilter(), eq(sideChatSourceTopicId, id)))
       tx.update(topicTable)
         .set({ deletedAt: null })
         .where(and(inArray(topicTable.id, children), eq(topicTable.deletedAt, original.deletedAt!)))

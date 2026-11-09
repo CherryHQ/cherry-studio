@@ -2,13 +2,13 @@ import { and, count, eq, isNull } from 'drizzle-orm'
 
 import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
-import { sideChatTable } from '@data/db/schemas/sideChat'
 import { topicTable } from '@data/db/schemas/topic'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Message } from '@shared/data/types/message'
 import {
   SideChatConfigSchema,
   SideChatSourceSchema,
+  SideChatRootDataSchema,
   type SideChatConfig,
   type SideChatMetadata,
   type SideChatSnapshot,
@@ -17,6 +17,7 @@ import {
 
 import { messageService } from './MessageService'
 import { topicService } from './TopicService'
+import { sideChatRootFilter, sideChatSourceTopicId } from './utils/sideChatRoot'
 
 function textOf(message: Message): string {
   return message.data.parts
@@ -54,13 +55,16 @@ export class SideChatService {
   }
 
   find(topicId: string) {
-    return application
+    const root = application
       .get('DbService')
       .getDb()
       .select()
-      .from(sideChatTable)
-      .where(eq(sideChatTable.topicId, topicId))
+      .from(messageTable)
+      .where(and(eq(messageTable.topicId, topicId), sideChatRootFilter()))
       .get()
+    if (!root) return undefined
+    const { sourceTopicId, snapshot, config } = SideChatRootDataSchema.parse(root.data).sideChat
+    return { topicId, sourceTopicId, metadata: { snapshot, config } }
   }
 
   create(source: SideChatSource, config: SideChatConfig) {
@@ -68,7 +72,14 @@ export class SideChatService {
     const row = application.get('DbService').withWriteTx((tx) => {
       const metadata: SideChatMetadata = { snapshot: this.captureSource(source), config: parsedConfig }
       const topic = topicService.createTx(tx, { name: '' })
-      tx.insert(sideChatTable).values({ topicId: topic.id, sourceTopicId: source.topicId, metadata }).run()
+      const data = SideChatRootDataSchema.parse({
+        parts: [],
+        sideChat: { ...metadata, sourceTopicId: source.topicId, version: 1 }
+      })
+      tx.update(messageTable)
+        .set({ data })
+        .where(and(eq(messageTable.topicId, topic.id), eq(messageTable.role, 'root')))
+        .run()
       return { topicId: topic.id, sourceTopicId: source.topicId, metadata }
     })
     topicService.notifyReadModelChange([row.topicId], 'membership')
@@ -89,15 +100,13 @@ export class SideChatService {
       .get('DbService')
       .getDb()
       .select({
-        topicId: sideChatTable.topicId,
-        sourceTopicId: sideChatTable.sourceTopicId,
-        metadata: sideChatTable.metadata
+        topicId: messageTable.topicId
       })
-      .from(sideChatTable)
-      .innerJoin(topicTable, eq(topicTable.id, sideChatTable.topicId))
-      .where(and(eq(sideChatTable.sourceTopicId, sourceTopicId), isNull(topicTable.deletedAt)))
+      .from(messageTable)
+      .innerJoin(topicTable, eq(topicTable.id, messageTable.topicId))
+      .where(and(sideChatRootFilter(), eq(sideChatSourceTopicId, sourceTopicId), isNull(topicTable.deletedAt)))
       .all()
-      .map((row) => ({ ...row, questionCount: this.questionCount(row.topicId) }))
+      .map((row) => this.get(row.topicId))
   }
 
   questionCount(topicId: string): number {
@@ -114,9 +123,13 @@ export class SideChatService {
     const parsed = SideChatConfigSchema.parse(config)
     application.get('DbService').withWriteTx((tx) => {
       const row = this.get(topicId)
-      tx.update(sideChatTable)
-        .set({ metadata: { ...row.metadata, config: parsed } })
-        .where(eq(sideChatTable.topicId, topicId))
+      const data = SideChatRootDataSchema.parse({
+        parts: [],
+        sideChat: { ...row.metadata, config: parsed, sourceTopicId: row.sourceTopicId, version: 1 }
+      })
+      tx.update(messageTable)
+        .set({ data })
+        .where(and(eq(messageTable.topicId, topicId), sideChatRootFilter()))
         .run()
     })
     topicService.notifyReadModelChange([topicId], 'projection')
