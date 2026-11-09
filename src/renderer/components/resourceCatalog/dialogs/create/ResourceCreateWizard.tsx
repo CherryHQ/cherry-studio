@@ -45,7 +45,7 @@ export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
 }
 
 function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): ResourceCreateWizardFormValues {
-  const agentType = kind === 'agent' ? 'pi' : 'claude-code'
+  const agentType = kind === 'agent' ? 'pi-durable' : 'claude-code'
   return {
     avatar: getResourceCreateDefaultAvatar(kind),
     name: initialName,
