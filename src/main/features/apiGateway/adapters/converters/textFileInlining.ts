@@ -58,17 +58,20 @@ export function inlineTextFileContent(mediaType: string, url: string): string | 
 
 /** Percent escapes are bytes, including in non-UTF-8 data URLs. */
 function decodePercentBytes(value: string): Buffer {
-  const chunks: Buffer[] = []
+  // Escapes shrink three ASCII code units to one byte. This is an upper bound
+  // even for literal Unicode, and keeps allocations independent of escape count.
+  const bytes = Buffer.allocUnsafe(Buffer.byteLength(value))
+  let offset = 0
   let start = 0
   for (let index = 0; index < value.length; index++) {
     if (value[index] !== '%') continue
-    if (index > start) chunks.push(Buffer.from(value.slice(start, index)))
+    if (index > start) offset += bytes.write(value.slice(start, index), offset)
     const escape = value.slice(index + 1, index + 3)
     if (!/^[\da-f]{2}$/i.test(escape)) throw new URIError('Malformed data URL percent escape')
-    chunks.push(Buffer.from([Number.parseInt(escape, 16)]))
+    bytes[offset++] = Number.parseInt(escape, 16)
     index += 2
     start = index + 1
   }
-  if (start < value.length) chunks.push(Buffer.from(value.slice(start)))
-  return Buffer.concat(chunks)
+  if (start < value.length) offset += bytes.write(value.slice(start), offset)
+  return bytes.subarray(0, offset)
 }

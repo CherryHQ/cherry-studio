@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { inlineTextFileContent } from '../converters/textFileInlining'
 
@@ -27,6 +27,23 @@ describe('inlineTextFileContent encodings', () => {
   })
   it('retains legacy autodetection when bytes are not valid UTF-8', () => {
     expect(inlineTextFileContent('text/plain', 'data:text/plain;base64,dGhlIGVuZCDp')).toBe('the end é')
+  })
+  it('decodes a large percent payload with one destination allocation', () => {
+    const count = 200_000
+    const from = vi.spyOn(Buffer, 'from')
+    const allocate = vi.spyOn(Buffer, 'allocUnsafe')
+    try {
+      expect(inlineTextFileContent('text/plain', `data:text/plain,${'%41'.repeat(count)}`)).toBe('A'.repeat(count))
+      expect(from.mock.calls.length).toBe(0)
+      expect(allocate).toHaveBeenCalledTimes(1)
+      expect(allocate).toHaveBeenCalledWith(count * 3)
+    } finally {
+      from.mockRestore()
+      allocate.mockRestore()
+    }
+  })
+  it('preserves interleaved literal Unicode, escaped bytes and trailing text', () => {
+    expect(inlineTextFileContent('text/plain', 'data:text/plain,中文%20%C3%A9+文%00end')).toBe('中文 é+文\0end')
   })
   it.each(['%', '%A', '%GG'])('rejects malformed percent escape %s', (suffix) => {
     expect(() => inlineTextFileContent('text/plain', `data:text/plain,${suffix}`)).toThrow(URIError)
