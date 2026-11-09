@@ -33,10 +33,8 @@ describe('per-model api key routing migration: upgrade from main', () => {
     root = null
   })
 
-  // 0028 is main's knowledge_item rebuild, 0029 is main's conversion-recovery backfill, 0030 is
-  // this PR's column. Cover all starting points: a database from before main's 0028, one at main's
-  // 0028, and one already at main's current head (main's 0029 applied).
-  it.each(['0028', '0029', '0030'])(
+  // Cover old knowledge migrations and the current main chain before this PR's 0036 column.
+  it.each(['0028', '0029', '0030', '0036'])(
     'upgrades a populated database stopped before %s, keeping rows and adding a null api_key_id',
     (stopTag) => {
       root = mkdtempSync(join(tmpdir(), 'cs-api-key-migration-'))

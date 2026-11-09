@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process'
+import { type ChildProcess, execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
@@ -13,7 +13,7 @@ import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
 import { atomicWriteFile, remove } from '@main/utils/file'
-import { crossPlatformSpawn, removeEnvProxy } from '@main/utils/processRunner'
+import { crossPlatformSpawn, removeEnvProxy, terminateProcessTree } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
 import {
@@ -44,6 +44,12 @@ const DEFAULT_GATEWAY_PORT = 18790
 const GATEWAY_PROBE_INTERVAL_MS = 5000
 const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
 const OPENCLAW_SCHEMA_TIMEOUT_MS = 30000
+const OPENCLAW_VERSION_TIMEOUT_MS = 5000
+// These messages indicate that the CLI does not recognize the subcommand.
+const OPENCLAW_UNSUPPORTED_SCHEMA_COMMAND =
+  /(?:unknown|unrecognized|invalid) (?:command|subcommand)\b|too many arguments for ['"]config['"]|not a command/i
+const OPENCLAW_WARNING_LINE =
+  /^\s*(?:(?:\(node:\d+\)\s+)?(?:\[DEP\d+\]\s+)?(?:ExperimentalWarning|DeprecationWarning|Warning|TimeoutOverflowWarning):|\(Use `node --trace-(?:warnings|deprecation) .*\))/
 const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
 const OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES = 32 * 1024 * 1024
 const OPENCLAW_DIAGNOSTIC_LIMIT = 2000
@@ -55,10 +61,12 @@ type OpenClawPreflightFailureKind =
   | 'external_config_invalid'
   | 'preflight_failed'
   | 'preflight_timeout'
+  | 'schema_check_failed'
 
 type OpenClawRuntime = {
   path: AbsoluteFilePath
   env: Record<string, string>
+  version?: string
 }
 
 type OpenClawCommandResult = {
@@ -403,6 +411,7 @@ export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
+  private gatewayProcess?: { child: ChildProcess; port: number }
   // Bumped by every setGatewayStatus; probes discard results from an older generation.
   private gatewayTransitionId = 0
 
@@ -439,7 +448,10 @@ export class OpenClawService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    await this.stopGateway()
+    const owned = this.gatewayProcess
+    if (owned && owned.child.exitCode === null && owned.child.signalCode === null) {
+      await terminateProcessTree(owned.child, true, 'OpenClaw gateway')
+    }
   }
 
   /** Single gateway-status-transition point for the main-owned shared snapshot. */
@@ -513,6 +525,7 @@ export class OpenClawService extends BaseService {
 
     return {
       path: AbsoluteFilePathSchema.parse(openclaw.path),
+      ...(openclaw.source !== 'system' ? { version: openclaw.version } : {}),
       env: openclaw.source === 'system' ? await getRawShellEnv() : managedShellEnv
     }
   }
@@ -740,26 +753,108 @@ export class OpenClawService extends BaseService {
       this.throwSchemaCapabilityError(error instanceof Error ? error.message : String(error))
     }
 
-    if (result.exitCode !== 0) {
-      const stderrSummary = result.stderr.trim().split(/\r?\n/, 1)[0]
-      this.throwSchemaCapabilityError(
-        `config schema exited with code ${result.exitCode}${stderrSummary ? `: ${stderrSummary}` : ''}`
-      )
-    }
     if (result.outputTruncated) {
       this.throwSchemaCapabilityError('config schema output exceeded the capture limit')
     }
 
     let schema: unknown
+    let validJson = true
     try {
       schema = JSON.parse(result.stdout)
     } catch {
-      this.throwSchemaCapabilityError('config schema did not return valid JSON')
+      validJson = false
     }
-    if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
-      this.throwSchemaCapabilityError('config schema did not return a top-level object')
+    if (schema !== null && typeof schema === 'object' && !Array.isArray(schema)) {
+      if (result.stderr.trim()) {
+        logger.warn('OpenClaw schema capability check warning', { summary: this.sanitizeDiagnostic(result.stderr) })
+      }
+      return schema
     }
-    return schema
+    if (result.exitCode === 0) {
+      this.throwSchemaCapabilityError(
+        validJson ? 'config schema did not return a top-level object' : 'config schema did not return valid JSON'
+      )
+    }
+
+    const stderrSummary = this.firstMeaningfulStderrLine(result.stderr)
+    const stderrDetails = stderrSummary
+      ? `: ${stderrSummary.kind === 'warnings-only' ? 'stderr carried only warnings: ' : ''}${stderrSummary.line}`
+      : ''
+    const diagnostic = `config schema exited with code ${result.exitCode}${stderrDetails}`
+    if (
+      stderrSummary &&
+      stderrSummary.kind !== 'warnings-only' &&
+      OPENCLAW_UNSUPPORTED_SCHEMA_COMMAND.test(stderrSummary.line)
+    ) {
+      this.throwSchemaCapabilityError(diagnostic)
+    }
+    const summary = this.sanitizeDiagnostic(
+      `config schema check failed with exit code ${result.exitCode}${stderrDetails}`
+    )
+    const version = this.sanitizeDiagnostic(runtime.version ?? (await this.detectOpenClawVersion(runtime)))
+    logger.warn('OpenClaw schema capability check failed', { summary })
+    throw new OpenClawPreflightError(
+      'schema_check_failed',
+      t('openclaw.errors.schema_check_failed', { version, details: `\n${summary}` })
+    )
+  }
+
+  private firstMeaningfulStderrLine(
+    stderr: string
+  ): { kind: 'error' | 'other' | 'warnings-only'; line: string } | undefined {
+    let warning: string | undefined
+    let inWarning = false
+    let other: string | undefined
+    for (const line of stderr.split(/\r?\n/).filter((line) => line.trim())) {
+      if (OPENCLAW_WARNING_LINE.test(line)) {
+        warning ??= line.trim()
+        inWarning = true
+        continue
+      }
+      const isStackFrame = /^\s+at\s|^\s*node:internal\//.test(line)
+      if (inWarning && /^\s/.test(line) && !isStackFrame) continue
+      inWarning = false
+      if (
+        /^\s*(?:Error(?: \[[A-Z0-9_]+\])?:|TypeError:|RangeError:|SyntaxError:|ReferenceError:|ERR_[A-Z0-9_]+|error:|error |[A-Z][A-Z0-9_]{2,}:)/.test(
+          line
+        )
+      ) {
+        return { kind: 'error', line: line.trim() }
+      } else if (!isStackFrame && !/^Node\.js v\d/.test(line)) {
+        other ??= line.trim()
+      }
+    }
+    if (other) return { kind: 'other', line: other }
+    if (warning) return { kind: 'warnings-only', line: warning }
+    return undefined
+  }
+
+  private async detectOpenClawVersion(runtime: OpenClawRuntime): Promise<string> {
+    try {
+      const result = await this.runOpenClawCommand(runtime.path, ['--version'], runtime.env, {
+        timeoutMs: OPENCLAW_VERSION_TIMEOUT_MS
+      })
+      if (result.exitCode !== 0) return 'unknown'
+      const versionPattern = /\d+\.\d+\.\d+(?:[-+][\w.]+)?/
+      for (const [output, isStderr] of [
+        [result.stdout, false],
+        [result.stderr, true]
+      ] as const) {
+        const line = output
+          .split(/\r?\n/)
+          .find(
+            (item) =>
+              item.trim() &&
+              !OPENCLAW_WARNING_LINE.test(item) &&
+              (!isStderr || !/^\s*Node\.js\b|^\s*node:|^\s+at\s/.test(item))
+          )
+        const version = line?.match(versionPattern)?.[0]
+        if (version) return version
+      }
+      return 'unknown'
+    } catch {
+      return 'unknown'
+    }
   }
 
   private throwSchemaCapabilityError(diagnostic: string): never {
@@ -855,6 +950,7 @@ export class OpenClawService extends BaseService {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })
+    this.gatewayProcess = { child: proc, port: this.gatewayPort }
     proc.unref()
 
     // Collect early exit errors (e.g. binary crash on startup)
@@ -871,6 +967,7 @@ export class OpenClawService extends BaseService {
       earlyExitError = err.message
     })
     proc.on('exit', (code) => {
+      if (this.gatewayProcess?.child === proc) this.gatewayProcess = undefined
       // Capture output from both streams for diagnostics
       const combinedOutput = [stderrOutput.trim(), stdoutOutput.trim()].filter(Boolean).join('\n')
       const detail = combinedOutput.split('\n').filter(Boolean).slice(0, 5).join('\n')
@@ -923,12 +1020,17 @@ export class OpenClawService extends BaseService {
 
   /**
    * Stop the OpenClaw Gateway.
-   * Kills all openclaw processes to ensure clean shutdown.
+   * Stops verified OpenClaw listeners on the configured gateway port.
    */
   public async stopGateway(): Promise<OperationResult> {
     const transitionBefore = this.gatewayTransitionId
     try {
-      this.killAllOpenClawProcesses()
+      const owned = this.gatewayProcess
+      if (owned?.port === this.gatewayPort && owned.child.exitCode === null && owned.child.signalCode === null) {
+        await terminateProcessTree(owned.child, true, 'OpenClaw gateway')
+      } else {
+        this.killGatewayProcesses()
+      }
 
       const stillRunning = await this.waitForGatewayStop()
       if (stillRunning) {
@@ -949,36 +1051,70 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  /**
-   * Kill all openclaw processes by finding processes on the gateway port.
-   * This works reliably on Windows where process name may show as bun.exe.
-   */
-  private killAllOpenClawProcesses(): void {
-    const currentPid = process.pid
+  private killGatewayProcesses(): void {
     try {
-      if (isWin) {
-        const output = execSync(`netstat -ano | findstr ":${this.gatewayPort}"`, { encoding: 'utf-8' })
-        const pids = new Set<string>()
-        for (const line of output.split('\n')) {
-          const match = line.trim().match(/LISTENING\s+(\d+)/)
-          if (match && Number(match[1]) !== currentPid) {
-            pids.add(match[1])
-          }
+      const output = isWin
+        ? execFileSync('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true })
+        : execFileSync('lsof', ['-t', `-iTCP:${this.gatewayPort}`, '-sTCP:LISTEN'], { encoding: 'utf8' })
+      const candidates = isWin
+        ? output.split(/\r?\n/).flatMap((line) => {
+            const [protocol, local, , state, pid] = line.trim().split(/\s+/)
+            return protocol === 'TCP' && local.endsWith(`:${this.gatewayPort}`) && state === 'LISTENING' ? [pid] : []
+          })
+        : output.trim().split(/\s+/)
+      const pids = new Set(candidates.filter((value) => /^\d+$/.test(value)).map(Number))
+      for (const pid of pids) {
+        if (pid <= 0 || pid === process.pid) continue
+        if (!this.isOpenClawGatewayProcess(pid)) {
+          logger.debug('Preserving an unverified gateway-port listener', { pid, port: this.gatewayPort })
+          continue
         }
-        for (const pid of pids) {
-          try {
-            execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' })
-            logger.info(`Killed process ${pid} on port ${this.gatewayPort}`)
-          } catch {
-            // ignore
-          }
+        try {
+          if (isWin) execFileSync('taskkill', ['/PID', String(pid), '/F'], { stdio: 'ignore', windowsHide: true })
+          else process.kill(pid, 'SIGKILL')
+          logger.info('Stopped gateway listener', { pid, port: this.gatewayPort })
+        } catch (error) {
+          logger.debug('Gateway listener already exited or could not be stopped', { pid, error })
         }
-      } else {
-        execSync('pkill -9 openclaw', { stdio: 'ignore' })
-        logger.info('Killed all openclaw processes')
       }
     } catch {
-      logger.debug('No openclaw processes to kill')
+      logger.debug('No gateway listeners found on the configured port', { port: this.gatewayPort })
+    }
+  }
+
+  private isOpenClawGatewayProcess(pid: number): boolean {
+    try {
+      const command = (
+        isWin
+          ? execFileSync(
+              'powershell.exe',
+              [
+                '-NoProfile',
+                '-NonInteractive',
+                '-Command',
+                `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").CommandLine`
+              ],
+              { encoding: 'utf8', windowsHide: true, timeout: 2000 }
+            )
+          : execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8', timeout: 2000 })
+      ).trim()
+      // OpenClaw sets this title after entering its gateway command on POSIX.
+      if (!isWin && command === 'openclaw-gateway') return true
+      const args = (command.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map((arg) =>
+        arg.replace(/^["']|["']$/g, '').replaceAll('\\', '/')
+      )
+      const executable = path.posix
+        .basename(args[0] ?? '')
+        .toLowerCase()
+        .replace(/\.exe$/, '')
+      if (executable === 'openclaw') return args[1] === 'gateway'
+      return (
+        (executable === 'node' || executable === 'bun') &&
+        /\/openclaw\/(?:openclaw\.mjs|dist\/(?:index|entry)\.js)$/.test(args[1] ?? '') &&
+        args[2] === 'gateway'
+      )
+    } catch {
+      return false
     }
   }
 
@@ -1145,6 +1281,7 @@ export class OpenClawService extends BaseService {
     const provider = providerService.getByProviderId(providerId)
     const primaryModel = modelService.getByKey(providerId, modelId)
     const models = modelService.list({ providerId, enabled: true })
+    const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
 
     this.ensureSyncProviderSupported(provider)
     if (isNonChatModel(primaryModel)) {
@@ -1158,10 +1295,7 @@ export class OpenClawService extends BaseService {
       throw new Error(`Provider ${provider.id} has no API host configured for ${endpointType}`)
     }
 
-    // Provider-level credentials use automatic key selection; per-model bindings are
-    // serialized on each model entry and must not steer the shared provider fallback.
-    const resolvedApiKey = providerService.resolveApiKey(providerId, undefined, undefined)
-    const apiKey = this.resolveSyncApiKey(provider, resolvedApiKey.value)
+    const apiKey = this.resolveSyncApiKey(provider, apiKeys.map((entry) => entry.key).join(','))
 
     return {
       provider: {
@@ -1326,38 +1460,6 @@ export class OpenClawService extends BaseService {
     return 'openai'
   }
 
-  private readExistingOpenClawConfig(): OpenClawConfig {
-    const primaryPath = openclawConfigPath()
-    const legacyPath = openclawLegacyConfigPath()
-    // When legacy exists, migration promotes it over openclaw.json — read the file
-    // that will become canonical so hand-edited legacy settings are not discarded.
-    const sourcePath = fs.existsSync(legacyPath) ? legacyPath : fs.existsSync(primaryPath) ? primaryPath : null
-
-    if (!sourcePath) {
-      return {}
-    }
-
-    const content = fs.readFileSync(sourcePath, 'utf-8')
-    try {
-      return JSON.parse(content) as OpenClawConfig
-    } catch {
-      throw new Error(`Existing OpenClaw config is not valid JSON; fix or remove ${sourcePath}`)
-    }
-  }
-
-  private migrateLegacyOpenClawConfigFiles(): void {
-    if (!fs.existsSync(openclawLegacyConfigPath())) {
-      return
-    }
-
-    if (fs.existsSync(openclawConfigPath())) {
-      fs.renameSync(openclawConfigPath(), openclawConfigBakPath())
-      logger.info('Migrated openclaw.json → openclaw.json.bak')
-    }
-    fs.renameSync(openclawLegacyConfigPath(), openclawConfigPath())
-    logger.info('Migrated openclaw.cherry.json → openclaw.json')
-  }
-
   public async syncProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {
     try {
       const runtime = await this.resolveOpenClawRuntime()
@@ -1368,10 +1470,28 @@ export class OpenClawService extends BaseService {
         fs.mkdirSync(openclawConfigDir(), { recursive: true })
       }
 
+      // Migrate legacy openclaw.cherry.json → openclaw.json
+      if (fs.existsSync(openclawLegacyConfigPath())) {
+        if (fs.existsSync(openclawConfigPath())) {
+          fs.renameSync(openclawConfigPath(), openclawConfigBakPath())
+          logger.info('Migrated openclaw.json → openclaw.json.bak')
+        }
+        fs.renameSync(openclawLegacyConfigPath(), openclawConfigPath())
+        logger.info('Migrated openclaw.cherry.json → openclaw.json')
+      }
+
       // Read existing config. An unparseable file aborts the sync instead of
       // being rebuilt from scratch — silently replacing it would destroy any
       // hand-edited OpenClaw config the user could otherwise repair.
-      const config = this.readExistingOpenClawConfig()
+      let config: OpenClawConfig = {}
+      if (fs.existsSync(openclawConfigPath())) {
+        const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
+        try {
+          config = JSON.parse(content)
+        } catch {
+          throw new Error(`Existing OpenClaw config is not valid JSON; fix or remove ${openclawConfigPath()}`)
+        }
+      }
 
       // Build provider key
       const providerKey = `cherry-${provider.id}`
@@ -1517,7 +1637,6 @@ export class OpenClawService extends BaseService {
       }
 
       const serialized = JSON.stringify(config, null, 2)
-      this.migrateLegacyOpenClawConfigFiles()
       const candidatePath = AbsoluteFilePathSchema.parse(
         path.join(openclawConfigDir(), `openclaw.json.cherry-candidate-${crypto.randomUUID()}`)
       )

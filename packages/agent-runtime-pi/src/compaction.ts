@@ -1,6 +1,6 @@
-import type { Api, Message, Model } from '@earendil-works/pi-ai'
+import type { Api, Message, Model, Usage } from '@earendil-works/pi-ai'
 import { transformMessages } from '@earendil-works/pi-ai/api/transform-messages'
-import { convertToLlm, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { type CompactionSettings, convertToLlm, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 
 import type { CompactionReason } from './sessionEvents'
 
@@ -21,15 +21,15 @@ export interface CompactionSummaryRequest {
  * Host summarizer: its own prompt and model. The text it returns is stored as the compaction summary;
  * Pi frames it when it builds the next context. A rejection cancels the compaction.
  */
-export type CompactionSummarizer = (request: CompactionSummaryRequest) => Promise<string>
+export type CompactionSummarizer = (
+  request: CompactionSummaryRequest
+) => Promise<string | { summary: string; usage: Usage }>
 
 /** Pi's native compaction: on crossing `contextWindow - reserveTokens`, and one compact-and-retry on overflow. */
-export interface AgentRuntimeCompaction {
-  /** Off: no threshold or overflow compaction; `session.compact()` still works. Default on. */
-  enabled?: boolean
-  reserveTokens: number
-  /** Recent context kept verbatim. */
-  keepRecentTokens: number
+export interface AgentRuntimeCompaction
+  extends
+    Pick<CompactionSettings, 'enabled'>,
+    Required<Pick<CompactionSettings, 'reserveTokens' | 'keepRecentTokens'>> {
   /** Without it, Pi's default summarizer runs on the session model through its native model runtime. */
   summarize?: CompactionSummarizer
 }
@@ -43,7 +43,7 @@ export function compactionSummaryExtension(
     pi.on('session_before_compact', async (event, ctx) => {
       const { preparation, signal } = event
       try {
-        const summary = await summarize({
+        const result = await summarize({
           reason: event.reason,
           sessionId: ctx.sessionManager.getSessionId(),
           model: ctx.model!,
@@ -55,12 +55,14 @@ export function compactionSummaryExtension(
           ...(event.customInstructions === undefined ? {} : { instructions: event.customInstructions }),
           signal
         })
+        const summary = typeof result === 'string' ? result : result.summary
         if (!summary.trim()) throw new Error('The summarizer returned an empty summary')
         return {
           compaction: {
             summary,
             firstKeptEntryId: preparation.firstKeptEntryId,
-            tokensBefore: preparation.tokensBefore
+            tokensBefore: preparation.tokensBefore,
+            ...(typeof result === 'string' ? {} : { usage: result.usage })
           }
         }
       } catch (error) {

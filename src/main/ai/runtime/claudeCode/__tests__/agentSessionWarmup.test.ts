@@ -1,4 +1,3 @@
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
@@ -27,7 +26,6 @@ const mocks = vi.hoisted(() => ({
   apiGatewayGetAgentSessionUsageHeaders: vi.fn(),
   internalGateway: { baseUrl: 'http://127.0.0.1:23333', apiKey: 'gateway-key' },
   resolveReasoningProfile: vi.fn(),
-  isRegistryProvider: vi.fn(),
   getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn(),
@@ -60,8 +58,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
 
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
-    resolveReasoningProfile: mocks.resolveReasoningProfile,
-    isRegistryProvider: mocks.isRegistryProvider
+    resolveReasoningProfile: mocks.resolveReasoningProfile
   }
 }))
 
@@ -149,7 +146,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       format: 'anthropic',
       wire: REASONING_FORMAT_PROFILES.anthropic.wire
     })
-    mocks.isRegistryProvider.mockReturnValue(false)
     mocks.getSessionById.mockReturnValue({
       id: 'session-1',
       agentId: 'agent-1',
@@ -166,7 +162,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       value: 'api-key',
       apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' }
     })
-    mocks.getApiKeys.mockReturnValue([{ id: 'key-a', key: 'api-key', isEnabled: true }])
+    mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
     mocks.buildSkillWhitelist.mockResolvedValue([])
     mocks.findChannelBySessionId.mockReturnValue(null)
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
@@ -180,6 +176,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
     mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
+      ...options.thinkingOptions,
       env: {},
       ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
     }))
@@ -331,14 +328,14 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     // edited to a different model since (here: agent.model is still provider-1::model-1).
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
 
-    expect(request?.sdkModelId).toBe('model-2-api')
+    expect(request?.sdkModelId).toBe('provider-1:model-2-api')
     // The whole route follows the override — the unset plan/small defaults must pin to the captured
     // model too, not fall back to the agent's latest `provider-1::model-1`.
     expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_MODEL: 'model-2-api',
-      ANTHROPIC_DEFAULT_OPUS_MODEL: 'model-2-api',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-2-api',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-2-api'
+      ANTHROPIC_MODEL: 'provider-1:model-2-api',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'provider-1:model-2-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'provider-1:model-2-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'provider-1:model-2-api'
     })
   })
 
@@ -395,7 +392,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
 
-    expect(request?.settings.env).toMatchObject({ ANTHROPIC_MODEL: 'kimi-for-coding' })
+    expect(request?.settings.env).toMatchObject({ ANTHROPIC_MODEL: 'provider-1:kimi-for-coding' })
     expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
   })
 
@@ -496,8 +493,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const current = await deriveConnectionConfig('session-1')
 
     expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_BASE_URL: 'https://old.example.com',
-      ANTHROPIC_MODEL: 'old-model'
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+      ANTHROPIC_MODEL: 'provider-1:old-model'
     })
     expect(current.ok).toBe(true)
     if (!request || !current.ok) throw new Error('expected request and current config')
@@ -551,20 +548,18 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
 
-    // The captured turn only recorded its primary; the edited plan/small must NOT leak in. They pin to the
-    // captured primary, so every ANTHROPIC_DEFAULT_* stays on model-2 and the cross-provider sub-models do
-    // not force the captured connection onto the gateway route — it stays on the direct provider key.
+    // A later edit cannot move a captured turn onto different root or background models.
     expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_MODEL: 'model-2-api',
-      ANTHROPIC_DEFAULT_OPUS_MODEL: 'model-2-api',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-2-api',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-2-api',
-      ANTHROPIC_API_KEY: 'api-key'
+      ANTHROPIC_MODEL: 'provider-1:model-2-api',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'provider-1:model-2-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'provider-1:model-2-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'provider-1:model-2-api',
+      ANTHROPIC_API_KEY: 'gateway-key'
     })
-    expect(mocks.apiGatewayEnsureInternal).not.toHaveBeenCalled()
+    expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
-  it('fingerprints the enabled key set, stable across rotation and sensitive to key-set edits', async () => {
+  it('keeps upstream key rotation and key-set edits outside the warm query credentials', async () => {
     mocks.getApiKeys.mockReturnValue([
       { key: 'key-a', isEnabled: true },
       { key: 'key-b', isEnabled: true }
@@ -582,51 +577,20 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const first = await buildClaudeCodeQueryRequestForAgentSession('session-1')
     const second = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    // Rotation picked different keys, but the enabled SET is identical → same fingerprint.
-    expect(first?.settings.env?.ANTHROPIC_API_KEY).toBe('key-a')
-    expect(second?.settings.env?.ANTHROPIC_API_KEY).toBe('key-b')
+    // Upstream keys belong to gateway execution, never the warm subprocess.
+    expect(first?.settings.env?.ANTHROPIC_API_KEY).toBe('gateway-key')
+    expect(second?.settings.env?.ANTHROPIC_API_KEY).toBe('gateway-key')
     expect(first?.credentialsFingerprint).toBe(second?.credentialsFingerprint)
 
     mocks.getApiKeys.mockReturnValue([{ key: 'key-a', isEnabled: true }])
     const afterKeyRemoval = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(afterKeyRemoval?.credentialsFingerprint).not.toBe(first?.credentialsFingerprint)
+    expect(afterKeyRemoval?.credentialsFingerprint).toBe(first?.credentialsFingerprint)
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
+    expect(mocks.getApiKeys).not.toHaveBeenCalled()
   })
 
-  it('changes the credentials fingerprint when the primary model api key binding changes', async () => {
-    mocks.getApiKeys.mockReturnValue([
-      { id: 'key-a', key: 'key-a', isEnabled: true },
-      { id: 'key-b', key: 'key-b', isEnabled: true }
-    ])
-    mocks.getModelByKey.mockReturnValue({
-      id: 'model-1',
-      apiModelId: 'claude-sonnet',
-      contextWindow: 128_000,
-      apiKeyId: 'key-a'
-    })
-    mocks.resolveApiKey.mockReturnValue({
-      value: 'key-a',
-      apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'key-****-a' }
-    })
-
-    const first = await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    mocks.getModelByKey.mockReturnValue({
-      id: 'model-1',
-      apiModelId: 'claude-sonnet',
-      contextWindow: 128_000,
-      apiKeyId: 'key-b'
-    })
-    mocks.resolveApiKey.mockReturnValue({
-      value: 'key-b',
-      apiKeySelection: { attribution: 'explicit', id: 'key-b', masked: 'key-****-b' }
-    })
-    const second = await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(first?.credentialsFingerprint).not.toBe(second?.credentialsFingerprint)
-  })
-
-  it('passes explicit provider headers to direct SDK requests with case-insensitive overrides', async () => {
+  it('keeps upstream provider headers out of the native gateway client', async () => {
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'provider-1',
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } },
@@ -648,70 +612,31 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
-      'http-referer: https://custom.example.com\nX-Agent: agent-value\nX-Provider: provider-value\nx-shared: provider-value\nx-title: Custom App'
+      'X-Agent: agent-value\nx-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: false\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard\nX-Shared: agent-value'
     )
   })
 
-  it('uses the provider Anthropic endpoint directly when all selected models belong to that provider', async () => {
+  it('routes same-provider Anthropic models through the gateway without exporting upstream credentials', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(request?.sdkModelId).toBe('claude-sonnet')
-    expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_BASE_URL: 'https://anthropic.example.com',
-      ANTHROPIC_API_KEY: 'api-key',
-      ANTHROPIC_AUTH_TOKEN: 'api-key',
-      ANTHROPIC_MODEL: 'claude-sonnet',
-      ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-sonnet',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet'
-    })
-    expect(request?.settings.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL')
-    expect(request?.options.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL')
-    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
-    expect(request?.usageCapture).toEqual({
-      owner: 'agent-sdk',
-      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' },
-      providerId: 'provider-1',
-      providerName: null,
-      source: { type: 'agent', id: 'agent-1', name: null, icon: null },
-      frozenModels: [
-        {
-          modelId: 'model-1',
-          apiModelId: 'claude-sonnet',
-          modelName: 'model-1',
-          pricingSnapshot: null,
-          aliases: ['claude-sonnet', 'model-1']
-        }
-      ]
-    })
-    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
-  })
-
-  it.each(['', 'sonnet', 'provider:model'])('preserves the direct-route sub-agent pin %j', async (pin) => {
-    mocks.buildSessionSettings.mockResolvedValue({ env: { CLAUDE_CODE_SUBAGENT_MODEL: pin } })
-
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
+    expect(request?.sdkModelId).toBe('provider-1:claude-sonnet')
     for (const env of [request?.settings.env, request?.options.env]) {
-      expect(env).toMatchObject({ ANTHROPIC_MODEL: 'claude-sonnet', CLAUDE_CODE_SUBAGENT_MODEL: pin })
+      expect(env).toMatchObject({
+        ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+        ANTHROPIC_API_KEY: 'gateway-key',
+        ANTHROPIC_AUTH_TOKEN: 'gateway-key',
+        ANTHROPIC_MODEL: 'provider-1:claude-sonnet',
+        ANTHROPIC_DEFAULT_OPUS_MODEL: 'provider-1:claude-sonnet',
+        ANTHROPIC_DEFAULT_SONNET_MODEL: 'provider-1:claude-sonnet',
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: 'provider-1:claude-sonnet',
+        CLAUDE_CODE_SUBAGENT_MODEL: 'provider-1:claude-sonnet'
+      })
     }
-  })
-
-  it('keeps app attribution on direct SDK requests for a canonical registry provider', async () => {
-    mocks.isRegistryProvider.mockReturnValue(true)
-    mocks.getProviderByProviderId.mockReturnValue({
-      id: 'provider-1',
-      presetProviderId: 'anthropic',
-      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
-    })
-
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
-      'HTTP-Referer: https://cherry-ai.com\nX-Title: Cherry Studio'
-    )
+    expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
+    expect(mocks.getApiKeys).not.toHaveBeenCalled()
   })
 
   it('routes an OpenCode Go OpenAI-compatible model through the gateway despite its Anthropic endpoint', async () => {
@@ -742,9 +667,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
-  it('routes a model that declares Anthropic Messages behind another dialect directly', async () => {
-    // DeepSeek V4 Flash lists `openai-responses` first (in-app chat's default) and `anthropic-messages`
-    // third. The Agent SDK speaks Messages natively, so it must not take the translating gateway hop.
+  it('routes a model that declares Anthropic Messages behind another dialect through the gateway', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'deepseek::deepseek-v4-flash' })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'deepseek',
@@ -767,11 +690,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(mocks.apiGatewayEnsureInternal).not.toHaveBeenCalled()
-    expect(request?.sdkModelId).toBe('deepseek-v4-flash')
+    expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
+    expect(request?.sdkModelId).toBe('deepseek:deepseek-v4-flash')
     expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
-      ANTHROPIC_MODEL: 'deepseek-v4-flash'
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+      ANTHROPIC_MODEL: 'deepseek:deepseek-v4-flash'
     })
   })
 
@@ -830,9 +753,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
-  it('estimates direct Claude Code usage at the scheduled peak without a request start event', async () => {
+  it('estimates native subscription usage at the scheduled peak without a request start event', async () => {
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'provider-1',
+      authMethods: ['external-cli'],
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } },
       settings: {
         billing: {
@@ -854,151 +778,38 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       }
     })
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
-    if (request?.usageCapture.owner !== 'agent-sdk') throw new Error('Expected direct SDK capture')
+    if (request?.usageCapture.owner !== 'agent-sdk') throw new Error('Expected subscription SDK capture')
     const snapshot = request.usageCapture.frozenModels[0].pricingSnapshot
     expect(snapshot?.billing).toMatchObject({ reason: 'peak_fallback', multiplier: 4, periodId: 'peak' })
     expect(snapshot?.billing?.pricedAt).toBeUndefined()
     expect(computeLanguageCost({ inputTokens: 1_000_000, outputTokens: 1_000_000 }, snapshot!)?.cost).toBe(32)
   })
 
-  it('captures distinct same-provider models for direct-route usage attribution', async () => {
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      model: 'provider-1::model-1',
-      planModel: 'provider-1::model-2',
-      smallModel: 'provider-1::model-3'
-    })
-    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
-      id: modelId,
-      apiModelId: `${modelId}-api`
-    }))
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_MODEL: 'model-1-api',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-2-api',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-3-api'
-    })
-    expect(request?.usageCapture).toMatchObject({
-      owner: 'agent-sdk',
-      frozenModels: [
-        { modelId: 'model-1', apiModelId: 'model-1-api', aliases: ['model-1-api', 'model-1'] },
-        { modelId: 'model-2', apiModelId: 'model-2-api', aliases: ['model-2-api', 'model-2'] },
-        { modelId: 'model-3', apiModelId: 'model-3-api', aliases: ['model-3-api', 'model-3'] }
-      ]
-    })
-  })
-
-  it('routes through the gateway when a same-provider sub-model has its own api key binding', async () => {
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      model: 'provider-1::model-1',
-      planModel: 'provider-1::model-2'
-    })
-    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) =>
-      modelId === 'model-2'
-        ? { id: modelId, apiModelId: 'model-2-api', apiKeyId: 'key-sub' }
-        : { id: modelId, apiModelId: `${modelId}-api` }
-    )
-    mocks.getApiKeys.mockReturnValue([
-      { id: 'key-a', key: 'api-key', isEnabled: true },
-      { id: 'key-sub', key: 'sub-key', isEnabled: true }
-    ])
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    // The direct spawn exports a single ANTHROPIC_API_KEY for every alias, so a
-    // distinct sub-model binding must fall back to the per-model gateway route.
-    expect(request?.settings.env).toMatchObject({ ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333' })
-    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
-  })
-
-  it('reports model-api-key-binding as the degradation reason for a differing sub-model key', async () => {
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      model: 'provider-1::model-1',
-      planModel: 'provider-1::model-2'
-    })
-    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) =>
-      modelId === 'model-2'
-        ? { id: modelId, apiModelId: 'model-2-api', apiKeyId: 'key-sub' }
-        : { id: modelId, apiModelId: `${modelId}-api` }
-    )
-    mocks.getApiKeys.mockReturnValue([
-      { id: 'key-a', key: 'api-key', isEnabled: true },
-      { id: 'key-sub', key: 'sub-key', isEnabled: true }
-    ])
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-
-    await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'Claude Code route degraded to the internal gateway by a background model slot',
-      expect.objectContaining({
-        slots: [expect.objectContaining({ slot: 'sonnet', modelId: 'model-2', reasons: ['model-api-key-binding'] })]
+  it.each([false, true])(
+    'routes model slots independently when the small model is missing: %s',
+    async (smallModelMissing) => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'provider-1::model-1',
+        planModel: 'provider-1::model-2',
+        smallModel: 'provider-1::model-3'
       })
-    )
-  })
-
-  it('stays direct when primary and sub-model bind the same effective key, and the fingerprint follows that key', async () => {
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      model: 'provider-1::model-1',
-      planModel: 'provider-1::model-2'
-    })
-    mocks.getApiKeys.mockReturnValue([
-      { id: 'key-a', key: 'api-key', isEnabled: true },
-      { id: 'key-b', key: 'other-key', isEnabled: true }
-    ])
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-    const build = async (keyId: string) => {
-      mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
-        id: modelId,
-        apiModelId: `${modelId}-api`,
-        apiKeyId: keyId
-      }))
-      mocks.resolveApiKey.mockReturnValue({
-        value: keyId,
-        apiKeySelection: { attribution: 'explicit', id: keyId, masked: `key-****-${keyId}` }
+      mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => {
+        if (smallModelMissing && modelId === 'model-3') throw new Error('small model not in table')
+        return { id: modelId, apiModelId: `${modelId}-api` }
       })
-      return buildClaudeCodeQueryRequestForAgentSession('session-1')
+      mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+      expect(request?.options.env).toMatchObject({
+        ANTHROPIC_MODEL: 'provider-1:model-1-api',
+        ANTHROPIC_DEFAULT_SONNET_MODEL: 'provider-1:model-2-api',
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: smallModelMissing ? 'provider-1:model-3' : 'provider-1:model-3-api'
+      })
+      expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
     }
-
-    const onA = await build('key-a')
-    const onAAgain = await build('key-a')
-    const onB = await build('key-b')
-
-    for (const request of [onA, onAAgain, onB]) {
-      expect(request?.settings.env).toMatchObject({ ANTHROPIC_BASE_URL: 'https://anthropic.example.com' })
-    }
-    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
-    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
-    expect(onAAgain?.credentialsFingerprint).toBe(onA?.credentialsFingerprint)
-    expect(onB?.credentialsFingerprint).not.toBe(onA?.credentialsFingerprint)
-  })
-
-  it('stays on direct routing when a sub-model binding points at a disabled or removed key', async () => {
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      model: 'provider-1::model-1',
-      planModel: 'provider-1::model-2'
-    })
-    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) =>
-      modelId === 'model-2'
-        ? { id: modelId, apiModelId: 'model-2-api', apiKeyId: 'key-stale' }
-        : { id: modelId, apiModelId: `${modelId}-api` }
-    )
-    mocks.getApiKeys.mockReturnValue([{ id: 'key-a', key: 'api-key', isEnabled: true }])
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(request?.settings.env).toMatchObject({ ANTHROPIC_BASE_URL: 'https://anthropic.example.com' })
-    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
-  })
+  )
 
   it('appends [1m] for a >=1M model on an Anthropic-preset provider repointed at a custom proxy', async () => {
     // Provider derived from the Anthropic preset (presetProviderId stays 'anthropic') but its Base URL
@@ -1013,13 +824,13 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(request?.sdkModelId).toBe('claude-sonnet[1m]')
+    expect(request?.sdkModelId).toBe('my-anthropic-proxy:claude-sonnet[1m]')
     expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_BASE_URL: 'https://anthropic.mycorp.com',
-      ANTHROPIC_MODEL: 'claude-sonnet[1m]',
-      ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-sonnet[1m]',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet[1m]',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet[1m]'
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+      ANTHROPIC_MODEL: 'my-anthropic-proxy:claude-sonnet[1m]',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'my-anthropic-proxy:claude-sonnet[1m]',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'my-anthropic-proxy:claude-sonnet[1m]',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'my-anthropic-proxy:claude-sonnet[1m]'
     })
   })
 
@@ -1034,10 +845,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(request?.sdkModelId).toBe('claude-sonnet-4-5')
+    expect(request?.sdkModelId).toBe('anthropic:claude-sonnet-4-5')
     expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
-      ANTHROPIC_MODEL: 'claude-sonnet-4-5'
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+      ANTHROPIC_MODEL: 'anthropic:claude-sonnet-4-5'
     })
   })
 
@@ -1115,64 +926,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.settings.env?.ANTHROPIC_BASE_URL).toBe('http://127.0.0.1:23333')
   })
 
-  it('logs which background slot forced a direct-eligible primary onto the gateway', async () => {
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      model: 'loveapi::claude-opus-5-5',
-      planModel: 'openai::gpt-plan'
-    })
-    mocks.getProviderByProviderId.mockImplementation((providerId: string) =>
-      providerId === 'loveapi'
-        ? {
-            id: 'loveapi',
-            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://loveapi.example.com' } }
-          }
-        : {
-            id: providerId,
-            endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
-          }
-    )
-    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
-      id: modelId,
-      apiModelId: `${modelId}-api`
-    }))
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-
-    await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'Claude Code route degraded to the internal gateway by a background model slot',
-      expect.objectContaining({
-        sessionId: 'session-1',
-        primaryProviderId: 'loveapi',
-        primaryModelId: 'claude-opus-5-5',
-        slots: [
-          expect.objectContaining({
-            slot: 'sonnet',
-            providerId: 'openai',
-            modelId: 'gpt-plan',
-            reasons: ['cross-provider', 'non-anthropic-endpoint']
-          })
-        ]
-      })
-    )
-  })
-
-  it('omits the degradation log when the primary itself needs the gateway', async () => {
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
-    mocks.getProviderByProviderId.mockReturnValue({
-      id: 'openai',
-      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
-    })
-    mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main' })
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-
-    await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
-  })
-
-  it('injects the Ollama dummy token for direct Anthropic routing when no API key is configured', async () => {
+  it('uses the gateway credential for keyless Ollama models', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'ollama::qwen3:14b' })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'ollama',
@@ -1185,20 +939,20 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(request?.sdkModelId).toBe('qwen3:14b')
+    expect(request?.sdkModelId).toBe('ollama:qwen3:14b')
     expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_BASE_URL: 'http://localhost:11434',
-      ANTHROPIC_API_KEY: 'ollama',
-      ANTHROPIC_AUTH_TOKEN: 'ollama',
-      ANTHROPIC_MODEL: 'qwen3:14b',
-      ANTHROPIC_DEFAULT_OPUS_MODEL: 'qwen3:14b',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'qwen3:14b',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'qwen3:14b'
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+      ANTHROPIC_API_KEY: 'gateway-key',
+      ANTHROPIC_AUTH_TOKEN: 'gateway-key',
+      ANTHROPIC_MODEL: 'ollama:qwen3:14b',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'ollama:qwen3:14b',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'ollama:qwen3:14b',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'ollama:qwen3:14b'
     })
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
   })
 
-  it('injects a per-provider dummy token for a keyless local provider', async () => {
+  it('uses the gateway credential for an auth-optional local provider', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'omlx::qwen3-coder-30b' })
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'omlx',
@@ -1213,27 +967,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_BASE_URL: 'http://localhost:8000',
-      ANTHROPIC_API_KEY: 'omlx',
-      ANTHROPIC_AUTH_TOKEN: 'omlx'
-    })
-  })
-
-  it('strips a trailing API version from Anthropic base URLs before launching Claude Code agents', async () => {
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-    mocks.getProviderByProviderId.mockReturnValue({
-      id: 'provider-1',
-      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com/v1' } }
-    })
-    mocks.resolveEffectiveEndpoint.mockReturnValue({
-      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      baseUrl: 'https://anthropic.example.com/v1'
-    })
-
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_BASE_URL: 'https://anthropic.example.com'
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+      ANTHROPIC_API_KEY: 'gateway-key',
+      ANTHROPIC_AUTH_TOKEN: 'gateway-key'
     })
   })
 
@@ -1272,7 +1008,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api'
     })
-    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe('x-cherry-agent-session-id: session-1')
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: false\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard'
+    )
     expect(request?.options.env?.API_TIMEOUT_MS).toBe('1800000')
     for (const env of [request?.settings.env, request?.options.env]) {
       expect(env).toMatchObject({
@@ -1378,6 +1116,59 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
   })
 
+  it('freezes the selected gateway service tier in request headers and connection identity', async () => {
+    mocks.buildSessionSettings.mockResolvedValueOnce({
+      env: { ANTHROPIC_CUSTOM_HEADERS: 'x-cherry-service-tier: fast' }
+    })
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      'flex'
+    )
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toContain('X-Cherry-Service-Tier: flex')
+    const current = await deriveConnectionConfig('session-1', undefined, 'default', false, [], 'flex')
+    const changed = await deriveConnectionConfig('session-1')
+    if (!current.ok || !changed.ok) throw new Error('expected routable gateway configuration')
+    expect(request?.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+    expect(current.config.rebuildSignature).not.toBe(changed.config.rebuildSignature)
+  })
+
+  it.each(['default', 'none', 'auto', 'ultra'] as const)(
+    'carries the original %s reasoning selection to gateway execution',
+    async (reasoningEffort) => {
+      const request = await buildClaudeCodeQueryRequestForAgentSession(
+        'session-1',
+        undefined,
+        undefined,
+        reasoningEffort
+      )
+      expect(request?.options.env?.ANTHROPIC_CUSTOM_HEADERS).toContain(`X-Cherry-Reasoning-Effort: ${reasoningEffort}`)
+      expect(request?.options.thinking).toBeUndefined()
+      expect(request?.options.effort).toBeUndefined()
+    }
+  )
+
+  it('preserves native thinking control for CLI subscriptions', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      authMethods: ['external-cli'],
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { selectableEfforts: ['none', 'auto'] }
+    })
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'none')
+    expect(request?.options.thinking).toEqual({ type: 'disabled' })
+    expect(request?.options.env?.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
+  })
+
   it('carries Codex Fast through the internal gateway header', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4' })
     mocks.getProviderByProviderId.mockReturnValue({
@@ -1396,8 +1187,66 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     // `mergeAnthropicCustomHeaders` canonicalizes to a case-insensitively sorted, deduplicated list.
     expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_CUSTOM_HEADERS: 'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true'
+      ANTHROPIC_CUSTOM_HEADERS:
+        'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard'
     })
+  })
+
+  it.each([false, true])(
+    'preserves captured Gateway Fast=%s over inherited headers and model capability',
+    async (fastMode) => {
+      mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet', supportsFastMode: false })
+      mocks.buildSessionSettings.mockResolvedValue({
+        env: { ANTHROPIC_CUSTOM_HEADERS: `x-cherry-fast-mode: ${!fastMode}\nX-Custom: retained` }
+      })
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession(
+        'session-1',
+        undefined,
+        undefined,
+        'default',
+        fastMode
+      )
+
+      expect(request?.options.env?.ANTHROPIC_CUSTOM_HEADERS).toContain(`X-Cherry-Fast-Mode: ${fastMode}`)
+      expect(request?.options.env?.ANTHROPIC_CUSTOM_HEADERS).toContain('X-Custom: retained')
+    }
+  )
+
+  it('keeps native Fast in the startup baseline when model support changes during materialization', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      authMethods: ['external-cli'],
+      fastMode: { transport: 'claude-code' }
+    })
+    const model = { id: 'model-1', apiModelId: 'claude-sonnet', supportsFastMode: true }
+    mocks.getModelByKey.mockReturnValue(model)
+    mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, options) => {
+      mocks.getModelByKey.mockReturnValue({ ...model, supportsFastMode: false })
+      return { env: {}, settings: { fastMode: options.fastMode } }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', true)
+    const current = await deriveConnectionConfig('session-1', undefined, 'default', true)
+
+    expect(request?.options.settings).toMatchObject({ fastMode: true })
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
+  })
+
+  it('finishes the captured request when its model is removed during materialization', async () => {
+    mocks.buildSessionSettings.mockImplementationOnce(async () => {
+      mocks.getModelByKey.mockImplementation(() => {
+        throw new Error('model was removed')
+      })
+      return { env: {} }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    expect(request?.options.model).toBe('provider-1:claude-sonnet')
+    expect(current.ok).toBe(false)
   })
 
   it('preserves existing Anthropic custom headers when enabling Codex Fast', async () => {
@@ -1421,7 +1270,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     // Sorted canonical order — the retained custom header survives the merge.
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
-      'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true\nX-Custom-Header: retained'
+      'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard\nX-Custom-Header: retained'
     )
   })
 
@@ -1451,7 +1300,15 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     }))
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      'flex'
+    )
 
     // Stays on the subscription login: no gateway, no injected API key, and the
     // off-provider plan/small models collapse to the primary claude-code model.
@@ -1512,29 +1369,19 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     }
   })
 
-  it('passes Claude Code Fast to the SDK settings builder', async () => {
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'claude-code::claude-opus-4-8' })
-    mocks.getProviderByProviderId.mockReturnValue({
-      id: 'claude-code',
-      authMethods: ['external-cli'],
-      fastMode: { transport: 'claude-code' },
-      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
-    })
-    mocks.getModelByKey.mockReturnValue({
-      id: 'claude-opus-4-8',
-      apiModelId: 'claude-opus-4-8',
-      supportsFastMode: true
-    })
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-
-    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', true)
-
-    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ fastMode: true }),
-      expect.anything()
+  it('rebuilds for a changed Gateway Fast selection independently of model support', async () => {
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet', supportsFastMode: false })
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false
     )
+    const current = await deriveConnectionConfig('session-1', undefined, 'default', true)
+
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
   })
 
   it('routes Gemini provider models through the local API gateway', async () => {
@@ -1673,7 +1520,7 @@ describe('deriveConnectionConfig', () => {
     expect(second.rebuildFactFingerprints).toEqual(first.rebuildFactFingerprints)
   })
 
-  it('does not rebuild when only the usage pricing capture time changes', async () => {
+  it('does not bake upstream prices or capture time into the warm gateway route', async () => {
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
       apiModelId: `${modelId}-api`,
@@ -1702,13 +1549,13 @@ describe('deriveConnectionConfig', () => {
       }))
       const repriced = await deriveSignature()
 
-      expect(repriced.rebuildFactFingerprints.route).not.toBe(second.rebuildFactFingerprints.route)
+      expect(repriced.rebuildFactFingerprints.route).toBe(second.rebuildFactFingerprints.route)
     } finally {
       vi.useRealTimers()
     }
   })
 
-  it('changes the rebuild signature when direct-provider extra headers change', async () => {
+  it('keeps upstream header edits outside the warm gateway route', async () => {
     mocks.getProviderByProviderId.mockReturnValue({
       id: 'provider-1',
       endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } },
@@ -1723,7 +1570,7 @@ describe('deriveConnectionConfig', () => {
     })
     const changed = await deriveSignature()
 
-    expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
+    expect(changed.rebuildSignature).toBe(first.rebuildSignature)
   })
 
   it('changes the rebuild signature when the effective agent language changes', async () => {

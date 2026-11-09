@@ -102,6 +102,23 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
+  // A parked card whose waiter was cancelled must still be retired by onAborted listeners.
+  it('notifies onAborted when a signal aborts, but not when the user decides', () => {
+    const aborted: string[] = []
+    const subscription = toolApprovalRegistry.onAborted((entry) => aborted.push(entry.approvalId))
+    const controller = new AbortController()
+    const cancelled = makeEntry({ signal: controller.signal, presentation: 'message' })
+    const answered = makeEntry({ signal: new AbortController().signal, presentation: 'message' })
+    toolApprovalRegistry.register(cancelled.entry)
+    toolApprovalRegistry.register(answered.entry)
+
+    controller.abort()
+    toolApprovalRegistry.dispatch(answered.approvalId, { approved: true })
+    subscription.dispose()
+
+    expect(aborted).toEqual([cancelled.approvalId])
+  })
+
   it('aborts only the matching session and reports the count', async () => {
     const a = makeEntry({ sessionId: 'sA' })
     const b = makeEntry({ sessionId: 'sA' })

@@ -140,8 +140,8 @@ const IMAGE_EXTENSION_PRESETS = [
 
 /**
  * Image-endpoint origin for AIGC transports that hang off the chat host: strip the
- * `/compatible-mode/v1` suffix so `https://dashscope-intl.aliyuncs.com/compatible-mode/v1/`
- * yields `https://dashscope-intl.aliyuncs.com` (intl/custom hosts track the user config).
+ * `/compatible-mode/v1` suffix so `https://maas.qwencloudapi.com/compatible-mode/v1/`
+ * yields `https://maas.qwencloudapi.com` (chat/custom hosts track the user config).
  */
 function deriveImageBaseURL(provider: Provider): string {
   const baseURL = formatBaseURL(
@@ -344,6 +344,12 @@ export async function resolveProviderAiSdkConfig(
       match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.dashscope),
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
+        if (isGenerateImageModel(ctx.model)) {
+          config.providerSettings = {
+            ...config.providerSettings,
+            imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
+          }
+        }
         config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
           customFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
         return config
@@ -945,6 +951,9 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
+      ...(isGenerateImageModel(ctx.model) && {
+        imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
+      }),
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
