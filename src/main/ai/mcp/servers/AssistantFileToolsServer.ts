@@ -21,15 +21,30 @@ import {
 } from '@main/ai/tools/saveAttachment'
 import { isAbortError } from '@main/utils/error'
 import { READ_FILE_TOOL_NAME, readFileInputSchema } from '@shared/ai/builtinTools'
+import type { AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('McpServer:AssistantFileTools')
 
 interface AssistantFileToolContext {
   sessionId: string
   workspacePath: string
+  workspaceType: AgentWorkspaceType
 }
 
-// Failures stay opaque to the model: they can carry attachment entry ids or absolute paths.
+const MAX_FAILURE_TEXT = 500
+
+/** Surface an actionable reason without control characters or unbounded log text. */
+function failureText(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  const sanitized = Array.from(message, (char) => {
+    const code = char.charCodeAt(0)
+    return code < 0x20 || code === 0x7f ? ' ' : char
+  })
+    .join('')
+    .trim()
+  return sanitized ? sanitized.slice(0, MAX_FAILURE_TEXT) : 'Tool execution failed'
+}
+
 async function runTool(name: string, signal: AbortSignal, run: () => Promise<unknown>): Promise<CallToolResult> {
   try {
     const value = await run()
@@ -37,7 +52,7 @@ async function runTool(name: string, signal: AbortSignal, run: () => Promise<unk
   } catch (error) {
     if (signal.aborted || isAbortError(error)) throw error
     logger.error(`Tool error: ${name}`, error instanceof Error ? error : { error: String(error) })
-    return { content: [{ type: 'text', text: 'Tool execution failed' }], isError: true }
+    return { content: [{ type: 'text', text: failureText(error) }], isError: true }
   }
 }
 
@@ -79,7 +94,7 @@ export function createAssistantFileToolsServer(context: AssistantFileToolContext
     { description: MOVE_TO_TRASH_DESCRIPTION, inputSchema: moveToTrashInputSchema },
     async (input, ctx) =>
       runTool(MOVE_TO_TRASH_TOOL_NAME, ctx.mcpReq.signal, () =>
-        moveWorkspaceItemToTrash(context.workspacePath, input, ctx.mcpReq.signal)
+        moveWorkspaceItemToTrash(context.workspacePath, input, ctx.mcpReq.signal, context.workspaceType)
       )
   )
 

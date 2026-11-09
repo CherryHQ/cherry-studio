@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 
-import type { UIMessageChunk } from 'ai'
+import { isToolUIPart, getToolName, type UIMessageChunk } from 'ai'
 
 import { application } from '@application'
 import { remoteLimits } from '@cherrystudio/remote-protocol'
@@ -25,10 +26,11 @@ import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { startAgentSessionRun } from '@main/ai/streamManager'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import {
   contentOf,
+  projectMessageParts,
   getSession,
   INLINE_TEXT_LIMIT,
   inputDigest,
@@ -57,6 +59,7 @@ interface Entry {
   event: AgentEvent
   bytes: number
   at: number
+  contentKey?: string
 }
 interface LiveExecution {
   executionId: string
@@ -145,7 +148,7 @@ export class SessionJournal {
   }
 
   trimReplay(maxBytes: number): void {
-    while (this.entries.length && this.retainedBytes > maxBytes) this.retainedBytes -= this.entries.shift()!.bytes
+    while (this.entries.length && this.retainedBytes > maxBytes) this.evictFirst()
   }
 
   get cursor(): AgentCursor {
@@ -332,6 +335,78 @@ export class SessionJournal {
     if (!approval || !current || approval.status !== 'pending') return
     approval.status = status
     this.append({ kind: 'interaction.updated', payload: { ...current, revision: this.next(), status } })
+  }
+
+  onMessage(listener: RemoteAgentListener, message: CherryUIMessage): void {
+    const execution = this.ensureExecution(listener.executionId)
+    const messageId = this.ensureMessage(execution, message.id)
+    const parts = projectMessageParts({ ...message, modelId: message.metadata?.modelId }, this.next())
+    const keys = new Set(parts.map((value) => value.part.partId))
+    for (const key of listener.projectedPartIds.keys())
+      if (key.startsWith(`${messageId}:`) && !keys.has(key)) listener.projectedPartIds.delete(key)
+    for (const key of keys)
+      if (!listener.projectedPartIds.has(key)) listener.projectedPartIds.set(key, `${messageId}:view:${randomUUID()}`)
+    const selected = new Set([...keys].map((key) => listener.projectedPartIds.get(key)!))
+    for (const partId of this.projection.messages[messageId].partIds) {
+      if (selected.has(partId)) continue
+      this.append({
+        kind: 'part.removed',
+        payload: {
+          messageId,
+          partId,
+          baseRevision: this.projection.parts[partId].revision,
+          revision: this.next(),
+          messageBaseRevision: this.projection.messages[messageId].revision,
+          messageRevision: this.next()
+        }
+      })
+    }
+    let after: string | null = null
+    for (const { part: projected, text } of parts) {
+      const index = Number(projected.partId.slice(messageId.length + 1).split(':')[0])
+      const source = message.parts[index]
+      const partId = listener.projectedPartIds.get(projected.partId)!
+      projected.partId = partId
+      if ('content' in projected) projected.content = contentOf(partId, projected.revision, text)
+      const part: AgentPart =
+        projected.kind === 'text' || projected.kind === 'reasoning'
+          ? {
+              ...projected,
+              state: source && 'state' in source && source.state === 'streaming' ? 'streaming' : 'completed'
+            }
+          : projected
+      const previous = this.projection.parts[part.partId]
+      if (
+        previous &&
+        textOf(previous) === text &&
+        isDeepStrictEqual(previous, {
+          ...part,
+          revision: previous.revision,
+          ...('content' in previous ? { content: previous.content } : {})
+        })
+      ) {
+        after = partId
+        continue
+      }
+      if (text.length > INLINE_TEXT_LIMIT) this.pins.set(`${part.partId}:${part.revision}`, utf8(text))
+      if (previous)
+        this.append({ kind: 'part.replaced', payload: { messageId, baseRevision: previous.revision, part } })
+      else this.createPart(messageId, part, after)
+      after = partId
+    }
+    for (const part of message.parts) {
+      if (!isToolUIPart(part)) continue
+      execution.toolInputs.set(part.toolCallId, { toolName: getToolName(part), input: part.input })
+      if (part.state !== 'output-available' && part.state !== 'output-error' && part.state !== 'output-denied') continue
+      for (const [id, approval] of execution.approvals)
+        if (approval.toolCallId === part.toolCallId)
+          this.markInteraction(id, part.state === 'output-denied' ? 'denied' : 'approved')
+    }
+    if (
+      execution.status === 'awaiting-approval' &&
+      ![...execution.approvals.values()].some((approval) => approval.status === 'pending')
+    )
+      this.setStatus(execution, 'running')
   }
 
   onChunk(listener: RemoteAgentListener, chunk: UIMessageChunk, anchorMessageId?: string): void {
@@ -577,7 +652,6 @@ export class SessionJournal {
         kind: 'message.removed',
         payload: { messageId, baseRevision: message.revision, revision: this.next() }
       })
-      for (const key of this.pins.keys()) if (key.startsWith(`${messageId}:`)) this.pins.delete(key)
     }
     this.publishSession()
   }
@@ -664,14 +738,14 @@ export class SessionJournal {
     })
   }
 
-  private createPart(messageId: string, part: AgentPart): void {
+  private createPart(messageId: string, part: AgentPart, after?: string | null): void {
     const message = this.projection.messages[messageId]
     if (!message || this.projection.parts[part.partId]) return
     this.append({
       kind: 'part.created',
       payload: {
         messageId,
-        afterPartId: message.partIds.at(-1) ?? null,
+        afterPartId: after === undefined ? (message.partIds.at(-1) ?? null) : after,
         messageBaseRevision: message.revision,
         messageRevision: this.next(),
         part
@@ -740,10 +814,14 @@ export class SessionJournal {
 
   private append(pending: PendingEvent): void {
     const event: AgentEvent = { ...pending, seq: String(this.seq + 1) }
+    const part = pending.kind === 'part.created' || pending.kind === 'part.replaced' ? pending.payload.part : undefined
+    const ref = part && part.kind !== 'file' && 'ref' in part.content ? part.content.ref : undefined
+    const key = ref && `${ref.contentId}:${ref.revision}`
+    const bytes = key ? this.pins.get(key) : undefined
     const result = applyAgentEvents(
       this.projection,
       { subscriptionId: 'journal', sessionId: this.sessionId, streamEpoch: this.epoch, events: [event] },
-      {},
+      key && bytes ? { [key]: bytes } : {},
       integrity
     )
     if (!result.ok) {
@@ -756,10 +834,14 @@ export class SessionJournal {
       return
     }
     this.projection = result.projection
+    // The owner retains current values independently of replay pins, including completed tool output.
+    if (part && bytes) {
+      this.projection.parts[part.partId] = { ...part, content: { text: new TextDecoder().decode(bytes) } }
+    }
     this.seq += 1
-    const bytes = utf8(JSON.stringify(event)).length
-    this.entries.push({ event, bytes, at: Date.now() })
-    this.retainedBytes += bytes
+    const eventBytes = utf8(JSON.stringify(event)).length
+    this.entries.push({ event, bytes: eventBytes, at: Date.now(), contentKey: key })
+    this.retainedBytes += eventBytes + (bytes?.byteLength ?? 0)
     this.lastUsedAt = Date.now()
     this.evict()
     this.onAppend()
@@ -774,13 +856,26 @@ export class SessionJournal {
     this.pins.clear()
     this.interactionInputs.clear()
     this.projection = this.emptyProjection()
+    if (this.execution) {
+      this.execution.messageId = undefined
+      this.execution.messageIds.clear()
+    }
     for (const observer of this.observers) observer()
   }
 
   private evict(): void {
     const cutoff = Date.now() - remoteLimits.replayMs
     while (this.entries.length && (this.retainedBytes > remoteLimits.replayBytes || this.entries[0].at < cutoff)) {
-      this.retainedBytes -= this.entries.shift()!.bytes
+      this.evictFirst()
+    }
+  }
+
+  private evictFirst(): void {
+    const entry = this.entries.shift()!
+    this.retainedBytes -= entry.bytes
+    if (entry.contentKey) {
+      this.retainedBytes -= this.pins.get(entry.contentKey)?.byteLength ?? 0
+      this.pins.delete(entry.contentKey)
     }
   }
 }
@@ -789,6 +884,8 @@ class RemoteAgentListener implements StreamListener {
   readonly id: string
   readonly terminalPhase = 'cleanup' as const
   current = true
+  readonly projectedPartIds = new Map<string, string>()
+  private projected = false
   private pending?: PendingDelta
   private pendingStartedAt = 0
   private flushTimer?: ReturnType<typeof setTimeout>
@@ -800,8 +897,18 @@ class RemoteAgentListener implements StreamListener {
     this.id = `remote:${executionId}`
   }
 
+  onMessage(message: CherryUIMessage, _model?: string, kind?: 'chunks' | 'messages'): void {
+    if (!this.current || kind !== 'messages') return
+    this.projected = true
+    this.guard(() => {
+      this.flushPending()
+      this.journal.onMessage(this, message)
+    })
+  }
+
   onChunk(chunk: UIMessageChunk, _sourceModelId?: unknown, anchorMessageId?: string): void {
     if (!this.current) return
+    if (this.projected && chunk.type !== 'tool-approval-request') return
     this.guard(() => {
       if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta' && chunk.type !== 'tool-input-delta') {
         this.flushPending()
@@ -847,6 +954,7 @@ class RemoteAgentListener implements StreamListener {
   private onTerminal(result: StreamDoneResult | StreamPausedResult | StreamErrorResult): void {
     this.guard(() => {
       this.flushPending()
+      if (this.projected && result.finalMessage) this.journal.onMessage(this, result.finalMessage)
       this.journal.onTerminal(this, result)
     })
   }
@@ -910,6 +1018,10 @@ export class RemoteAgentHub {
       application.get('AiStreamManager').hasLiveStream(buildAgentSessionTopicId(sessionId)) ||
       application.get('AgentSessionRuntimeService').isSessionBusy(sessionId)
     return busy ? this.journal(sessionId).activeExecutionId : undefined
+  }
+
+  isIdle(): boolean {
+    return this.journals.size === 0
   }
 
   sweep(): void {

@@ -75,7 +75,10 @@ const SelectionActionIconPicker = ({ value, onChange }: SelectionActionIconPicke
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <div ref={setScrollElement} className="mt-2 h-64 overflow-y-auto">
+          <div
+            ref={setScrollElement}
+            className="mt-2 h-64 overflow-y-auto"
+            style={{ maxHeight: 'calc(var(--radix-popover-content-available-height) - 64px)' }}>
             {filteredIcons.length === 0 ? (
               <div className="py-6 text-center text-sm text-muted-foreground">{t('common.no_results')}</div>
             ) : (

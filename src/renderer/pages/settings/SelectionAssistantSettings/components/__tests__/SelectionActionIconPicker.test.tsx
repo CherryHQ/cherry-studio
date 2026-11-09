@@ -33,7 +33,8 @@ beforeAll(() => {
     disconnect() {}
   }
   // jsdom reports zero boxes; the virtualizer needs a sized scrollport (offset*)
-  // and sized rows (getBoundingClientRect via measureElement).
+  // and sized rows (getBoundingClientRect via measureElement). Client dimensions
+  // cover virtual-core versions that measure the scrollport without borders.
   Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
     configurable: true,
     get(this: HTMLElement) {
@@ -46,6 +47,17 @@ beforeAll(() => {
       return this.className.includes('overflow-y-auto') ? 256 : 0
     }
   })
+  for (const [name, dimension] of [
+    ['clientWidth', 320],
+    ['clientHeight', 256]
+  ] as const) {
+    Object.defineProperty(HTMLElement.prototype, name, {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.className.includes('overflow-y-auto') ? dimension : 0
+      }
+    })
+  }
   Element.prototype.getBoundingClientRect = function (this: Element) {
     const height = 40
     return {
@@ -72,6 +84,9 @@ describe('SelectionActionIconPicker', () => {
     render(<SelectionActionIconPicker value="" onChange={vi.fn()} />)
 
     fireEvent.click(screen.getByText('selection.settings.user_modal.icon.placeholder'))
+    expect(document.querySelector('.overflow-y-auto')).toHaveStyle({
+      maxHeight: 'calc(var(--radix-popover-content-available-height) - 64px)'
+    })
 
     // The real virtualizer must produce rows from the mounted scroll element alone;
     // first-open browsing broke when the scroll ref never retriggered measurement.

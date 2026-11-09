@@ -9,8 +9,16 @@ import {
   type SkillResult,
   type SystemSkillCandidate
 } from '@shared/types/skill'
+import type {
+  SkillSubscriptionSource,
+  SkillSubscriptionSnapshot,
+  MarketplaceInstallResult,
+  MarketplaceSkillDetail,
+  MarketplaceSkillPage
+} from '@shared/types/skillMarketplace'
 
 import { defineRoute } from '../define'
+import { uint8ArraySchema } from './common'
 
 /**
  * Global-skills IPC schemas — install/uninstall/list of `.claude/skills` entries (a
@@ -23,6 +31,43 @@ import { defineRoute } from '../define'
  * validates inputs, not outputs.
  */
 export const skillRequestSchemas = {
+  'skill.subscription.add': defineRoute({
+    input: z.object({ url: z.string().trim().min(1) }),
+    output: z.custom<SkillSubscriptionSource>()
+  }),
+  'skill.subscription.list': defineRoute({
+    input: z.object({ sourceId: z.string().min(1) }),
+    output: z.custom<SkillSubscriptionSnapshot | null>()
+  }),
+  'skill.subscription.refresh': defineRoute({
+    input: z.object({ sourceId: z.string().min(1) }),
+    output: z.custom<SkillSubscriptionSnapshot>()
+  }),
+  'skill.subscription.remove': defineRoute({ input: z.object({ sourceId: z.string().min(1) }), output: z.void() }),
+  'skill.subscription.detail': defineRoute({
+    input: z.object({ sourceId: z.string().min(1), itemId: z.string().min(1) }),
+    output: z.custom<MarketplaceSkillDetail>()
+  }),
+  'skill.subscription.install': defineRoute({
+    input: z.object({ sourceId: z.string().min(1), itemId: z.string().min(1) }),
+    output: z.custom<MarketplaceInstallResult>()
+  }),
+  'skill.export': defineRoute({
+    input: z.object({ skillId: z.string().min(1) }),
+    output: uint8ArraySchema
+  }),
+  'skill.marketplace.list': defineRoute({
+    input: z.object({ offset: z.number().int().nonnegative(), limit: z.number().int().min(1).max(100) }),
+    output: z.custom<MarketplaceSkillPage>()
+  }),
+  'skill.marketplace.detail': defineRoute({
+    input: z.object({ id: z.string().min(1) }),
+    output: z.custom<MarketplaceSkillDetail>()
+  }),
+  'skill.marketplace.install': defineRoute({
+    input: z.object({ id: z.string().min(1) }),
+    output: z.custom<MarketplaceInstallResult>()
+  }),
   'skill.install': defineRoute({
     input: z.object({ installSource: z.string() }),
     output: z.custom<SkillResult<InstalledSkill>>()
@@ -30,6 +75,10 @@ export const skillRequestSchemas = {
   'skill.uninstall': defineRoute({
     input: z.object({ skillId: z.string() }),
     output: z.custom<SkillResult<void>>()
+  }),
+  'skill.set_mirror_enabled': defineRoute({
+    input: z.object({ skillId: z.string(), mirrorEnabled: z.boolean() }),
+    output: z.custom<InstalledSkill>()
   }),
   'skill.install_from_zip': defineRoute({
     input: z.object({ zipFilePath: z.string() }),
