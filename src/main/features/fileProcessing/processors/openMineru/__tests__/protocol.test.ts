@@ -18,6 +18,33 @@ describe('Open MinerU protocol detection', () => {
     expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer secret')
   })
 
+  it('recognizes Tasks capabilities and preserves v1 precedence', async () => {
+    const tasks = {
+      status: 'ok',
+      version: '4.1.3',
+      features: { sources: ['upload', 'url'], task_output_formats: ['default', 'docx'], webhook: false },
+      extra: true
+    }
+    fetchMock.mockResolvedValueOnce(Response.json(tasks))
+    expect(await probeOpenMineru(connection)).toEqual({ kind: 'supported', protocol: 'tasks' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ ...health, features: { ...health.features, ...tasks.features, sources: ['file_id', 'upload'] } })
+    )
+    expect(await probeOpenMineru(connection)).toEqual({ kind: 'supported', protocol: 'v1' })
+  })
+
+  it.each([
+    { sources: ['url'], task_output_formats: ['default'] },
+    { sources: ['upload'], task_output_formats: ['html'] },
+    { sources: 'upload', task_output_formats: ['default'] },
+    { sources: ['upload'], task_output_formats: 'default' }
+  ])('rejects incomplete Tasks capabilities', async (features) => {
+    fetchMock.mockResolvedValueOnce(Response.json({ status: 'ok', version: '4.1.3', features }))
+    expect(await probeOpenMineru(connection)).toEqual({ kind: 'invalid-response' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('recognizes legacy only after V1 returns 404 and the legacy health response is valid', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }))
     fetchMock.mockResolvedValueOnce(Response.json({ status: 'healthy', version: '3.4.5' }))
