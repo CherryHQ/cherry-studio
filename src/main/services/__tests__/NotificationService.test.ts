@@ -18,6 +18,15 @@ import { t } from '@main/i18n'
 import { NotificationRecordSchema, type TaskResultNotificationInput } from '@shared/data/types/notification'
 
 const originalPlatform = process.platform
+setFlagsFromString('--expose_gc')
+const collectGarbage = runInNewContext('gc') as () => void
+
+async function collectNotificationGarbage(): Promise<void> {
+  await setImmediate()
+  collectGarbage()
+  await setImmediate()
+  collectGarbage()
+}
 
 const NOTIFICATION_PREF_KEYS = [
   'app.notification.assistant.enabled',
@@ -37,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   electronNotifications: [] as Array<{
     options: { title: string; body: string }
     click?: () => void
+    reference: WeakRef<{ emit: (event: string) => boolean }>
     show: ReturnType<typeof vi.fn<() => void>>
   }>,
   fetch: vi.fn<typeof fetch>(),
@@ -86,33 +96,33 @@ vi.mock('@main/i18n', () => ({
       })[key] ?? key
   )
 }))
-vi.mock('electron', () => ({
-  net: { fetch: mocks.fetch },
-  BrowserWindow: { getFocusedWindow: () => (mocks.focused ? {} : null) },
-  app: {
-    on: (event: string, listener: () => void) => mocks.focusListeners.set(event, listener),
-    removeListener: (event: string) => mocks.focusListeners.delete(event),
-    getLocale: () => 'en-US',
-    setBadgeCount: (...args: Parameters<typeof mocks.setBadgeCount>) => mocks.setBadgeCount(...args)
-  },
-  Notification: class {
-    private readonly state: (typeof mocks.electronNotifications)[number]
+vi.mock('electron', async () => {
+  const { EventEmitter } = await import('node:events')
+  return {
+    net: { fetch: mocks.fetch },
+    BrowserWindow: { getFocusedWindow: () => (mocks.focused ? {} : null) },
+    app: {
+      on: (event: string, listener: () => void) => mocks.focusListeners.set(event, listener),
+      removeListener: (event: string) => mocks.focusListeners.delete(event),
+      getLocale: () => 'en-US',
+      setBadgeCount: (...args: Parameters<typeof mocks.setBadgeCount>) => mocks.setBadgeCount(...args)
+    },
+    Notification: class extends EventEmitter {
+      private readonly state: (typeof mocks.electronNotifications)[number]
 
-    constructor(options: { title: string; body: string }) {
-      this.state = { options, show: vi.fn() }
-      mocks.electronNotifications.push(this.state)
-    }
+      constructor(options: { title: string; body: string }) {
+        super()
+        const reference = new WeakRef(this)
+        this.state = { options, show: vi.fn(), reference, click: () => reference.deref()?.emit('click') }
+        mocks.electronNotifications.push(this.state)
+      }
 
-    on(event: string, listener: () => void) {
-      if (event === 'click') this.state.click = listener
-      return this
-    }
-
-    show() {
-      this.state.show()
+      show() {
+        this.state.show()
+      }
     }
   }
-}))
+})
 
 const { activateNotification } = await import('../notificationActivation')
 const { ConversationNotificationService } = await import('../ConversationNotificationService')
@@ -1763,6 +1773,62 @@ describe('NotificationService', () => {
     expect(mocks.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'notification.clicked', notification)
   })
 
+  it('keeps a delivered conversation notification clickable after garbage collection', async () => {
+    emitCompletion({ turnId: 'turn-after-gc' })
+    const notification = mocks.electronNotifications[0]
+    expect(notificationRecordService.unreadCount()).toBe(1)
+
+    await collectNotificationGarbage()
+    notification.click?.()
+
+    await vi.waitFor(() => expect(notificationRecordService.unreadCount()).toBe(0))
+    expect(mocks.focusOrOpen).toHaveBeenCalledWith(
+      { conversationType: 'assistant', conversationId: 'topic-1' },
+      'Research notes',
+      null,
+      undefined,
+      undefined
+    )
+  })
+
+  it.each(['click', 'close', 'failed'])('releases a delivered native wrapper after %s', async (event) => {
+    await service.sendNotification({
+      id: 'native-release',
+      type: 'info',
+      title: 'Update',
+      message: 'Ready',
+      timestamp: 1,
+      source: 'update'
+    })
+    const notification = mocks.electronNotifications[0]
+    await collectNotificationGarbage()
+    expect(notification.reference.deref()).toBeDefined()
+
+    notification.reference.deref()!.emit(event)
+    await collectNotificationGarbage()
+
+    expect(notification.reference.deref()).toBeUndefined()
+  })
+
+  it('releases outstanding native wrappers when the notification service stops', async () => {
+    await service.sendNotification({
+      id: 'native-stop',
+      type: 'info',
+      title: 'Update',
+      message: 'Ready',
+      timestamp: 1,
+      source: 'update'
+    })
+    const notification = mocks.electronNotifications[0]
+    await collectNotificationGarbage()
+    expect(notification.reference.deref()).toBeDefined()
+
+    await service._doStop()
+    await collectNotificationGarbage()
+
+    expect(notification.reference.deref()).toBeUndefined()
+  })
+
   it('clears the Dock badge on init when every notification preference is already off', async () => {
     // Catches #20709 relaunch/init path: prefs already false, badge still shows "3".
     BaseService.resetInstances()
@@ -1839,3 +1905,6 @@ describe('notification result storage compatibility', () => {
     expect(dbh.sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
   })
 })
+import { setImmediate } from 'node:timers/promises'
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'

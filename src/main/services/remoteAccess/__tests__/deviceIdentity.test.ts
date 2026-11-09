@@ -75,7 +75,7 @@ describe('loadDesktopIdentity', () => {
   it('reuses plaintext identity on Linux when the key store fails despite async POSIX availability', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
     keyStore.syncAvailable = false
-    expectedSyncProbeCalls = 2
+    expectedSyncProbeCalls = 1
 
     const created = deviceIdentityId(await loadDesktopIdentity())
 
@@ -145,6 +145,17 @@ describe('loadDesktopIdentity', () => {
     expect(storage.encryptStringAsync).toHaveBeenCalledTimes(0)
   })
 
+  it('reloads a plaintext identity without requiring an interactive key store', async () => {
+    keyStore.available = false
+    const created = deviceIdentityId(await loadDesktopIdentity())
+    const before = await files()
+    storage.isAsyncEncryptionAvailable.mockRejectedValue(new Error('Key store requires interactive login'))
+
+    expect(deviceIdentityId(await loadDesktopIdentity())).toBe(created)
+    expect(await files()).toEqual(before)
+    expect(storage.encryptStringAsync).toHaveBeenCalledTimes(0)
+  })
+
   it.each([false, true])('reuses sealed identity without rewriting when shouldReEncrypt is %s', async (value) => {
     const identity = await createDeviceIdentity()
     const sealed = `sealed:${Buffer.from(identity).toString('base64')}`
@@ -169,7 +180,7 @@ describe('loadDesktopIdentity', () => {
   it('treats Linux basic_text as insecure regardless of availability', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
     keyStore.syncAvailable = true
-    expectedSyncProbeCalls = 2
+    expectedSyncProbeCalls = 1
     keyStore.backend = 'basic_text'
     const created = deviceIdentityId(await loadDesktopIdentity())
 
@@ -192,21 +203,18 @@ describe('loadDesktopIdentity', () => {
     expect(storage.decryptStringAsync).toHaveBeenCalledTimes(0)
   })
 
-  it.each(['absent', 'sealed', 'plaintext'])(
-    'propagates availability rejection with %s identity untouched',
-    async (existing) => {
-      if (existing !== 'absent') {
-        keyStore.available = existing === 'sealed'
-        await loadDesktopIdentity()
-      }
-      const before = await files()
-      const failure = new Error('availability denied')
-      storage.isAsyncEncryptionAvailable.mockRejectedValueOnce(failure)
-
-      await expect(loadDesktopIdentity()).rejects.toBe(failure)
-      expect(await files()).toEqual(before)
+  it.each(['absent', 'sealed'])('propagates availability rejection with %s identity untouched', async (existing) => {
+    if (existing !== 'absent') {
+      keyStore.available = existing === 'sealed'
+      await loadDesktopIdentity()
     }
-  )
+    const before = await files()
+    const failure = new Error('availability denied')
+    storage.isAsyncEncryptionAvailable.mockRejectedValueOnce(failure)
+
+    await expect(loadDesktopIdentity()).rejects.toBe(failure)
+    expect(await files()).toEqual(before)
+  })
 
   it('propagates decryption rejection without falling back to plaintext or replacing files', async () => {
     await loadDesktopIdentity()

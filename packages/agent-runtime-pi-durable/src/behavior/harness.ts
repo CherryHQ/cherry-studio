@@ -49,6 +49,8 @@ import { conversationId, pages, readFacts, threadId, runIds, taskRun } from './h
 export interface PiDurableBehaviorOptions {
   readonly onError?: (error: unknown) => void
   readonly install: (ports: HarnessPorts) => void
+  readonly owns?: (thread: ThreadId) => boolean
+  readonly configureRoot?: (thread: ThreadId) => AgentChange | Promise<AgentChange>
   readonly configureChild: (
     child: ThreadId,
     parent: ThreadId,
@@ -869,9 +871,13 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       )
       for (const conversation of conversations) {
         const thread = threadId(conversation.id)
+        if (options.owns && !options.owns(thread)) continue
         const facts = await read(thread)
         if (facts.lineage.kind === 'subagent') {
           const change = await options.configureChild(thread, facts.lineage.parent, facts.lineage.origin)
+          await harness.commit((tx) => configure(tx, conversation.id, change), context)
+        } else if (options.configureRoot) {
+          const change = await options.configureRoot(thread)
           await harness.commit((tx) => configure(tx, conversation.id, change), context)
         }
         await withCall(thread, (ports) => lifecycle?.onOpen(thread, { reopened: true }, ports) ?? Promise.resolve())
@@ -899,11 +905,11 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
         (tx) => pages((cursor) => tx.scanConversations({}, 256, cursor)),
         context
       )
-      for (const conversation of conversations)
-        await withCall(
-          threadId(conversation.id),
-          (ports) => lifecycle?.onClose(threadId(conversation.id), ports) ?? Promise.resolve()
-        )
+      for (const conversation of conversations) {
+        const thread = threadId(conversation.id)
+        if (options.owns && !options.owns(thread)) continue
+        await withCall(thread, (ports) => lifecycle?.onClose(thread, ports) ?? Promise.resolve())
+      }
       closed = true
       await Promise.all([...admissions.values()])
       stopWaiting.abort()

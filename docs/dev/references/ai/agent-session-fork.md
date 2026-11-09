@@ -17,9 +17,7 @@ sources:
 
 ## Behavior
 
-Pi and Claude Code support **Fork** on successful assistant messages with valid native checkpoints.
-Pi Durable does not yet expose desktop fork checkpoints or **Edit and resend**;
-these operations reject unsupported native history rather than rebuilding it from product messages.
+Pi, Claude Code and Pi Durable support **Fork** on successful assistant messages with valid native checkpoints. Pi Durable **Edit and resend** remains unsupported. Legacy replies without a native checkpoint remain ineligible; the operation never rebuilds native history from product messages.
 The operation creates an independent Agent session containing the visible
 history through the selected turn and a native runtime resume reference.
 It does not start or interrupt the source connection. The source can continue
@@ -39,6 +37,10 @@ User workspaces remain shared. System workspaces copy their **current** files in
 the child's workspace; selecting an earlier turn does not restore historical file
 versions. Copying detects file changes and can fail with `workspace_changed`.
 Shared-workspace editing remains the responsibility of the sessions using it.
+
+Pi Durable forks keep the source backend ID and use the SDK's ownerless same-storage fork. One Harness owns that backend, with separate root model, approval, extension and environment routing. A connection release cannot close a peer's owner. Checkpoints include backend identity because native conversation and entry IDs are local to a store. Prefix grouping delegates binding validation to the adapter, so equal conversation IDs across `/clear` contexts are not ambiguous.
+
+The operation journal records the intended native context before preparation. The native fork and its context marker share one commit, so an uncertain receipt can be reconciled. Product publication remains a separate atomic transaction. A failed or cancelled publication leaves no visible product fork; its prepared native conversation remains inert and identifiable. The SDK has no public conversation deletion API, so rollback retains it and never deletes or truncates the shared store. Source deletion also retains the ancestry required by surviving forks.
 
 ## Edit and resend within a session
 
@@ -152,7 +154,7 @@ the first input or such a boundary immediately before the input. The renderer
 uses these decisions without receiving the private anchor. Missing edit parents and
 delivery inputs are ineligible. Listing opens no native
 files or runtime connections. A file removed after listing still causes an explicit
-execution-time failure. Unsupported Durable actions remain unavailable.
+execution-time failure. Durable Edit and resend remains unavailable.
 
 When Claude resets its native session, Main prepares the successor binding from
 the current product head before switching the active handle and context. Old

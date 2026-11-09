@@ -3,6 +3,7 @@ description: Main-as-writer tool approval through ai.tool.respond_approval, appr
 sources:
   - src/main/ai/AiService.ts
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/agentSession/RootMessageProjection.ts
   - src/main/ipc/handlers/ai.ts
   - src/renderer/hooks/useToolApprovalBridge.ts
   - src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts
@@ -88,6 +89,12 @@ question nothing can receive.
    broadcasts `pending`, the shared-cache entry flips back. Every window
    sees the approval card disappear in the same tick.
 
+For native Agent root messages, the host retains each resolved approval by tool-call
+ID, including its real approval ID. Later native results may omit approval metadata;
+the projection reapplies the decision before publishing and persisting, and restores
+it from persisted parts after reconnecting. A host refusal remains `output-denied`;
+a permitted call can still finish with a genuine execution error.
+
 ## Persistent decisions
 
 `useToolApproval`
@@ -119,6 +126,13 @@ Main stores `originalInput: input` and resolves the decision against that input
 does not set `updatedInput`, the decision adapter returns `originalInput`
 unchanged as the SDK's execution input
 (`src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts:16`).
+
+Pi file-tool cards adapt native `path`, `oldText` and `newText` fields to the
+shared renderer's `file_path`, `old_string` and `new_string` fields in
+`toolResponse.ts`. This presentation mapping preserves the original message
+and execution input; it does not rewrite the approved operation.
+Native Pi `edits` arrays use the shared MultiEdit card and map each hunk's
+`oldText` / `newText` independently, preserving all edit hunks.
 
 The rendered card is not byte-bound to that object: the stream approval chunk
 carries only IDs, the card uses earlier streamed tool input, and a configured
