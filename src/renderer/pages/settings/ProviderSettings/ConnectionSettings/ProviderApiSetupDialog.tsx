@@ -27,6 +27,7 @@ import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
+import type { SerializedError } from '@renderer/types/error'
 import { joinApiKeyString } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -73,7 +74,8 @@ type VerificationStepStatus = 'pending' | 'active' | 'complete' | 'error' | 'war
 interface SetupError {
   kind: SetupErrorKind
   message: string
-  cause?: unknown
+  /** Serialized failure with known key literals masked. */
+  diagnostic?: SerializedError
 }
 
 export default function ProviderApiSetupDialog({ providerId, initialStep, onClose }: ProviderApiSetupDialogProps) {
@@ -203,7 +205,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
         ...storedApiKeyEntries.map((entry) => entry.key)
       ])
       const summary = details.i18nKey ? t(details.i18nKey) : canSafelyShowSummary ? details.summary : ''
-      return { kind, message: summary ? `${fallback} ${summary}` : fallback, cause }
+      return { kind, message: summary ? `${fallback} ${summary}` : fallback, diagnostic: details.diagnostic }
     },
     [apiKey, apiKeysData?.keys, storedApiKeyEntries, t]
   )
@@ -599,7 +601,9 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                   </div>
                 ) : null}
               </div>
-              {error?.kind === 'api-key' ? <SetupErrorMessage cause={error.cause} message={error.message} /> : null}
+              {error?.kind === 'api-key' ? (
+                <SetupErrorMessage diagnostic={error.diagnostic} message={error.message} providerId={providerId} />
+              ) : null}
             </div>
           ) : step === 'models' ? (
             <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
@@ -622,7 +626,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                     onClick={openManualModelDialog}>
                     {t('settings.provider.api_setup.add_model_manually')}
                   </Button>
-                  <SetupErrorMessage cause={error.cause} message={error.message} />
+                  <SetupErrorMessage diagnostic={error.diagnostic} message={error.message} providerId={providerId} />
                 </div>
               ) : (
                 <ModelListSyncContent
@@ -651,8 +655,9 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
 
               {error && !hasBlockingModelError ? (
                 <SetupErrorMessage
-                  cause={error.cause}
+                  diagnostic={error.diagnostic}
                   message={error.message}
+                  providerId={providerId}
                   className={
                     error.kind === 'models'
                       ? 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
@@ -855,7 +860,17 @@ function VerificationProgressRow({
   )
 }
 
-function SetupErrorMessage({ cause, message, className }: { cause?: unknown; message: string; className?: string }) {
+function SetupErrorMessage({
+  diagnostic,
+  message,
+  providerId,
+  className
+}: {
+  diagnostic?: SerializedError
+  message: string
+  providerId: string
+  className?: string
+}) {
   return (
     <div
       role="alert"
@@ -865,8 +880,14 @@ function SetupErrorMessage({ cause, message, className }: { cause?: unknown; mes
       )}>
       <AlertCircle size={15} className="mt-0.5 shrink-0" />
       <span className="min-w-0 flex-1 break-words">{message}</span>
-      {cause != null ? (
-        <ErrorDetailAction error={cause} message={message} operation="provider.setup" source="settings.provider" />
+      {diagnostic ? (
+        <ErrorDetailAction
+          error={diagnostic}
+          message={message}
+          operation="provider.setup"
+          providerId={providerId}
+          source="settings.provider"
+        />
       ) : null}
     </div>
   )

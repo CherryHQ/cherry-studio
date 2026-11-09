@@ -86,7 +86,9 @@ export default function McpResourcePreview({ serverId, uri }: { serverId: string
         <Alert
           type="error"
           message={t('common.error')}
-          action={<ErrorDetailAction error={failure} source="mcp" operation="mcp.resource.preview" recordId={uri} />}
+          action={
+            <ErrorDetailAction error={failure} source="mcp" operation="mcp.resource.preview" recordId={serverId} />
+          }
         />
       ) : !preview ? (
         <Spinner text={t('common.loading')} />

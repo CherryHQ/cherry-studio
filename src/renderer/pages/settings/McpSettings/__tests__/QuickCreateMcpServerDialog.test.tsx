@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import QuickCreateMcpServerDialog from '../QuickCreateMcpServerDialog'
@@ -138,6 +139,24 @@ describe('QuickCreateMcpServerDialog', () => {
     expect(toast.error).not.toHaveBeenCalledWith('registry down')
     expect(onOpenChange).not.toHaveBeenCalled()
     expect(onCreate).toHaveBeenCalledOnce()
+  })
+
+  it('shows why the server was rejected instead of offering it as a fault', async () => {
+    const rejection = DataApiErrorFactory.conflict('MCP server name already exists')
+    const { onOpenChange, user } = setup(vi.fn().mockRejectedValue(rejection))
+
+    await user.type(screen.getByLabelText('settings.mcp.name'), 'new-server')
+    await user.type(screen.getByLabelText('settings.mcp.command'), 'npx')
+    await user.click(submit())
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith({
+        title: 'settings.mcp.addError',
+        description: 'MCP server name already exists',
+        data: { suppressDetail: true }
+      })
+    )
+    expect(onOpenChange).not.toHaveBeenCalled()
   })
 
   it('resets registry options when reopened', async () => {
