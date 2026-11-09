@@ -5928,6 +5928,8 @@
   "settings.skills.launchFailed": "Não foi possível experimentar {{name}}",
   "settings.skills.mirrorToggleFailed": "Falha ao sincronizar a habilidade {{name}}",
   "settings.skills.notFound": "Competência não encontrada",
+  "settings.skills.note.label": "Nota pessoal",
+  "settings.skills.note.placeholder": "Adicione um lembrete para escolher esta competência",
   "settings.skills.readOnly": "Só de leitura",
   "settings.skills.remote.applyFailed": "Falha ao atualizar o Skill",
   "settings.skills.remote.check": "Procurar atualizações",

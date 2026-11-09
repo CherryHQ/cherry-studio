@@ -5928,6 +5928,8 @@
   "settings.skills.launchFailed": "Nu s-a putut încerca {{name}}",
   "settings.skills.mirrorToggleFailed": "Sincronizarea abilității {{name}} a eșuat",
   "settings.skills.notFound": "Abilitatea nu a fost găsită",
+  "settings.skills.note.label": "Notă personală",
+  "settings.skills.note.placeholder": "Adaugă un memento pentru alegerea acestei abilități",
   "settings.skills.readOnly": "Doar în citire",
   "settings.skills.remote.applyFailed": "Actualizarea Skill-ului a eșuat",
   "settings.skills.remote.check": "Caută actualizări",
