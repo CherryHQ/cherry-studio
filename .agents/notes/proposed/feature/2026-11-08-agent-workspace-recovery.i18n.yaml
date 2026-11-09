@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-08-agent-workspace-recovery.md
-2026-11-08-agent-workspace-recovery.md: 2e1e5eb8a1a5a0c55fbd5f17e764404e9d55b55b
-2026-11-08-agent-workspace-recovery.zh.md: 2d5f603acf20661764982f98d9ebc247429dc353
+2026-11-08-agent-workspace-recovery.md: a57925154b6005ed749c7a04be24a78c5110f2ed
+2026-11-08-agent-workspace-recovery.zh.md: 6f3be16e7a1d92fe9de47991a5a1be45a485ac26

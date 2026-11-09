@@ -57,7 +57,7 @@ Device migration or backup restore, a renamed or deleted folder while the app is
 
 ## Risks
 
-- The folder check runs on the main process inside the write transaction. A slow or hung network or external drive can delay the rebind, so the check must stay a single synchronous stat call.
+- The directory type, access, and open/read checks run synchronously on the main process before the write transaction. A slow or hung network or external drive can still delay the rebind, but directory enumeration does not hold the database write transaction. The transaction rechecks that the session still uses the workspace checked by the preflight.
 - A rebind changes what the Agent's tools can reach. The notice must make the new folder visible, and the user must choose it explicitly.
 - The skill-loading hang is not yet reproduced. AC1 and AC5 cannot be verified until the cause is found in the running app.
 - Translations for the new strings are unreviewed.
