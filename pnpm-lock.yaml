@@ -1456,8 +1456,8 @@ importers:
         specifier: 5.0.3
         version: 5.0.3(patch_hash=6097261bdbbe25fe41510bbc0dce191ef33ffc8f0f5d92904d4f01a7c3ed5db2)
       virtua:
-        specifier: ^0.49.1
-        version: 0.49.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: ^0.54.2
+        version: 0.54.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       vite:
         specifier: 8.2.2
         version: 8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2)
@@ -15642,15 +15642,21 @@ packages:
   vimeo-video-element@1.6.3:
     resolution: {integrity: sha512-pSBMYV+7KbChvtzuXGR3Sg7ZqaAZuTOnHrlZxrauIH2GWMLDnOEK5D0o7yWCcnswtQHVlIz6hXeJYbvQC+gAkw==}
 
-  virtua@0.49.1:
-    resolution: {integrity: sha512-6f79msqg3jzNFdqJiS0FSzhRN1EHlDhR7EvW7emp6z5qQ22VdsReiDHflkpMEMhoAyUuYr69nwT0aagiM7NrUg==}
+  virtua@0.54.2:
+    resolution: {integrity: sha512-lYCAxyXCGkhXVvuKv8a+LklZquy0E9dIObYcOUyo6nP4VSvLeiIsiz94mA3ZKYuM5egkke5RIi2nXi5OIATc7A==}
     peerDependencies:
+      '@angular/common': '>=20.0.0'
+      '@angular/core': '>=20.0.0'
       react: '>=16.14.0'
       react-dom: '>=16.14.0'
       solid-js: '>=1.0'
       svelte: '>=5.0'
       vue: '>=3.2'
     peerDependenciesMeta:
+      '@angular/common':
+        optional: true
+      '@angular/core':
+        optional: true
       react:
         optional: true
       react-dom:
@@ -31574,7 +31580,7 @@ snapshots:
     dependencies:
       '@vimeo/player': 2.29.0
 
-  virtua@0.49.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+  virtua@0.54.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     optionalDependencies:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)

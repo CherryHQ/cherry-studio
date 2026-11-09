@@ -331,14 +331,17 @@ export function useChatVirtualizerRuntime<T>({
 
   const stickToEffectiveBottom = useCallback(() => {
     const el = scrollerRef.current
-    if (!el) return
+    const handle = vlistHandleRef.current
+    if (!el || !handle || itemsRef.current.length === 0) return
     smoothScroll.cancel()
     const target = getRealBottom(el, bottomFollowInsetRef.current)
     if (Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX) {
       suppressNextAutoscrollConfirm()
     }
-    el.scrollTop = target
-    lastScrollOffsetRef.current = target
+    // Virtua must own the scroll so pending measurements cannot discard
+    // historical rows as though the user had scrolled past them.
+    handle.scrollToIndex(itemsRef.current.length - 1, { align: 'end' })
+    lastScrollOffsetRef.current = el.scrollTop
     hideScrollToBottomButton()
   }, [hideScrollToBottomButton, smoothScroll, suppressNextAutoscrollConfirm])
 
