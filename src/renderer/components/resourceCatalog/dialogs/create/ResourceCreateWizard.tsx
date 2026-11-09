@@ -35,6 +35,7 @@ type ResourceCreateWizardProps = {
   isSubmitting?: boolean
   /** Seeds the name field when the caller already knows it (e.g. the picker's search query). */
   initialName?: string
+  initialValues?: Partial<Pick<ResourceCreateWizardFormValues, 'name' | 'description' | 'avatar' | 'prompt'>>
 }
 
 type StepId = 'basic' | 'system-prompt' | 'knowledge' | 'capability'
@@ -44,7 +45,11 @@ export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
   return kind === 'assistant' ? '💬' : '🤖'
 }
 
-function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): ResourceCreateWizardFormValues {
+function getDefaultValues(
+  kind: ResourceCreateWizardKind,
+  initialName = '',
+  initialValues: ResourceCreateWizardProps['initialValues'] = {}
+): ResourceCreateWizardFormValues {
   const agentType = kind === 'agent' ? 'pi-durable' : 'claude-code'
   return {
     avatar: getResourceCreateDefaultAvatar(kind),
@@ -55,7 +60,8 @@ function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): Res
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
-    skillIds: []
+    skillIds: [],
+    ...initialValues
   }
 }
 
@@ -133,10 +139,13 @@ export function ResourceCreateWizard({
   onSubmit,
   modelFilter,
   isSubmitting = false,
-  initialName
+  initialName,
+  initialValues
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
-  const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind, initialName) })
+  const form = useForm<ResourceCreateWizardFormValues>({
+    defaultValues: getDefaultValues(kind, initialName, initialValues)
+  })
   const agentType = form.watch('agentType')
   const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
   const activeModelFilter = kind === 'agent' ? agentModelFilter : modelFilter
@@ -187,7 +196,7 @@ export function ResourceCreateWizard({
   // user is already filling in — the shared wizard has five callers and a comment would not hold them.
   const resetForOpen = useEffectEvent(() => {
     autoSelectedDefaultModelIdRef.current = null
-    form.reset(getDefaultValues(kind, initialName))
+    form.reset(getDefaultValues(kind, initialName, initialValues))
     form.clearErrors()
     setStepIndex(0)
   })

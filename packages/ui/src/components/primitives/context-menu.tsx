@@ -8,6 +8,7 @@ import * as React from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 
+import { Kbd } from './kbd'
 import {
   KeyboardLayer,
   KeyboardLayerOpenContext,
@@ -393,11 +394,11 @@ function ContextMenuSeparator({ className, ...props }: React.ComponentProps<type
   )
 }
 
-function ContextMenuShortcut({ className, ...props }: React.ComponentProps<'span'>) {
+function ContextMenuShortcut({ className, ...props }: React.ComponentProps<'kbd'>) {
   return (
-    <span
+    <Kbd
       data-slot="context-menu-shortcut"
-      className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)}
+      className={cn('ml-auto shrink-0 bg-muted px-1.5 py-0.5 whitespace-nowrap text-muted-foreground', className)}
       {...props}
     />
   )
