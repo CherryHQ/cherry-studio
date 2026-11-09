@@ -1,9 +1,9 @@
 import { application } from '@application'
-import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
+import type { FileProcessingTask, FileProcessingTaskId } from '@main/features/fileProcessing'
 
 interface FileProcessingWait {
   baseId: string
-  jobId: string
+  taskId: FileProcessingTaskId
   /** Last percentage written to the item, so an unchanged value is not broadcast again. */
   mirroredProgress?: number
 }
@@ -13,15 +13,15 @@ function fileProcessingProgressCacheKey(itemId: string): `knowledge.item.file_pr
 }
 
 /**
- * The knowledge items waiting on their file-processing job, keyed by item id. Entries live in
- * memory only, like the `JobHandle.finished` that ends each wait: after a restart, boot recovery
- * fails the items that were still waiting.
+ * The knowledge items waiting on their file-processing task, keyed by item id. Entries live in
+ * memory only, like the task's `done` that ends each wait: after a restart, boot recovery fails
+ * the items that were still waiting.
  */
 export class FileProcessingWaitManager {
   private readonly waits = new Map<string, FileProcessingWait>()
 
-  add(baseId: string, itemId: string, jobId: string): void {
-    this.waits.set(itemId, { baseId, jobId })
+  add(baseId: string, itemId: string, taskId: FileProcessingTaskId): void {
+    this.waits.set(itemId, { baseId, taskId })
   }
 
   has(itemId: string): boolean {
@@ -40,27 +40,28 @@ export class FileProcessingWaitManager {
     }
   }
 
-  /** The file-processing jobs that items of `baseId` wait on, limited to `itemIds` when given. */
-  jobIds(baseId: string, itemIds?: ReadonlySet<string>): string[] {
-    const jobIds: string[] = []
+  /** The file-processing tasks that items of `baseId` wait on, limited to `itemIds` when given. */
+  taskIds(baseId: string, itemIds?: ReadonlySet<string>): FileProcessingTaskId[] {
+    const taskIds: FileProcessingTaskId[] = []
     for (const [itemId, wait] of this.waits) {
       if (wait.baseId === baseId && (!itemIds || itemIds.has(itemId))) {
-        jobIds.push(wait.jobId)
+        taskIds.push(wait.taskId)
       }
     }
-    return jobIds
+    return taskIds
   }
 
-  /** Copy each job's latest progress onto its item, writing only values that changed. */
-  mirrorProgress(): void {
-    const cacheService = application.get('CacheService')
+  /** Copy a processing task's progress onto the item waiting on it, writing only values that changed. */
+  mirrorProgress(task: FileProcessingTask): void {
+    if (task.status !== 'processing') {
+      return
+    }
     for (const [itemId, wait] of this.waits) {
-      const progress = cacheService.getShared(`${JOB_PROGRESS_KEY_PREFIX}${wait.jobId}`)?.progress
-      if (progress === undefined || progress === wait.mirroredProgress) {
+      if (wait.taskId !== task.id || wait.mirroredProgress === task.progress) {
         continue
       }
-      cacheService.setShared(fileProcessingProgressCacheKey(itemId), progress)
-      wait.mirroredProgress = progress
+      application.get('CacheService').setShared(fileProcessingProgressCacheKey(itemId), task.progress)
+      wait.mirroredProgress = task.progress
     }
   }
 }

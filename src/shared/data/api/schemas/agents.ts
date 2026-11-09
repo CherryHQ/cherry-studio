@@ -42,7 +42,7 @@ export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
-export const AGENT_TYPES = ['claude-code', 'pi'] as const
+export const AGENT_TYPES = ['claude-code', 'pi', 'pi-durable'] as const
 export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
@@ -263,6 +263,13 @@ export const ListQuerySchema = z.strictObject({
 })
 export type ListQuery = z.infer<typeof ListQuerySchema>
 
+export const ListTasksQuerySchema = ListQuerySchema.extend({
+  status: z
+    .union([ScheduledTaskEntitySchema.shape.status, z.array(ScheduledTaskEntitySchema.shape.status).min(1)])
+    .optional()
+})
+export type ListTasksQuery = z.infer<typeof ListTasksQuerySchema>
+
 export const AGENTS_DEFAULT_PAGE = 1
 export const AGENTS_DEFAULT_LIMIT = 100
 export const AGENTS_MAX_LIMIT = 500
@@ -275,6 +282,8 @@ export const AGENTS_MAX_LIMIT = 500
  */
 export const ListAgentsQuerySchema = z.strictObject({
   ids: z.array(z.string().min(1)).min(1).max(AGENTS_MAX_LIMIT).optional(),
+  /** Only the builtin agent holding this role, which has no fixed ID except Support's. */
+  builtinRole: z.enum(BUILTIN_AGENT_ROLE).optional(),
   /** `true` lists only trashed agents; omitted/false lists active agents. */
   inTrash: z.boolean().optional(),
   /** Free-text match against name OR description, including builtin fallback text (case-insensitive LIKE). */
@@ -316,7 +325,7 @@ export type AgentSchemas = {
   /** List scheduled tasks across every agent (settings overview, paginated) */
   '/agent-tasks': {
     GET: {
-      query?: ListQuery
+      query?: ListTasksQuery
       response: OffsetPaginationResponse<ScheduledTaskListItem>
     }
   }

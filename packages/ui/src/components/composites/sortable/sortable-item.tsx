@@ -1,17 +1,21 @@
-import { useSortable } from '@dnd-kit/sortable'
+import type { CollisionDetector } from '@dnd-kit/collision'
+import { useSortable } from '@dnd-kit/react/sortable'
 
 import { ItemRenderer } from './item-renderer'
-import type { RenderItemType } from './types'
+import type { RenderItemType, SortableItemId } from './types'
 
 interface SortableItemProps<T> {
   item: T
-  id: string | number
+  id: SortableItemId
   index: number
   renderItem: RenderItemType<T>
   disabled?: boolean
+  /** Refuse to drag this row while it keeps accepting drops. */
+  dragDisabled?: boolean
   useDragOverlay?: boolean
   showGhost?: boolean
   itemStyle?: React.CSSProperties
+  collisionDetector?: CollisionDetector
   /** Route the drag activator to a handle (via renderItem's dragHandleProps) instead of the whole row. */
   dragHandle?: boolean
 }
@@ -22,36 +26,34 @@ export function SortableItem<T>({
   index,
   renderItem,
   disabled = false,
+  dragDisabled = false,
   useDragOverlay = true,
   showGhost = true,
   itemStyle,
+  collisionDetector,
   dragHandle = false
 }: SortableItemProps<T>) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+  const { ref, handleRef, isDragSource } = useSortable({
     id,
-    disabled
+    index,
+    disabled: !disabled && dragDisabled ? { draggable: true, droppable: false } : disabled,
+    collisionDetector,
+    // Rows now shift by a Web Animation, which a CSS `transition: none` cannot turn off.
+    transition: itemStyle?.transition === 'none' ? null : undefined
   })
-
-  // Handle mode: keep the activator attributes/listeners off the row and hand them to
-  // renderItem so a dedicated handle carries them; the row stays non-interactive.
-  const dragHandleProps = dragHandle ? { ref: setActivatorNodeRef, attributes, listeners } : undefined
 
   return (
     <ItemRenderer
-      ref={setNodeRef}
-      activatorRef={dragHandle ? undefined : setActivatorNodeRef}
+      ref={ref}
       item={item}
       index={index}
       renderItem={renderItem}
-      dragging={isDragging}
-      dragOverlay={!useDragOverlay && isDragging}
-      ghost={showGhost && useDragOverlay && isDragging}
-      transform={transform}
-      transition={transition}
-      listeners={dragHandle ? undefined : listeners}
-      dragHandleProps={dragHandleProps}
+      dragging={isDragSource}
+      dragDisabled={dragDisabled}
+      dragOverlay={!useDragOverlay && isDragSource}
+      ghost={showGhost && useDragOverlay && isDragSource}
+      dragHandleProps={dragHandle ? { ref: handleRef } : undefined}
       itemStyle={itemStyle}
-      {...(dragHandle ? {} : attributes)}
     />
   )
 }

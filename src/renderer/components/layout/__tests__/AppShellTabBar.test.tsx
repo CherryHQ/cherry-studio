@@ -6,9 +6,9 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as UI from '@cherrystudio/ui'
 import { useTabsContext } from '@renderer/hooks/tab'
 
-import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 import { TabsProvider } from '../TabsProvider'
 
 const mocks = vi.hoisted(() => ({
@@ -37,7 +37,8 @@ vi.mock('@renderer/services/resourceListRevealEvents', () => ({
   emitResourceListReveal: mocks.emitResourceListReveal
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  Kbd: (await importOriginal<typeof UI>()).Kbd,
   Button: ({ children, variant, ...props }: React.ComponentProps<'button'> & { variant?: string }) => {
     void variant
     return (
@@ -97,13 +98,9 @@ vi.mock('@renderer/utils/error', () => ({
   formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
 }))
 
-vi.mock('../ShellTabBarActions', async () => {
-  const actual = await vi.importActual<typeof ShellTabBarActionsModule>('../ShellTabBarActions')
-  return {
-    ...actual,
-    ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
-  }
-})
+vi.mock('../ShellTabBarActions', () => ({
+  ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
+}))
 
 vi.mock('../../WindowControls', () => ({
   WindowControls: () => <div data-testid="window-controls" />
@@ -199,9 +196,19 @@ afterEach(() => {
   mocks.macTransparentState.value = false
   mocks.platformState.isMac = false
   mocks.platformState.isWin = false
+  Reflect.deleteProperty(navigator, 'windowControlsOverlay')
+  vi.unstubAllGlobals()
 })
 
 describe('AppShellTabBar', () => {
+  it('does not mount a separate notification entry in the focused settings tab bar', () => {
+    renderTabBar({
+      tabs: [createTab('settings', { url: '/settings/notifications' })],
+      activeTabId: 'settings',
+      isFocusedTab: true
+    })
+    expect(screen.queryByRole('button', { name: 'Notification center' })).not.toBeInTheDocument()
+  })
   it('keeps the Windows title bar at least as tall as the native overlay when zoomed out', () => {
     mocks.platformState.isWin = true
     renderTabBar({ tabs: [createTab('home')], activeTabId: 'home' })
@@ -236,6 +243,65 @@ describe('AppShellTabBar', () => {
 
     return closeTab
   }
+
+  it('keeps the macOS leading inset fixed through native resize and refreshes it for zoom and fullscreen', () => {
+    mocks.platformState.isMac = true
+    vi.stubGlobal('innerWidth', 1226)
+    vi.stubGlobal('devicePixelRatio', 2)
+    let rect = { x: 86, width: 1140, height: 42 }
+    const overlay = Object.assign(document.createElement('div'), { visible: true, getTitlebarAreaRect: () => rect })
+    Object.defineProperty(navigator, 'windowControlsOverlay', { configurable: true, value: overlay })
+    renderTabBar({ isFocusedTab: true })
+    const header = document.querySelector<HTMLElement>('[data-ui~="app.tab-bar"]')!
+    // The native-controls inset must not follow transient x offsets or fractional-zoom width rounding.
+    expect(header.style.paddingLeft).toBe('calc(88px)')
+
+    const changeGeometry = (width: number, next: typeof rect) => {
+      vi.stubGlobal('innerWidth', width)
+      rect = next
+      fireEvent(overlay, new Event('geometrychange'))
+    }
+    changeGeometry(1218, { x: 82, width: 1132, height: 42 })
+    expect(header.style.paddingLeft).toBe('calc(88px)')
+
+    vi.stubGlobal('devicePixelRatio', 2.5)
+    changeGeometry(981, { x: 69, width: 912, height: 34 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+    changeGeometry(974, { x: 66, width: 906, height: 34 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+
+    overlay.visible = false
+    changeGeometry(3440, { x: 0, width: 0, height: 0 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+
+    overlay.visible = true
+    vi.stubGlobal('devicePixelRatio', 2)
+    changeGeometry(3440, { x: 86, width: 1103, height: 42 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+    vi.stubGlobal('innerWidth', 1189)
+    fireEvent(window, new Event('resize'))
+    expect(header.style.paddingLeft).toBe('calc(88px)')
+  })
+
+  it('shows supplied hints on pinned and normal tabs without changing their accessible names', () => {
+    renderTabBar({
+      tabs: [createTab('p', { isPinned: true }), createTab('a')],
+      shortcutHints: new Map([
+        ['p', '⌃1'],
+        ['a', '⌃2']
+      ])
+    })
+    expect(within(screen.getByRole('button', { name: 'P' })).getByText('⌃1')).toBeVisible()
+    expect(within(screen.getByRole('button', { name: 'A' })).getByText('⌃2')).toBeVisible()
+  })
+
+  it('keeps the account avatar out of the tab bar when the sidebar is hidden', () => {
+    MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 0)
+    renderTabBar({ tabs: [createTab('home')] })
+
+    expect(screen.queryByRole('button', { name: 'sidebar.account_menu' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('app-shell-tab-strip').querySelector('[data-tab-id="home"]')).toBeVisible()
+  })
 
   it('names an icon-only pinned tab after its title, not its emoji', () => {
     const emojiTab = createTab('emoji', { icon: 'emoji:🎉', isPinned: true, title: 'Emoji' })
@@ -274,7 +340,6 @@ describe('AppShellTabBar', () => {
 
   // Protect the persistent selected-tab indicator across selection and pointer closing.
   describe.each([false, true])('selected indicator (transparent macOS: %s)', (transparent) => {
-    const selectedFrame = 'shadow-[inset_0_0_0_1px_var(--border-selected)]'
     const normalTabs = [
       createTab('alpha', { title: 'Conversation Alpha', url: '/app/chat?topicId=alpha' }),
       createTab('beta', { title: 'Conversation Beta', url: '/app/chat?topicId=beta' })
@@ -306,13 +371,9 @@ describe('AppShellTabBar', () => {
     const expectIndicator = (tab: Tab, selected: boolean) => {
       const outer = button(tab)
       expect(outer).toHaveAttribute('data-tab-id', tab.id)
-      expect(outer.classList.contains(selectedFrame)).toBe(selected)
-      expect([...outer.classList].some((token) => token.endsWith(`:${selectedFrame}`))).toBe(false)
-      if (!tab.isPinned) {
-        expect(within(outer).getByText(tab.title)).toHaveClass(selected ? 'font-medium' : 'font-normal')
-        expect(within(outer).getByText(tab.title)).not.toHaveClass(selected ? 'font-normal' : 'font-medium')
-        expect(within(outer).getByRole('button', { name: 'tab.close' })).not.toHaveClass(selectedFrame)
-      }
+      // Pending closes retain their visual selection while navigation moves to the survivor.
+      if (selected) expect(outer).toHaveAttribute('data-active', 'true')
+      else expect(outer).not.toHaveAttribute('data-active')
     }
 
     it('transfers selection ownership between normal and pinned conversation tabs', () => {
@@ -363,16 +424,7 @@ describe('AppShellTabBar', () => {
         })
         expectIndicator(departing, false)
         expectIndicator(active, true)
-        expect(button(departing)).toHaveClass('text-sidebar-foreground')
-        if (transparent) {
-          expect(button(departing)).toHaveClass(
-            'bg-black/6',
-            'dark:bg-white/6',
-            'shadow-[inset_0_0_0_1px_var(--border-subtle)]'
-          )
-        } else {
-          expect(button(departing)).toHaveClass('bg-white', 'dark:bg-white/3')
-        }
+        expect(button(departing)).toHaveAttribute('data-hovered', 'true')
         act(() => {
           vi.advanceTimersByTime(200)
         })
