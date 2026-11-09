@@ -1,9 +1,7 @@
-import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai'
 import type {
   ConversationId,
   ConversationView,
-  ConversationWatch,
   EntryId,
   EntryRecord,
   LiveState,
@@ -30,45 +28,37 @@ const view = (entries: readonly EntryRecord[], live: LiveState = {}): Conversati
   docs: { 'pi.live': live }
 })
 function setup(initial: ConversationView) {
-  let listener!: Parameters<ConversationWatch['start']>[0]
-  const watch: ConversationWatch = {
-    value: initial,
-    start: (use) => {
-      listener = use
-    },
-    stop: async () => ({ reason: 'stopped' }),
-    closed: new Promise(() => {})
-  }
   const errors: unknown[] = []
-  const projection = new DurableProjection({ backendId: runtimeId('backend'), id: runtimeId('1') }, watch, (error) =>
+  const projection = new DurableProjection({ backendId: runtimeId('backend'), id: runtimeId('1') }, (error) =>
     errors.push(error)
   )
+  projection.update(initial)
   const events: ObservationPayload[] = []
   projection.feed.observe((event) => {
     events.push(event)
   })
   onTestFinished(() => projection.close())
-  return { projection, events, errors, update: (next: ConversationView) => listener(next, [], BACKGROUND_CONTEXT) }
+  return { projection, events, errors, update: (next: ConversationView) => projection.update(next) }
 }
 const live = (attempt = 1): LiveState => ({
-  run: { taskId, inputs: [] },
+  run: { taskId, inputs: [], turns: 0 },
   generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage('same text'))) }
 })
 
 describe('Durable preview identity', () => {
-  it('keeps a preview stable when unrelated entries arrive and associates only its producing task', async () => {
+  it('keeps a preview stable when unrelated entries arrive and associates only its producing task', () => {
     const { projection, update } = setup(view([], live()))
     const preview = projection.feed.snapshot.messages[0].id
-    await update(view([entry(10, 'same text', 8 as TaskId)], live()))
+    update(view([entry(10, 'same text', 8 as TaskId)], live()))
     expect(projection.feed.snapshot.messages.at(-1)?.id).toBe(preview)
-    await update(view([entry(10, 'same text', 8 as TaskId), entry(11, 'same text')]))
+    update(view([entry(10, 'same text', 8 as TaskId), entry(11, 'same text')]))
     expect(projection.aliases).toEqual({ 'entry:11:0': preview })
     expect(projection.feed.snapshot.messages).toHaveLength(2)
   })
 
   it('reports a gap instead of guessing when a coalesced frame contains two candidate answers', async () => {
     const { projection, update, events } = setup(view([], live()))
-    await update(view([entry(10, 'same text'), entry(11, 'same text')]))
+    update(view([entry(10, 'same text'), entry(11, 'same text')]))
     await expect.poll(() => events.some((event) => event.type === 'gap' && event.reason === 'mapping-reset')).toBe(true)
     expect(projection.aliases).toEqual({})
     expect(projection.feed.snapshot.messages).toHaveLength(2)
@@ -77,30 +67,30 @@ describe('Durable preview identity', () => {
   it('does not bind a preview to a head entry already present before that preview', async () => {
     const entries = [{ ...entry(10, 'same text'), head: 5 as EntryId }, entry(5, 'earlier', 8 as TaskId)]
     const { projection, update, events } = setup(view(entries, live()))
-    await update(view(entries))
+    update(view(entries))
     await expect.poll(() => events.some((event) => event.type === 'gap' && event.reason === 'mapping-reset')).toBe(true)
     expect(projection.aliases).toEqual({})
   })
 
   it('never associates an unobserved retry with the previous attempt', async () => {
     const { projection, update, events } = setup(view([], live()))
-    await update(view([], live(2)))
+    update(view([], live(2)))
     const retry = projection.feed.snapshot.messages[0].id
-    await update(view([entry(10, 'same text')]))
+    update(view([entry(10, 'same text')]))
     await expect.poll(() => events.some((event) => event.type === 'gap')).toBe(true)
     expect(projection.aliases).toEqual({ 'entry:10:0': retry })
   })
 
-  it('carries tool call and progress identities into their committed items', async () => {
+  it('carries tool call and progress identities into their committed items', () => {
     const message = fauxAssistantMessage(fauxToolCall('echo', {}, { id: 'call' }), { stopReason: 'toolUse' })
     const { projection, update } = setup(
       view([], { ...live(), generation: { attempt: 1, message: JSON.parse(JSON.stringify(message)) } })
     )
     const preview = projection.feed.snapshot.messages[0].id
     const assistant: EntryRecord = { ...entry(10, ''), model: [message] }
-    await update(
+    update(
       view([assistant], {
-        run: { taskId, inputs: [] },
+        run: { taskId, inputs: [], turns: 0 },
         tools: [{ callId: 'call', name: 'echo', status: 'running', taskId: 8 as TaskId, output: 'partial' }]
       })
     )
@@ -111,7 +101,7 @@ describe('Durable preview identity', () => {
       output: { content: [{ type: 'text', text: 'partial' }] },
       preliminary: true
     })
-    await update(
+    update(
       view([
         assistant,
         {

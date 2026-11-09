@@ -874,18 +874,22 @@ export class ChannelMessageHandler {
       resolveExecution = resolve
       rejectExecution = reject
     })
-    let accumulatedText = ''
     const sentinel: StreamListener = {
       id: `channel-completion:${chatId}`,
-      onChunk(chunk) {
-        // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`).
-        if (chunk.type === 'text-delta') accumulatedText += chunk.delta
+      onChunk() {},
+      onDone(result) {
+        resolveExecution(
+          (
+            result.finalMessage?.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('') ?? ''
+          ).trim()
+        )
       },
-      onDone() {
-        resolveExecution(accumulatedText.trim())
-      },
-      onPaused() {
-        resolveExecution(accumulatedText.trim())
+      onPaused(result) {
+        resolveExecution(
+          (
+            result.finalMessage?.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('') ?? ''
+          ).trim()
+        )
       },
       onError(result) {
         rejectExecution(new Error(result.error.message ?? 'Execution failed'))

@@ -1,28 +1,31 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { UIMessageChunk } from 'ai'
 
+import type {
+  InputLookup,
+  InputState,
+  OperationResult,
+  SubmitResult,
+  ThreadContextUsage
+} from '@cherrystudio/agent-runtime'
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
-import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
-import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
-import type { MessageSnapshot } from '@shared/data/types/message'
+import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { RuntimeForkInput, RuntimeForkResult } from './fork'
 import type { RuntimeWorkspaceRelocation } from './workspaceRelocation'
-
-export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
 
 /**
  * Agent-session usage has exactly one capture owner per runtime route.
@@ -45,11 +48,6 @@ export type AgentSessionUsageCapture =
       }>
     }
   | { owner: 'provider-calls' }
-
-export interface AiRuntimeDriver {
-  readonly type: string
-  readonly capabilities: readonly AiRuntimeCapability[]
-}
 
 export interface AgentRuntimeTraceContext {
   topicId: string
@@ -83,7 +81,9 @@ export interface AgentRuntimeConnectInput {
    * before the SDK can issue its next provider request to reserve the continuation correlation;
    * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
    */
-  onSteerInjected?: (inputs: AgentRuntimeUserInput[]) => void
+  onSteerInjected?: (inputIds: readonly string[]) => void
+  /** Pins a pending product input before native admission can run synchronously. */
+  onInputPrepared?: (inputId: string, contextId: string) => void
 }
 
 export interface AgentRuntimeUserInput {
@@ -91,11 +91,12 @@ export interface AgentRuntimeUserInput {
   /** True when this message arrived mid-turn (a steer) — the driver wraps it in a system-reminder
    *  so the model treats it as a redirect rather than a fresh prompt (invariant 7). */
   systemReminder?: boolean
-  /** Host-owned message attributes that must survive the driver round-trip (`redirect` →
-   *  `steer-boundary`/`steer-undelivered`). Opaque to drivers. */
+  /** Product attributes retained by the session owner until ownership transfers. */
   headless?: boolean
   messageSnapshot?: MessageSnapshot
 }
+
+export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder'>
 
 /**
  * Runtime-neutral approval request. Drivers emit this instead of writing directly to a live
@@ -111,7 +112,20 @@ export interface AgentRuntimeToolApprovalRequest {
   providerMetadata?: LanguageModelV3ToolApprovalRequest['providerMetadata']
 }
 
+export interface RuntimeMessageProjection {
+  readonly legacy?: Readonly<Record<string, { messageId: string }>>
+  contextId: string
+  messages: readonly CherryUIMessage[]
+  live: readonly string[]
+  /** Display-only refreshes update existing owners without admitting historical sources into a new reply. */
+  refresh?: readonly string[]
+  replaces: Readonly<Record<string, string>>
+  removed: readonly string[]
+}
+
 export type AgentRuntimeEvent =
+  | { type: 'message-projection'; projection: RuntimeMessageProjection }
+  | { type: 'response-start'; responseId: string; messageId?: string }
   | { type: 'chunk'; chunk: UIMessageChunk }
   | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }
   | {
@@ -119,6 +133,8 @@ export type AgentRuntimeEvent =
       invocation: {
         /** Globally unique, driver-namespaced invocation id used directly for idempotent persistence. */
         requestId: string
+        /** Native response identity when message ownership is resolved by observation. */
+        responseId?: string
         model: string
         /** Present only when the driver froze pricing at the provider invocation boundary. */
         pricingSnapshot?: AiUsagePricingSnapshot | null
@@ -144,12 +160,14 @@ export type AgentRuntimeEvent =
   | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
-  | { type: 'steer-undelivered'; inputs: AgentRuntimeUserInput[] }
+  | { type: 'steer-undelivered'; inputIds: readonly string[] }
   /** A steer was injected mid-turn (PreToolUse/PostToolBatch hook) and the model is about to emit its post-steer
    *  assistant message. Marks where the host should roll the assistant message: finalise the
    *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
    *  steer user message sorts between them instead of dangling after the whole turn. */
-  | { type: 'steer-boundary'; inputs: AgentRuntimeUserInput[] }
+  | { type: 'steer-boundary'; inputIds: readonly string[] }
+  | { type: 'input-submission'; contextId: string; result: SubmitResult }
+  | { type: 'input-state'; contextId: string; input: InputState }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
   | { type: 'compaction-error'; error: string; aborted?: boolean }
@@ -157,28 +175,29 @@ export type AgentRuntimeEvent =
    *  session status — the host surfaces it in the message stream and clears it when content resumes,
    *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
   | { type: 'api-retry'; retry: AgentSessionApiRetryInfo }
-  | { type: 'context-usage'; usage: AgentSessionContextUsage }
+  | { type: 'context-usage'; result: OperationResult<ThreadContextUsage> }
   /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.
    *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
    *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
   | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
   /** Live background work after a membership change. REPLACE semantics — the payload is the full set. */
   | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
-  /** Whether work outliving the current turn still needs this connection kept alive. `false` is a
-   *  runtime-quiescence boundary: all trailing lifecycle output and autonomous generation for that
-   *  work have drained. `awaitingReply` defaults to `active`; false keeps detached commands alive
-   *  without holding the current reply open. */
-  | { type: 'background-work-state'; active: boolean; awaitingReply?: boolean }
+  /** Native work retaining this connection, independently from product reply completion. */
+  | { type: 'background-work-state'; active: boolean }
+  /** Full set of triggering native tool calls whose background results have not drained. */
+  | { type: 'background-results'; result: OperationResult<readonly string[]> }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
   | { type: 'background-task-event'; data: AgentTaskEventPartData }
-  /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto
-   *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
-  | { type: 'background-flow-chunk'; rootToolCallId: string; chunk: UIMessageChunk }
   /** Runtime-generated content started without a host-admitted user turn. `started` atomically
    *  transfers generation ownership and asks the host to open a receive-only transcript turn,
    *  carrying why the runtime opened it so the transcript can say so; `finished` releases
    *  ownership after the SDK result, independently from turn completion. */
-  | { type: 'autonomous-turn-state'; state: 'started'; origin: AutonomousTurnOrigin }
+  | {
+      type: 'autonomous-turn-state'
+      state: 'started'
+      origin: AutonomousTurnOrigin
+      sourceToolCallIds?: readonly string[]
+    }
   | { type: 'autonomous-turn-state'; state: 'finished' }
   | { type: 'error'; error: unknown }
 
@@ -194,6 +213,9 @@ export type AgentRuntimeEvent =
 export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'failed'
 
 export interface AgentRuntimeConnection {
+  /** Bound product context for controls that precede the first native message. */
+  readonly contextId?: string
+
   readonly events: AsyncIterable<AgentRuntimeEvent>
   /** The configured Runtime owner remains resident until explicit retirement. */
   readonly retainWhileIdle?: boolean
@@ -201,7 +223,9 @@ export interface AgentRuntimeConnection {
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
   readonly usageCapture?: AgentSessionUsageCapture
-  send(input: AgentRuntimeUserInput): void | Promise<void>
+  send(input: AgentRuntimeCommand): void | Promise<void>
+  /** Reconcile the captured context without submitting or resuming native execution. */
+  lookupInput?(contextId: string, inputId: string): Promise<OperationResult<InputLookup>>
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true
    * when the message was stashed for injection (a turn is live) — the host then folds it into the
@@ -210,7 +234,7 @@ export interface AgentRuntimeConnection {
    * injected by this driver, so the host queues it as the next turn. Omitted ⇒ no native steer ⇒
    * host always queues.
    */
-  redirect?(input: AgentRuntimeUserInput): boolean
+  redirect?(input: AgentRuntimeCommand): boolean
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts are patched in place before the rebuild verdict, except for
@@ -222,7 +246,6 @@ export interface AgentRuntimeConnection {
    * reasoning, and knowledge selection, or the agent's latest model with defaults) — the same
    * pinning the host uses for `connect`.
    */
-  // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
   reconcile(input: {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
@@ -231,11 +254,10 @@ export interface AgentRuntimeConnection {
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult>
   /**
-   * Read the live context-window usage for this connection's session. Returns null when the
-   * underlying runtime can't report it (no query yet, or a driver that doesn't support it).
-   * Optional ⇒ the host treats the runtime as unable to report usage.
+   * Read passive, thread-scoped context usage from the harness. Unknown and unsupported
+   * results remain explicit; omitting this operation means the connection cannot report usage.
    */
-  getContextUsage?(): Promise<AgentSessionContextUsage | null>
+  getContextUsage?(): Promise<OperationResult<ThreadContextUsage>>
   /**
    * Read this session's available slash command catalog (`query.supportedCommands()`), including
    * any custom project/user commands the SDK discovered. Returns null when the runtime can't report
@@ -259,20 +281,20 @@ export interface AgentRuntimeConnection {
   closeForEdit?(): Promise<void>
 }
 
-export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
+export interface AgentSessionRuntimeDriver {
+  readonly type: string
   /** Native artifact ownership and checkpoint remapping before session recovery. */
   readonly workspaceRelocation?: RuntimeWorkspaceRelocation
   /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
   recoverSessions?(): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
+  isForkCheckpoint?(value: unknown): boolean
   /**
    * Per-driver session prerequisite check: throws if the session can't be
    * served (e.g. workspace path missing, credentials absent). Hosts call
    * this before `connect()` instead of hard-coding driver-specific guards.
    */
   validateSession(session: AgentSessionEntity): void | Promise<void>
-  /** Enumerate the tools this driver exposes for the given MCP server set. */
-  listAvailableTools(mcpIds: string[]): Promise<Tool[]>
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection>
   /**
    * Notified when a session goes idle and its runtime is torn down. Lets a
