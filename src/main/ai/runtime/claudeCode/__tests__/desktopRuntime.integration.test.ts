@@ -80,7 +80,14 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
   dbh.db.insert(agentSessionTable).values({ id: sessionId, workspaceId, name: 'Root', orderKey: 'a0' }).run()
   ports.build.mockResolvedValue({
     key: sessionId,
-    options: { ...test.options, env: { ...test.options.env, CLAUDE_CONFIG_DIR: test.configDir } },
+    options: {
+      ...test.options,
+      env: {
+        ...test.options.env,
+        CLAUDE_CONFIG_DIR: test.configDir,
+        CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1'
+      }
+    },
     settings: {},
     sdkModelId: 'claude-sonnet-4-6',
     connectionConfig: {
@@ -579,9 +586,9 @@ it('stops one background child while its sibling persists its answer', async () 
 }, 30000)
 
 // A native reset must select a fresh context without losing the old saved root identity.
-it('binds the native session after clear and keeps the previous context', async () => {
+it('binds repeated native resets after Main captures a prewarm branch head, retaining earlier contexts', async () => {
   const test = await desktop()
-  const connection = await test.connect()
+  const connection = await test.connect(undefined, messages.captureHead(test.sessionId))
   await connection.send(test.input('Before clear'))
   const first = await test.request()
   first.reply.block({ type: 'text', text: 'Original answer' })
@@ -603,7 +610,21 @@ it('binds the native session after clear and keeps the previous context', async 
   expect(latest.projection.contextId).not.toBe(context.id)
   expect(contexts.context(context.id).nativeThreadId).toBe(context.nativeThreadId)
   expect(contexts.context(latest.projection.contextId).nativeThreadId).not.toBe(context.nativeThreadId)
-}, 30000)
+  await connection.send(test.input('/clear'))
+  await expect.poll(() => test.events.filter((event) => event.type === 'turn-complete').length).toBe(4)
+  await connection.send(test.input('After second clear'))
+  const last = await test.request()
+  expect(JSON.stringify(last.body.messages)).not.toContain('After clear')
+  last.reply.block({ type: 'text', text: 'Second new answer' })
+  last.reply.finish()
+  await expect.poll(() => test.events.filter((event) => event.type === 'turn-complete').length).toBe(5)
+  expect(
+    sessionContexts(test.sessionId)
+      .map((value) => value.nativeThreadId)
+      .filter((id) => id !== null)
+  ).toHaveLength(3)
+  expect(test.events.filter((event) => event.type === 'error')).toEqual([])
+}, 60000)
 
 it.each(['managed', 'external', 'failure'])(
   'dispatches real %s image bytes through the native owner',

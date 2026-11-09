@@ -58,9 +58,13 @@ export interface ClaudeCommandLifecycle {
   readonly session_id: string
 }
 
-export type ClaudeNativeMessage =
+export type ClaudeNativeMessage = (
   | { readonly source: 'live'; readonly message: SDKMessage | ClaudeCommandLifecycle }
   | { readonly source: 'archive'; readonly message: SessionMessage }
+) & {
+  /** Validated native rejection identity; never inferred from assistant text. */
+  readonly isApiErrorMessage?: true
+}
 
 export interface ClaudeInvocation {
   readonly responseId: SDKAssistantMessage['message']['id']

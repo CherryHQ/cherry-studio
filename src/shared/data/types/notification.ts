@@ -24,7 +24,7 @@ export const NotificationTargetSchema = z
       messageId: z.string().min(1).nullable().optional()
     }),
     z.object({ kind: z.literal('scheduled-task'), taskId: z.string().min(1) }),
-    z.object({ kind: z.literal('settings'), tab: z.enum(['usage', 'data']) }),
+    z.object({ kind: z.literal('settings'), tab: z.enum(['usage', 'data', 'profile']) }),
     z.object({ kind: z.literal('knowledge'), baseId: z.string().min(1) }),
     z.object({ kind: z.literal('release'), version: z.string().min(1), releaseNotes: z.string() }),
     z.object({

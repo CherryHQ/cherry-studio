@@ -1,5 +1,19 @@
 # @cherrystudio/ai-core
 
+## 2.4.8
+
+### Patch Changes
+
+- [#23678](https://github.com/CherryHQ/cherry-studio/pull/23678) [`b027c45`](https://github.com/CherryHQ/cherry-studio/commit/b027c45369c18d6775b907ea8100c3868a652e73) Thanks [@ousugo](https://github.com/ousugo)! - Require the AI SDK 6-compatible OpenAI adapter with GPT Image 2.6 complexity and animated GIF generation options.
+- Updated dependencies [[`b027c45`](https://github.com/CherryHQ/cherry-studio/commit/b027c45369c18d6775b907ea8100c3868a652e73)]:
+  - @cherrystudio/ai-sdk-provider@0.1.11
+
+## 2.4.7
+
+### Patch Changes
+
+- [#23893](https://github.com/CherryHQ/cherry-studio/pull/23893) [`02f8389`](https://github.com/CherryHQ/cherry-studio/commit/02f8389bd4f94602a5d701dd8eacf9809b160d49) Thanks [@kovsu](https://github.com/kovsu)! - Drop the unused `@ai-sdk/provider-utils` runtime dependency.
+
 ## 2.4.6
 
 ### Patch Changes
