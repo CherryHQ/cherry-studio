@@ -1,4 +1,4 @@
-import { MCP_PROVIDER_ENTRIES } from '@renderer/utils/mcpDiscovery'
+import { MCP_PROVIDER_ENTRIES, type McpProviderKey } from '@renderer/utils/mcpDiscovery'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { getBailianToken, saveBailianToken, syncBailianServers } from './bailian'
@@ -11,7 +11,7 @@ export interface SyncResult {
 }
 
 export interface ProviderConfig {
-  key: string
+  key: McpProviderKey
   /** i18n key for provider name, or plain text if not starting with 'provider.' */
   nameKey: string
   discoverUrl: string
@@ -42,5 +42,3 @@ export const providers: ProviderConfig[] = [
     syncServers: syncModelScopeServers
   }
 ]
-
-export { getProviderDisplayName, getMcpProviderLogo } from '@renderer/utils/mcpDiscovery'

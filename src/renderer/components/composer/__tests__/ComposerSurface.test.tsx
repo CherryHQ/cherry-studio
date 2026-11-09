@@ -5098,7 +5098,7 @@ describe('ComposerSurface', () => {
         clipboardData: { getData: (type: string) => (type === 'text/plain' ? pastedText : ''), files: [] }
       })
       expect(editor.getText({ blockSeparator: '\n' })).toBe(draft + pastedText)
-      expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.getByRole('button', { name: 'chat.input.restore' })).toBeInTheDocument()
 
       editor.commands.selectAll()
       fireEvent.paste(editor.view.dom, {

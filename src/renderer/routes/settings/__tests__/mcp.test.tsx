@@ -11,14 +11,19 @@ import {
   openSettingsTab
 } from '@renderer/services/mainWindowNavigation'
 
+import { Route as MarketplaceRoute } from '../../app/marketplace'
 import { Route } from '../mcp'
 import { redirectToMcpServers } from '../mcp.index'
+import { redirectToMcpProvider } from '../mcp/$'
+import { redirectToMcpCatalog } from '../mcp/builtin'
+import { redirectToMcpSources } from '../mcp/marketplaces'
 import { Route as ServersRoute } from '../mcp/servers'
 import { Route as DetailRoute } from '../mcp/settings.$serverId'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 vi.mock('@renderer/pages/settings/McpSettings/McpServersList', () => ({ default: () => <h1>Server content</h1> }))
 vi.mock('@renderer/pages/settings/McpSettings/McpSettings', () => ({ default: () => <h1>Server details</h1> }))
+vi.mock('@renderer/pages/marketplace/MarketplacePage', () => ({ default: () => <h1>Marketplace content</h1> }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(undefined) } }))
 
 function createMcpRouter(initialEntry: string) {
@@ -29,13 +34,7 @@ function createMcpRouter(initialEntry: string) {
     path: 'prompts',
     component: () => <h1>Prompt content</h1>
   })
-  const mcp = createRoute({
-    getParentRoute: () => settings,
-    path: 'mcp',
-    validateSearch: Route.options.validateSearch,
-    search: Route.options.search,
-    component: Route.options.component
-  })
+  const mcp = createRoute({ getParentRoute: () => settings, path: '/mcp', component: Route.options.component })
   const index = createRoute({ getParentRoute: () => mcp, path: '/', beforeLoad: redirectToMcpServers })
   const servers = createRoute({
     getParentRoute: () => mcp,
@@ -49,8 +48,32 @@ function createMcpRouter(initialEntry: string) {
     validateSearch: DetailRoute.options.validateSearch,
     component: DetailRoute.options.component
   })
+  const builtin = createRoute({
+    getParentRoute: () => mcp,
+    path: 'builtin',
+    beforeLoad: redirectToMcpCatalog
+  })
+  const markets = createRoute({
+    getParentRoute: () => mcp,
+    path: 'marketplaces',
+    beforeLoad: redirectToMcpSources
+  })
+  const provider = createRoute({
+    getParentRoute: () => mcp,
+    path: '$',
+    beforeLoad: ({ params }) => redirectToMcpProvider(params._splat)
+  })
+  const marketplace = createRoute({
+    getParentRoute: () => root,
+    path: '/app/marketplace',
+    validateSearch: MarketplaceRoute.options.validateSearch,
+    component: MarketplaceRoute.options.component
+  })
   return createRouter({
-    routeTree: root.addChildren([settings.addChildren([prompts, mcp.addChildren([index, servers, detail])])]),
+    routeTree: root.addChildren([
+      settings.addChildren([prompts, mcp.addChildren([index, servers, detail, builtin, markets, provider])]),
+      marketplace
+    ]),
     history: createMemoryHistory({ initialEntries: [initialEntry] })
   })
 }
@@ -64,24 +87,25 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('standalone MCP navigation', () => {
-  it('keeps settings navigation and server content but omits the MCP submenu for a marketplace URL', async () => {
-    const router = createMcpRouter('/settings/mcp/servers?mcpStandalone=true')
-    await router.load()
-    render(<RouterProvider router={router} />)
-    expect(await screen.findByRole('heading', { name: 'Server content' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Search settings' })).toBeVisible()
-    expect(screen.queryByText('Builtin Servers')).not.toBeInTheDocument()
-    expect(router.state.matches.at(-1)?.search).toMatchObject({ mcpStandalone: 'true' })
-  })
+describe('MCP navigation', () => {
+  it.each(['/settings/mcp/servers', '/settings/mcp/servers?mcpStandalone=true'])(
+    'shows the server list without a second sidebar at %s',
+    async (path) => {
+      const router = createMcpRouter(path)
+      await router.load()
+      render(<RouterProvider router={router} />)
+      expect(await screen.findByRole('heading', { name: 'Server content' })).toBeVisible()
+      expect(screen.getByRole('button', { name: 'Search settings' })).toBeVisible()
+      expect(screen.queryByText('Builtin Servers')).not.toBeInTheDocument()
+      expect(screen.queryByText('ModelScope')).not.toBeInTheDocument()
+    }
+  )
 
-  it('retargets an existing tab, retains the mode in details, and retains it across other settings only in this settings instance', async () => {
+  it('keeps list and detail navigation available after opening management and returning from other settings', async () => {
     const user = userEvent.setup()
-    const router = createMcpRouter('/settings/mcp/servers')
+    const router = createMcpRouter('/settings/prompts')
     await router.load()
     render(<RouterProvider router={router} />)
-    expect(await screen.findByText('Builtin Servers')).toBeVisible()
-    // Use the real public navigation event and the same URL split as TabRouter.
     let navigation: Promise<unknown> | undefined
     const listener = (event: Event) => {
       event.preventDefault()
@@ -91,30 +115,36 @@ describe('standalone MCP navigation', () => {
     window.addEventListener(OPEN_MAIN_ROUTE_EVENT, listener)
     try {
       await act(async () => {
-        openSettingsTab('/settings/mcp/servers?mcpStandalone=true')
+        openSettingsTab('/settings/mcp/servers')
         await navigation
       })
     } finally {
       window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, listener)
     }
-    expect(screen.queryByText('Builtin Servers')).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Server content' })).toBeVisible()
     await act(async () => {
       await router.navigate({ to: '/settings/mcp/settings/$serverId', params: { serverId: 'server-1' } })
     })
     expect(await screen.findByRole('heading', { name: 'Server details' })).toBeVisible()
-    expect(screen.queryByText('Builtin Servers')).not.toBeInTheDocument()
     await act(async () => {
       await router.navigate({ to: '/settings/prompts' })
     })
-    expect(await screen.findByRole('heading', { name: 'Prompt content' })).toBeVisible()
-    await user.click(screen.getByRole('button', { name: /ModelContextProtocol MCP/ }))
-    expect(screen.queryByText('Builtin Servers')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^ModelContextProtocol MCP$/ }))
     expect(await screen.findByRole('heading', { name: 'Server content' })).toBeVisible()
-    expect(router.state.matches.at(-1)?.search).toMatchObject({ mcpStandalone: 'true' })
-    cleanup()
-    const freshRouter = createMcpRouter('/settings/mcp/servers')
-    await freshRouter.load()
-    render(<RouterProvider router={freshRouter} />)
-    expect(await screen.findByText('Builtin Servers')).toBeVisible()
+    expect(screen.queryByText('Builtin Servers')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['/settings/mcp/builtin', { mcpView: 'curated' }],
+    ['/settings/mcp/marketplaces', { mcpView: 'sources' }],
+    ['/settings/mcp/bailian', { mcpView: 'sources', mcpProvider: 'bailian' }],
+    ['/settings/mcp/modelscope', { mcpView: 'sources', mcpProvider: 'modelscope' }]
+  ])('opens the corresponding marketplace view for the old discovery URL %s', async (path, search) => {
+    const router = createMcpRouter(path)
+    await router.load()
+    render(<RouterProvider router={router} />)
+    expect(await screen.findByRole('heading', { name: 'Marketplace content' })).toBeVisible()
+    expect(router.state.location.pathname).toBe('/app/marketplace')
+    expect(router.state.matches.at(-1)?.search).toMatchObject(search)
   })
 })
