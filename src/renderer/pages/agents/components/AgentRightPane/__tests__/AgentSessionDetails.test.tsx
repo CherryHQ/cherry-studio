@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TooltipProvider } from '@cherrystudio/ui'
+import { cacheService } from '@renderer/data/CacheService'
 
 import {
   AgentSessionDetailsLayout,
@@ -63,8 +64,8 @@ describe('session details presentation', () => {
     expect(resolveAgentDetailsMode(1200, 159, 'inline')).toBe('popover')
   })
 
-  // Catches losing an explicit hide choice on resize, or leaking that choice into another session.
-  it('remembers inline visibility per session independently of the transient popup', () => {
+  // Catches losing the shared inline choice on resize or session navigation.
+  it('shares inline visibility across sessions independently of the transient popup', () => {
     const view = render(<Fixture />)
     fireEvent.click(screen.getByText('Wide'))
     expect(screen.getByRole('complementary')).toBeInTheDocument()
@@ -77,11 +78,31 @@ describe('session details presentation', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('complementary')).toBeNull()
     view.rerender(<Fixture session="b" />)
-    expect(screen.getByRole('complementary')).toHaveTextContent('Content b')
-    view.rerender(<Fixture />)
     expect(screen.queryByRole('complementary')).toBeNull()
     fireEvent.click(screen.getByText('Back to details'))
+    expect(screen.getByRole('complementary')).toHaveTextContent('Content b')
+    view.rerender(<Fixture />)
     expect(screen.getByRole('complementary')).toHaveTextContent('Content a')
+  })
+
+  // Catches reading or writing only memory, which loses the last choice after a restart.
+  it.each([true, false])('restores the persisted inline choice %s and saves its next value', (open) => {
+    MockCacheUtils.setInitialState({ persist: [['ui.agent.details.open', open]] })
+    const view = render(<Fixture />)
+    fireEvent.click(screen.getByText('Wide'))
+    expect(toggle()).toHaveAttribute('aria-expanded', String(open))
+    expect(screen.queryByRole('complementary') !== null).toBe(open)
+
+    fireEvent.click(toggle())
+    const saved = cacheService.getPersist('ui.agent.details.open')
+    expect(saved).toBe(!open)
+    view.unmount()
+
+    MockCacheUtils.setInitialState({ persist: [['ui.agent.details.open', saved]] })
+    render(<Fixture session="b" />)
+    fireEvent.click(screen.getByText('Wide'))
+    expect(toggle()).toHaveAttribute('aria-expanded', String(!open))
+    expect(screen.queryByRole('complementary') !== null).toBe(!open)
   })
 
   // Catches remounting the composer during layout changes and stale session popup content.

@@ -53,6 +53,21 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  it.each([
+    'Response: content-type json, empty body, 0 bytes, request-id absent, server nginx.',
+    'Response: content-type json, body is JSON but not a Message, 107 bytes, request-id absent.'
+  ])('provides invalid-response recovery without replacing CLI diagnostics: %s', (detail) => {
+    const message = `API Error: API returned an empty or malformed response (HTTP 200) — check for a proxy or gateway intercepting the request. ${detail} This was the non-streaming retry of streaming request.`
+    const error = makeError({ message })
+
+    expect(classifyError(error)).toEqual({
+      category: 'parse',
+      i18nKey: 'error.diagnosis.parse',
+      navTarget: null
+    })
+    expect(error.message).toBe(message)
+  })
+
   it.each(['', 'Provider unavailable', '   ', null, 'undefined'])(
     'uses response-stream guidance only for a marked unknown failure (%j)',
     (message) => {
