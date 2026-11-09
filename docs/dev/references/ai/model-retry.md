@@ -12,7 +12,10 @@ sources:
 User-configurable retry for model calls, built on
 [`ai-retry`](https://github.com/zirkelc/ai-retry) (v1.x, AI SDK v6). When a
 call fails with 401/429 and another enabled API key is available, the wrapper
-first rotates to that key. Other retryable API errors (503 / 529 and other
+first rotates to that key, unless the model is bound to an enabled API key. An
+enabled model binding keeps requests on that key and disables alternate-key
+failover. Unset, missing, or disabled bindings retain automatic key failover.
+Other retryable API errors (503 / 529 and other
 `isRetryable` errors, honoring `Retry-After` headers with optional exponential
 backoff — `TimeoutError`s are deliberately not retried, see below) retry the
 **same model**, then **fall back** to the user's configured fallback models in
