@@ -104,8 +104,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      steer, wrap it with `wrapSteerReminder(...)`.
    - `reconcile(input)` — re-derive the desired connection state. Serialize concurrent
      calls per connection; hot-apply safe policy facts before returning `rebuild` for
-     spawn-frozen differences, freeze permission-mode changes during an active turn,
-     and return `failed` when a live tightening cannot be applied so the host fails closed.
+     spawn-frozen differences, apply permission-mode changes even during an active turn
+     (from its next tool call), and return `failed` when a live tightening cannot be applied
+     so the host fails closed.
    - `close()` — seal admission, stop native production, await observation delivery and callbacks,
      flush committed archives, then detach and release. A failed final flush retains a retryable writer.
      Durable runtimes may preserve unfinished work.

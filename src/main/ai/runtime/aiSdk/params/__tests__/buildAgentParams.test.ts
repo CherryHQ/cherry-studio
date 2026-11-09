@@ -2349,6 +2349,87 @@ describe('buildAgentParams retained context', () => {
   })
 })
 
+describe('buildAgentParams — caller-owned context', () => {
+  it.each([undefined, '', 'Explicit client instructions'])(
+    'preserves client system turns with instructions %s',
+    async (instructions) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'openai', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const provider = makeProvider({
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+      })
+      const model = makeModel({
+        apiModelId: 'gpt-5',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+      const clientTools = {
+        tool_search: { description: 'Client-owned lookup', inputSchema: z.object({ query: z.string() }) }
+      }
+      const built = await buildAgentParams({
+        request: {
+          conversation: CONVERSATION,
+          contextOwner: 'caller',
+          callOverrides: {
+            tools: clientTools,
+            providerOptions: instructions === undefined ? undefined : { openai: { instructions } }
+          }
+        },
+        signal: undefined,
+        provider,
+        model
+      })
+      let body: unknown
+      await aiCoreGenerateText<AppProviderSettingsMap>(
+        built.sdkConfig.providerId,
+        {
+          ...built.sdkConfig.providerSettings,
+          apiKey: 'fixture',
+          fetch: async (_url, init) => {
+            body = JSON.parse(String(init?.body))
+            return Response.json({
+              id: 'response',
+              created_at: 0,
+              model: 'gpt-5',
+              output: [],
+              usage: { input_tokens: 1, output_tokens: 0 }
+            })
+          }
+        },
+        {
+          model: built.sdkConfig.modelId,
+          system: built.system,
+          messages: [
+            { role: 'system', content: '<available_skills>actual-skill</available_skills>' },
+            { role: 'user', content: 'First question' },
+            { role: 'assistant', content: 'First answer' },
+            { role: 'system', content: 'Updated client instructions' },
+            { role: 'user', content: 'Which skills?' }
+          ],
+          tools: built.tools,
+          providerOptions: built.options.providerOptions
+        },
+        built.plugins
+      )
+      const wire = z
+        .object({
+          instructions: z.string().optional(),
+          input: z.array(z.object({ role: z.string(), content: z.unknown() })),
+          tools: z.array(z.object({ name: z.string(), strict: z.boolean() }))
+        })
+        .parse(body)
+      expect(wire.instructions).toBe(instructions)
+      expect(wire.input.map((item) => item.role)).toEqual(['developer', 'user', 'assistant', 'developer', 'user'])
+      expect(wire.input[0].content).toBe('<available_skills>actual-skill</available_skills>')
+      expect(wire.input[3].content).toBe('Updated client instructions')
+      expect(wire.tools).toEqual([{ name: 'tool_search', strict: false }])
+    }
+  )
+})
+
 describe('buildAgentParams — Responses instructions delivery', () => {
   it('lands the system prompt on the namespace the resolved responses model reads', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({

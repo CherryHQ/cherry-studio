@@ -2458,7 +2458,7 @@ export default function ComposerSurfaceRuntime({
           <ComposerFocusShortcut focus={focusEditor} editable={editable} />
         </div>
         {isCompact ? (
-          <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1.5">
+          <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1">
             {compactControls}
             {sendAccessoryElement}
             {sendAction}
@@ -2472,7 +2472,7 @@ export default function ComposerSurfaceRuntime({
           data-composer-toolbar=""
           className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
           <div className="flex min-w-0 flex-1 items-center overflow-hidden">{leftControls}</div>
-          <div className="flex flex-row items-center gap-1.5">
+          <div className="flex flex-row items-center gap-1">
             {sendAccessoryElement}
             {sendAction}
           </div>

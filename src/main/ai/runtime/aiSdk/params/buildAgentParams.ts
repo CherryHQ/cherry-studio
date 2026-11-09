@@ -43,7 +43,7 @@ import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
-import { applyHttpTrace } from '../../../observability'
+import { applyHttpTrace, type AgentRuntimeTraceContext } from '../../../observability'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
 import { resolveSdkConfig } from '../../../provider/sdkConfig'
@@ -98,6 +98,7 @@ const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
 const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' }
 
 export interface BuildAgentParamsInput {
+  traceContext?: AgentRuntimeTraceContext
   request: AiChatRequest & {
     system?: string
     messageId?: string
@@ -143,7 +144,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     request.apiKeyOverride
   )
   applyHttpTrace(sdkConfig.providerSettings, {
-    topicId: request.conversation.topicId,
+    topicId: input.traceContext?.topicId ?? request.conversation.topicId,
     modelName: model.name ?? model.id
   })
   // Prefer the request-carried retained context: the persistent chat provider
@@ -171,28 +172,31 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId) && hasReadBackStep
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const toolSignals =
-    !request.disableTools && canModelConsumeTools(model)
+    request.contextOwner !== 'caller' && !request.disableTools && canModelConsumeTools(model)
       ? await resolveRequestToolSignals(request, assistant)
       : undefined
-  const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
-    endpointType: resolvedEndpoint.endpointType,
-    hasFunctionToolSignals: toolSignals
-      ? toolSignals.browserEnabled === true ||
-        toolSignals.computerUseEnabled === true ||
-        toolSignals.mcpToolIds.size > 0 ||
-        // Same `applies` gate the mcp_resource_* tools use, so a resource-only assistant is not
-        // mistaken for a request that loads no function tool.
-        toolSignals.mcpResourceServerIds.size > 0 ||
-        // Mirrors the KB tools' own `applies`: owning a base is not enough, this request must also
-        // scope one. ORing the two made every user with any KB look like a function-tool conflict,
-        // which withheld the server web-search route on Gemini 2.5 for requests that load no tool.
-        (toolSignals.hasAnyKnowledgeBase && knowledgeBaseIds.length > 0) ||
-        hasFileAttachments ||
-        Object.keys(request.callOverrides?.tools ?? {}).length > 0 ||
-        assistant?.settings.enableGenerateImage === true
-      : false,
-    reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
-  })
+  const webToolRoutes =
+    request.contextOwner === 'caller'
+      ? NO_WEB_TOOL_ROUTES
+      : await resolveRequestWebToolRoutes(model, provider, assistant, {
+          endpointType: resolvedEndpoint.endpointType,
+          hasFunctionToolSignals: toolSignals
+            ? toolSignals.browserEnabled === true ||
+              toolSignals.computerUseEnabled === true ||
+              toolSignals.mcpToolIds.size > 0 ||
+              // Same `applies` gate the mcp_resource_* tools use, so a resource-only assistant is not
+              // mistaken for a request that loads no function tool.
+              toolSignals.mcpResourceServerIds.size > 0 ||
+              // Mirrors the KB tools' own `applies`: owning a base is not enough, this request must also
+              // scope one. ORing the two made every user with any KB look like a function-tool conflict,
+              // which withheld the server web-search route on Gemini 2.5 for requests that load no tool.
+              (toolSignals.hasAnyKnowledgeBase && knowledgeBaseIds.length > 0) ||
+              hasFileAttachments ||
+              Object.keys(request.callOverrides?.tools ?? {}).length > 0 ||
+              assistant?.settings.enableGenerateImage === true
+            : false,
+          reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
+        })
   const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds, mcpServerIds } = toolSignals
     ? await resolveTools(
         request,
@@ -206,7 +210,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         canOffloadToolOutputs
       )
     : {
-        tools: undefined,
+        tools: request.contextOwner === 'caller' && !request.disableTools ? request.callOverrides?.tools : undefined,
         deferredEntries: [] as ToolEntry[],
         hasCitableTools: false,
         mcpToolIds: new Set<string>(),
@@ -329,6 +333,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     reasoning,
     serviceTierControl,
     requestContext,
+    traceContext: input.traceContext,
     mcpToolIds,
     mcpResourceServerIds,
     contextSettings,
@@ -344,19 +349,21 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const mcpInstructions = buildMcpInstructionsContext(mcpServerIds)
+  const mcpInstructions = request.contextOwner === 'caller' ? '' : buildMcpInstructionsContext(mcpServerIds)
   const system =
-    request.system !== undefined
-      ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
-      : await assembleSystemPrompt({
-          assistant,
-          model,
-          tools,
-          deferredEntries,
-          hasCitableTools,
-          webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
-          mcpInstructions
-        })
+    request.contextOwner === 'caller'
+      ? request.system
+      : request.system !== undefined
+        ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
+        : await assembleSystemPrompt({
+            assistant,
+            model,
+            tools,
+            deferredEntries,
+            hasCitableTools,
+            webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
+            mcpInstructions
+          })
   const options = buildAgentOptions(
     scope,
     contributions.stopConditions,
@@ -364,7 +371,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     requestedMaxOutputTokens,
     input.getRepairUsagePlugins
   )
-  applyResponsesInstructions(options, system, endpointType, sdkConfig.providerOptionsKey)
+  if (request.contextOwner !== 'caller') {
+    applyResponsesInstructions(options, system, endpointType, sdkConfig.providerOptionsKey)
+  }
 
   const hookParts = [...contributions.hookParts]
   if (getAutomationRun) {
@@ -774,7 +783,7 @@ function buildAgentOptions(
     : callerHeaders
   const toolCallLimit = resolveToolCallLimit(assistant)
   const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
-  const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
+  const stopWhen = request.contextOwner === 'caller' ? undefined : composeStopWhen(baseStopWhen, featureStopConditions)
   const telemetry = buildTelemetry(scope)
 
   return {
@@ -786,13 +795,16 @@ function buildAgentOptions(
     ...(telemetry && { telemetry }),
     ...sanitized.standardParams,
     context: requestContext,
-    repairToolCall: createAiRepair({
-      providerId: sdkConfig.providerId,
-      providerSettings: sdkConfig.providerSettings,
-      modelId: sdkConfig.modelId,
-      headers,
-      getUsagePlugins: getRepairUsagePlugins
-    })
+    repairToolCall:
+      request.contextOwner === 'caller'
+        ? undefined
+        : createAiRepair({
+            providerId: sdkConfig.providerId,
+            providerSettings: sdkConfig.providerSettings,
+            modelId: sdkConfig.modelId,
+            headers,
+            getUsagePlugins: getRepairUsagePlugins
+          })
   }
 }
 

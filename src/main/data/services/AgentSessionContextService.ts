@@ -15,7 +15,7 @@ import {
 } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
 
-import { ensureAgentSessionRootTx, readAgentSessionAncestry } from './agentSessionMessageTree'
+import { ensureAgentSessionRootTx, getAgentSessionHead, readAgentSessionAncestry } from './agentSessionMessageTree'
 import { agentSessionService } from './AgentSessionService'
 
 const locatorSchema = z.discriminatedUnion('kind', [
@@ -49,11 +49,12 @@ class AgentSessionContextService {
       .run()
   }
 
-  removeRootMessageTx(tx: DbOrTx, sessionId: string, messageId: string): void {
+  removeRootMessagesTx(tx: DbOrTx, sessionId: string, messageIds: readonly string[]): void {
+    const removedMessages = new Set(messageIds)
     for (const context of tx.select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()) {
       const root = context.checkpointMapping?.root
       if (!root) continue
-      const deleted = Object.keys(root.sources).filter((id) => root.sources[id].messageId === messageId)
+      const deleted = Object.keys(root.sources).filter((id) => removedMessages.has(root.sources[id].messageId))
       if (!deleted.length) continue
       this.saveRootProjectionTx(tx, sessionId, {
         contextId: context.id,
@@ -193,9 +194,11 @@ class AgentSessionContextService {
   }
 
   publishBranchTx(tx: DbOrTx, sessionId: string, nativeId: string, checkpointMapping: Record<string, unknown>): void {
+    const context = this.branchTx(tx, sessionId, getAgentSessionHead(tx, sessionId)!)
+    if (context?.nativeThreadId !== nativeId) throw new Error('Native edit identity does not match the selected branch')
     tx.update(contexts)
       .set({ nativeThreadId: nativeId, bindingState: 'bound', checkpointMapping: { fork: checkpointMapping } })
-      .where(and(eq(contexts.sessionId, sessionId), eq(contexts.nativeThreadId, nativeId)))
+      .where(eq(contexts.id, context.id))
       .run()
   }
 

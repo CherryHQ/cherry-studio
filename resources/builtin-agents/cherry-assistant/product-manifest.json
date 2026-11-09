@@ -877,7 +877,7 @@
     }
   ],
   "providers": {
-    "version": "41bade10940f0f17",
+    "version": "516d97c75d2a7aa9",
     "count": 67,
     "entries": [
       {
@@ -1312,6 +1312,10 @@
         ".doc",
         ".pptx",
         ".ppt",
+        ".odt",
+        ".odp",
+        ".ods",
+        ".rtf",
         ".epub",
         ".draftsexport"
       ],
