@@ -20,6 +20,7 @@ directory; consumers import from the module that owns the capability.
 | Path | Responsibility |
 |---|---|
 | `src/renderer/components/chat/messages/` | Shared message-list contracts, rendering, actions, tools, markdown, streaming, and list behavior |
+| `src/renderer/components/chat/sideChat/` | 侧聊面板、来源标记及窗口内存状态的界面接入 |
 | `src/renderer/components/chat/actions/` | Generic action descriptors/registry plus current topic and session action sets |
 | `src/renderer/components/chat/{resourceList,shell,panes,flow}/` | Shared resource navigation, conversation shell, auxiliary panes, and topic-tree visualization |
 | `src/renderer/components/composer/` | Shared composer surface and its Chat/Agent variants |
@@ -49,3 +50,18 @@ catalog. Draft keywords and the input placeholder do not suggest modes.
 |---|---|
 | [Composer Rich Clipboard](./composer-rich-clipboard.md) | Private clipboard format that preserves composer tokens across copy/paste, its restore rules, and ownership boundaries |
 | [Message Tree](./message-tree.md) | The topic message-tree model: adjacency list, virtual root, sibling groups, invariants, delete semantics, consumer contract |
+
+## 侧聊界面
+
+普通聊天通过 `MessageListActions.openSideChat` 提供入口。智能体消息不提供此能力。
+`TopicRightPane` 提供侧聊页签。收起或切换预览不会关闭侧聊。
+明确关闭临时侧聊会清除内容和草稿；保存模式保留历史。
+默认保存开关只影响新建侧聊。创建统一调用 `side_chat.create`。
+
+`useSideChats` 与 `SideChatState` 仅保存窗口内存状态。RPC 和事件共用 revision 检查，
+删除后保留版本墓碑。流事件不进入持久缓存，也不记录请求正文。
+回答标记和流程图计数直接来自底层的 `questionCount`。
+
+Markdown 选区只接受能与源码位置核对的文本节点。跨节点、公式和代码等无法核对的选区
+改为引用整条回答，并显示说明。原文标记同时核对消息身份、选区和前后文。
+重复、修改或缺失的片段不猜位置；仍可从消息标记或话题侧聊列表查看快照。

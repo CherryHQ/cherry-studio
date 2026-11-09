@@ -32,6 +32,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { useSideChatContext } from '@renderer/components/chat/sideChat/SideChatContext'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
@@ -111,6 +112,13 @@ export function useHomeMessageListProviderValue({
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
+  const sideChat = useSideChatContext()
+  const openSideChat = useCallback(
+    (messageId: string, selection?: string) => {
+      sideChat?.openSource({ topicId: topic.id, messageId, selection })
+    },
+    [sideChat, topic.id]
+  )
   const topicId = topic.id
   const assistantId = topic.assistantId
   const { trigger: copyBranchToNewTopicTrigger } = useMutation('POST', '/topics/:id/duplicate', {
@@ -848,6 +856,7 @@ export function useHomeMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      openSideChat: normalInteractionsEnabled && sideChat ? openSideChat : undefined,
       loadOlder,
       bindRuntime,
       bindMessageRuntime,
@@ -886,6 +895,8 @@ export function useHomeMessageListProviderValue({
       renderRegenerateModelPicker
     }),
     [
+      sideChat,
+      openSideChat,
       abortTool,
       abortMessageTranslation,
       bindMessageGroupRuntime,

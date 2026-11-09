@@ -350,6 +350,7 @@ const MessageGroup = ({
         <MessageWrapper
           id={`message-${currentTabId ? `${currentTabId}-` : ''}${captureMode ? 'capture-' : ''}${message.id}`}
           key={message.id}
+          data-side-chat-message={message.role === 'assistant' && actions.openSideChat ? message.id : undefined}
           data-message-id={message.id}
           messageId={message.id}
           onElementChange={registerRenderedMessageElement}
@@ -373,8 +374,9 @@ const MessageGroup = ({
             key={message.id}
             trigger={gridPopoverTrigger}
             content={
-              <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
+              <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl} openSideChat={actions.openSideChat}>
                 <MessageWrapper
+                  data-side-chat-message={message.role === 'assistant' && actions.openSideChat ? message.id : undefined}
                   tabIndex={0}
                   className={classNames([
                     'in-popover',
@@ -395,6 +397,7 @@ const MessageGroup = ({
       return messageContent
     },
     [
+      actions.openSideChat,
       actions.openBrowserUrl,
       isGrid,
       isGrouped,

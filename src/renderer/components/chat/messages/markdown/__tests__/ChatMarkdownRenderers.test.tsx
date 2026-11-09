@@ -4,9 +4,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { StreamingMarkdown } from '@cherrystudio/ui'
+import { readSideChatSelection } from '@renderer/utils/sideChatSelection'
 
 import { ChatMarkdownRenderProvider } from '../ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS } from '../ChatMarkdownRenderers'
+import { rehypeSideChatSource } from '../plugins/rehypeSideChatSource'
 
 const mocks = vi.hoisted(() => ({
   CodeBlock: vi.fn(({ children, isStreaming }: { children: string; isStreaming: boolean }) => (
@@ -51,4 +53,31 @@ describe('ChatMarkdown renderers', () => {
     expect(firstCode).toHaveAttribute('data-streaming', 'false')
     expect(secondCode).toHaveAttribute('data-streaming', 'false')
   })
+})
+
+it('maps formatted rendered text through verified source spans', async () => {
+  const source = 'A **bold** explanation.'
+  render(
+    <ChatMarkdownRenderProvider blockId="source" citationRegistry={EMPTY_CITATIONS} isStreaming={false}>
+      <div data-side-chat-message="answer">
+        <StreamingMarkdown
+          id="source"
+          components={CHAT_MARKDOWN_COMPONENTS}
+          animated={false}
+          rehypePlugins={[[rehypeSideChatSource, { source }]]}>
+          {source}
+        </StreamingMarkdown>
+      </div>
+    </ChatMarkdownRenderProvider>
+  )
+  const bold = await screen.findByText('bold')
+  const range = document.createRange()
+  range.selectNodeContents(bold)
+  const selection = window.getSelection()!
+  selection.removeAllRanges()
+  range.setStart(bold.firstChild!, 0)
+  range.setEnd(bold.firstChild!, 4)
+  selection.addRange(range)
+  expect(readSideChatSelection(selection)).toEqual({ messageId: 'answer', selection: 'bold' })
+  selection.removeAllRanges()
 })
