@@ -347,6 +347,14 @@ async function resolveRequestToolSignals(
   let mcpIdList = request.mcpToolIds
   if (!mcpIdList && request.assistantId) {
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
+    // Filter out browser automation tool IDs to prevent temporary chat exposure.
+    // Browser/computer automation tools require persistent topic storage and
+    // fail when invoked for temporary topics, so they are suppressed here.
+    const BROWSER_AUTOMATION_TOOL_IDS = new Set([
+      'open', 'execute', 'screenshot', 'snapshot', 'list_tabs',
+      'switch_tab', 'close_tab', 'reset'
+    ])
+    mcpIdList = mcpIdList.filter((id: string) => !BROWSER_AUTOMATION_TOOL_IDS.has(id))
   }
   return { mcpToolIds: new Set(mcpIdList ?? []), hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase() }
 }

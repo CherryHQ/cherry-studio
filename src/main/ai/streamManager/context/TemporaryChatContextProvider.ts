@@ -124,15 +124,16 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     // Temporary chats are ephemeral scratch conversations with no persistent
     // topic row in SQLite. Browser/computer automation (and other assistant
     // MCP tools) require persistent topic storage and fail when invoked for
-    // temporary topics, so assistantId must NOT leak into the stream request.
-    // Keep `assistantId` locally for model resolution; just don't pass it to
-    // buildAgentParams so no assistant MCP tools are exposed.
+    // temporary topics, so they are filtered out at tool-resolution time.
+    // assistantId is preserved so the selected assistant's prompt, settings and
+    // knowledge-base binding still apply — only automation tools are suppressed.
     const streamRequest: AiStreamRequest = {
       chatId: req.topicId,
       trigger: 'submit-message',
       uniqueModelId: model.id,
       messageId,
       messages: history,
+      assistantId,
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
       reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
       ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
