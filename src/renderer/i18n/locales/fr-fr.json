@@ -5928,6 +5928,8 @@
   "settings.skills.launchFailed": "Impossible d’essayer {{name}}",
   "settings.skills.mirrorToggleFailed": "Échec de la synchronisation de la compétence {{name}}",
   "settings.skills.notFound": "Compétence introuvable",
+  "settings.skills.note.label": "Note personnelle",
+  "settings.skills.note.placeholder": "Ajouter un rappel pour choisir cette compétence",
   "settings.skills.readOnly": "Lecture seule",
   "settings.skills.remote.applyFailed": "Échec de la mise à jour du Skill",
   "settings.skills.remote.check": "Rechercher des mises à jour",
