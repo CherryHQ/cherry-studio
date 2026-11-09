@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { diagnosticErrorFromUnknown } from '@renderer/services/AppErrorContextService'
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
@@ -143,7 +144,11 @@ function emitDone(listeners: MockListeners, topicId: string) {
   for (const cb of [...listeners.done]) cb({ topicId })
 }
 
-function emitError(listeners: MockListeners, error: { name?: string; message: string }, topicId: string) {
+function emitError(
+  listeners: MockListeners,
+  error: { name?: string; message: string; statusCode?: number; responseBody?: string },
+  topicId: string
+) {
   for (const cb of [...listeners.error]) cb({ topicId, error })
 }
 
@@ -314,6 +319,20 @@ describe('translateText (main-driven streaming)', () => {
       const err = await promise.catch((e) => e)
       expect(err).toBeInstanceOf(Error)
       expect((err as Error).name).toBe('AbortError')
+    })
+
+    // Selection translate opens Doctor from this rejection; 5xx gating needs the provider status.
+    it('keeps provider status and body reachable for error details', async () => {
+      const promise = translateText('source', TARGET)
+      await waitForOpen(mockRequest)
+      emitError(
+        mockListeners,
+        { name: 'AI_APICallError', message: 'Bad Gateway', statusCode: 502, responseBody: 'upstream down' },
+        lastStreamId(mockRequest)
+      )
+
+      const err = await promise.catch((e) => e)
+      expect(diagnosticErrorFromUnknown(err)).toMatchObject({ statusCode: 502, responseBody: 'upstream down' })
     })
   })
 

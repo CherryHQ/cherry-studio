@@ -12,7 +12,8 @@ const EMPTY_MESSAGES: CherryUIMessage[] = []
 export function useStreamCommands(
   topicId: string,
   initialMessages: CherryUIMessage[] = EMPTY_MESSAGES,
-  onError?: (error: Error) => void
+  /** `cause` is the stored error part data when available, so provider status and body survive. */
+  onError?: (error: Error, cause: unknown) => void
 ) {
   const [local, setLocal] = useState({ topicId, messages: initialMessages })
   const [error, setError] = useState<Error>()
@@ -53,7 +54,7 @@ export function useStreamCommands(
       if (part?.type !== 'data-error') continue
       const failure = new Error(part.data.message ?? 'Stream error')
       setError(failure)
-      errorHandler.current?.(failure)
+      errorHandler.current?.(failure, part.data)
     }
   }, [projection])
 
@@ -75,7 +76,7 @@ export function useStreamCommands(
       const result = await streamDispatchService.dispatch(topicId, request)
       if (currentOwner.current !== owner || result.ok) return
       setError(result.error)
-      errorHandler.current?.(result.error)
+      errorHandler.current?.(result.error, result.error)
     },
     [owner, topicId]
   )
