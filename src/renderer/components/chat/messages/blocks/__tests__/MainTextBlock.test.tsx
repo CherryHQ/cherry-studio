@@ -1288,7 +1288,7 @@ Hidden answer
       })
 
       expect(mockWithCitationTags).not.toHaveBeenCalled()
-      expect(getRenderedMarkdown().getAttribute('data-content')).not.toMatch(/\[1\]|<sup|cite:/)
+      expect(getRenderedMarkdown()).toHaveAttribute('data-content', expect.not.stringMatching(/\[1\]|<sup|cite:/))
     })
 
     it('hides [cite:id] markers in assistant text when markers are disabled', () => {
