@@ -341,6 +341,61 @@ describe('native Pi through the production gateway', () => {
     })
   }
 
+  it('keeps concurrent roots with the same model on their own gateway session and request settings', async () => {
+    dbh.db
+      .update(userModelTable)
+      .set({
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+        reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }] }
+      })
+      .where(eq(userModelTable.id, 'port::wire-model'))
+      .run()
+    const headers: Headers[] = []
+    const provider = providerService.getByProviderId('port')
+    const model = modelService.getByKey('port', 'wire-model')
+    const first = await createPiGatewayModelBinding(
+      { sessionId: 'parent', serviceTier: 'fast', reasoningEffort: 'high' },
+      provider,
+      model
+    )
+    const child = await createPiGatewayModelBinding(
+      { sessionId: 'fork', serviceTier: 'standard', reasoningEffort: 'low' },
+      provider,
+      model,
+      undefined,
+      first.modelRuntime
+    )
+    const later = await createPiGatewayModelBinding(
+      { sessionId: 'third', serviceTier: 'fast', reasoningEffort: 'medium' },
+      provider,
+      model,
+      undefined,
+      first.modelRuntime
+    )
+    const saved = fetch
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      if (String(input).startsWith(mocks.gatewayUrl)) headers.push(new Headers(init?.headers))
+      return saved(input, init)
+    })
+    const results = await Promise.all(
+      [first, child, later].map((binding) =>
+        binding.modelRuntime.completeSimple(
+          binding.model,
+          normalizeContext({ messages: [{ role: 'user', content: binding.model.provider, timestamp: 1 }] })
+        )
+      )
+    )
+    expect(results.map((result) => result.stopReason)).toEqual(['stop', 'stop', 'stop'])
+    expect(
+      headers.map((header) => [header.get('x-cherry-agent-session-id'), header.get('x-cherry-service-tier')]).sort()
+    ).toEqual([
+      ['fork', 'standard'],
+      ['parent', 'fast'],
+      ['third', 'fast']
+    ])
+    expect(requests.map((request) => request.reasoning_effort).sort()).toEqual(['high', 'low', 'medium'])
+  })
+
   it('excludes a disabled provider with the same model name and preserves the inherited model', async () => {
     dbh.db
       .insert(userProviderTable)
@@ -360,7 +415,7 @@ describe('native Pi through the production gateway', () => {
       })
       .run()
     const { host } = await behaviorHost()
-    const candidates = await host.models.find('wire-model')
+    const candidates = await host.models.find('wire-model', runtimeId('root'))
     expect(candidates).toHaveLength(1)
     expect(candidates[0].provider).toBe('port')
     expect(await host.models.current(runtimeId('root'))).toMatchObject({
@@ -369,7 +424,7 @@ describe('native Pi through the production gateway', () => {
       supportsTools: true
     })
     dbh.db.update(userProviderTable).set({ isEnabled: false }).where(eq(userProviderTable.providerId, 'port')).run()
-    expect(await host.models.find('wire-model')).toEqual([])
+    expect(await host.models.find('wire-model', runtimeId('root'))).toEqual([])
     await expect(
       host.summarizer.summarize(
         { thread: runtimeId('root'), reason: 'manual', messages: ['conversation'] },

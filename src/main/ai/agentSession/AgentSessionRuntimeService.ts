@@ -437,7 +437,7 @@ export class AgentSessionRuntimeService extends BaseService {
   editSession<T>(
     sessionId: string,
     target: AgentSessionEditTarget,
-    persist: (tx: DbOrTx, nativeSessionId: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string) => T
   ): Promise<T> {
     this.assertSessionEditable(sessionId)
     const editing = this.forks.edit(
@@ -875,7 +875,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // Re-prime of a live session (e.g. a second window opening it): re-read and republish the
         // catalog so a consumer that mounts after the initial publish still gets it — `ensureConnection`
         // alone skips the read when the connection already exists.
-        void this.ensureConnection(existing)
+        await this.ensureConnection(existing)
           .then((connected) => {
             if (connected) this.refreshSupportedCommands(existing)
           })
@@ -936,9 +936,9 @@ export class AgentSessionRuntimeService extends BaseService {
    * Push side of connection reconcile — a latency optimization over the pull that every fresh turn
    * runs in {@link ensureConnection}: agent edits apply to live/idle connections without waiting for
    * the next message. The connection's `reconcile` re-derives the desired config itself, so no
-   * per-field knowledge lives here: safe tool-policy changes hot-apply, permission-mode changes
-   * defer to the next turn boundary, and spawn-frozen changes (model, workspace, skills, sub-models,
-   * MCP definitions, …) report 'rebuild'. Inputs that change WITHOUT an agent-updated event
+   * per-field knowledge lives here: safe tool-policy changes, permission mode included, hot-apply
+   * even mid-turn, and spawn-frozen changes (model, workspace, skills, sub-models, MCP definitions,
+   * …) report 'rebuild'. Inputs that change WITHOUT an agent-updated event
    * (in-session skill toggles, MCP definition edits, workspace switches) have no push at all and are
    * covered by the pull.
    */
@@ -987,7 +987,7 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'rebuild': {
         // Safe live patches are already applied. Rebuild eagerly only when nothing is streaming —
         // a roll or non-terminal turn keeps its connection, and the next fresh turn's pull picks up
-        // the rebuild plus any permission-mode change deferred at the turn boundary.
+        // the rebuild.
         const hasLiveTurn =
           this.liveTurn(entry) !== undefined ||
           isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
@@ -3345,7 +3345,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = this.currentConnection(entry)
     const connectionLoop = entry.connectionLoop
     await this.closeRuntimeConnection(connection, entry.sessionId, true, interrupt)
-    if (connectionAttempt) await connectionAttempt
+    if (connectionAttempt) await connectionAttempt.catch(() => undefined)
     if (connectionLoop) await connectionLoop
     await streamDrain
     for (const turn of getAgentSessionRuntimeTurns(entry.runtimeState)) {

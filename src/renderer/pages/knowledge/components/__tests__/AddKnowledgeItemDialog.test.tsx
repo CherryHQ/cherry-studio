@@ -281,7 +281,8 @@ vi.mock('react-i18next', () => {
       'chat.save.knowledge.error.file_partial_failed': `${options?.count ?? 0} file(s) could not be saved`,
       'knowledge.data_source.add_dialog.url.description': '输入网页链接：',
       'knowledge.data_source.add_dialog.url.help': '将自动抓取页面文本并分块索引',
-      'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com'
+      'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com',
+      'library.import_dialog.error.invalid_url': '无效的 URL'
     } satisfies Record<string, string>
 
     return translations[key] ?? options?.defaultValue ?? key
@@ -876,6 +877,21 @@ describe('AddKnowledgeItemDialog', () => {
           'detect'
         )
       })
+    })
+
+    it('rejects an invalid url without submitting or closing the panel', async () => {
+      setPendingAddSource('url')
+      const onOpenChange = vi.fn()
+      const user = userEvent.setup()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await user.type(screen.getByPlaceholderText('https://example.com'), 'not a valid URL')
+      await user.click(screen.getByRole('button', { name: '添加' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('无效的 URL')
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(onOpenChange).not.toHaveBeenCalledWith(false)
+      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
     })
 
     it('shows an inline error and keeps the panel open when the url submit fails', async () => {
