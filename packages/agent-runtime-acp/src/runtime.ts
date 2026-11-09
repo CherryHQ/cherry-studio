@@ -1,6 +1,7 @@
 import {
   client,
   methods,
+  PROTOCOL_VERSION,
   RequestError,
   type ClientConnection,
   type ClientRequestContext,
@@ -8,7 +9,8 @@ import {
   type NewSessionRequest,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
-  type SessionNotification
+  type SessionNotification,
+  type StopReason
 } from '@agentclientprotocol/sdk'
 import * as z from 'zod'
 
@@ -49,7 +51,13 @@ interface Owner {
   setup?: { count: number; bytes: number; overflow: boolean }
 }
 
-const stopReason = z.enum(['end_turn', 'cancelled', 'max_tokens', 'max_turn_requests', 'refusal'])
+const stopOutcomes = {
+  end_turn: 'completed',
+  cancelled: 'aborted',
+  max_tokens: 'unanswered',
+  max_turn_requests: 'unanswered',
+  refusal: 'unanswered'
+} satisfies Record<StopReason, NonNullable<InputState['outcome']>>
 
 export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
   let lease: AcpTransportLease | undefined
@@ -150,9 +158,11 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
       function host<P extends object, R>(handler: ((params: P, context: AcpHostContext) => Promise<R>) | undefined) {
         return ({ params, signal }: ClientRequestContext<P>): Promise<R> => {
           const sessionId = 'sessionId' in params ? params.sessionId : undefined
-          const owner = typeof sessionId === 'string' ? owners.get(sessionId) : undefined
-          if (!handler || !owner || owner.lost || state !== 'running')
-            throw new RequestError(-32602, 'Callback requires an owned session and handler')
+          if (typeof sessionId !== 'string') throw RequestError.invalidParams(undefined, 'Callback requires a session')
+          const owner = owners.get(sessionId)
+          if (!owner || owner.lost) throw RequestError.sessionNotFound(sessionId)
+          if (!handler || state !== 'running')
+            throw RequestError.invalidParams(undefined, 'Callback requires an available runtime and handler')
           const lifetime = AbortSignal.any([signal, stopping.signal])
           return untilAborted(() => handler(params, { thread: owner.thread, signal: lifetime }), lifetime)
         }
@@ -169,7 +179,7 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
       if (callbacks.elicitation)
         app.onRequest(methods.client.elicitation.create, (context) => {
           if (context.params.mode !== 'form')
-            throw new RequestError(-32602, 'Only session-scoped form elicitation is supported')
+            throw RequestError.invalidParams(undefined, 'Only session-scoped form elicitation is supported')
           return host(callbacks.elicitation)(context)
         })
       connection = app.connect(lease.stream)
@@ -181,7 +191,7 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
         { once: true }
       )
       const response = await connection.agent.request(methods.agent.initialize, {
-        protocolVersion: 1,
+        protocolVersion: PROTOCOL_VERSION,
         clientInfo: { name: 'cherry-acp-v1', version: '0.0.0' },
         clientCapabilities: {
           fs: { readTextFile: !!callbacks.readTextFile, writeTextFile: !!callbacks.writeTextFile },
@@ -189,7 +199,7 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
           ...(callbacks.elicitation && { elicitation: { form: {} } })
         }
       })
-      if (response.protocolVersion !== 1)
+      if (response.protocolVersion !== PROTOCOL_VERSION)
         throw new Error(`Unsupported ACP protocol version: ${response.protocolVersion}`)
       initialized = response
       return response
@@ -280,8 +290,9 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
       (response) =>
         enqueue(owner, async () => {
           if (owner.lost) return
-          const reason = stopReason.parse(response.stopReason)
-          const outcome = reason === 'end_turn' ? 'completed' : reason === 'cancelled' ? 'aborted' : 'unanswered'
+          if (typeof response.stopReason !== 'string' || !Object.hasOwn(stopOutcomes, response.stopReason))
+            throw new Error('Invalid ACP stop reason')
+          const outcome = stopOutcomes[response.stopReason]
           owner.projection.rememberPrompt(input.inputId, response)
           await owner.projection.finish('complete')
           owner.projection.publish({ type: 'input.changed', input: { ...prompt.input, outcome } })
@@ -487,7 +498,7 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
               owner.setup = undefined
               await owner.work
               if (owner.lost) throw new Error('Session projection failed')
-              owner.projection.configure(response ?? {})
+              owner.projection.configure(response)
               await owner.projection.finish('complete')
               return owner
             } catch (error) {

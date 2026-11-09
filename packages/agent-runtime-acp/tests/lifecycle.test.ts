@@ -106,7 +106,7 @@ it('advertises only host callbacks and rejects callbacks for another session', a
   ).toEqual({ content: 'host file' })
   await expect(
     f.peer.client.request(methods.client.fs.readTextFile, { sessionId: 'foreign', path: '/denied' })
-  ).rejects.toThrow('owned session')
+  ).rejects.toMatchObject({ code: -32002, data: { sessionId: 'foreign' } })
   expect(paths).toEqual(['/allowed'])
   expect(
     await handle.acp.submit({

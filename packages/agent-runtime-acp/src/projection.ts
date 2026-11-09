@@ -74,13 +74,7 @@ export class Projection {
   contextUsage(): OperationResult<ThreadContextUsage> {
     const model = this.model
     if (!this.usage || !model) return unavailable('contextUsage', 'missing-native-context-or-model')
-    if (
-      !Number.isFinite(this.usage.size) ||
-      this.usage.size <= 0 ||
-      !Number.isFinite(this.usage.used) ||
-      this.usage.used < 0
-    )
-      return unavailable('contextUsage', 'invalid-native-context')
+    if (this.usage.size <= 0) return unavailable('contextUsage', 'invalid-native-context')
     return {
       status: 'confirmed',
       value: {

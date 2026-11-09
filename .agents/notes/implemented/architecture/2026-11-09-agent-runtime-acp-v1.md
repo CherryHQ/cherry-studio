@@ -76,6 +76,8 @@ Context reads are passive. A confirmed common context reading requires native ca
 
 The implemented package uses the SDK's stable client, `ThreadFeed` and `RuntimeMessageStream`. Protocol tests exercise public adapter calls over real SDK transports and an owned child process. Native tests run published Claude ACP and Gemini processes with isolated storage and controlled model endpoints. They verify actual file-tool effects and reload history through ACP in a fresh process. Desktop adoption, installation, account UI, provider routing and experimental v1/v2 controls remain separate scopes.
 
+Protocol version constants, standard callback errors, inbound usage validation and empty load-response normalization come from the SDK. Stop outcomes form an exhaustive mapping over its `StopReason` type; malformed prompt responses still leave the outcome unknown and close admission. Model identity and positive context capacity remain adapter requirements. Unknown-session host callbacks return the SDK's session-not-found error with the requested session ID.
+
 ## Alternatives considered
 
 - Copy a JSON-RPC client or older `ClientSideConnection` examples: rejected because SDK 2.4.0 already provides the transport and explicit connection lifecycle.

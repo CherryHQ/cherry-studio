@@ -76,6 +76,8 @@ Cherry 已有公共[运行时契约](../../../../packages/agent-runtime/README.m
 
 实现复用 SDK 稳定客户端、`ThreadFeed` 和 `RuntimeMessageStream`。协议测试通过真实 SDK 传输与自有子进程调用适配器公共接口。原生测试运行已发布的 Claude ACP 和 Gemini 进程，使用隔离存储与受控模型端点，验证实际文件工具副作用，并在新进程中通过 ACP 重载历史。桌面接入、安装、账号界面、提供商路由及实验性 v1/v2 控制仍属独立范围。
 
+协议版本常量、标准回调错误、入站用量校验和空 load 响应规范化均来自 SDK。停止结果通过 SDK 的 `StopReason` 类型做穷尽映射；格式异常的 prompt 响应仍使结果保持未知，并停止接纳新输入。模型身份和正数上下文容量仍由适配器要求。未知会话的宿主回调返回 SDK 的会话不存在错误，并携带请求中的会话 ID。
+
 ## Alternatives considered
 
 - 复制 JSON-RPC 客户端或旧版 `ClientSideConnection` 示例：不采用，SDK 2.4.0 已提供传输与显式连接生命周期。
