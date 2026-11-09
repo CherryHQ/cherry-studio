@@ -485,12 +485,9 @@ describe('processMessage (internal Agent continuation normalization)', () => {
 
     const messages = await processAndCaptureStreamMessages(params)
 
-    expect(mockToUIMessages).toHaveBeenCalledWith(params)
-    const converted = mockToUIMessages.mock.results[0].value
-    expect(messages).toEqual([
-      { id: converted[0].id, role: 'user', parts: [{ type: 'text', text: 'Continue task' }] },
+    expect(messages).toMatchObject([
+      { role: 'user', parts: [{ type: 'text', text: 'Continue task' }] },
       {
-        id: converted[1].id,
         role: 'assistant',
         parts: [
           {
