@@ -161,10 +161,19 @@ export class FileProcessingService extends BaseService {
     }
 
     try {
+      // Probe /health first (MinerU 3.x). If it 404s, fall back to /v1/health
+      // (MinerU 4.x only exposes the versioned endpoint).
       const response = await net.fetch(`${apiHost}/health`, {
         method: 'GET',
         signal: AbortSignal.timeout(CONNECTIVITY_PROBE_TIMEOUT_MS)
       })
+      if (response.status === 404) {
+        const versioned = await net.fetch(`${apiHost}/v1/health`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(CONNECTIVITY_PROBE_TIMEOUT_MS)
+        })
+        return versioned.status !== 404
+      }
       return response.status !== 404
     } catch (error) {
       logger.debug('File processor connectivity probe failed', { processorId, apiHost, error })

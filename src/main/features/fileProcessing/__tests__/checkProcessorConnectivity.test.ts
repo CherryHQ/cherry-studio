@@ -65,22 +65,44 @@ describe('checkOpenMineruConnectivity', () => {
     expect(init.signal).toBeInstanceOf(AbortSignal)
   })
 
+  it('falls back to /v1/health when /health returns 404 (MinerU 4.x)', async () => {
+    fetchMock
+      .mockResolvedValueOnce({ status: 404 }) // /health returns 404
+      .mockResolvedValueOnce({ status: 200 }) // /v1/health returns 200
+
+    await expect(probe()).resolves.toBe(true)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8000/health')
+    expect(fetchMock.mock.calls[1][0]).toBe('http://127.0.0.1:8000/v1/health')
+  })
+
+  it('reports unreachable when both /health and /v1/health return 404', async () => {
+    fetchMock
+      .mockResolvedValueOnce({ status: 404 })
+      .mockResolvedValueOnce({ status: 404 })
+
+    await expect(probe()).resolves.toBe(false)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it.each([
-    // 404 is the only negative: something answered, but it has no /health, so the
-    // port belongs to some other service.
-    [404, false],
-    [200, true],
+    // 404 on /health triggers fallback to /v1/health; only 404 on BOTH means not MinerU.
     // MinerU returns 503 once max_concurrent_requests is saturated — a busy server
     // is a running server.
+    [200, true],
     [503, true],
     // A reverse proxy in front of MinerU answers before routing.
     [401, true],
     [403, true],
     [500, true]
-  ])('maps HTTP %i to reachable=%s', async (status, expected) => {
+  ])('maps HTTP %i on /health to reachable=%s without fallback', async (status, expected) => {
     fetchMock.mockResolvedValue({ status })
 
     await expect(probe()).resolves.toBe(expected)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('reports unreachable when nothing is listening', async () => {
