@@ -24,6 +24,7 @@ import { popup } from '@renderer/services/popup'
 import { showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
+import { heifErrorKey, isHeifImage } from '@renderer/utils/heif'
 import { isMac } from '@renderer/utils/platform'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -181,7 +182,11 @@ function toFileItem(
       ...base,
       ...originFields,
       type,
-      previewUrl: physicalPath ? toSafeFileUrl(physicalPath, entry.ext) : undefined
+      // HEIF thumbnails are deferred.
+      previewUrl:
+        physicalPath && !isHeifImage({ source: '.' + format.replace(/^\./, '') })
+          ? toSafeFileUrl(physicalPath, entry.ext)
+          : undefined
     }
   }
 
@@ -437,7 +442,13 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
             void ImagePreviewService.show(toSafeFileUrl(normalizedPath, file.format)).catch((error: unknown) => {
               const normalized = error instanceof Error ? error : new Error(String(error))
               logger.error('Failed to open image preview', normalized)
-              toast.error(t('files.preview.error'))
+              toast.error(
+                t(
+                  isHeifImage({ source: '.' + file.format.replace(/^\./, '') })
+                    ? heifErrorKey(error)
+                    : 'files.preview.error'
+                )
+              )
             })
             return
           }
@@ -451,7 +462,13 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
           if (requestRef.current !== requestToken) return
           const normalized = error instanceof Error ? error : new Error(String(error))
           logger.error('Failed to open file preview', normalized)
-          toast.error(t('files.preview.error'))
+          toast.error(
+            t(
+              isHeifImage({ source: '.' + file.format.replace(/^\./, '') })
+                ? heifErrorKey(error)
+                : 'files.preview.error'
+            )
+          )
         })
     },
     [onEntryIdChange, t]

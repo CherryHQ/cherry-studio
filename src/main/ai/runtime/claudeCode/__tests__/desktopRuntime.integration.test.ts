@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, realpath, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -31,6 +31,8 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { assertQuadrants } from '@main/utils/__tests__/heifFixture'
+import { transcodeHeifToPng } from '@main/utils/image'
 
 import { ClaudeFeed } from '../../../../../../packages/agent-runtime-claude-code/src/observation'
 import { fixture, spawnChild } from '../../../../../../packages/agent-runtime-claude-code/tests/nativeFixture'
@@ -704,6 +706,62 @@ it.each(['managed', 'external', 'failure'])(
   },
   30000
 )
+
+it('sends a first-party HEIC attachment as a PNG image block through the native owner', async () => {
+  const test = await desktop()
+  const attachment = path.resolve('tests/fixtures/heif/quadrants.heic')
+  const bytes = readFileSync(attachment)
+  const png = await transcodeHeifToPng(bytes)
+  const pngBase64 = Buffer.from(png.content).toString('base64')
+  MockApplicationUtils.setService('FileManager', {
+    getPhysicalPath: vi.fn().mockReturnValue(attachment),
+    getById: vi.fn().mockResolvedValue({ ext: 'heic' }),
+    read: vi.fn().mockResolvedValue({ content: bytes.toString('base64'), mime: 'image/heic' })
+  })
+  MockApplicationUtils.setService('HeifRenditionService', { getRendition: async () => png })
+  const input = {
+    message: messages.saveMessage({
+      sessionId: test.sessionId,
+      message: {
+        role: 'user',
+        status: 'success',
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            {
+              type: 'file',
+              url: '',
+              mediaType: 'image/heic',
+              filename: 'quadrants.heic',
+              providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+            }
+          ]
+        }
+      }
+    })
+  }
+  const connection = await test.connect()
+  await connection.send(input)
+  const request = await test.request()
+  const content = request.body.messages.flatMap((message) => (Array.isArray(message.content) ? message.content : []))
+  expect(content).toContainEqual(expect.objectContaining({ type: 'text', text: 'describe this' }))
+  const image = content.find((part) => part.type === 'image')
+  expect(image).toMatchObject({
+    type: 'image',
+    source: { type: 'base64', media_type: 'image/png', data: pngBase64 }
+  })
+  if (!image || image.source.type !== 'base64') throw new Error('Missing inline image')
+  const sent = Buffer.from(image.source.data, 'base64')
+  expect(await sharp(sent).metadata()).toMatchObject({ format: 'png' })
+  await assertQuadrants(sent)
+  const serialized = JSON.stringify(request.body.messages)
+  expect(serialized).not.toMatch(/image\/hei[cf]/i)
+  expect(serialized).not.toContain(attachment)
+  expect(serialized).not.toContain('file://')
+  request.reply.block({ type: 'text', text: 'Image received' })
+  request.reply.finish()
+  await test.wait('turn-complete')
+}, 30000)
 
 // Switching input ownership to the package must retain native images and tool-readable attachment paths.
 it('submits native image blocks and local document paths through the common owner', async () => {

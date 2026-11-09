@@ -1,13 +1,14 @@
 import { Blob as NativeBlob } from 'node:buffer'
 
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
 import type { ReactNode } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import * as ui from '@cherrystudio/ui'
 import en from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
 import type * as ImageUtils from '@renderer/utils/image'
@@ -79,6 +80,30 @@ describe('ImageViewer', () => {
     expect(screen.getByTestId('image-preview-dialog')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save As' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Copy as image' })).not.toBeInTheDocument()
+  })
+
+  it('follows the navigated image when the gallery gains an earlier entry', async () => {
+    const { ImagePreviewDialog } = await vi.importActual<typeof ui>('@cherrystudio/ui')
+    // tests/renderer.setup.ts replaces the shared dialog with a stand-in that can only render the active item,
+    // so this case opts into the real dialog for its duration to reproduce gallery navigation.
+    const previewDialog = vi.spyOn(ui, 'ImagePreviewDialog').mockImplementation(ImagePreviewDialog)
+    try {
+      const first = { id: 'first', src: 'file:///tmp/first.png' }
+      const second = { id: 'second', src: 'file:///tmp/second.png' }
+      const { rerender } = renderWithI18n(<ImageViewer src={first.src} preview={{ items: [first, second] }} />)
+
+      fireEvent.click(screen.getByRole('img'))
+      fireEvent.click(screen.getByRole('button', { name: en['preview.next'] }))
+      expect(within(screen.getByTestId('image-preview-dialog')).getByAltText('')).toHaveAttribute('src', second.src)
+
+      const late = { id: 'late', src: 'blob:late' }
+      rerender(<ImageViewer src={first.src} preview={{ items: [late, first, second] }} />)
+
+      expect(screen.getByTestId('image-preview-dialog')).toBeInTheDocument()
+      expect(within(screen.getByTestId('image-preview-dialog')).getByAltText('')).toHaveAttribute('src', second.src)
+    } finally {
+      previewDialog.mockRestore()
+    }
   })
 
   it('respects preview=false', async () => {
