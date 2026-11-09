@@ -288,8 +288,10 @@ The OpenAI, Anthropic, and Gemini generation routes call
    the dialect's `IMessageConverter`, which yields:
    - `toUIMessages(params)` → AI SDK `UIMessage[]` (a system/instructions
      prompt becomes a leading `role: 'system'` message). For Responses → Responses,
-     top-level `instructions` stays in provider options, separate from developer
-     history, including an explicitly empty string.
+     adapters supporting the provider option keep top-level `instructions` separate
+     from developer history, including an explicitly empty string. Open Responses
+     and xAI Responses instead retain the leading system message because their
+     SDK adapters derive instructions from messages.
    - `toAiSdkTools(params)` → a `ToolSet` of **client tools** (no `execute`):
      the model emits the call and the gateway forwards it to the caller.
    - `extractStreamOptions(params)` → sampling (`temperature`, `topP`,

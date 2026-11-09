@@ -226,6 +226,7 @@ describe('native Pi through the production gateway', () => {
         const reasoning = {
           type: 'reasoning',
           id: `rs_native_${requests.length}`,
+          status: 'completed',
           summary: [],
           encrypted_content: 'encrypted-native-state'
         }
@@ -252,6 +253,8 @@ describe('native Pi through the production gateway', () => {
             type: 'response.completed',
             response: {
               id: `resp_${requests.length}`,
+              object: 'response',
+              created_at: 1,
               model: 'wire-model',
               status: 'completed',
               output: [reasoning, message],
@@ -286,7 +289,9 @@ describe('native Pi through the production gateway', () => {
     vi.spyOn(application, 'getPath').mockImplementation((key, file) =>
       key === 'feature.provider_registry.data'
         ? resolve('packages/provider-registry/data', file ?? '')
-        : getPath(key, file)
+        : key === 'app.root'
+          ? resolve(process.cwd(), file ?? '')
+          : getPath(key, file)
     )
     dbh.db
       .insert(userProviderTable)
@@ -356,6 +361,69 @@ describe('native Pi through the production gateway', () => {
       observe: () => {}
     })
   }
+
+  it.each([
+    { adapterFamily: undefined, presetProviderId: 'omlx', expected: 'instructions' },
+    { adapterFamily: 'open-responses', presetProviderId: null, expected: 'instructions' },
+    { adapterFamily: 'xai', presetProviderId: null, expected: 'message' },
+    { adapterFamily: 'openai', presetProviderId: null, expected: 'separate' }
+  ] as const)(
+    'preserves caller instructions through the $adapterFamily Responses adapter',
+    async ({ adapterFamily, presetProviderId, expected }) => {
+      protocol = 'openai-responses'
+      const endpoint = providerService.getByProviderId('port').endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          presetProviderId,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: endpoint!.baseUrl, ...(adapterFamily && { adapterFamily }) }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+        })
+        .where(eq(userProviderTable.providerId, 'port'))
+        .run()
+      dbh.db
+        .update(userModelTable)
+        .set({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+        .where(eq(userModelTable.id, 'port::wire-model'))
+        .run()
+      const response = await processMessage({
+        inputFormat: 'openai-responses',
+        outputFormat: 'openai-responses',
+        params: {
+          model: 'port:wire-model',
+          stream: true,
+          instructions: 'Caller instructions must survive.',
+          input: [
+            { role: 'developer', content: 'Keep the skill catalog.' },
+            { role: 'user', content: 'Hello' }
+          ]
+        }
+      })
+      await response.text()
+      expect(requests).toHaveLength(1)
+      const body = requests[0]
+      if (expected === 'instructions') {
+        expect(body.instructions).toContain('Caller instructions must survive.')
+        expect(body.instructions).toContain('Keep the skill catalog.')
+      } else if (expected === 'message') {
+        expect(body.input).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              role: 'system',
+              content: expect.stringContaining('Caller instructions must survive.')
+            }),
+            expect.objectContaining({ role: 'system', content: expect.stringContaining('Keep the skill catalog.') })
+          ])
+        )
+      } else {
+        expect(body.instructions).toBe('Caller instructions must survive.')
+        expect(JSON.stringify(body.input)).toContain('Keep the skill catalog.')
+        expect(JSON.stringify(body.input)).not.toContain('Caller instructions must survive.')
+      }
+    }
+  )
 
   it('joins the SDK call to the native phase with one upstream request and billing record', async () => {
     const captured: SpanEntity[] = []

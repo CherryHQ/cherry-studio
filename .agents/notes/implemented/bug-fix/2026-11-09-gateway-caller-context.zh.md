@@ -15,7 +15,7 @@ Pi Durable 在 Responses 的 developer 消息里发送身份信息和技能目�
 
 `contextOwner: 'caller'` 同时覆盖提示、工具和历史。调用方请求保留 `request.system` 和客户端工具定义，不经过 Cherry 的提示组装、注册表选择、延迟工具暴露或网页工具路由。`disableTools` 仍然有效。普通聊天保留现有的提示组装和 Responses instructions 行为。
 
-Responses 输入面向 Responses 输出时，顶层 `instructions` 通过解析后的提供商选项命名空间独立传递，不混入输入消息，涵盖空 instructions 和可信推理覆盖参数。跨协议请求保留转换器的提示映射。system/developer 轮次留在消息序列中；AI SDK 可以规范化其线上角色。
+Responses 输入面向 Responses 输出时，读取 `providerOptions.instructions` 的适配器独立接收顶层 `instructions`，不混入输入消息，涵盖空 instructions 和可信推理覆盖参数。Open Responses 和 xAI Responses 则从消息生成指令，因此这两个适配器保留转换器生成的首条 system 消息。仅凭端点协议无法判断适配器是否支持该选项。跨协议请求保留转换器的提示映射。system/developer 轮次留在消息序列中；AI SDK 可以规范化其线上角色。
 
 现有 AI SDK 执行路径、`messageRules`、特性收集、兼容性中间件和追踪继续生效。上下文所有权不代表绕过 SDK 直接代理 HTTP，也不保证未知协议字段在 SDK 转换后仍然保留。
 
@@ -42,3 +42,5 @@ Responses 输入面向 Responses 输出时，顶层 `instructions` 通过解析�
 - 回归 — 隔离 Electron 中 Pi Durable → Qwen3.8 Flash 的入站与出站 developer 提示词逐字一致（25,734 字符，14 个技能），未使用诊断性请求体替换。HTTP 200、SDK／HTTP trace 和单次用量入账均已验证；该次模型仍额外编造技能，因此上下文传输修复不等同于回答质量保证。
 
 - 回归 — `src/main/ai/runtime/aiSdk/loop/__tests__/singleStep.test.ts` 使用真实 AI SDK 执行，验证仅一次出站调用、不执行本地工具或修复、HTTP 503 后不重试、保留中间件和消息规范化、调用前取消，以及普通聊天的工具续轮。
+
+- 回归 — `src/main/ai/runtime/pi/gatewayIntegration.test.ts` 通过实际 Open Responses、xAI Responses 和 OpenAI 适配器捕获生产网关出站报文，包含默认适配器选择。修复前 Open Responses 和 xAI 两条路径会丢失调用方 instructions；修复后四条路径均保留指令和 developer 技能目录。

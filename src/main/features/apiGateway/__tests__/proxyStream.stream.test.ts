@@ -1119,6 +1119,12 @@ describe('caller-owned Responses instructions', () => {
     'keeps instructions %s separate from developer turns on the same protocol',
     async (instructions) => {
       useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+      mockGetProvider.mockReturnValue({
+        id: 'openai',
+        name: 'OpenAI',
+        isEnabled: true,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+      })
       const converter = new OpenAiResponsesMessageConverter()
       mockToUIMessages.mockImplementation((params) =>
         converter.toUIMessages(params as unknown as Parameters<typeof converter.toUIMessages>[0])

@@ -15,7 +15,7 @@ Moving Cherry-owned chat prompts to Responses instructions remains intentional: 
 
 `contextOwner: 'caller'` covers prompts and tools as well as history. Caller requests retain `request.system` and client tool definitions without Cherry's prompt assembly, registry selection, deferred exposition, or web-tool routing. `disableTools` remains effective. Normal chat retains its existing prompt assembly and Responses instructions behavior.
 
-For Responses input targeting Responses output, top-level `instructions` travels through the resolved provider-options namespace independently of the input messages, including empty instructions and trusted reasoning overrides. Cross-protocol requests retain converter-based prompt mapping. System/developer turns stay in the message sequence; AI SDK may normalize their wire roles.
+For Responses input targeting Responses output, adapters that consume `providerOptions.instructions` receive top-level `instructions` independently of the input messages, including empty instructions and trusted reasoning overrides. Open Responses and xAI Responses derive instructions from messages instead: keep the converter's leading system message for those adapters. Endpoint protocol alone does not establish support for the provider option. Cross-protocol requests retain converter-based prompt mapping. System/developer turns stay in the message sequence; AI SDK may normalize their wire roles.
 
 The existing AI SDK execution path, `messageRules`, feature collection, compatibility middleware, and tracing remain active. Context ownership is not a raw HTTP bypass or a guarantee that unknown protocol fields survive SDK conversion.
 
@@ -43,3 +43,5 @@ Gateway clients own tool discovery and agent context. Cherry no longer adds defe
 - Regression — Isolated Electron Pi Durable → Qwen3.8 Flash preserved the developer prompt exactly (25,734 characters, 14 skills), without diagnostic body replacement. HTTP 200, SDK/HTTP tracing, and one usage record were verified. The model still invented additional skills in this sample; context preservation does not guarantee answer quality.
 
 - Regression — `src/main/ai/runtime/aiSdk/loop/__tests__/singleStep.test.ts` exercises real AI SDK execution: one outgoing call, no local execution or repair, no retry after HTTP 503, preserved middleware and message normalization, cancellation before invocation, and ordinary chat tool continuation.
+
+- Regression — `src/main/ai/runtime/pi/gatewayIntegration.test.ts` captures production gateway output through the actual Open Responses, xAI Responses and OpenAI adapters, including default adapter selection. The Open Responses and xAI cases lost caller instructions before the fix; all four routes now preserve the instructions and developer catalog.

@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
+import { resolveAiSdkProviderId, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
@@ -120,8 +120,13 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     openRouterReasoningCache
   })
 
+  // These adapters derive instructions from messages and ignore the provider option.
+  const instructionsInMessages = ['open-responses', 'xai-responses'].includes(
+    resolveAiSdkProviderId(provider, endpoint.endpointType)
+  )
   const responsesInstructions =
     inputFormat === 'openai-responses' &&
+    !instructionsInMessages &&
     endpoint.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
     'instructions' in effectiveParams &&
     typeof effectiveParams.instructions === 'string'
