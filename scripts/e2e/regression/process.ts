@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { join } from 'node:path'
+import { posix, win32 } from 'node:path'
 
 import type { AppRecord } from './lifecycle'
 import type { Platform } from './types'
@@ -22,7 +22,7 @@ export function isAlive(pid: number): boolean {
   }
 }
 
-function processCommand(pid: number, platform: Platform): string {
+export function processCommand(pid: number, platform: Platform): string {
   try {
     return platform === 'windows'
       ? execFileSync(
@@ -33,7 +33,7 @@ function processCommand(pid: number, platform: Platform): string {
             '-Command',
             `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").CommandLine`
           ],
-          { encoding: 'utf8', timeout: 10_000 }
+          { encoding: 'utf8', timeout: 10_000, windowsHide: true }
         ).trim()
       : execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 }).trim()
   } catch {
@@ -51,7 +51,7 @@ export function windowsProcessExecutablePath(pid: number): string {
         '-Command',
         `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").ExecutablePath`
       ],
-      { encoding: 'utf8', timeout: 10_000 }
+      { encoding: 'utf8', timeout: 10_000, windowsHide: true }
     ).trim()
   } catch {
     return ''
@@ -60,56 +60,112 @@ export function windowsProcessExecutablePath(pid: number): string {
 
 type ProcessOwner = Pick<AppRecord, 'mode' | 'platform' | 'executablePath' | 'targetRoot' | 'cdpPort' | 'runnerPid'>
 
-export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'electron' | 'runner'): void {
+export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'electron' | 'runner' | 'inspector'): void {
   const command = processCommand(pid, record.platform)
   const expected =
     record.mode === 'tag'
       ? record.executablePath
-      : kind === 'electron'
-        ? record.targetRoot
-        : join(record.targetRoot, 'node_modules', 'dotenv-cli', 'cli.js')
+      : kind !== 'runner'
+        ? (record.executablePath ?? record.targetRoot)
+        : (record.platform === 'windows' ? win32 : posix).join(
+            record.targetRoot,
+            'node_modules',
+            'dotenv-cli',
+            'cli.js'
+          )
   if (!expected || !command.toLowerCase().includes(expected.toLowerCase())) {
     throw new Error(`Refusing to terminate stale ${kind} PID ${pid}; its command no longer matches the owned run`)
   }
   if (kind === 'electron' && findCdpPid(record.platform) !== pid) {
     throw new Error(`Refusing to terminate PID ${pid}; it no longer owns CDP port ${record.cdpPort}`)
   }
+  if (kind === 'inspector' && findListeningPid(record.platform, MAIN_INSPECTOR_PORT) !== pid) {
+    throw new Error(`Refusing native dialog control of PID ${pid}; it no longer owns the main inspector`)
+  }
 }
 
-export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM'): void {
-  const members = execFileSync('ps', ['-axo', 'pid=,pgid=,command='], { encoding: 'utf8', timeout: 10_000 })
-    .split(/\r?\n/)
-    .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/))
-    .filter((match): match is RegExpMatchArray => Boolean(match && Number(match[2]) === record.runnerPid))
-  if (members.length === 0) {
-    if (isAlive(record.runnerPid)) throw new Error('Refusing cleanup: runner no longer owns its process group')
-    return
+interface MacProcessIdentity {
+  pid: number
+  command: string
+  startedAt: string
+}
+
+function macProcessStartedAt(pid: string): string {
+  try {
+    return execFileSync('ps', ['-o', 'lstart=', '-p', pid], {
+      encoding: 'utf8',
+      timeout: 10_000,
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim()
+  } catch {
+    return ''
   }
-  if (isAlive(record.runnerPid)) {
+}
+
+export function terminateOwnedMacProcessGroup(
+  record: ProcessOwner,
+  signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM',
+  previouslyVerified: readonly MacProcessIdentity[] = []
+): MacProcessIdentity[] {
+  const group = execFileSync('ps', ['-axo', 'pid=,pgid=,stat=,command='], { encoding: 'utf8', timeout: 10_000 })
+    .split(/\r?\n/)
+    .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/))
+    .filter((match): match is RegExpMatchArray => Boolean(match && Number(match[2]) === record.runnerPid))
+  const members = group.filter((member) => !member[3].startsWith('Z'))
+  if (members.length === 0) {
+    if (group.length === 0 && isAlive(record.runnerPid)) {
+      throw new Error('Refusing cleanup: runner no longer owns its process group')
+    }
+    return []
+  }
+  const identities = members.map((member) => ({
+    pid: Number(member[1]),
+    command: member[4],
+    startedAt: macProcessStartedAt(member[1])
+  }))
+  const knownSurvivors = identities.every(
+    (member) =>
+      member.startedAt &&
+      previouslyVerified.some(
+        (previous) =>
+          previous.pid === member.pid && previous.command === member.command && previous.startedAt === member.startedAt
+      )
+  )
+  const runnerExited = group.some((member) => Number(member[1]) === record.runnerPid && member[3].startsWith('Z'))
+  if (!runnerExited && isAlive(record.runnerPid)) {
     assertOwnedProcess(record, record.runnerPid, 'runner')
     if (!members.some((member) => Number(member[1]) === record.runnerPid)) {
       throw new Error('Refusing cleanup: runner no longer owns its process group')
     }
-  } else {
-    const expected = record.mode === 'tag' ? record.executablePath : record.targetRoot
-    if (!expected || !members.some((member) => member[3].includes(expected))) {
+  } else if (!knownSurvivors) {
+    const expected = record.executablePath ?? (record.mode === 'branch' ? record.targetRoot : undefined)
+    const appContents = record.executablePath?.match(/^(.*\.app\/Contents)\/MacOS\/[^/]+$/)?.[1]
+    if (
+      !expected ||
+      !members.some(
+        (member) => member[4].includes(expected) || (appContents && member[4].startsWith(`${appContents}/Frameworks/`))
+      )
+    ) {
       throw new Error('Refusing cleanup: orphaned process group does not match the owned application')
     }
   }
   // detached macOS launches own a process group, including children without CDP listeners.
   process.kill(-record.runnerPid, signal)
+  return identities
+}
+
+export function hasLiveMacProcessGroupMembers(groupId: number): boolean {
+  return execFileSync('ps', ['-axo', 'pgid=,stat='], { encoding: 'utf8', timeout: 10_000 })
+    .split(/\r?\n/)
+    .some((line) => {
+      const [group, state] = line.trim().split(/\s+/)
+      return Number(group) === groupId && Boolean(state) && !state.startsWith('Z')
+    })
 }
 
 export async function waitForMacProcessGroupExit(groupId: number, timeoutMs = 8_000): Promise<boolean> {
-  const hasLiveMembers = () =>
-    execFileSync('ps', ['-axo', 'pgid=,stat='], { encoding: 'utf8', timeout: 10_000 })
-      .split(/\r?\n/)
-      .some((line) => {
-        const [group, state] = line.trim().split(/\s+/)
-        return Number(group) === groupId && Boolean(state) && !state.startsWith('Z')
-      })
   const deadline = Date.now() + timeoutMs
-  while (hasLiveMembers()) {
+  while (hasLiveMacProcessGroupMembers(groupId)) {
     if (Date.now() >= deadline) return false
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 250))
   }
@@ -155,7 +211,7 @@ function getParentPid(pid: number, platform: Platform): number | undefined {
               '-Command',
               `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").ParentProcessId`
             ],
-            { encoding: 'utf8', timeout: 10_000 }
+            { encoding: 'utf8', timeout: 10_000, windowsHide: true }
           )
         : execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8', timeout: 10_000 })
     const parent = Number(output.trim())
@@ -184,9 +240,9 @@ export function findListeningPid(platform: Platform, port: number): number | und
               '-NoProfile',
               '-NonInteractive',
               '-Command',
-              `(Get-NetTCPConnection -LocalPort ${port} -State Listen | Select-Object -First 1 -ExpandProperty OwningProcess)`
+              `(Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess)`
             ],
-            { encoding: 'utf8', timeout: 10_000 }
+            { encoding: 'utf8', timeout: 10_000, windowsHide: true }
           )
         : execFileSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], {
             encoding: 'utf8',

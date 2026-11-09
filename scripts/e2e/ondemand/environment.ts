@@ -4,16 +4,36 @@ import { inspectOwnedAppEnvironment } from '../regression/debugBridge'
 import type { AppRecord } from '../regression/lifecycle'
 import { QaError, type Result } from './report'
 
-export async function ensureChinese(page: Page, apply = false): Promise<void> {
+export interface ChineseVerificationOptions {
+  /**
+   * Assert a Chinese-only on-screen marker. Only valid while onboarding or the main shell is rendered.
+   * When false only the app.language preference is verified; the visible language is not asserted, so a
+   * late reload that renders English while the preference stays zh-CN goes unverified.
+   */
+  requireVisibleMarker?: boolean
+}
+
+export async function ensureChinese(
+  page: Page,
+  apply = false,
+  options: ChineseVerificationOptions = {}
+): Promise<void> {
+  const { requireVisibleMarker = true } = options
   try {
     if (apply) {
       await page.evaluate(async () => {
         await window.api.preference.set('app.language', 'zh-CN')
       })
       await page.reload({ timeout: 60_000, waitUntil: 'domcontentloaded' })
+      // Reload drops the mounted UI; wait for the app surface so callers do not race the remount.
+      await page
+        .locator('[data-ui~="app.shell"], [data-ui~="app.onboarding-page"]')
+        .first()
+        .waitFor({ state: 'visible', timeout: 30_000 })
     }
     const language = await page.evaluate(async () => window.api.preference.get('app.language'))
     if (language !== 'zh-CN') throw new Error(`Expected app.language zh-CN, observed ${language}`)
+    if (!requireVisibleMarker) return
     const marker = page
       .getByRole('combobox', { name: '语言', exact: true })
       .or(page.getByRole('button', { name: '启动台', exact: true }))

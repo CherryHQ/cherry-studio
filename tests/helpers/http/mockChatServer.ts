@@ -19,6 +19,8 @@ export interface MockChatRequest {
   sendText(text: string): void
   /** Sends optional final text and completes the JSON or SSE response normally. */
   complete(text?: string): void
+  /** Finishes with a model-requested function call; the application executes the tool. */
+  completeToolCall(call: { id: string; name: string; arguments: Record<string, unknown> }): void
   /** Sends an SSE provider error, or HTTP 500 for a non-streaming request. */
   fail(message: string): void
   /** Destroys the socket without a finish chunk or [DONE]. */
@@ -53,7 +55,7 @@ function createChatRequest(
     if (res.destroyed || res.writableEnded) throw new Error('Mock chat response is already closed')
   }
   const sendEvent = (data: unknown) => res.write(`data: ${JSON.stringify(data)}\n\n`)
-  const sendChunk = (delta: object, finishReason: 'stop' | null = null) =>
+  const sendChunk = (delta: object, finishReason: 'stop' | 'tool_calls' | null = null) =>
     sendEvent({
       ...metadata,
       object: 'chat.completion.chunk',
@@ -90,6 +92,31 @@ function createChatRequest(
         })
       }
     },
+    completeToolCall(call) {
+      assertOpen()
+      const toolCall = {
+        id: call.id,
+        type: 'function',
+        function: { name: call.name, arguments: JSON.stringify(call.arguments) }
+      }
+      if (body.stream) {
+        sendChunk({ tool_calls: [{ index: 0, ...toolCall }] })
+        sendChunk({}, 'tool_calls')
+        res.end('data: [DONE]\n\n')
+      } else {
+        sendJson(res, 200, {
+          ...metadata,
+          object: 'chat.completion',
+          choices: [
+            {
+              index: 0,
+              message: { role: 'assistant', content: null, tool_calls: [toolCall] },
+              finish_reason: 'tool_calls'
+            }
+          ]
+        })
+      }
+    },
     fail(message) {
       assertOpen()
       const error = { error: { message, type: 'server_error', code: 'mock_error' } }
@@ -110,6 +137,8 @@ function createChatRequest(
 export async function startMockChatServer(options: { rejectOwnStore?: boolean } = {}): Promise<MockChatServer> {
   const modelId = 'mock-chat'
   const requests: MockChatRequest[] = []
+  /** Requests that reached the server but not the chat route, for diagnosing wrong base URLs. */
+  const unexpected: string[] = []
   const waiters = new Set<{ resolve(request: MockChatRequest): void; reject(error: Error): void }>()
   let requestId = 0
   let closing = false
@@ -122,6 +151,7 @@ export async function startMockChatServer(options: { rejectOwnStore?: boolean } 
       return
     }
     if (req.method !== 'POST' || route !== '/v1/chat/completions') {
+      unexpected.push(`${req.method} ${route}`)
       sendJson(res, 404, { error: { message: 'Unknown mock endpoint', type: 'invalid_request_error' } })
       return
     }
@@ -145,6 +175,7 @@ export async function startMockChatServer(options: { rejectOwnStore?: boolean } 
           closed,
           sendText: rejectStream,
           complete: rejectStream,
+          completeToolCall: rejectStream,
           fail: rejectStream,
           disconnect: () => res.destroy()
         }
@@ -203,7 +234,15 @@ export async function startMockChatServer(options: { rejectOwnStore?: boolean } 
             reject(error)
           }
         }
-        const timer = setTimeout(() => waiter.reject(new Error('Timed out waiting for a mock chat request')), timeoutMs)
+        const timer = setTimeout(
+          () =>
+            waiter.reject(
+              new Error(
+                `Timed out waiting for a mock chat request${unexpected.length ? ` (unexpected requests: ${unexpected.join(', ')})` : ''}`
+              )
+            ),
+          timeoutMs
+        )
         waiters.add(waiter)
       })
     },

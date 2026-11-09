@@ -94,6 +94,7 @@ vi.mock('../adapters', () => ({
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
+      getMessageId: () => 'gateway-response',
       transformChunk: (chunk: UIMessageChunk) => {
         if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
         return [chunk]
@@ -110,6 +111,7 @@ vi.mock('../adapters', () => ({
 
 import type { OutputFormat } from '../adapters'
 import { AnthropicMessageConverter } from '../adapters/converters/AnthropicMessageConverter'
+import { OpenAiResponsesMessageConverter } from '../adapters/converters/OpenAiResponsesMessageConverter'
 import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
@@ -460,6 +462,50 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     expect(params).toEqual(snapshot)
   })
 
+  it('appends after a settled local tool followed by text without mutating config params', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const converter = new AnthropicMessageConverter()
+    mockToUIMessages.mockImplementationOnce((params) => converter.toUIMessages(params))
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'user', content: 'Continue task' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'call_1', name: 'Bash', input: {} },
+          { type: 'text', text: 'Working' }
+        ]
+      },
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'Tool failed', is_error: true }]
+      }
+    ])
+    const snapshot = structuredClone(params)
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(messages).toMatchObject([
+      { role: 'user', parts: [{ type: 'text', text: 'Continue task' }] },
+      {
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolName: 'Bash',
+            toolCallId: 'call_1',
+            state: 'output-error',
+            input: {},
+            errorText: 'Tool failed'
+          },
+          { type: 'text', text: 'Working' }
+        ]
+      },
+      { id: 'no-prefill-continuation', role: 'user', parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }] }
+    ])
+    expect(params).toEqual(snapshot)
+  })
+
   it('appends after conversion when a trailing empty user message is dropped', async () => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
@@ -665,7 +711,7 @@ describe('processMessage (streaming)', () => {
     })
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
-    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
+    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders, 'gateway-response')
     expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent', usageContext }))
 
     commit(captured.listener!)
@@ -1066,4 +1112,50 @@ describe('processMessage (statusless interruption delivery)', () => {
       }
     }
   }
+})
+
+describe('caller-owned Responses instructions', () => {
+  it.each([undefined, '', 'Client instructions'])(
+    'keeps instructions %s separate from developer turns on the same protocol',
+    async (instructions) => {
+      useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+      mockGetProvider.mockReturnValue({
+        id: 'openai',
+        name: 'OpenAI',
+        isEnabled: true,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+      })
+      const converter = new OpenAiResponsesMessageConverter()
+      mockToUIMessages.mockImplementation((params) =>
+        converter.toUIMessages(params as unknown as Parameters<typeof converter.toUIMessages>[0])
+      )
+      mockIsInternalAgentRequest.mockReturnValue(true)
+      const response = processMessage({
+        params: {
+          model: 'openai:gpt-5',
+          stream: true,
+          instructions,
+          input: [
+            { role: 'developer', content: 'Client skill catalog' },
+            { role: 'user', content: 'Which skills?' }
+          ]
+        },
+        inputFormat: 'openai-responses',
+        outputFormat: 'openai-responses',
+        requestHeaders: new Headers({ 'x-cherry-reasoning-effort': 'low' })
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const request = mockStreamPrompt.mock.calls[0][0]
+      expect(request.callOverrides.providerOptions?.openai?.instructions).toBe(instructions)
+      expect(
+        request.messages.map((message: CherryUIMessage) => ({ role: message.role, parts: message.parts }))
+      ).toEqual([
+        { role: 'system', parts: [{ type: 'text', text: 'Client skill catalog' }] },
+        { role: 'user', parts: [{ type: 'text', text: 'Which skills?' }] }
+      ])
+      commit(captured.listener!)
+      void captured.listener!.onDone({} as never)
+      await readAll((await response).body)
+    }
+  )
 })

@@ -34,8 +34,10 @@ tests/e2e/
     ├── fixture.ts
     ├── RegressionApp.ts
     ├── setup.ts
-    ├── 01-startup.test.ts
-    └── ...
+    ├── phases/               # camelCase.test.ts phase entry points
+    ├── scenarios/            # Individual case workflows
+    ├── helpers/              # Reusable UI and domain operations
+    └── fixtures/             # Test data and local servers
 ```
 
 ---
@@ -45,11 +47,17 @@ tests/e2e/
 ### Smoke suite
 
 The prerequisites and commands below apply only to the smoke suite in `smoke/`.
+Each test receives an isolated application profile and CLI home in an owned temporary directory.
+Main-window selection uses its renderer entry path because pooled windows can share the application title during startup.
+The fixture uses short runtime paths for Chromium's macOS socket limit; specialized persistence fixtures may keep profiles under the output directory.
+Cleanup closes Electron within 15 seconds or terminates the owned process and fails the test, then removes owned runtime directories.
+Reports and screenshots remain in the configured output directory for review.
 
 #### Prerequisites
 
 1. Install dependencies: `pnpm install`
 2. Build the application: `pnpm build`
+3. Download managed binaries with `pnpm download:binaries`, then set `E2E_RIPGREP_BIN` to the absolute `resources/binaries/<platform>-<arch>/rg` path (`rg.exe` on Windows). Notes cases fail when this executable is missing; the regression workflow sets it automatically.
 
 #### Commands
 
@@ -100,8 +108,8 @@ The smoke suite uses the following Electron E2E infrastructure:
 
 ### Critical-path regression suite
 
-- Place numbered phase tests and domain helpers in `regression/`.
-- Import `test` and `expect` from `regression/fixture.ts` in scenarios; use its `app` and `mainWindow` fixtures.
+- Place phase tests in `regression/phases/`, case workflows in `regression/scenarios/`, shared operations in `regression/helpers/`, and test data/servers in `regression/fixtures/`.
+- Import `test` and `expect` from `regression/fixture.ts` in phase entry points; use its `app` and `mainWindow` fixtures.
 - Register cases in `scripts/e2e/regression/cases.ts` and follow the [scenario guide](regression/README.md).
 - Use `playwright.regression.config.ts`, not the smoke suite's `playwright.config.ts`.
 
@@ -120,7 +128,7 @@ The smoke suite is configured in `playwright.config.ts` in the repository root:
 
 The regression suite uses [playwright.regression.config.ts](../../playwright.regression.config.ts):
 
-- `testDir`: `./tests/e2e/regression`, matching `*.test.ts` files
+- `testDir`: `./tests/e2e/regression`, matching `phases/*.test.ts` files
 - `workers`: 1 within each platform; the workflow runs macOS and Windows in parallel
 - `retries`: 0
 - Reports and failure evidence are written under `CHERRY_TEST_RUN_DIR`.

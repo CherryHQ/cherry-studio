@@ -4,7 +4,7 @@ import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
-import { createSlugger, extractTextFromNode, Scrollbar } from '@cherrystudio/ui'
+import { createSlugger, extractTextFromNode, ScrollArea } from '@cherrystudio/ui'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
@@ -92,9 +92,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({
       const headingElement = messageContentContainer.querySelector<HTMLElement>(`#${id}`)
       if (headingElement) {
         if (multiModelMessageStyle === 'horizontal') {
-          // The heading lives inside the message's own scroll container
-          // (`.message-content-container` is the nearest scrollable ancestor in
-          // this layout); the outer list scroller cannot reveal it.
+          // The column viewport owns scrolling inside horizontal message groups.
           scrollIntoView(headingElement, { behavior: 'smooth', block: 'nearest', container: 'nearest' })
         } else {
           onNavigateToElement(headingElement)
@@ -110,9 +108,14 @@ const MessageOutline: FC<MessageOutlineProps> = ({
     <div
       className="pointer-events-none absolute top-0 right-0 left-2 z-999 flex items-center"
       style={{ bottom: bottomInset }}>
-      <Scrollbar
+      <ScrollArea
         data-ui="part:message-outline"
-        className="group pointer-events-auto inline-flex max-h-[min(70vh,100%)] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] border border-transparent px-0 pt-2.5 pr-0 pb-2.5 pl-2.5 hover:overflow-y-auto hover:border-border-subtle hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
+        type="hover"
+        viewportProps={{
+          className: 'overflow-y-hidden! pt-2.5 pb-2.5 pl-2.5 group-hover/outline:overflow-y-auto!'
+        }}
+        contentProps={{ className: 'inline-flex flex-col gap-1' }}
+        className="group group/outline pointer-events-auto max-h-[min(70vh,100%)] max-w-1/2 rounded-[10px] border border-transparent hover:border-border-subtle hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
         {headings.map((heading, index) => (
           <div
             key={index}
@@ -134,7 +137,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({
             </div>
           </div>
         ))}
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }

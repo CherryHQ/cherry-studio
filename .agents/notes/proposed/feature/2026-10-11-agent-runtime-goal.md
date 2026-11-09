@@ -4,6 +4,8 @@ Status: proposed
 
 English | [中文](2026-10-11-agent-runtime-goal.zh.md)
 
+Legacy Pi executor source/test links are pinned to pre-contraction `46d76e4` as historical evidence. Current implementation and test ownership are defined in section 11 of the [runtime boundary contraction plan](../simplification/2026-11-05-agent-runtime-boundary-ownership.md); those legacy entry points have left the production path.
+
 ## Problem
 
 A long-running objective needs more than another model prompt: it needs a persistent identity, explicit permission to continue, accounting across requests and child work, and a reliable way to stop. Cherry supports models with different instruction-following abilities. Runtime decisions must bound autonomous continuation even when a model ignores a request to stop or repeatedly reports the same work.
@@ -14,7 +16,7 @@ The Pi package implements this capability through a native extension. The deskto
 
 ### Ownership and scope
 
-[`createGoalExtension`](../../../../packages/agent-runtime-pi/src/goalExtension.ts) owns autonomous continuation, goal tools, and stop decisions within a native Pi session. [`goalState.ts`](../../../../packages/agent-runtime-pi/src/goalState.ts) owns the state transitions and branch-derived accounting. Pi owns model execution, tool execution, compaction, and native session persistence. Cherry supplies model transport, approval events, defaults, an optional completion verifier, and presentation through `GoalPort` and the existing session builder.
+[`createGoalExtension`](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/goalExtension.ts) owns autonomous continuation, goal tools, and stop decisions within a native Pi session. [`goalState.ts`](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/goalState.ts) owns the state transitions and branch-derived accounting. Pi owns model execution, tool execution, compaction, and native session persistence. Cherry supplies model transport, approval events, defaults, an optional completion verifier, and presentation through `GoalPort` and the existing session builder.
 
 The goal extension is an optional Pi capability, not a new loop in the [common runtime contract](../architecture/2026-10-17-agent-runtime-contract.md). The [harness boundaries](../architecture/2026-10-17-agent-harness-boundaries.md) and [background subagent note](2026-10-14-agent-runtime-background-subagent.md) govern execution ownership and child-result delivery. This feature does not introduce a second transcript format, a goal-specific database, or an independent host scheduler.
 
@@ -40,7 +42,7 @@ Abort, pause, and clear have different meanings. A runtime abort pauses an activ
 
 ### Usage and progress come from the native branch
 
-[`goalUsage` and `goalProgress`](../../../../packages/agent-runtime-pi/src/goalState.ts) derive their answers from native entries every time a budget, status, completion check, or snapshot needs them. `tokensUsed`, `costUsed`, and `progressRounds` in a snapshot record the values at that moment for display; they are never the source of subsequent decisions. This keeps live and reopened sessions consistent and avoids a second ledger.
+[`goalUsage` and `goalProgress`](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/goalState.ts) derive their answers from native entries every time a budget, status, completion check, or snapshot needs them. `tokensUsed`, `costUsed`, and `progressRounds` in a snapshot record the values at that moment for display; they are never the source of subsequent decisions. This keeps live and reopened sessions consistent and avoids a second ledger.
 
 - A parent request counts when its input ended in an admitted goal round while the goal was active. State written while the response is in flight does not remove that request. The request that invokes a stopping tool counts; later requests, including the summary after completion, do not.
 - Parent token usage includes input, output, cache reads, and cache writes. Cost comes from each entry's recorded price, never from repricing history with the current model. Unpriced models provide no useful USD limit and need a token budget.
@@ -104,14 +106,14 @@ External-event wakeups, cron scheduling, a `waiting` goal phase, a fresh context
 
 These are complete delivery outcomes. Source tests listed below are evidence locations, not claims that this documentation migration executed or passed them.
 
-- AC1 — A native session reopens with the same goal identity, phase, limits, and branch-derived usage, but disarmed; explicit resume is required, and compaction does not lose the objective. (verification: unit — Pi adapter maintainers, `gatewayGoalRebuild.test.ts` and `goalState.test.ts`)
-- AC2 — Only an admitted reservation advances the round count; vetoed, withdrawn, and pre-start-crash reservations do not leak into later model or verifier input or consume a round. (verification: unit — Pi adapter maintainers, `gatewayGoal.test.ts`, `gatewayGoalStops.test.ts`, and `gatewayGoalRebuild.test.ts`)
-- AC3 — User input, abort, pause, clear, each-round confirmation, and model errors prevent an unwanted next round, including when they race a later settle handler or verifier. (verification: unit — Pi adapter maintainers, `gatewayGoal.test.ts` and `gatewayGoalStops.test.ts`)
-- AC4 — Caps and budgets allow only their documented wrap-up; stale mutations and resume without capacity are refused, while raising all exhausted limits permits explicit continuation. (verification: unit — Pi adapter maintainers, `goalState.test.ts` and `gatewayGoalStops.test.ts`)
-- AC5 — Live and reopened accounting agrees for in-flight parent requests, late foreground results, notification turns, continued background runs, and overlapping stop receipts, without charging human work or billing underlying requests twice. (verification: unit — Pi adapter and model-binding maintainers, `gatewayGoalStops.test.ts` and `gatewayGoalSubagents.test.ts`)
-- AC6 — Runtime progress checks stop repetitive work, use earlier successful work in a completion batch, and exclude aborted rounds; verifier rejection, exception, or a concurrent goal edit cannot silently complete the goal. (verification: unit — Pi adapter maintainers, `gatewayGoalStops.test.ts`)
-- AC7 — Background results and goal continuation do not start competing turns; a budget overrun stops only the current goal's owned running children, while a pause within budget leaves them running. (verification: unit — Pi adapter maintainers, `gatewayGoalSubagents.test.ts`)
-- AC8 — Unsupported models and child sessions cannot start autonomous parent-goal work, and another session's approval event cannot stop that goal. (verification: unit — Pi adapter maintainers, `gatewayGoalRebuild.test.ts` and `gatewayGoalSubagents.test.ts`)
+- AC1 — A native session reopens with the same goal identity, phase, limits, and branch-derived usage, but disarmed; explicit resume is required, and compaction does not lose the objective. (verification: unit — Pi adapter maintainers, `goalRebuild.test.ts` and `goalState.test.ts`)
+- AC2 — Only an admitted reservation advances the round count; vetoed, withdrawn, and pre-start-crash reservations do not leak into later model or verifier input or consume a round. (verification: unit — Pi adapter maintainers, `goal.test.ts`, `goalStops.test.ts`, and `goalRebuild.test.ts`)
+- AC3 — User input, abort, pause, clear, each-round confirmation, and model errors prevent an unwanted next round, including when they race a later settle handler or verifier. (verification: unit — Pi adapter maintainers, `goal.test.ts` and `goalStops.test.ts`)
+- AC4 — Caps and budgets allow only their documented wrap-up; stale mutations and resume without capacity are refused, while raising all exhausted limits permits explicit continuation. (verification: unit — Pi adapter maintainers, `goalState.test.ts` and `goalStops.test.ts`)
+- AC5 — Live and reopened accounting agrees for in-flight parent requests, late foreground results, notification turns, continued background runs, and overlapping stop receipts, without charging human work or billing underlying requests twice. (verification: unit — Pi adapter and model-binding maintainers, `goalStops.test.ts` and `goalSubagents.test.ts`)
+- AC6 — Runtime progress checks stop repetitive work, use earlier successful work in a completion batch, and exclude aborted rounds; verifier rejection, exception, or a concurrent goal edit cannot silently complete the goal. (verification: unit — Pi adapter maintainers, `goalStops.test.ts`)
+- AC7 — Background results and goal continuation do not start competing turns; a budget overrun stops only the current goal's owned running children, while a pause within budget leaves them running. (verification: unit — Pi adapter maintainers, `goalSubagents.test.ts`)
+- AC8 — Unsupported models and child sessions cannot start autonomous parent-goal work, and another session's approval event cannot stop that goal. (verification: unit — Pi adapter maintainers, `goalRebuild.test.ts` and `goalSubagents.test.ts`)
 - AC9 — The desktop uses the package's session entry points, confirms model-created goals, enforces its permission-mode policy, renders distinct stop controls and withdrawn rounds, and restores a goal without restarting it. (verification: Electron — Cherry host integration owner)
 - AC10 — Host stop telemetry is deduplicated, reflects snapshot timing and goal-budget attribution, and does not report scripted-model tests as live-provider or desktop acceptance. (verification: unit and Electron — Cherry host integration owner)
 
@@ -121,13 +123,13 @@ The [package README](../../../../packages/agent-runtime-pi/README.md) describes 
 
 | Evidence location | Contract it exercises |
 | --- | --- |
-| [`goalState.test.ts`](../../../../packages/agent-runtime-pi/tests/goalState.test.ts) | State transitions, limits, branch interpretation, progress classification, and prompt/view shapes. |
-| [`gatewayGoal.test.ts`](../../../../src/main/ai/runtime/pi/gatewayGoal.test.ts) | Tools, command grammar, admission, queued input, and autonomy. |
-| [`gatewayGoalStops.test.ts`](../../../../src/main/ai/runtime/pi/gatewayGoalStops.test.ts) | Limits, stale reservations, interruption, approvals, completion, progress, and request-time accounting. |
-| [`gatewayGoalRebuild.test.ts`](../../../../src/main/ai/runtime/pi/gatewayGoalRebuild.test.ts) | Disarmed restoration, reservation identity across crashes, compaction, unsupported models, and fork isolation. |
-| [`gatewayGoalSubagents.test.ts`](../../../../src/main/ai/runtime/pi/gatewayGoalSubagents.test.ts) | Background waiting, notification ordering, budget ownership, stop deduplication, continuation, and approval isolation. |
+| [`goalState.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/tests/goalState.test.ts) | State transitions, limits, branch interpretation, progress classification, and prompt/view shapes. |
+| [`goal.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/tests/goal.test.ts) | Tools, command grammar, admission, queued input, and autonomy. |
+| [`goalStops.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/tests/goalStops.test.ts) | Limits, stale reservations, interruption, approvals, completion, progress, and request-time accounting. |
+| [`goalRebuild.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/tests/goalRebuild.test.ts) | Disarmed restoration, reservation identity across crashes, compaction, unsupported models, and fork isolation. |
+| [`goalSubagents.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/tests/goalSubagents.test.ts) | Background waiting, notification ordering, budget ownership, stop deduplication, continuation, and approval isolation. |
 
-The [goal test helper](../../../../src/main/ai/runtime/pi/gatewayGoalSupport.ts) drives native Pi through real AI SDK streaming with scripted models and compares restored goal views with live checkpoints. These tests do not establish live-provider behavior, desktop wiring, UI acceptance, or a shipped permission policy. No test result or approval is inferred from the presence of these files.
+The [goal test helper](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/tests/goalSupport.ts) drives native Pi with scripted native provider streams and fixed usage, and compares restored goal views with live checkpoints. These tests do not establish live-provider behavior, desktop wiring, UI acceptance, or a shipped permission policy. No test result or approval is inferred from the presence of these files.
 
 ## Risks
 

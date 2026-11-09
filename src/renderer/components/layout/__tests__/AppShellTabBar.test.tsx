@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as UI from '@cherrystudio/ui'
 import { useTabsContext } from '@renderer/hooks/tab'
 
 import { TabsProvider } from '../TabsProvider'
@@ -36,7 +37,8 @@ vi.mock('@renderer/services/resourceListRevealEvents', () => ({
   emitResourceListReveal: mocks.emitResourceListReveal
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  Kbd: (await importOriginal<typeof UI>()).Kbd,
   Button: ({ children, variant, ...props }: React.ComponentProps<'button'> & { variant?: string }) => {
     void variant
     return (
@@ -194,9 +196,19 @@ afterEach(() => {
   mocks.macTransparentState.value = false
   mocks.platformState.isMac = false
   mocks.platformState.isWin = false
+  Reflect.deleteProperty(navigator, 'windowControlsOverlay')
+  vi.unstubAllGlobals()
 })
 
 describe('AppShellTabBar', () => {
+  it('does not mount a separate notification entry in the focused settings tab bar', () => {
+    renderTabBar({
+      tabs: [createTab('settings', { url: '/settings/notifications' })],
+      activeTabId: 'settings',
+      isFocusedTab: true
+    })
+    expect(screen.queryByRole('button', { name: 'Notification center' })).not.toBeInTheDocument()
+  })
   it('keeps the Windows title bar at least as tall as the native overlay when zoomed out', () => {
     mocks.platformState.isWin = true
     renderTabBar({ tabs: [createTab('home')], activeTabId: 'home' })
@@ -231,6 +243,57 @@ describe('AppShellTabBar', () => {
 
     return closeTab
   }
+
+  it('keeps the macOS leading inset fixed through native resize and refreshes it for zoom and fullscreen', () => {
+    mocks.platformState.isMac = true
+    vi.stubGlobal('innerWidth', 1226)
+    vi.stubGlobal('devicePixelRatio', 2)
+    let rect = { x: 86, width: 1140, height: 42 }
+    const overlay = Object.assign(document.createElement('div'), { visible: true, getTitlebarAreaRect: () => rect })
+    Object.defineProperty(navigator, 'windowControlsOverlay', { configurable: true, value: overlay })
+    renderTabBar({ isFocusedTab: true })
+    const header = document.querySelector<HTMLElement>('[data-ui~="app.tab-bar"]')!
+    // The native-controls inset must not follow transient x offsets or fractional-zoom width rounding.
+    expect(header.style.paddingLeft).toBe('calc(88px)')
+
+    const changeGeometry = (width: number, next: typeof rect) => {
+      vi.stubGlobal('innerWidth', width)
+      rect = next
+      fireEvent(overlay, new Event('geometrychange'))
+    }
+    changeGeometry(1218, { x: 82, width: 1132, height: 42 })
+    expect(header.style.paddingLeft).toBe('calc(88px)')
+
+    vi.stubGlobal('devicePixelRatio', 2.5)
+    changeGeometry(981, { x: 69, width: 912, height: 34 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+    changeGeometry(974, { x: 66, width: 906, height: 34 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+
+    overlay.visible = false
+    changeGeometry(3440, { x: 0, width: 0, height: 0 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+
+    overlay.visible = true
+    vi.stubGlobal('devicePixelRatio', 2)
+    changeGeometry(3440, { x: 86, width: 1103, height: 42 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+    vi.stubGlobal('innerWidth', 1189)
+    fireEvent(window, new Event('resize'))
+    expect(header.style.paddingLeft).toBe('calc(88px)')
+  })
+
+  it('shows supplied hints on pinned and normal tabs without changing their accessible names', () => {
+    renderTabBar({
+      tabs: [createTab('p', { isPinned: true }), createTab('a')],
+      shortcutHints: new Map([
+        ['p', '⌃1'],
+        ['a', '⌃2']
+      ])
+    })
+    expect(within(screen.getByRole('button', { name: 'P' })).getByText('⌃1')).toBeVisible()
+    expect(within(screen.getByRole('button', { name: 'A' })).getByText('⌃2')).toBeVisible()
+  })
 
   it('keeps the account avatar out of the tab bar when the sidebar is hidden', () => {
     MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 0)

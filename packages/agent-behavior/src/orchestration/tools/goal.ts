@@ -48,7 +48,7 @@ async function updateGoal(context: Context, call: ToolCall): Promise<ToolOutcome
   const verdict = await context.ports.memory
     .remember(keys.verdictMemo(call.key), async () =>
       context.host.verifier.verify(
-        { objective, claim, context: await context.ports.ledger.modelContext(call.thread) },
+        { thread: call.thread, objective, claim, context: await context.ports.ledger.modelContext(call.thread) },
         call.signal
       )
     )

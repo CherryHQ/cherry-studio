@@ -35,16 +35,16 @@
 | [Agent Lifecycle](./references/ai/agent-lifecycle.md) | Agent lifecycle command ownership, atomic archive and restore, schedule recovery, purge, and backup quiescing |
 | [Agent Loop](./references/ai/agent-loop.md) | The Agent class wrapping single-pass AI SDK streaming with composeHooks-merged hook contributions and error semantics |
 | [Agent Prompt Layers](./references/ai/agent-prompt-layers.md) | Precedence and lifecycle of agent prompt sources — System Prompt, workspace system.md, SOUL.md persona, and variables |
-| [Agent Session Fork](./references/ai/agent-session-fork.md) | Native Agent session forks — service ownership, opaque checkpoints, workspace handling, publication, and recovery |
+| [Agent Session Fork](./references/ai/agent-session-fork.md) | Native Agent history operations — service ownership, opaque checkpoints, workspace handling, publication, and recovery |
 | [Agent Session Runtime](./references/ai/agent-session-runtime.md) | Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer |
 | [AI Usage Records](./references/ai/ai-usage-records.md) | Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection |
 | [Browser Use — Gap Analysis & Design](./references/ai/browser-use-design.md) | Browser automation design, ownership boundaries, capability gaps, and delivery roadmap |
 | [Browser Use — Implementation Plan](./references/ai/browser-use-implementation.md) | Browser session engine implementation, MCP contracts, and stacked delivery plan |
 | [Chat Attachments](./references/ai/chat-attachments.md) | Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow |
 | [Core Architecture](./references/ai/core-architecture.md) | End-to-end chat turn flow from renderer IPC transport through AiStreamManager and Agent loop to persistence |
-| [Execution Overlay](./references/ai/execution-overlay.md) | Renderer stream overlay — TopicStreamSubscription demux by execution and anchor feeding readUIMessageStream snapshots |
+| [Execution Overlay](./references/ai/execution-overlay.md) | Shared root and child message projections, bounded attachment recovery, and root overlay handoff |
 | [Image-Generation Parameterized Architecture](./references/ai/image-generation-parameters.md) | Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile |
-| [IPC Transport](./references/ai/ipc-transport.md) | IpcChatTransport bridging useChat to Main over ai.stream.* IpcApi routes, with dispatch ack coordination and detach vs abort |
+| [IPC Transport](./references/ai/ipc-transport.md) | Desktop AI commands and shared root/child message projection subscriptions over IpcApi |
 | [Local Models](./references/ai/local-models.md) | Local model subsystem — the bundle catalog, on-disk installation state, verified acquisition, and the worker runtime that infers over installed models |
 | [Model Retry & Fallback](./references/ai/model-retry.md) | User-configurable same-model retry plus fallback models via ai-retry wrapModel, driven by chat.retry.* preferences |
 | [Observability](./references/ai/observability.md) | OTel tracing for AI calls and agent runtimes — Cherry roots, SDK adapters, runtime spans, local projection, and sinks |
@@ -182,6 +182,7 @@
 | [Handler Authoring](./references/job-and-scheduler/handler-authoring.md) | Writing a JobHandler — onInit registration timing, minimal echo example, and JobRegistry type binding |
 | [Migration Checklist](./references/job-and-scheduler/migration-checklist.md) | Per-handler checklist for migrating existing background services to JobManager — recovery, queues, tests, data moves |
 | [Job & Scheduler — Architecture Overview](./references/job-and-scheduler/overview.md) | Job and scheduler architecture — two-service split, DB-driven dispatch, six-state machine, and startup recovery |
+| [Scheduled tasks page](./references/job-and-scheduler/scheduled-tasks-page.md) | Scheduled tasks page navigation, conversation selection, pagination, and upgrade behavior |
 | [Scheduler Usage — Decision Tree](./references/job-and-scheduler/scheduler-usage.md) | Decision tree for choosing JobManager, SchedulerService, BaseService.registerInterval, or a raw timer |
 
 ### Knowledge

@@ -13,6 +13,67 @@ const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMes
 // toModelMessages runs the exact Agent.stream order; these guard each step so deleting
 // one (coalesce, ignoreIncompleteToolCalls, the empty-content placeholder) fails a test.
 describe('toModelMessages', () => {
+  it('keeps system cache boundaries separate and tool result metadata distinct from the tool call', async () => {
+    const callMetadata = { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } }
+    const resultMetadata = { anthropic: { cacheControl: { type: 'ephemeral', ttl: '5m' } } }
+    const messages = await toModelMessages([
+      ui('system', [{ type: 'text', text: 'stable', providerMetadata: callMetadata }]),
+      ui('system', [{ type: 'text', text: 'changing' }]),
+      ui('assistant', [
+        {
+          type: 'dynamic-tool',
+          toolName: 'lookup',
+          toolCallId: 'call-1',
+          state: 'output-error',
+          input: {},
+          errorText: 'failed',
+          callProviderMetadata: callMetadata,
+          resultProviderMetadata: resultMetadata
+        }
+      ])
+    ])
+    expect(messages.slice(0, 2)).toEqual([
+      { role: 'system', content: 'stable', providerOptions: callMetadata },
+      { role: 'system', content: 'changing' }
+    ])
+    expect(messages[2]).toMatchObject({
+      role: 'assistant',
+      content: [{ type: 'tool-call', providerOptions: callMetadata }]
+    })
+    expect(messages[3]).toMatchObject({
+      role: 'tool',
+      content: [
+        { type: 'tool-result', output: { type: 'error-text', value: 'failed' }, providerOptions: resultMetadata }
+      ]
+    })
+  })
+
+  it('replays signed edited reasoning as a plain <think> text block', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'reasoning',
+            text: 'corrected thought',
+            providerMetadata: { cherry: { editedReasoningReplay: 'think' } }
+          },
+          { type: 'text', text: 'answer' }
+        ],
+        'a1'
+      )
+    ])
+
+    expect(model[1]).toEqual({
+      role: 'assistant',
+      content: [
+        { type: 'text', text: '<think>\ncorrected thought\n</think>' },
+        { type: 'text', text: 'answer' }
+      ]
+    })
+  })
+
   it('keeps knowledge scope out of provider messages', async () => {
     const model = await toModelMessages([
       ui('user', [
