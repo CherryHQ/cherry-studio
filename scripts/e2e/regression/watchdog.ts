@@ -231,11 +231,20 @@ export class ApplicationWatchdog {
   }
 }
 
-function stallTimeoutFromEnv(): number {
-  const raw = process.env.CHERRY_APP_STALL_TIMEOUT_MS
-  if (raw === undefined) return DEFAULT_STALL_TIMEOUT_MS
-  const configured = Number(raw)
+/**
+ * A blank value means "not configured", not "disabled": a runner that forwards an unset
+ * optional variable as '' must keep stall detection. Only an explicit numeric value —
+ * 0 included — selects a timeout.
+ */
+export function resolveStallTimeoutMs(raw: string | undefined): number {
+  const trimmed = raw?.trim()
+  if (!trimmed) return DEFAULT_STALL_TIMEOUT_MS
+  const configured = Number(trimmed)
   return Number.isFinite(configured) ? configured : DEFAULT_STALL_TIMEOUT_MS
+}
+
+function stallTimeoutFromEnv(): number {
+  return resolveStallTimeoutMs(process.env.CHERRY_APP_STALL_TIMEOUT_MS)
 }
 
 export function createApplicationWatchdog(readTarget: () => WatchdogTarget): ApplicationWatchdog {

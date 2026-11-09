@@ -1,4 +1,4 @@
-import { ApplicationWatchdog, type WatchdogDeps, type WatchdogTarget } from '../watchdog'
+import { ApplicationWatchdog, resolveStallTimeoutMs, type WatchdogDeps, type WatchdogTarget } from '../watchdog'
 
 const target: WatchdogTarget = {
   mode: 'branch',
@@ -276,4 +276,17 @@ it('does nothing when the watchdog is disabled', async () => {
   await watchdog.check()
   watchdog.stop()
   expect(kills).toHaveLength(0)
+})
+
+it('keeps stall detection when the timeout variable is unset, empty, or blank', () => {
+  expect(resolveStallTimeoutMs(undefined)).toBe(60_000)
+  expect(resolveStallTimeoutMs('')).toBe(60_000)
+  expect(resolveStallTimeoutMs('   ')).toBe(60_000)
+  expect(resolveStallTimeoutMs('not-a-number')).toBe(60_000)
+})
+
+it('honours an explicit timeout, including the 0 opt-out', () => {
+  expect(resolveStallTimeoutMs('0')).toBe(0)
+  expect(resolveStallTimeoutMs('45000')).toBe(45_000)
+  expect(resolveStallTimeoutMs(' 45000 ')).toBe(45_000)
 })
