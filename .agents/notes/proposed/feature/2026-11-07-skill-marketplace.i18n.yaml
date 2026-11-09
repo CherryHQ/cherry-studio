@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-07-skill-marketplace.md
+2026-11-07-skill-marketplace.md: d5961363793f670e30534e069cdfb3870a1a2a69
+2026-11-07-skill-marketplace.zh.md: fa5b7c277c1caa79a63e4a71dc292873c0446d79
