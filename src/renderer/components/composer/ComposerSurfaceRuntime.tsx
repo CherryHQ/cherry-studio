@@ -55,11 +55,13 @@ import { createComposerDraftContent, resolveComposerRestoreTokens, serializeComp
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import {
   appendComposerText,
+  buildInsertedInlineContent,
   createComposerInputAdapter,
   insertComposerTokenAtCursor,
   updateComposerToken
 } from './composerInputAdapter'
 import {
+  createComposerPlainTextPasteContent,
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
   PASTED_TEXT_FILE_EXTENSION
@@ -71,12 +73,12 @@ import type { ComposerInputFilePreviewAction } from './filePreview'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import { handleMarkdownCodeKey } from './markdownLivePreview/codeBlockKeys'
+import { hasMarkdownLivePreview, isMarkdownFencedCodePosition } from './markdownLivePreview/livePreviewPlugin'
 import pasteHandling, { shouldHandleClipboardFiles } from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
 import {
   createPromptVariableContent,
-  createPromptVariableInlineContent,
   getNextPromptVariableIndex,
   getSelectedPromptVariableToken,
   selectPromptVariableToken,
@@ -804,13 +806,7 @@ export default function ComposerSurfaceRuntime({
     onTextDropped: (droppedText) => {
       const editor = editorRef.current
       if (!editor) return
-      editor
-        .chain()
-        .focus()
-        .insertComposerLines(
-          createPromptVariableInlineContent(droppedText, { startIndex: getNextPromptVariableIndex(editor) })
-        )
-        .run()
+      editor.chain().focus().insertComposerLines(buildInsertedInlineContent(editor, droppedText)).run()
     },
     enabled: enableDragDrop,
     t
@@ -947,9 +943,7 @@ export default function ComposerSurfaceRuntime({
       try {
         const fileText = await window.api.fs.readText(file.path)
         const position = typeof nodeViewProps.getPos === 'function' ? nodeViewProps.getPos() : undefined
-        const content = fileText
-          ? createPromptVariableInlineContent(fileText, { startIndex: getNextPromptVariableIndex(editor) })
-          : []
+        const content = fileText ? buildInsertedInlineContent(editor, fileText) : []
 
         if (typeof position === 'number') {
           const chain = editor
@@ -1005,15 +999,22 @@ export default function ComposerSurfaceRuntime({
     return Boolean(editor && appendComposerText(editor, text))
   }, [])
 
-  const replaceDraft = useCallback((draft: ComposerSerializedDraft) => {
-    const editor = editorRef.current
-    if (!editor || editor.isDestroyed) return
+  const replaceDraft = useCallback(
+    (draft: ComposerSerializedDraft) => {
+      const editor = editorRef.current
+      if (!editor || editor.isDestroyed) return
 
-    textRef.current = draft.text
-    pendingLocalTextEchoRef.current = null
-    setComposerEditorContent(editor, lastSerializedDraftRef, createComposerDraftContent(draft))
-    trackedTokenSignatureRef.current = getTrackedTokenSignature(draft.tokens)
-  }, [])
+      textRef.current = draft.text
+      pendingLocalTextEchoRef.current = null
+      setComposerEditorContent(
+        editor,
+        lastSerializedDraftRef,
+        createComposerDraftContent(draft, { literalFencedCode: markdownLivePreview })
+      )
+      trackedTokenSignatureRef.current = getTrackedTokenSignature(draft.tokens)
+    },
+    [markdownLivePreview]
+  )
 
   useEffect(() => {
     onActionsChange?.({
@@ -1825,6 +1826,17 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
+      if (
+        editor &&
+        pastedText &&
+        !shouldDelegateToFileHandler &&
+        isMarkdownFencedCodePosition(editor.state, editor.state.selection.from)
+      ) {
+        event.preventDefault()
+        insertComposerPastedContent(editor, createComposerPlainTextPasteContent(pastedText))
+        return true
+      }
+
       if (editor) {
         const pasteOptions = {
           promptVariableStartIndex: getNextPromptVariableIndex(editor),
@@ -1856,6 +1868,7 @@ export default function ComposerSurfaceRuntime({
 
       const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, {
         inlineLongText: !shouldDelegateLongTextPaste,
+        literalFencedCode: editor ? hasMarkdownLivePreview(editor.state) : false,
         promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
         resolveSkillMarker,
         resolveKnowledgeBaseMarker
@@ -1896,7 +1909,7 @@ export default function ComposerSurfaceRuntime({
     extensions: editorExtensions,
     content: createComposerDraftContent(
       { text, tokens: resolveComposerRestoreTokens(text, draftTokens, tokens) },
-      { tokenizeVariables: !deferredIntent?.preservePlainText }
+      { tokenizeVariables: !deferredIntent?.preservePlainText, literalFencedCode: markdownLivePreview }
     ),
     editable,
     // Render the view synchronously: the fallback textarea unmounts in the same commit this
@@ -1985,9 +1998,12 @@ export default function ComposerSurfaceRuntime({
     setComposerEditorContent(
       editor,
       lastSerializedDraftRef,
-      createComposerDraftContent({ text, tokens: resolveComposerRestoreTokens(text, draftTokens, tokens) })
+      createComposerDraftContent(
+        { text, tokens: resolveComposerRestoreTokens(text, draftTokens, tokens) },
+        { literalFencedCode: markdownLivePreview }
+      )
     )
-  }, [draftTokens, editor, text, tokens])
+  }, [draftTokens, editor, markdownLivePreview, text, tokens])
 
   useEffect(() => {
     if (editingHighlightKey === undefined) return

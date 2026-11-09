@@ -20,6 +20,7 @@ export const PASTED_TEXT_FILE_EXTENSION = '.txt'
 
 interface ComposerPlainTextPasteOptions {
   inlineLongText?: boolean
+  literalFencedCode?: boolean
   promptVariableStartIndex?: number
   resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
   resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
@@ -197,7 +198,9 @@ export function getComposerPlainTextPasteOverride(text: string, options: Compose
   const linkContent = createComposerLinkPasteContent(text)
   if (linkContent) return linkContent
 
-  const markedTextContent = createComposerTokenMarkerInlineContent(text, createPlainTextPasteMarkerRules(options))
+  const markedTextContent = createComposerTokenMarkerInlineContent(text, createPlainTextPasteMarkerRules(options), {
+    literalFencedCode: options.literalFencedCode
+  })
   if (markedTextContent.hasToken) return markedTextContent.content
 
   return createComposerPlainTextPasteContent(text)

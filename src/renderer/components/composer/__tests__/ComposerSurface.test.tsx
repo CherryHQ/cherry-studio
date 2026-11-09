@@ -974,6 +974,157 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorPresetOptions.markdownLivePreview).toBe(true))
   })
 
+  describe('Markdown code stays literal', () => {
+    let editor: Editor
+
+    afterEach(() => {
+      editor.destroy()
+    })
+
+    async function renderDraft(text: string, props: Partial<ComposerSurfaceProps> = {}) {
+      const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+      editor = new Editor({ extensions: createComposerEditorPreset({ markdownLivePreview: true }) })
+      mocks.stabilizeEditor = true
+      mocks.editorInstance = editor
+      render(<ComposerSurface {...baseProps} text={text} markdownLivePreview {...props} />)
+      await waitFor(() => expect(serializeComposerDocument(editor).text).toBe(text))
+    }
+
+    const caretOnLine = (line: number) => {
+      let position = 1
+      editor.state.doc.forEach((_block, offset, index) => {
+        if (index === line) position = offset + 1
+      })
+      editor.commands.setTextSelection(position)
+    }
+
+    const paste = (text: string, clipboard: Record<string, unknown> = {}) => {
+      const event = {
+        preventDefault: vi.fn(),
+        clipboardData: { getData: (type: string) => (type === 'text/plain' ? text : ''), ...clipboard }
+      }
+      return { event, handled: mocks.editorOptions.handlePaste(editor.view, event) }
+    }
+
+    const markerProps = {
+      resolveSkillMarker: (marker: string) =>
+        marker === 'pdf' ? ({ id: 'skill:pdf', kind: 'skill', label: 'PDF' } as const) : null,
+      resolveKnowledgeBaseMarker: (marker: string) =>
+        marker === 'docs' ? ({ id: 'knowledge:docs', kind: 'knowledge', label: 'Docs' } as const) : null
+    }
+
+    it.each([
+      ['a URL', 'https://example.com/a'],
+      ['a skill marker', '/pdf/ x'],
+      ['a knowledge-base marker', '#docs# x'],
+      ['a prompt variable', '${name}']
+    ])('pastes %s as plain text with the caret inside a block', async (_name, pasted) => {
+      await renderDraft('```\n\n```', markerProps)
+      caretOnLine(1)
+
+      expect(paste(pasted).handled).toBe(true)
+
+      expect(serializeComposerDocument(editor)).toEqual({ text: `\`\`\`\n${pasted}\n\`\`\``, tokens: [] })
+    })
+
+    it('still turns a URL into a link token outside the block', async () => {
+      await renderDraft('plain\n```\n\n```')
+      caretOnLine(0)
+
+      paste('https://example.com/a')
+
+      expect(serializeComposerDocument(editor).tokens.map((token) => token.kind)).toEqual(['link'])
+    })
+
+    it('keeps variables literal in a pasted fenced block and tokenizes the ones around it', async () => {
+      await renderDraft('')
+
+      paste('${a}\n```\n${b}\n```')
+
+      const { text, tokens } = serializeComposerDocument(editor)
+      expect(tokens.map((token) => token.label)).toEqual(['a'])
+      expect(text.endsWith('```\n${b}\n```')).toBe(true)
+    })
+
+    it('still hands long text to the file handler inside a block', async () => {
+      mocks.preferences['chat.input.paste_long_text_as_file'] = true
+      mocks.preferences['chat.input.paste_long_text_threshold'] = 1500
+      await renderDraft('```\n\n```', { supportedExts: ['.txt'] })
+      caretOnLine(1)
+
+      const { event } = paste('a'.repeat(2001))
+
+      expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+      expect(serializeComposerDocument(editor).text).toBe('```\n\n```')
+    })
+
+    it('still attaches clipboard files inside a block', async () => {
+      await renderDraft('```\n\n```', { supportedExts: ['.png'] })
+      caretOnLine(1)
+
+      const { event } = paste('screenshot.png', { files: [{ name: 'screenshot.png', type: 'image/png' }] })
+
+      expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+      expect(serializeComposerDocument(editor).text).toBe('```\n\n```')
+    })
+
+    it('keeps dropped text literal inside a block', async () => {
+      await renderDraft('```\n\n```')
+      caretOnLine(1)
+
+      act(() => {
+        mocks.fileDragDropOptions.onTextDropped('${a}')
+      })
+
+      expect(serializeComposerDocument(editor)).toEqual({ text: '```\n${a}\n```', tokens: [] })
+    })
+
+    it('still tokenizes dropped text outside a block', async () => {
+      await renderDraft('plain\n```\n\n```')
+      caretOnLine(0)
+
+      act(() => {
+        mocks.fileDragDropOptions.onTextDropped('${a}')
+      })
+
+      expect(serializeComposerDocument(editor).tokens.map((token) => token.label)).toEqual(['a'])
+    })
+
+    it('keeps expanded file text literal inside a block', async () => {
+      const pastedFile = {
+        id: 'file-1',
+        name: 'pasted_text.txt',
+        origin_name: '已粘贴的文本.txt',
+        path: '/tmp/pasted_text.txt',
+        composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+      }
+      const pastedToken = { id: 'file:file-1', kind: 'file' as const, label: 'pasted.txt', payload: pastedFile }
+      mocks.fsReadText.mockResolvedValue('${a}')
+      await renderDraft('```\n\n```')
+      caretOnLine(1)
+      await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+
+      render(
+        <>
+          {mocks.editorPresetOptions.renderToken(pastedToken, {
+            selected: false,
+            nodeViewProps: { getPos: () => undefined, node: { nodeSize: 1 } }
+          })}
+        </>
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'chat.input.paste_text_file' }))
+
+      await waitFor(() => expect(serializeComposerDocument(editor).text).toBe('```\n${a}\n```'))
+      expect(serializeComposerDocument(editor).tokens).toEqual([])
+    })
+
+    it('restores a draft without turning fenced variables into tokens', async () => {
+      await renderDraft('```\n${a}\n```')
+
+      expect(serializeComposerDocument(editor).tokens).toEqual([])
+    })
+  })
+
   describe('Markdown code blocks', () => {
     const pressEnter = async (props: Partial<ComposerSurfaceProps>) => {
       const onSendDraft = vi.fn()

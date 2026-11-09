@@ -1,6 +1,7 @@
 import type { JSONContent } from '@tiptap/core'
 
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
+import { findFencedCodeLines } from './markdownLivePreview/markdownSession'
 import type { ComposerDraftToken } from './tokens'
 
 export interface ComposerTokenMarkerMatch {
@@ -98,15 +99,22 @@ function appendMarkedLineContent(
 
 export function createComposerTokenMarkerInlineContent(
   text: string,
-  rules: readonly ComposerTokenMarkerRule[]
+  rules: readonly ComposerTokenMarkerRule[],
+  options: { literalFencedCode?: boolean } = {}
 ): { content: JSONContent[]; hasToken: boolean } {
   if (!rules.length) return { content: createComposerPlainTextContent(text), hasToken: false }
 
+  const lines = text.split(LINE_BREAK_PATTERN)
+  // Callers rebuild this on every render, so the whole-draft parse only runs for a draft with a marker.
+  const fencedLines =
+    options.literalFencedCode && lines.some((line) => rules.some((rule) => line.search(rule.pattern) !== -1))
+      ? findFencedCodeLines(lines)
+      : undefined
   let hasToken = false
-  const content = text.split(LINE_BREAK_PATTERN).flatMap<JSONContent>((line, index) => {
+  const content = lines.flatMap<JSONContent>((line, index) => {
     const nodes: JSONContent[] = []
     if (index > 0) nodes.push({ type: 'hardBreak' })
-    if (appendMarkedLineContent(nodes, line, rules)) hasToken = true
+    if (appendMarkedLineContent(nodes, line, fencedLines?.has(index) ? [] : rules)) hasToken = true
     return nodes
   })
 

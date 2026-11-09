@@ -428,6 +428,8 @@ export function findMarkdownCodeLine(state: EditorState, position: number) {
   return null
 }
 
+export const hasMarkdownLivePreview = (state: EditorState) => livePreviewKey.getState(state) !== undefined
+
 export const isMarkdownFencedCodePosition = (state: EditorState, position: number) =>
   findMarkdownCodeLine(state, position) !== null
 

@@ -162,10 +162,12 @@ export function createComposerDocumentContent(text: string, composer?: ComposerM
 
 export function createComposerDraftContent(
   draft: { text: string; tokens: readonly ComposerSerializedToken[] },
-  options: { tokenizeVariables?: boolean } = {}
+  options: { tokenizeVariables?: boolean; literalFencedCode?: boolean } = {}
 ): JSONContent {
   const inputTokens = draft.tokens.filter((token) => isComposerInputTokenKind(token.kind))
-  if (!inputTokens.length && options.tokenizeVariables !== false) return createPromptVariableContent(draft.text)
+  if (!inputTokens.length && options.tokenizeVariables !== false) {
+    return createPromptVariableContent(draft.text, { literalFencedCode: options.literalFencedCode })
+  }
 
   return createComposerContent(draft.text, inputTokens, isComposerInputTokenKind)
 }

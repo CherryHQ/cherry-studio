@@ -7,6 +7,8 @@ import type { ReactNode } from 'react'
 
 import { loggerService } from '@logger'
 
+import { isMarkdownFencedCodePosition } from '../markdownLivePreview/livePreviewPlugin'
+
 const logger = loggerService.withContext('ComposerSuggestionExtension')
 const suggestionItemsGeneration = new WeakMap<readonly ComposerSuggestionItem[], number>()
 
@@ -155,7 +157,8 @@ export function createComposerSuggestionExtension(sources: readonly ComposerSugg
           allowSpaces: source.allowSpaces,
           allowedPrefixes: source.allowedPrefixes,
           startOfLine: source.startOfLine,
-          allow: ({ editor, range }) => hasTriggerBoundary(editor, range),
+          allow: ({ editor, range }) =>
+            !isMarkdownFencedCodePosition(editor.state, range.from) && hasTriggerBoundary(editor, range),
           shouldShow: ({ transaction }) => !transaction.getMeta(COMPOSER_SUPPRESS_SUGGESTION_META),
           items: async ({ editor, query }) => {
             const itemsGeneration = ++latestItemsGeneration

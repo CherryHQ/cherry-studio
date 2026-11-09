@@ -20,6 +20,7 @@ import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from './composer
 import { createComposerLineSlice } from './composerLines'
 import { createComposerPlainTextContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
+import { hasMarkdownLivePreview, isMarkdownFencedCodePosition } from './markdownLivePreview/livePreviewPlugin'
 import {
   createPromptVariableInlineContent,
   getNextPromptVariableIndex,
@@ -86,8 +87,14 @@ export function buildInsertedInlineContent(
   text: string,
   options?: QuickPanelInsertTextOptions
 ): JSONContent[] {
-  if (options?.tokenizeVariables === false) return createComposerPlainTextContent(text)
-  return createPromptVariableInlineContent(text, { startIndex: getNextPromptVariableIndex(editor) })
+  const { state } = editor
+  if (options?.tokenizeVariables === false || isMarkdownFencedCodePosition(state, state.selection.from)) {
+    return createComposerPlainTextContent(text)
+  }
+  return createPromptVariableInlineContent(text, {
+    startIndex: getNextPromptVariableIndex(editor),
+    literalFencedCode: hasMarkdownLivePreview(state)
+  })
 }
 
 export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
