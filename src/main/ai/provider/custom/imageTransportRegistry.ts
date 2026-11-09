@@ -47,8 +47,9 @@ const TRANSPORTS: Record<string, TransportRegistration> = {
       return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
     }
   },
-  // QwenCloud shares the DashScope AIGC transport; its regional origin comes
-  // from the provider config builder’s `imageBaseURL`.
+  // QwenCloud (international) serves the same DashScope AIGC endpoints under
+  // its own origin — the transport is identical, only the origin differs
+  // (derived into `imageBaseURL` by the provider config builder).
   qwencloud: {
     supports: () => true,
     poll: true,

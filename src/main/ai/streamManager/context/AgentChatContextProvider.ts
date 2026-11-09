@@ -16,7 +16,9 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode'
 import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
+import { reserveDurableBranchTx } from '@main/ai/runtime/piDurable/durableContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -333,24 +335,38 @@ export class AgentChatContextProvider implements ChatContextProvider {
       runtime.assertSessionEditable(validated.sessionId)
       await validateEditedInput(validated.userMessageParts)
       validated.shouldAutoNameInitialTurn = false
-      const persisted = await runtime.editSession(validated.sessionId, req.editTarget, (tx, nativeSessionId) => {
-        validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
-        const result = this.persistDispatchTx(
-          tx,
-          validated,
-          {
-            id: validated.agentId,
-            updatedAt: validated.agentUpdatedAt,
-            model: validated.uniqueModelId,
-            type: validated.agentType
-          },
-          'edit'
-        )
-        if (validated.agentType === 'pi')
-          reservePiBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
-        agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
-        return result
-      })
+      const persisted = await runtime.editSession(
+        validated.sessionId,
+        req.editTarget,
+        (tx, nativeSessionId, nativeContextId) => {
+          validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
+          const result = this.persistDispatchTx(
+            tx,
+            validated,
+            {
+              id: validated.agentId,
+              updatedAt: validated.agentUpdatedAt,
+              model: validated.uniqueModelId,
+              type: validated.agentType
+            },
+            'edit'
+          )
+          if (validated.agentType === 'pi')
+            reservePiBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
+          else if (validated.agentType === 'claude-code')
+            reserveClaudeBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
+          else if (validated.agentType === 'pi-durable')
+            reserveDurableBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId, nativeContextId)
+          if (validated.agentType !== 'pi-durable' || nativeContextId)
+            agentSessionMessageService.setEditRuntimeTx(
+              tx,
+              validated.sessionId,
+              validated.userMessageId,
+              nativeSessionId
+            )
+          return result
+        }
+      )
       notifyDataApiDataChange([
         {
           endpoint: '/agent-sessions/:sessionId/messages',

@@ -69,7 +69,8 @@ Initial behavior:
 
 - Ordinary code starts in `source`; the edit action lazily opens CodeMirror when editing is enabled.
 - Ordinary code that starts streaming uses `source` and stays on the same Viewer when the stream settles.
-- Special languages start in `special`.
+- Special languages start in `special`, except Mermaid starts in `source` when `chat.code.mermaid.auto_render` is false (the default is true).
+- If a streamed language label becomes Mermaid later, that preference is applied unless the user has already chosen a view. Manual source, preview, edit and split choices remain in place.
 
 Entering split mode remembers the previous mode. A split entered from edit keeps the Editor on the source side; other
 split paths use the Viewer.
@@ -106,6 +107,15 @@ success result so failed clipboard operations do not show success feedback.
 selection state and DOM while content grows. Existing worker sessions parse the shared code-block language with
 Lezer/StreamLanguage and return semantic classes for requested lines. Pending or failed syntax work leaves complete
 plain source readable. Tiptap decorations and snapshot/HTML/Markdown worker jobs use the same parser classification.
+
+A newly visible viewer paints plain source before starting its first syntax request, even when the highlighter is
+already warm. Ready tokens then update the same rows. Off-screen requests and subsequent range updates retain their
+debounce; leaving the viewer or changing its pending range cancels the scheduled first request.
+
+Viewport entry and exit notify the viewer even when TanStack's row range stays unchanged. A short block can keep the
+same `[0, 0]` range on both sides of the viewport; waiting for a range change or scroll-end would leave its source
+hidden after a compensating scroll returns it to view. The element and window offset observers track this boundary
+using cached geometry, without rectangle reads during scroll dispatch.
 
 ### CodeEditor
 
