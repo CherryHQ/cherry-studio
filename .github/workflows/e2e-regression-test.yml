@@ -55,6 +55,7 @@ on:
           - cherryin-chat
           - image-generation
           - agent-basic-task
+          - agents-and-later
           - claude-agent-runtime
           - pi-runtime
           - translation-settings

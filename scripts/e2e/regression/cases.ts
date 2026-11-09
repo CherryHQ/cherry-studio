@@ -1,6 +1,6 @@
 import type { Platform } from './types'
 
-export const REGRESSION_CASES = [
+const CASE_DEFINITIONS = [
   {
     id: 'S-01',
     capabilities: [],
@@ -702,6 +702,11 @@ export const REGRESSION_CASES = [
     capabilities: []
   }
 ] as const
+
+const agentPhaseStart = CASE_DEFINITIONS.findIndex(({ phase }) => phase === 'agentRuntimes')
+export const REGRESSION_CASES = CASE_DEFINITIONS.map((testCase, index) =>
+  index >= agentPhaseStart ? { ...testCase, tasks: [...testCase.tasks, 'agents-and-later'] as const } : testCase
+)
 
 export type RegressionCase = (typeof REGRESSION_CASES)[number]
 export type CaseId = RegressionCase['id']
