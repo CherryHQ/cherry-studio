@@ -493,7 +493,10 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   }),
   useComposerToolLauncherActions: () => ({
     getLaunchers: vi.fn(() => mocks.toolLaunchers),
-    dispatchLauncher: vi.fn()
+    dispatchLauncher: (
+      launcher: ComposerToolLauncher,
+      options: Parameters<NonNullable<ComposerToolLauncher['action']>>[0]
+    ) => launcher.action?.(options)
   }),
   useComposerToolLauncherVersion: () => mocks.toolLaunchersVersion,
   useComposerTokenReconcile: () => mocks.reconcileTokens
@@ -3902,6 +3905,29 @@ describe('AgentComposer', () => {
       expect.anything(),
       expect.anything()
     )
+  })
+
+  it('routes Shift+Tab through the Plan command instead of saving the mode directly', () => {
+    const requestPlanMode = vi.fn()
+    mocks.optionalQuickPanel = { isVisible: false, symbol: '', updateList: vi.fn() }
+    mocks.toolLaunchers = [
+      { id: 'plan-mode', kind: 'command', label: 'Plan Mode', icon: null, action: requestPlanMode }
+    ]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    expect(mocks.surfaceProps?.onShiftTab).toBeDefined()
+    act(() => mocks.surfaceProps?.onShiftTab?.())
+
+    expect(requestPlanMode).toHaveBeenCalledOnce()
+    expect(mocks.updateAgent).not.toHaveBeenCalled()
   })
 
   it('adopts launch options that arrive after the restored session first renders', async () => {
