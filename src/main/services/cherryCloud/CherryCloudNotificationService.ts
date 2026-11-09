@@ -1,7 +1,6 @@
 import { EventSourceParserStream } from '@ai-sdk/provider-utils'
 
 import { application } from '@application'
-import { notificationRecordService } from '@data/services/NotificationRecordService'
 import { loggerService } from '@logger'
 import { BaseService, Conditional, DependsOn, Injectable, Phase, ServicePhase, when } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
@@ -316,7 +315,6 @@ export class CherryCloudNotificationService extends BaseService {
     throw new Error('Cherry Cloud notification stream ended')
   }
 
-  // Ids are remembered only after their refresh succeeded, so a failed one is retried on catch-up.
   // Settled only after its refresh succeeded, so a failed notification is retried on catch-up.
   private settle(notification: CloudNotification, live: boolean): void {
     const now = Date.now()
@@ -332,8 +330,9 @@ export class CherryCloudNotificationService extends BaseService {
     }
     const prominent = !notification.expires_at || !(Date.parse(notification.expires_at) <= now)
     // History and notifications past their presentation deadline are kept, already read, without a pop-up.
-    if (live && prominent) void application.get('NotificationService').publish(record)
-    else notificationRecordService.create({ ...record, readAt: now })
+    const notifications = application.get('NotificationService')
+    if (live && prominent) void notifications.publish(record)
+    else void notifications.publish({ ...record, readAt: now }, { recordOnly: true })
     this.seenIds.add(notification.id)
     if (this.seenIds.size <= SEEN_ID_LIMIT) return
     const [oldest] = this.seenIds

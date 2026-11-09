@@ -12,11 +12,11 @@ import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 const edition = vi.hoisted(() => ({ current: 'cn' as 'cn' | 'global' }))
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => edition.current }))
 
-const { createRecord, publish } = vi.hoisted(() => ({
-  createRecord: vi.fn<(input: unknown) => unknown>(),
-  publish: vi.fn<(input: unknown) => Promise<boolean>>(async () => true)
+const { publish } = vi.hoisted(() => ({
+  publish: vi.fn<(input: unknown, options?: { recordOnly?: boolean }) => Promise<boolean>>(async () => true)
 }))
-vi.mock('@data/services/NotificationRecordService', () => ({ notificationRecordService: { create: createRecord } }))
+const announced = () => publish.mock.calls.filter(([, options]) => !options?.recordOnly).map(([record]) => record)
+const recorded = () => publish.mock.calls.filter(([, options]) => options?.recordOnly).map(([record]) => record)
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
@@ -303,22 +303,22 @@ describe('CherryCloudNotificationService', () => {
     reply('/api/v1/notifications/stream', stream.response)
     const service = await start()
 
-    await vi.waitFor(() => expect(createRecord).toHaveBeenCalledOnce())
-    expect(createRecord.mock.calls[0][0]).toMatchObject({
+    await vi.waitFor(() => expect(recorded()).toHaveLength(1))
+    expect(recorded()[0]).toMatchObject({
       eventKey: 'cherry-cloud:n-1',
       target: { kind: 'settings', tab: 'profile' },
       readAt: expect.any(Number)
     })
-    expect(publish).not.toHaveBeenCalled()
+    expect(announced()).toHaveLength(0)
     expect(service.isActive()).toBe(false)
 
     stream.send('ready', { cursor: 'c-1' })
     await vi.waitFor(() => expect(service.isActive()).toBe(true))
     stream.send('notification', notification('n-2', 'c-2'))
 
-    await vi.waitFor(() => expect(publish).toHaveBeenCalledOnce())
-    expect(publish.mock.calls[0][0]).toMatchObject({ eventKey: 'cherry-cloud:n-2', category: 'usage' })
-    expect(createRecord).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(announced()).toHaveLength(1))
+    expect(announced()[0]).toMatchObject({ eventKey: 'cherry-cloud:n-2', category: 'usage' })
+    expect(recorded()).toHaveLength(1)
   })
 
   it('announces a live notification with the server copy and time, but not once past its presentation deadline', async () => {
@@ -342,9 +342,9 @@ describe('CherryCloudNotificationService', () => {
     })
 
     stream.send('notification', { ...notification('n-2', 'c-2'), ...server, expires_at: '2000-01-01T00:00:00Z' })
-    await vi.waitFor(() => expect(createRecord).toHaveBeenCalledOnce())
-    expect(createRecord.mock.calls[0][0]).toMatchObject({ eventKey: 'cherry-cloud:n-2', readAt: expect.any(Number) })
-    expect(publish).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(recorded()).toHaveLength(1))
+    expect(recorded()[0]).toMatchObject({ eventKey: 'cherry-cloud:n-2', readAt: expect.any(Number) })
+    expect(announced()).toHaveLength(1)
   })
 
   it('announces an activation with the product copy that points to the CherryAI models', async () => {
