@@ -51,6 +51,9 @@ export class GuestSession implements Disposable {
   private readonly nodeRefs = new Map<number, BrowserRef>()
   private readonly refTargets = new Map<BrowserRef, { role: string; name: string }>()
   private observers = 0
+  // Lazy Runtime.enable: eager enable tips off site anti-debugging (#23400).
+  private runtimeRecording = false
+  private runtimeEnableInFlight?: Promise<void>
   private readonly inspection = new BrowserInspection()
   readonly webTools = new WebMcpTools(this)
   private readonly webToolCleanup = new Set<Promise<void>>()
@@ -208,6 +211,8 @@ export class GuestSession implements Disposable {
 
   private readonly onDetach = () => {
     this.attached = false
+    this.runtimeRecording = false
+    this.runtimeEnableInFlight = undefined
     this.invalidateDocument()
     this.clearDialog()
     this.inspection.clear()
@@ -271,7 +276,6 @@ export class GuestSession implements Disposable {
     const init = async () => {
       for (const method of [
         'Page.enable',
-        'Runtime.enable',
         'DOM.enable',
         'Accessibility.enable',
         ...(this.observing ? (['Network.enable'] as const) : [])
@@ -483,9 +487,44 @@ export class GuestSession implements Disposable {
     return id
   }
 
+  /** Enables CDP Runtime events on demand. Returns true when this call started recording for the current
+   *  attachment, false when recording was already on. Lazy because eager Runtime.enable tips off site
+   *  anti-debugging (#23400). */
+  async enableRuntime(options: CommandOptions = {}): Promise<boolean> {
+    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    const inFlight = this.runtimeEnableInFlight
+    if (inFlight) {
+      await inFlight
+      return false
+    }
+    if (this.runtimeRecording) return false
+    this.runtimeRecording = true
+    const attempt = this.send('Runtime.enable', undefined, options).then(
+      () => undefined,
+      (error: unknown) => {
+        // Roll back only our own claim: a detach + new claim must not be cleared by this failure.
+        if (this.runtimeEnableInFlight === attempt) this.runtimeRecording = false
+        throw error
+      }
+    )
+    this.runtimeEnableInFlight = attempt
+    try {
+      await attempt
+      return true
+    } finally {
+      if (this.runtimeEnableInFlight === attempt) this.runtimeEnableInFlight = undefined
+    }
+  }
+
   consoleMessages(level: ConsoleLevel = 'all', clear = false) {
     if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
     return this.inspection.consoleMessages(level, clear)
+  }
+
+  async readConsoleMessages(level: ConsoleLevel = 'all', clear = false, options: CommandOptions = {}) {
+    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    const recordingStarted = await this.enableRuntime(options)
+    return { ...this.inspection.consoleMessages(level, clear), recordingStarted }
   }
 
   networkRequests(clear = false) {
@@ -552,6 +591,7 @@ export class GuestSession implements Disposable {
     this.operations++
     try {
       await this.ensureAttached(options)
+      await this.enableRuntime(options)
       const epoch = this.epoch
       const contextEpoch = this.annotationContextEpoch
       if (this.annotationContextId === undefined) {
@@ -671,6 +711,8 @@ export class GuestSession implements Disposable {
       }
     }
     this.attached = false
+    this.runtimeRecording = false
+    this.runtimeEnableInFlight = undefined
   }
 
   dispose(): void {

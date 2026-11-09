@@ -45,6 +45,7 @@ const CaptureOverlay: FC = () => {
   const objectUrlRef = useRef<string | null>(null)
   const annotationCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const readyReportedRef = useRef(false)
+  const exportRef = useRef<{ mediaId: string } | null>(null)
 
   const [state, dispatch] = useReducer(overlayReducer, initialState)
   const annotation = useAnnotation()
@@ -124,6 +125,7 @@ const CaptureOverlay: FC = () => {
    * display — stay resident until then or until the pool decays.
    */
   useIpcOn('screenshot.session_ended', () => {
+    exportRef.current = null
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current)
       objectUrlRef.current = null
@@ -145,6 +147,7 @@ const CaptureOverlay: FC = () => {
    */
   useEffect(() => {
     if (!mediaId) return
+    exportRef.current = null
     dispatch({ type: 'RESET' }) // selection + drag state
     resetAnnotations() // shapes, active tool, and the undo/redo history
     imageRef.current = null
@@ -163,6 +166,7 @@ const CaptureOverlay: FC = () => {
 
   // Another display's overlay took over; drop our selection but keep the capture.
   useIpcOn('screenshot.reset_overlay', () => {
+    exportRef.current = null
     dispatch({ type: 'RESET' })
     resetAnnotations()
   })
@@ -213,6 +217,12 @@ const CaptureOverlay: FC = () => {
   const handleExport = useCallback(
     async (action: 'commit' | 'copy' | 'save' | 'result', text = '') => {
       if (!imageRef.current || !state.selection || !initData) return
+      if (exportRef.current?.mediaId === initData.mediaId) {
+        if (action === 'result') throw new Error('A screenshot export is already pending')
+        return
+      }
+      const token = { mediaId: initData.mediaId }
+      exportRef.current = token
       try {
         const pngBytes = await generateSelectionPng(
           imageRef.current,
@@ -220,15 +230,19 @@ const CaptureOverlay: FC = () => {
           initData.display.scaleFactor,
           annotationCanvasRef.current
         )
-        if (action === 'result') await ipcApi.request('screenshot.submit_result', { pngBytes, text })
+        if (exportRef.current !== token) return
+        const result = { pngBytes, mediaId: token.mediaId }
+        if (action === 'result') await ipcApi.request('screenshot.submit_result', { ...result, text })
         else {
           const route =
             action === 'commit' ? 'screenshot.commit' : action === 'copy' ? 'screenshot.copy' : 'screenshot.save'
-          await ipcApi.request(route, { pngBytes })
+          await ipcApi.request(route, result)
         }
       } catch (error) {
         logger.error('Failed to export the selection', error as Error)
         if (action === 'result') throw error
+      } finally {
+        if (exportRef.current === token) exportRef.current = null
       }
     },
     [state.selection, initData]

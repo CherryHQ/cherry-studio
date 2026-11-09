@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Scrollbar } from '@cherrystudio/ui'
+import { Button, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 
@@ -67,7 +67,7 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
         </div>
       </div>
 
-      <Scrollbar autoHideScrollbar={false} className="min-h-0 flex-1 px-4 py-3">
+      <ScrollArea viewportProps={{ className: 'px-4 py-3' }} type="auto" className="min-h-0 flex-1">
         {isLoading ? <KnowledgeItemNoteContentState>{t('common.loading')}</KnowledgeItemNoteContentState> : null}
         {!isLoading && error ? <KnowledgeItemNoteContentState>{error.message}</KnowledgeItemNoteContentState> : null}
         {!isLoading && !error ? (
@@ -75,7 +75,7 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
             {content}
           </pre>
         ) : null}
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }

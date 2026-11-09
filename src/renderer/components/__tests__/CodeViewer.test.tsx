@@ -140,6 +140,24 @@ function firstVisibleLine(container: HTMLElement, offset: number) {
 }
 
 describe('CodeViewer', () => {
+  it('shows short code immediately when a continuing scroll returns it to the viewport', () => {
+    prefixHeight = 600
+    const scrollContainerRef: RefObject<HTMLDivElement | null> = { current: null }
+    const { container } = render(
+      <ScrollOwner scrollContainerRef={scrollContainerRef}>
+        <CodeViewer value="const answer = 42" language="typescript" expanded />
+      </ScrollOwner>
+    )
+    const outer = scrollContainerRef.current!
+    outer.scrollTop = 1200
+    fireEvent.scroll(outer)
+    expect(container.querySelector('.line-content')).toBeNull()
+
+    outer.scrollTop = 600
+    fireEvent.scroll(outer)
+    expect(container.querySelector('.line-content')?.textContent).toBe('const answer = 42')
+  })
+
   it.each([0, 1650])('observes a fresh managed attachment at offset %i without another scroll event', (offset) => {
     prefixHeight = offset === 0 ? 0 : 600
     const scrollContainerRef: RefObject<HTMLDivElement | null> = { current: null }
