@@ -85,6 +85,8 @@ export class MediaAnalysisService extends BaseService {
       fileInfo.size,
       hashMediaExecutionConfig(execution)
     ].join(':')
+    // Re-check after the awaits above so a cache hit cannot mask a cancellation.
+    signal?.throwIfAborted()
     const cache = application.get('CacheService')
     const cached = cache.get<unknown>(cacheKey)
     if (isMediaAnalysis(cached)) return cached
