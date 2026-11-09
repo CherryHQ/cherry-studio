@@ -279,6 +279,7 @@ releaseInfo:
     - [Agent] Fixed Claude Code (login) agents on macOS failing with "Not logged in · Please run /login" even after logging in with `claude /login`.
     - [Subscription] The China edition now picks up subscription changes once the server's notification service comes online, without restarting the app.
     - [Subscription] The China edition shows subscription changes (activation, renewal, expiry and more) in the notification center.
+    - [Workspace] Consistent icon colors and sizing, clearer Chinese agent labels and settings, restored tooltip contrast, and smoother tabs, pane resizing, conversation shortcuts, and notifications
 
     ⚡ Performance
     - [Chat] Preparing large text attachments no longer blocks the interface.
@@ -365,6 +366,7 @@ releaseInfo:
     - [智能体] 修复 macOS 上使用 Claude Code（登录）的智能体即使已通过 `claude /login` 登录仍提示「Not logged in · Please run /login」的问题。
     - [订阅] 国内版在服务器通知服务上线后，无需重启应用即可收到订阅变更。
     - [订阅] 国内版会在通知中心显示订阅变化（开通、续费、到期等）。
+    - [工作区] 统一图标颜色与尺寸、中文智能体文案及设置页样式，恢复提示框反色，并修复标签页、分栏拖动、会话快捷键和通知交互
 
     ⚡ 性能优化
     - [对话] 准备大型文本附件不再阻塞界面。
