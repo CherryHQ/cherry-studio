@@ -7,7 +7,7 @@ import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 
-const AUTO_ACTIVE_CHANNEL_TYPES = new Set(['feishu', 'wechat'])
+const AUTO_ACTIVE_CHANNEL_TYPES = new Set(['wechat'])
 
 export function AgentChannelsTab({ agentId, onSettingsNavigate }: { agentId: string; onSettingsNavigate: () => void }) {
   const { t } = useTranslation()

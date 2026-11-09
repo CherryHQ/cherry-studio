@@ -55,6 +55,14 @@ describe('AgentChannelsTab binding contracts', () => {
     )
   })
 
+  it('binds a new Feishu channel inactive without starting registration', async () => {
+    render(<AgentChannelsTab agentId="agent-1" onSettingsNavigate={() => mocks.open('/settings/channels')} />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Feishu' }))
+    await waitFor(() =>
+      expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'feishu', isActive: false }))
+    )
+  })
+
   it('creates QR channels active and keeps a setup route visible for authentication', async () => {
     const view = render(
       <AgentChannelsTab agentId="agent-1" onSettingsNavigate={() => mocks.open('/settings/channels')} />
