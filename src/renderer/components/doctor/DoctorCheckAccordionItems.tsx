@@ -19,7 +19,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Scrollbar
+  ScrollArea
 } from '@cherrystudio/ui'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
@@ -431,9 +431,9 @@ function ConfirmationPanel({
 
   return (
     <div ref={focusRef} tabIndex={-1} className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto]">
-      <Scrollbar className="min-h-0 px-6 py-4">
+      <ScrollArea viewportProps={{ className: 'px-6 py-4' }} className="min-h-0">
         <Alert type="warning" showIcon message={title} description={description} />
-      </Scrollbar>
+      </ScrollArea>
       <DialogFooter className="border-t border-border px-6 py-4">
         <Button variant="outline" onClick={onCancel}>
           {t('common.cancel')}

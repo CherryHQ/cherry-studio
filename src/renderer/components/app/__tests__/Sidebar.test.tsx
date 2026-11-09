@@ -13,12 +13,15 @@ import type * as SidebarFooterModule from '../../Sidebar/SidebarFooter'
 
 const mocks = vi.hoisted(() => ({
   isMac: false,
+  hasUnread: false,
   activate: vi.fn(),
+  edition: 'cn' as 'cn' | 'global',
   registryResolve: vi.fn(),
   remove: vi.fn(),
   reorder: vi.fn(),
   resolutions: [] as any[],
   sidebarWidth: 170,
+  subscribePromptSeen: true,
   shortcuts: [] as any[],
   showUpdatePopup: vi.fn(),
   openSettingsTab: vi.fn()
@@ -33,8 +36,13 @@ vi.mock(import('@renderer/utils/platform'), async (importOriginal) => ({
   }
 }))
 
+vi.mock('@renderer/utils/appEdition', () => ({ getAppEdition: () => mocks.edition }))
+
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => [mocks.sidebarWidth, vi.fn()],
+  usePersistCache: (key: string) => [
+    key === 'ui.cherry_cloud.subscribe_prompt_seen' ? mocks.subscribePromptSeen : mocks.sidebarWidth,
+    vi.fn()
+  ],
   useCache: () => [{ available: false, downloaded: false, info: null }, vi.fn()]
 }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: () => ['User', vi.fn()] }))
@@ -68,6 +76,10 @@ vi.mock('../../layout/ShellTabBarActions', () => ({
     </button>
   )
 }))
+vi.mock('../../NotificationCenter', () => ({
+  useNotificationCenter: () => ({ hasUnread: mocks.hasUnread })
+}))
+
 vi.mock('../../Sidebar', async () => {
   const constants = await vi.importActual<typeof SidebarConstantsModule>('../../Sidebar/constants')
   const { SidebarFooter } = await vi.importActual<typeof SidebarFooterModule>('../../Sidebar/SidebarFooter')
@@ -100,7 +112,7 @@ vi.mock('../../Sidebar', async () => {
       onHoverChange?: (visible: boolean) => void
       actions?: ReactNode | ((layout: 'full' | 'icon', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
       renderUserTrigger?: (trigger: ReactElement) => ReactElement
-      user?: { name: string; avatar?: string; onClick?: () => void }
+      user?: { name: string; avatar?: string; indicator?: ReactNode; onClick?: () => void }
       userAction?: ReactNode | ((layout: 'full' | 'icon', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
     }) => {
       const shellLayout = constants.getSidebarLayout(width)
@@ -162,11 +174,13 @@ function renderedShortcutLabels(): Array<string | null> {
 
 describe('app Sidebar', () => {
   beforeEach(() => {
+    mocks.hasUnread = false
     vi.clearAllMocks()
     mocks.isMac = false
     mocks.shortcuts = []
     mocks.resolutions = []
     mocks.sidebarWidth = 170
+    mocks.subscribePromptSeen = true
     mocks.registryResolve.mockReturnValue({ activate: mocks.activate })
     mocks.reorder.mockResolvedValue(undefined)
   })
@@ -191,16 +205,28 @@ describe('app Sidebar', () => {
     { isMac: false, isFullscreen: false },
     { isMac: true, isFullscreen: false },
     { isMac: true, isFullscreen: true }
-  ])('opens settings independently on macOS=$isMac fullscreen=$isFullscreen', async ({ isMac, isFullscreen }) => {
-    mocks.isMac = isMac
+  ])(
+    'keeps standalone settings and notification actions out of the sidebar on macOS=$isMac fullscreen=$isFullscreen',
+    ({ isMac, isFullscreen }) => {
+      mocks.isMac = isMac
+      render(<Sidebar isFullscreen={isFullscreen} />)
+      expect(screen.queryByRole('button', { name: 'settings.title' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'notification.center.title' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'User' })).toBeVisible()
+    }
+  )
+
+  it('shows unread state on the account trigger without clearing it when opening the menu', async () => {
+    mocks.hasUnread = true
     const user = userEvent.setup()
-    render(<Sidebar isFullscreen={isFullscreen} />)
-    const settingsButton = screen.getByRole('button', { name: 'settings.title' })
-    if (isMac && !isFullscreen) expect(settingsButton).not.toHaveTextContent('settings.title')
-    else expect(settingsButton).toHaveTextContent('settings.title')
-    await user.click(settingsButton)
-    expect(mocks.openSettingsTab).toHaveBeenCalledOnce()
-    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+    const view = render(<Sidebar />)
+    expect(screen.getByRole('button', { name: 'User' })).toHaveAccessibleDescription('notification.center.unread')
+    await user.click(screen.getByRole('button', { name: 'User' }))
+    expect(screen.getByTestId('account-menu')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'User' })).toHaveAccessibleDescription('notification.center.unread')
+    mocks.hasUnread = false
+    view.rerender(<Sidebar />)
+    expect(screen.getByRole('button', { name: 'User' })).not.toHaveAttribute('aria-describedby')
   })
 
   it('opens and closes the anchored account menu from the sidebar identity', async () => {
@@ -231,6 +257,66 @@ describe('app Sidebar', () => {
     await user.keyboard('{Enter}')
 
     await waitFor(() => expect(screen.getByTestId('account-menu')).toHaveFocus())
+  })
+
+  it('marks the account avatar until a Subscribe touchpoint has been used', async () => {
+    mocks.subscribePromptSeen = false
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) =>
+      route === 'cherry_cloud.account.get'
+        ? {
+            ok: true,
+            data: {
+              status: { phase: 'signed-out', accountId: null, displayName: null, scopeId: 'out', revision: 1 },
+              reason: 'initial',
+              account: { freshness: 'unknown', error: null },
+              models: { freshness: 'unknown', error: null },
+              plans: { freshness: 'unknown', error: null }
+            }
+          }
+        : { ok: true, data: undefined }
+    )
+    const { unmount } = render(<Sidebar />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'User' })).toHaveAccessibleDescription(
+        'settings.subscription.go_to_subscribe'
+      )
+    )
+
+    unmount()
+    mocks.subscribePromptSeen = true
+    render(<Sidebar />)
+
+    expect(screen.getByRole('button', { name: 'User' })).not.toHaveAccessibleDescription()
+  })
+
+  it('does not mark the account avatar in the global edition', async () => {
+    mocks.subscribePromptSeen = false
+    mocks.edition = 'global'
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) =>
+      route === 'cherry_cloud.account.get'
+        ? {
+            ok: true,
+            data: {
+              status: { phase: 'signed-out', accountId: null, displayName: null, scopeId: 'out', revision: 1 },
+              reason: 'initial',
+              account: { freshness: 'unknown', error: null },
+              models: { freshness: 'unknown', error: null },
+              plans: { freshness: 'unknown', error: null }
+            }
+          }
+        : { ok: true, data: undefined }
+    )
+
+    try {
+      render(<Sidebar />)
+      // A signed-out status would light the dot in the China edition as soon as it resolves.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+
+      expect(screen.queryByRole('status', { name: 'settings.subscription.go_to_subscribe' })).not.toBeInTheDocument()
+    } finally {
+      mocks.edition = 'cn'
+    }
   })
 
   it('does not reopen the account menu after resizing the sidebar to hidden', async () => {
@@ -281,7 +367,7 @@ describe('app Sidebar', () => {
     if (width === 0) fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
     const sidebar = screen.getByTestId(width === 0 ? 'floating-sidebar' : 'docked-sidebar')
 
-    expect(within(sidebar).getByRole('button', { name: 'settings.title' })).toBeVisible()
+    expect(within(sidebar).queryByRole('button', { name: 'settings.title' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'help.title' })).not.toBeInTheDocument()
 
     await user.click(within(sidebar).getByRole('button', { name: 'User' }))

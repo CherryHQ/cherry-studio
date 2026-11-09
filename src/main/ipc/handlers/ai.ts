@@ -14,10 +14,11 @@ import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSuppor
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
-import { AiStreamAdmissionError, type MainDispatchRequest, WebContentsListener } from '@main/ai/streamManager'
+import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
+import type { MessageProjectionUpdate } from '@shared/ai/messageProjection'
 import { ErrorCode, isDataApiError, isDataApiResourceNotFoundError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -98,11 +99,36 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
         sessionIds: error.sessionIds
       })
     }
+    if (isDataApiError(error) && error.code === ErrorCode.INVALID_OPERATION) {
+      const operation = (error.details as { operation?: string } | undefined)?.operation
+      if (operation === 'delete pinned session') {
+        throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_PINNED, error.message)
+      }
+    }
     throw error
   }
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.projection.attach': ({ target, subscriptionId }, { senderId }) => {
+    const sender = senderWebContents(senderId)
+    if (!sender || senderId === null) throw new Error('Projection subscription requires a window')
+    const send = (update: MessageProjectionUpdate) =>
+      application.get('IpcApiService').send(senderId, 'ai.projection.changed', { subscriptionId, update })
+    return target.kind === 'topic'
+      ? application.get('AiStreamManager').attachProjection(sender, target.topicId, subscriptionId, send)
+      : application
+          .get('AgentSessionRuntimeService')
+          .attachChild(sender, target.sessionId, target.toolCallId, subscriptionId, send)
+  },
+  'ai.projection.detach': async ({ target, subscriptionId }, { senderId }) => {
+    const sender = senderWebContents(senderId)
+    if (!sender) return
+    if (target.kind === 'topic') application.get('AiStreamManager').detachProjection(sender, subscriptionId)
+    else application.get('AgentSessionRuntimeService').detachChild(sender, subscriptionId)
+  },
+  'ai.agent.child.message': ({ sessionId, contextId, text }) =>
+    application.get('AgentSessionRuntimeService').messageChild(sessionId, contextId, text),
   'ai.claude_code.binary.status': async () => application.get('ClaudeCodeBinaryService').getStatus(),
   'ai.claude_code.binary.ensure': async () => application.get('ClaudeCodeBinaryService').ensure(),
   'ai.claude_code.binary.retry': async () => application.get('ClaudeCodeBinaryService').ensure(true),
@@ -138,9 +164,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     if (!senderId) throw new Error('ai.stream.open requires a managed window')
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
-    const subscriber = new WebContentsListener(wc, request.topicId)
     const dispatchRequest: MainDispatchRequest = { ...request, interactionWindowId: senderId }
-    return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatch(subscriber, dispatchRequest))
+    return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatchCommand(dispatchRequest))
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
@@ -260,16 +285,15 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.edit_resend': ({ sessionId, target, ...input }, { senderId }) =>
     exposeAiStreamAdmission(async () => {
       const wc = senderWebContents(senderId)
-      if (!wc) throw new Error('Edit and resend requires a managed window')
+      if (!senderId || !wc) throw new Error('Edit and resend requires a managed window')
       try {
-        return await application
-          .get('AiStreamManager')
-          .dispatch(new WebContentsListener(wc, buildAgentSessionTopicId(sessionId)), {
-            ...input,
-            trigger: 'edit-agent-message',
-            topicId: buildAgentSessionTopicId(sessionId),
-            editTarget: target
-          })
+        return await application.get('AiStreamManager').dispatchCommand({
+          ...input,
+          trigger: 'edit-agent-message',
+          topicId: buildAgentSessionTopicId(sessionId),
+          editTarget: target,
+          interactionWindowId: senderId
+        })
       } catch (error) {
         if (error instanceof AgentSessionForkError) {
           if (error.reason === 'unsupported_checkpoint') {

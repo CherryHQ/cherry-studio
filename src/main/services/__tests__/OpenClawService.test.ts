@@ -1,3 +1,4 @@
+import type * as ChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -13,6 +14,9 @@ import type { Provider as DataProvider } from '@shared/data/types/provider'
 
 const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
 const crossPlatformSpawnMock = vi.hoisted(() => vi.fn())
+const terminateProcessTreeMock = vi.hoisted(() => vi.fn())
+const execSyncMock = vi.hoisted(() => vi.fn())
+const execFileSyncMock = vi.hoisted(() => vi.fn())
 const platformMock = vi.hoisted(() => ({ isWin: false }))
 const broadcastMock = vi.hoisted(() => vi.fn())
 const cacheSetSharedMock = vi.hoisted(() => vi.fn())
@@ -80,6 +84,12 @@ function createRuntimeConfigSchema(
 }
 
 // --- Mocks for OpenClawService dependencies ---
+
+vi.mock('node:child_process', async (importOriginal) => ({
+  ...(await importOriginal<typeof ChildProcess>()),
+  execSync: execSyncMock,
+  execFileSync: execFileSyncMock
+}))
 
 vi.mock('@main/core/lifecycle', () => {
   class MockBaseService {}
@@ -159,7 +169,8 @@ vi.mock('@main/utils/processRunner', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
-    crossPlatformSpawn: crossPlatformSpawnMock
+    crossPlatformSpawn: crossPlatformSpawnMock,
+    terminateProcessTree: terminateProcessTreeMock
   }
 })
 
@@ -225,7 +236,10 @@ describe('OpenClawService gateway status state machine', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    execSyncMock.mockReset().mockReturnValue('')
+    execFileSyncMock.mockReset().mockReturnValue('')
     platformMock.isWin = false
+    terminateProcessTreeMock.mockReset()
     preferenceGetMock.mockReset().mockReturnValue('en-US')
     binaryManagerMock.getToolSnapshots.mockResolvedValue({
       openclaw: {
@@ -295,6 +309,383 @@ describe('OpenClawService gateway status state machine', () => {
           stdio: ['ignore', 'pipe', 'pipe']
         })
       )
+    })
+
+    it('accepts the schema when the command exits non-zero on an experimental warning', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const schema = createRuntimeConfigSchema()
+      queueSpawnResult({
+        stdout: JSON.stringify(schema),
+        stderr:
+          '(node:28108) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n',
+        exitCode: 1
+      })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).resolves.toEqual(schema)
+    })
+
+    it('reports the real stderr error instead of the experimental warning', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr:
+          '(node:28108) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\nError: node:sqlite: unsupported NUL in TEXT\n',
+        exitCode: 1
+      })
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '2026.10.2', env: {} })
+        .catch((error: Error) => error)
+      expect(error).toMatchObject({ kind: 'schema_check_failed' })
+      expect(error.message).toContain('config schema')
+      expect(error.message).toContain('exit code 1')
+      expect(error.message).toContain('Error: node:sqlite: unsupported NUL in TEXT')
+      expect(error.message).not.toContain('ExperimentalWarning')
+      expect(error.message).not.toContain('--trace-warnings')
+      expect(error.message).not.toMatch(/incompatible|Upgrade OpenClaw/i)
+    })
+
+    it('names the detected OpenClaw version in the schema failure', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr:
+          '(node:28108) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\nError: node:sqlite: unsupported NUL in TEXT\n',
+        exitCode: 1
+      })
+      await expect(
+        (service as any).assertSchemaCapability({
+          path: resolvePath('/mock/bin/openclaw'),
+          version: '2026.10.2',
+          env: {}
+        })
+      ).rejects.toMatchObject({ kind: 'schema_check_failed', message: expect.stringContaining('2026.10.2') })
+    })
+
+    it('falls back to the binary version when the runtime has none', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr:
+          '(node:28108) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\nError: node:sqlite: unsupported NUL in TEXT\n',
+        exitCode: 1
+      })
+      queueSpawnResult({ stdout: 'OpenClaw 2026.3.13 (61d171a)\n' })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).rejects.toMatchObject({ kind: 'schema_check_failed', message: expect.stringContaining('2026.3.13') })
+      expect(crossPlatformSpawnMock.mock.calls[1][1]).toEqual(['--version'])
+    })
+
+    it('keeps the schema failure when the version probe also fails', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stderr: 'Error: node:sqlite: unsupported NUL in TEXT', exitCode: 1 })
+      queueSpawnResult({ stderr: 'boom', exitCode: 1 })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).rejects.toMatchObject({ kind: 'schema_check_failed', message: expect.stringContaining('unknown') })
+    })
+
+    it.each(['ExperimentalWarning', 'DeprecationWarning', 'TimeoutOverflowWarning', 'Warning'])(
+      'skips prefixed %s lines with a deprecation code',
+      (warning) => {
+        const stderr =
+          `  (node:28108) [DEP0005] ${warning}: notice\n  (Use ` +
+          '`node --trace-warnings ...` to show where the warning was created)\nError: actual failure'
+        expect((service as any).firstMeaningfulStderrLine(stderr)).toEqual({
+          kind: 'error',
+          line: 'Error: actual failure'
+        })
+      }
+    )
+
+    it('keeps the warning text when stderr carries only warnings', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr:
+          '(node:28108) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n',
+        exitCode: 1
+      })
+      await expect(
+        (service as any).assertSchemaCapability({
+          path: resolvePath('/mock/bin/openclaw'),
+          version: '2026.10.2',
+          env: {}
+        })
+      ).rejects.toMatchObject({
+        kind: 'schema_check_failed',
+        message: expect.stringContaining(
+          'stderr carried only warnings: (node:28108) ExperimentalWarning: SQLite is an experimental feature'
+        )
+      })
+    })
+
+    it('keeps warning continuations out of the schema failure', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr:
+          'Warning: first\n    extra detail about the warning\n(Use `node --trace-warnings ...` to show where the warning was created)',
+        exitCode: 1
+      })
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '1.0.0', env: {} })
+        .catch((error: Error) => error)
+      expect(error).toMatchObject({ kind: 'schema_check_failed' })
+      expect(error.message).toContain('stderr carried only warnings: Warning: first')
+      expect(error.message).not.toContain('extra detail about the warning')
+    })
+
+    it.each([
+      {
+        kind: 'other',
+        line: 'openclaw: Node 24.14.0: node:sqlite truncates TEXT at embedded NUL (nodejs/node#61954); use 24.16+/26.1+ or a build with the fix',
+        stack: ''
+      },
+      {
+        kind: 'error',
+        line: "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/opt/openclaw/dist/cli.js' imported from /opt/openclaw/bin.js",
+        stack: '\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1234:15)'
+      }
+    ])('reports the post-warning $kind diagnostic: $line', async ({ kind, line, stack }) => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const stderr =
+        '(node:28108) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n' +
+        line +
+        stack
+      queueSpawnResult({ stderr, exitCode: 1 })
+
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '2026.10.2', env: {} })
+        .catch((error: Error) => error)
+      expect(error).toMatchObject({ kind: 'schema_check_failed' })
+      expect(error.message).toContain('exit code 1')
+      expect(error.message).toContain(line)
+      expect(error.message).not.toContain('ExperimentalWarning')
+      expect(error.message).not.toContain('--trace-warnings')
+      expect(error.message).not.toContain('stderr carried only warnings')
+      expect(error.message).not.toContain('Module._resolveFilename')
+      expect((service as any).firstMeaningfulStderrLine(stderr)).toEqual({ kind, line })
+    })
+
+    it('reports the fatal diagnostic after a deprecation trailer', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const line =
+        'openclaw: Node 24.14.0: node:sqlite truncates TEXT at embedded NUL (nodejs/node#61954); use 24.16+/26.1+ or a build with the fix'
+      const stderr =
+        '(node:78903) DeprecationWarning: SQLite is an experimental feature\n(Use `node --trace-deprecation ...` to show where the warning was created)\n' +
+        line
+      queueSpawnResult({ stderr, exitCode: 1 })
+
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '2026.10.2', env: {} })
+        .catch((error: Error) => error)
+      expect.soft((service as any).firstMeaningfulStderrLine(stderr)).toEqual({ kind: 'other', line })
+      expect.soft(error).toMatchObject({
+        kind: 'schema_check_failed',
+        message: expect.stringContaining(`config schema check failed with exit code 1: ${line}`)
+      })
+      expect.soft(error.message).not.toMatch(/trace-deprecation|stderr carried only warnings/)
+    })
+
+    it('reports the actual error after an error-shaped warning continuation', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const stderr =
+        '(node:78907) Warning: first\n    Error: warning detail\n(Use `node --trace-warnings ...` to show where the warning was created)\nError: actual schema failure'
+      queueSpawnResult({ stderr, exitCode: 1 })
+
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '2026.10.2', env: {} })
+        .catch((error: Error) => error)
+      expect.soft((service as any).firstMeaningfulStderrLine(stderr)).toEqual({
+        kind: 'error',
+        line: 'Error: actual schema failure'
+      })
+      expect.soft(error).toMatchObject({
+        kind: 'schema_check_failed',
+        message: expect.stringContaining('Error: actual schema failure')
+      })
+      expect.soft(error.message).not.toContain('warning detail')
+    })
+
+    it('keeps an error-shaped warning continuation in a warnings-only block', () => {
+      const stderr = '(node:78907) Warning: first\n    Error: warning detail'
+      expect((service as any).firstMeaningfulStderrLine(stderr)).toEqual({
+        kind: 'warnings-only',
+        line: '(node:78907) Warning: first'
+      })
+    })
+
+    it('ends warning continuations at a stack frame without reporting the frame', () => {
+      const stderr = 'Warning: first\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1234:15)'
+      expect((service as any).firstMeaningfulStderrLine(stderr)).toEqual({
+        kind: 'warnings-only',
+        line: 'Warning: first'
+      })
+      expect((service as any).firstMeaningfulStderrLine(`${stderr}\n    configuration could not be loaded`)).toEqual({
+        kind: 'other',
+        line: 'configuration could not be loaded'
+      })
+    })
+
+    it('prefers a bracketed error code over an earlier retained diagnostic', () => {
+      const line = 'Error [MODULE_NOT_FOUND]: Cannot find module openclaw'
+      expect((service as any).firstMeaningfulStderrLine(`Warning: first\nopenclaw: startup failed\n${line}`)).toEqual({
+        kind: 'error',
+        line
+      })
+    })
+
+    it('skips bare Node runtime banners when retaining a diagnostic', () => {
+      expect((service as any).firstMeaningfulStderrLine('Node.js v24.14.0\nopenclaw: startup failed')).toEqual({
+        kind: 'other',
+        line: 'openclaw: startup failed'
+      })
+    })
+
+    it('does not report stack frames as warnings or errors', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr: 'node:internal/modules/cjs/loader:1404\n    at Module._load (node:internal/modules/cjs/loader:1030:12)',
+        exitCode: 1
+      })
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '1.0.0', env: {} })
+        .catch((error: Error) => error)
+      expect(error).toMatchObject({ kind: 'schema_check_failed' })
+      expect(error.message).toContain('config schema check failed with exit code 1')
+      expect(error.message).not.toContain('only warnings')
+      expect(error.message).not.toContain('node:internal')
+    })
+
+    it('does not classify a command phrase in a warning as incompatibility', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({
+        stderr: '(node:1) Warning: plugin ignored unknown subcommand legacy\nError: EACCES: permission denied',
+        exitCode: 1
+      })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '1.0.0', env: {} })
+      ).rejects.toMatchObject({
+        kind: 'schema_check_failed',
+        message: expect.stringContaining('EACCES: permission denied')
+      })
+    })
+
+    it('prefers the version on stdout over a warning on stderr', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stderr: 'Error: schema failed', exitCode: 1 })
+      queueSpawnResult({ stdout: '2026.3.13\n', stderr: '(node:9) Warning: OpenClaw uses Node.js v24.14.0\n' })
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+        .catch((error: Error) => error)
+      expect(error).toMatchObject({ kind: 'schema_check_failed', message: expect.stringContaining('2026.3.13') })
+      expect(error.message).not.toContain('24.14.0')
+    })
+
+    it.each([
+      [
+        'multiline warning',
+        '(node:1) Warning: first\ncontinuation of warning\nError: actual failure\n',
+        'Error: actual failure'
+      ],
+      ['node option error', 'node: bad option: --foo', 'node: bad option: --foo'],
+      [
+        'unrecognized configuration key',
+        'Error: unrecognized configuration key "foo"',
+        'unrecognized configuration key'
+      ]
+    ])('reports the actual schema failure for %s', async (_name, stderr, expected) => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stderr, exitCode: 1 })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), version: '1.0.0', env: {} })
+      ).rejects.toMatchObject({ kind: 'schema_check_failed', message: expect.stringContaining(expected) })
+    })
+
+    it.each([
+      "error: too many arguments for 'config'. Expected 0 arguments but got 1.",
+      'error: too many arguments for "config"',
+      'error: unknown subcommand schema',
+      'error: unrecognized subcommand schema',
+      'error: invalid subcommand schema'
+    ])('recognizes unsupported schema command: %s', async (stderr) => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stderr, exitCode: 1 })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).rejects.toMatchObject({ kind: 'binary_incompatible' })
+    })
+
+    it('rejects an array as a schema', async () => {
+      schemaCapabilitySpy.mockRestore()
+      runOpenClawCommandSpy.mockResolvedValue({ stdout: '[]', stderr: '', exitCode: 0, outputTruncated: false })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).rejects.toMatchObject({ kind: 'binary_incompatible' })
+    })
+
+    it('reports truncated output even when the schema command fails', async () => {
+      schemaCapabilitySpy.mockRestore()
+      runOpenClawCommandSpy.mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 1, outputTruncated: true })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).rejects.toMatchObject({
+        kind: 'binary_incompatible',
+        message: expect.stringContaining('config schema output exceeded the capture limit')
+      })
+    })
+
+    it('does not attribute the Node.js version to OpenClaw', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stderr: 'Error: schema failed', exitCode: 1 })
+      queueSpawnResult({ stderr: '(node:9) Warning: x\nNode.js v24.14.0\n' })
+      const error = await (service as any)
+        .assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+        .catch((error: Error) => error)
+      expect(error).toMatchObject({ kind: 'schema_check_failed', message: expect.stringContaining('unknown') })
+      expect(error.message).not.toContain('24.14.0')
+    })
+
+    it('propagates the managed binary version to the runtime', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        openclaw: { availability: { source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '2026.6.11' } }
+      })
+      await expect((service as any).resolveOpenClawRuntime()).resolves.toMatchObject({ version: '2026.6.11' })
+    })
+
+    it('returns unknown when the version probe times out', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      const child = createSpawnChild()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.useFakeTimers()
+      const pending = (service as any).detectOpenClawVersion({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      await vi.advanceTimersByTimeAsync(5000)
+      await expect(pending).resolves.toBe('unknown')
+    })
+
+    it('reports binary incompatibility for invalid JSON with a zero exit code', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stdout: 'not json' })
+      await expect(
+        (service as any).assertSchemaCapability({ path: resolvePath('/mock/bin/openclaw'), env: {} })
+      ).rejects.toMatchObject({
+        kind: 'binary_incompatible',
+        message: expect.stringContaining('config schema did not return valid JSON')
+      })
     })
 
     it('reports binary incompatibility when the schema command is unavailable', async () => {
@@ -1138,6 +1529,230 @@ describe('OpenClawService gateway status state machine', () => {
   // ─── stopGateway ─────────────────────────────────────────────
 
   describe('stopGateway', () => {
+    function mockGatewayListeners(windows: boolean, commandLine: string | Error) {
+      platformMock.isWin = windows
+      ;(service as any).gatewayPort = 1879
+      const listeners = new Map([
+        [12341, 1879],
+        [12342, 18790]
+      ])
+      const netstat = () =>
+        [...listeners].map(([pid, port]) => `  TCP  127.0.0.1:${port}  0.0.0.0:0  LISTENING  ${pid}`).join('\n')
+      const command = (file: string, args: string[] = []) => {
+        if (file === 'netstat') return netstat()
+        if (file === 'ps' || file === 'powershell.exe') {
+          if (commandLine instanceof Error) throw commandLine
+          return commandLine
+        }
+        if (file === 'lsof') {
+          const port = Number(args.find((arg) => arg.startsWith('-iTCP:'))?.split(':')[1])
+          return [...listeners]
+            .filter(([, listeningPort]) => listeningPort === port)
+            .map(([pid]) => pid)
+            .join('\n')
+        }
+        if (file === 'taskkill') listeners.delete(Number(args[args.indexOf('/PID') + 1]))
+        return ''
+      }
+      execFileSyncMock.mockImplementation(command)
+      execSyncMock.mockImplementation((text: string) => {
+        if (text.startsWith('pkill')) listeners.clear()
+        else if (text.startsWith('netstat')) return netstat()
+        else command(text.split(' ')[0], text.split(' ').slice(1))
+        return ''
+      })
+      vi.spyOn(process, 'kill').mockImplementation((pid) => {
+        listeners.delete(pid)
+        return true
+      })
+      checkPortOpenSpy.mockImplementation(async (port: number) => [...listeners.values()].includes(port))
+      return listeners
+    }
+
+    it.each([
+      [false, 'active'],
+      [true, 'active'],
+      [false, 'exited'],
+      [true, 'exited'],
+      [false, 'different-port'],
+      [true, 'different-port']
+    ] as const)('retains spawned gateway ownership after argv changes (Windows: %s, %s)', async (windows, state) => {
+      vi.useFakeTimers()
+      const listeners = mockGatewayListeners(windows, 'openclaw')
+      listeners.delete(12341)
+      const child = Object.assign(createSpawnChild(), {
+        pid: 12341,
+        exitCode: null as number | null,
+        signalCode: null as NodeJS.Signals | null
+      })
+      startAndWaitSpy.mockRestore()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({ status: 'healthy' })
+      crossPlatformSpawnMock.mockImplementationOnce(() => {
+        listeners.set(child.pid, 1879)
+        return child
+      })
+      terminateProcessTreeMock.mockImplementation(async (owned) => {
+        if (owned !== child) throw new Error('An unrelated process handle was selected')
+        listeners.delete(owned.pid)
+      })
+
+      const started = service.startGateway()
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect(started).resolves.toEqual({ success: true })
+      if (state === 'exited') {
+        child.exitCode = 0
+        child.emit('exit', 0, null)
+      } else if (state === 'different-port') {
+        ;(service as any).gatewayPort = 18790
+      }
+      const stopped = service.stopGateway()
+      await vi.runAllTimersAsync()
+
+      await expect(stopped).resolves.toMatchObject({ success: state === 'active' })
+      expect([...listeners]).toEqual(
+        state === 'active'
+          ? [[12342, 18790]]
+          : [
+              [12342, 18790],
+              [12341, 1879]
+            ]
+      )
+    })
+
+    it.each([
+      [false, 'openclaw-gateway'],
+      [false, '/usr/local/bin/openclaw gateway run --force'],
+      [false, '/usr/bin/node /opt/node_modules/openclaw/openclaw.mjs gateway run'],
+      [
+        true,
+        '"C:\\Program Files\\nodejs\\node.exe" "C:\\Program Files\\node_modules\\openclaw\\dist\\index.js" gateway run'
+      ],
+      [true, 'C:\\tools\\bun.exe C:\\tools\\node_modules\\openclaw\\openclaw.mjs gateway run'],
+      [true, 'C:\\tools\\openclaw.exe gateway run']
+    ] as const)(
+      'stops only the verified gateway on its configured port (Windows: %s, %s)',
+      async (windows, commandLine) => {
+        const listeners = mockGatewayListeners(windows, commandLine)
+
+        await expect(service.stopGateway()).resolves.toEqual({ success: true })
+        expect([...listeners]).toEqual([[12342, 18790]])
+      }
+    )
+
+    it.each([false, true])(
+      'preserves unrelated and unreadable listeners on the configured port (Windows: %s)',
+      async (windows) => {
+        vi.useFakeTimers()
+        for (const commandLine of [
+          'openclaw',
+          '/usr/bin/node /workspace/server.js',
+          '/usr/bin/node /workspace/server.js openclaw gateway',
+          '/usr/bin/node /workspace/openclaw-helper.js gateway',
+          '/usr/bin/node /opt/node_modules/openclaw/openclaw.mjs doctor',
+          '',
+          new Error('process metadata unavailable')
+        ]) {
+          const listeners = mockGatewayListeners(windows, commandLine)
+          const result = service.stopGateway()
+          await vi.runAllTimersAsync()
+
+          await expect(result).resolves.toMatchObject({ success: false })
+          expect([...listeners]).toEqual([
+            [12341, 1879],
+            [12342, 18790]
+          ])
+        }
+      }
+    )
+
+    it.each([false, true])(
+      'leaves another application alive on shutdown when no gateway was started (Windows: %s)',
+      async (windows) => {
+        vi.useFakeTimers()
+        const listeners = mockGatewayListeners(windows, '/usr/bin/node /workspace/server.js')
+
+        const stopped = (service as any).onStop()
+        await vi.runAllTimersAsync()
+        await stopped
+
+        expect([...listeners]).toEqual([
+          [12341, 1879],
+          [12342, 18790]
+        ])
+      }
+    )
+
+    it.each([false, true])(
+      'preserves an externally started gateway during application shutdown (Windows: %s)',
+      async (windows) => {
+        const listeners = mockGatewayListeners(
+          windows,
+          windows
+            ? 'C:\\tools\\node.exe C:\\tools\\node_modules\\openclaw\\openclaw.mjs gateway run'
+            : 'openclaw-gateway'
+        )
+
+        await (service as any).onStop()
+
+        expect([...listeners]).toEqual([
+          [12341, 1879],
+          [12342, 18790]
+        ])
+      }
+    )
+
+    it.each([
+      [false, false],
+      [true, false],
+      [false, true],
+      [true, true]
+    ] as const)(
+      'shutdown stops only a live spawned gateway after a port change (Windows: %s, exited: %s)',
+      async (windows, exited) => {
+        vi.useFakeTimers()
+        const listeners = mockGatewayListeners(
+          windows,
+          windows ? 'C:\\tools\\openclaw.exe gateway run' : 'openclaw-gateway'
+        )
+        listeners.delete(12341)
+        const child = Object.assign(createSpawnChild(), {
+          pid: 12341,
+          exitCode: null as number | null,
+          signalCode: null as NodeJS.Signals | null
+        })
+        startAndWaitSpy.mockRestore()
+        vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({ status: 'healthy' })
+        crossPlatformSpawnMock.mockImplementationOnce(() => {
+          listeners.set(child.pid, 1879)
+          return child
+        })
+        terminateProcessTreeMock.mockImplementation(async (owned) => {
+          if (owned !== child) throw new Error('An unrelated process handle was selected')
+          listeners.delete(owned.pid)
+        })
+        const started = service.startGateway()
+        await vi.advanceTimersByTimeAsync(1000)
+        await expect(started).resolves.toEqual({ success: true })
+        ;(service as any).gatewayPort = 18790
+        if (exited) {
+          child.exitCode = 0
+          child.emit('exit', 0, null)
+        }
+
+        await (service as any).onStop()
+
+        expect([...listeners]).toEqual(
+          exited
+            ? [
+                [12342, 18790],
+                [12341, 1879]
+              ]
+            : [[12342, 18790]]
+        )
+      }
+    )
+
     it('transitions to stopped on successful stop', async () => {
       ;(service as any).gatewayStatus = 'running'
       checkPortOpenSpy.mockResolvedValue(false)
