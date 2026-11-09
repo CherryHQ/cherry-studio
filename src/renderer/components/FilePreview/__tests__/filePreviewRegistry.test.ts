@@ -97,6 +97,13 @@ describe('file preview registry', () => {
     }
   )
 
+  it.each(['epub', 'EPUB'])('registers EPUB .%s as rendered without selection references', (extension) => {
+    const path = `/tmp/book.${extension}`
+    expect(resolveExtensionPlugin(path, filePreviewRegistry)?.id).toBe('epub')
+    expect(hasRenderedFilePreview(path)).toBe(true)
+    expect(canProduceSelectionReference(path)).toBe(false)
+  })
+
   it('registers the PDF plugin', () => {
     const extension = 'pdf'
     expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('pdf')
