@@ -18,6 +18,8 @@ The scope provider attaches to an existing `rootRef`, without a layout wrapper. 
 
 Context and handler values are read synchronously; local subscriptions update presentation without a second authoritative focus registry. Input/textarea/select and inherited contenteditable are recognized on the event path, including explicit noneditable islands. `resource.focused && !input.focused` gates permanent-delete keys; target readiness, rename, pinned/busy guards, pending confirmation and actual deletion remain with resource consumers. A selected conversation never substitutes for a missing focused target.
 
+The provider publishes option changes only when activation or context values change. Publishing a new version after every React commit creates a feedback loop when a subscriber reports context to an ancestor: that ancestor renders the provider again even though its scope options are equivalent. Newly allocated context objects with equal values therefore do not trigger another publication. Handler and context registrations retain their own notifications. Keep the registry attachment while its DOM element and registry remain unchanged; detaching on every commit briefly disables routing during descendant layout effects. Reconcile element replacement after commit, and release the attachment on unmount or Activity concealment.
+
 `TabRouter` supplies explicit tab/transition activation around React Activity. Retained list panes pass their existing `dataEnabled` visibility state to the list scope. Layout cleanup, DOM attachment and activation prevent hidden/disposed owners from executing. The three deletion consumer families share this routing; `commandFocus.ts` and its scan-only tests are removed.
 
 Conversation-number navigation is registered with the owning tab runtime captured by `TabIdProvider` and read through `useTabCommandRuntime`. List ordering, loading, active-tab and list-activation guards still determine eligible slots. This allows Cmd/Ctrl+1–9 from the composer without hoisting permanent deletion out of the list. Outside a tab provider, navigation uses the window owner.
@@ -54,6 +56,9 @@ The [permanent-deletion guards note](../bug-fix/2026-10-19-permanent-deletion-gu
 - The prerequisite remains independently reviewable. Source/CI scope is checked against the actual #21837 head, and this note records behavior rather than claiming a GitHub review Approval.
 
 ## Verification
+
+- Regression — `CommandFocusScope.test.tsx` preserves local routing during descendant layout effects on rerender, rebinds a replaced DOM root, and covers inactive/disposed scopes; Activity restoration remains covered by `CommandFocusLayers.test.tsx`.
+- Regression — `CommandFocusScope.test.tsx` keeps equivalent inline context snapshots stable and observes changed values or removed overrides.
 
 - AC1 — `CommandFocusScope.test.tsx` verifies sibling registration order, event-time focus, nested context/handler ownership and disabled-scope fallback barriers; Electron fixture counters verify independent owners.
 - AC2 — `ResourceListPermanentDelete.test.tsx`, `ResourceListGroupPermanentDelete.test.tsx`, `HistoryRecordList.permanentDelete.test.tsx` and scope tests cover editable/rename/protected/missing targets and focused-versus-selected identity; production ResourceList Electron fixture preserves input/protected targets.
