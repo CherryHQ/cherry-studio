@@ -49,8 +49,9 @@ export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { when: destructiveBuiltinOperation },
     effect: 'deny',
     reason: (hit) =>
-      `This built-in Agent blocked ${hit.evidence}. It must never permanently delete data or bypass this safeguard. ` +
-      'For a confirmed file or directory inside the session workspace, use mcp__assistant-files__move_to_trash; protected paths cannot be deleted.'
+      `This built-in Tool Guard blocked ${hit.evidence}. It is enforced by Cherry Studio itself; there is no hook in your settings to inspect or edit. ` +
+      'It must never permanently delete data or bypass this safeguard. For a confirmed file or directory inside the session workspace, ' +
+      'use mcp__assistant-files__move_to_trash, which moves it to the operating-system trash; protected paths cannot be deleted.'
   },
   {
     // Feedback skills submit through Bash under the user's identity (Lark form / GitHub issue).

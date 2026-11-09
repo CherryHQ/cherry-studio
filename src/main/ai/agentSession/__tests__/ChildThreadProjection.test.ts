@@ -4,13 +4,19 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { runtimeId, type RuntimeMessage, type ObservationSink, type ThreadHandle } from '@cherrystudio/agent-runtime'
+import {
+  runtimeId,
+  ThreadFeed,
+  type RuntimeMessage,
+  type ObservationSink,
+  type ThreadHandle
+} from '@cherrystudio/agent-runtime'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
-import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
+import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
 
 import { ChildThreadProjection, savedChildView } from '../ChildThreadProjection'
@@ -38,16 +44,19 @@ function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) 
   let sink!: ObservationSink
   const handle: ThreadHandle = {
     thread,
+    contextUsage: async () => ({
+      status: 'unsupported',
+      error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
+    }),
     observe: async (consumer) => {
       sink = consumer
       await consumer({
         type: 'snapshot',
-        coverage: 'live-only',
         messages: [],
         inputs: [],
-        activity: { scope: 'foreground', state: 'active' }
+        activity: { state: 'active' }
       })
-      return { status: 'confirmed', value: { stop: async () => {} } }
+      return { status: 'confirmed', value: { drain: async () => {}, stop: async () => {} } }
     },
     release: async () => {
       throw new Error('Projection cannot release native access')
@@ -88,6 +97,54 @@ function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) 
     }
   }
 }
+
+// Catches closing or backing up before an entered observation applies the final native tail.
+it.each(['stop', 'drain'] as const)('joins blocked observation delivery before %s flushes', async (action) => {
+  const f = fixture()
+  const entered = Promise.withResolvers<void>()
+  const held = Promise.withResolvers<void>()
+  const feed = new ThreadFeed(
+    {
+      type: 'snapshot',
+      messages: [],
+      inputs: [],
+      activity: { state: 'idle' }
+    },
+    (error) => {
+      throw error
+    }
+  )
+  f.handle.observe = async (sink) => ({
+    status: 'confirmed',
+    value: feed.observe(async (event) => {
+      if (event.type === 'message.upsert') {
+        entered.resolve()
+        await held.promise
+      }
+      await sink(event)
+    })
+  })
+  await f.projection.attach()
+  feed.publish({ type: 'message.upsert', message: f.item('last', 'final tail') })
+  await entered.promise
+  if (action === 'stop') feed.close('shutdown')
+  let finished = false
+  const flushing = f.projection[action]().then(() => {
+    finished = true
+  })
+  try {
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(finished).toBe(false)
+    expect(savedChildView(f.context).messages).toEqual([])
+  } finally {
+    held.resolve()
+  }
+  await flushing
+  expect(savedChildView(f.context).messages).toMatchObject([{ parts: [{ type: 'text', text: 'final tail' }] }])
+  const saved = savedChildView(f.context)
+  await new Promise<void>((resolve) => setImmediate(resolve))
+  expect(savedChildView(f.context)).toEqual(saved)
+})
 
 // Settled archive precedence must not suppress an explicit update to product display metadata.
 it('refreshes committed child display metadata and persists it without new native content', async () => {
@@ -170,10 +227,9 @@ it('serializes asynchronous archives with live completion and retains the previe
   const id = f.projection.snapshot().messages[0].id
   await f.send({
     type: 'snapshot',
-    coverage: 'current-view',
     messages: [f.item('preview', 'partial', 'partial')],
     inputs: [],
-    activity: { scope: 'foreground', state: 'active' }
+    activity: { state: 'active' }
   })
   release = undefined
   const pending = f.projection.flush()
@@ -182,10 +238,9 @@ it('serializes asynchronous archives with live completion and retains the previe
   f.archive.aliases = { entry: 'preview' }
   await f.send({
     type: 'snapshot',
-    coverage: 'current-view',
     messages: f.archive.messages,
     inputs: [],
-    activity: { scope: 'foreground', state: 'idle' }
+    activity: { state: 'idle' }
   })
   release!()
   await pending
@@ -231,10 +286,9 @@ it('keeps a committed prompt before its streaming reply through completion and r
   f.archive.messages = [prompt]
   await f.send({
     type: 'snapshot',
-    coverage: 'current-view',
     messages: [prompt, f.item('preview', 'answer', 'partial')],
     inputs: [],
-    activity: { scope: 'foreground', state: 'active' }
+    activity: { state: 'active' }
   })
   await f.projection.flush()
   const view = f.projection.snapshot()
@@ -247,10 +301,9 @@ it('keeps a committed prompt before its streaming reply through completion and r
 
   await f.send({
     type: 'snapshot',
-    coverage: 'current-view',
     messages: [f.item('preview', 'answer', 'partial'), prompt],
     inputs: [],
-    activity: { scope: 'foreground', state: 'active' }
+    activity: { state: 'active' }
   })
   await f.projection.flush()
   await f.send({ type: 'message.upsert', message: f.item('preview', 'answer more', 'partial') })
@@ -388,7 +441,7 @@ it('keeps the last readable archive on recovery failure and explicitly retries o
   f.archive.messages = [f.item('entry', 'complete')]
   f.archive.aliases = { entry: 'preview' }
   f.failHistory(true)
-  await f.send({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+  await f.send({ type: 'activity.changed', activity: { state: 'idle' } })
   await expect(f.projection.flush()).rejects.toThrow('temporarily unavailable')
   expect(f.projection.snapshot().messages).toEqual(before)
   f.failHistory(false)
@@ -406,7 +459,7 @@ it('keeps failed writes unresolved and retries the same product row without resu
   const before = f.projection.snapshot()
   f.archive.messages = [f.item('entry', 'finished')]
   f.archive.aliases = { entry: 'preview' }
-  await f.send({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+  await f.send({ type: 'activity.changed', activity: { state: 'idle' } })
   vi.spyOn(application.get('DbService'), 'withWriteTx').mockImplementationOnce(() => {
     throw new Error('Archive write failed')
   })
@@ -440,7 +493,7 @@ it('composes native messages by placed input boundaries and restores the same ch
   f.archive.messages.push(steer, second)
   await f.send({ type: 'message.upsert', message: steer })
   await f.send({ type: 'message.upsert', message: second })
-  await f.send({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+  await f.send({ type: 'activity.changed', activity: { state: 'idle' } })
   await f.projection.flush()
   const view = f.projection.snapshot().messages
   expect(view.map((message) => message.role)).toEqual(['user', 'assistant', 'user', 'assistant'])
@@ -522,16 +575,20 @@ it.each(['same-context', 'other-context', 'other-session'] as const)(
   'reuses child input only within its captured owner (%s)',
   async (target) => {
     const f = fixture()
+    const sessionId =
+      target === 'other-session' ? contexts.context(f.context.parentContextId!).sessionId : f.context.sessionId
+    const user = messages.saveMessage({
+      sessionId,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'original user input' }] } }
+    })
     const owner =
       target === 'other-session'
         ? contexts.context(f.context.parentContextId!)
         : target === 'other-context'
-          ? contexts.allocateContext(f.context.sessionId, f.context.backendId, 'another-branch')
+          ? application
+              .get('DbService')
+              .withWriteTx((tx) => reservePiBranchTx(tx, sessionId, user.id, 'another-branch'))
           : f.context
-    const user = messages.saveMessage({
-      sessionId: owner.sessionId,
-      message: { role: 'user', data: { parts: [{ type: 'text', text: 'original user input' }] } }
-    })
     prepareNativeSubmission(owner.sessionId, user.id, owner.id, 'steer')
     await f.projection.attach()
     await f.projection.refresh()
@@ -549,8 +606,7 @@ it.each(['same-context', 'other-context', 'other-session'] as const)(
         inputId: runtimeId(user.id),
         nativeInput: { session: f.handle.thread, id: runtimeId('native-input') },
         facts: ['placed'],
-        outcome: 'completed',
-        response: { session: f.handle.thread, id: runtimeId('answer') }
+        outcome: 'completed'
       }
     })
     for (const message of f.archive.messages) await f.send({ type: 'message.upsert', message })
@@ -609,8 +665,7 @@ it('keeps two retained inputs and one shared answer across archive replay and re
         inputId: runtimeId(user.id),
         facts: ['placed'],
         outcome: 'completed',
-        nativeInput: { session: f.handle.thread, id: runtimeId(`input-${index}`) },
-        response: { session: f.handle.thread, id: runtimeId('answer') }
+        nativeInput: { session: f.handle.thread, id: runtimeId(`input-${index}`) }
       }
     })
   for (const message of f.archive.messages) await f.send({ type: 'message.upsert', message })
@@ -628,4 +683,37 @@ it('keeps two retained inputs and one shared answer across archive replay and re
   projections.push(reopened)
   await reopened.attach()
   expect(reopened.snapshot().messages).toEqual(expected)
+})
+
+it('keeps a child observation newer than its pending context read without writing message history', async () => {
+  const f = fixture()
+  const reading = Promise.withResolvers<Awaited<ReturnType<ThreadHandle['contextUsage']>>>()
+  const started = Promise.withResolvers<void>()
+  f.handle.contextUsage = () => {
+    started.resolve()
+    return reading.promise
+  }
+  const attaching = f.projection.attach()
+  await started.promise
+  const current = {
+    status: 'confirmed' as const,
+    value: {
+      model: 'child-model',
+      revision: 'child-current',
+      contextWindow: 1000,
+      used: { tokens: 25, precision: 'reported' as const },
+      basis: 'current-context' as const
+    }
+  }
+  await f.send({ type: 'context.changed', result: current })
+  reading.resolve({ status: 'unknown', error: { operation: 'contextUsage', code: 'stale', message: 'Old context' } })
+  await attaching
+  const key = `agent.session.context_usage.${f.context.sessionId}` as const
+  expect(application.get('CacheService').getShared(key)).toEqual({ result: current })
+  expect(readAgentSessionPath(dbh.db, f.context.sessionId)).toEqual([])
+  const revision = f.projection.snapshot().revision
+  await f.send({ type: 'context.changed', result: current })
+  expect(f.projection.snapshot().revision).toBe(revision)
+  await f.projection.stop()
+  expect(application.get('CacheService').getShared(key)).toBeUndefined()
 })
