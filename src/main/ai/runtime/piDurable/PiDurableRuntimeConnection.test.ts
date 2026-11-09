@@ -2,8 +2,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from
 import { join } from 'node:path'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
-import { createAssistantMessageEventStream, type AssistantMessage } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream, type AssistantMessage, type Usage } from '@earendil-works/pi-ai'
 import { AgentDoc, configure, createSession, type ConversationId } from '@earendil-works/pi-durable'
+import { trace } from '@opentelemetry/api'
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
@@ -27,10 +29,12 @@ import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSess
 import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
+import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
+import type { SpanEntity } from '@shared/data/types/trace'
 
 import {
   assistantReply,
@@ -44,7 +48,7 @@ import { gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tes
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
-import { allocateDurableBackendTx, prepareDurableBranch } from './durableContext'
+import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
 import type { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
 import { PiDurableRuntimeDriver } from './PiDurableRuntimeDriver'
 
@@ -245,6 +249,175 @@ describe('desktop Pi Durable connection', () => {
       }
     })
   }
+
+  async function editInput(messageId: string, replacement: string, fail?: 'close' | 'commit') {
+    const target = { messageId, version: messages.readEditSnapshotTx(dbh.db, input.sessionId, messageId).version }
+    return new AgentSessionForkOperations().edit(
+      input.sessionId,
+      target,
+      async () => {
+        if (fail === 'close') throw new Error('close failed')
+        for (const connection of connections) await connection.close()
+      },
+      (tx, nativeId, contextId) => {
+        const [row] = messages.saveMessagesTx(tx, {
+          sessionId: input.sessionId,
+          messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: replacement }] } }]
+        })
+        reserveDurableBranchTx(tx, input.sessionId, row.id, nativeId, contextId)
+        if (contextId) messages.setEditRuntimeTx(tx, input.sessionId, row.id, nativeId)
+        if (fail === 'commit') throw new Error('product commit failed')
+        return row
+      }
+    )
+  }
+
+  // Editing the first input must neither recover its original prompt nor guess a numeric native identity.
+  it('edits the first input into a fresh durable context and survives reopening', async () => {
+    sharedHosts()
+    const parent = await connect()
+    const old = message('original first input')
+    await parent.connection.send({ message: old })
+    await savedAnswer(parent)
+    const original = contexts.context(parent.connection.contextId!)
+    writeFileSync(join(directory, 'keep.txt'), 'current files')
+    const calls = script.calls.length
+    const edited = await editInput(old.id, 'replacement first input')
+    const target = prepareDurableBranch(input.sessionId, edited.id)
+    expect(target.backendId).not.toBe(original.backendId)
+    expect(target.nativeThreadId).toBeNull()
+    expect(messages.readEditSnapshotTx(dbh.db, input.sessionId, edited.id).user.data.nativeSessionId).toBeUndefined()
+    expect(script.calls).toHaveLength(calls)
+    expect(messages.listSessionMessages(input.sessionId).items.map((row) => row.id)).toEqual([edited.id])
+    expect(() => messages.getSessionMessage(input.sessionId, old.id)).toThrow()
+    input = { ...input, branchHead: edited.id }
+    const fresh = await connect()
+    expect(fresh.connection.contextId).toBe(target.id)
+    setScript([assistantReply('replacement answer')])
+    await fresh.connection.send({ message: edited })
+    const answer = await savedAnswer(fresh)
+    expect(JSON.stringify(script.calls[0].messages)).toContain('replacement first input')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original first input')
+    expect(readFileSync(join(directory, 'keep.txt'), 'utf8')).toBe('current files')
+    await fresh.connection.close()
+    input = { ...input, branchHead: answer.id }
+    const reopened = await connect()
+    expect(reopened.connection.contextId).toBe(target.id)
+    expect(reopened.handle.thread.id).toBe(fresh.handle.thread.id)
+    setScript([assistantReply('continued replacement')])
+    await reopened.connection.send({ message: message('continue edited context') })
+    await savedAnswer(reopened)
+    expect(JSON.stringify(script.calls[0].messages)).toContain('replacement first input')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original first input')
+  })
+
+  // A second edit must use the first edit's remapped prefix without changing shared product rows.
+  it('replaces a committed tail repeatedly and reopens only the edited context', async () => {
+    sharedHosts()
+    const parent = await connect()
+    await parent.connection.send({ message: message('shared first input') })
+    const shared = await savedAnswer(parent)
+    const original = contexts.context(parent.connection.contextId!)
+    const old = message('original later question')
+    parent.events.length = 0
+    setScript([assistantReply('original later answer')])
+    await parent.connection.send({ message: old })
+    await savedAnswer(parent)
+    const before = messages.getSessionMessage(input.sessionId, shared.id)
+    const edited = await editInput(old.id, 'edited later question')
+    input = { ...input, branchHead: edited.id }
+    const first = await connect()
+    const firstContext = contexts.context(first.connection.contextId!)
+    expect(firstContext.backendId).toBe(original.backendId)
+    expect(first.handle.thread.id).not.toBe(original.nativeThreadId)
+    setScript([assistantReply('edited later answer')])
+    await first.connection.send({ message: edited })
+    await savedAnswer(first)
+    expect(JSON.stringify(script.calls[0].messages)).toContain('shared first input')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original later question')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original later answer')
+    const repeated = await editInput(edited.id, 'second edited question')
+    input = { ...input, branchHead: repeated.id }
+    const second = await connect()
+    expect(second.handle.thread.id).not.toBe(first.handle.thread.id)
+    setScript([assistantReply('second edited answer')])
+    await second.connection.send({ message: repeated })
+    const final = await savedAnswer(second)
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('edited later question')
+    expect(messages.getSessionMessage(input.sessionId, shared.id)).toEqual(before)
+    const calls = script.calls.length
+    const fork = await new AgentSessionForkOperations().fork(input.sessionId, final.id)
+    expect(messages.listSessionMessages(fork).items).toHaveLength(4)
+    expect(script.calls).toHaveLength(calls)
+    await second.connection.close()
+    expect(() => messages.getSessionMessage(input.sessionId, old.id)).toThrow()
+    expect(() => messages.getSessionMessage(input.sessionId, edited.id)).toThrow()
+    input = { ...input, branchHead: final.id }
+    const reopened = await connect()
+    expect(reopened.handle.thread.id).toBe(second.handle.thread.id)
+    setScript([assistantReply('edited branch continued')])
+    await reopened.connection.send({ message: message('continue edited context') })
+    await savedAnswer(reopened)
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original later question')
+    expect(JSON.stringify(script.calls[0].messages)).toContain('second edited question')
+  })
+
+  // Prepared native forks must stay inert when close, publication, or receipt delivery fails.
+  it.each(['close', 'commit', 'receipt'] as const)(
+    'keeps the original durable branch after failed edit: %s',
+    async (fail) => {
+      sharedHosts()
+      const parent = await connect()
+      const initial = message('shared failure boundary')
+      await parent.connection.send({ message: initial })
+      await savedAnswer(parent)
+      const old = message('original failure input')
+      parent.events.length = 0
+      await parent.connection.send({ message: old })
+      const answer = await savedAnswer(parent)
+      const other = messages.saveMessage({
+        sessionId: input.sessionId,
+        parentId: messages.readEditSnapshotTx(dbh.db, input.sessionId, initial.id).user.parentId!,
+        message: { role: 'user', data: { parts: [] } }
+      })
+      const collision = contexts.reserveBranchTx(dbh.db, {
+        sessionId: input.sessionId,
+        backendId: allocateDurableBackendTx(dbh.db).id,
+        anchorMessageId: other.id,
+        nativeThreadId: '2'
+      })
+      contexts.bindContext(collision.id, '2')
+      messages.selectBranch(input.sessionId, answer.id)
+      const before = messages.listSessionMessages(input.sessionId).items
+      if (fail === 'receipt') {
+        const runtime = parent.connection['runtime']!
+        const commit = runtime.durable.commit.bind(runtime.durable)
+        vi.spyOn(runtime.durable, 'commit').mockImplementationOnce(async (...args) => {
+          await commit(...args)
+          throw new Error('receipt lost')
+        })
+      }
+      await expect(editInput(old.id, 'unpublished replacement', fail === 'receipt' ? undefined : fail)).rejects.toThrow(
+        fail === 'receipt' ? 'receipt lost' : fail === 'close' ? 'close failed' : 'product commit failed'
+      )
+      expect(messages.listSessionMessages(input.sessionId).items).toEqual(before)
+      const records = await readForkResources()
+      expect(records).toHaveLength(1)
+      expect(records[0].nativeDisposition).toBe('retained')
+      const prepared = records[0].nativePreparations![0]
+      expect(contexts.roots(prepared.backendId).some((context) => context.id === prepared.contextId)).toBe(false)
+      const calls = script.calls.length
+      await new AgentSessionForkOperations().recover()
+      expect(script.calls).toHaveLength(calls)
+      for (const connection of connections) await connection.close()
+      input = { ...input, branchHead: answer.id }
+      const reopened = await connect()
+      setScript([assistantReply('original survived edit failure')])
+      await reopened.connection.send({ message: message('continue after failure') })
+      await savedAnswer(reopened)
+      expect(text(reopened.events)).toContain('original survived edit failure')
+    }
+  )
 
   it('forks a committed prefix in the shared owner and survives source deletion and a cold reopen', async () => {
     sharedHosts()
@@ -555,6 +728,71 @@ describe('desktop Pi Durable connection', () => {
     expect(text(parent.events)).toContain('source remains usable')
   })
 
+  it('uses native Durable tool phases and forwards the generation phase parent', async () => {
+    const captured: SpanEntity[] = []
+    const provider = new BasicTracerProvider()
+    vi.spyOn(trace, 'getTracer').mockImplementation((name) => provider.getTracer(name))
+    const preferences = application.get('PreferenceService')
+    const previous = preferences.get('app.developer_mode.enabled')
+    await preferences.set('app.developer_mode.enabled', true)
+    observabilitySinks.register({
+      id: 'durable-native-test',
+      writeSpanEntity: (span) => {
+        captured.push(span)
+      }
+    })
+    input.trace = {
+      topicId: `agent-session:${input.sessionId}`,
+      sessionId: input.sessionId,
+      turnId: 'native-turn',
+      traceId: '11111111111111111111111111111111',
+      rootSpanId: '2222222222222222'
+    }
+    setScript([
+      {
+        ...assistantReply(''),
+        content: [toolCallPart('native-tool', 'bash', { command: 'printf native-telemetry' })],
+        stopReason: 'toolUse'
+      },
+      assistantReply('finished')
+    ])
+    const parents: ReturnType<typeof getPiTraceContext>[] = []
+    const original = script.model
+    script.model = (model, context, options) => {
+      parents.push(getPiTraceContext(options?.telemetry))
+      return original(model, context, options)
+    }
+    try {
+      const current = await connect()
+      await current.connection.send({ message: message('run a tool') })
+      await done(current.events)
+      await current.connection.close()
+      expect(text(current.events)).toContain('finished')
+      const submission = captured.find((span) => span.name === 'pi.durable.submit')
+      expect(submission).toMatchObject({ traceId: input.trace.traceId, parentId: input.trace.rootSpanId })
+      const tool = captured.find((span) => span.attributes?.['tool.call_id'] === 'native-tool')
+      expect(tool).toMatchObject({
+        name: 'pi.durable.phase',
+        status: 'OK',
+        attributes: { 'tool.name': 'bash', outcome: 'done' }
+      })
+      expect(tool?.events?.some((event) => event.name === 'pi.durable.entry')).toBe(true)
+      expect(parents).toHaveLength(2)
+      for (const parent of parents) {
+        expect(parent).toMatchObject({ sessionId: input.sessionId, traceId: input.trace.traceId })
+        expect(captured.find((span) => span.id === parent?.rootSpanId)?.name).toBe('pi.durable.phase')
+      }
+      expect(
+        captured.some((span) =>
+          ['pi.generate_content', 'pi.execute_tool', 'pi.ai.request', 'pi.ai.poll'].includes(span.name)
+        )
+      ).toBe(false)
+    } finally {
+      await preferences.set('app.developer_mode.enabled', previous)
+      await provider.shutdown()
+    }
+  })
+
   function message(text: string) {
     return messages.saveMessage({
       sessionId: input.sessionId,
@@ -761,6 +999,79 @@ describe('desktop Pi Durable connection', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
+  // Catches a mid-turn mode switch that only reaches the next turn: the running turn's next tool call
+  // would still be approved (or skipped) under the mode the user just left.
+  it.each([
+    { from: 'bypassPermissions', to: 'default', asksForWrite: true },
+    { from: 'default', to: 'bypassPermissions', asksForWrite: false }
+  ] as const)('applies a $from → $to switch to the running turn', async ({ from, to, asksForWrite }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: from }
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('ask', 'AskUserQuestion', {
+            questions: [
+              {
+                question: 'Continue?',
+                header: 'Continue',
+                options: [
+                  { label: 'Yes', description: 'Go on' },
+                  { label: 'No', description: 'Stop' }
+                ]
+              }
+            ]
+          })
+        ],
+        'toolUse'
+      ),
+      assistantReply([toolCallPart('write', 'write', { path: 'after-switch.txt', content: 'written' })], 'toolUse'),
+      assistantReply('finished')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('ask then write') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: to }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
+      approved: true,
+      updatedInput: { answers: { 'Continue?': 'Yes' } }
+    })
+
+    if (asksForWrite) {
+      await expect.poll(() => approvals().length).toBe(2)
+      expect(approvals()[1].request).toMatchObject({ toolCallId: 'write' })
+      expect(existsSync(join(directory, 'after-switch.txt'))).toBe(false)
+      toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
+    }
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(approvals()).toHaveLength(asksForWrite ? 2 : 1)
+    expect(readFileSync(join(directory, 'after-switch.txt'), 'utf8')).toBe('written')
+  })
+
+  // Catches a parked approval card outliving owner shutdown while reopen must still ask again.
+  it('reports a pending approval as aborted on close and asks again after reopen', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([assistantReply([toolCallPart('write', 'write', { path: 'a.txt', content: 'a' })], 'toolUse')])
+    const aborted: string[] = []
+    const subscription = toolApprovalRegistry.onAborted((entry) => aborted.push(entry.approvalId))
+    const approvals = (events: AgentRuntimeEvent[]) =>
+      events.flatMap((event) => (event.type === 'tool-approval-request' ? [event.request.approvalId] : []))
+    const first = await connect()
+    await first.connection.send({ message: message('write') })
+    await expect.poll(() => approvals(first.events)).toHaveLength(1)
+
+    await first.connection.close()
+    subscription.dispose()
+    expect(aborted).toEqual(approvals(first.events))
+
+    const second = await connect()
+    await expect.poll(() => approvals(second.events)).toEqual(approvals(first.events))
+    expect(existsSync(join(directory, 'a.txt'))).toBe(false)
+  })
+
   it('streams incrementally and reopens the same SQLite conversation without replaying old text', async () => {
     setScript([assistantReply('first streaming answer')])
     const finish = holdResponse('first streaming answer')
@@ -787,6 +1098,41 @@ describe('desktop Pi Durable connection', () => {
     expect(text(second.events)).toBe('second answer')
     expect(prepareDurableBranch(input.sessionId).nativeThreadId).toBe(context.nativeThreadId)
     expect(JSON.stringify(script.calls[0].messages)).toContain('first streaming answer')
+  })
+
+  // Catches Durable dropping provider-reported reasoning tokens from the root turn's usage metadata.
+  it('reports reasoning tokens in the root turn usage metadata', async () => {
+    const root: { providerSessionId?: string } = {}
+    const usage: Usage = {
+      input: 5,
+      output: 7,
+      cacheRead: 0,
+      cacheWrite: 0,
+      reasoning: 3,
+      totalTokens: 12,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    }
+    mocks.binding.mockImplementation(async (_input, _provider, _model, onUsage) =>
+      createTestBinding({
+        model: MODEL,
+        stream: (model, context, options) => {
+          onUsage(usage, root.providerSessionId)
+          return script.model(model, context, options)
+        }
+      })
+    )
+    const { connection, events, handle } = await connect()
+    root.providerSessionId = await handle.durable.providerSessionId()
+    await connection.send({ message: message('hello') })
+    await done(events)
+
+    const metadata = events.flatMap((event) =>
+      event.type === 'chunk' && event.chunk.type === 'message-metadata' ? [event.chunk.messageMetadata] : []
+    )
+    expect(metadata.at(-1)).toEqual({
+      totalTokens: 12,
+      stats: { inputTokens: 5, outputTokens: 7, totalTokens: 12, outputTokenDetails: { reasoningTokens: 3 } }
+    })
   })
 
   it('places a late steer as the next input before its model call and records both outcomes', async () => {

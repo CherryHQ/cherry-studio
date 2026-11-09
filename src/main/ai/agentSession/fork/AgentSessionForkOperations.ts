@@ -78,7 +78,7 @@ export class AgentSessionForkOperations {
     sessionId: string,
     target: AgentSessionEditTarget,
     closeSource: () => Promise<void>,
-    persist: (tx: DbOrTx, nativeSessionId: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string) => T
   ): Promise<T> {
     if (this.edits.has(sessionId)) return Promise.reject(new AgentSessionEditError('busy'))
     const operationId = randomUUID()
@@ -96,7 +96,7 @@ export class AgentSessionForkOperations {
     operationId: string,
     signal: AbortSignal,
     closeSource: () => Promise<void>,
-    persist: (tx: DbOrTx, nativeSessionId: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string) => T
   ): Promise<T> {
     await ensureRetiredSessionHistory(sessionId)
     const database = application.get('DbService')
@@ -114,6 +114,7 @@ export class AgentSessionForkOperations {
       agentSessionForkService.readBindingsTx(tx, sessionId, target.messageId)
     )
     let nativeSessionId: string = randomUUID()
+    let nativeContextId: string | undefined
     let resources: AgentSessionForkResources | undefined
     try {
       if (prefix.length) {
@@ -142,6 +143,10 @@ export class AgentSessionForkOperations {
           checkpoint: anchor.checkpoint,
           checkpoints,
           targetSessionId: nativeSessionId,
+          recordNativePreparation: async (contextId) => {
+            resources!.nativePreparations = [{ backendId: group.context.backendId, contextId }]
+            await writeForkResources(resources!)
+          },
           targetCwd: source.workspace.path,
           artifactDirectory: resources.artifactDirectory,
           signal
@@ -149,6 +154,7 @@ export class AgentSessionForkOperations {
         if (!native.resumeToken.trim() || native.checkpoints.length !== checkpoints.length)
           throw new AgentSessionForkError('history_corrupt')
         nativeSessionId = native.resumeToken
+        nativeContextId = native.contextId
         resources.resumeToken = native.resumeToken
         await writeForkResources(resources)
         remapNativeHistory(prefix, [{ group, result: native }])
@@ -163,8 +169,8 @@ export class AgentSessionForkOperations {
           JSON.stringify(bindings)
         )
           throw new AgentSessionEditError('history_changed')
-        agentSessionMessageService.selectEditParentTx(tx, sessionId, target)
-        const result = persist(tx, nativeSessionId)
+        agentSessionMessageService.replaceEditBranchTx(tx, sessionId, target)
+        const result = persist(tx, nativeSessionId, nativeContextId)
         if (resources) {
           const checkpointMapping = Object.fromEntries(
             prefix.flatMap((row) => {
@@ -189,6 +195,11 @@ export class AgentSessionForkOperations {
   }
 
   private hasPublishedResources(resources: AgentSessionForkResources): boolean {
+    const token = resources.resumeToken
+    if (token !== undefined && resources.nativePreparations?.length)
+      return resources.nativePreparations.every(({ contextId }) =>
+        agentSessionMessageService.hasRuntimeResumeToken(resources.targetSessionId, token, contextId)
+      )
     return resources.resumeToken === undefined
       ? agentSessionForkService.hasPublishedSession(resources.targetSessionId)
       : agentSessionMessageService.hasRuntimeResumeToken(resources.targetSessionId, resources.resumeToken)

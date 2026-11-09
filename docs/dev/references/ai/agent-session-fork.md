@@ -1,5 +1,5 @@
 ---
-description: Native Agent session forks — service ownership, opaque checkpoints, workspace handling, publication, and recovery
+description: Native Agent history operations — service ownership, opaque checkpoints, workspace handling, publication, and recovery
 sources:
   - src/main/ai/agentSession/fork
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
@@ -9,6 +9,7 @@ sources:
   - src/main/ai/runtime/fork
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
+  - src/main/ai/runtime/piDurable
   - src/main/ipc/handlers/ai.ts
   - src/renderer/pages/agents/messages/agentMessageListAdapter.tsx
 ---
@@ -17,7 +18,7 @@ sources:
 
 ## Behavior
 
-Pi, Claude Code and Pi Durable support **Fork** on successful assistant messages with valid native checkpoints. Pi Durable **Edit and resend** remains unsupported. Legacy replies without a native checkpoint remain ineligible; the operation never rebuilds native history from product messages.
+Pi, Claude Code and Pi Durable support **Fork** on successful assistant messages with valid native checkpoints. Legacy replies without a native checkpoint remain ineligible; the operation never rebuilds native history from product messages.
 The operation creates an independent Agent session containing the visible
 history through the selected turn and a native runtime resume reference.
 It does not start or interrupt the source connection. The source can continue
@@ -44,15 +45,20 @@ The operation journal records the intended native context before preparation. Th
 
 ## Edit and resend within a session
 
-Pi **Edit and resend** retains the original input and descendants, creates a
-sibling input, and selects the new branch. The common product prefix is shared.
+**Edit and resend** replaces the selected input and removes its descendant subtree
+in one product transaction. It does not retain a new history version. The common
+prefix, existing sibling branches outside that subtree, and independent fork sessions remain unchanged.
+Desktop asks for confirmation when saving an edit, before changing displayed history or dispatching the replacement. Cancelling keeps the draft and original messages.
+Hiding or closing the originating view invalidates its pending confirmation, even if the same session is shown again before the dialog is answered.
 Native fork starts at the checkpoint before the edited input. Each new branch
 has a native binding in `agent_session_context`; remapped checkpoints belong to
 that binding and do not overwrite the original prefix rows.
 
 For the first input, an empty prefix records a fresh intended native identity;
 Pi creates that context on dispatch. A nonempty prefix requires a valid native
-checkpoint immediately before the edited input. Editing is rejected while the session has unsettled work.
+checkpoint immediately before the edited input. Editing is rejected while the session has unsettled work,
+including outgoing cross-session deliveries. Failed preparation or publication preserves the original tree.
+Pi Durable noninitial edits publish the native fork's allocated product context identity and remapped checkpoints in the replacement input transaction. First-input edits reserve a fresh empty backend/context and create native storage only on dispatch. Native numeric IDs are local to a store, so publication and recovery check the exact context rather than matching an unrelated backend's token.
 Neither edit/resend nor branch selection restores workspace files.
 
 The sibling navigator selects the chosen sibling's latest descendant. Selection
@@ -60,8 +66,8 @@ only changes the stored view; it does not run the harness. The next send resolve
 that branch's native context. An idle connection on another branch is closed
 before connecting; an active connection prevents a cross-branch send.
 
-Claude Code **Edit and resend** reserves the new branch identity in the same
-transaction as its sibling input. Editing the first input starts an empty native
+Claude Code **Edit and resend** reserves the replacement's native identity in the same
+transaction as its input. Editing the first input starts an empty native
 session under that reserved identity. Startup resumes only a verified native
 history token from the captured branch; an allocated identity alone is not proof
 that native history exists. Other edits publish their verified native fork before
@@ -154,7 +160,7 @@ the first input or such a boundary immediately before the input. The renderer
 uses these decisions without receiving the private anchor. Missing edit parents and
 delivery inputs are ineligible. Listing opens no native
 files or runtime connections. A file removed after listing still causes an explicit
-execution-time failure. Durable Edit and resend remains unavailable.
+execution-time failure.
 
 When Claude resets its native session, Main prepares the successor binding from
 the current product head before switching the active handle and context. Old

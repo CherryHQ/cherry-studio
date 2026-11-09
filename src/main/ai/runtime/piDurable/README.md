@@ -20,6 +20,16 @@ read-only annotation; other MCP operations use native unsafe replay semantics.
 Approvals, questions, model selection, summaries and large output storage use existing
 host services. Host calls resolve the native ownership tree to a product root. Model options and trace, usage, approvals, questions and attendance stay root-scoped. Each root selects its own named extensions, MCP transports, skills and execution environment. Host resources remain backend-owned while retained work can still use them. Each root stores its non-secret request selection in a native conversation document. Before shared recovery starts, roots with unfinished tasks acquire their Main connection and projection consumer; sibling opening cannot silently resume them with default parameters or without a transcript writer. No additional interaction table or AI SDK model port is introduced.
 
+## Telemetry
+
+The backend supplies Pi's native `HarnessOptions.telemetry`. Durable owns submission and task-phase
+spans, including tool identity, outcomes, committed-entry events and replay links. Cherry bridges
+them to its existing developer-mode OTel provider and viewer. Native persisted carriers freeze the
+initiating session and parent across recovery; roots without carriers remain untraced until a new
+traced submission. Gateway SDK calls inherit the native phase parent through internal usage capture.
+Pi model spans are suppressed because the SDK already records the request and usage; HTTP tracing
+retains wire bodies and the gateway remains the sole billing writer.
+
 ## Storage and projection
 
 `durableContext.ts` selects and reserves the backend and branch in one database
@@ -73,7 +83,7 @@ Background continuation keeps one child identity. Independent continuation of an
 foreground child is rejected because native ownership remains attached to its tool task.
 Successful foreground completion carries a backend/conversation/entry checkpoint from the same committed observation batch. Fork creates an ownerless conversation in that store through the public native transaction API; retained ancestors support older checkpoints. Cold forks use a Session without enabling a scheduler, serialized against live owner creation and shutdown.
 
-Native fork creation and its new product-context identity commit together. The operation journal records that identity before native preparation; replay reconciles it instead of duplicating the fork. Product session, messages and bindings publish atomically afterward. Failed publication leaves an identifiable inert native orphan because the SDK has no public conversation deletion API. Neither rollback nor source deletion removes shared native ancestry. Durable Edit and resend, file rewind and `vcc_recall` remain unavailable.
+Native fork creation and its new product-context identity commit together. The operation journal records that identity before native preparation; replay reconciles it instead of duplicating the fork. Product session, messages and bindings publish atomically afterward. Failed publication leaves an identifiable inert native orphan because the SDK has no public conversation deletion API. Neither rollback nor source deletion removes shared native ancestry. Edit and resend keeps the existing sibling-message branches. Noninitial edits publish the native fork's context identity, input and checkpoint mapping atomically; first-input edits reserve a fresh empty backend/context. Recovery uses the prepared context identity because numeric native IDs may repeat across stores. File rewind and `vcc_recall` remain unavailable.
 
 ## Verification
 

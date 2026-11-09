@@ -73,8 +73,18 @@ const ReasoningEffortMappingSettings: FC = () => {
     [scope, selectedProviderId]
   )
 
-  const effortLabel = (effort: ReasoningEffort) =>
-    t(`assistants.settings.reasoning_effort.${effort === 'none' ? 'off' : effort}`)
+  const effortLabels = {
+    none: t('assistants.settings.reasoning_effort.off'),
+    minimal: t('assistants.settings.reasoning_effort.minimal'),
+    low: t('assistants.settings.reasoning_effort.low'),
+    medium: t('assistants.settings.reasoning_effort.medium'),
+    high: t('assistants.settings.reasoning_effort.high'),
+    xhigh: t('assistants.settings.reasoning_effort.xhigh'),
+    max: t('assistants.settings.reasoning_effort.max'),
+    ultra: t('assistants.settings.reasoning_effort.ultra'),
+    auto: t('assistants.settings.reasoning_effort.auto')
+  } satisfies Record<ReasoningEffort, string>
+  const effortLabel = (effort: ReasoningEffort) => effortLabels[effort]
 
   return (
     <SettingsContentColumn theme={theme}>

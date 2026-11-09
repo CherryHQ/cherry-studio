@@ -629,16 +629,6 @@ const AgentComposerInner = ({
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
-  const togglePlanMode = useCallback(() => {
-    if (!agent) return
-    void updateAgent(
-      {
-        id: agent.id,
-        configuration: { permission_mode: agent.configuration?.permission_mode === 'plan' ? 'default' : 'plan' }
-      },
-      { showSuccessToast: false }
-    )
-  }, [agent, updateAgent])
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -659,6 +649,10 @@ const AgentComposerInner = ({
   const workspaceWarning = resolvedWorkspaceWarning ?? undefined
   const compaction = useAgentSessionCompaction(sessionId)
   const quickPanel = useOptionalQuickPanel()
+  const togglePlanMode = useCallback(() => {
+    const launcher = getLaunchers('root-panel').find((entry) => entry.id === 'plan-mode')
+    if (launcher && quickPanel) dispatchLauncher(launcher, { quickPanel, source: 'root-panel' })
+  }, [dispatchLauncher, getLaunchers, quickPanel])
   const rootPanelVisible =
     layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const skillsPanelVisible =

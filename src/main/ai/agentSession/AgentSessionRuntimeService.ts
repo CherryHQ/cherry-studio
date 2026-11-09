@@ -437,7 +437,7 @@ export class AgentSessionRuntimeService extends BaseService {
   editSession<T>(
     sessionId: string,
     target: AgentSessionEditTarget,
-    persist: (tx: DbOrTx, nativeSessionId: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string) => T
   ): Promise<T> {
     this.assertSessionEditable(sessionId)
     const editing = this.forks.edit(
@@ -799,6 +799,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (turn && correlation && !responseId) this.bindUsage(entry, correlation, turn)
     return {
       agentSessionId: sessionId,
+      traceContext: this.sessionTraceContext(entry, turn?.modelId),
       ...(turn ? { assistantMessageId: turn.assistantMessageId } : {}),
       source:
         sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot ?? entry.messageSnapshot) ??
@@ -808,10 +809,14 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private bindUsage(entry: AgentSessionRuntimeEntry, responseId: string, turn: AgentSessionTurn): void {
-    ;(entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(responseId, turn.assistantMessageId, () => {
-      const reply = getAgentSessionRuntimeReply(entry.runtimeState, turn)
+    const { assistantMessageId } = turn
+    // Owners live as long as the session (Pi never idle-closes); a collected turn is no longer a reply.
+    const turnRef = new WeakRef(turn)
+    ;(entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(responseId, assistantMessageId, () => {
+      const current = turnRef.deref()
+      const reply = current && getAgentSessionRuntimeReply(entry.runtimeState, current)
       return (
-        entry.persistedMessageIds?.has(turn.assistantMessageId) === true ||
+        entry.persistedMessageIds?.has(assistantMessageId) === true ||
         (reply !== undefined && reply.delivery.kind !== 'reserved' && reply.delivery.kind !== 'failed')
       )
     })
@@ -936,9 +941,9 @@ export class AgentSessionRuntimeService extends BaseService {
    * Push side of connection reconcile — a latency optimization over the pull that every fresh turn
    * runs in {@link ensureConnection}: agent edits apply to live/idle connections without waiting for
    * the next message. The connection's `reconcile` re-derives the desired config itself, so no
-   * per-field knowledge lives here: safe tool-policy changes hot-apply, permission-mode changes
-   * defer to the next turn boundary, and spawn-frozen changes (model, workspace, skills, sub-models,
-   * MCP definitions, …) report 'rebuild'. Inputs that change WITHOUT an agent-updated event
+   * per-field knowledge lives here: safe tool-policy changes, permission mode included, hot-apply
+   * even mid-turn, and spawn-frozen changes (model, workspace, skills, sub-models, MCP definitions,
+   * …) report 'rebuild'. Inputs that change WITHOUT an agent-updated event
    * (in-session skill toggles, MCP definition edits, workspace switches) have no push at all and are
    * covered by the pull.
    */
@@ -987,7 +992,7 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'rebuild': {
         // Safe live patches are already applied. Rebuild eagerly only when nothing is streaming —
         // a roll or non-terminal turn keeps its connection, and the next fresh turn's pull picks up
-        // the rebuild plus any permission-mode change deferred at the turn boundary.
+        // the rebuild.
         const hasLiveTurn =
           this.liveTurn(entry) !== undefined ||
           isAgentSessionRuntimeTransitioning(entry.runtimeState) ||

@@ -13,6 +13,7 @@ import {
 } from '@cherrystudio/computer-use'
 import { loggerService } from '@logger'
 import { BaseService, Emitter, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { ComputerUseControl, ControlStatus } from '@shared/ipc/schemas/computerUse'
 
 const logger = loggerService.withContext('ComputerUseService')
 
@@ -22,16 +23,6 @@ export interface ComputerUseTask {
   readonly label: string
   readonly signal?: AbortSignal
   closed: boolean
-}
-
-type ControlStatus = 'opening' | 'active' | 'stopping' | 'stopped' | 'unconfirmed'
-
-export interface ComputerUseControl {
-  ownerId: string
-  label: string
-  appId?: string
-  appName?: string
-  status: ControlStatus
 }
 
 interface AppControl {
@@ -98,6 +89,11 @@ export class ComputerUseService extends BaseService {
 
   protected onInit(): void {
     this.shutdown = new AbortController()
+    this.registerDisposable(
+      this.onControlsChanged(() => {
+        application.get('IpcApiService').broadcast('computer_use.controls_changed', this.getControls())
+      })
+    )
     this.registerDisposable(
       application.get('PreferenceService').subscribeChange('app.computer_use.agent_control.enabled', (enabled) => {
         if (!enabled) void this.stopAll()
@@ -311,7 +307,10 @@ export class ComputerUseService extends BaseService {
     const task = this.appOwners.get(appId)
     const control = task?.context.ownerId === ownerId ? task.apps.get(appId) : undefined
     owner.blockedApps.set(appId, control?.app ?? { id: appId, name: appId })
-    if (!task || !control) return
+    if (!task || !control) {
+      this.changed.fire()
+      return
+    }
     if (control.stopping) return control.stopping
     control.status = 'stopping'
     this.changed.fire()
@@ -336,7 +335,11 @@ export class ComputerUseService extends BaseService {
 
   async stopAll(): Promise<void> {
     const tasks = [...this.tasks.values()]
-    for (const task of tasks) this.owners.get(task.context.ownerId)!.stopped = true
+    for (const task of tasks) {
+      const owner = this.owners.get(task.context.ownerId)!
+      for (const [appId, control] of task.apps) owner.blockedApps.set(appId, control.app)
+      owner.stopped = true
+    }
     await Promise.all(tasks.map((task) => this.finishTask(task.context)))
     this.changed.fire()
   }

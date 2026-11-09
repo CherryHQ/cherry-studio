@@ -8,13 +8,13 @@ Status: implemented
 
 Pi Durable 已支持原生同存储分叉，但桌面回复没有分叉检查点，每条连接也各自持有 Harness。只增加 driver 方法会产生竞争的所有者，并将同级会话送入单个根会话的模型、批准和环境闭包。
 
-本决策只替代[历史操作方案](../../proposed/architecture/2026-11-08-agent-history-operation-boundaries.md)中目标 backend 必须隔离的前提，保留原生历史、独立产品会话、失败恢复和当前工作区文件。不增加上游 SDK 补丁，不升级依赖，也不增加产品数据库迁移。
+本决策只替代[历史操作方案](../../proposed/architecture/2026-11-08-agent-history-operation-boundaries.md)中目标 backend 必须隔离的前提和 Durable 桌面编辑排除规则，保留原生历史、独立产品会话、失败恢复和当前工作区文件。不增加上游 SDK 补丁，不升级依赖，也不增加产品数据库迁移。
 
 ## 决策
 
 ### 范围
 
-带新提交检查点的成功 Pi Durable 回复支持现有桌面**分叉对话**操作。分叉谱系共享 backend；无关会话仍使用独立存储。缺少检查点的旧回复、Durable **编辑并重发**、文件回滚和 `vcc_recall` 仍不支持。
+带新提交检查点的成功 Pi Durable 回复支持现有桌面**分叉对话**操作。分叉谱系共享 backend；无关会话仍使用独立存储。编辑并重发替换产品消息树中选中的尾部，不新增历史版本。桌面端提交编辑前要求二次确认；取消会保留编辑草稿和原消息。隐藏或卸载发起确认的页面会使尚未回答的确认失效，之后重新显示同一会话也不会恢复该确认。首条输入编辑启动空 context；后续输入编辑要求有效的前驱检查点。旧回复不能建立原生边界；文件回滚和 `vcc_recall` 仍不支持。
 
 SDK 公开的 `tx.forkConversation()` 从选中的可见 entry 创建无任务归属的会话。原生历史、压缩和 document 分叉策略继续归 SDK。后续连接启动会应用目标会话当前的产品配置。
 
@@ -36,7 +36,7 @@ SDK 公开的 `tx.forkConversation()` 从选中的可见 entry 创建无任务�
 
 继承的模型上下文仍然可见，behavior 权限则只来自 conversation 自有记录。祖先的 Goal、子线程控制、摘要费用和 job key 不能成为 fork 的权限。无任务归属的原生分叉不会复制任务、submission 或 provider 状态。产品副本也移除活跃任务、批准状态和用量统计。
 
-系统工作区复制当前文件，用户工作区继续共享；两者都不恢复历史文件版本。虽然 driver 已支持 Fork，共享资格判断仍明确排除 Durable 编辑。
+系统工作区复制当前文件，用户工作区继续共享；两者都不恢复历史文件版本。编辑并重发在同一事务中删除原输入及其后续子树，并发布替换后的尾部；子树之外的已有兄弟分支和独立 Fork 会话保持不变。被移除的根投影来源会记录墓碑，防止重放恢复旧消息。尚未完成的外发投递阻止编辑，避免丢失回执返回位置。原生历史仍由 adapter 管理，不直接截断。非首条编辑复用原生分叉准备，保留其预分配的产品 context 身份，并在一个产品事务中发布新输入、context 绑定和分支检查点映射。首条输入编辑预留新的空 backend/context，准备阶段不分叉，也不执行原生任务。旧原生输入绑定不复用。原生数字 ID 可能跨存储重复，因此发布和恢复都按具体 context 核对。未发布的原生产物沿用保留日志策略，保持不执行。
 
 ### 实现归属
 
@@ -46,7 +46,7 @@ SDK 公开的 `tx.forkConversation()` 从选中的可见 entry 创建无任务�
 | Durable driver、backend 和连接 | 单一所有者、根 host 路由、就绪屏障、请求配置保留和访问释放 |
 | 现有 Pi gateway 与 behavior helper | 独立原生绑定和 thread 正确的 host 请求，不再增加参数翻译器 |
 | Fork 协调器、资源日志和 data service | 准备身份、原生核对和产品原子发布 |
-| 共享历史资格判断 | 基于证据的 Fork，以及 Durable 编辑不可用 |
+| 共享历史资格判断 | 基于证据的 Fork 和编辑并重发 |
 
 ## 考虑过的替代方案
 
@@ -58,7 +58,7 @@ SDK 公开的 `tx.forkConversation()` 从选中的可见 entry 创建无任务�
 
 ## 验证
 
-- AC1 — Main 历史操作测试拒绝未支持的编辑以及旧版／无效边界。Durable 完成测试将已提交 entry 与最终内容、输入结果配对，覆盖被阻塞的观察者以及接入已有部分输出的生成。真实 UI 在新边界提供 Fork。
+- AC1 — Main 历史操作测试允许首条输入编辑，拒绝不支持的前驱以及旧版／无效边界。Durable 完成测试将已提交 entry 与最终内容、输入结果配对，覆盖被阻塞的观察者以及接入已有部分输出的生成。真实 UI 在新边界提供 Fork。
 - AC2 — 真实 SQLite 测试和公开 API 原生探针保留精确前缀与历史 `AgentDoc`；排除源后续追加，冷分叉准备具备幂等性，跨存储且原生 ID 相同的前缀仍保留各自 context 归属，无任务归属的历史事实保留上下文而不继承祖先 behavior 权限。现有压缩和归档测试保持通过。
 - AC3 — Main 生命周期测试验证根会话共用 runtime、独立释放、最终关闭／重开串行化和归档落盘失败重试。真实父／fork 运行确认共用 Harness 身份。
 - AC4 — Main 并发测试通过不同系统工作区和批准通道写入。生产 gateway 测试在共享模型注册表中保留每个根的 session 请求头和推理档位。冷恢复未完成同级会话的测试保留其 `high + Fast` 请求与消费者，同时 fork 使用 `low`；现有子线程、MCP、摘要和 behavior 消费者通过。 真实供应商 Electron 验收在部分输出时关闭源会话标签，重启后只打开分叉会话，仍能自动恢复源任务，将完整结果写回原助手消息，同时保持分叉独立。
@@ -66,6 +66,7 @@ SDK 公开的 `tx.forkConversation()` 从选中的可见 entry 创建无任务�
 - AC6 — Main 测试删除源会话后重新打开 fork，并再次分叉早期继承检查点。Electron 通过正式生命周期永久删除源会话，重启应用后继续存活的 fork，并再次分叉旧检查点。
 - AC7 — Electron 使用真实 LongCat AI `longcat::LongCat-2.5`：源会话在后续更新后回答 `kiwi`，选中前缀的 fork 回答 `apricot`。用量绑定到不同助手消息，复制的当前文件保留。重启后的 fork 仍回答 `apricot`。本地证据位于 `.context/cherry-electron-dev/durable-desktop-fork/`。
 - AC8 — 定向 Pi 和共享 behavior 契约、Claude／Pi 多 context 分叉消费者、Node／package 类型、限定范围 lint 和文档检查覆盖受影响边界。未增加 SDK 补丁。模块和分叉／runtime 参考文档记录实际交付范围。
+- AC9 — 真实 SQLite 测试覆盖首条、后续和重复尾部替换、重开、保留已有兄弟分支、外发投递准入、编辑后再分叉，以及关闭／产品提交失败和原生回执丢失。跨存储相同原生 ID 不会误更新绑定或误判发布。Pi、Pi Durable 和 Claude Code 的真实 LongCat UI 验收得到前文 apricot、新首条输入 mango；被删除的消息返回 404，不出现新的版本切换入口，替换前创建的 Fork 仍回答 plum，当前文件未变化。证据位于 `.context/cherry-electron-dev/edit-in-place/`。
 
 离线案例使用原生 SQLite 和脚本化 provider，与真实 provider 的 Electron 运行分开记录。正常关闭／重开和注入回执丢失不能证明强杀恢复，也不能证明外部工具副作用恰好执行一次。
 

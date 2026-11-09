@@ -141,6 +141,8 @@ export type TopicTabPosition = 'left' | 'right'
 
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 
+export type BrowserStartPageMode = 'blank' | 'last' | 'custom'
+
 export const SIDEBAR_FAVORITES = [
   'assistants',
   'agents',
