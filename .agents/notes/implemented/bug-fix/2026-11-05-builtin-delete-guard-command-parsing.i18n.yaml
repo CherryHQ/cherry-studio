@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-05-builtin-delete-guard-command-parsing.md
+2026-11-05-builtin-delete-guard-command-parsing.md: d257d15c7fd393760139597c7d8c9a6df80cc86e
+2026-11-05-builtin-delete-guard-command-parsing.zh.md: 6f559ab3f718863bdbe29d13e09eefcb51acaad6

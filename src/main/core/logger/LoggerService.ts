@@ -89,7 +89,7 @@ function sanitizeLogValue(value: unknown, depth = 0, seen = new WeakSet<object>(
 /**
  * CS_DIAGNOSTICS makes a packaged build behave like dev for logging: the verbose file
  * level, console output, and the CSLOGGER_MAIN_* overrides all turn on together.
- * Idempotent when already in dev (`isDev || x === isDev`). See docs/references/diagnostics/README.md.
+ * Idempotent when already in dev (`isDev || x === isDev`). See docs/dev/references/diagnostics/README.md.
  */
 const DEV_LOGGING = isDev || DIAGNOSTICS_ENABLED
 

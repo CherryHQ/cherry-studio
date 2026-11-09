@@ -33,8 +33,8 @@ describe('@cherrystudio/provider-registry bundling contract', () => {
   })
 
   it('externalizes dependency subpath imports in the main build', () => {
-    expect(isMainExternalModule('pdf-parse')).toBe(true)
-    expect(isMainExternalModule('pdf-parse/worker')).toBe(true)
+    expect(isMainExternalModule('@vectorstores/readers')).toBe(true)
+    expect(isMainExternalModule('@vectorstores/readers/html')).toBe(true)
     expect(isMainExternalModule('@cherrystudio/provider-registry')).toBe(false)
     expect(isMainExternalModule('@cherrystudio/provider-registry/node')).toBe(false)
   })

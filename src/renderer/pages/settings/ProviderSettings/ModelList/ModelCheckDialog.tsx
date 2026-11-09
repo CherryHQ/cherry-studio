@@ -23,10 +23,8 @@ import {
 import { useIcon } from '@cherrystudio/ui/icons'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import type { ModelCheckKeySelection } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import {
-  getModelHealthCheckSkipReason,
-  healthCheckErrorToDisplayString
-} from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import { getModelHealthCheckSkipReason } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import { healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
