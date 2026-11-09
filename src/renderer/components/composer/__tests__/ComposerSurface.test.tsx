@@ -33,6 +33,7 @@ import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExten
 
 const mocks = vi.hoisted(() => ({
   handleMarkdownCodeKey: vi.fn(() => false),
+  handleMarkdownFormatKey: vi.fn(() => false),
   editorOptions: undefined as any,
   editorInstance: undefined as any,
   currentView: undefined as any,
@@ -313,6 +314,10 @@ vi.mock('@tiptap/react', async (importOriginal) => ({
 
 vi.mock('../markdownLivePreview/codeBlockKeys', () => ({
   handleMarkdownCodeKey: mocks.handleMarkdownCodeKey
+}))
+
+vi.mock('../markdownLivePreview/selectionFormatKeys', () => ({
+  handleMarkdownFormatKey: mocks.handleMarkdownFormatKey
 }))
 
 vi.mock('../ComposerToolRuntime', () => ({
@@ -1188,6 +1193,42 @@ describe('ComposerSurface', () => {
       const { onSendDraft } = await pressEnter({})
 
       await waitFor(() => expect(onSendDraft).toHaveBeenCalledTimes(1))
+    })
+
+    describe('selection formatting keys', () => {
+      async function pressFormatKey(props: Partial<ComposerSurfaceProps>) {
+        render(<ComposerSurface {...baseProps} text="hello" {...props} />)
+        await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+        const reachedApp = vi.fn()
+        window.addEventListener('keydown', reachedApp)
+        const target = document.createElement('div')
+        target.addEventListener('keydown', (event) => mocks.editorOptions.editorProps.handleKeyDown(null, event))
+        document.body.append(target)
+        target.dispatchEvent(new KeyboardEvent('keydown', { key: 'i', metaKey: true, bubbles: true, cancelable: true }))
+        target.remove()
+        window.removeEventListener('keydown', reachedApp)
+        return reachedApp
+      }
+
+      beforeEach(() => {
+        mocks.handleMarkdownFormatKey.mockReset()
+      })
+
+      it('keeps a handled key away from the app shortcut handler', async () => {
+        mocks.handleMarkdownFormatKey.mockReturnValue(true)
+
+        expect(await pressFormatKey({ markdownLivePreview: true })).not.toHaveBeenCalled()
+      })
+
+      it('passes an unhandled key on to the app shortcut handler', async () => {
+        expect(await pressFormatKey({ markdownLivePreview: true })).toHaveBeenCalledTimes(1)
+      })
+
+      it('leaves surfaces without live preview alone', async () => {
+        mocks.handleMarkdownFormatKey.mockReturnValue(true)
+
+        expect(await pressFormatKey({})).toHaveBeenCalledTimes(1)
+      })
     })
 
     it('follows the code theme palette on live-preview surfaces only', async () => {
