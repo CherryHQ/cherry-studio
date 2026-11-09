@@ -986,8 +986,7 @@ its archive cannot open as an independent writable root. Public projection code 
 
 ### Pi Durable behavior host
 
-`PiDurableRuntimeConnection` installs the same `agent-behavior` rules and host ports
-through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
+`PiDurableRuntimeDriver` owns one native backend per store and connections borrow root accesses. `DurableBackend` installs the same `agent-behavior` rules and routes host ports by the native conversation ownership tree through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
 question cards and tool rendering. Native SQLite owns execution history and task state;
 the existing backend/context tables bind it to product sessions. Strict identity checks
 prevent a missing store from silently becoming a fresh conversation.
@@ -1005,8 +1004,7 @@ from idle activity or an empty product-input map.
 Native submission and assistant metadata carry the consuming run's stable identity.
 Ordinary steer may start a later run after normal completion; it has no run-only constraint.
 Background continuation keeps the child identity. Independent continuation of a completed
-foreground child is rejected because native tool ownership is immutable. Desktop native
-fork/edit checkpoints and `vcc_recall` are not exposed. See the
+foreground child is rejected because native tool ownership is immutable. Successful committed boundaries support ownerless same-storage desktop forks; each root retains its own model options, approvals, extensions and environment. Before shared recovery resumes unfinished roots, their stored request selections and Main projection consumers are restored. Final release closes the backend once and drains observations before product writers stop. Durable Edit and resend, file rewind and `vcc_recall` remain unavailable. See the
 [driver README](../../../../src/main/ai/runtime/piDurable/README.md) for storage and recovery boundaries.
 
 ### Pi code mode

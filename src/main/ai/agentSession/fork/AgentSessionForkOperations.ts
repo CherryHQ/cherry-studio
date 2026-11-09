@@ -24,6 +24,7 @@ import { Sequencer } from '@shared/utils/async'
 
 import { ensureRetiredSessionHistory } from '../../runtime/pi/retiredSessionHistory'
 import { runtimeDriverRegistry } from '../../runtime/registry'
+import type { AgentSessionRuntimeDriver } from '../../runtime/types'
 import { copyForkWorkspace, forkFileIdentity, publishForkArtifact } from './files'
 import { getEditFailure, resolveForkBoundary } from './historyActions'
 import { type AgentSessionForkResources, readForkResources, writeForkResources, removeForkResources } from './resources'
@@ -122,7 +123,7 @@ export class AgentSessionForkOperations {
         const { anchor } = boundary
         if (anchor.excludedMessageIds?.some((id) => prefix.some((row) => row.id === id)))
           throw new AgentSessionForkError('history_changed')
-        const group = groupNativeHistory(prefix, bindings).find((group) => group.rows.at(-1)?.id === row.id)!
+        const group = groupNativeHistory(prefix, bindings, driver).find((group) => group.rows.at(-1)?.id === row.id)!
         if (group.context.locator.kind !== driver?.type) throw new AgentSessionEditError('checkpoint_unsupported')
         const checkpoints = group.rows.map((row) => RuntimeForkAnchorSchema.parse(row.data.runtimeAnchor).checkpoint)
         resources = {
@@ -137,6 +138,7 @@ export class AgentSessionForkOperations {
         await this.prepareResources(resources)
         const native = await boundary.fork({
           sourceSessionId: sessionId,
+          sourceBackendId: group.context.backendId,
           checkpoint: anchor.checkpoint,
           checkpoints,
           targetSessionId: nativeSessionId,
@@ -198,6 +200,7 @@ export class AgentSessionForkOperations {
 
   private async recoverOnce(): Promise<void> {
     for (const resources of await readForkResources()) {
+      if (resources.nativeDisposition === 'retained') continue
       if ([...this.pending.values()].some((operation) => operation.operationId === resources.operationId)) continue
       if ([...this.edits.values()].some((operation) => operation.operationId === resources.operationId)) continue
       if (this.hasPublishedResources(resources)) {
@@ -246,7 +249,7 @@ export class AgentSessionForkOperations {
       ])
     ]
     const source = agentSessionForkService.read(sourceSessionId, messageId, excludedIds)
-    const groups = groupNativeHistory(source.messages, source.contexts)
+    const groups = groupNativeHistory(source.messages, source.contexts, driver)
     const resources: AgentSessionForkResources = {
       version: 1,
       operationId,
@@ -283,11 +286,18 @@ export class AgentSessionForkOperations {
         const artifactDirectory = path.join(resources.artifactDirectory, group.context.id)
         await mkdir(artifactDirectory)
         const checkpoints = group.rows.map((row) => RuntimeForkAnchorSchema.parse(row.data.runtimeAnchor).checkpoint)
+        const targetContextId = randomUUID()
         const result = await selected.fork({
           sourceSessionId,
+          sourceBackendId: group.context.backendId,
           checkpoint: selected.anchor.checkpoint,
           checkpoints,
-          targetSessionId: randomUUID(),
+          targetSessionId: targetContextId,
+          recordNativePreparation: async (contextId) => {
+            resources.nativePreparations ??= []
+            resources.nativePreparations.push({ backendId: group.context.backendId, contextId })
+            await writeForkResources(resources)
+          },
           targetCwd,
           artifactDirectory,
           signal
@@ -308,6 +318,7 @@ export class AgentSessionForkOperations {
         }, -1)
         if (index > 0 && start < 0) throw new AgentSessionForkError('history_changed')
         return {
+          id: result.contextId,
           backendId: group.context.backendId,
           nativeThreadId: result.resumeToken,
           anchorMessageId: index === 0 ? null : messages[start].id
@@ -347,7 +358,10 @@ export class AgentSessionForkOperations {
   private async cleanup(resources: AgentSessionForkResources): Promise<void> {
     if (this.hasPublishedResources(resources)) return
     await this.cleanupOwned(resources)
-    await removeForkResources(resources.operationId)
+    if (resources.nativePreparations?.length) {
+      resources.nativeDisposition = 'retained'
+      await writeForkResources(resources)
+    } else await removeForkResources(resources.operationId)
   }
 
   private async prepareResources(resources: AgentSessionForkResources): Promise<void> {
@@ -458,12 +472,20 @@ interface PreparedContext {
   result: RuntimeForkResult
 }
 
-function groupNativeHistory(rows: AgentSessionMessageRow[], contexts: ForkBinding[]): NativeHistoryGroup[] {
+function groupNativeHistory(
+  rows: AgentSessionMessageRow[],
+  contexts: ForkBinding[],
+  driver: AgentSessionRuntimeDriver | undefined
+): NativeHistoryGroup[] {
   const groups = new Map<string, NativeHistoryGroup>()
   for (const row of rows) {
-    if (!RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor).success) continue
+    const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+    if (!anchor.success) continue
     const matches = contexts.filter(
-      (context) => context.nativeThreadId && context.nativeThreadId === row.runtimeResumeToken
+      (context) =>
+        context.nativeThreadId &&
+        context.nativeThreadId === row.runtimeResumeToken &&
+        driver?.isForkCheckpoint?.(anchor.data.checkpoint, context)
     )
     if (matches.length !== 1) throw new AgentSessionForkError('unsupported_checkpoint')
     const context = matches[0]

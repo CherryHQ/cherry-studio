@@ -102,7 +102,7 @@ Cancellation or a failed write removes only proven operation-owned resources tha
 
 ### 7. Durable and file-rewind enablement gates
 
-The follow-up [Durable desktop fork proposal](../feature/2026-11-09-pi-durable-desktop-fork.md) proposes a shared backend owner instead of a separate target backend, using public same-storage native forks without a new SDK behavior patch. It remains subject to its own Spec approval and verification.
+The follow-up [Durable desktop fork decision](../../implemented/feature/2026-11-09-pi-durable-desktop-fork.md) uses a shared backend owner instead of a separate target backend, using public same-storage native forks without a new SDK behavior patch; that decision owns implementation and verification evidence.
 
 This delivery keeps Durable desktop fork/edit unavailable. Its shared-behavior child fork remains unchanged. Enabling desktop history needs a follow-up proposal with evidence for all of these conditions:
 

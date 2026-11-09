@@ -875,7 +875,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // Re-prime of a live session (e.g. a second window opening it): re-read and republish the
         // catalog so a consumer that mounts after the initial publish still gets it — `ensureConnection`
         // alone skips the read when the connection already exists.
-        void this.ensureConnection(existing)
+        await this.ensureConnection(existing)
           .then((connected) => {
             if (connected) this.refreshSupportedCommands(existing)
           })
