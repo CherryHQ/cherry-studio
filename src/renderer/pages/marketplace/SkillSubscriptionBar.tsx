@@ -83,7 +83,7 @@ export function SkillSubscriptionBar({
           ref={addRef}
           size="icon-sm"
           variant="ghost"
-          className="shrink-0 rounded-full"
+          className="shrink-0 rounded-full text-muted-foreground"
           title={t('marketplace.subscription.add')}
           aria-label={t('marketplace.subscription.add')}
           onClick={() => setAdding(true)}>
@@ -107,7 +107,7 @@ export function SkillSubscriptionBar({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="shrink-0 rounded-full"
+            className="shrink-0 rounded-full text-muted-foreground"
             onClick={onRefresh}
             disabled={refreshing}
             title={t('marketplace.subscription.refresh')}
@@ -117,7 +117,7 @@ export function SkillSubscriptionBar({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="shrink-0 rounded-full"
+            className="shrink-0 rounded-full text-muted-foreground"
             onClick={() => setRemoveId(sourceId)}
             title={t('marketplace.subscription.remove')}
             aria-label={t('marketplace.subscription.remove')}>
