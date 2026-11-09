@@ -99,7 +99,7 @@ if (projects.length) {
   if (projects.includes('main')) run(['rebuild:node'])
   const files =
     values.group === 'platform'
-      ? execFileSync('git', ['ls-files', '-z', '--', 'src/main', 'src/shared', 'packages/system-speech'], {
+      ? execFileSync('git', ['ls-files', '-z', '--', 'src/main', 'src/shared', 'native/system-speech'], {
           cwd: root,
           encoding: 'utf8'
         })

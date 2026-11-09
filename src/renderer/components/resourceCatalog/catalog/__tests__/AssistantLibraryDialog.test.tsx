@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ComponentProps, type ReactNode, useState } from 'react'
@@ -74,6 +75,7 @@ vi.mock('@cherrystudio/ui', () => {
   let dialogOnOpenChange: ((open: boolean) => void) | undefined
 
   return {
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Dialog: ({
       children,
       onOpenChange,

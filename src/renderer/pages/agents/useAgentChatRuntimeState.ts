@@ -32,6 +32,7 @@ import {
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
+import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { toast } from '@renderer/services/toast'
 import { autoReadService } from '@renderer/services/voice'
@@ -95,6 +96,24 @@ function getAskUserQuestionAnswers(value: unknown): Record<string, string> | und
   return answers && Object.keys(answers).length > 0 ? answers : undefined
 }
 
+/**
+ * What a submitted answer becomes when the runtime that asked for it is gone: each answered
+ * question followed by the choice and any note the user typed next to it.
+ */
+export function formatAskUserQuestionAnswerMessage(value: unknown): string | undefined {
+  const parsed = parseAskUserQuestionToolInput(value)
+  if (!parsed?.answers) return undefined
+
+  const lines = parsed.questions.flatMap((question) => {
+    const answer = parsed.answers?.[question.question]?.trim()
+    const notes = parsed.annotations?.[question.question]?.notes
+    const body = [answer, typeof notes === 'string' ? notes.trim() : ''].filter(Boolean).join('\n')
+    return body ? [`${question.question}\n${body}`] : []
+  })
+
+  return lines.length > 0 ? lines.join('\n\n') : undefined
+}
+
 function hasAskUserQuestionAnswers(part: AskUserQuestionApprovalPart): boolean {
   const outputContent =
     typeof part.output === 'object' && part.output !== null && 'content' in part.output
@@ -128,6 +147,7 @@ export interface AgentChatRuntimeState {
   getMessageSiblings: ReturnType<typeof useAgentSessionParts>['getMessageSiblings']
   setActiveBranch: ReturnType<typeof useAgentSessionParts>['setActiveBranch']
   uiMessages: CherryUIMessage[]
+  historyActions: ReturnType<typeof useAgentSessionParts>['historyActions']
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
@@ -204,6 +224,7 @@ export function useAgentChatRuntimeState({
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const {
     messages: uiMessages,
+    historyActions,
     getMessageSiblings,
     setActiveBranch,
     persistedPartsByMessageId,
@@ -311,7 +332,7 @@ export function useAgentChatRuntimeState({
     overlay,
     liveAssistants,
     reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages, {
+  } = useExecutionOverlay(sessionTopicId, activeExecutions, {
     onUpdate: (_executionId, event) => {
       const projected = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
       const turnOrigin =
@@ -337,7 +358,7 @@ export function useAgentChatRuntimeState({
   >({})
 
   // Deterministic overlay→DB handoff at terminal (see hook docs).
-  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay))
+  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay), liveAssistants)
 
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
   // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
@@ -415,11 +436,24 @@ export function useAgentChatRuntimeState({
 
       if (!result.ok) {
         if (optimisticToolCallId) removeOptimisticAskUserQuestionInput(optimisticToolCallId)
-        throw new Error('Tool approval response was not accepted')
+        if (result.reason !== 'undelivered') throw new Error('Tool approval response was not accepted')
+        const answerText = isAskUserQuestionApprovalResponse(input)
+          ? formatAskUserQuestionAnswerMessage(input.updatedInput)
+          : undefined
+        if (answerText) {
+          try {
+            if (!(await sendMessage({ text: answerText }))) throw new Error('Answer message was not accepted')
+          } catch (error) {
+            handOffAgentDraft(sessionId, { text: answerText, tokens: [], files: [], knowledgeBaseIds: [] })
+            throw error
+          }
+        }
+        await refresh()
+        return
       }
       await refresh()
     },
-    [refresh, removeOptimisticAskUserQuestionInput, sessionTopicId]
+    [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionId, sessionTopicId]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
@@ -502,6 +536,7 @@ export function useAgentChatRuntimeState({
   return {
     sessionId,
     uiMessages: displayMessages,
+    historyActions,
     getMessageSiblings,
     setActiveBranch,
     partsByMessageId,

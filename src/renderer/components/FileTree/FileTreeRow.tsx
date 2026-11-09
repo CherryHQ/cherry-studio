@@ -15,6 +15,7 @@ interface FileTreeRowProps {
   renameSlot?: FileTreeRenameSlot
   animationSlot?: FileTreeAnimationSlot
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode
+  renderRowDetail?: (node: FileTreeNode) => React.ReactNode
   getMenuItems?: (node: FileTreeNode) => MaybePromise<readonly CommandContextMenuExtraItem[]>
   fileIcon?: (node: FileTreeNode) => React.ReactNode
   folderIcon?: (node: FileTreeNode, expanded: boolean) => React.ReactNode
@@ -33,6 +34,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
     renameSlot,
     animationSlot,
     renderRowExtras,
+    renderRowDetail,
     getMenuItems,
     fileIcon,
     folderIcon,
@@ -170,16 +172,25 @@ export function FileTreeRow(props: FileTreeRowProps) {
     </div>
   )
 
-  if (!getMenuItems) {
-    return row
-  }
-
-  return (
+  const rowWithMenu = getMenuItems ? (
     <CommandContextMenu
       location="webcontents.context"
       getExtraItems={() => getMenuItems(node)}
       onOpenChange={setMenuOpen}>
       {row}
     </CommandContextMenu>
+  ) : (
+    row
+  )
+
+  if (!renderRowDetail) {
+    return rowWithMenu
+  }
+
+  return (
+    <>
+      {rowWithMenu}
+      {renderRowDetail(node)}
+    </>
   )
 }

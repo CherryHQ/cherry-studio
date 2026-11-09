@@ -32,11 +32,11 @@ interface ArtifactPaneFileTabsProps {
   getMenuItems?: (key: string) => MaybePromise<readonly CommandContextMenuExtraItem[]>
 }
 
-// One tab at its readable minimum (min-w-28) plus the gap; the overflow button (size-7) plus the gap.
+// Preferred tab width plus the gap; the overflow button (size-7) plus the gap.
 const TAB_SLOT_PX = 116
 const OVERFLOW_BUTTON_PX = 32
 
-/** Splits tabs into those that fit the strip and those listed in the overflow menu; the active tab stays visible. */
+/** Keeps the active tab visible and moves overflow tabs into the menu; narrow strips may shrink the visible tab. */
 export function fitFileTabs<T extends { key: string }>(
   tabs: T[],
   activeKey: string | null,
@@ -80,7 +80,7 @@ export function ArtifactPaneFileTabs({
       value={activeKey ?? ''}
       onValueChange={onActivate}
       className="min-w-0 flex-1 flex-row items-center gap-1">
-      <TabsList className="min-w-0 gap-1">
+      <TabsList className="min-w-0 flex-1 gap-1">
         {visible.map((tab) => {
           const active = tab.key === activeKey
           const row = (
@@ -88,7 +88,7 @@ export function ArtifactPaneFileTabs({
             <div
               key={tab.key}
               className={cn(
-                'flex h-7 max-w-48 min-w-28 items-center gap-1 rounded-md pr-1 pl-2 text-sm transition-colors',
+                'flex h-7 max-w-48 min-w-0 flex-1 basis-28 items-center gap-1 rounded-md pr-1 pl-2 text-sm transition-colors',
                 active
                   ? 'bg-resource-list-row-selected text-resource-list-row-selected-foreground'
                   : 'text-muted-foreground hover:bg-resource-list-row-hover hover:text-foreground'

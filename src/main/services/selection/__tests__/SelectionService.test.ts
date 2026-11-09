@@ -217,6 +217,108 @@ describe('SelectionService.onInit — SelectionAction pool suspension', () => {
   })
 })
 
+describe('SelectionService toolbar sizing contract', () => {
+  let svc: InstanceType<typeof SelectionService>
+  let prefGet: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    svc = new SelectionService()
+    prefGet = vi.spyOn(application.get('PreferenceService') as { get: (key: string) => unknown }, 'get')
+    Object.assign(screen, {
+      getDisplayNearestPoint: vi.fn(() => ({
+        workArea: { x: 0, y: 0, width: 1280, height: 800 }
+      }))
+    })
+  })
+
+  afterEach(async () => {
+    await svc._doDestroy()
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  const createToolbarHarness = async (widthCss: number, preferenceZoom: number, actualZoom: number) => {
+    prefGet.mockImplementation((key) => (key === 'app.zoom_factor' ? preferenceZoom : false))
+    await svc._doInit()
+    const toolbarWindow = {
+      isDestroyed: vi.fn(() => false),
+      webContents: {
+        isDestroyed: vi.fn(() => false),
+        getZoomFactor: vi.fn(() => actualZoom)
+      },
+      setBounds: vi.fn(),
+      setPosition: vi.fn(),
+      setFocusable: vi.fn(),
+      setVisibleOnAllWorkspaces: vi.fn(),
+      showInactive: vi.fn()
+    }
+    const access = svc as unknown as {
+      toolbarWindow: typeof toolbarWindow
+      showToolbarAtPosition: (point: { x: number; y: number }, orientation: 'bottomMiddle', programName: string) => void
+    }
+    access.toolbarWindow = toolbarWindow
+    svc.determineToolbarSize(widthCss, 43)
+    const show = () => access.showToolbarAtPosition({ x: 1278, y: 300 }, 'bottomMiddle', 'com.kangfenmao.CherryStudio')
+
+    return { toolbarWindow, show }
+  }
+
+  it('fits actual zoom 1.5 when the preference is 1', async () => {
+    const { toolbarWindow, show } = await createToolbarHarness(350, 1, 1.5)
+
+    show()
+
+    expect(toolbarWindow.setBounds).toHaveBeenLastCalledWith({ x: 755, y: 300, width: 525, height: 65 })
+    expect(toolbarWindow.setPosition).toHaveBeenLastCalledWith(755, 300, false)
+  })
+
+  it('rounds fractional dimensions up and keeps the right edge within the work area', async () => {
+    const { toolbarWindow, show } = await createToolbarHarness(351, 1.1, 1.1)
+
+    show()
+
+    expect.soft(toolbarWindow.setBounds).toHaveBeenLastCalledWith({ x: 893, y: 300, width: 387, height: 48 })
+    const bounds = toolbarWindow.setBounds.mock.lastCall![0]
+    expect(bounds.x + bounds.width).toBe(1280)
+    expect(toolbarWindow.setPosition).toHaveBeenLastCalledWith(893, 300, false)
+  })
+
+  it('fits actual zoom 1 when the preference is 1.5', async () => {
+    const { toolbarWindow, show } = await createToolbarHarness(350, 1.5, 1)
+
+    show()
+
+    expect(toolbarWindow.setBounds).toHaveBeenLastCalledWith({ x: 930, y: 300, width: 350, height: 43 })
+    expect(toolbarWindow.setPosition).toHaveBeenLastCalledWith(930, 300, false)
+  })
+
+  it('reads the new actual zoom on the next show without another size report', async () => {
+    const { toolbarWindow, show } = await createToolbarHarness(350, 1, 1)
+
+    show()
+    expect(toolbarWindow.setBounds).toHaveBeenLastCalledWith({ x: 930, y: 300, width: 350, height: 43 })
+
+    toolbarWindow.webContents.getZoomFactor.mockReturnValue(1.5)
+    show()
+
+    expect(toolbarWindow.setBounds).toHaveBeenLastCalledWith({ x: 755, y: 300, width: 525, height: 65 })
+    expect(toolbarWindow.setPosition).toHaveBeenLastCalledWith(755, 300, false)
+  })
+
+  it('anchors an exact-fit toolbar at the work-area left edge', async () => {
+    const { toolbarWindow, show } = await createToolbarHarness(1280, 1, 1)
+
+    show()
+
+    expect(toolbarWindow.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 300, width: 1280, height: 43 })
+    const bounds = toolbarWindow.setBounds.mock.lastCall![0]
+    expect(bounds.x + bounds.width).toBe(1280)
+    expect(toolbarWindow.setPosition).toHaveBeenLastCalledWith(0, 300, false)
+  })
+})
+
 describe('SelectionService macOS toolbar', () => {
   const createToolbarHarness = () => {
     const svc = new SelectionService()
