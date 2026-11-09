@@ -176,7 +176,14 @@ describe('side-chat runtime boundaries', () => {
     await expect(service.submit('two', side.topicId, 'intruder')).rejects.toThrow('side_chat_not_found')
     await service.submit('one', side.topicId, 'private')
     const callbacks = runs[0].listener as StreamListener[]
+    const send = vi.mocked(application.get('IpcApiService').send)
+    send.mockClear()
     service.closeWindow('one')
+    expect(send).toHaveBeenCalledWith(
+      'one',
+      'side_chat.changed',
+      expect.objectContaining({ topicId: side.topicId, view: null })
+    )
     callbacks[1].onMessage?.({ id: 'late', role: 'assistant', parts: [{ type: 'text', text: 'late response' }] })
     await finish(runs[0], 'late response')
     expect(service.list('one', input.topicId)).toEqual([])

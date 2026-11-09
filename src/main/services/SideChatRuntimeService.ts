@@ -175,8 +175,8 @@ export class SideChatRuntimeService extends BaseService {
 
   closeWindow(windowId: string): void {
     for (const session of this.sessions.values()) {
-      session.readers.delete(windowId)
       if (session.owner === windowId) this.discard(session)
+      else session.readers.delete(windowId)
     }
   }
 
