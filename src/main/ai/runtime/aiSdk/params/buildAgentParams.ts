@@ -94,6 +94,8 @@ export interface BuildAgentParamsInput {
     messages?: UIMessage[]
     /** Raw-path surviving context from the chat provider (see AiStreamRequest.retainedContext). */
     retainedContext?: RetainedContext
+    /** True for ephemeral temporary-topic chats; automation tools are suppressed here. */
+    isTemporaryChat?: boolean
   }
   signal: AbortSignal | undefined
   provider: Provider
@@ -347,14 +349,17 @@ async function resolveRequestToolSignals(
   let mcpIdList = request.mcpToolIds
   if (!mcpIdList && request.assistantId) {
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
-    // Filter out browser automation tool IDs to prevent temporary chat exposure.
-    // Browser/computer automation tools require persistent topic storage and
-    // fail when invoked for temporary topics, so they are suppressed here.
-    const BROWSER_AUTOMATION_TOOL_IDS = new Set([
-      'open', 'execute', 'screenshot', 'snapshot', 'list_tabs',
-      'switch_tab', 'close_tab', 'reset'
-    ])
-    mcpIdList = mcpIdList.filter((id: string) => !BROWSER_AUTOMATION_TOOL_IDS.has(id))
+    // For temporary chats, suppress browser/computer automation tools. These tools
+    // require persistent topic storage (SQLite topic rows) and fail when invoked for
+    // ephemeral in-memory topics. MCP tool IDs carry the wire-id format
+    // `mcp__{serverSlug}__{toolSlug}_<digest>` (see `buildMcpToolWireId`), so match
+    // on the cherry-browser server prefix rather than bare tool names.
+    if (request.isTemporaryChat) {
+      const BROWSER_AUTOMATION_SERVER_PREFIX = 'mcp__cherrybrowser__'
+      mcpIdList = mcpIdList.filter(
+        (id: string) => !id.startsWith(BROWSER_AUTOMATION_SERVER_PREFIX)
+      )
+    }
   }
   return { mcpToolIds: new Set(mcpIdList ?? []), hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase() }
 }

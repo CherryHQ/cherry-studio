@@ -101,6 +101,8 @@ export interface AiStreamRequest extends AiBaseRequest {
   trigger: ChatTrigger
   messageId?: string
   messages?: UIMessage[]
+  /** True for ephemeral temporary-topic chats (no persistent SQLite row). Automation tools are suppressed here. */
+  isTemporaryChat?: boolean
   /**
    * Context that must survive durable compaction (attachment allow-list,
    * persisted-output blob paths), computed from the RAW message path before
