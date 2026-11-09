@@ -1,6 +1,6 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen } from '@testing-library/react'
-import { type ReactNode, use, useRef, useState } from 'react'
+import { type ReactNode, use, useLayoutEffect, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -97,6 +97,62 @@ describe('CommandFocusScope', () => {
   })
 
   afterEach(cleanup)
+
+  it('keeps local command routing attached during descendant layout effects on rerender', () => {
+    function LayoutShortcut({ revision }: { revision: number }) {
+      const targetRef = useRef<HTMLButtonElement>(null)
+      useLayoutEffect(() => {
+        if (revision > 0) {
+          targetRef.current?.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'n', code: 'KeyN', ctrlKey: true, bubbles: true, cancelable: true })
+          )
+        }
+      }, [revision])
+      return (
+        <button type="button" ref={targetRef}>
+          Layout command target
+        </button>
+      )
+    }
+    const tree = (revision: number) => (
+      <Providers>
+        <CommandCounter name="root" />
+        <Surface name="local">
+          <LayoutShortcut revision={revision} />
+        </Surface>
+      </Providers>
+    )
+    const { rerender } = render(tree(0))
+    rerender(tree(1))
+    expect(screen.getByLabelText('local actions')).toHaveTextContent('1')
+    expect(screen.getByLabelText('root actions')).toHaveTextContent('0')
+  })
+
+  it('routes commands through the replacement root after its DOM element changes', () => {
+    function ReplacedRoot({ revision }: { revision: number }) {
+      const rootRef = useRef<HTMLDivElement>(null)
+      return (
+        <CommandFocusScope rootRef={rootRef}>
+          <div key={revision} ref={rootRef}>
+            <button type="button">Focus replacement</button>
+            <CommandCounter name="replacement" />
+          </div>
+        </CommandFocusScope>
+      )
+    }
+    const tree = (revision: number) => (
+      <Providers>
+        <CommandCounter name="root" />
+        <ReplacedRoot revision={revision} />
+      </Providers>
+    )
+    const { rerender } = render(tree(0))
+    expect(pressShortcut(screen.getByRole('button', { name: 'Focus replacement' }))).toBe(true)
+    rerender(tree(1))
+    expect(pressShortcut(screen.getByRole('button', { name: 'Focus replacement' }))).toBe(true)
+    expect(screen.getByLabelText('replacement actions')).toHaveTextContent('1')
+    expect(screen.getByLabelText('root actions')).toHaveTextContent('0')
+  })
 
   it('keeps the external-store snapshot stable when inline scope options have not changed', () => {
     let scope: CommandFocusScopeState | null = null
