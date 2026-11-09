@@ -1,5 +1,6 @@
 import { act, cleanup, render } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
+import type { VListHandle } from 'virtua'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -83,6 +84,32 @@ function ViewportProbe({ name }: { name: string }) {
       aria-label={`${name} messages`}
       ref={(element) => {
         runtime.scrollerRef.current = element
+        runtime.vlistHandleRef.current = element
+          ? ({
+              cache: [[], 40],
+              get scrollOffset() {
+                return element.scrollTop
+              },
+              get scrollSize() {
+                return element.scrollHeight
+              },
+              get viewportSize() {
+                return element.clientHeight
+              },
+              findItemIndex: () => 0,
+              getItemOffset: () => 0,
+              getItemSize: () => scrollHeight,
+              scrollTo: (offset) => {
+                element.scrollTop = offset
+              },
+              scrollBy: (offset) => {
+                element.scrollTop += offset
+              },
+              scrollToIndex: (_index, options) => {
+                if (options?.align === 'end') element.scrollTop = element.scrollHeight - element.clientHeight
+              }
+            } satisfies VListHandle)
+          : null
         if (!element) return
         Object.defineProperty(element, 'scrollHeight', { configurable: true, get: () => scrollHeight })
         Object.defineProperty(element, 'clientHeight', { configurable: true, value: 400 })
