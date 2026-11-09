@@ -7,7 +7,7 @@
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
-import { tool, zodSchema } from 'ai'
+import { jsonSchema, tool } from 'ai'
 
 import type {
   ChatCompletionAssistantMessageParam,
@@ -21,7 +21,6 @@ import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
-import { jsonSchemaToZod } from './jsonSchemaToZod'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
 
 let uiMessageSeq = 0
@@ -206,11 +205,12 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
       if (toolDef.type !== 'function') continue
 
       const rawSchema = toolDef.function.parameters
-      const schema = rawSchema ? jsonSchemaToZod(rawSchema) : jsonSchemaToZod({ type: 'object' })
+      const schema = rawSchema ?? { type: 'object' as const }
 
       const aiTool = tool({
         description: toolDef.function.description || '',
-        inputSchema: zodSchema(schema)
+        inputSchema: jsonSchema(schema),
+        ...(typeof toolDef.function.strict === 'boolean' ? { strict: toolDef.function.strict } : {})
       })
 
       aiSdkTools[toolDef.function.name] = aiTool
@@ -247,8 +247,10 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
     provider: Provider,
     model: Model,
     params: ExtendedChatCompletionCreateParams,
-    maxOutputTokens?: number
+    maxOutputTokens?: number,
+    overrideReasoning = false
   ): ProviderOptions | undefined {
+    if (overrideReasoning) return undefined
     return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
   }
 }

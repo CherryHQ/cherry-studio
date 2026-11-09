@@ -102,6 +102,56 @@ describe('Agent message tree', () => {
     expect(() => service.deleteSessionMessage(sessionId, service.captureHead('other'))).toThrow()
   })
 
+  it('replaces the edited subtree without retaining another version or deleting an existing sibling', () => {
+    const prefix = append('Shared prefix')
+    const original = append('Original question')
+    const answer = append('Original answer')
+    const later = append('Later question')
+    const sibling = append('Existing sibling', prefix.id)
+    service.selectBranch(sessionId, original.id)
+    const target = {
+      messageId: original.id,
+      version: service.readEditSnapshotTx(dbh.db, sessionId, original.id).version
+    }
+    const replacement = dbh.db.transaction((tx) => {
+      service.replaceEditBranchTx(tx, sessionId, target)
+      return service.saveMessagesTx(tx, {
+        sessionId,
+        messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Replacement' }] } }]
+      })[0]
+    })
+    expect(visibleIds()).toEqual([prefix.id, replacement.id])
+    for (const removed of [original, answer, later])
+      expect(() => service.getSessionMessage(sessionId, removed.id)).toThrow()
+    expect(service.listSessionMessages(sessionId).items[0].siblings).toEqual([sibling.id, replacement.id])
+    service.selectBranch(sessionId, sibling.id)
+    expect(visibleIds()).toEqual([prefix.id, sibling.id])
+  })
+
+  it('rejects an edit while an outgoing delivery still needs its original reply anchor', () => {
+    dbh.db.insert(agentTable).values({ id: 'agent', type: 'pi', name: 'Agent', instructions: '', orderKey: 'a0' }).run()
+    dbh.db.update(sessions).set({ agentId: 'agent' }).where(eq(sessions.id, sessionId)).run()
+    dbh.db
+      .insert(sessions)
+      .values({ id: 'receiver', agentId: 'agent', name: 'Receiver', workspaceId: 'work', orderKey: 'a1' })
+      .run()
+    const original = append('Original input')
+    const request = service.acceptSessionDelivery({
+      senderAgentId: 'agent',
+      senderSessionId: sessionId,
+      senderMessageId: original.id,
+      receiverSessionId: 'receiver',
+      content: 'Work',
+      replyPolicy: 'completion'
+    })
+    expect(() => service.readEditSnapshotTx(dbh.db, sessionId, original.id)).toThrow(
+      expect.objectContaining({ reason: 'busy' })
+    )
+    expect(visibleIds()).toEqual([original.id])
+    service.transitionSessionDelivery('receiver', request.id, 'consumed', { expected: ['accepted'] })
+    expect(service.readEditSnapshotTx(dbh.db, sessionId, original.id).user.id).toBe(original.id)
+  })
+
   it('paginates an off-branch search anchor without falling into the selected branch', () => {
     const prefix = append('Shared')
     const original = append('Original')

@@ -261,7 +261,8 @@ export const cherryCloudRequestSchemas = {
   'cherry_cloud.analytics.track': defineRoute({
     input: z.strictObject({ payload: cherryCloudAnalyticsEventSchema, scopeId: z.string().nullable().optional() }),
     output: z.void()
-  })
+  }),
+  'cherry_cloud.notifications.active.get': defineRoute({ input: z.void(), output: z.boolean() })
 }
 
 export type CherryCloudEventSchemas = {
