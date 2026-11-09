@@ -5,8 +5,8 @@ const ENTITY_IMAGE_DIMENSION = 128
 
 /**
  * Whether the bytes fully decode. Header-only checks miss truncated PNGs whose IHDR is intact.
- * `failOn: 'error'` rejects truncation and decode errors but tolerates libvips warnings (e.g.
- * extraneous JPEG marker bytes) that providers accept.
+ * `failOn: 'error'` rejects decode errors and truncation, including a JPEG missing its EOI
+ * marker. Acceptance here is stricter than the forgiving decoders used by some consumers.
  */
 export async function isDecodableImage(bytes: Uint8Array): Promise<boolean> {
   if (bytes.byteLength === 0) return false
@@ -63,12 +63,15 @@ export async function transcodeToPng(bytes: Uint8Array): Promise<Uint8Array> {
  * re-encoded. Oversized input is resized in one pipeline (decode included).
  * @returns resized bytes, or `null` when the image already fits. Throws on undecodable input.
  */
-export async function clampImageForModel(bytes: Uint8Array): Promise<Uint8Array | null> {
+export async function clampImageForModel(
+  bytes: Uint8Array,
+  maxEdge: number = MODEL_IMAGE_MAX_EDGE
+): Promise<Uint8Array | null> {
   const sharp = (await import('sharp')).default
   const image = sharp(bytes, { failOn: 'error' })
   const { width, height } = await image.metadata()
   if (!width || !height) throw new Error('could not read image dimensions')
-  if (width <= MODEL_IMAGE_MAX_EDGE && height <= MODEL_IMAGE_MAX_EDGE) {
+  if (width <= maxEdge && height <= maxEdge) {
     try {
       await image.stats()
     } catch {
@@ -77,9 +80,7 @@ export async function clampImageForModel(bytes: Uint8Array): Promise<Uint8Array 
     return null
   }
   try {
-    return await image
-      .resize(MODEL_IMAGE_MAX_EDGE, MODEL_IMAGE_MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
-      .toBuffer()
+    return await image.resize(maxEdge, maxEdge, { fit: 'inside', withoutEnlargement: true }).toBuffer()
   } catch {
     throw new Error('could not decode image')
   }

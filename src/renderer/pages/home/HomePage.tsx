@@ -25,7 +25,7 @@ import { ConversationResourceView } from '@renderer/components/resourceCatalog/c
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
-import { useCurrentTabId } from '@renderer/hooks/tab'
+import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
@@ -42,6 +42,7 @@ import type { AppRouter } from '@renderer/types/router'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 
@@ -52,7 +53,7 @@ import {
 } from './components/AssistantConversationPickerDialog'
 import { HomeTabRuntime } from './components/HomeTabRuntime'
 import { TopicRightPane } from './components/TopicRightPane'
-import { Topics } from './Tabs/components/Topics'
+import { Topics } from './Tabs/components/topics'
 import HomeTabs from './Tabs/HomeTabs'
 import type { AddNewTopicPayload } from './types'
 
@@ -91,11 +92,6 @@ const HomePage: FC = () => {
   const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
   const routeAssistantId = routeSearch.assistantId
-  const handleManualPaneOpen = useCallback(() => {
-    requestAnimationFrame(() => {
-      void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
-    })
-  }, [])
   const {
     isWindowFrame,
     shellPaneOpen,
@@ -106,8 +102,7 @@ const HomePage: FC = () => {
     handlePaneAutoCollapseChange
   } = useConversationShellPaneState({
     persistedPaneOpen: showSidebar,
-    setPersistedPaneOpen: setShowSidebar,
-    onManualPaneOpen: handleManualPaneOpen
+    setPersistedPaneOpen: setShowSidebar
   })
   const topicListPosition: ChatPanePosition =
     !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
@@ -117,7 +112,7 @@ const HomePage: FC = () => {
   })
   // Shared full-topics list source plus exact latest/reusable lookups.
   const assistantTopicsSource = useAssistantTopicsSource()
-  const { topics: allTopics, loadLatestTopic, reuseOrCreateTopic } = assistantTopicsSource
+  const { topics: allTopics, rendererTopics, loadLatestTopic, reuseOrCreateTopic } = assistantTopicsSource
 
   const { createTopic, refreshTopics } = useTopicMutations()
   const {
@@ -207,6 +202,12 @@ const HomePage: FC = () => {
     clearActiveTopic()
     void navigate({ to: '/app/chat', search: {}, replace: true })
   }, [activeTopicId, routeTopicId, clearActiveTopic, navigate])
+  const pendingLocalPermanentDeleteIdRef = useRef<string | null>(null)
+  const [pendingLocalPermanentDeleteId, setPendingLocalPermanentDeleteId] = useState<string | null>(null)
+  const onLocalPermanentDeletePendingChange = useCallback((id: string | null) => {
+    pendingLocalPermanentDeleteIdRef.current = id
+    setPendingLocalPermanentDeleteId(id)
+  }, [])
   // The URL-bound topic no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -214,8 +215,17 @@ const HomePage: FC = () => {
     if (!routeTopicId || activeTopicId !== routeTopicId) return
     if (activeTopic || isActiveTopicLoading) return
     if (!isDataApiNotFoundError(activeTopicError)) return
+    if (pendingLocalPermanentDeleteIdRef.current === routeTopicId) return
     reenterChatRoute()
-  }, [activeTopic, activeTopicError, activeTopicId, isActiveTopicLoading, reenterChatRoute, routeTopicId])
+  }, [
+    activeTopic,
+    activeTopicError,
+    activeTopicId,
+    isActiveTopicLoading,
+    pendingLocalPermanentDeleteId,
+    reenterChatRoute,
+    routeTopicId
+  ])
   const lastVisibleTopicRef = useRef<Topic | undefined>(undefined)
   const visibleTopic =
     activeTopic ??
@@ -291,7 +301,6 @@ const HomePage: FC = () => {
     })
 
     return unsubscribe
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest topic without resubscribing.
   }, [currentTabId])
 
   const visibleAssistantId = visibleTopic?.assistantId
@@ -307,10 +316,18 @@ const HomePage: FC = () => {
     }
   }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
   const targetTopicId = activeTopicId ?? undefined
-  const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
+  const { locateMessageId, locateToEnd, requestLocate, clearLocate } = useConversationLocateRequest({
+    navigationTabId: currentTabId ?? undefined,
     activeConversationId: targetTopicId,
     visibleConversationId: visibleTopic?.id
   })
+  // Label this tab with its assistant emoji + topic name so multiple chat tabs are distinguishable.
+  const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
+  const tabTitle = visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat')
+
+  useEffect(() => {
+    if (locateMessageId || locateToEnd) closeSurface()
+  }, [closeSurface, locateMessageId, locateToEnd])
 
   useEffect(() => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
@@ -437,6 +454,38 @@ const HomePage: FC = () => {
     [activateCreatedTopic, resolveEmptyTopic, t]
   )
 
+  const isActiveTab = useIsActiveTab()
+  const cycleTopic = useCallback(
+    (step: 1 | -1) => {
+      // Cycle the renderer topics the list actually shows: the visible assistant's topics, or
+      // only unlinked topics when no assistant is visible (matches `matchesAssistantFilter`).
+      const scopedTopics = visibleAssistantId
+        ? rendererTopics.filter((topic) => topic.assistantId === visibleAssistantId)
+        : rendererTopics.filter((topic) => !topic.assistantId)
+      if (scopedTopics.length === 0) return
+      const currentIndex = scopedTopics.findIndex((topic) => topic.id === activeTopicId)
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + step + scopedTopics.length) % scopedTopics.length
+      const nextTopic = scopedTopics[nextIndex]
+      if (nextTopic.id !== activeTopicId) setActiveTopicAndCloseResourceView(nextTopic)
+    },
+    [activeTopicId, rendererTopics, setActiveTopicAndCloseResourceView, visibleAssistantId]
+  )
+  const cycleAssistant = useCallback(
+    (step: 1 | -1) => {
+      if (assistants.length === 0) return
+      const currentIndex = assistants.findIndex((assistant) => assistant.id === visibleAssistantId)
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + step + assistants.length) % assistants.length
+      const nextAssistant = assistants[nextIndex]
+      if (nextAssistant.id === visibleAssistantId) return
+      void handleAssistantConversationSelect({ type: 'assistant', assistantId: nextAssistant.id })
+    },
+    [assistants, handleAssistantConversationSelect, visibleAssistantId]
+  )
+  useCommandHandler('topic.next', () => cycleTopic(1), { enabled: isActiveTab })
+  useCommandHandler('topic.prev', () => cycleTopic(-1), { enabled: isActiveTab })
+  useCommandHandler('assistant.next', () => cycleAssistant(1), { enabled: isActiveTab })
+  useCommandHandler('assistant.prev', () => cycleAssistant(-1), { enabled: isActiveTab })
+
   const handleCreateEmptyTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
       await createAndActivateEmptyTopic(payload)
@@ -551,7 +600,6 @@ const HomePage: FC = () => {
       unsubscribe()
       unsubscribeMessage()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/topic state without resubscribing.
   }, [currentTabId])
 
   const handleLocateMessageHandled = clearLocate
@@ -590,6 +638,7 @@ const HomePage: FC = () => {
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsTopicSelect}
             onActiveRecordChange={handleHistoryActiveTopicChange}
+            onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
             toolbarLeading={
               !isWindowFrame ? (
                 <ConversationSidebarToggleButton
@@ -664,6 +713,7 @@ const HomePage: FC = () => {
         onNewTopic={handleCreateEmptyTopic}
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
         revealRequest={topicRevealRequest}
         manageAssistantsActive={manageAssistantsActive}
         onManageAssistants={onManageAssistants}
@@ -688,6 +738,7 @@ const HomePage: FC = () => {
               clearActiveTopic={clearActiveTopicAndCloseResourceView}
               setActiveTopic={setActiveTopicAndCloseResourceView}
               onNewTopic={handleCreateEmptyTopic}
+              onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
               onSetPanePosition={setTopicListPosition}
               panePosition="right"
               revealRequest={topicRevealRequest}
@@ -721,7 +772,13 @@ const HomePage: FC = () => {
       onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
       userOpenIntentSeq={topicPaneUserOpenIntentSeq}
       revealRequest={topicRevealRequest}>
-      <HomeTabRuntime activeTopicId={activeTopic?.id} activeTopicSource={activeTopicSource} />
+      <HomeTabRuntime
+        title={tabTitle}
+        emoji={visibleAssistant?.emoji}
+        preserveVisuals={preserveTabVisuals}
+        activeTopicId={activeTopic?.id}
+        activeTopicSource={activeTopicSource}
+      />
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
           <Chat
@@ -740,6 +797,7 @@ const HomePage: FC = () => {
             sidebarOpen={shellPaneOpen}
             onSidebarToggle={toggleShellPane}
             locateMessageId={locateMessageId}
+            locateToEnd={locateToEnd}
             onLocateMessageHandled={handleLocateMessageHandled}
             resourcePaneCount={topicResourcePaneCount}
           />

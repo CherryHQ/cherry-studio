@@ -35,6 +35,16 @@ describe('transcodeToEntityWebp', () => {
     expect(meta.height).toBe(128)
   })
 
+  it('respects a caller-owned maximum edge while validating decode', async () => {
+    const image = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const resized = await clampImageForModel(image, 100)
+    expect(resized).not.toBeNull()
+    expect(await sharp(resized!).metadata()).toMatchObject({ width: 100, height: 50 })
+    await expect(clampImageForModel(image, 500)).resolves.toBeNull()
+  })
+
   it('throws on undecodable input', async () => {
     await expect(transcodeToEntityWebp(new Uint8Array([1, 2, 3]))).rejects.toThrow()
   })

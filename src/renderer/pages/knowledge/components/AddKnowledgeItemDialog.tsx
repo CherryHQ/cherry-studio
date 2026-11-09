@@ -47,6 +47,15 @@ const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ex
 
 const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
 
+const isValidKnowledgeUrl = (value: string) => {
+  try {
+    new URL(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
 const describeFileMetadata = (file: { origin_name?: string; name?: string }) => file.origin_name || file.name
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
@@ -170,6 +179,11 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       return
     }
 
+    if (activeSource === 'url' && !isValidKnowledgeUrl(urlValue.trim())) {
+      setSubmitErrorMessage(t('library.import_dialog.error.invalid_url'))
+      return
+    }
+
     setSubmitErrorMessage('')
     setIsResolvingSubmit(true)
 
@@ -181,7 +195,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       .finally(() => {
         setIsResolvingSubmit(false)
       })
-  }, [buildPanelSubmitItems, canSubmit, isResolvingSubmit, submitWithStrategy, t])
+  }, [activeSource, buildPanelSubmitItems, canSubmit, isResolvingSubmit, submitWithStrategy, t, urlValue])
 
   const collectResolvedFileInputs = useCallback(
     async <T,>(

@@ -14,8 +14,14 @@ import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
 import { pickInlinePasteContent, stripImageNodes, stripImageNodesFromSlice } from './helpers/markdownPaste'
+import { isUserCommandTransaction } from './userCommandIntent'
 
 const logger = loggerService.withContext('useRichEditor')
+
+function canAutoFocus(editor: Editor): boolean {
+  const active = editor.view.dom.ownerDocument.activeElement
+  return !active?.matches('input, textarea, [contenteditable="true"]') || editor.view.dom.contains(active)
+}
 
 export interface UseRichEditorOptions {
   /** Initial markdown content */
@@ -386,7 +392,8 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onUpdate: ({ editor, transaction }) => {
       // Ignore non-user updates (initialization/mode toggles/programmatic transactions)
       // to avoid re-serializing markdown while switching view modes.
-      if (!editable || !transaction.docChanged || !editor.isFocused) return
+      if (!editable || !transaction.docChanged) return
+      if (!editor.isFocused && !isUserCommandTransaction(transaction)) return
 
       const content = editor.getText()
       try {
@@ -408,7 +415,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     },
     onCreate: ({ editor: currentEditor }) => {
       migrateMathStrings(currentEditor)
-      if (!autoFocus) return
+      if (!autoFocus || !canAutoFocus(currentEditor)) return
       try {
         currentEditor.commands.focus('end')
       } catch (error) {
@@ -491,7 +498,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       if (editable && autoFocus) {
         try {
           setTimeout(() => {
-            if (editor && !editor.isDestroyed) {
+            if (editor && !editor.isDestroyed && canAutoFocus(editor)) {
               const isLong = editor.getText().length > 2000
               if (!isLong) {
                 editor.commands.focus('end')

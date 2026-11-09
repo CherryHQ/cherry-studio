@@ -285,6 +285,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           </ErrorBoundary>
         </div>
         <div
+          data-ui="notes.editor-footer"
           className="flex min-h-12 shrink-0 items-center border-t border-border px-4 py-2"
           onFocusCapture={markVoiceTargetCurrent}
           onPointerDownCapture={markVoiceTargetCurrent}>
@@ -308,7 +309,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   size="icon-sm"
                   aria-label={t('chat.message.read_aloud.label')}
                   disabled={!currentContent.trim()}
-                  onClick={readCurrentNote}>
+                  onClick={readCurrentNote}
+                  className="text-muted-foreground">
                   <Volume2 className="size-4" />
                 </Button>
               )}

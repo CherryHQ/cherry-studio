@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { useCommandHandler } from '@renderer/hooks/command'
+import { useCommandHandler, useCommandRuntime } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
+import { useNumberShortcutHints } from '@renderer/hooks/useNumberShortcutHints'
 import { ipcApi } from '@renderer/ipc'
+import { TAB_NUMBER_COMMANDS } from '@renderer/utils/numberShortcuts'
 import { isMac } from '@renderer/utils/platform'
-import { getDefaultRouteTitle, isConversationRoute } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -16,15 +18,22 @@ import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
+import { NotificationCenterProvider } from '../NotificationCenter'
 import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
 
 // Routes whose pages stay usable below the global minimum window width.
 const isCompactMinWidthRoute = (url?: string): boolean =>
-  !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents'))
+  !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents') || url.startsWith('/app/scheduled-tasks'))
 
-export const AppShell = () => {
+export const AppShell = () => (
+  <NotificationCenterProvider>
+    <AppShellContent />
+  </NotificationCenterProvider>
+)
+
+const AppShellContent = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
   const tabsApi = useTabs()
   const {
@@ -100,13 +109,42 @@ export const AppShell = () => {
 
   const handleCloseActiveTab = useCallback(() => {
     if (!activeTabId) return
+    if (isMac && tabs.length === 1) {
+      void ipcApi.request('window.close')
+      return
+    }
     handleCloseTab(activeTabId)
-  }, [activeTabId, handleCloseTab])
+  }, [activeTabId, handleCloseTab, tabs.length])
 
-  useCommandHandler('app.search', handleOpenGlobalSearch)
-  useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
-  useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
-  useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
+  const commandRuntime = useCommandRuntime()
+  const tabCommandHints = useNumberShortcutHints(TAB_NUMBER_COMMANDS)
+  const orderedTabs = useMemo(
+    () => [...tabs.filter((tab) => tab.isPinned), ...tabs.filter((tab) => !tab.isPinned)],
+    [tabs]
+  )
+  const tabShortcutHints = new Map(
+    orderedTabs
+      .slice(0, TAB_NUMBER_COMMANDS.length)
+      .map((tab, index) => [tab.id, tabCommandHints.get(TAB_NUMBER_COMMANDS[index])])
+  )
+  useEffect(() => {
+    const disposers = TAB_NUMBER_COMMANDS.map((command, index) => {
+      const tab = orderedTabs[index]
+      return commandRuntime.registerHandler(
+        command,
+        () => {
+          if (tab) setActiveTab(tab.id)
+        },
+        { enabled: !!tab, allowInKeyboardLayer: true }
+      )
+    })
+    return () => disposers.forEach((dispose) => dispose())
+  }, [commandRuntime, setActiveTab, orderedTabs])
+
+  useCommandHandler('app.search', handleOpenGlobalSearch, { allowInKeyboardLayer: true })
+  useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab, allowInKeyboardLayer: true })
+  useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs, allowInKeyboardLayer: true })
+  useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs, allowInKeyboardLayer: true })
 
   useEffect(() => {
     if (isSettingsTabActive) {
@@ -140,11 +178,11 @@ export const AppShell = () => {
     recordRouteVisit(activeTab)
   }, [activeTab, recordRouteVisit])
 
-  // Conversation visuals are normalized by TabsProvider; navigation only updates identity.
+  // Chat / agent tabs are page-titled (topic / session name + emoji), so navigation keeps them.
   const handleUrlChange = (tabId: string, url: string) => {
-    const isConversation = isConversationRoute(url)
+    const isPageTitled = isPageTitledRoute(url)
     const tab = tabs.find((candidate) => candidate.id === tabId)
-    const patch = isConversation
+    const patch = isPageTitled
       ? { url, lastAccessTime: Date.now() }
       : {
           url,
@@ -163,6 +201,7 @@ export const AppShell = () => {
   const tabBar = (
     <AppShellTabBar
       tabs={tabBarTabs}
+      shortcutHints={tabShortcutHints}
       activeTabId={activeTabId}
       isFullscreen={isFullscreen}
       isFocusedTab={isSettingsTabActive}
@@ -204,6 +243,10 @@ export const AppShell = () => {
     </>
   )
 
+  useEffect(() => {
+    if (isSettingsTabActive) document.documentElement.style.setProperty('--notification-left', '6px')
+  }, [isSettingsTabActive])
+
   const contentColumn = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {tabBar}
@@ -215,11 +258,12 @@ export const AppShell = () => {
   if (!isMac && !hasLeadingWindowControls) {
     return (
       <div
+        data-ui="app.shell"
         className={cn(
           'flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
         )}>
-        {!isSettingsTabActive && <Sidebar />}
+        {!isSettingsTabActive && <Sidebar isFullscreen={isFullscreen} />}
         {contentColumn}
       </div>
     )
@@ -227,6 +271,7 @@ export const AppShell = () => {
 
   return (
     <div
+      data-ui="app.shell"
       className={cn(
         'relative flex h-screen w-screen flex-row overflow-hidden text-foreground',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
@@ -247,7 +292,7 @@ export const AppShell = () => {
               className="h-11 shrink-0 [-webkit-app-region:drag]"
             />
           )}
-          <Sidebar />
+          <Sidebar isFullscreen={isFullscreen} />
         </div>
       )}
       {contentColumn}
