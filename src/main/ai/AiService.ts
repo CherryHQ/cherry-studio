@@ -279,6 +279,7 @@ export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
 export type AsInProcessChat<T extends AiChatRequest> = AsInProcess<T> & {
   usageContext?: InProcessUsageContext
   runtimeTimingSink?: MessageRuntimeTimingSink
+  preparationSink?: (phase: 'connection' | 'compaction', active: boolean) => void
   /**
    * Emits compaction lifecycle events as `data-compaction-anchor` chunks.
    * In-process only (a closure), same as `runtimeTimingSink` — the stream
@@ -608,6 +609,7 @@ export class AiService extends BaseService {
         sessionId: request.runtime.sessionId,
         turnId: request.runtime.turnId,
         interactionWindowId: request.interactionWindowId,
+        preparationSink: request.preparationSink,
         signal
       })
     }

@@ -24,7 +24,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
-import { SseListener, type StreamListener } from '@main/ai/streamManager'
+import { isStartupOutputChunk, SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { ENDPOINT_TYPE, ServiceTierSelectionSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -366,6 +366,12 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         const listener: StreamListener = {
           id: sseListener.id,
           onChunk: (chunk) => {
+            if (usageContext?.agentSessionId && isStartupOutputChunk(chunk)) {
+              aiStreamManager.notifyUpstreamOutput({
+                agentSessionId: usageContext.agentSessionId,
+                ...(usageContext.assistantMessageId ? { assistantMessageId: usageContext.assistantMessageId } : {})
+              })
+            }
             if (closed) return
             try {
               sseListener.onChunk(chunk)

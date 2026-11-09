@@ -189,6 +189,18 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
 8. `openTurnStream()` ensures there is a runtime connection and admits
    the turn by calling `connection.send({ message })`.
 
+### Preparation reporting
+
+`openTurnStream()` accepts an optional in-process `preparationSink(phase, active)`
+through `AiService`, with `connection` and `compaction` phases. Connection preparation
+surrounds `ensureConnection()` with a paired start and `finally` end. Compaction starts
+at `handleCompactionStart()` and ends at `handleCompactionComplete()` or
+`settleCompactionError()`. An already-active compaction is replayed when the sink attaches;
+duplicate phase notifications are suppressed. Terminal cleanup, close, error and cancellation
+end remaining phases and remove the stream's abort listener. The sink adds no IPC or
+persisted schema. `AiStreamManager` owns the [gated startup budget](./stream-manager.md)
+that consumes these preparation reports.
+
 ## Live follow-up
 
 ### Message branches and execution targets

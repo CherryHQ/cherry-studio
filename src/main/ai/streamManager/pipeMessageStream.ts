@@ -11,7 +11,8 @@ export async function pipeMessageStream(
   signal: AbortSignal,
   message: CherryUIMessage,
   onMessage: (message: CherryUIMessage) => void,
-  onControl: (chunk: UIMessageChunk) => void
+  onControl: (chunk: UIMessageChunk) => void,
+  onError?: (error: unknown) => void
 ): Promise<PipeStreamLoopResult> {
   const reader = stream.getReader()
   let streamErrorText: string | undefined
@@ -27,6 +28,7 @@ export async function pipeMessageStream(
       if (done) break
       if (value.type === 'error') {
         threw = { error: value.error }
+        onError?.(value.error)
         break
       }
       if (value.type === 'message') {
@@ -48,6 +50,7 @@ export async function pipeMessageStream(
     }
   } catch (error) {
     threw = { error }
+    onError?.(error)
   } finally {
     signal.removeEventListener('abort', onAbort)
     if (threw) await reader.cancel(threw.error).catch(() => {})

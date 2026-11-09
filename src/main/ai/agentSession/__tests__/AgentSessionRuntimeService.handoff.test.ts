@@ -12,10 +12,11 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import type { AiService } from '@main/ai/AiService'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeEvent } from '@main/ai/runtime/types'
-import type { StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManager'
+import { AiStreamManager, type StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManager'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -953,3 +954,149 @@ it.each([false, true])(
     expect(f.service.isSessionBusy('root')).toBe(false)
   }
 )
+
+it.each(['compaction-complete', 'compaction-error', 'turn-complete'] as const)(
+  'pairs connection and compaction preparation through %s, including duplicate starts',
+  async (terminal) => {
+    const f = await fixture()
+    const phases: Array<[string, boolean]> = []
+    const source = f.service.openTurnStream({
+      sessionId: 'root',
+      turnId: f.handle.turnId,
+      signal: f.handle.abortController.signal,
+      preparationSink: (phase, active) => phases.push([phase, active])
+    })
+    if (source.kind !== 'messages') throw new Error('Expected message stream')
+    const draining = pipeMessageStream(
+      source.stream,
+      f.handle.abortController.signal,
+      { id: f.replyB.id, role: 'assistant', parts: [] },
+      () => {},
+      () => {}
+    )
+    await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+    expect(phases).toEqual([
+      ['connection', true],
+      ['connection', false]
+    ])
+    await f.emit({ type: 'compaction-start', trigger: 'manual' })
+    await f.emit({ type: 'compaction-start', trigger: 'manual' })
+    if (terminal === 'compaction-error') await f.emit({ type: terminal, error: 'compaction failed' })
+    else await f.emit({ type: terminal })
+    expect(phases).toEqual([
+      ['connection', true],
+      ['connection', false],
+      ['compaction', true],
+      ['compaction', false]
+    ])
+    if (terminal !== 'turn-complete') await f.emit({ type: 'turn-complete' })
+    await draining
+  }
+)
+
+it('replays active compaction when the stream attaches and pairs it on cancellation', async () => {
+  const f = await fixture()
+  await f.emit({ type: 'compaction-start', trigger: 'manual' })
+  const phases: Array<[string, boolean]> = []
+  const source = f.service.openTurnStream({
+    sessionId: 'root',
+    turnId: f.handle.turnId,
+    signal: f.handle.abortController.signal,
+    preparationSink: (phase, active) => phases.push([phase, active])
+  })
+  await vi.waitFor(() => expect(phases).toContainEqual(['connection', false]))
+  await source.stream.cancel('test cancellation')
+  expect(phases.filter(([phase]) => phase === 'compaction')).toEqual([
+    ['compaction', true],
+    ['compaction', false]
+  ])
+  await f.emit({ type: 'compaction-complete' })
+  expect(phases.filter(([phase]) => phase === 'compaction')).toHaveLength(2)
+})
+
+it('persists a silent native turn as one timeout error through delayed close without restarting', async () => {
+  const f = await fixture()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  f.blockClose()
+  const manager = new AiStreamManager()
+  MockApplicationUtils.setService('AiStreamManager', manager)
+  MockApplicationUtils.setService('AgentSessionRuntimeService', f.service)
+  const streamText = vi.fn<AiService['streamText']>(async (request) =>
+    f.service.openTurnStream({
+      sessionId: 'root',
+      turnId: f.handle.turnId,
+      signal: request.requestOptions!.signal!,
+      preparationSink: request.preparationSink
+    })
+  )
+  MockApplicationUtils.setService('AiService', { streamText })
+  const errors: unknown[] = []
+  const paused: unknown[] = []
+  const done: unknown[] = []
+  manager.send({
+    topicId: 'agent-session:root',
+    models: [
+      {
+        modelId: 'test::model',
+        abortController: f.handle.abortController,
+        request: {
+          conversation: { id: 'root', topicId: 'agent-session:root' },
+          trigger: 'submit-message',
+          messageId: f.replyB.id,
+          runtime: { kind: 'agent-session', sessionId: 'root', turnId: f.handle.turnId }
+        }
+      }
+    ],
+    listeners: [
+      ...f.handle.listeners,
+      {
+        id: 'timeout-observer',
+        onChunk() {},
+        isAlive: () => true,
+        onError: (result) => {
+          errors.push(result)
+        },
+        onPaused: (result) => {
+          paused.push(result)
+        },
+        onDone: (result) => {
+          done.push(result)
+        }
+      }
+    ]
+  })
+  await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+  await vi.advanceTimersByTimeAsync(90_000)
+  await vi.waitFor(() => expect(errors).toHaveLength(1))
+  expect(errors[0]).toMatchObject({ status: 'error', error: { name: 'TimeoutError', i18nKey: 'request_timeout' } })
+  expect(paused).toHaveLength(0)
+  expect(done).toHaveLength(0)
+  const beforeClose = dbh.db
+    .select()
+    .from(agentSessionMessageTable)
+    .where(eq(agentSessionMessageTable.id, f.replyB.id))
+    .get()!
+  expect(beforeClose.status).toBe('error')
+  expect(beforeClose.data.parts).toContainEqual(
+    expect.objectContaining({
+      type: 'data-error',
+      data: expect.objectContaining({ name: 'TimeoutError', i18nKey: 'request_timeout' })
+    })
+  )
+  f.closeGate.resolve()
+  await f.service.closeSession('root')
+  const reloaded = dbh.db
+    .select()
+    .from(agentSessionMessageTable)
+    .where(eq(agentSessionMessageTable.id, f.replyB.id))
+    .get()!
+  expect(reloaded.status).toBe('error')
+  expect(reloaded.data.parts).toEqual(beforeClose.data.parts)
+  expect(streamText).toHaveBeenCalledTimes(1)
+  expect(f.sent).toEqual([f.user.id])
+  expect(f.starts).toHaveLength(0)
+  expect(errors).toHaveLength(1)
+})
