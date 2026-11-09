@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-08-painting-draft-default-identity.md
+2026-11-08-painting-draft-default-identity.md: 6e7ea2066ee84354d91a5aff835a394fa5020a46
+2026-11-08-painting-draft-default-identity.zh.md: f41074b9b08d1f57ddc4373bee75bf36c2f9c79a

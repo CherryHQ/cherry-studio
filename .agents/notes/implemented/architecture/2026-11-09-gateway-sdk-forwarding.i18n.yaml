@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-11-09-gateway-sdk-forwarding.md
+2026-11-09-gateway-sdk-forwarding.md: d9b916ac5c0d26871a7d2767c51957c402490609
+2026-11-09-gateway-sdk-forwarding.zh.md: 62af2fce7c0e257526d96ff0efd734e0a0570344

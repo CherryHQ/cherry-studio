@@ -76,7 +76,7 @@ describe('topicHandlers', () => {
     it('forwards inTrash to the list query so the Recycle Bin page sees trashed rows', async () => {
       listByCursorMock.mockResolvedValueOnce({ items: [], nextCursor: null })
 
-      await topicHandlers['/topics'].GET({ query: { inTrash: true } } as never)
+      await topicHandlers['/topics'].GET({ query: { inTrash: true } })
 
       expect(listByCursorMock).toHaveBeenCalledWith(expect.objectContaining({ inTrash: true }))
     })
@@ -100,15 +100,15 @@ describe('topicHandlers', () => {
       const topic = { id: 'topic-assistant' }
       getLatestActiveMock.mockReturnValueOnce(topic)
 
-      await expect(
-        topicHandlers['/topics/latest'].GET({ query: { assistantId: 'assistant-1' } } as never)
-      ).resolves.toEqual({ topic })
+      await expect(topicHandlers['/topics/latest'].GET({ query: { assistantId: 'assistant-1' } })).resolves.toEqual({
+        topic
+      })
 
       expect(getLatestActiveMock).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
     })
 
     it('rejects an empty assistantId', async () => {
-      await expect(topicHandlers['/topics/latest'].GET({ query: { assistantId: '' } } as never)).rejects.toThrow()
+      await expect(topicHandlers['/topics/latest'].GET({ query: { assistantId: '' } })).rejects.toThrow()
 
       expect(getLatestActiveMock).not.toHaveBeenCalled()
     })
