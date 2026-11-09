@@ -243,6 +243,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@e965/xlsx": "^0.20.3",
     "@earendil-works/pi-schema": "1.5.0",
+    "@earendil-works/pi-telemetry": "1.5.0",
     "@electron-toolkit/eslint-config-ts": "^3.0.0",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
