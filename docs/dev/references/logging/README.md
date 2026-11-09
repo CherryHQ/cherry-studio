@@ -15,6 +15,14 @@ This is a developer document on how to use the logger.
 
 CherryStudio uses a unified logging service to print and record logs. **Unless there is a special reason, do not use `console.xxx` to print logs**.
 
+## Request-scoped suppression
+
+`withoutDiagnostics` in `src/main/core/logger/diagnosticScope.ts` suppresses main-process logs
+for an operation and its asynchronous descendants. The logger drops the entire entry before
+console output, file output, or the Sentry transport. Temporary chat uses this scope because even
+an error message can echo conversation text. Concurrent operations outside the scope still log.
+This does not cover independent renderer IPC logs or direct third-party exception reporting.
+
 ## Error reporting
 
 Production Sentry uploads require data collection to be enabled and the current

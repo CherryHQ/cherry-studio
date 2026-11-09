@@ -2,6 +2,7 @@ import { trace } from '@opentelemetry/api'
 import type { TelemetrySettings } from 'ai'
 
 import { application } from '@application'
+import { areDiagnosticsSuppressed } from '@main/core/logger/diagnosticScope'
 
 import { AdapterTracer, TRACER_NAME } from '../../../observability'
 import type { RequestScope } from './scope'
@@ -12,6 +13,7 @@ import type { RequestScope } from './scope'
  * attribute spans to.
  */
 export function buildTelemetry(scope: RequestScope): TelemetrySettings | undefined {
+  if (areDiagnosticsSuppressed()) return undefined
   const topicId = scope.requestContext.topicId
   if (!topicId) return undefined
   const developerModeEnabled = application.get('PreferenceService').get('app.developer_mode.enabled')
