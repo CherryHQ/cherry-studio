@@ -19,82 +19,92 @@ const ingresses = ['responses-output', 'gemini-inline', 'gemini-function-media']
 describe('gateway text files reach pinned provider requests as full text', () => {
   for (const ingress of ingresses) {
     for (const mediaType of ['text/plain', 'text/markdown']) {
-      it.each(providers)(`${ingress} / ${mediaType} reaches %s without file parts or truncation`, async (provider) => {
-        const text = `  BEGIN中文\n${'article-body'.repeat(1000)}\nEND  `
-        const data = Buffer.from(text).toString('base64')
-        const blob = { mimeType: mediaType, data }
-        const messages =
-          ingress === 'responses-output'
-            ? new OpenAiResponsesMessageConverter().toUIMessages({
-                model: 'test',
-                input: [
-                  { type: 'function_call', call_id: 'call1', name: 'read_article', arguments: '{}' },
-                  {
-                    type: 'function_call_output',
-                    call_id: 'call1',
-                    output: [
-                      { type: 'input_file', filename: 'article.txt', file_data: `data:${mediaType};base64,${data}` }
-                    ]
-                  }
-                ] as ResponsesCreateParams['input']
-              })
-            : new GeminiMessageConverter().toUIMessages({
-                contents:
-                  ingress === 'gemini-inline'
-                    ? [{ role: 'user', parts: [{ inlineData: blob }] }]
-                    : [
-                        { role: 'model', parts: [{ functionCall: { id: 'call1', name: 'read_article', args: {} } }] },
-                        {
-                          role: 'user',
-                          parts: [
+      for (const payload of ['short', 'long'] as const) {
+        it.each(providers)(
+          `${ingress} / ${mediaType} / ${payload} reaches %s without file parts or truncation`,
+          async (provider) => {
+            const text = payload === 'short' ? 'the end é' : `  BEGIN中文\n${'article-body'.repeat(1000)}\nEND  `
+            const data = Buffer.from(text).toString('base64')
+            const blob = { mimeType: mediaType, data }
+            const messages =
+              ingress === 'responses-output'
+                ? new OpenAiResponsesMessageConverter().toUIMessages({
+                    model: 'test',
+                    input: [
+                      { type: 'function_call', call_id: 'call1', name: 'read_article', arguments: '{}' },
+                      {
+                        type: 'function_call_output',
+                        call_id: 'call1',
+                        output: [
+                          { type: 'input_file', filename: 'article.txt', file_data: `data:${mediaType};base64,${data}` }
+                        ]
+                      }
+                    ] as ResponsesCreateParams['input']
+                  })
+                : new GeminiMessageConverter().toUIMessages({
+                    contents:
+                      ingress === 'gemini-inline'
+                        ? [{ role: 'user', parts: [{ inlineData: blob }] }]
+                        : [
                             {
-                              functionResponse: {
-                                id: 'call1',
-                                name: 'read_article',
-                                response: {},
-                                parts: [{ inlineData: blob }]
-                              }
+                              role: 'model',
+                              parts: [{ functionCall: { id: 'call1', name: 'read_article', args: {} } }]
+                            },
+                            {
+                              role: 'user',
+                              parts: [
+                                {
+                                  functionResponse: {
+                                    id: 'call1',
+                                    name: 'read_article',
+                                    response: {},
+                                    parts: [{ inlineData: blob }]
+                                  }
+                                }
+                              ]
                             }
                           ]
-                        }
-                      ]
-              })
-        const attachments = collectFileAttachments(messages)
-        expect(attachments).toEqual([])
-        // AiService uses no attachment budget when contextOwner is caller (gateway).
-        const prepared = await prepareChatMessages(messages, {
-          attachments,
-          nativeSupport: { image: false, pdf: false, audio: false, video: false },
-          isToolCapable: true
-        })
-        expect(prepared.flatMap((message) => message.parts).some((part) => part.type === 'file')).toBe(false)
-        const prompt = await convertToModelMessages(prepared)
-        let body: unknown
-        const captured = new Error('request captured without network')
-        const settings = {
-          apiKey: 'test-key',
-          fetch: async (_url: RequestInfo | URL, init?: RequestInit) => {
-            body = JSON.parse(String(init?.body))
-            throw captured
+                  })
+            const attachments = collectFileAttachments(messages)
+            expect(attachments).toEqual([])
+            // AiService uses no attachment budget when contextOwner is caller (gateway).
+            const prepared = await prepareChatMessages(messages, {
+              attachments,
+              nativeSupport: { image: false, pdf: false, audio: false, video: false },
+              isToolCapable: true
+            })
+            expect(prepared.flatMap((message) => message.parts).some((part) => part.type === 'file')).toBe(false)
+            const prompt = await convertToModelMessages(prepared)
+            let body: unknown
+            const captured = new Error('request captured without network')
+            const settings = {
+              apiKey: 'test-key',
+              fetch: async (_url: RequestInfo | URL, init?: RequestInit) => {
+                body = JSON.parse(String(init?.body))
+                throw captured
+              }
+            }
+            const model =
+              provider === 'responses'
+                ? createOpenAI(settings).responses('gpt-4.1')
+                : provider === 'anthropic'
+                  ? createAnthropic(settings)('claude-sonnet-4-5')
+                  : provider === 'google'
+                    ? createGoogleGenerativeAI(settings)('gemini-2.5-flash')
+                    : createOpenAICompatible({
+                        ...settings,
+                        name: 'test',
+                        baseURL: 'https://example.test/v1'
+                      }).chatModel('test')
+            await expect(generateText({ model, messages: prompt, maxRetries: 0 })).rejects.toThrow(captured.message)
+            const encoded = JSON.stringify(body)
+            expect(encoded).toContain(JSON.stringify(text).slice(1, -1))
+            expect(encoded).not.toContain('base64')
+            expect(encoded).not.toContain('[Truncated')
+            expect(encoded).not.toContain('read_file(')
           }
-        }
-        const model =
-          provider === 'responses'
-            ? createOpenAI(settings).responses('gpt-4.1')
-            : provider === 'anthropic'
-              ? createAnthropic(settings)('claude-sonnet-4-5')
-              : provider === 'google'
-                ? createGoogleGenerativeAI(settings)('gemini-2.5-flash')
-                : createOpenAICompatible({ ...settings, name: 'test', baseURL: 'https://example.test/v1' }).chatModel(
-                    'test'
-                  )
-        await expect(generateText({ model, messages: prompt, maxRetries: 0 })).rejects.toThrow(captured.message)
-        const encoded = JSON.stringify(body)
-        expect(encoded).toContain(JSON.stringify(text).slice(1, -1))
-        expect(encoded).not.toContain('base64')
-        expect(encoded).not.toContain('[Truncated')
-        expect(encoded).not.toContain('read_file(')
-      })
+        )
+      }
     }
   }
 })

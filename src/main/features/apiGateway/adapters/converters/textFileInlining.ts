@@ -20,6 +20,8 @@
  * protocol conversion does not fetch remote content.
  */
 
+import iconv from 'iconv-lite'
+
 import { decodeTextWithAutoEncoding } from '@main/utils/legacyFile'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
@@ -32,6 +34,41 @@ export function inlineTextFileContent(mediaType: string, url: string): string | 
   if (!mediaType.startsWith('text/')) return undefined
   const data = parseDataUrl(url)
   if (!data) return undefined
-  const bytes = data.isBase64 ? Buffer.from(data.data, 'base64') : Buffer.from(decodeURIComponent(data.data))
-  return decodeTextWithAutoEncoding(bytes)
+  const bytes = data.isBase64 ? Buffer.from(data.data, 'base64') : decodePercentBytes(data.data)
+  const charsetParameter = url
+    .slice(5, url.indexOf(','))
+    .split(';')
+    .find((parameter) => /^\s*charset\s*=/i.test(parameter))
+  if (charsetParameter) {
+    const charset = charsetParameter
+      .slice(charsetParameter.indexOf('=') + 1)
+      .trim()
+      .replace(/^["']|["']$/g, '')
+    // Do not guess when the sender explicitly declares an unsupported encoding.
+    if (!iconv.encodingExists(charset)) return undefined
+    return iconv.decode(bytes, charset)
+  }
+  try {
+    // Statistical detection can misclassify short, valid UTF-8 as Latin-1.
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return decodeTextWithAutoEncoding(bytes)
+  }
+}
+
+/** Percent escapes are bytes, including in non-UTF-8 data URLs. */
+function decodePercentBytes(value: string): Buffer {
+  const chunks: Buffer[] = []
+  let start = 0
+  for (let index = 0; index < value.length; index++) {
+    if (value[index] !== '%') continue
+    if (index > start) chunks.push(Buffer.from(value.slice(start, index)))
+    const escape = value.slice(index + 1, index + 3)
+    if (!/^[\da-f]{2}$/i.test(escape)) throw new URIError('Malformed data URL percent escape')
+    chunks.push(Buffer.from([Number.parseInt(escape, 16)]))
+    index += 2
+    start = index + 1
+  }
+  if (start < value.length) chunks.push(Buffer.from(value.slice(start)))
+  return Buffer.concat(chunks)
 }
