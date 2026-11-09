@@ -47,22 +47,6 @@ Distinguish collapse from closing a temporary side chat. The close action must s
 
 Temporary content must not enter the chat database, persistent caches, backup, or application logs/traces. Audit request tracing before reusing generation. Do not create a database topic and delete it afterward. Content is still sent to the selected model provider; this mode makes no promise about provider retention. Saved side chats and source associations participate in backup/restore. Main-chat export excludes side-chat messages in the first release.
 
-### Ownership and implementation boundaries
-
-Source paths checked against main `ec5e904b21`:
-
-| Owner | Integration point and responsibility |
-|---|---|
-| Pixel: panel and selection | `src/renderer/components/chat/shell/ConversationShell.tsx`, `src/renderer/components/chat/panes/Shell/RightPanel.tsx`; reuse panel identity, width, and switching. Wire selection and whole-answer actions to the source identity. |
-| Pixel: source navigation | `src/renderer/components/chat/flow/TopicMessageFlowNode.tsx`; render question counts, markers, and the side-chat list. |
-| Lin: storage | `src/main/data/db/schemas/message.ts` enforces one live root per topic. Use independent saved topics with explicit source association; exclude them from ordinary topic lists and main context. |
-| Lin: generation and settings | Reuse the existing request, streaming, cancellation, and Preference mechanisms. Isolate request identities and provide memory-only temporary state. |
-| Ada: contract; Rigel: verification | Resolve boundary changes before implementation; verify each acceptance criterion and report platform gaps. |
-
-Required information is the side-chat identity, source topic/message identity, excerpt and anchor hints, immutable source snapshot, persistence choice, model, and prompt. Evaluate existing metadata first. Add only the minimum association/schema changes if needed. Any schema change uses an appended migration, never a rewritten shipped migration.
-
-The persistent-topic dependency of generation is still an implementation investigation, not a verified capability. First trace request creation, persistence, logging, cancellation, deletion, backup, and topic-list consumers. If memory-only execution requires changes, isolate the smallest shared generation boundary. Do not build a second model stack or relax temporary-mode guarantees. Material contract changes return to this Spec before code proceeds.
-
 ### Anchors, counts, and deletion
 
 Store message identity, selected text, and surrounding text hints; never DOM nodes or screen coordinates. After source edits or regeneration, keep the snapshot. When unique matching fails, use a message-level marker and state that precise location is unavailable. Never guess among repeated excerpts.
@@ -70,17 +54,6 @@ Store message identity, selected text, and surrounding text hints; never DOM nod
 If only the source answer is deleted, keep the side-chat snapshot accessible from the source topic's side-chat list. Soft deletion/restoration of the main topic hides/restores associated side chats. Permanent topic deletion clears saved and temporary associations through the existing deletion confirmation flow.
 
 Derive each answer's count from submitted user questions across its associated side chats. Two questions count as two. Retrying an answer adds nothing; deleting a question subtracts one. A submitted question counts even if generation fails. Live temporary questions count until cleared. Do not maintain a second independent persisted counter.
-
-### Delivery sequence
-
-| Stage | Owner | Exit condition |
-|---|---|---|
-| 1. Resolve boundaries | Ada and Lin | Confirm source associations, topic filtering, and a memory-only generation path; record any required Spec adjustment. |
-| 2. Working side chat | Lin and Pixel | Both entry points, isolated context, independent configuration, streaming, and cancellation work. |
-| 3. Complete lifecycle | Lin and Pixel | Default setting, persistence, restoration, markers, counts, deletion, and backup association work together. |
-| 4. Acceptance | Rigel; Ada closes verification | Focused checks and actual UI/restart evidence cover the ACs; unverified platforms remain explicit. |
-
-Stage 2 is a trial milestone, not completion. Keep this note proposed until all criteria are implemented and verified. This documentation PR does not close the feature issue. Implementation PRs reference this Spec and their covered AC IDs. Estimate work after stage 1 establishes the generation changes.
 
 ## Alternatives considered
 
@@ -90,21 +63,19 @@ Stage 2 is a trial milestone, not completion. Keep this note proposed until all 
 
 ## Acceptance criteria
 
-- AC1 — Selection and whole-answer actions open a side chat without moving the main reading position or changing its active branch. (verification: Electron; owner: Pixel and Rigel)
-- AC2 — Captured requests contain only the defined source snapshot and current side history; later main messages and other side chats do not leak into requests. Oversize context is disclosed or rejected as specified. (verification: unit; owner: Lin and Rigel)
-- AC3 — Main and side chat generate concurrently; stopping either does not stop the other, and closing a temporary chat rejects late stream updates. (verification: unit and Electron; owner: Lin and Rigel)
-- AC4 — Side-chat model and prompt changes affect only subsequent side requests; invalid provider/model choices preserve history and request reselection. (verification: renderer and Electron; owner: Pixel and Rigel)
-- AC5 — Two submitted questions count as two, retry stays at two, deletion reduces the count, failed generation still counts, and clearing temporary chats removes their contribution. (verification: unit and renderer; owner: Lin, Pixel, and Rigel)
-- AC6 — Saved history, model/prompt, source snapshot, and markers restore after restart. (verification: Electron; owner: Lin and Rigel)
-- AC7 — Temporary content clears on explicit close or window close and leaves no matching body in the database, persistent caches, backup, or application logs/traces. (verification: unit and Electron; owner: Lin and Rigel)
-- AC8 — The default setting starts enabled and affects only newly created chats; existing saved and temporary chats keep their original mode. (verification: unit and renderer; owner: Lin and Rigel)
-- AC9 — Switching topics or preview panels retains drafts and generation state under the correct side-chat identity. (verification: renderer and Electron; owner: Pixel and Rigel)
-- AC10 — Edited, regenerated, repeated, or deleted source text never sends navigation to an unverified location; retained snapshots remain accessible from the topic list. (verification: unit and Electron; owner: Pixel and Rigel)
-- AC11 — Main-topic soft deletion, restoration, and permanent deletion update saved and temporary associations consistently; ordinary topic lists and main export exclude side chats. (verification: unit and Electron; owner: Lin and Rigel)
-- AC12 — Backup/restore preserves saved side chats and their source links and omits temporary chats. (verification: unit and Electron; owner: Lin and Rigel)
-
-Use focused tests for isolation, lifecycle, and anchor ambiguity. Run affected type/lint/format checks; keep total local test memory below 2 GB. Skip the system speech component build on the local Windows machine lacking ATL. Report actual platform/runtime evidence separately; document checks do not satisfy product ACs.
+- AC1 — Selection and whole-answer actions open a side chat without moving the main reading position or changing its active branch. (verification: Electron)
+- AC2 — Captured requests contain only the defined source snapshot and current side history; later main messages and other side chats do not leak into requests. Oversize context is disclosed or rejected as specified. (verification: unit)
+- AC3 — Main and side chat generate concurrently; stopping either does not stop the other, and closing a temporary chat rejects late stream updates. (verification: unit and Electron)
+- AC4 — Side-chat model and prompt changes affect only subsequent side requests; invalid provider/model choices preserve history and request reselection. (verification: renderer and Electron)
+- AC5 — Two submitted questions count as two, retry stays at two, deletion reduces the count, failed generation still counts, and clearing temporary chats removes their contribution. (verification: unit and renderer)
+- AC6 — Saved history, model/prompt, source snapshot, and markers restore after restart. (verification: Electron)
+- AC7 — Temporary content clears on explicit close or window close and leaves no matching body in the database, persistent caches, backup, or application logs/traces. (verification: unit and Electron)
+- AC8 — The default setting starts enabled and affects only newly created chats; existing saved and temporary chats keep their original mode. (verification: unit and renderer)
+- AC9 — Switching topics or preview panels retains drafts and generation state under the correct side-chat identity. (verification: renderer and Electron)
+- AC10 — Edited, regenerated, repeated, or deleted source text never sends navigation to an unverified location; retained snapshots remain accessible from the topic list. (verification: unit and Electron)
+- AC11 — Main-topic soft deletion, restoration, and permanent deletion update saved and temporary associations consistently; ordinary topic lists and main export exclude side chats. (verification: unit and Electron)
+- AC12 — Backup/restore preserves saved side chats and their source links and omits temporary chats. (verification: unit and Electron)
 
 ## Risks
 
-Persistent-topic coupling may enlarge the generation change. Topic filters and deletion/backup consumers can omit associations. Persisted tracing may defeat temporary mode. Rendered text may not map uniquely to source text. These are stage-1 inspection targets and acceptance boundaries, not reasons to silently weaken the contract.
+Persistent-topic coupling may enlarge the generation change. Topic filters and deletion/backup consumers can omit associations. Persisted tracing may defeat temporary mode. Rendered text may not map uniquely to source text. These risks must not weaken the behavior defined above.

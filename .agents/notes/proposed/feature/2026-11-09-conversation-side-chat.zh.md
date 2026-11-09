@@ -47,22 +47,6 @@ Status: proposed
 
 临时内容不得写入聊天数据库、持久缓存、备份或应用日志与追踪。复用生成前检查请求追踪。不得先创建数据库话题再删除。内容仍会发送给所选模型提供商，临时模式不承诺提供商不留存。保存侧聊和来源关联参与备份恢复。首版主聊天导出不包含侧聊消息。
 
-### 职责与实现边界
-
-已按 main `ec5e904b21` 核对来源路径：
-
-| 负责人 | 接入位置与职责 |
-|---|---|
-| Pixel：面板与选区 | `src/renderer/components/chat/shell/ConversationShell.tsx`、`src/renderer/components/chat/panes/Shell/RightPanel.tsx`；复用面板身份、宽度和切换。选区与整条回答入口传递来源身份。 |
-| Pixel：原文导航 | `src/renderer/components/chat/flow/TopicMessageFlowNode.tsx`；显示计数、标记和侧聊列表。 |
-| Lin：存储 | `src/main/data/db/schemas/message.ts` 约束每个话题只有一个有效根节点。保存侧聊使用独立话题和明确来源关联，从普通话题列表与主线上下文中排除。 |
-| Lin：生成与设置 | 复用现有请求、流式生成、取消和 Preference 机制。隔离请求身份，为临时侧聊提供仅内存状态。 |
-| Ada：约定；Rigel：验收 | 实现前解决边界变动，逐项验证验收标准并列出平台缺口。 |
-
-需要记录侧聊身份、来源话题和消息身份、摘录和定位线索、不可变来源快照、保存方式、模型及提示词。先评估现有元数据，不足时才增加最小关联或结构。数据库变化追加迁移，不重写已发布迁移。
-
-生成链路是否依赖持久话题仍待实现阶段调查，不能视为已支持临时生成。先跟踪请求创建、持久化、日志、取消、删除、备份和话题列表的使用位置。若仅内存执行需要改动，提取最小共享生成边界。不另建模型调用体系，不放宽临时模式保证。实质约定变化先更新本文，再继续代码。
-
 ### 定位、计数与删除
 
 保存消息身份、选中文字和前后文线索，不保存 DOM 或屏幕坐标。原文编辑或重新生成后保留快照。不能唯一匹配时，退回消息级标记并说明无法精确定位。不在重复片段中猜位置。
@@ -70,17 +54,6 @@ Status: proposed
 仅来源回答删除时，保留侧聊快照，从来源话题的侧聊列表访问。主话题软删除或恢复时，关联侧聊一起隐藏或恢复。主话题永久删除时，通过现有删除确认流程清理保存和临时关联。
 
 每条回答的计数从关联侧聊中已提交的用户问题推导。两次提问计为二。重试回答不增加，删除问题减一。问题已提交但生成失败仍计数。临时问题存活时计数，清除后扣除。不另存一套独立计数。
-
-### 交付顺序
-
-| 阶段 | 负责人 | 通过条件 |
-|---|---|---|
-| 1. 确定边界 | Ada、Lin | 确认来源关联、话题过滤和仅内存生成路径；记录必要的方案调整。 |
-| 2. 跑通侧聊 | Lin、Pixel | 两个入口、上下文隔离、独立配置、流式生成和取消可用。 |
-| 3. 完成生命周期 | Lin、Pixel | 默认设置、保存、恢复、标记、计数、删除和备份关联协同工作。 |
-| 4. 验收 | Rigel；Ada 收口 | 定向检查和真实界面、重启证据覆盖各验收项；明确未验证平台。 |
-
-第二阶段仅供试用，不算完成。全部标准实现并验证前，本文保持 proposed。文档 PR 不关闭功能 Issue。实现 PR 引用本文并列出覆盖的 AC 编号。第一阶段确认生成改动后再估算工作量。
 
 ## Alternatives considered
 
@@ -90,21 +63,19 @@ Status: proposed
 
 ## Acceptance criteria
 
-- AC1 — 选区和整条回答入口均打开侧聊，不改变主回答阅读位置或活跃分支。(verification: Electron; owner: Pixel and Rigel)
-- AC2 — 捕获的请求只包含约定的来源快照和本条侧聊历史，不混入后续主聊或其他侧聊。超限时按约定提示或拒绝。(verification: unit; owner: Lin and Rigel)
-- AC3 — 主聊与侧聊可同时生成，停止任一请求不影响另一个；关闭临时侧聊后拒绝迟到更新。(verification: unit and Electron; owner: Lin and Rigel)
-- AC4 — 侧聊模型与提示词仅影响后续侧聊请求；模型或提供商失效时保留历史并要求重选。(verification: renderer and Electron; owner: Pixel and Rigel)
-- AC5 — 两次提问计为二，重试仍为二，删除减一，生成失败仍计数，清理临时侧聊后扣除对应数量。(verification: unit and renderer; owner: Lin, Pixel, and Rigel)
-- AC6 — 重启后恢复保存的历史、模型和提示词、来源快照及标记。(verification: Electron; owner: Lin and Rigel)
-- AC7 — 明确关闭侧聊或窗口后清除临时内容，数据库、持久缓存、备份及应用日志与追踪中无对应正文。(verification: unit and Electron; owner: Lin and Rigel)
-- AC8 — 默认设置初始开启，仅影响新建侧聊；已有保存和临时侧聊保持原方式。(verification: unit and renderer; owner: Lin and Rigel)
-- AC9 — 切换话题或预览面板后，草稿和生成状态仍属于正确的侧聊。(verification: renderer and Electron; owner: Pixel and Rigel)
-- AC10 — 原文编辑、重新生成、重复或删除后，不跳转到未经确认的位置；保留的快照仍可从话题侧聊列表访问。(verification: unit and Electron; owner: Pixel and Rigel)
-- AC11 — 主话题软删除、恢复和永久删除时，保存与临时关联一致更新；普通话题列表和主聊天导出不包含侧聊。(verification: unit and Electron; owner: Lin and Rigel)
-- AC12 — 备份恢复保留保存侧聊及来源关联，不包含临时侧聊。(verification: unit and Electron; owner: Lin and Rigel)
-
-测试重点覆盖隔离、生命周期和定位歧义。运行受影响范围的类型、lint 和格式检查，本地测试总内存低于 2 GB。本机 Windows 缺少 ATL，跳过系统语音组件编译。分别报告真实平台和运行时证据，文档检查不能代替产品验收。
+- AC1 — 选区和整条回答入口均打开侧聊，不改变主回答阅读位置或活跃分支。(verification: Electron)
+- AC2 — 捕获的请求只包含约定的来源快照和本条侧聊历史，不混入后续主聊或其他侧聊。超限时按约定提示或拒绝。(verification: unit)
+- AC3 — 主聊与侧聊可同时生成，停止任一请求不影响另一个；关闭临时侧聊后拒绝迟到更新。(verification: unit and Electron)
+- AC4 — 侧聊模型与提示词仅影响后续侧聊请求；模型或提供商失效时保留历史并要求重选。(verification: renderer and Electron)
+- AC5 — 两次提问计为二，重试仍为二，删除减一，生成失败仍计数，清理临时侧聊后扣除对应数量。(verification: unit and renderer)
+- AC6 — 重启后恢复保存的历史、模型和提示词、来源快照及标记。(verification: Electron)
+- AC7 — 明确关闭侧聊或窗口后清除临时内容，数据库、持久缓存、备份及应用日志与追踪中无对应正文。(verification: unit and Electron)
+- AC8 — 默认设置初始开启，仅影响新建侧聊；已有保存和临时侧聊保持原方式。(verification: unit and renderer)
+- AC9 — 切换话题或预览面板后，草稿和生成状态仍属于正确的侧聊。(verification: renderer and Electron)
+- AC10 — 原文编辑、重新生成、重复或删除后，不跳转到未经确认的位置；保留的快照仍可从话题侧聊列表访问。(verification: unit and Electron)
+- AC11 — 主话题软删除、恢复和永久删除时，保存与临时关联一致更新；普通话题列表和主聊天导出不包含侧聊。(verification: unit and Electron)
+- AC12 — 备份恢复保留保存侧聊及来源关联，不包含临时侧聊。(verification: unit and Electron)
 
 ## Risks
 
-持久话题依赖可能扩大生成改动。话题过滤、删除或备份可能遗漏关联。持久追踪可能破坏临时模式。渲染文本可能无法唯一对应原文。这些是第一阶段检查目标和验收边界，不是静默放宽约定的理由。
+持久话题依赖可能扩大生成改动。话题过滤、删除或备份可能遗漏关联。持久追踪可能破坏临时模式。渲染文本可能无法唯一对应原文。这些风险不能成为放宽上述行为约定的理由。
