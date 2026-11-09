@@ -2081,6 +2081,8 @@
   "library.assistant_catalog.preview_description": "Panoramica",
   "library.assistant_catalog.preview_prompt": "Prompt",
   "library.assistant_catalog.title": "Libreria degli assistenti",
+  "library.config.agent.field.bootstrap_disabled.hint": "Non mostrare mai la configurazione iniziale di personalizzazione per questo agente. Disattivando questa opzione si ripristina la regola normale: la configurazione smette di essere proposta solo dopo essere stata completata o rifiutata.",
+  "library.config.agent.field.bootstrap_disabled.label": "Disattiva la richiesta di configurazione",
   "library.config.agent.field.description.hint": "Aiuta a identificare lo scopo dell'agente",
   "library.config.agent.field.description.label": "Descrizione",
   "library.config.agent.field.description.placeholder": "A cosa serve questo agente…",

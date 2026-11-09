@@ -4,9 +4,12 @@ import path from 'node:path'
 
 import type { Client } from '@modelcontextprotocol/client'
 import { McpServer } from '@modelcontextprotocol/server'
+import { setupTestDatabase } from '@test-helpers/db'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { agentTable } from '@data/db/schemas/agent'
+import type * as AgentServiceModule from '@data/services/AgentService'
 import type * as ChannelsModule from '@main/ai/channels'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -1878,6 +1881,67 @@ describe('cherry-tools autonomy tools', () => {
         expect(result.content[0].text).toContain('QR authentication requires the channel to be enabled')
         expect(mockCreateChannel).not.toHaveBeenCalled()
         expect(mockCreateChannelAndWaitForQr).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('persisted bootstrap actions', () => {
+      const dbh = setupTestDatabase()
+      let realAgentService: typeof AgentServiceModule.agentService
+
+      beforeEach(async () => {
+        realAgentService = (await vi.importActual<typeof AgentServiceModule>('@data/services/AgentService'))
+          .agentService
+        dbh.db
+          .insert(agentTable)
+          .values({
+            id: 'agent_1',
+            type: 'pi',
+            name: 'Agent',
+            instructions: '',
+            orderKey: 'a0'
+          })
+          .run()
+        mockUpdateAgent.mockImplementation(realAgentService.updateAgent.bind(realAgentService))
+      })
+
+      afterEach(() => {
+        mockUpdateAgent.mockReset()
+      })
+
+      it('reset preserves explicit opt-out and explains that the editor switch must be turned off', async () => {
+        realAgentService.updateAgent('agent_1', {
+          configuration: { bootstrap_disabled: true, bootstrap_completed: true }
+        })
+        const result = await callTool(createServer('agent_1'), { action: 'reset_bootstrap' }, 'config')
+
+        expect(result.isError).toBeUndefined()
+        expect(realAgentService.getAgent('agent_1')?.configuration).toMatchObject({
+          bootstrap_disabled: true,
+          bootstrap_completed: false
+        })
+        expect(result.content[0].text).toMatch(/setup stays off.*editor switch "Disable setup prompt".*turned off/i)
+        expect(result.content[0].text).not.toContain('next session will run')
+      })
+
+      it('completion leaves an unset opt-out absent in the persisted configuration', async () => {
+        expect(realAgentService.getAgent('agent_1')?.configuration).not.toHaveProperty('bootstrap_disabled')
+        const result = await callTool(createServer('agent_1'), { action: 'complete_bootstrap' }, 'config')
+
+        expect(result.isError).toBeUndefined()
+        const configuration = realAgentService.getAgent('agent_1')?.configuration
+        expect(configuration?.bootstrap_completed).toBe(true)
+        expect(configuration).not.toHaveProperty('bootstrap_disabled')
+      })
+
+      it('completion preserves an existing explicit opt-out', async () => {
+        realAgentService.updateAgent('agent_1', { configuration: { bootstrap_disabled: true } })
+        const result = await callTool(createServer('agent_1'), { action: 'complete_bootstrap' }, 'config')
+
+        expect(result.isError).toBeUndefined()
+        expect(realAgentService.getAgent('agent_1')?.configuration).toMatchObject({
+          bootstrap_disabled: true,
+          bootstrap_completed: true
+        })
       })
     })
 

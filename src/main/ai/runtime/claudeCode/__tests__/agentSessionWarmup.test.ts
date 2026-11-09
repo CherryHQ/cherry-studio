@@ -1775,6 +1775,23 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['proxyEnvironment'])
   })
 
+  it('invalidates the warm prompt when the bootstrap opt-out flips', async () => {
+    const agent = {
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { bootstrap_disabled: false }
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    const enabled = await deriveSignature()
+    mocks.getAgent.mockReturnValue({ ...agent, configuration: { bootstrap_disabled: true } })
+    const disabled = await deriveSignature()
+    expect(disabled.rebuildSignature).not.toBe(enabled.rebuildSignature)
+    mocks.getAgent.mockReturnValue(agent)
+    expect((await deriveSignature()).rebuildSignature).toBe(enabled.rebuildSignature)
+  })
+
   it('rebuilds when task notification recipients change', async () => {
     mocks.getTurnTrustedNotifyChannels.mockReturnValue([{ id: 'channel-1', type: 'telegram' }])
     const first = await deriveSignature()

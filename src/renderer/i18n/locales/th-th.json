@@ -2081,6 +2081,8 @@
   "library.assistant_catalog.preview_description": "ภาพรวม",
   "library.assistant_catalog.preview_prompt": "พรอมต์",
   "library.assistant_catalog.title": "คลังผู้ช่วย",
+  "library.config.agent.field.bootstrap_disabled.hint": "ไม่แสดงการตั้งค่าปรับแต่งเฉพาะบุคคลครั้งแรกสำหรับเอเจนต์นี้อีก เมื่อปิดสวิตช์นี้จะกลับไปใช้กฎปกติ คือหยุดแสดงการตั้งค่าเมื่อดำเนินการเสร็จสิ้นหรือปฏิเสธแล้วเท่านั้น",
+  "library.config.agent.field.bootstrap_disabled.label": "ปิดคำแนะนำการตั้งค่าเริ่มต้น",
   "library.config.agent.field.description.hint": "ช่วยระบุว่าเอเจนต์นี้ใช้ทำอะไร",
   "library.config.agent.field.description.label": "คำอธิบาย",
   "library.config.agent.field.description.placeholder": "เอเจนต์นี้ใช้ทำอะไร…",
