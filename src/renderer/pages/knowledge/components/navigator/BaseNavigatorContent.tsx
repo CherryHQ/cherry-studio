@@ -20,7 +20,7 @@ import { isKeyboardEvent } from '@dnd-kit/utilities'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Accordion, BlurCancelPointerSensor, EmptyState, Scrollbar } from '@cherrystudio/ui'
+import { Accordion, BlurCancelPointerSensor, EmptyState, ScrollArea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { toast } from '@renderer/services/toast'
@@ -214,7 +214,7 @@ const BaseNavigatorContent = ({
       onDragOver={(event) => setIndicator(getIndicator(event))}
       onDragCancel={clearDrag}
       onDragEnd={handleDragEnd}>
-      <Scrollbar className="min-h-0 flex-1 overflow-x-hidden pt-1 pb-3">
+      <ScrollArea viewportProps={{ className: 'overflow-x-hidden pt-1 pb-3' }} className="min-h-0 flex-1">
         {isLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             {t('common.loading')}
@@ -282,7 +282,7 @@ const BaseNavigatorContent = ({
             </Accordion>
           </SortableContext>
         )}
-      </Scrollbar>
+      </ScrollArea>
       <DragOverlay dropAnimation={null}>
         {activeLabel ? (
           <div className="rounded-md border border-border bg-popover px-2.5 py-1.5 text-sm text-popover-foreground shadow-sm">
