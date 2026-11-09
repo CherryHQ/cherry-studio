@@ -2,17 +2,20 @@ import { randomUUID } from 'node:crypto'
 
 import type { Usage } from '@earendil-works/pi-ai'
 
-import type { BehaviorEvent, CallRef, SubagentOrigin } from '@cherrystudio/agent-behavior'
-import { runtimeId, type InputState, type Observation, type ObservationPayload } from '@cherrystudio/agent-runtime'
-import type { PiDurableRuntime, PiDurableThreadHandle } from '@cherrystudio/agent-runtime-pi-durable'
+import type { BehaviorEvent } from '@cherrystudio/agent-behavior'
+import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
+import type {
+  DurableObservation,
+  PiDurableRuntime,
+  PiDurableThreadHandle
+} from '@cherrystudio/agent-runtime-pi-durable'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
-import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
-import { prepareDurableRoot } from '@main/ai/agentSession/durableNativeContext'
 import {
   prepareNativeSubmission,
+  lookupNativeInput,
   bindNativeInput,
   applyNativeSubmissionResult
 } from '@main/ai/agentSession/nativeSubmission'
@@ -21,29 +24,39 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { t } from '@main/i18n'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
-import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { buildAgentUserContent } from '../agentUserContent'
-import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
-import { createPiBehaviorHost } from '../pi/piBehaviorHost'
+import { PiChildTasks } from '../pi/PiChildTasks'
 import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
-import { PiStreamAdapter } from '../pi/piStreamAdapter'
+import { PiMessageMetadata } from '../pi/PiMessageMetadata'
+import { PiTurnUsage } from '../pi/PiTurnUsage'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
-  AgentRuntimeUserInput
+  AgentRuntimeCommand
 } from '../types'
-import { prepareDurableBranch } from './durableContext'
-import { prepareDurableDesktop } from './durableDesktop'
+import type { DurableBackend, DurableRoot } from './DurableBackend'
+import type { prepareDurableBranch } from './durableContext'
+import { saveDurableRequest } from './durableRequest'
 
 const logger = loggerService.withContext('PiDurableRuntimeConnection')
 
-/** One desktop owner for a Durable SQLite backend and all its child conversations. */
+/** Root access and its observed child projections borrow the backend owner. */
+type DurableChildResource = {
+  relation: Subagent
+  handle: PiDurableThreadHandle
+  projection: ChildThreadProjection
+}
+
 export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
+  get contextId(): string | undefined {
+    return this.context?.id
+  }
+
   readonly retainWhileIdle = true
   readonly usageCapture = { owner: 'provider-calls' as const }
   readonly events = new AsyncEventQueue<AgentRuntimeEvent>()
@@ -51,119 +64,80 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private handle?: PiDurableThreadHandle
   private observation?: Observation
   private context?: ReturnType<typeof prepareDurableBranch>
-  private desktop?: Awaited<ReturnType<typeof prepareDurableDesktop>>
+  private desktop?: DurableRoot['desktop']
+  private access?: { owner: DurableBackend; root: DurableRoot; release(flush: () => Promise<void>): Promise<void> }
   private closing = false
+  private readonly closingAccess = new AbortController()
   private closePromise?: Promise<void>
   private active = false
   private sending = false
   private compacting = false
-  private baseline = false
   private autonomous = false
   private failure?: unknown
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
   private providerSessionId?: string
-  private usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  private readonly turnUsage = new PiTurnUsage()
   private reconcileChain: Promise<unknown> = Promise.resolve()
-  private readonly steers = new Map<string, AgentRuntimeUserInput>()
-  private readonly pendingInputs = new Map<string, InputState['nativeInput']>()
-  private readonly childHandles = new Map<string, Promise<PiDurableThreadHandle>>()
-  private readonly childProjections = new Map<string, ChildThreadProjection>()
-  private readonly childOrigins = new Map<string, { parent: string; origin: SubagentOrigin; toolCallId?: string }>()
-  private readonly childStates = new Map<string, AgentTaskEventPartData>()
-  private readonly adapter = new PiStreamAdapter(
-    { enqueue: (chunk) => this.events.push({ type: 'chunk', chunk }) },
-    (name) => this.desktop?.mcp.metadata.get(name)
+  private readonly steers = new Set<string>()
+  private readonly children = new Map<
+    string,
+    | { state: 'opening'; pending: Promise<DurableChildResource | undefined> }
+    | { state: 'attached' | 'closing'; resource: DurableChildResource }
+  >()
+  private readonly childTasks = new PiChildTasks(
+    (id) => this.childOrigin(id),
+    (event) => this.events.push(event)
   )
-  private readonly projection = new ThreadProjection(
-    (chunk) => this.events.push({ type: 'chunk', chunk }),
-    (part) => {
-      this.adapter.handleToolStart(part.toolCallId, part.toolName, part.input)
-      if (part.state === 'output-available')
-        this.adapter.handleToolEnd(part.toolCallId, part.toolName, part.output, false, part.preliminary)
-      else if (part.state === 'output-error')
-        this.adapter.handleToolEnd(
-          part.toolCallId,
-          part.toolName,
-          part.resultProviderMetadata?.pi?.result ?? part.errorText,
-          true
-        )
-    }
-  )
+  private readonly adapter = new PiMessageMetadata((name) => this.desktop?.mcp.metadata.get(name))
+  private projection?: ThreadProjection
 
-  constructor(private readonly input: AgentRuntimeConnectInput) {}
+  constructor(
+    private readonly input: AgentRuntimeConnectInput,
+    private readonly acquire: () => Promise<{
+      owner: DurableBackend
+      root: DurableRoot
+      release(flush: () => Promise<void>): Promise<void>
+    }>
+  ) {}
 
   async start(): Promise<this> {
     try {
-      this.desktop = await prepareDurableDesktop(this.input, (event) => this.events.push(event))
-      const desktop = this.desktop
-      this.context = prepareDurableBranch(this.input.sessionId, this.input.branchHead)
-      const binding = await createPiGatewayModelBinding(
-        this.input,
-        desktop.snapshot.provider,
-        desktop.snapshot.model,
-        (usage, sessionId) => {
-          if (sessionId === this.providerSessionId) this.recordUsage(usage)
-        }
-      )
-      const behavior = await createPiBehaviorHost({
-        input: this.input,
-        root: runtimeId(this.context.nativeThreadId ?? '0'),
-        binding,
-        model: desktop.snapshot.model,
-        approval: desktop.approval,
-        bindModel: (model) =>
-          createPiGatewayModelBinding(
-            this.input,
-            providerService.getByProviderId(model.providerId),
-            model,
-            undefined,
-            binding.modelRuntime
-          ),
-        emit: (event) => this.events.push(event),
-        observe: (event) => this.onBehavior(event),
-        toolCallId: (call) => this.behaviorToolCallId(call)
-      })
-      const root = await prepareDurableRoot(this.context.id)
-      const { createPiDurableRuntime } = await import('@cherrystudio/agent-runtime-pi-durable')
-      const created = await createPiDurableRuntime({
-        backendId: runtimeId(this.context.backendId),
-        openStorage: async () => root.storage,
-        harness: { models: binding.modelRuntime, registry: desktop.registry, env: () => desktop.environment },
-        behavior: {
-          host: behavior.host,
-          configureChild: async (child) => {
-            const configured = await behavior.configureChild(child)
-            this.childOrigins.set(child.thread.id, { parent: child.parent.id, origin: child.origin })
-            return { model: { provider: configured.model.provider, modelId: configured.model.id } }
+      this.access = await this.acquire()
+      const { owner, root } = this.access
+      this.desktop = root.desktop
+      this.context = root.context
+      this.runtime = owner.runtime
+      root.sink = {
+        event: (event) => (event.type === 'error' ? this.fail(event.error) : this.events.push(event)),
+        behavior: (event) => this.onBehavior(event),
+        usage: (usage, sessionId, responseId) => {
+          if (sessionId === this.providerSessionId) {
+            if (responseId) this.events.push({ type: 'response-start', responseId })
+            this.recordUsage(usage)
           }
         },
-        onInputPlaced: (state) => {
-          const steer = state.inputId && this.steers.get(state.inputId)
-          if (steer) this.input.onSteerInjected?.([steer])
-        },
-        onError: (error) => {
-          logger.error('Durable native operation failed', { error })
-          this.failure ??= error
+        placed: (inputId) => {
+          if (inputId && this.steers.has(inputId)) this.input.onSteerInjected?.([inputId])
         }
+      }
+      const opened = await this.runtime.open({
+        backendId: runtimeId(this.context.backendId),
+        id: runtimeId(this.context.nativeThreadId!)
       })
-      if (created.status !== 'confirmed') throw new Error(created.error.message)
-      this.runtime = created.value
-      const agent = { ...desktop.agentConfig, model: { provider: binding.model.provider, modelId: binding.model.id } }
-      const opened = root.nativeId
-        ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(root.nativeId) })
-        : await this.runtime.create({ ownership: { kind: 'ownerless' }, agent, init: root.init })
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
       this.handle = opened.value
       this.context = contexts.bindContext(this.context.id, this.handle.thread.id)
-      await this.handle.durable.configure(agent)
+      await saveDurableRequest(this.runtime, this.handle.thread.id, this.input)
+      await this.handle.durable.configure(root.agent)
       this.providerSessionId = await this.handle.durable.providerSessionId()
-      const observed = await this.handle.observe((event) => this.onObservation(event))
+      const observed = await this.handle.durable.observe((batch) => this.onObservation(batch))
       if (observed.status !== 'confirmed') throw new Error(observed.error.message)
       this.observation = observed.value
-      for (const id of this.childOrigins.keys()) await this.observeChild(id)
+      await this.observation.drain()
+      await this.childResources()
       this.events.push({ type: 'resume-token', token: this.handle.thread.id })
-      const resumed = await this.runtime.resume()
-      if (resumed.status !== 'confirmed') throw new Error(resumed.error.message)
+      root.attached()
+      await owner.resume()
       return this
     } catch (error) {
       await this.close()
@@ -171,12 +145,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  async send(input: AgentRuntimeUserInput): Promise<void> {
+  async send(input: AgentRuntimeCommand): Promise<void> {
     if (!this.handle || !this.context || this.closing) throw new Error('Durable runtime is unavailable')
     if (this.sending) throw new Error('Durable already has an active submission')
     this.sending = true
     this.failure = undefined
-    this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+    this.turnUsage.reset()
     const text = buildAgentUserContent(input.message)
     if (!input.systemReminder && /^\/compact(?:\s|$)/.test(text.trim())) {
       this.compacting = true
@@ -184,15 +158,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       try {
         const compacted = await this.handle.durable.compact(text.trim().slice('/compact'.length).trim() || undefined)
         if (compacted.status !== 'confirmed') throw new Error(compacted.error.message)
-        if (!this.closing && !compacted.value.compacted) {
-          const id = randomUUID()
-          this.events.push({ type: 'chunk', chunk: { type: 'text-start', id } })
-          this.events.push({
-            type: 'chunk',
-            chunk: { type: 'text-delta', id, delta: t('common.agent_compaction_unchanged') }
-          })
-          this.events.push({ type: 'chunk', chunk: { type: 'text-end', id } })
-        }
+        if (!this.closing && !compacted.value.compacted) this.projection?.notice(t('common.agent_compaction_unchanged'))
         if (!this.closing)
           this.events.push({
             type: 'compaction-complete',
@@ -210,7 +176,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       } finally {
         this.compacting = false
       }
-      await this.finishIfIdle()
+      this.finishTurn()
       return
     }
     try {
@@ -221,115 +187,137 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  redirect(input: AgentRuntimeUserInput): boolean {
+  lookupInput(contextId: string, inputId: string) {
+    return lookupNativeInput(this.runtime!, this.input.sessionId, contextId, inputId)
+  }
+
+  redirect(input: AgentRuntimeCommand): boolean {
     if (!this.active || this.closing) return false
-    this.steers.set(input.message.id, input)
+    this.steers.add(input.message.id)
     void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message)), 'steer').catch((error) =>
       this.fail(error)
     )
     return true
   }
 
-  private async submit(input: AgentRuntimeUserInput, text: string, whenBusy: 'reject' | 'steer') {
+  private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'reject' | 'steer') {
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
       text,
       parts: input.message.data.parts
     })
-    this.pendingInputs.set(input.message.id, undefined)
+    this.input.onInputPrepared?.(input.message.id, this.context!.id)
     const result = await this.handle!.input.submit(draft)
+    this.events.push({ type: 'input-submission', contextId: this.context!.id, result })
     if (result.status !== 'acknowledged') {
-      this.pendingInputs.delete(input.message.id)
       applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
       throw new Error(result.error.message)
     }
     this.captureInput(result)
-    if (result.facts.includes('locally-handled')) this.pendingInputs.delete(input.message.id)
-    await this.finishIfIdle()
   }
 
-  private async onObservation(event: ObservationPayload): Promise<void> {
-    if (this.closing) return
+  async getContextUsage() {
+    return this.handle
+      ? this.handle.contextUsage()
+      : {
+          status: 'unknown' as const,
+          error: { operation: 'contextUsage', code: 'not-connected', message: 'Runtime not connected' }
+        }
+  }
+
+  private async onObservation(batch: DurableObservation): Promise<void> {
     try {
-      if (event.type === 'snapshot') {
-        const aliases = this.handle!.durable.aliases()
-        const content = event.messages.map((message) => ({ ...message, id: aliases[message.id] ?? message.id }))
-        const nowActive = event.activity.state === 'active'
-        if (nowActive && !this.sending) this.beginAutonomous()
-        if (!this.baseline) {
-          this.projection.accept({
-            ...event,
-            messages: content.filter((message) => message.metadata?.completeness === 'complete')
-          })
-          this.baseline = true
-        }
-        for (const message of content) this.projection.accept({ type: 'message.upsert', message })
-        this.active = nowActive
-        for (const input of event.inputs) {
-          this.captureInput(input, true)
-        }
-        for (const relation of event.subagents ?? [])
-          if (relation.child) void this.observeChild(relation.child.id).catch((error) => this.fail(error))
-        await this.finishIfIdle()
-      } else if (event.type === 'input.changed') {
-        this.captureInput(event.input, true)
-        await this.finishIfIdle()
-      } else if (event.type === 'subagent.upsert' && event.subagent.child) {
-        void this.observeChild(event.subagent.child.id).catch((error) => this.fail(error))
-      } else if (event.type === 'gap' || event.type === 'diagnostic') {
-        throw new Error(event.type === 'gap' ? `Durable observation gap: ${event.reason}` : event.error.message)
+      for (const event of batch.events) {
+        if (event.type === 'context.changed') this.events.push({ type: 'context-usage', result: event.result })
+        if (event.type === 'snapshot' && event.contextUsage)
+          this.events.push({ type: 'context-usage', result: event.contextUsage })
+        if (event.type === 'snapshot') {
+          const nowActive = event.activity.state === 'active'
+          if (nowActive && !this.sending && !this.closing)
+            this.beginAutonomous(
+              batch.backgroundResults.status === 'confirmed' ? batch.backgroundResults.value.notification : undefined
+            )
+          for (const input of event.inputs) this.captureInput(input)
+          this.active = nowActive
+          for (const relation of event.subagents ?? [])
+            if (relation.child) void this.observeChild(relation.child.id).catch((error) => this.fail(error))
+        } else if (event.type === 'input.changed') this.captureInput(event.input)
+        else if (event.type === 'subagent.upsert' && event.subagent.child)
+          void this.observeChild(event.subagent.child.id).catch((error) => this.fail(error))
+        else if (
+          event.type === 'diagnostic' ||
+          (event.type === 'gap' && !['overflow', 'mapping-reset'].includes(event.reason))
+        )
+          throw new Error(event.type === 'gap' ? `Durable observation gap: ${event.reason}` : event.error.message)
+        else if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
+          throw new Error(`Durable observation ended: ${event.reason}`)
+      }
+      this.projection ??= new ThreadProjection(
+        this.handle!.thread,
+        this.context!.id,
+        (projection) => this.events.push({ type: 'message-projection', projection }),
+        (message) => this.adapter.decorate(message)
+      )
+      await this.projection.accept(batch)
+      const results = batch.backgroundResults
+      this.events.push({
+        type: 'background-results',
+        result: results.status === 'confirmed' ? { status: 'confirmed', value: results.value.pending } : results
+      })
+      this.events.push({
+        type: 'background-work-state',
+        active: results.status !== 'confirmed' || results.value.active
+      })
+      if (batch.completion && !this.compacting && !this.closing && this.sending) {
+        const failed = batch.completion.inputs.find((input) => input.outcome && input.outcome !== 'completed')
+        if (failed) this.failure ??= new Error(failed.error?.message ?? failed.outcome)
+        this.finishTurn(batch.completion.entryId)
       }
     } catch (error) {
       this.fail(error)
     }
   }
 
-  private beginAutonomous() {
+  private beginAutonomous(sourceToolCallIds?: readonly string[]) {
     this.sending = true
     this.autonomous = true
     this.failure = undefined
-    this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
-    this.events.push({ type: 'autonomous-turn-state', state: 'started', origin: this.nextOrigin })
+    this.turnUsage.reset()
+    this.events.push({ type: 'autonomous-turn-state', state: 'started', origin: this.nextOrigin, sourceToolCallIds })
     this.nextOrigin = { kind: 'background-work' }
   }
 
-  private captureInput(input: InputState, trackPending = false) {
+  private captureInput(input: InputState) {
+    this.events.push({ type: 'input-state', contextId: this.context!.id, input })
     const messageId = bindNativeInput(this.input.sessionId, this.context!.id, input)
-    const nativeKey = input.nativeInput && `native:${input.nativeInput.id}`
-    const key = messageId ?? input.inputId ?? nativeKey
-    if (!key) return
-    const pending = this.pendingInputs.has(key) || Boolean(nativeKey && this.pendingInputs.has(nativeKey))
-    const ref = input.nativeInput ?? this.pendingInputs.get(key)
-    if (nativeKey && nativeKey !== key) this.pendingInputs.delete(nativeKey)
     if (messageId && input.facts.includes('placed')) {
-      const steer = this.steers.get(messageId)
+      const steer = this.steers.has(messageId) ? messageId : undefined
       if (steer) {
         this.steers.delete(messageId)
-        this.events.push({ type: 'steer-boundary', inputs: [steer] })
+        this.events.push({ type: 'steer-boundary', inputIds: [steer] })
       }
     }
-    if (input.outcome || input.facts.includes('locally-handled')) {
-      this.pendingInputs.delete(key)
-      if (pending && input.outcome && input.outcome !== 'completed')
-        this.failure ??= new Error(input.error?.message ?? input.outcome)
-    } else if (pending || trackPending) {
-      this.pendingInputs.set(key, ref)
-    }
   }
 
-  private async refreshInputs() {
-    for (const ref of [...this.pendingInputs.values()]) {
-      if (!ref) continue
-      const found = await this.handle!.lookupInput({ by: 'native-ref', ref })
-      if (found.status === 'confirmed' && found.value.found) this.captureInput(found.value.input)
-    }
-  }
-
-  private async finishIfIdle() {
-    if (!this.sending || this.active || this.compacting || this.closing || !this.handle) return
-    await this.refreshInputs()
-    if (this.pendingInputs.size || this.active || this.compacting || this.closing || !this.sending) return
+  private finishTurn(entryId?: string) {
+    if (this.closing || !this.sending) return
     this.sending = false
-    this.events.push(this.failure ? { type: 'error', error: this.failure } : { type: 'turn-complete' })
+    this.events.push(
+      this.failure
+        ? { type: 'error', error: this.failure }
+        : {
+            type: 'turn-complete',
+            ...(entryId && {
+              forkAnchor: {
+                checkpoint: {
+                  runtime: 'pi-durable',
+                  backendId: this.context!.backendId,
+                  conversationId: this.handle!.thread.id,
+                  entryId
+                }
+              }
+            })
+          }
+    )
     if (this.autonomous) {
       this.autonomous = false
       this.events.push({ type: 'autonomous-turn-state', state: 'finished' })
@@ -338,149 +326,166 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   private onBehavior(event: BehaviorEvent) {
     if (event.type === 'subagents') {
-      for (const view of event.views)
-        this.publishChild(
-          view.sessionId,
-          view.status === 'finished'
-            ? view.outcome === 'completed'
-              ? 'completed'
-              : view.outcome === 'stopped' || view.outcome === 'aborted'
-                ? 'stopped'
-                : 'error'
-            : 'in_progress',
-          true
-        )
-      if (!this.handle || event.thread === this.handle.thread.id) {
-        const running = event.views.filter((view) => view.status !== 'finished')
-        this.events.push({
-          type: 'background-tasks',
-          tasks: running.map((view) => ({
-            id: view.sessionId,
-            type: 'subagent',
-            description: view.description,
-            toolCallId: this.childOrigins.get(view.sessionId)?.toolCallId
-          }))
-        })
-        this.events.push({ type: 'background-work-state', active: running.length > 0, awaitingReply: false })
-      }
+      this.childTasks.showSubagents(event.views, !this.handle || event.thread === this.handle.thread.id)
     } else if (!this.handle || event.thread === this.handle.thread.id) {
       if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
       if (event.type === 'goal-notice') {
-        const id = randomUUID()
-        this.events.push({ type: 'chunk', chunk: { type: 'text-start', id } })
-        this.events.push({ type: 'chunk', chunk: { type: 'text-delta', id, delta: event.notice.text } })
-        this.events.push({ type: 'chunk', chunk: { type: 'text-end', id } })
+        this.projection?.notice(event.notice.text)
       }
     }
   }
 
-  private publishChild(id: string, status: AgentTaskEventPartData['status'], background: boolean) {
-    const origin = this.childOrigins.get(id)
-    if (!origin?.toolCallId) return
-    const previous = this.childStates.get(id)
-    if (previous && previous.status === status && previous.isBackgrounded === background) return
-    const data: AgentTaskEventPartData = {
-      event: !previous ? 'started' : status === 'in_progress' ? 'updated' : 'notification',
-      taskId: id,
-      toolUseId: origin.toolCallId,
-      taskType: 'subagent',
-      title: origin.origin.description,
-      status,
-      isBackgrounded: background
+  private childKey(id: string): string {
+    return JSON.stringify([this.context!.backendId, id])
+  }
+
+  private childOrigin(id: string) {
+    const child = this.children.get(this.childKey(id))
+    return child && child.state !== 'opening' ? child.resource.relation.origin : undefined
+  }
+
+  private async childResource(id: string): Promise<DurableChildResource | undefined> {
+    const child = this.children.get(this.childKey(id))
+    return child?.state === 'opening' ? child.pending : child?.resource
+  }
+
+  private async childResources(): Promise<DurableChildResource[]> {
+    const resources: DurableChildResource[] = []
+    for (const child of this.children.values()) {
+      const resource = child.state === 'opening' ? await child.pending : child.resource
+      if (resource) resources.push(resource)
     }
-    this.childStates.set(id, data)
-    this.events.push({ type: 'background-task-event', data })
-    this.events.push({
-      type: 'background-flow-chunk',
-      rootToolCallId: origin.toolCallId,
-      chunk: { type: 'data-agent-task-event', id: `task-${id}`, data }
-    })
+    return resources
   }
 
-  private observeChild(id: string): Promise<PiDurableThreadHandle> {
-    const existing = this.childHandles.get(id)
-    if (existing) return existing
-    const opening = this.attachChild(id)
-    this.childHandles.set(id, opening)
-    return opening
-  }
-
-  private async attachChild(id: string) {
-    const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: runtimeId(id) })
-    if (opened.status !== 'confirmed') throw new Error(opened.error.message)
-    const handle = opened.value
-    const facts = await handle.durable.facts()
-    if (facts.lineage.kind !== 'subagent') throw new Error('Durable child has no behavior origin')
-    const { parent, origin } = facts.lineage
-    if (parent !== this.handle?.thread.id) await this.observeChild(parent)
-    const parentContext = parent === this.handle?.thread.id ? this.context! : this.childProjections.get(parent)!.context
-    const toolCallId = await this.behaviorToolCallId({
-      thread: parent,
-      key: (await import('@cherrystudio/agent-behavior')).callKeyOf(origin.parentToolCallId)
-    })
-    this.childOrigins.set(id, { parent, origin, toolCallId })
-    const childContext = contexts.child(parentContext.id, id, toolCallId, origin.description)
-    const projection = new ChildThreadProjection(
-      childContext,
-      {
-        ...handle,
-        observe: (sink) =>
-          handle.observe(async (event) => {
-            await sink(event)
-            if (event.type === 'subagent.upsert' && event.subagent.child)
-              void this.observeChild(event.subagent.child.id).catch((error) => this.fail(error))
-            if (event.type === 'snapshot') {
-              const child = await handle.durable.facts()
-              this.publishChild(
-                id,
-                child.live.idle
-                  ? child.live.runEnd?.outcome === 'completed'
-                    ? 'completed'
-                    : child.live.runEnd?.outcome === 'aborted'
-                      ? 'stopped'
-                      : 'error'
-                  : 'in_progress',
-                this.childStates.get(id)?.isBackgrounded ?? false
-              )
-            }
-          })
-      },
-      async () => {
-        const archive = await handle.archive()
-        if (archive.status !== 'confirmed') throw new Error(archive.error.message)
-        return archive.value
+  private async observeChild(id: string, granted?: PiDurableThreadHandle): Promise<DurableChildResource | undefined> {
+    const key = this.childKey(id)
+    const existing = this.children.get(key)
+    if (existing) {
+      await granted?.release()
+      if (existing.state === 'closing') {
+        await existing.resource.projection.stop()
+        await existing.resource.handle.release()
+        this.children.delete(key)
+        return this.observeChild(id)
       }
-    )
-    this.childProjections.set(id, projection)
-    await projection.attach()
-    for (const child of facts.children.keys()) void this.observeChild(child).catch((error) => this.fail(error))
-    return handle
-  }
-
-  private async behaviorToolCallId(call: CallRef) {
-    const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
-    if (opened.status !== 'confirmed') throw new Error(opened.error.message)
-    try {
-      const id = await opened.value.durable.behaviorToolCallId(call)
-      if (!id) throw new Error('Durable behavior call has no native identity')
-      return id
-    } finally {
-      await opened.value.release()
+      return existing.state === 'opening' ? existing.pending : existing.resource
     }
+    if (!this.runtime) {
+      await granted?.release()
+      return undefined
+    }
+    let handle: PiDurableThreadHandle | undefined
+    let resource: DurableChildResource | undefined
+    const pending = Promise.resolve()
+      .then(async () => {
+        if (granted) handle = granted
+        else {
+          const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: runtimeId(id) })
+          if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+          handle = opened.value
+        }
+        const relation = await handle.durable.relation()
+        if (!relation?.origin) throw new Error('Native child creation origin is unavailable')
+        const parent =
+          relation.parent.id === this.handle?.thread.id ? undefined : await this.observeChild(relation.parent.id)
+        const parentContext =
+          parent?.projection.context ?? (relation.parent.id === this.handle?.thread.id ? this.context : undefined)
+        if (!parentContext) throw new Error('Native child owner context is unavailable')
+        const context = contexts.child(
+          parentContext.id,
+          id,
+          relation.origin.toolCallId,
+          relation.origin.description ?? id
+        )
+        const access = handle
+        const projection = new ChildThreadProjection(
+          context,
+          {
+            ...access,
+            observe: (sink) =>
+              access.observe(async (event) => {
+                await sink(event)
+                if (event.type === 'subagent.upsert' && event.subagent.child)
+                  void this.observeChild(event.subagent.child.id)
+                if (event.type === 'snapshot') {
+                  for (const child of event.subagents ?? []) if (child.child) void this.observeChild(child.child.id)
+                  if (this.closing) return
+                  const facts = await access.durable.facts()
+                  this.childTasks.publish(
+                    id,
+                    facts.live.idle
+                      ? facts.live.runEnd?.outcome === 'completed'
+                        ? 'completed'
+                        : facts.live.runEnd?.outcome === 'aborted'
+                          ? 'stopped'
+                          : 'error'
+                      : 'in_progress'
+                  )
+                }
+              })
+          },
+          async () => {
+            const archive = await access.archive()
+            if (archive.status !== 'confirmed') throw new Error(archive.error.message)
+            return archive.value
+          },
+          (message) => this.adapter.decorate(message),
+          (responseId, messageId) => this.events.push({ type: 'response-start', responseId, messageId })
+        )
+        resource = { relation, handle: access, projection }
+        await projection.attach()
+        this.children.set(key, { state: 'attached', resource })
+        this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
+        return resource
+      })
+      .catch(async (error) => {
+        logger.error('Failed to observe Durable child', { id, error })
+        if (resource) {
+          try {
+            await resource.projection.stop()
+          } catch (flushError) {
+            this.children.set(key, { state: 'closing', resource })
+            logger.error('Failed to flush Durable child attachment', { id, error: flushError })
+            return undefined
+          }
+        }
+        await handle?.release()
+        this.children.delete(key)
+        return undefined
+      })
+    this.children.set(key, { state: 'opening', pending })
+    return pending
   }
 
   async childProjection(toolCallId: string) {
-    const id = [...this.childOrigins].find(([, value]) => value.toolCallId === toolCallId)?.[0]
-    if (!id) return undefined
-    await this.observeChild(id)
-    const projection = this.childProjections.get(id)!
-    return { snapshot: projection.snapshot.bind(projection), subscribe: projection.subscribe.bind(projection) }
+    if (this.closing) return undefined
+    const known = (await this.childResources()).filter(
+      (child) => (child.relation?.origin?.toolCallId ?? child.projection.context.spawnToolCallId) === toolCallId
+    )
+    if (known.length > 1) return undefined
+    if (known[0]) {
+      const projection = known[0].projection
+      await projection.attach()
+      return { snapshot: () => projection.snapshot(), subscribe: projection.subscribe.bind(projection) }
+    }
+    if (this.closing || !this.handle) return undefined
+    const opened = await this.handle.durable.openChild(toolCallId, this.closingAccess.signal)
+    if (opened.status !== 'confirmed') return undefined
+    const child = await this.observeChild(opened.value.relation.child.id, opened.value.handle)
+    if (!child) return undefined
+    await child.projection.attach()
+    return {
+      snapshot: child.projection.snapshot.bind(child.projection),
+      subscribe: child.projection.subscribe.bind(child.projection)
+    }
   }
 
   async messageChild(contextId: string, text: string): Promise<void> {
-    const projection = [...this.childProjections.values()].find((value) => value.context.id === contextId)
-    const handle = projection && (await this.childHandles.get(projection.thread.id))
-    if (!handle || this.closing) throw new Error('Child native owner is unavailable')
+    const child = (await this.childResources()).find((child) => child.projection.context.id === contextId)
+    const projection = child?.projection
+    const handle = child?.handle
+    if (!handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
     const { sessionId } = projection.context
     const id = randomUUID()
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })
@@ -493,7 +498,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async stopTask(taskId: string): Promise<boolean> {
-    const child = await this.childHandles.get(taskId)
+    const child = (await this.childResource(taskId))?.handle
     if (!child?.interrupt) return false
     const result = await child.interrupt()
     if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -503,7 +508,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   async interrupt(): Promise<void> {
     const result = await this.handle?.interrupt?.()
     if (result && result.status !== 'confirmed') throw new Error(result.error.message)
-    await this.refreshInputs()
   }
 
   refreshTraceContext(context: AgentRuntimeTraceContext) {
@@ -534,15 +538,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private recordUsage(usage: Usage) {
-    this.usage.inputTokens += usage.input + usage.cacheRead + usage.cacheWrite
-    this.usage.outputTokens += usage.output
-    this.usage.totalTokens += usage.totalTokens
     this.events.push({
       type: 'chunk',
-      chunk: {
-        type: 'message-metadata',
-        messageMetadata: { totalTokens: this.usage.totalTokens, stats: { ...this.usage } }
-      }
+      chunk: { type: 'message-metadata', messageMetadata: this.turnUsage.record(usage) }
     })
   }
 
@@ -552,8 +550,19 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     void this.close().catch((cause) => logger.error('Durable shutdown failed', { error: cause }))
   }
 
+  async drainChildWrites(): Promise<void> {
+    await this.runtime?.settled()
+    await this.observation?.drain()
+    if (this.closing) {
+      await this.closePromise
+      return
+    }
+    for (const child of await this.childResources()) await child.projection.drain()
+  }
+
   close(): Promise<void> {
     this.closing = true
+    this.closingAccess.abort()
     return (this.closePromise ??= this.finishClose().catch((error) => {
       this.closePromise = undefined
       throw error
@@ -561,26 +570,31 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async finishClose() {
-    if (this.runtime) {
-      const result = await this.runtime.shutdown()
-      if (result.status !== 'confirmed') throw new Error(result.error.message)
-      this.runtime = undefined
+    if (!this.access) {
+      this.events.close()
+      return
     }
-    toolApprovalRegistry.abort(this.input.sessionId, 'durable-owner-closed')
-    await Promise.all([...this.childHandles.values()].map((handle) => handle.catch(() => undefined)))
-    for (const [id, projection] of this.childProjections) {
-      await projection.stop()
-      this.childProjections.delete(id)
-    }
-    await this.observation?.stop()
-    this.observation = undefined
-    await this.handle?.release()
-    this.handle = undefined
-    for (const [id, handle] of this.childHandles) {
-      await (await handle.catch(() => undefined))?.release()
-      this.childHandles.delete(id)
-    }
-    await this.desktop?.close()
+    await this.access.release(async () => {
+      toolApprovalRegistry.abort(this.input.sessionId, 'durable-access-closed')
+      await this.observation?.drain()
+      for (const [key, child] of this.children) {
+        const resource = child.state === 'opening' ? await child.pending : child.resource
+        if (!resource) continue
+        this.children.set(key, { state: 'closing', resource })
+        await resource.projection.stop()
+        await resource.handle.release()
+        this.children.delete(key)
+      }
+      await this.observation?.stop()
+      this.observation = undefined
+      await this.projection?.close()
+      this.projection = undefined
+      await this.handle?.release()
+      this.handle = undefined
+      this.access!.root.sink = undefined
+    })
+    this.access = undefined
+    this.runtime = undefined
     this.desktop = undefined
     this.events.close()
   }

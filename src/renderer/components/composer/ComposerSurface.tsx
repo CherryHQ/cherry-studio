@@ -403,6 +403,20 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
                   event.preventDefault()
                   return
                 }
+                if (
+                  event.key === 'Tab' &&
+                  event.shiftKey &&
+                  !event.ctrlKey &&
+                  !event.metaKey &&
+                  !event.altKey &&
+                  !event.nativeEvent.isComposing &&
+                  props.onShiftTab
+                ) {
+                  if (!event.repeat) props.onShiftTab()
+                  event.preventDefault()
+                  event.stopPropagation()
+                  return
+                }
                 // Same priority order as the runtime surface, so the two never drift: steer wins over
                 // send, and every other Enter combination is swallowed rather than inserting a break.
                 const isEnterPressed =
