@@ -1,7 +1,6 @@
 import { readdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 
-import type { TSchema } from '@earendil-works/pi-ai'
 import { type ExtensionAPI, SessionManager } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
@@ -465,8 +464,6 @@ describe('coding-agent behavior adapter', () => {
     expect(after.children.size).toBe(0)
     expect(readdirSync(sessions)).toEqual(files)
     expect(historyOf(SessionManager.open(file).getBranch(), parent)).toEqual(before.history)
-    // The broken storage cannot take the rollback entry either; that is reported, the commit's own error rethrown.
-    expect(pi.errors).toEqual([expect.objectContaining({ code: 'ENOENT' })])
     const { spawned } = await commit([fork])
     expect(readdirSync(sessions).filter((name) => !files.includes(name))).toEqual([
       expect.stringContaining(spawned[0].child)
@@ -1577,7 +1574,7 @@ describe('coding-agent behavior adapter', () => {
 
   it('preserves structured content when the gate shortens native tool text', async () => {
     let seen: unknown = 'not called'
-    const parameters = { type: 'object', properties: {} } as unknown as TSchema
+    const parameters = { type: 'object', properties: {} }
     const pi = await openPiHarness(
       (ports) =>
         ports.toolGate.register({

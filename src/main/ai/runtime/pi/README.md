@@ -69,6 +69,10 @@ the parent reply carries task-card metadata. Goal rounds and background delivery
 turn boundaries.
 Observation loss fails the turn and retires the owner.
 
+Closing an active session records user-stop for the root and its children before owner shutdown.
+After the product archive is trashed or deleted, close goes directly through owner shutdown,
+which aborts and drains native work without reading the removed approval history.
+
 `PiRuntimeConnection` remains the bridge to `AgentSessionRuntimeService`: it owns product input
 persistence, branch bindings, message views, trace context and configuration reconciliation. Retiring the
 class requires moving those consumers to `ThreadHandle`; installing behavior alone does not remove it.

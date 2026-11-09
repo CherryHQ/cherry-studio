@@ -2,8 +2,10 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { join } from 'node:path'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
-import { createAssistantMessageEventStream, Type } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
+import { obj } from '@earendil-works/pi-schema'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -84,7 +86,7 @@ vi.mock('./piMcpExtension', async (original) => ({
         name: buildPiMcpToolName('cherry-tools', name),
         label: name,
         description: name,
-        parameters: Type.Object({}),
+        parameters: obj({}),
         execute: async () => {
           mocks.delegated()
           return { content: [{ type: 'text', text: 'delegated' }] }
@@ -825,6 +827,30 @@ describe('desktop Pi root connection', () => {
     }
   )
 
+  it.each(['trashed', 'deleted'] as const)('releases a settled runtime after its session is %s', async (state) => {
+    const { connection, events, consuming } = await connect()
+    const user = message('finish before deletion')
+    await connection.send({ message: user })
+    await done(events)
+    const row = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, input.sessionId)).get()!
+    if (state === 'deleted') dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, input.sessionId)).run()
+    else
+      dbh.db
+        .update(agentSessionTable)
+        .set({ deletedAt: Date.now() })
+        .where(eq(agentSessionTable.id, input.sessionId))
+        .run()
+    try {
+      await expect(connection.close()).resolves.toBeUndefined()
+      await consuming
+      await expect(connection.send({ message: user })).rejects.toThrow('unavailable')
+    } finally {
+      if (state === 'deleted') dbh.db.insert(agentSessionTable).values(row).run()
+      else
+        dbh.db.update(agentSessionTable).set({ deletedAt: null }).where(eq(agentSessionTable.id, input.sessionId)).run()
+    }
+  })
+
   it('reopens the native history without replaying archived content into the live product stream', async () => {
     const first = await connect()
     await first.connection.send({ message: message('first question') })
@@ -924,33 +950,20 @@ describe('desktop Pi root connection', () => {
     expect(text(next.events)).toBe('resumed')
   })
 
-  it.each(['high', 'low', 'none'] as const)(
-    'retains explicit %s reasoning in the native session',
+  it.each(['default', 'auto'] as const)(
+    'rebuilds when the gateway reasoning selection changes from %s',
     async (reasoningEffort) => {
       input.reasoningEffort = reasoningEffort
-      const { connection, events } = await connect()
-      await connection.send({ message: message('question') })
-      await done(events)
-      expect(events.filter((event) => event.type === 'error')).toEqual([])
-      const entries = readFileSync(join(application.getPath('feature.agents.pi.sessions'), nativeFiles()[0]), 'utf8')
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line))
-      expect(entries).toContainEqual(
-        expect.objectContaining({
-          type: 'thinking_level_change',
-          thinkingLevel: reasoningEffort === 'none' ? 'off' : reasoningEffort
+      const { connection } = await connect()
+      expect(await connection.reconcile({ modelId: input.modelId, reasoningEffort })).toBe('current')
+      expect(
+        await connection.reconcile({
+          modelId: input.modelId,
+          reasoningEffort: reasoningEffort === 'auto' ? 'default' : 'auto'
         })
-      )
+      ).toBe('rebuild')
     }
   )
-
-  it('keeps equivalent automatic reasoning selections on the same connection', async () => {
-    input.reasoningEffort = 'auto'
-    const { connection } = await connect()
-    expect(await connection.reconcile({ modelId: input.modelId, reasoningEffort: 'default' })).toBe('current')
-    expect(await connection.reconcile({ modelId: input.modelId })).toBe('current')
-  })
 
   it('rebuilds for changed per-turn settings and rejects startup configuration drift', async () => {
     const { connection } = await connect()

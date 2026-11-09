@@ -3,14 +3,17 @@ import { mkdir } from 'node:fs/promises'
 import path from 'path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
+import { applyMigrations } from '@data/db/applyMigrations'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
@@ -106,6 +109,49 @@ describe('AgentSessionService', () => {
       )
     })
   }
+
+  it('keeps task sessions out of conversations after job retention cleanup', async () => {
+    const task = createTaskSchedule()
+    const workspace = await createWorkspace('task-runs')
+    const sessions = ['run-one', 'run-two'].map((name) =>
+      agentSessionService.create(
+        {
+          agentId: 'agent-session-test',
+          name,
+          workspace: { type: 'user', workspaceId: workspace.id }
+        },
+        'conversation',
+        task.id
+      )
+    )
+    for (const session of sessions) {
+      dbh.db
+        .insert(jobTable)
+        .values({
+          type: 'agent.task',
+          status: 'completed',
+          queue: 'agent',
+          scheduleId: task.id,
+          scheduledAt: 0,
+          finishedAt: 1,
+          input: {},
+          metadata: { sessionId: session.id }
+        })
+        .run()
+    }
+    expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual(sessions.map((s) => s.id).sort())
+    expect(agentSessionService.getLatestActive()).toBeNull()
+    dbh.db.delete(jobTable).run()
+    expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual(sessions.map((s) => s.id).sort())
+    expect(agentSessionService.getLatestActive()).toBeNull()
+    expect(agentSessionService.listByCursor().items).toEqual([])
+    expect(agentSessionService.listByCursor({ ids: sessions.map((s) => s.id) }).items).toHaveLength(2)
+    expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
+    dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, [sessions[0].id]))
+    agentSessionService.restore(sessions[0].id)
+    expect(agentSessionService.listByCursor().items.map((s) => s.id)).toEqual([sessions[0].id])
+    expect(agentSessionService.listTaskSessionIds(task.id)).toEqual([sessions[1].id])
+  })
 
   it('orders matching sessions and exposes timestamps by conversation activity', async () => {
     const workspace = await createWorkspace('search')
@@ -1246,7 +1292,68 @@ describe('AgentSessionService', () => {
         })
       )
     ).toBe(false)
-    expect(agentSessionService.getById(session.id)).not.toHaveProperty('taskScheduleId')
+    expect(agentSessionService.getById(session.id)).not.toHaveProperty('taskId')
+  })
+
+  it('retains every owned session when the reuse target changes', async () => {
+    const task = createTaskSchedule()
+    const first = await createSession('First task run')
+    const second = agentSessionService.create(
+      { agentId: 'agent-session-test', name: 'Second task run', workspace: { type: 'system' } },
+      'conversation',
+      task.id
+    )
+    bindTaskSession(first.id, task.id)
+    expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual([first.id, second.id].sort())
+
+    dbh.db.transaction((tx) => agentSessionService.clearTaskScheduleTx(tx, task.id))
+    expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
+    expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual([first.id, second.id].sort())
+    expect(agentSessionService.listByCursor().items).toEqual([])
+
+    bindTaskSession(second.id, task.id)
+    expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(second.id)
+    expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual([first.id, second.id].sort())
+  })
+
+  it('rejects a reuse target owned by another task', async () => {
+    const owner = createTaskSchedule()
+    const other = createTaskSchedule()
+    const session = agentSessionService.create(
+      { agentId: 'agent-session-test', name: 'Owned run', workspace: { type: 'system' } },
+      'conversation',
+      owner.id
+    )
+    expect(
+      dbh.db.transaction((tx) =>
+        agentSessionService.bindTaskScheduleTx(tx, {
+          sessionId: session.id,
+          taskScheduleId: other.id,
+          expectedAgentId: 'agent-session-test'
+        })
+      )
+    ).toBe(false)
+    expect(agentSessionService.listTaskSessionIds(owner.id)).toEqual([session.id])
+    expect(agentSessionService.getByTaskScheduleId(other.id)).toBeNull()
+  })
+
+  it('enforces one reuse target per task and requires a task owner in SQLite', async () => {
+    const task = createTaskSchedule()
+    const first = await createSession('Selected run')
+    const second = await createSession('Other run')
+    bindTaskSession(first.id, task.id)
+    expect(() =>
+      dbh.db
+        .update(agentSessionTable)
+        .set({ taskId: task.id, isTaskReuseTarget: true })
+        .where(eq(agentSessionTable.id, second.id))
+        .run()
+    ).toThrow()
+    expect(() =>
+      dbh.db.update(agentSessionTable).set({ isTaskReuseTarget: true }).where(eq(agentSessionTable.id, second.id)).run()
+    ).toThrow()
+    expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(first.id)
+    expect(agentSessionService.listTaskSessionIds(task.id)).toEqual([first.id])
   })
 
   it('clears the task relation atomically when a session is reassigned', async () => {
@@ -1292,10 +1399,10 @@ describe('AgentSessionService', () => {
     ).toMatchObject({ code: ErrorCode.NOT_FOUND })
 
     const [row] = await dbh.db
-      .select({ taskScheduleId: agentSessionTable.taskScheduleId })
+      .select({ isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
       .from(agentSessionTable)
       .where(eq(agentSessionTable.id, session.id))
-    expect(row.taskScheduleId).toBe(task.id)
+    expect(row.isTaskReuseTarget).toBe(true)
     expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
   })
 
@@ -1360,7 +1467,18 @@ describe('AgentSessionService', () => {
     const session = await createSession('Task deletion FK')
     bindTaskSession(session.id, task.id)
 
-    jobScheduleService.delete(task.id)
+    expect(() => jobScheduleService.delete(task.id)).toThrow()
+    expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
+    expect(() =>
+      dbh.db.transaction((tx) => {
+        agentTaskService.deleteScheduleTx(tx, task.id)
+        throw new Error('rollback task deletion')
+      })
+    ).toThrow('rollback task deletion')
+    expect(jobScheduleService.getById(task.id)?.id).toBe(task.id)
+    expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
+
+    dbh.db.transaction((tx) => agentTaskService.deleteScheduleTx(tx, task.id))
 
     expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
     expect(agentSessionService.getById(session.id)).toMatchObject({ id: session.id })
@@ -1488,10 +1606,10 @@ describe('AgentSessionService', () => {
     agentSessionService.delete(session.id)
 
     const [row] = await dbh.db
-      .select({ taskScheduleId: agentSessionTable.taskScheduleId })
+      .select({ isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
       .from(agentSessionTable)
       .where(eq(agentSessionTable.id, session.id))
-    expect(row.taskScheduleId).toBeNull()
+    expect(row.isTaskReuseTarget).toBe(false)
   })
 
   it('deletes the system workspace row when deleting a no-project session', async () => {
@@ -1866,5 +1984,64 @@ describe('AgentSessionService', () => {
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(0)
+  })
+})
+
+describe('task session ownership migration', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0035_agent_session_task_ownership' })
+
+  it('backfills sticky, metadata and legacy output links without changing ordinary sessions', () => {
+    dbh.sqlite.exec(`
+      INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
+      VALUES ('agent', 'claude-code', 'Agent', '', 'a0', 1, 1);
+      INSERT INTO agent_workspace (id, name, path, order_key, created_at, updated_at)
+      VALUES ('workspace', 'Workspace', '/task-migration', 'a0', 1, 1);
+      INSERT INTO job_schedule (id, type, name, trigger, job_input_template, catch_up_policy, created_at, updated_at)
+      VALUES ('task', 'agent.task', 'Task', '{}', '{}', '{}', 1, 1);
+    `)
+    for (const id of ['sticky', 'metadata', 'output', 'ordinary']) {
+      dbh.sqlite
+        .prepare(`INSERT INTO agent_session
+        (id, name, agent_id, workspace_id, order_key, last_activity_at, created_at, updated_at, task_schedule_id)
+        VALUES (?, ?, 'agent', 'workspace', ?, 1, 1, 1, ?)`)
+        .run(id, id, id, id === 'sticky' ? 'task' : null)
+    }
+    for (const field of ['metadata', 'output']) {
+      dbh.sqlite
+        .prepare(`INSERT INTO job
+        (id, type, status, queue, schedule_id, scheduled_at, input, created_at, updated_at, ${field})
+        VALUES (?, 'agent.task', 'completed', 'agent', 'task', 1, '{}', 1, 1, ?)`)
+        .run(field, JSON.stringify({ sessionId: field }))
+    }
+    dbh.sqlite.exec(`
+      UPDATE agent_session SET owner_session_id = 'sticky' WHERE id = 'metadata';
+      INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at)
+      VALUES ('message', 'sticky', 'user', '{"parts":[{"type":"text","text":"preserved"}]}', 'success', 1, 1);
+    `)
+    applyMigrations(dbh.db, resolveMigrationsPath())
+    expect(
+      dbh.sqlite.prepare('SELECT session_id, data FROM agent_session_message WHERE id = ?').get('message')
+    ).toEqual({ session_id: 'sticky', data: '{"parts":[{"type":"text","text":"preserved"}]}' })
+    expect(dbh.sqlite.prepare('SELECT owner_session_id FROM agent_session WHERE id = ?').get('metadata')).toEqual({
+      owner_session_id: 'sticky'
+    })
+    expect(dbh.sqlite.prepare('SELECT task_id, is_task_reuse_target FROM agent_session ORDER BY id').all()).toEqual([
+      { task_id: 'task', is_task_reuse_target: 0 },
+      { task_id: null, is_task_reuse_target: 0 },
+      { task_id: 'task', is_task_reuse_target: 0 },
+      { task_id: 'task', is_task_reuse_target: 1 }
+    ])
+    expect(
+      dbh.sqlite.prepare('SELECT DISTINCT created_at, updated_at, last_activity_at FROM agent_session').all()
+    ).toEqual([{ created_at: 1, updated_at: 1, last_activity_at: 1 }])
+    dbh.db.delete(jobTable).run()
+    expect(agentSessionService.listTaskSessionIds('task').sort()).toEqual(['metadata', 'output', 'sticky'])
+    expect(agentSessionService.listByCursor().items.map((s) => s.id)).toEqual(['ordinary'])
+    expect(agentSessionService.getByTaskScheduleId('task')?.id).toBe('sticky')
+    dbh.db.transaction((tx) => agentTaskService.deleteScheduleTx(tx, 'task'))
+    expect(agentSessionService.listTaskSessionIds('task')).toEqual([])
+    expect(dbh.sqlite.prepare('SELECT count(*) AS count FROM agent_session').get()).toEqual({ count: 4 })
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(dbh.sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
   })
 })
