@@ -119,8 +119,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     if (imageSanitization.replacedCount > 0) {
       messages = imageSanitization.messages
       logger.warn('Replaced undecodable image blocks in internal Agent request', {
-        providerId,
-        modelId,
+        ...logContext,
         replacedCount: imageSanitization.replacedCount
       })
     }

@@ -133,7 +133,7 @@ describe('systemImageToTextHandler', () => {
       const bytes = valid.subarray(0, Math.floor(valid.length / 2))
       await fs.writeFile(imagePath, bytes)
       vi.mocked(recognize).mockResolvedValue({ text: 'native decoder result', confidence: 1, lines: [] })
-      const result = await runHandler({ ...imageFile, path: imagePath, size: bytes.length })
+      const result = await runHandler(FileInfoSchema.parse({ ...imageFile, path: imagePath, size: bytes.length }))
       expect(result).toEqual({ kind: 'text', text: 'native decoder result' })
       expect(Buffer.from(vi.mocked(recognize).mock.calls[0][0] as Uint8Array)).toEqual(bytes)
     } finally {
