@@ -1622,6 +1622,7 @@
   "error.image_unreadable_for_non_vision_model": "O modelo selecionado não está configurado para receber imagens e o Cherry Studio não conseguiu extrair texto legível do anexo. Ative imagem para este modelo nas definições do fornecedor, escolha outro modelo com capacidade visual ou remova a imagem e tente novamente.",
   "error.lastError": "Último erro",
   "error.maxEmbeddingsPerCall": "Máximo de embeddings por chamada",
+  "error.media_unreadable_without_preprocessing": "O Cherry Studio não conseguiu converter este anexo de áudio ou vídeo em texto. Escolha um modelo de reconhecimento de voz nas definições de Voz e um modelo de visão de vídeo nas definições de Modelo, ou remova o anexo e tente novamente.",
   "error.message": "Mensagem de erro",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> terminou a resposta sem indicar um motivo de conclusão. A resposta parcial foi mantida; tente novamente o pedido.",
   "error.missing_user_message": "Não é possível alternar a resposta do modelo: a mensagem original do utilizador foi eliminada. Envie uma nova mensagem para obter a resposta deste modelo",

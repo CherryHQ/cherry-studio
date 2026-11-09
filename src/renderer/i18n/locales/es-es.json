@@ -1622,6 +1622,7 @@
   "error.image_unreadable_for_non_vision_model": "El modelo seleccionado no está configurado para aceptar imágenes y Cherry Studio no pudo extraer texto legible del archivo adjunto. Active Imagen para este modelo en la configuración del proveedor, elija otro modelo con capacidad visual o quite la imagen e inténtelo de nuevo.",
   "error.lastError": "Último error",
   "error.maxEmbeddingsPerCall": "máximo de embeddings por llamada",
+  "error.media_unreadable_without_preprocessing": "Cherry Studio no pudo convertir este archivo de audio o vídeo en texto. Elige un modelo de reconocimiento de voz en Ajustes de voz y un modelo de visión de vídeo en Ajustes de modelo, o quita el archivo e inténtalo de nuevo.",
   "error.message": "Mensaje de error",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> finalizó la respuesta sin indicar un motivo. Se conservó la respuesta parcial; vuelve a intentar la solicitud.",
   "error.missing_user_message": "No se puede cambiar la respuesta del modelo: el mensaje original del usuario ha sido eliminado. Envíe un nuevo mensaje para obtener la respuesta de este modelo",
