@@ -152,7 +152,7 @@ const SessionItem = ({
         : !isActive && isStreamFulfilled
           ? 'done'
           : null
-  const hasStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
+  const showStreamIndicator = !shortcutHint && conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming && !!onTogglePin
   const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
@@ -321,7 +321,7 @@ const SessionItem = ({
               // overlay fades out, the standing yield closes, and the in-flow action rail expands. The
               // awaiting-approval pill (mutually exclusive with the overlay) is an
               // in-flow sibling the title simply fades against — no standing margin.
-              hasStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
+              showStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
             )}
             onDoubleClick={(event) => {
               event.stopPropagation()
@@ -332,7 +332,7 @@ const SessionItem = ({
         </SessionHoverPreview>
       )}
 
-      {!rowState.renaming && (
+      {!rowState.renaming && (showStreamIndicator || showAwaitingApprovalBadge) && (
         <ConversationRowStatus
           status={conversationRowStatus}
           testId={
