@@ -86,7 +86,7 @@ Main 在来源投影首次创建 part 时或迁移回填时一次分配 part ID�
 | 接续行 | 从边界／输入身份派生，后继到来只更新绑定，不换 key |
 | 传输 revision／generation | 既有顺序／过期事件控制，不进入内容或 React key |
 
-当前 renderer 生成草稿 `presentationId` 却不发送，Main 另行生成 `userMessageId`。将一次分配的用户消息 ID 贯穿提交请求，复用既有原生 `inputId = message.id` 关联。在边界校验 UUID、目标和权限。同一输入重复请求返回已有接纳；冲突 ID 不得覆盖无关输入或静默重复提交。投递未知不意味着允许重放。比较不可变提交事实，不比较可能追加应用元数据的可变 parts。
+当前 renderer 提交时不带消息 ID，由 Main 分配 `userMessageId`（`AgentChatContextProvider` 中的 `uuidv7()`，或既有投递消息 ID）。改为 renderer 在提交前一次分配用户消息 ID，贯穿提交请求，复用既有原生 `inputId = message.id` 关联。在边界校验 UUID、目标和权限。同一输入重复请求返回已有接纳；冲突 ID 不得覆盖无关输入或静默重复提交。投递未知不意味着允许重放。比较不可变提交事实，不比较可能追加应用元数据的可变 parts。
 
 原生身份限定于 context。缺少原生 part 身份时，一次分配产品 part ID 并保存来源映射。追加和工具 preliminary／final 更新同一 part；实际新内容块创建新 part，明确移除则删除所指 part。复用既有 update／alias 事实，不增加文本匹配、hash、下标身份或替换协议。旧 root checkpoint offset／count 只解释为历史组合映射，不解释为字符范围。
 
