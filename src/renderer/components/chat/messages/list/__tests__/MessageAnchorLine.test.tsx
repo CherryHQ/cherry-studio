@@ -561,6 +561,62 @@ describe('MessageAnchorLine', () => {
       await user.keyboard('{Enter}')
       expect(scrollToMessageId).toHaveBeenCalledWith('user-1')
     })
+
+    it('exposes the rail as a labelled navigation landmark', () => {
+      const { getByRole } = renderRail({ messages })
+
+      expect(getByRole('navigation')).toHaveAttribute('aria-label', 'chat.navigation.anchor.label')
+    })
+
+    it('moves between ticks with arrow, Home and End keys and previews the focused turn', async () => {
+      const user = userEvent.setup()
+      partsMap['user-1'] = [textPart('Question one')]
+      partsMap['user-2'] = [textPart('Question two')]
+      const { container, getByText } = renderRail({ messages })
+      const ticks = container.querySelectorAll('[data-message-anchor-tick]')
+
+      await user.tab()
+      expect(ticks[0]).toHaveFocus()
+      await user.keyboard('{ArrowDown}')
+      expect(ticks[1]).toHaveFocus()
+      expect(getByText('Question two')).toBeInTheDocument()
+      await user.keyboard('{ArrowUp}')
+      expect(ticks[0]).toHaveFocus()
+      await user.keyboard('{End}')
+      expect(ticks[ticks.length - 1]).toHaveFocus()
+      await user.keyboard('{Home}')
+      expect(ticks[0]).toHaveFocus()
+      expect(getByText('Question one')).toBeInTheDocument()
+    })
+  })
+
+  it('tracks the focused turn across a prepended history page and clears the preview on blur', async () => {
+    const user = userEvent.setup()
+    partsMap['user-1'] = [textPart('Question one')]
+    partsMap['user-2'] = [textPart('Question two')]
+    const olderPage = [
+      makeMessage({ id: 'user-0', role: 'user' }),
+      makeMessage({ id: 'assistant-0', role: 'assistant', parentId: 'user-0' })
+    ]
+    const { container, getByText, queryByText, rerender } = renderRail({ messages, hasOlder: true })
+    const ticks = () => container.querySelectorAll('[data-message-anchor-tick]')
+
+    await user.tab()
+    await user.keyboard('{ArrowDown}')
+    expect(ticks()[1]).toHaveFocus()
+    expect(getByText('Question two')).toBeInTheDocument()
+
+    // Older history prepends: React keeps the focused button by key, but
+    // every array index shifts. The preview must follow the focused turn.
+    rerender(rail({ messages: [...olderPage, ...messages], hasOlder: true }))
+    expect(ticks()[2]).toHaveFocus()
+    expect(getByText('Question two')).toBeInTheDocument()
+    expect(queryByText('Question one')).not.toBeInTheDocument()
+
+    // Blur must clear the preview even though the focused turn moved indices.
+    fireEvent.blur(ticks()[2])
+    expect(queryByText('Question two')).not.toBeInTheDocument()
+    expect(queryByText('Question one')).not.toBeInTheDocument()
   })
 
   describe('strip geometry', () => {

@@ -18451,11 +18451,33 @@
                 "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
               },
+              "complexity": {
+                "options": ["low", "medium", "high"],
+                "type": "enum"
+              },
+              "frameCount": {
+                "default": 9,
+                "max": 16,
+                "min": 2,
+                "step": 1,
+                "type": "range"
+              },
+              "frameDurationMs": {
+                "default": 200,
+                "max": 655350,
+                "min": 20,
+                "step": 10,
+                "type": "range"
+              },
               "numImages": {
                 "default": 1,
                 "max": 10,
                 "min": 1,
                 "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp", "gif"],
+                "type": "enum"
               },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
@@ -18475,6 +18497,24 @@
                 "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
               },
+              "complexity": {
+                "options": ["low", "medium", "high"],
+                "type": "enum"
+              },
+              "frameCount": {
+                "default": 9,
+                "max": 16,
+                "min": 2,
+                "step": 1,
+                "type": "range"
+              },
+              "frameDurationMs": {
+                "default": 200,
+                "max": 655350,
+                "min": 20,
+                "step": 10,
+                "type": "range"
+              },
               "moderation": {
                 "options": ["auto", "low"],
                 "type": "enum"
@@ -18484,6 +18524,10 @@
                 "max": 10,
                 "min": 1,
                 "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp", "gif"],
+                "type": "enum"
               },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
@@ -18518,11 +18562,33 @@
                 "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
               },
+              "complexity": {
+                "options": ["low", "medium", "high"],
+                "type": "enum"
+              },
+              "frameCount": {
+                "default": 9,
+                "max": 16,
+                "min": 2,
+                "step": 1,
+                "type": "range"
+              },
+              "frameDurationMs": {
+                "default": 200,
+                "max": 655350,
+                "min": 20,
+                "step": 10,
+                "type": "range"
+              },
               "numImages": {
                 "default": 1,
                 "max": 10,
                 "min": 1,
                 "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp", "gif"],
+                "type": "enum"
               },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
@@ -18542,6 +18608,24 @@
                 "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
               },
+              "complexity": {
+                "options": ["low", "medium", "high"],
+                "type": "enum"
+              },
+              "frameCount": {
+                "default": 9,
+                "max": 16,
+                "min": 2,
+                "step": 1,
+                "type": "range"
+              },
+              "frameDurationMs": {
+                "default": 200,
+                "max": 655350,
+                "min": 20,
+                "step": 10,
+                "type": "range"
+              },
               "moderation": {
                 "options": ["auto", "low"],
                 "type": "enum"
@@ -18551,6 +18635,10 @@
                 "max": 10,
                 "min": 1,
                 "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp", "gif"],
+                "type": "enum"
               },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
@@ -20241,6 +20329,17 @@
           "perMillionTokens": 0.6
         }
       }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "structured-output", "image-recognition"],
+      "contextWindow": 1048576,
+      "id": "hy4",
+      "inputModalities": ["text", "image"],
+      "maxInputTokens": 983010,
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Hunyuan 4",
+      "ownedBy": "tencent"
     },
     {
       "capabilities": ["reasoning", "function-call", "structured-output"],
@@ -23424,5 +23523,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "bb9d927f96a2d4d9"
+  "version": "a0418e1cc8f8499c"
 }

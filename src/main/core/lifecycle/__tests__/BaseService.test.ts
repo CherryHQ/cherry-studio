@@ -161,6 +161,40 @@ describe('BaseService', () => {
     })
   })
 
+  describe('registerDisposable', () => {
+    it('does not accumulate on-demand timers that were disposed before stop', async () => {
+      class PollingService extends BaseService {
+        cycle() {
+          this.registerInterval(() => {}, 1000).dispose()
+        }
+      }
+      const service = new PollingService()
+      await service._doInit()
+      const tracked = (service as unknown as { _disposables: unknown[] })._disposables
+      const baseline = tracked.length
+      for (let i = 0; i < 100; i++) service.cycle()
+      expect(tracked.length).toBe(baseline)
+    })
+
+    it('still runs every remaining cleanup on stop after one was disposed early', async () => {
+      const calls: string[] = []
+      class CleanupService extends BaseService {
+        early?: { dispose(): void }
+        protected override onInit() {
+          this.registerDisposable(() => calls.push('a'))
+          this.early = this.registerDisposable(() => calls.push('b'))
+          this.registerDisposable(() => calls.push('c'))
+          this.registerDisposable(() => calls.push('d'))
+        }
+      }
+      const service = new CleanupService()
+      await service._doInit()
+      service.early?.dispose()
+      await service._doStop()
+      expect(calls).toEqual(['b', 'a', 'c', 'd'])
+    })
+  })
+
   describe('IPC helpers', () => {
     beforeEach(() => {
       vi.mocked(ipcMain.handle).mockClear()

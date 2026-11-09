@@ -23,3 +23,16 @@ a renamed or retyped field, a removed required field.
 A new runtime wire behavior that requires a higher `REGISTRY_MIN_APP_VERSION` also gets a new schema
 stream and baseline, even if the JSON still parses. Older streams retain their published minimum
 versions and continue receiving compatible updates; raising the floor in place would cut them off.
+
+Before validating an older v1-v3 stream, the publisher removes image `supports` keys outside
+that stream's frozen parameter vocabulary from both model records and provider overrides.
+Otherwise a forward-compatible reader silently drops the entire record even though the
+validator succeeds. Legacy v1-v3 controls also omit `gif` from output-format enums. A removed GIF default is cleared,
+and a GIF-only selector is omitted. Explicit OpenAI image model endpoints use the historical native
+bindings and OpenAI wire vocabulary: format and compression controls are omitted because the old
+request mapper never forwards them. Provider overrides resolve their declared or inherited image
+endpoint against the provider adapter, retaining format controls on other executors such as OpenRouter.
+Unknown routes are not inferred to use OpenAI. This is a publication-only historical contract. Mode routing
+is unchanged; this projection does not invent support for new modes or protocols. The current stream is copied
+verbatim. Any converted file receives a content-hash version from the same serializer used
+by catalog generation, and its manifest names that version.
