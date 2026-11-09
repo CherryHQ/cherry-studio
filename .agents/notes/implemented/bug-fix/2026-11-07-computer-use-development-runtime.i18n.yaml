@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-computer-use-development-runtime.md
+2026-11-07-computer-use-development-runtime.md: 75930bffd4a924a3dd4d245801079a6473710f5e
+2026-11-07-computer-use-development-runtime.zh.md: 6ba07a680024c726a6761abb305983a31b8f8cce

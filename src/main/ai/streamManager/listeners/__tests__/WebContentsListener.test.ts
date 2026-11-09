@@ -41,6 +41,21 @@ afterEach(() => {
 })
 
 describe('WebContentsListener coalescing', () => {
+  it('reports the complete source range of coalesced live output', () => {
+    const wc = fakeWc()
+    const listener = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+    for (const [index, delta] of ['AA', 'BB', 'CC', 'DD', 'EE'].entries())
+      listener.onChunk({ type: 'text-delta', id: 'p', delta }, undefined, 'answer', 1, index + 3)
+    listener.flushPending()
+    expect(wc.send.mock.calls.map((call) => call[2])).toEqual([
+      expect.objectContaining({
+        firstSequence: 3,
+        sequence: 7,
+        chunk: { type: 'text-delta', id: 'p', delta: 'AABBCCDDEE' }
+      })
+    ])
+  })
+
   it('merges consecutive text-deltas with same id into one send', () => {
     const wc = fakeWc()
     const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
@@ -213,12 +228,24 @@ describe('WebContentsListener coalescing', () => {
           $deferredToolResult: {
             topicId: 'agent-session:session-1',
             messageId: 'assistant-1',
-            toolCallId: 'call-1'
+            toolCallId: 'call-1',
+            revision: expect.any(String)
           }
         }
       }
     })
     expect(toolChunk).toMatchObject({ output })
+    const first = wc.send.mock.calls[0][2].chunk.output.$deferredToolResult
+    l.onChunk(toolChunk, undefined, 'assistant-1')
+    expect(wc.send.mock.calls[1][2].chunk.output.$deferredToolResult).toEqual(first)
+    l.onChunk(
+      chunk('tool-output-available', { toolCallId: 'call-1', output: { content: 'y'.repeat(64 * 1024) } }),
+      undefined,
+      'assistant-1'
+    )
+    const replacement = wc.send.mock.calls[2][2].chunk.output.$deferredToolResult
+    expect(replacement).toEqual({ ...first, revision: expect.any(String) })
+    expect(replacement.revision).not.toBe(first.revision)
   })
 
   it('sends a small tool output through untouched', () => {

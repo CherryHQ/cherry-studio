@@ -64,6 +64,11 @@ without splitting a surrogate pair; an empty normalized excerpt produces `null`.
 Callback references are stabilized inside `Preview`, so inline callbacks do not
 reopen documents or repeat a selection notification merely because the host rendered.
 
+DOCX text supports native selection and copying with Ctrl+C (Cmd+C on macOS),
+including across paragraphs. Copying uses the browser selection, not the normalized
+or length-limited reference excerpt. While paragraph picking is enabled, ending a
+text drag preserves the existing paragraph pick; a plain click still picks or clears it.
+
 Recognized `source.mediaType` values take precedence over the filename extension;
 missing or unrecognized media types fall back to the extension. `supportsPreview`
 and `canSelectPreview` accept the same optional media type as their second argument.
@@ -101,8 +106,7 @@ PDF workers belong to individual previews and never change pdf.js global options
 Cleanup awaits the pdf.js loading task's destruction before terminating its worker,
 allowing document fonts to be released. There is no forced teardown timeout: an
 already-unresponsive worker can leave that destruction promise pending.
-Translations use an independent i18next instance with resources for all 13 desktop
-languages; other locales fall back to English.
+Translations use an independent i18next instance with resources for 14 languages; other locales fall back to English.
 
 `FilePreviewLayout.Shell` owns the shared header and toolbar placement.
 `FilePreviewLayout`, `FilePreviewToolbar` and its portal provider/host are also used
@@ -189,12 +193,12 @@ Escape, the close button, the backdrop, and selecting an internal destination di
 it. Explicitly selecting either PDF layout also keeps page-width zoom in sync with
 container resizing; manual zoom is preserved.
 
-DOCX `fit-width` includes the document wrapper and widest page, permits scales below
-50%, and never enlarges beyond 100%. It follows container resizing until the user
-zooms using the toolbar or a pinch; Reset resumes fitting. No orientation message is
-needed for DOCX. `normalizeSymbolBullets` is read when opening the document: it maps
-known single-character Symbol/Wingdings bullet markers to Unicode and removes their
-legacy font override. Other fonts, unknown symbols and numbered lists are preserved.
+DOCX `fit-width` fits the widest page to the pane, permits scales below 50%, and
+never enlarges beyond 200%. It follows container resizing until the user zooms using
+the toolbar or a pinch; Reset resumes fitting. No orientation message is needed for
+DOCX. `normalizeSymbolBullets` is read when opening the document: it maps known
+single-character Symbol/Wingdings bullet markers to Unicode and removes their legacy
+font override. Other fonts, unknown symbols and numbered lists are preserved.
 
 `bottomInset: 'content'` adds trailing space inside PDF, DOCX and PPTX document scroll
 containers, in unscaled host CSS pixels. Both PDF outline layouts receive trailing

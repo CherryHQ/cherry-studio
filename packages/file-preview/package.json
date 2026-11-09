@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/file-preview",
-  "version": "0.2.1",
+  "version": "0.2.5",
   "description": "Portable read-only document preview for Cherry Studio",
   "license": "AGPL-3.0-only",
   "repository": {
@@ -58,6 +58,8 @@
     "numfmt": "^3.2.6",
     "pdfjs-dist": "5.4.296",
     "postcss": "8.5.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "react-error-boundary": "^6.0.0",
     "react-i18next": "^14.1.2",
     "rolldown-plugin-dts": "0.27.14",

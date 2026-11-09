@@ -1,4 +1,5 @@
 // Primitive Components
+export { KeyboardLayerProvider, type KeyboardLayerProps } from './primitives/keyboard-layer'
 export { BarVisualizer, type BarVisualizerProps, type BarVisualizerState } from './primitives/bar-visualizer'
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './primitives/avatar'
 export { default as CircularProgress, type CircularProgressProps } from './primitives/circular-progress'
@@ -74,7 +75,6 @@ export {
   PageSidePanelSection,
   type PageSidePanelSectionProps
 } from './composites/page-side-panel'
-export { default as Scrollbar } from './composites/scrollbar'
 export { SearchInput, type SearchInputProps } from './composites/search-input'
 export { SelectDropdown, type SelectDropdownProps } from './composites/select-dropdown'
 
@@ -88,11 +88,10 @@ export {
   type CodeEditorHandles,
   type CodeEditorProps,
   type CodeMirrorTheme,
+  getCherryCmTheme,
   getCmThemeByName,
   getCmThemeNames
 } from './composites/code-editor'
-// DraggableList
-export { DraggableList, useDraggableReorder } from './composites/draggable-list'
 export {
   Form,
   FormControl,
@@ -140,7 +139,7 @@ export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/
 // PageHeader
 export { PageHeader, type PageHeaderProps } from './composites/page-header'
 // ReorderableList
-export { ReorderableList, type ReorderableListProps, type SortableDragHandleProps } from './composites/reorderable-list'
+export { ReorderableList, type ReorderableListProps } from './composites/reorderable-list'
 // Sortable
 export {
   CompositeInput,
@@ -148,7 +147,13 @@ export {
   type SelectGroup as CompositeInputSelectGroup,
   type SelectItem as CompositeInputSelectItem
 } from './composites/composite-input'
-export { BlurCancelPointerSensor, Sortable } from './composites/sortable'
+export {
+  BlurCancelPointerSensor,
+  Sortable,
+  type SortableAccessibility,
+  type SortableDragHandleProps,
+  type SortableItemId
+} from './composites/sortable'
 // TreeView
 export {
   type DragPosition,
@@ -193,6 +198,7 @@ export * from './primitives/pagination'
 export * from './primitives/popover'
 export * from './primitives/radio-group'
 export * from './primitives/resizable'
+export { ScrollArea } from './primitives/scroll-area'
 export * from './primitives/segmented-control'
 export * from './primitives/select'
 export * from './primitives/separator'

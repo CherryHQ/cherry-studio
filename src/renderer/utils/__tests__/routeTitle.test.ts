@@ -27,7 +27,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
 import {
   getDefaultRouteTitle,
   getRouteTitleKey,
-  isConversationRoute,
+  isPageTitledRoute,
   isTopLevelRoute,
   shouldAutoLocalizeRouteTitle
 } from '../routeTitle'
@@ -99,10 +99,11 @@ describe('routeTitle', () => {
         expect(getDefaultRouteTitle('/settings/')).toBe('设置')
       })
 
-      it('should handle double slashes (protocol-relative URL)', () => {
-        // '//chat' is a protocol-relative URL, so 'chat' becomes the hostname
-        // This is expected behavior per URL standard
-        expect(getDefaultRouteTitle('//chat')).toBe('/')
+      it('should reject double slashes (protocol-relative URL)', () => {
+        // '//chat' is a protocol-relative URL, so 'chat' parses as the host,
+        // not an app-route path. parseAppRouteUrl rejects it and the title
+        // falls back to the empty string.
+        expect(getDefaultRouteTitle('//chat')).toBe('')
       })
 
       it('should handle relative-like paths', () => {
@@ -153,18 +154,18 @@ describe('routeTitle', () => {
     })
   })
 
-  describe('isConversationRoute', () => {
-    it('identifies conversation routes with or without a query', () => {
-      expect(isConversationRoute('/app/chat')).toBe(true)
-      expect(isConversationRoute('/app/chat?topicId=123')).toBe(true)
-      expect(isConversationRoute('/app/agents')).toBe(true)
-      expect(isConversationRoute('/app/agents?sessionId=abc')).toBe(true)
+  describe('isPageTitledRoute', () => {
+    it('treats chat/agent routes as page-titled regardless of query/sub-path', () => {
+      expect(isPageTitledRoute('/app/chat')).toBe(true)
+      expect(isPageTitledRoute('/app/chat?topicId=123')).toBe(true)
+      expect(isPageTitledRoute('/app/agents')).toBe(true)
+      expect(isPageTitledRoute('/app/agents?sessionId=abc')).toBe(true)
     })
 
-    it('excludes other application routes', () => {
-      expect(isConversationRoute('/app/files')).toBe(false)
-      expect(isConversationRoute('/app/paintings/zhipu')).toBe(false)
-      expect(isConversationRoute('/settings')).toBe(false)
+    it('treats route-titled apps as not page-titled', () => {
+      expect(isPageTitledRoute('/app/files')).toBe(false)
+      expect(isPageTitledRoute('/app/paintings/zhipu')).toBe(false)
+      expect(isPageTitledRoute('/settings')).toBe(false)
     })
   })
 

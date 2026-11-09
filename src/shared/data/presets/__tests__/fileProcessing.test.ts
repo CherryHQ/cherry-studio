@@ -6,7 +6,6 @@ import { GB, MB } from '@shared/utils/constants'
 import { FILE_PROCESSOR_IDS } from '../../preference/preferenceTypes'
 import {
   FileProcessingArtifactSchema,
-  FileProcessingJobOutputSchema,
   FileProcessingOutputTargetSchema,
   ListAvailableFileProcessorsResultSchema
 } from '../../types/fileProcessing'
@@ -86,6 +85,19 @@ describe('FileProcessorTemplatesSchema', () => {
     )
     expect(paddleocr?.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.modelId).toBe(
       'PaddleOCR-VL-1.6'
+    )
+  })
+
+  it('keeps the Doc2X v3 default and exposes v3 export options', () => {
+    const doc2x = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === 'doc2x')
+    const capability = doc2x?.capabilities.find((item) => item.feature === 'document_to_markdown')
+
+    expect(capability).toEqual(
+      expect.objectContaining({
+        formulaLevel: 0,
+        mergeCrossPageForms: false,
+        modelId: 'v3-2026'
+      })
     )
   })
 
@@ -260,37 +272,6 @@ describe('FileProcessingArtifactSchema', () => {
       format: 'markdown',
       path: '/tmp/out.md'
     })
-  })
-})
-
-describe('FileProcessingJobOutputSchema', () => {
-  it('accepts a job output artifact', () => {
-    expect(
-      FileProcessingJobOutputSchema.parse({
-        artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
-      })
-    ).toEqual({
-      artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
-    })
-  })
-
-  it('rejects legacy artifact arrays', () => {
-    const result = FileProcessingJobOutputSchema.safeParse({
-      artifacts: []
-    })
-
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects legacy task result fields', () => {
-    const result = FileProcessingJobOutputSchema.safeParse({
-      taskId: 'task-1',
-      status: 'completed',
-      progress: 100,
-      artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
-    })
-
-    expect(result.success).toBe(false)
   })
 })
 

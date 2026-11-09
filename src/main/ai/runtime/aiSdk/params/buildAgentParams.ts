@@ -33,7 +33,12 @@ import {
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
+import {
+  finalizeWebToolRoutes,
+  isSupportFastMode,
+  resolveWebToolRoutes,
+  type WebToolRoutes
+} from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
@@ -63,7 +68,6 @@ import {
   stripUnsupportedModelParams
 } from '../../../utils/modelParameters'
 import {
-  applyFastModeToProviderOptions,
   applyServiceTierToProviderOptions,
   buildCapabilityProviderOptions,
   extractAiSdkStandardParams,
@@ -733,12 +737,20 @@ function buildAgentOptions(
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
-  const effectiveProviderOptions = applyFastModeToProviderOptions(
-    provider,
-    model,
-    overridden.providerOptions,
-    request.fastMode === true
-  )
+  let effectiveProviderOptions = overridden.providerOptions
+  if (
+    request.fastMode === true &&
+    isSupportFastMode(provider, model) &&
+    provider.fastMode.transport === 'openai-priority'
+  ) {
+    const namespace = sdkConfig.providerOptionsKey
+    const options = { ...effectiveProviderOptions[namespace] }
+    delete options.serviceTier
+    delete options.service_tier
+    effectiveProviderOptions = { ...effectiveProviderOptions, [namespace]: options }
+    // Compatible adapters use different namespaces; Responses can drop tiers for non-OpenAI model IDs.
+    bodyParams = { ...bodyParams, service_tier: provider.fastMode.serviceTier ?? 'priority' }
+  }
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,

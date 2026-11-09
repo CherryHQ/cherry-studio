@@ -981,7 +981,7 @@ describe('PdfFilePreview', () => {
       await user.click(screen.getByRole('button', { name: 'file_preview.pdf.outline.title' }))
       const outline = await screen.findByRole('navigation', { name: 'file_preview.pdf.outline.title' })
       // The documented content inset must be inside the outline's scrollable area.
-      expect(outline.lastElementChild).toHaveStyle({
+      expect(outline.querySelector('[data-radix-scroll-area-viewport]')).toHaveStyle({
         paddingBottom: 'calc(0.5rem + var(--file-preview-bottom-inset, 0px))'
       })
       expect(screen.getByRole('button', { name: 'Last section' })).toBeVisible()
@@ -1302,6 +1302,7 @@ describe('PdfFilePreview', () => {
     const resize = observePdfResize()
     const view = renderPreview()
     await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    await act(flushPdfEffects)
     const region = screen.getByRole('region', { name: 'paper.pdf' })
     Object.defineProperty(region, 'clientHeight', { configurable: true, value: 500 })
     Object.defineProperty(region, 'clientWidth', { configurable: true, value: 600 })

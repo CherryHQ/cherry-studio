@@ -67,7 +67,7 @@ export interface MessageGroupRuntime {
 }
 
 export interface MessageSiblingInfo {
-  group: Array<{ id: string }>
+  group: Array<{ id: string; preview?: string }>
   activeIndex: number
 }
 
@@ -119,6 +119,15 @@ export interface MessageMenuConfig {
   enableDeveloperMode: boolean
   exportMenuOptions: MessageMenuExportOptions
 }
+
+/**
+ * Backdrop the conversation image exports paint behind the captured messages.
+ * The solid variant, not `--chat-message-well` itself: an export has no window behind
+ * it, so it needs the tone the message well resolves to rather than the translucent
+ * value, which would leave the PNG semi-transparent. The generic `--background`
+ * default would make the export lighter than the conversation on screen.
+ */
+export const CHAT_CAPTURE_BACKDROP_VARIABLE = '--chat-message-well-solid'
 
 export const defaultMessageMenuExportOptions: MessageMenuExportOptions = {
   image: false,
@@ -263,6 +272,7 @@ export interface MessageRenderConfig {
   codeFancyBlock: boolean
   thoughtAutoCollapse: boolean
   collapseCompletedToolHistory: boolean
+  keepIntermediateAssistantText: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
   showEstimatedTokens: boolean
@@ -282,6 +292,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   codeFancyBlock: true,
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
+  keepIntermediateAssistantText: false,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
   showEstimatedTokens: false,
@@ -362,6 +373,7 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 } as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
+  addGeneratedImageToComposer?: (image: { url: string; name: string }) => void | Promise<void>
   openForkSourceSession?: (sessionId: string) => Promise<void>
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)

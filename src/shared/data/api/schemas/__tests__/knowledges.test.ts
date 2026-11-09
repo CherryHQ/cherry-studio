@@ -201,6 +201,13 @@ describe('Knowledge base schemas', () => {
         groupId: null
       }).success
     ).toBe(true)
+    expect(
+      KnowledgeAddItemInputSchema.safeParse({
+        type: 'url',
+        data: { source: 'not a valid URL', url: 'not a valid URL' },
+        groupId: null
+      }).success
+    ).toBe(false)
 
     expect(
       KnowledgeAddItemInputSchema.safeParse({
@@ -463,6 +470,25 @@ describe('Knowledge base schemas', () => {
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success
     ).toBe(false)
+  })
+
+  it('lets a file wait in preparing while its bytes are copied in, but not a note or url', () => {
+    const preparing = (type: 'file' | 'note' | 'url', data: Record<string, string>) =>
+      KnowledgeItemSchema.safeParse({
+        id: KNOWLEDGE_ITEM_ID,
+        baseId: KNOWLEDGE_BASE_ID,
+        groupId: null,
+        type,
+        data,
+        status: 'preparing',
+        error: null,
+        createdAt: '2026-04-10T00:00:00.000Z',
+        updatedAt: '2026-04-10T00:00:00.000Z'
+      }).success
+
+    expect(preparing('file', { source: '/docs/report.pdf', relativePath: 'report.pdf' })).toBe(true)
+    expect(preparing('note', { source: 'hello', content: 'hello' })).toBe(false)
+    expect(preparing('url', { source: 'https://example.com', url: 'https://example.com' })).toBe(false)
   })
 
   it('uses status for knowledge item runtime progress', () => {

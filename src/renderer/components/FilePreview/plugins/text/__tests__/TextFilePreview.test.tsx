@@ -1,6 +1,6 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -8,15 +8,11 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import TextFilePreview from '../TextFilePreview'
 
 const mocks = vi.hoisted(() => ({
-  codeViewer: vi.fn(),
   readText: vi.fn()
 }))
 
-vi.mock('@renderer/components/CodeViewer', () => ({
-  default: (props: { language: string; value: string; wrapped: boolean }) => {
-    mocks.codeViewer(props)
-    return <div data-testid="code-viewer">{props.value}</div>
-  }
+vi.mock('@renderer/components/FileEditor', () => ({
+  default: (props: { value: string }) => <div data-testid="code-viewer">{props.value}</div>
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -26,7 +22,7 @@ vi.mock('@cherrystudio/ui', () => ({
       <span>{description}</span>
     </div>
   ),
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('react-i18next', () => ({
@@ -58,15 +54,11 @@ describe('TextFilePreview', () => {
     })
   })
 
-  it('renders highlighted source with line wrapping', async () => {
+  it('renders loaded source text', async () => {
     renderPreview()
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
-    expect(mocks.codeViewer).toHaveBeenLastCalledWith(
-      // CodeViewer defaults to wrapped=true; TextFilePreview must not override it with false.
-      expect.not.objectContaining({ wrapped: false })
-    )
   })
 
   it('shows a zero-byte empty state without reading the file', async () => {
@@ -77,19 +69,18 @@ describe('TextFilePreview', () => {
     expect(mocks.readText).not.toHaveBeenCalled()
   })
 
-  it('rejects files over 2 MiB before reading their contents', async () => {
-    renderPreview(0, 2 * 1024 * 1024 + 1)
+  it('rejects files over 8 MiB before reading their contents', async () => {
+    renderPreview(0, 8 * 1024 * 1024 + 1)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.text.too_large.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.text.too_large.description')
     expect(mocks.readText).not.toHaveBeenCalled()
   })
 
-  it('reads files at exactly the 2 MiB limit', async () => {
-    renderPreview(0, 2 * 1024 * 1024)
+  it('reads files at exactly the 8 MiB limit', async () => {
+    renderPreview(0, 8 * 1024 * 1024)
 
-    expect(await screen.findByTestId('code-viewer')).toBeInTheDocument()
-    expect(mocks.readText).toHaveBeenCalledWith(filePath)
+    expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
   })
 
   it('renders non-empty whitespace as source content', async () => {
@@ -98,7 +89,7 @@ describe('TextFilePreview', () => {
     renderPreview(0, 3)
 
     expect(await screen.findByTestId('code-viewer')).toBeInTheDocument()
-    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ value: ' \n' }))
+    expect(screen.getByTestId('code-viewer').textContent).toBe(' \n')
     expect(screen.queryByText('file_preview.text.empty.title')).not.toBeInTheDocument()
   })
 

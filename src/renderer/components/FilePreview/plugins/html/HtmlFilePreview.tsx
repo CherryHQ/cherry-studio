@@ -13,6 +13,7 @@ import HtmlPreviewFrame, {
 } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import { WebviewBrowser } from '@renderer/components/WebviewBrowser'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
+import { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
 import { toSafeFileUrl } from '@shared/utils/file'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
@@ -21,9 +22,8 @@ import type { FilePreviewPluginProps } from '../../types'
 import { type HtmlFilePreviewMode, HtmlFilePreviewToolbar } from './HtmlFilePreviewToolbar'
 
 const logger = loggerService.withContext('HtmlFilePreview')
-const HTML_PREVIEW_MAX_SIZE_MIB = 2
-const HTML_PREVIEW_MAX_SIZE_BYTES = HTML_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
-const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
+const HTML_PREVIEW_MAX_SIZE_MIB = FILE_EDIT_MAX_SIZE_BYTES / (1024 * 1024)
+const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
 type HtmlFileLoadState =
   | { status: 'error'; error: Error }
   | { status: 'loading' }
@@ -34,7 +34,7 @@ function HtmlPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
+    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>
@@ -100,10 +100,12 @@ function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewC
     return (
       <div className="flex min-h-full w-full">
         <Suspense fallback={<HtmlPreviewLoading />}>
-          <LazyCodeViewer
+          <FileEditor
             value={loadState.content}
-            language="html"
-            wrapped
+            fileName={fileName}
+            wrapLines
+            readOnly
+            expanded
             className="min-w-0 flex-1 overflow-hidden"
           />
         </Suspense>
@@ -163,7 +165,7 @@ export default function HtmlFilePreview({
             ? await Promise.resolve().then(sourceMetadata)
             : { kind: 'file', size: sourceMetadata }
         if (cancelled || loadedMetadata?.kind !== 'file') return
-        if (loadedMetadata.size > HTML_PREVIEW_MAX_SIZE_BYTES) {
+        if (loadedMetadata.size > FILE_EDIT_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
           return
         }

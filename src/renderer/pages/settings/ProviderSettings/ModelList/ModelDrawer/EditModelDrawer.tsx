@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,6 +12,7 @@ import type { UpdateModelDto } from '@shared/data/api/schemas/models'
 import { type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard'
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
@@ -74,6 +75,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const { updateModel } = useModelMutations()
+  const [modelIdCopied, copyModelId] = useCopyToClipboard()
   // Keep the last opened model around so `PageSidePanel`'s exit animation has stable content
   // after the parent clears its `editingModel` selection on close.
   const previousModelRef = useRef<Model | null>(modelProp)
@@ -371,10 +373,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   aria-label={t('message.copied')}
                   className={fieldClasses.inputActionButton}
                   onClick={() => {
-                    void navigator.clipboard.writeText(apiModelId)
-                    toast.success(t('message.copied'))
+                    void copyModelId(apiModelId)
                   }}>
-                  <CopyIcon size={14} />
+                  {modelIdCopied ? <Check size={14} className="text-success" /> : <CopyIcon size={14} />}
                 </button>
               }
               onModelIdChange={(value) => {

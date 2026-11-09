@@ -65,8 +65,6 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   openUserProfile: vi.fn()
 }))
 const openRouteMock = vi.hoisted(() => vi.fn())
-const navigateMock = vi.hoisted(() => vi.fn())
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
 const ipcApiRequest = vi.hoisted(() => vi.fn())
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
@@ -193,7 +191,6 @@ describe('useAgentMessageListProviderValue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearPendingAgentSessionImageActionsForTest()
-    window.api.file.openPath = vi.fn()
     ipcApiRequest.mockReset()
     ipcApiRequest.mockResolvedValue({
       kind: 'file',
@@ -249,7 +246,7 @@ describe('useAgentMessageListProviderValue', () => {
   })
 
   it.each(['success', 'workspace_changed', 'legacy_history', 'cancelled', 'unexpected'] as const)(
-    'offers completed messages without an availability flag and reports native fork errors: %s',
+    'offers Main-approved completed messages and reports native fork errors: %s',
     async (scenario) => {
       let value: MessageListProviderValue | undefined
       const Probe = () => {
@@ -261,6 +258,7 @@ describe('useAgentMessageListProviderValue', () => {
             messages: []
           } as unknown as Topic,
           messages: [],
+          historyActions: { 'selected-message': { fork: null, edit: 'invalid_target' } },
           partsByMessageId: {},
           isLoading: false,
           messageNavigation: 'anchor'
@@ -319,13 +317,15 @@ describe('useAgentMessageListProviderValue', () => {
     async (scenario) => {
       const lookup = Promise.withResolvers<unknown>()
       dataApiMocks.get.mockReturnValueOnce(lookup.promise)
+      const navigateMock = vi.fn(async () => {})
       const { result } = renderHook(() =>
         useAgentMessageListProviderValue({
           topic: { id: 'agent-session:child', assistantId: 'agent-1', name: 'Child', messages: [] } as unknown as Topic,
           messages: [],
           partsByMessageId: {},
           isLoading: false,
-          messageNavigation: 'anchor'
+          messageNavigation: 'anchor',
+          navigateToForkSource: navigateMock
         })
       )
       const opening = result.current.actions.openForkSourceSession!('parent')
@@ -338,10 +338,7 @@ describe('useAgentMessageListProviderValue', () => {
         )
       await opening
       if (scenario === 'success') {
-        expect(navigateMock).toHaveBeenCalledWith({
-          to: '/app/agents',
-          search: { sessionId: 'parent', forkReturnSessionId: 'child' }
-        })
+        expect(navigateMock).toHaveBeenCalledWith({ sourceSessionId: 'parent', returnSessionId: 'child' })
         expect(leafCapabilitiesMock.notifyError).not.toHaveBeenCalled()
       } else {
         expect(navigateMock).not.toHaveBeenCalled()
@@ -351,6 +348,19 @@ describe('useAgentMessageListProviderValue', () => {
       }
     }
   )
+
+  it('offers no fork-source action when the host cannot navigate in place', () => {
+    const { result } = renderHook(() =>
+      useAgentMessageListProviderValue({
+        topic: { id: 'agent-session:child', assistantId: 'agent-1', name: 'Child', messages: [] } as unknown as Topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+    )
+    expect(result.current.actions.openForkSourceSession).toBeUndefined()
+  })
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', async () => {
     const topic = {
@@ -573,7 +583,7 @@ describe('useAgentMessageListProviderValue', () => {
       sessionId: 'session-1',
       path: 'dist/report.md'
     })
-    expect(window.api.file.openPath).not.toHaveBeenCalled()
+    expect(ipcApiRequest.mock.calls.map(([route]) => route)).not.toContain('system.shell.open_path')
   })
 
   it('injects Agent-session diagnosis persistence into the shared error UI', async () => {

@@ -1,5 +1,6 @@
 import { tmpdir } from 'node:os'
 
+import { mockNotificationService } from '@test-mocks/main/application'
 import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +9,7 @@ import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import type * as LegacyFile from '@main/utils/legacyFile'
 
 import { AutoBackupService } from '../AutoBackupService'
+import { runManualBackup } from '../backupNotifications'
 import { BackupActiveWritersError, BackupOperationBusyError, legacyBackupManager } from '../LegacyBackupManager'
 
 const mocks = vi.hoisted(() => ({
@@ -132,6 +134,7 @@ describe('AutoBackupService', () => {
       if (name === 'SchedulerService') return scheduler
       if (name === 'CacheService') return MockMainCacheServiceExport.cacheService
       if (name === 'IpcApiService') return { broadcastToType: mocks.broadcastToType }
+      if (name === 'NotificationService') return mockNotificationService
       throw new Error(`Unexpected service: ${name}`)
     })
 
@@ -152,6 +155,50 @@ describe('AutoBackupService', () => {
     preferences[key] = value
     preferenceListener?.(key, value, oldValue)
   }
+
+  it('records automatic backup results independently of renderer delivery', async () => {
+    await vi.advanceTimersByTimeAsync(60_000)
+    const records = mockNotificationService.publish.mock.calls.map(([record]) => record)
+    expect(records).toHaveLength(4)
+    expect(records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: 'system',
+          kind: 'backup-success',
+          target: { kind: 'settings', tab: 'data' }
+        })
+      ])
+    )
+    expect(new Set(records.map((record) => record.eventKey)).size).toBe(4)
+  })
+
+  it('preserves manual backup outcomes while recording success, cleanup warning, and failure', async () => {
+    const result = { result: '/backups/saved.zip', cleanupError: null }
+    await expect(runManualBackup(async () => result)).resolves.toBe(result)
+    const warning = { result: '/backups/saved.zip', cleanupError: new Error('cleanup') }
+    await expect(runManualBackup(async () => warning)).resolves.toBe(warning)
+    const failure = new Error('upload failed')
+    await expect(
+      runManualBackup(async () => {
+        throw failure
+      })
+    ).rejects.toBe(failure)
+    expect(mockNotificationService.publish.mock.calls.map(([record]) => record.kind)).toEqual([
+      'backup-success',
+      'backup-warning',
+      'backup-failed'
+    ])
+  })
+
+  it('does not publish backup failure while a retry can still succeed', async () => {
+    mocks.backupToLocalDir.mockRejectedValueOnce(new Error('temporary failure'))
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(mockNotificationService.publish.mock.calls.map(([record]) => record.kind)).not.toContain('backup-failed')
+    await vi.advanceTimersByTimeAsync(7_000)
+    const records = mockNotificationService.publish.mock.calls.map(([record]) => record)
+    expect(records).toHaveLength(4)
+    expect(records.every((record) => record.kind === 'backup-success')).toBe(true)
+  })
 
   const recreateService = async () => {
     await service._doStop()
@@ -304,6 +351,21 @@ describe('AutoBackupService', () => {
     expect(legacyBackupManager.backupToLocalDir).not.toHaveBeenCalled()
   })
 
+  it.each([
+    '/mock/userData',
+    '/mock/userData/..backup',
+    ...(process.platform === 'darwin' || process.platform === 'win32' ? ['/MOCK/USERDATA/backups'] : [])
+  ])('rejects %s as a local backup directory', async (directory) => {
+    setPreference('data.backup.webdav.auto_sync', false)
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    setPreference('data.backup.local.dir', directory)
+
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(legacyBackupManager.backupToLocalDir).not.toHaveBeenCalled()
+  })
+
   it('warns without uploading again when old backup cleanup fails', async () => {
     setPreference('data.backup.webdav.auto_sync', false)
     setPreference('data.backup.s3.auto_sync', false)
@@ -431,6 +493,22 @@ describe('AutoBackupService', () => {
       'backup.auto_sync_state_changed',
       expect.objectContaining({ type: 'webdav', status: 'failed' })
     )
+  })
+
+  it('reports a size rejection once without retrying the same WebDAV upload', async () => {
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.local.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    mocks.backupToWebdav.mockRejectedValue(new Error('BACKUP_WEBDAV_TOO_LARGE: HTTP 413'))
+
+    await vi.advanceTimersByTimeAsync(60_000 + 59_000)
+
+    expect(mocks.backupToWebdav).toHaveBeenCalledTimes(1)
+    expect(service.getStateSnapshot().pendingNotifications).toEqual([
+      expect.objectContaining({ type: 'webdav', status: 'failed', errorMessage: 'BACKUP_WEBDAV_TOO_LARGE: HTTP 413' })
+    ])
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(mocks.backupToWebdav).toHaveBeenCalledTimes(2)
   })
 
   it('emits one failure after the retry budget is exhausted for non-transient errors', async () => {

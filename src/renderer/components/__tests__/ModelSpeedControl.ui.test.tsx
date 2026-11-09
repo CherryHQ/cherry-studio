@@ -180,6 +180,17 @@ describe('ModelSpeedControl UI', () => {
     expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent('assistants.settings.reasoning_effort.max')
   })
 
+  it('offers an explicit Off shortcut when the model can disable thinking', () => {
+    render(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
+
+    const offButton = screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.off' })
+    expect(offButton).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(offButton)
+
+    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent('assistants.settings.reasoning_effort.off')
+  })
+
   it('offers Ultra as the highest reasoning level for GPT-6 Astra', async () => {
     render(
       <ControlledSpeedControl

@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import { join } from 'node:path'
 
+import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { node } from '@elysia/node'
 import { startMockChatServer } from '@test-helpers/http/mockChatServer'
@@ -19,10 +20,12 @@ import type { SerializedError } from '@shared/types/error'
 
 import type { OutputFormat } from '../adapters'
 import { buildStreamErrorFrame, gatewayErrorHandler } from '../errors'
+import { CountTokensBodySchema, MessagesBodySchema } from '../routes/schemas'
 
 const timeoutMessage = 'Upstream request timed out'
 const abortMessage = 'Upstream stream aborted'
 const genericMessage = 'Internal server error'
+const successfulResponseMessage = 'Failed to process successful response'
 const phrases = ['Upstream idle timeout exceeded', 'Stream idle timeout exceeded', 'Idle timeout exceeded']
 const markers = {
   stack: 'MARKER_STACK',
@@ -49,6 +52,7 @@ type Case = {
   boundary?: boolean
   providerType?: string
   requestId?: string
+  quota?: boolean
 }
 const realInputs = new Map<string, unknown>()
 const cases: Case[] = []
@@ -78,6 +82,61 @@ for (const status of [401, 429, 500, 503]) {
     message: `Provider fixture ${status}`
   })
 }
+cases.push({
+  id: 'sdk-anthropic-200-non-message',
+  origin: 'real Anthropic SDK HTTP 200 non-Message fixture + serializeError',
+  input: () => realInputs.get('sdk-anthropic-200-non-message'),
+  status: 502,
+  message: 'Type validation failed: unexpected data structure. Check the provider endpoint and model.'
+})
+for (const status of [200, 201, 204, 206, 299]) {
+  add(
+    `provider-status-${status}`,
+    Object.assign(new Error(successfulResponseMessage), markers, { status }),
+    502,
+    successfulResponseMessage
+  )
+  add(
+    `provider-statusCode-${status}`,
+    { name: 'AI_APICallError', message: successfulResponseMessage, stack: null, statusCode: status },
+    502,
+    successfulResponseMessage
+  )
+}
+add(
+  'success-status-before-error-statusCode',
+  { status: 200, statusCode: 401, message: successfulResponseMessage },
+  502,
+  successfulResponseMessage
+)
+add(
+  'error-status-before-success-statusCode',
+  { status: 401, statusCode: 200, message: 'Provider fixture 401' },
+  401,
+  'Provider fixture 401'
+)
+for (const [id, name] of [
+  ['timeout', 'TimeoutError'],
+  ['abort', 'AbortError']
+]) {
+  add(
+    `success-status-before-${id}`,
+    { statusCode: 200, name, message: successfulResponseMessage },
+    502,
+    successfulResponseMessage
+  )
+}
+cases.push({
+  id: 'success-status-explicit-provider-type',
+  origin: 'constructed boundary',
+  input: () => ({
+    statusCode: 200,
+    error: { type: 'invalid_request_error', message: successfulResponseMessage }
+  }),
+  status: 502,
+  message: successfulResponseMessage,
+  providerType: 'invalid_request_error'
+})
 for (const name of ['ResponseAborted', 'AbortError', 'TimeoutError']) {
   const error = Object.assign(new Error('MARKER_PRIVATE_MESSAGE'), markers, { name })
   add(`direct-${name}`, error, 504, name === 'TimeoutError' ? timeoutMessage : abortMessage)
@@ -170,6 +229,24 @@ add('empty-object', {})
 for (const code of ['ETIMEDOUT', 'ECONNRESET', 20, 23])
   add(`unsupported-code-${code}`, { ...markers, name: 'Error', code })
 add('network-category', { ...markers, providerErrorCategory: 'network' })
+const quotaMessage = '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 29天7小时后重试。'
+cases.push({
+  id: 'provider-quota-429',
+  origin: 'APICallError + serializeError',
+  input: () =>
+    serializeError(
+      new APICallError({
+        message: quotaMessage,
+        url: 'http://fixture.invalid',
+        requestBodyValues: {},
+        statusCode: 429,
+        responseBody: JSON.stringify({ error: { code: 'QUOTA_EXHAUSTED', type: 'quota_error', message: quotaMessage } })
+      })
+    ),
+  status: 429,
+  message: quotaMessage,
+  quota: true
+})
 add('nested-timeout-only', { message: 'ordinary failure', cause: { name: 'TimeoutError', message: phrases[0] } })
 for (const [id, value] of Object.entries({
   undefined,
@@ -215,6 +292,7 @@ const vocabulary: Record<number, { anthropic: string; openai: string; code: stri
     google: 'RESOURCE_EXHAUSTED'
   },
   500: { anthropic: 'api_error', openai: 'server_error', code: 'internal_error', google: 'INTERNAL' },
+  502: { anthropic: 'api_error', openai: 'server_error', code: 'internal_error', google: 'INTERNAL' },
   503: { anthropic: 'api_error', openai: 'server_error', code: 'internal_error', google: 'UNAVAILABLE' },
   504: { anthropic: 'api_error', openai: 'server_error', code: 'internal_error', google: 'DEADLINE_EXCEEDED' }
 }
@@ -230,8 +308,9 @@ function expectedBody(format: OutputFormat, c: Case, sse = false) {
       }
     }
   if (format === 'gemini') return { error: { code: c.status, message: c.message, status: v.google } }
-  if (format === 'openai-responses' && sse) return { type: 'error', code: v.code, message: c.message }
-  return { error: { message: c.message, type: v.openai, code: v.code } }
+  const openai = c.quota ? { type: 'insufficient_quota', code: 'insufficient_quota' } : { type: v.openai, code: v.code }
+  if (format === 'openai-responses' && sse) return { type: 'error', code: openai.code, message: c.message }
+  return { error: { message: c.message, ...openai } }
 }
 function expectedFrame(format: OutputFormat, c: Case) {
   const event = format === 'anthropic' || format === 'openai-responses' ? 'event: error\n' : ''
@@ -344,14 +423,44 @@ async function providerFailure(status: number) {
   }
 }
 
+async function anthropicNonMessageFailure() {
+  const upstream = createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end('{"hello":"not a message"}')
+  })
+  const url = await listen(upstream)
+  try {
+    const anthropic = createAnthropic({ name: 'gateway-fixture', baseURL: `${url}/v1`, apiKey: 'fixture' })
+    const error = await generateText({
+      model: anthropic('fixture'),
+      prompt: 'Synthetic non-message fixture',
+      maxRetries: 0
+    }).catch((error: unknown) => error)
+    expect(APICallError.isInstance(error)).toBe(true)
+    expect((error as APICallError).statusCode).toBe(200)
+    expect((error as APICallError).message).toBe('Invalid JSON response')
+    const serialized = serializeError(error)
+    expect(serialized.statusCode).toBe(200)
+    expect(serialized.message).toBe(
+      'Type validation failed: unexpected data structure. Check the provider endpoint and model.'
+    )
+    return serialized
+  } finally {
+    await close(upstream)
+  }
+}
+
 beforeAll(async () => {
   expect(isDev).toBe(false)
   realInputs.set('fetch-timeout', await fetchFailure(false))
   realInputs.set('fetch-abort', await fetchFailure(true))
   realInputs.set('sdk-sse', await sdkSseFailure())
+  realInputs.set('sdk-anthropic-200-non-message', await anthropicNonMessageFailure())
   for (const status of [401, 429, 500, 503]) realInputs.set(`provider-${status}`, await providerFailure(status))
   expect(serializeError(Object.assign(new Error('ordinary failure'), { code: 'ABORT_ERR' }))).not.toHaveProperty('code')
   const app = new Elysia({ adapter: node() }).error({ DATA_API: DataApiError }).onError(gatewayErrorHandler)
+  app.post('/v1/messages', () => ({ ok: true }), { body: MessagesBodySchema })
+  app.post('/v1/messages/count_tokens', () => ({ input_tokens: 42 }), { body: CountTokensBodySchema })
   for (const path of [...dialects.map((d) => d.path), '/v1/models', '/v1/mcps/test/mcp']) {
     app.get(path, async (ctx) => {
       const { test, format, mode } = active
@@ -411,6 +520,31 @@ afterAll(async () => {
   }
 })
 
+it.each(['/v1/messages', '/v1/messages/count_tokens'])(
+  '%s validation exposes only the indexed issue over HTTP',
+  async (path) => {
+    const sentinel = 'PRIVATE_NEIGHBOURING_MESSAGE_CONTENT'
+    const messages = [...Array.from({ length: 178 }, () => ({ role: 'user', content: sentinel })), { role: 'user' }]
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'anthropic:claude', messages, stream: true }),
+      signal: AbortSignal.timeout(5000)
+    })
+    expect(response.status).toBe(400)
+    expect(response.headers.get('content-type')).toContain('application/json')
+    const body = await response.json()
+    expect(body).toEqual({
+      type: 'error',
+      error: {
+        type: 'invalid_request_error',
+        message: 'messages.178.content: content is required and must be a string or an array of content blocks'
+      }
+    })
+    expect(body.error.message).not.toContain(sentinel)
+  }
+)
+
 describe('gateway generation errors over real Elysia/node sockets', () => {
   for (const dialect of dialects) {
     for (const mode of ['non-streaming', 'before-commit', 'after-commit'] as const) {
@@ -461,6 +595,13 @@ describe('gateway generation errors over real Elysia/node sockets', () => {
               expect(response.headers.get('content-type')).toContain('application/json')
               expect(JSON.parse(body)).toEqual(expectedBody(dialect.format, test))
               expect(body).not.toContain('data: ')
+              if (test.status === 502) {
+                const lengths =
+                  test.id === 'sdk-anthropic-200-non-message'
+                    ? { anthropic: 147, openai: 159, 'openai-responses': 159, gemini: 144 }
+                    : { anthropic: test.providerType ? 107 : 95, openai: 107, 'openai-responses': 107, gemini: 92 }
+                expect(Buffer.byteLength(body, 'utf8')).toBe(lengths[dialect.format])
+              }
             }
             for (const marker of [...Object.values(markers), 'MARKER_PRIVATE_MESSAGE'])
               expect(body).not.toContain(marker)

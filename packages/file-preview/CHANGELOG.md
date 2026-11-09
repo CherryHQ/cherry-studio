@@ -1,5 +1,29 @@
 # @cherrystudio/file-preview
 
+## 0.2.5
+
+### Patch Changes
+
+- [#23122](https://github.com/CherryHQ/cherry-studio/pull/23122) [`11be419`](https://github.com/CherryHQ/cherry-studio/commit/11be419b8bc15f8180501695858a25b486fbd033) Thanks [@angri450](https://github.com/angri450)! - Fit DOCX previews to the pane width, allow them to scale up to 200%, and remove the grey mat around pages.
+
+## 0.2.4
+
+### Patch Changes
+
+- [#23515](https://github.com/CherryHQ/cherry-studio/pull/23515) [`5dabea2`](https://github.com/CherryHQ/cherry-studio/commit/5dabea2c85f467b52d87946b1486c6c1a8de260c) Thanks [@DeJeune](https://github.com/DeJeune)! - Use overlay scrollbars in document previews and PDF outlines so native scrollbar gutters do not reduce content width.
+
+## 0.2.3
+
+### Patch Changes
+
+- [#22548](https://github.com/CherryHQ/cherry-studio/pull/22548) [`a48cb07`](https://github.com/CherryHQ/cherry-studio/commit/a48cb075dda8053226081617308a157c4be4039e) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Enable native text selection and copying in DOCX previews while preserving paragraph references during text dragging.
+
+## 0.2.2
+
+### Patch Changes
+
+- [#22348](https://github.com/CherryHQ/cherry-studio/pull/22348) [`909214f`](https://github.com/CherryHQ/cherry-studio/commit/909214f68dd50bc04f1687c5ffc8845d4aac4fc4) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add Italian translations for file-preview controls and messages.
+
 ## 0.2.1
 
 ### Patch Changes
