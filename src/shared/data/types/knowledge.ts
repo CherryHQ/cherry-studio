@@ -701,7 +701,7 @@ const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
 })
 
 const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({
-  url: z.string().trim().min(1).describe('URL to read and index.'),
+  url: z.string().trim().url().describe('URL to read and index.'),
   // Restore-only: absolute path to a captured snapshot markdown in the source base.
   // When present, Knowledge copies it in and pins the item to it so the first index
   // reads the snapshot offline instead of re-fetching the (possibly changed or dead)
@@ -714,6 +714,21 @@ const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({
 const RuntimeUrlItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
   type: z.literal('url'),
   data: RuntimeUrlItemDataSchema
+})
+
+// Restore-only: persisted URL records predate strict add-time validation and the
+// persisted schema (UrlItemDataSchema) accepts any non-empty string, so a base can
+// legitimately hold a value the add surface now rejects. Restore carries existing
+// records verbatim instead of re-imposing add-time rules on data the user already
+// saved - otherwise one malformed record aborts restoring the whole base, healthy
+// sources included.
+const RestoreRuntimeUrlItemDataSchema = RuntimeUrlItemDataSchema.extend({
+  url: z.string().trim().min(1).describe('URL to read and index.')
+})
+
+export const KnowledgeRestoreUrlItemInputSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('url'),
+  data: RestoreRuntimeUrlItemDataSchema
 })
 
 // Runtime note add carries only the caller-supplied content; `relativePath` is

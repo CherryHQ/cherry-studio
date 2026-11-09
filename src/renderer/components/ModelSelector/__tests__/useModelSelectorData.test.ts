@@ -1,7 +1,7 @@
-import { renderHook } from '@testing-library/react'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -12,13 +12,6 @@ import { useModelSelectorData } from '../useModelSelectorData'
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
 const mockUsePins = vi.fn()
-const cloudAvailability = vi.hoisted(() => {
-  const isModelHidden: (model: Model, includeAgentOnlyModels: boolean) => boolean = () => false
-  return { isModelHidden, isModelUnavailable: () => false, getModelDescription: () => undefined }
-})
-vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
-  useCherryCloudModelAvailability: () => cloudAvailability
-}))
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
 }))
@@ -30,7 +23,6 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: (...args: unknown[]) => mockUsePins(...args)
 }))
-
 vi.mock('@renderer/i18n/label', () => ({
   getProviderLabelKey: (id: string) => `label(${id})`
 }))
@@ -103,50 +95,13 @@ function wireDeps({
 }
 
 beforeEach(() => {
+  MockUseCacheUtils.resetMocks()
   mockUseModels.mockReset()
   mockUseProviders.mockReset()
   mockUsePins.mockReset()
 })
 
 describe('useModelSelectorData', () => {
-  it('merges Qwen and Cloud into the first provider group without changing model routing', () => {
-    const qwen = makeModel('qwen', CHERRYAI_PROVIDER_ID, { name: 'Shared name' })
-    const cloud = makeModel('cloud-model', CHERRY_CLOUD_PROVIDER_ID, { name: 'Shared name' })
-    wireDeps({
-      providers: [
-        makeProvider('openai'),
-        makeProvider(CHERRY_CLOUD_PROVIDER_ID),
-        makeProvider('custom', { name: 'CherryAI' }),
-        makeProvider(CHERRYAI_PROVIDER_ID)
-      ],
-      models: [makeModel('gpt-4', 'openai'), cloud, makeModel('custom-model', 'custom'), qwen]
-    })
-
-    const { result, rerender } = renderHook(({ searchText }) => useModelSelectorData({ searchText }), {
-      initialProps: { searchText: '' }
-    })
-
-    expect(result.current.listItems.filter((item) => item.type === 'group').map((item) => item.key)).toEqual([
-      'provider-cherryai',
-      'provider-openai',
-      'provider-custom'
-    ])
-    expect(result.current.modelItems.slice(0, 2).map((item) => item.model)).toEqual([qwen, cloud])
-    expect(result.current.modelItems.slice(0, 2).map((item) => item.provider.id)).toEqual([
-      CHERRYAI_PROVIDER_ID,
-      CHERRY_CLOUD_PROVIDER_ID
-    ])
-    expect(result.current.modelItems.slice(0, 2).every((item) => item.showIdentifier)).toBe(true)
-
-    rerender({ searchText: 'cloud-model' })
-
-    expect(result.current.listItems.filter((item) => item.type === 'group').map((item) => item.key)).toEqual([
-      'provider-cherryai'
-    ])
-    expect(result.current.modelItems.map((item) => item.model)).toEqual([cloud])
-    expect(result.current.modelItems[0].showIdentifier).toBe(false)
-  })
-
   it('passes the selector activation state to every catalog query', () => {
     wireDeps({
       providers: [makeProvider('openai')],
@@ -167,6 +122,41 @@ describe('useModelSelectorData', () => {
     expect(mockUseProviders).toHaveBeenLastCalledWith({ enabled: true }, { enabled: true })
     expect(mockUseModels).toHaveBeenLastCalledWith({ enabled: true }, { fetchEnabled: true })
     expect(mockUsePins).toHaveBeenLastCalledWith('model', { enabled: true })
+  })
+
+  it('uses projected tags for available filters and tag matching', () => {
+    const model = makeModel('gpt-5', 'provider')
+    wireDeps({ providers: [makeProvider('provider')], models: [model] })
+    const { result } = renderHook(() =>
+      useModelSelectorData({ searchText: '', composition: { getModelPresentation: () => ({ tags: ['free'] }) } })
+    )
+    expect(result.current.availableTags).toContain('free')
+    act(() => result.current.toggleTag('free'))
+    expect(result.current.modelItems.map((item) => item.modelId)).toEqual([model.id])
+  })
+
+  it('keeps command rows searchable and keyboard-navigable without making them selectable models', () => {
+    wireDeps({ providers: [makeProvider('provider')], models: [], pinnedIds: ['provider::unavailable'] })
+    const action = {
+      type: 'action' as const,
+      key: 'open-command',
+      providerId: 'provider',
+      label: 'Open premium',
+      searchId: 'premium',
+      tags: ['reasoning' as const],
+      onAction: vi.fn()
+    }
+    const { result, rerender } = renderHook(
+      ({ searchText }) => useModelSelectorData({ searchText, composition: { actions: [action] } }),
+      { initialProps: { searchText: '' } }
+    )
+    expect(result.current.navigableItems).toEqual([action])
+    expect(result.current.modelItems).toEqual([])
+    expect(result.current.selectableModelsById.size).toBe(0)
+    act(() => result.current.toggleTag('reasoning'))
+    expect(result.current.navigableItems).toEqual([action])
+    rerender({ searchText: 'unrelated' })
+    expect(result.current.navigableItems).toEqual([])
   })
 
   it('groups models under known providers and drops orphan models', () => {
@@ -242,17 +232,22 @@ describe('useModelSelectorData', () => {
     expect(providerRows.map((item) => item.modelId)).toEqual(['openai::gpt-3.5'])
   })
 
-  it('uses CherryAI display-group duplicates for pinned models', () => {
+  it('uses declared display-group duplicates for pinned models', () => {
     wireDeps({
-      providers: [makeProvider(CHERRY_CLOUD_PROVIDER_ID), makeProvider(CHERRYAI_PROVIDER_ID)],
+      providers: [makeProvider('vendor-two'), makeProvider('vendor-one')],
       models: [
-        makeModel('qwen', CHERRYAI_PROVIDER_ID, { name: 'Shared name' }),
-        makeModel('cloud-model', CHERRY_CLOUD_PROVIDER_ID, { name: 'Shared name' })
+        makeModel('qwen', 'vendor-one', { name: 'Shared name' }),
+        makeModel('second-model', 'vendor-two', { name: 'Shared name' })
       ],
-      pinnedIds: [`${CHERRYAI_PROVIDER_ID}::qwen`]
+      pinnedIds: [`${'vendor-one'}::qwen`]
     })
 
-    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+    const { result } = renderHook(() =>
+      useModelSelectorData({
+        searchText: '',
+        composition: { providerGroups: [{ id: 'combined', providerIds: ['vendor-one', 'vendor-two'] }] }
+      })
+    )
 
     expect(result.current.modelItems.find((item) => item.isPinned)?.showIdentifier).toBe(true)
     expect(result.current.modelItems.find((item) => !item.isPinned)?.showIdentifier).toBe(true)
@@ -376,34 +371,6 @@ describe('useModelSelectorData', () => {
       'openai::gpt-4'
     ])
     expect(mockUseModels).toHaveBeenLastCalledWith({ enabled: true }, { fetchEnabled: true })
-  })
-
-  it('hides models the Cloud availability excludes for the picker context', () => {
-    const workOnly = makeModel('work-only', CHERRY_CLOUD_PROVIDER_ID)
-    wireDeps({
-      providers: [makeProvider('openai'), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
-      models: [makeModel('gpt-4', 'openai'), workOnly, makeModel('shared', CHERRY_CLOUD_PROVIDER_ID)]
-    })
-    cloudAvailability.isModelHidden = (model, includeAgentOnlyModels) =>
-      model.id === workOnly.id && !includeAgentOnlyModels
-
-    try {
-      const general = renderHook(() => useModelSelectorData({ searchText: '' }))
-      expect(general.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
-        `${CHERRY_CLOUD_PROVIDER_ID}::shared`,
-        'openai::gpt-4'
-      ])
-      general.unmount()
-
-      const agent = renderHook(() => useModelSelectorData({ searchText: '', includeAgentOnlyModels: true }))
-      expect(agent.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
-        `${CHERRY_CLOUD_PROVIDER_ID}::shared`,
-        workOnly.id,
-        'openai::gpt-4'
-      ])
-    } finally {
-      cloudAvailability.isModelHidden = () => false
-    }
   })
 
   it('applies the caller filter before deriving available tags', () => {

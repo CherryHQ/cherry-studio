@@ -350,6 +350,8 @@ export type CompactionVerdict =
   | { readonly decline: true; readonly reason: string }
 export interface LifecycleHandlers {
   onOpen(thread: ThreadId, open: { readonly reopened: boolean }, ports: BoundPorts): Promise<void>
+  /** A committed child's native session failed to open; runs before that commit's jobs start. */
+  onChildOpenFailed?(parent: ThreadId, child: ThreadId, error: string, ports: BoundPorts): Promise<void>
   onCompacting(thread: ThreadId, request: CompactionRequest, ports: GatePorts): Promise<CompactionVerdict>
   onCompacted(thread: ThreadId, ports: BoundPorts): Promise<void>
   onClose(thread: ThreadId, ports: BoundPorts): Promise<void>

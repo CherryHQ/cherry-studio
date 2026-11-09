@@ -1,5 +1,6 @@
-import type { ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
+import { type ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
 
+import { decodeEntry, subagentResults, type SubagentResults } from '@cherrystudio/agent-behavior'
 import type {
   BoundPorts,
   CallRef,
@@ -9,11 +10,18 @@ import type {
   LifecycleHandlers,
   SubagentOrigin
 } from '@cherrystudio/agent-behavior'
-import { type InputId, type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
+import {
+  type InputId,
+  type JsonValue,
+  type OperationResult,
+  runtimeId,
+  type ThreadId
+} from '@cherrystudio/agent-runtime'
 
 import type { CompactionSummarizer } from '../compaction'
 import type { AgentRuntimeSession } from '../session'
 import { compactionSummarizer, conversationExtension, meterRequests } from './extension'
+import { historyOf } from './history'
 import { commit, modelContext, readFacts } from './ledger'
 import {
   awaitAnswer,
@@ -68,6 +76,7 @@ export interface PiBehaviorOptions {
    * a compaction cancelled because it bypassed `BehaviorSessionRequest.summarize`.
    */
   readonly onError?: (error: unknown) => void
+  readonly onResults?: (thread: ThreadId, result: OperationResult<SubagentResults>) => void
 }
 
 /** The agent-behavior harness ports on native coding-agent sessions (README "Behavior ports"). */
@@ -171,11 +180,21 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
               },
               scope.owner
             )
+            adapter.results(thread)
             if (scope.opening) scope.opening.push(...applied.jobs)
             const launched = await Promise.allSettled(
               applied.children.map((child) =>
-                launch(openNative(child)).catch((error: unknown) => {
+                launch(openNative(child)).catch(async (error: unknown) => {
                   conversations.delete(child.thread)
+                  await lifecycle(
+                    (handlers, ports) =>
+                      handlers.onChildOpenFailed?.(
+                        thread,
+                        child.thread,
+                        error instanceof Error ? error.message : String(error),
+                        ports
+                      ) ?? Promise.resolve()
+                  )
                   throw error
                 })
               )
@@ -314,6 +333,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   async function openRoot(conv: Conversation): Promise<void> {
     try {
       await openNative(conv)
+      if (conv.reopened) await restoreChildren(conv)
     } catch (error) {
       // Never opened: the host may open it again.
       conversations.delete(conv.thread)
@@ -332,6 +352,48 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         // So does a person's text submitted while the session was being built.
         drain(adapter, conv)
       }
+    }
+  }
+  async function restoreChildren(parent: Conversation): Promise<void> {
+    if (!parent.manager.isPersisted()) return
+    const history = historyOf(parent.manager.getBranch(), parent.thread)
+    for (const item of history)
+      if (item.kind === 'assistant') for (const call of item.toolCalls) parent.callIds.set(call.callKey, call.callId)
+    const ids = new Set(
+      history.flatMap((item) =>
+        item.kind === 'record' && item.record.type === 'subagent-run' ? [item.record.value.sessionId] : []
+      )
+    )
+    if (!ids.size) return
+    const files = await SessionManager.list(parent.manager.getCwd(), parent.manager.getSessionDir())
+    for (const id of ids) {
+      const candidates = files.filter(
+        (file) => file.id === id && file.parentSessionPath === parent.manager.getSessionFile()
+      )
+      if (candidates.length !== 1) continue
+      const manager = SessionManager.openExisting(candidates[0].path, id)
+      const origin = historyOf(manager.getBranch(), id).findLast(
+        (item) => item.kind === 'record' && item.record.type === 'subagent-origin'
+      )
+      if (origin?.kind !== 'record' || origin.record.type !== 'subagent-origin') continue
+      const child = newConversation(
+        id,
+        manager,
+        { kind: 'subagent', parent: parent.thread, origin: origin.record.value },
+        undefined,
+        true
+      )
+      conversations.set(id, child)
+      try {
+        await openNative(child)
+      } catch (error) {
+        conversations.delete(id)
+        await child.native?.dispose().catch(report)
+        accepting()
+        report(error)
+        continue
+      }
+      await restoreChildren(child)
     }
   }
   async function openNative(conv: Conversation): Promise<void> {
@@ -382,6 +444,34 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     conversation,
     track,
     report,
+    results(thread) {
+      const conv = conversation(thread)
+      const input = conv.active && conv.submissions.get(conv.active.key)?.input
+      const marker =
+        input && typeof input !== 'string'
+          ? decodeEntry({ id: runtimeId(conv.active!.key), kind: input.kind, data: input.data })
+          : undefined
+      const notification =
+        marker?.kind === 'marker' && marker.marker.type === 'subagent-notification'
+          ? marker.marker.runs
+          : conv.active
+            ? []
+            : undefined
+      const results = subagentResults(readFacts(adapter, thread).history, conv.active !== undefined, notification)
+      options.onResults?.(
+        thread,
+        results
+          ? { status: 'confirmed', value: results }
+          : {
+              status: 'unknown',
+              error: {
+                operation: 'backgroundResults',
+                code: 'missing-result-origin',
+                message: 'A Pi background result has no recorded triggering call'
+              }
+            }
+      )
+    },
     withScope,
     lifecycle
   }
@@ -449,7 +539,6 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     async submitUser(thread, text) {
       accepting()
       users += 1
-      // A person's submissions get adapter-local keys; rules never see them.
       submit(adapter, conversation(thread), `user:${users}`, text)
     },
     prompt(thread, text, promptOptions, signal) {

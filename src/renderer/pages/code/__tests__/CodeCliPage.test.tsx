@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -166,7 +167,7 @@ vi.mock('@cherrystudio/ui', () => ({
   SelectItem: ({ children }: { children: ReactNode; value: string }) => <div>{children}</div>,
   SelectTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
-  Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   SearchInput: ({
     value,
     placeholder,

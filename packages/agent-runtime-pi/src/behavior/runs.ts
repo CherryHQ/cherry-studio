@@ -105,6 +105,7 @@ function beginRun(adapter: Adapter, conv: Conversation, key: string, number = co
   }
   conv.active = run
   conv.latest = run
+  adapter.results(conv.thread)
   submission.state = 'running'
   submission.run = run.run
   void adapter.track(done)
@@ -195,6 +196,7 @@ export function finishRun(adapter: Adapter, conv: Conversation, ending: RunEndin
   conv.steered.clear()
   if (ending?.live === 'completed' && !run.stopRequested) conv.inbox.push(...pending)
   else withdrawAll(conv, pending)
+  adapter.results(conv.thread)
   run.end()
   if (ending === undefined || ending.live === 'completed') drain(adapter, conv)
   wake(conv)

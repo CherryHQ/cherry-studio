@@ -1,5 +1,5 @@
 diff --git a/dist/index.d.mts b/dist/index.d.mts
-index 23c5e35..3a73d98 100644
+index 23c5e351eb34a71f5a19576761effd709af3dd9f..3a73d985abb8a69fc0a716c88e859316f2388bad 100644
 --- a/dist/index.d.mts
 +++ b/dist/index.d.mts
 @@ -5041,7 +5041,7 @@ type GenerateImagePrompt = string | {
@@ -25,7 +25,7 @@ index 23c5e35..3a73d98 100644
  
  /**
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 23c5e35..3a73d98 100644
+index 23c5e351eb34a71f5a19576761effd709af3dd9f..3a73d985abb8a69fc0a716c88e859316f2388bad 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -5041,7 +5041,7 @@ type GenerateImagePrompt = string | {
@@ -51,10 +51,10 @@ index 23c5e35..3a73d98 100644
  
  /**
 diff --git a/dist/index.js b/dist/index.js
-index 5774837..aa66abb 100644
+index 5774837d8961e535a03b2037c58bdcff45cf1916..d54e9ece226f1fc9e58f1cfcbf93ae333d6f6c8d 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -1988,6 +1988,6 @@ async function prepareToolsAndToolChoice({
+@@ -1988,7 +1988,7 @@ async function prepareToolsAndToolChoice({
    }
    return {
      tools: languageModelTools,
@@ -62,7 +62,28 @@ index 5774837..aa66abb 100644
 +    toolChoice: toolChoice == null ? void 0 : typeof toolChoice === "string" ? { type: toolChoice } : { type: "tool", toolName: toolChoice.toolName }
    };
  }
-@@ -8468,6 +8468,16 @@ function createUIMessageStream({
+ 
+@@ -6709,6 +6709,10 @@ function createOutputTransformStream(output) {
+       text2 += chunk.text;
+       textChunk += chunk.text;
+       textProviderMetadata = (_a21 = chunk.providerMetadata) != null ? _a21 : textProviderMetadata;
++      if (chunk.text.length === 0 && chunk.providerMetadata != null) {
++        controller.enqueue({ part: chunk, partialOutput: void 0 });
++        return;
++      }
+       const result = await output.parsePartialOutput({ text: text2 });
+       if (result !== void 0) {
+         const currentValue = typeof result.partial === "string" ? result.partial : JSON.stringify(result.partial);
+@@ -7489,7 +7493,7 @@ var DefaultStreamTextResult = class {
+                         break;
+                       }
+                       case "text-delta": {
+-                        if (chunk.delta.length > 0) {
++                        if (chunk.delta.length > 0 || chunk.providerMetadata != null) {
+                           controller.enqueue({
+                             type: "text-delta",
+                             id: chunk.id,
+@@ -8468,6 +8472,16 @@ function createUIMessageStream({
  }
  
  // src/ui-message-stream/read-ui-message-stream.ts
@@ -79,7 +100,7 @@ index 5774837..aa66abb 100644
  function readUIMessageStream({
    message,
    stream,
-@@ -8500,7 +8510,7 @@ function readUIMessageStream({
+@@ -8500,7 +8514,7 @@ function readUIMessageStream({
          return job({
            state,
            write: () => {
@@ -88,7 +109,7 @@ index 5774837..aa66abb 100644
            }
          });
        },
-@@ -9636,6 +9646,14 @@ var DefaultEmbedManyResult = class {
+@@ -9636,6 +9650,14 @@ var DefaultEmbedManyResult = class {
  
  // src/generate-image/generate-image.ts
  var import_provider_utils25 = require("@ai-sdk/provider-utils");
@@ -103,7 +124,7 @@ index 5774837..aa66abb 100644
  async function generateImage({
    model: modelArg,
    prompt: promptArg,
-@@ -9647,7 +9665,8 @@ async function generateImage({
+@@ -9647,7 +9669,8 @@ async function generateImage({
    providerOptions,
    maxRetries: maxRetriesArg,
    abortSignal,
@@ -113,7 +134,7 @@ index 5774837..aa66abb 100644
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9696,11 +9715,36 @@ async function generateImage({
+@@ -9696,11 +9719,36 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -154,7 +175,7 @@ index 5774837..aa66abb 100644
            return new DefaultGeneratedFile({
              data: image,
              mediaType: (_a22 = detectMediaType({
-@@ -9708,9 +9752,22 @@ async function generateImage({
+@@ -9708,9 +9756,22 @@ async function generateImage({
                signatures: imageMediaTypeSignatures
              })) != null ? _a22 : "image/png"
            });
@@ -179,10 +200,10 @@ index 5774837..aa66abb 100644
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 6862f01..6bcfd14 100644
+index 6862f01537bf5c2c5d47772fab0174a99180fdf6..fd291e309b550cd6d66a89389222819c35c19395 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -1881,6 +1881,6 @@ async function prepareToolsAndToolChoice({
+@@ -1881,7 +1881,7 @@ async function prepareToolsAndToolChoice({
    }
    return {
      tools: languageModelTools,
@@ -190,7 +211,28 @@ index 6862f01..6bcfd14 100644
 +    toolChoice: toolChoice == null ? void 0 : typeof toolChoice === "string" ? { type: toolChoice } : { type: "tool", toolName: toolChoice.toolName }
    };
  }
-@@ -8392,6 +8392,16 @@ function createUIMessageStream({
+ 
+@@ -6630,6 +6630,10 @@ function createOutputTransformStream(output) {
+       text2 += chunk.text;
+       textChunk += chunk.text;
+       textProviderMetadata = (_a21 = chunk.providerMetadata) != null ? _a21 : textProviderMetadata;
++      if (chunk.text.length === 0 && chunk.providerMetadata != null) {
++        controller.enqueue({ part: chunk, partialOutput: void 0 });
++        return;
++      }
+       const result = await output.parsePartialOutput({ text: text2 });
+       if (result !== void 0) {
+         const currentValue = typeof result.partial === "string" ? result.partial : JSON.stringify(result.partial);
+@@ -7410,7 +7414,7 @@ var DefaultStreamTextResult = class {
+                         break;
+                       }
+                       case "text-delta": {
+-                        if (chunk.delta.length > 0) {
++                        if (chunk.delta.length > 0 || chunk.providerMetadata != null) {
+                           controller.enqueue({
+                             type: "text-delta",
+                             id: chunk.id,
+@@ -8392,6 +8396,16 @@ function createUIMessageStream({
  }
  
  // src/ui-message-stream/read-ui-message-stream.ts
@@ -207,7 +249,7 @@ index 6862f01..6bcfd14 100644
  function readUIMessageStream({
    message,
    stream,
-@@ -8424,7 +8434,7 @@ function readUIMessageStream({
+@@ -8424,7 +8438,7 @@ function readUIMessageStream({
          return job({
            state,
            write: () => {
@@ -216,7 +258,7 @@ index 6862f01..6bcfd14 100644
            }
          });
        },
-@@ -9575,6 +9585,14 @@ import {
+@@ -9575,6 +9589,14 @@ import {
    convertBase64ToUint8Array as convertBase64ToUint8Array4,
    withUserAgentSuffix as withUserAgentSuffix5
  } from "@ai-sdk/provider-utils";
@@ -231,7 +273,7 @@ index 6862f01..6bcfd14 100644
  async function generateImage({
    model: modelArg,
    prompt: promptArg,
-@@ -9586,7 +9604,8 @@ async function generateImage({
+@@ -9586,7 +9608,8 @@ async function generateImage({
    providerOptions,
    maxRetries: maxRetriesArg,
    abortSignal,
@@ -241,7 +283,7 @@ index 6862f01..6bcfd14 100644
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9635,11 +9654,36 @@ async function generateImage({
+@@ -9635,11 +9658,36 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -282,7 +324,7 @@ index 6862f01..6bcfd14 100644
            return new DefaultGeneratedFile({
              data: image,
              mediaType: (_a22 = detectMediaType({
-@@ -9647,9 +9691,22 @@ async function generateImage({
+@@ -9647,9 +9695,22 @@ async function generateImage({
                signatures: imageMediaTypeSignatures
              })) != null ? _a22 : "image/png"
            });
@@ -306,8 +348,32 @@ index 6862f01..6bcfd14 100644
      warnings.push(...result.warnings);
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
+diff --git a/src/generate-text/stream-text.ts b/src/generate-text/stream-text.ts
+index 30a50e8e93de369e3fbfe49eb1d43cf5d7730ea1..237ca34493c8a0380122e2d64ee6b35d718bdd68 100644
+--- a/src/generate-text/stream-text.ts
++++ b/src/generate-text/stream-text.ts
+@@ -669,6 +669,10 @@ function createOutputTransformStream<
+       text += chunk.text;
+       textChunk += chunk.text;
+       textProviderMetadata = chunk.providerMetadata ?? textProviderMetadata;
++      if (chunk.text.length === 0 && chunk.providerMetadata != null) {
++        controller.enqueue({ part: chunk, partialOutput: undefined });
++        return;
++      }
+ 
+       // only publish if partial json can be parsed:
+       const result = await output.parsePartialOutput({ text });
+@@ -1780,7 +1784,7 @@ class DefaultStreamTextResult<
+                       }
+ 
+                       case 'text-delta': {
+-                        if (chunk.delta.length > 0) {
++                        if (chunk.delta.length > 0 || chunk.providerMetadata != null) {
+                           controller.enqueue({
+                             type: 'text-delta',
+                             id: chunk.id,
 diff --git a/src/prompt/prepare-tools-and-tool-choice.ts b/src/prompt/prepare-tools-and-tool-choice.ts
-index ced51f7..ca43d55 100644
+index ced51f7ecdab66d7d1b0d8496d14616b22cfda64..ca43d554c3678c0a5794adbb4ccb87cd0471c37d 100644
 --- a/src/prompt/prepare-tools-and-tool-choice.ts
 +++ b/src/prompt/prepare-tools-and-tool-choice.ts
 @@ -78,7 +78,7 @@ export async function prepareToolsAndToolChoice<TOOLS extends ToolSet>({

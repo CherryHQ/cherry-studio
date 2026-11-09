@@ -38,15 +38,15 @@ const fileTokenVisualPresetByVariant = {
   },
   word: {
     defaultTypeLabel: 'WORD',
-    displayExtensions: ['doc', 'docx']
+    displayExtensions: ['doc', 'docx', 'odt', 'rtf']
   },
   excel: {
     defaultTypeLabel: 'EXCEL',
-    displayExtensions: ['csv', 'xls', 'xlsx']
+    displayExtensions: ['csv', 'ods', 'tsv', 'xls', 'xlsx']
   },
   powerpoint: {
     defaultTypeLabel: 'PPT',
-    displayExtensions: ['ppt', 'pptx']
+    displayExtensions: ['odp', 'ppt', 'pptx']
   },
   pdf: {
     defaultTypeLabel: 'PDF',
@@ -65,7 +65,8 @@ const fileTokenVisualPresetByVariant = {
     displayExtensions: ['css', 'go', 'html', 'java', 'js', 'jsx', 'py', 'rs', 'ts', 'tsx', 'xml', 'yaml', 'yml']
   },
   document: {
-    defaultTypeLabel: 'DOCUMENT'
+    defaultTypeLabel: 'DOCUMENT',
+    displayExtensions: ['epub']
   },
   text: {
     defaultTypeLabel: 'TEXT',

@@ -61,6 +61,8 @@ describe('getFileTokenPresentation icon', () => {
   const presentationFor = (name: string, file?: Partial<ComposerAttachment>) =>
     getFileTokenPresentation(file && imageAttachment(file), name)
 
+  const variantFor = (name: string) => getFileTokenPresentation(undefined, name).variant
+
   it('resolves the type icon from the app-wide file icon mapping', () => {
     // The same mapping the file tree, clickable file paths and agent file mentions use, so a token
     // names a `.ts` a TypeScript icon instead of a token-local "code" bucket.
@@ -71,6 +73,38 @@ describe('getFileTokenPresentation icon', () => {
     expect(iconNameOf(presentationFor('clip.mp4'))).toBe('video')
     expect(iconNameOf(presentationFor('notes.md'))).toBe('markdown')
     expect(iconNameOf(presentationFor('Dockerfile'))).toBe('docker')
+  })
+
+  it('maps office families onto shared word/table/powerpoint categories', () => {
+    expect(iconNameOf(presentationFor('report.odt'))).toBe('word')
+    expect(iconNameOf(presentationFor('notes.rtf'))).toBe('word')
+    expect(iconNameOf(presentationFor('budget.ods'))).toBe('table')
+    expect(iconNameOf(presentationFor('deck.odp'))).toBe('powerpoint')
+    expect(iconNameOf(presentationFor('book.epub'))).toBe('epub')
+    expect(iconNameOf(presentationFor('notes.markdown'))).toBe('markdown')
+    expect(iconNameOf(presentationFor('data.jsonl'))).toBe('json')
+    expect(iconNameOf(presentationFor('photo.avif'))).toBe('image')
+    expect(iconNameOf(presentationFor('photo.heic'))).toBe('image')
+    expect(iconNameOf(presentationFor('archive.tgz'))).toBe('zip')
+  })
+
+  it('assigns office and archive variants consistently across attachment surfaces', () => {
+    expect(variantFor('report.docx')).toBe('word')
+    expect(variantFor('report.odt')).toBe('word')
+    expect(variantFor('notes.rtf')).toBe('word')
+    expect(variantFor('budget.xlsx')).toBe('excel')
+    expect(variantFor('budget.ods')).toBe('excel')
+    expect(variantFor('data.csv')).toBe('excel')
+    expect(variantFor('data.tsv')).toBe('excel')
+    expect(variantFor('deck.pptx')).toBe('powerpoint')
+    expect(variantFor('deck.odp')).toBe('powerpoint')
+    expect(variantFor('book.epub')).toBe('document')
+    // Archives, audio and video stay on the generic fallback variant (glyph still
+    // distinguishes them via the app-wide icon mapping); see ComposerToken test
+    // "keeps unsupported archive, audio, and video extensions on the fallback variant".
+    expect(variantFor('archive.zip')).toBe('fallback')
+    expect(variantFor('archive.tgz')).toBe('fallback')
+    expect(variantFor('mystery.xyz')).toBe('fallback')
   })
 
   it('keeps the generic document glyph for unknown types', () => {
