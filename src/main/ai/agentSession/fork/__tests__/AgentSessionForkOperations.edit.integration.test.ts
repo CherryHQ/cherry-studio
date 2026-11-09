@@ -37,10 +37,8 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
     runtimeDriverRegistry.clearForTest()
     runtimeDriverRegistry.register({
       type: 'claude-code',
-      capabilities: ['agent-session'],
       connect: vi.fn(),
       validateSession: vi.fn(),
-      listAvailableTools: vi.fn().mockResolvedValue([]),
       isForkCheckpoint: () => true,
       fork: vi.fn()
     })
