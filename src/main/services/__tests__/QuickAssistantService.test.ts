@@ -67,4 +67,18 @@ describe('QuickAssistantService', () => {
 
     expect(webContents.setZoomFactor).toHaveBeenLastCalledWith(1.8)
   })
+  it('reapplies startup zoom after the render frame is ready, reading the current preference', () => {
+    const service = new QuickAssistantService()
+    const webContents = Object.assign(new EventEmitter(), { setZoomFactor: vi.fn(), setWindowOpenHandler: vi.fn() })
+    const window = Object.assign(new EventEmitter(), { isDestroyed: vi.fn(() => false), webContents })
+    service['setupQuickAssistant'](window as never)
+    webContents.setZoomFactor.mockClear()
+    preferenceServiceMock.get.mockReturnValue(2)
+    window.emit('ready-to-show')
+    expect(webContents.setZoomFactor).toHaveBeenCalledWith(2)
+    window.isDestroyed.mockReturnValue(true)
+    webContents.setZoomFactor.mockClear()
+    window.emit('ready-to-show')
+    expect(webContents.setZoomFactor).not.toHaveBeenCalled()
+  })
 })

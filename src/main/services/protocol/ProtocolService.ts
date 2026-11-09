@@ -10,6 +10,7 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { DEV_PROFILE_ROOT } from '@main/core/paths/constants'
 import { isLinux, isPortable, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
@@ -142,6 +143,8 @@ export class ProtocolService extends BaseService {
   }
 
   private registerProtocolScheme() {
+    if (DEV_PROFILE_ROOT) return
+
     // In dev, Electron needs the app entry as an absolute path; launchers often
     // pass "." as argv[1], which becomes invalid when the OS invokes the
     // protocol handler from a different cwd.
@@ -250,7 +253,7 @@ export class ProtocolService extends BaseService {
    */
   private async setupAppImageDeepLink(): Promise<void> {
     // Only run on Linux and when packaged as an AppImage
-    if (!isLinux || !process.env.APPIMAGE) {
+    if (DEV_PROFILE_ROOT || !isLinux || !process.env.APPIMAGE) {
       return
     }
 

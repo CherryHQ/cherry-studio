@@ -4,6 +4,7 @@ import { createServer } from 'node:http'
 
 import type { McpServer } from '../../../src/shared/data/types/mcpServer'
 import { expect, test } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 import { uiLocator } from './utils/uiLocator'
 
 test('MCP server remains usable when legacy ping returns extra fields', async ({ mainWindow }, testInfo) => {
@@ -118,11 +119,10 @@ test('MCP server remains usable when legacy ping returns extra fields', async ({
   try {
     preferences = await prepare()
     await mainWindow.reload()
-    await uiLocator(mainWindow, 'app.sidebar').getByRole('button', { name: 'Settings', exact: true }).click()
+    await openSettings(mainWindow)
     const settings = uiLocator(mainWindow, 'settings.view')
     await mainWindow.locator('[data-ui~="settings.navigation"]').getByRole('button', { name: /MCP$/ }).click()
     const content = uiLocator(settings, 'settings.content')
-    await content.locator('#setting-mcp-servers-tab-servers').click()
     await content.getByRole('button', { name: 'Add', exact: true }).click()
     await mainWindow.getByRole('button', { name: 'Quick Create', exact: true }).click()
     const create = mainWindow.getByRole('dialog').filter({ hasText: 'Quick Create' }).first()

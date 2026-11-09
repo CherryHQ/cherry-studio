@@ -47,11 +47,17 @@ tests/e2e/
 ### Smoke suite
 
 The prerequisites and commands below apply only to the smoke suite in `smoke/`.
+Each test receives an isolated application profile and CLI home in an owned temporary directory.
+Main-window selection uses its renderer entry path because pooled windows can share the application title during startup.
+The fixture uses short runtime paths for Chromium's macOS socket limit; specialized persistence fixtures may keep profiles under the output directory.
+Cleanup closes Electron within 15 seconds or terminates the owned process and fails the test, then removes owned runtime directories.
+Reports and screenshots remain in the configured output directory for review.
 
 #### Prerequisites
 
 1. Install dependencies: `pnpm install`
 2. Build the application: `pnpm build`
+3. Download managed binaries with `pnpm download:binaries`, then set `E2E_RIPGREP_BIN` to the absolute `resources/binaries/<platform>-<arch>/rg` path (`rg.exe` on Windows). Notes cases fail when this executable is missing; the regression workflow sets it automatically.
 
 #### Commands
 

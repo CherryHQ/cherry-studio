@@ -312,6 +312,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
       }
     }
     reapplyZoom()
+    // The initial call precedes navigation; apply again once a live render frame exists.
+    window.once('ready-to-show', reapplyZoom)
 
     this.setupQuickAssistantWebContents(window)
 
