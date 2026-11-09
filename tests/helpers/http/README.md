@@ -4,6 +4,16 @@ These helpers serve Node-based unit/integration tests and Playwright E2E scenari
 without importing Electron, application services, or a test runner.
 [`server.ts`](server.ts) provides generic HTTP/HTTPS servers and unused ports.
 
+## Mock development update feed
+
+[`mockUpdateServer.ts`](mockUpdateServer.ts) serves the running package version
+as generic-provider YAML metadata on the configured `127.0.0.1` HTTP feed.
+It supplies the development dependency for `MP-114`; the real application
+updater fetches and compares the metadata. It provides no installer and cannot
+validate downloading, installing, or the published release feed. An occupied
+port fails setup without adopting or stopping the existing listener. Always
+close the fixture after the check. Installer runs use their packaged feed.
+
 ## Mock chat server
 
 [`mockChatServer.ts`](mockChatServer.ts) starts a real HTTP server on an ephemeral
@@ -17,8 +27,8 @@ Supported endpoints:
 - `GET /v1/models`: exposes `mock-chat` for provider discovery.
 - `POST /v1/chat/completions`: JSON completion or SSE according to `stream`.
 
-This fixture implements text chat only. It does not implement Responses,
-Anthropic Messages, legacy `/completions`, tool calls, or token accounting.
+This fixture implements text chat and model-requested function calls. It does not implement Responses,
+Anthropic Messages, legacy `/completions`, or token accounting.
 Unknown endpoints return 404 and malformed requests return 400.
 
 `nextRequest()` returns a separate controller for each request, in arrival order.
@@ -32,6 +42,7 @@ controllers. No response content is generated automatically.
 | --- | --- |
 | `sendText(text)` | Sends one SSE text delta; requires `stream: true` |
 | `complete(text?)` | Sends optional final text and finishes normally; SSE includes a stop chunk and `[DONE]` |
+| `completeToolCall({ id, name, arguments })` | Completes with a function call and `tool_calls` finish reason; the application must execute the real tool |
 | `fail(message)` | Sends an SSE provider error and `[DONE]`, or HTTP 500 for non-streaming requests |
 | `disconnect()` | Destroys the socket without a finish chunk or `[DONE]` |
 | `closed` | Resolves on response closure, including client cancellation; does not identify who closed it |
@@ -76,8 +87,8 @@ For example, within a Playwright scenario after configuring and selecting the
 mock provider, with `composer` and `assistantMessage` scoped to this chat:
 
 ```ts
-// From tests/e2e/regression/*.spec.ts
-import { startMockChatServer } from '../../helpers/http/mockChatServer'
+// From tests/e2e/regression/phases/*.test.ts
+import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 
 const server = await startMockChatServer()
 try {

@@ -182,6 +182,14 @@ describe('popup message OAuth flows', () => {
     expect(setKey).not.toHaveBeenCalled()
   })
 
+  it('opens Aihubmix without the client_id that stalls its key page', async () => {
+    await oauthWithAihubmix(vi.fn())
+    const url = new URL(String(vi.mocked(window.open).mock.calls[0][0]))
+    expect(url.searchParams.has('client_id')).toBe(false)
+    expect(url.searchParams.get('lang')).toBe('en-US')
+    expect(url.searchParams.get('aff')).toBe('SJyh')
+  })
+
   it('cleans up a recognized malformed Aihubmix callback', async () => {
     const setKey = vi.fn()
     await oauthWithAihubmix(setKey)
