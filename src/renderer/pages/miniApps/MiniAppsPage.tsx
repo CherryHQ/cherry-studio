@@ -4,11 +4,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Button, EmptyState, SearchInput, Tooltip, useDropzone } from '@cherrystudio/ui'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import App from '@renderer/components/MiniApp/MiniApp'
 import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
@@ -167,7 +167,12 @@ const MiniAppsPage: FC = () => {
         <div className="flex shrink-0 items-start justify-end p-3">
           <div className="flex items-center gap-1">
             <Tooltip content={t('miniApp.add.title')}>
-              <Button variant="ghost" size="icon-sm" aria-label={t('miniApp.add.title')} onClick={openCreateAppPanel}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('miniApp.add.title')}
+                onClick={openCreateAppPanel}
+                className="text-muted-foreground">
                 <Plus size={14} />
               </Button>
             </Tooltip>
@@ -175,7 +180,8 @@ const MiniAppsPage: FC = () => {
               variant="ghost"
               size="icon-sm"
               aria-label={t('settings.miniApps.display_title')}
-              onClick={() => setSettingsOpen(true)}>
+              onClick={() => setSettingsOpen(true)}
+              className="text-muted-foreground">
               <Menu size={14} />
             </Button>
           </div>
@@ -195,7 +201,7 @@ const MiniAppsPage: FC = () => {
         </div>
 
         {/* Body: loading / error / empty / grid */}
-        <Scrollbar className="min-h-0 flex-1 px-8 pb-10">
+        <ScrollArea viewportProps={{ className: 'px-8 pb-10' }} className="min-h-0 flex-1">
           <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col">
             {isLoading ? (
               <div className="flex flex-1 items-center justify-center">
@@ -276,7 +282,7 @@ const MiniAppsPage: FC = () => {
               </>
             )}
           </div>
-        </Scrollbar>
+        </ScrollArea>
 
         <MiniAppSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)}>
           {/* Generous gap so the two groups read as distinct, not as one list. */}

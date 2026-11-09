@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResourcePaneCountButton } from '@renderer/components/chat/panes/Shell'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
+import type * as CommandHooks from '@renderer/hooks/command'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { EventPayload } from '@shared/ipc/types'
 
@@ -17,7 +18,8 @@ let browserOpenListener: (payload: EventPayload<'browser.pane.open_requested'>) 
 const useCommandHandlerMock = vi.hoisted(() => vi.fn())
 const topicBranchPanelModuleState = vi.hoisted(() => ({ importCount: 0 }))
 
-vi.mock('@renderer/hooks/command', () => ({
+vi.mock('@renderer/hooks/command', async (importOriginal) => ({
+  ...(await importOriginal<typeof CommandHooks>()),
   useCommandHandler: useCommandHandlerMock
 }))
 

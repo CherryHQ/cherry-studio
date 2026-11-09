@@ -336,7 +336,7 @@ const PdfTranslationView = ({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="shrink-0 text-foreground-muted hover:text-foreground"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
                   aria-label={t('translate.pdf.action.close')}
                   onClick={close}>
                   <X size={14} />
@@ -359,7 +359,7 @@ const PdfTranslationView = ({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="shrink-0"
+                    className="shrink-0 text-muted-foreground"
                     aria-label={t('translate.pdf.action.export')}
                     onClick={() => void exportOutput()}>
                     <Download size={14} />
