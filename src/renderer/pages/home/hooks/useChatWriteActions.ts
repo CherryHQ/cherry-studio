@@ -275,9 +275,7 @@ export function useChatWriteActions(params: Params): Result {
       })
       try {
         await patchMessageTrigger({ params: { id: messageId }, body: { data: { parts: editedParts } } })
-        setMessages((messages) =>
-          messages.map((msg) => (msg.id === messageId ? { ...msg, parts: editedParts } : msg))
-        )
+        setMessages((messages) => messages.map((msg) => (msg.id === messageId ? { ...msg, parts: editedParts } : msg)))
         logger.info('Edited message', { messageId, partCount: editedParts.length })
       } catch (err) {
         await rollbackBranch()
