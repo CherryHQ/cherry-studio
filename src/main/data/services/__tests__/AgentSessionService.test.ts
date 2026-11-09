@@ -1,7 +1,7 @@
 import '@data/services/AgentSessionMessageService'
 import path from 'path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -80,7 +80,7 @@ describe('AgentSessionService', () => {
   }
 
   async function insertSessionMessage(sessionId: string, id: string) {
-    await dbh.db.insert(agentSessionMessageTable).values({
+    insertAgentSessionMessages(dbh.db, {
       id,
       sessionId,
       role: 'user',

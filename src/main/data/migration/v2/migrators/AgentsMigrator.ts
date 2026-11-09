@@ -10,12 +10,15 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import {
   AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME,
   AGENT_SESSION_MESSAGE_INSERT_TRIGGER_SQL,
-  agentSessionMessageTable
+  agentSessionMessagePartTable,
+  agentSessionMessageTable,
+  type InsertAgentSessionMessagePartRow
 } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
+import { agentSessionMessagePartRows, splitAgentSessionMessageData } from '@data/services/agentSessionMessageTree'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
@@ -62,6 +65,8 @@ import { type LegacyModelRef, legacyModelToUniqueId } from './transformers/Model
 
 const DERIVED_SESSION_WORKSPACES_KEY = 'agentsMigrator.derivedSessionWorkspaces'
 const LEGACY_SESSION_MESSAGE_BATCH_SIZE = 100
+// Eight bound columns per part row keeps each insert well below SQLite's variable limit.
+const LEGACY_SESSION_MESSAGE_PART_BATCH_SIZE = 500
 const LEGACY_SESSION_MESSAGE_SOURCE_CURSOR_TABLE = 'agent_session_message_source_cursor'
 const LEGACY_SESSION_MESSAGE_STAGING_TABLE = 'agent_session_message_migration_staging'
 
@@ -1641,6 +1646,7 @@ function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): num
       }
 
       const sessionAuthors = readSessionAuthors(db, Array.from(new Set(rows.map((row) => row.sessionId))))
+      const partRows: InsertAgentSessionMessagePartRow[] = []
       const values = rows.map((row, index) => {
         // Resolve authors only after the target agent/session rows have been inserted.
         // Message normalization remains outside the transaction, while immutable
@@ -1648,11 +1654,20 @@ function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): num
         const author = sessionAuthors.get(row.sessionId)
         const modelSnapshot = row.modelSnapshot ? (JSON.parse(row.modelSnapshot) as ModelSnapshot) : null
         const messageSnapshot = author && modelSnapshot ? { ...author, model: modelSnapshot } : undefined
+        const { data, parts } = splitAgentSessionMessageData(JSON.parse(row.data) as MessageData)
+        partRows.push(
+          ...agentSessionMessagePartRows({
+            sessionId: row.sessionId,
+            messageId: row.id,
+            parts,
+            timestampMs: row.updatedAt
+          })
+        )
         return {
           id: row.id,
           sessionId: row.sessionId,
           role: row.role,
-          data: JSON.parse(row.data) as MessageData,
+          data,
           searchableText: row.searchableText,
           status: row.status,
           modelId: row.modelId,
@@ -1666,6 +1681,11 @@ function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): num
       })
 
       db.insert(agentSessionMessageTable).values(values).run()
+      for (let index = 0; index < partRows.length; index += LEGACY_SESSION_MESSAGE_PART_BATCH_SIZE) {
+        db.insert(agentSessionMessagePartTable)
+          .values(partRows.slice(index, index + LEGACY_SESSION_MESSAGE_PART_BATCH_SIZE))
+          .run()
+      }
       imported += rows.length
       afterSequence = rows.at(-1)!.sourceSequence
     }

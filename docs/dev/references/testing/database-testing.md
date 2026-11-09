@@ -262,6 +262,11 @@ up with empty `searchable_text` (the trigger wraps `group_concat` in
 value. This is safe — truncate passes — but your FTS assertions must account
 for the possibility.
 
+Agent-session messages store their body in `agent_session_message_part`, not
+in `data.parts`. Seed them with `insertAgentSessionMessages()` from
+`@test-helpers/db`, which writes the ordered part rows and `searchable_text`
+the way production does; a raw insert of `data.parts` is invisible to reads.
+
 ### Truncate vs drop
 
 `beforeEach` truncates user tables; it does not drop or recreate them.

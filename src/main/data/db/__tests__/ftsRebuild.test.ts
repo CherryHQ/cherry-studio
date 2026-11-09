@@ -1,4 +1,4 @@
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase, withRoot } from '@test-helpers/db'
 import type Database from 'better-sqlite3'
 import { isNull } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -136,7 +136,7 @@ describe('FTS5 rowid-reshuffle resistance (fts_rowid keying)', () => {
     await dbh.db
       .insert(agentSessionTable)
       .values({ id: 'sess-1', name: 'Session', workspaceId: 'ws-1', orderKey: 'a0' })
-    await dbh.db.insert(agentSessionMessageTable).values([
+    insertAgentSessionMessages(dbh.db, [
       {
         id: 'a1',
         sessionId: 'sess-1',

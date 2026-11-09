@@ -12,6 +12,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { attachAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeEvent } from '@main/ai/runtime/types'
@@ -525,11 +526,10 @@ it('waits for final observations before close persists a failed reply, and retri
   await f.service.closeSession('root')
   await expect(f.service.drainInFlight({ timeoutMs: 100 })).resolves.toEqual({ stragglerIds: [] })
   hold.dispose()
-  const replies = dbh.db
-    .select()
-    .from(agentSessionMessageTable)
-    .where(eq(agentSessionMessageTable.role, 'assistant'))
-    .all()
+  const replies = attachAgentSessionMessagePartsTx(
+    dbh.db,
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.role, 'assistant')).all()
+  )
   const a = replies.find((row) => row.id !== f.replyB.id)
   expect(a?.data.parts).toEqual([{ type: 'text', text: 'FINAL_A_ONLY', state: 'done' }])
   expect(JSON.stringify(replies.find((row) => row.id === f.replyB.id)?.data.parts)).not.toContain('FINAL_A_ONLY')
@@ -677,11 +677,10 @@ it('suppresses an autonomous reply before writing its placeholder and drops the 
   expect(f.starts).toHaveLength(0)
   expect(f.sent).toEqual([])
   expect(f.service.hasBusySessions()).toBe(false)
-  const replies = dbh.db
-    .select()
-    .from(agentSessionMessageTable)
-    .where(eq(agentSessionMessageTable.role, 'assistant'))
-    .all()
+  const replies = attachAgentSessionMessagePartsTx(
+    dbh.db,
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.role, 'assistant')).all()
+  )
   expect(replies.some((row) => JSON.stringify(row.data.parts).includes('CLOSED_DURING_PAUSE'))).toBe(true)
 })
 
@@ -804,11 +803,9 @@ it.each([false, true])(
     expect(messages.getSessionMessage('root', f.replyB.id).data.parts).toEqual([
       { type: 'text', text: 'PREDECESSOR_BODY', state: 'done' }
     ])
-    const a = dbh.db
-      .select()
-      .from(agentSessionMessageTable)
-      .all()
-      .find((row) => row.role === 'assistant' && row.id !== f.replyB.id)
+    const a = attachAgentSessionMessagePartsTx(dbh.db, dbh.db.select().from(agentSessionMessageTable).all()).find(
+      (row) => row.role === 'assistant' && row.id !== f.replyB.id
+    )
     expect(a?.data.parts).toEqual([{ type: 'text', text: 'AUTONOMOUS_BODY', state: 'done' }])
     expect(f.sent).toEqual([f.user.id])
     expect(f.service.isSessionBusy('root')).toBe(false)

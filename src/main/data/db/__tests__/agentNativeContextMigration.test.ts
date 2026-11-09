@@ -50,7 +50,18 @@ function assertArchive(
     string,
     unknown
   >
-  expect(row).toMatchObject(before as Record<string, unknown>)
+  // 0037 moves the body into ordered part rows; every other column must survive unchanged.
+  const { data: beforeData, ...beforeColumns } = before as Record<string, unknown>
+  const { parts, ...metadata } = JSON.parse(beforeData as string) as { parts: unknown[] }
+  expect(row).toMatchObject(beforeColumns)
+  expect(JSON.parse(row.data as string)).toEqual(metadata)
+  expect(
+    (
+      dbh.sqlite
+        .prepare('SELECT payload FROM agent_session_message_part WHERE message_id = ? ORDER BY seq')
+        .all(messageId) as Array<{ payload: string }>
+    ).map((part) => JSON.parse(part.payload))
+  ).toEqual(parts)
   expect(dbh.sqlite.prepare('SELECT * FROM agent_session_message_file_ref').get()).toEqual(attachment)
   expect(
     dbh.sqlite

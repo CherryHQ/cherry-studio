@@ -259,6 +259,13 @@
       "when": 1794157764007,
       "tag": "0036_agent_session_tool_output",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1794235887426,
+      "tag": "0037_agent_session_message_part",
+      "breakpoints": true
     }
   ],
   "version": "7"

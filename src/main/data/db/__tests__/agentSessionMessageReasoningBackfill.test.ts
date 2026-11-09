@@ -7,7 +7,7 @@ import type Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { type AgentSessionMessageStoredData, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 
 /**
@@ -62,12 +62,13 @@ describe('agent session message reasoning backfill (migration 0016)', () => {
         id: 'msg-1',
         sessionId: 'sess-1',
         role: 'assistant',
+        // Pre-0037 shape: the body still lived in `data.parts`, which is what 0016 scrubs.
         data: {
           parts: [
             { type: 'reasoning', text: 'SECRETTHOUGHT analysing the user request' },
             { type: 'text', text: 'WORKOK' }
           ]
-        },
+        } as AgentSessionMessageStoredData,
         status: 'success',
         createdAt: 10,
         updatedAt: 10

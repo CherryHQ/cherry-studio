@@ -270,11 +270,7 @@ describe('Agent fork publication', () => {
   })
 
   it('keeps later turns when the boundary before an edited message has no checkpoint', async () => {
-    dbh.db
-      .update(agentSessionMessageTable)
-      .set({ data: { parts: [] } })
-      .where(eq(agentSessionMessageTable.id, messageId))
-      .run()
+    dbh.db.update(agentSessionMessageTable).set({ data: {} }).where(eq(agentSessionMessageTable.id, messageId)).run()
     const tail = agentSessionMessageService.saveMessages({
       sessionId,
       messages: [

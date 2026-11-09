@@ -1,4 +1,4 @@
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,7 +6,6 @@ import { agentSessionMessageHandlers } from '@data/api/handlers/agentSessionMess
 import { agentSessionHandlers } from '@data/api/handlers/agentSessions'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -287,17 +286,14 @@ describe('background session isolation', () => {
     const conversation = create('needle 项目')
     const background = create('needle 项目', 'background')
     for (const session of [conversation, background]) {
-      dbh.db
-        .insert(agentSessionMessageTable)
-        .values({
-          id: crypto.randomUUID(),
-          sessionId: session.id,
-          role: 'user',
-          data: { parts: [{ type: 'text', text: 'needle 项目' }] },
-          searchableText: 'needle 项目',
-          status: 'success'
-        })
-        .run()
+      insertAgentSessionMessages(dbh.db, {
+        id: crypto.randomUUID(),
+        sessionId: session.id,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'needle 项目' }] },
+        searchableText: 'needle 项目',
+        status: 'success'
+      })
     }
     expect(agentSessionService.search({ q: 'needle', limit: 10 }).map((row) => row.id)).toEqual([conversation.id])
     expect(agentSessionService.listAddressableByCursor({}).items.map((row) => row.sessionId)).toEqual([conversation.id])
