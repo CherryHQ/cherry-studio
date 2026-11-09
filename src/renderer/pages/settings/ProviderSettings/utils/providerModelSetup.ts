@@ -1,4 +1,5 @@
 import { healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
+import type { SerializedError } from '@renderer/types/error'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import type { BulkUpdateModelsDto, CreateModelsDto } from '@shared/data/api/schemas/models'
@@ -67,16 +68,27 @@ export async function persistProviderModels({
   return uniqueSelectedModels.map((model) => persistedModels.get(model.id) as Model)
 }
 
+function redactSecretLiterals(value: unknown, secrets: readonly string[]): unknown {
+  if (typeof value === 'string') return secrets.reduce((text, secret) => text.replaceAll(secret, '••••'), value)
+  if (Array.isArray(value)) return value.map((item) => redactSecretLiterals(item, secrets))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactSecretLiterals(item, secrets)]))
+  }
+  return value
+}
+
+/**
+ * `diagnostic` is the serialized failure with every known key literal masked;
+ * hand it, never the raw error, to error detail surfaces.
+ */
 export function getProviderSetupErrorDetails(error: unknown, secrets: Iterable<string>) {
   const serializedError = serializeHealthCheckError(error)
   const classification = classifyError(serializedError)
-  let summary = healthCheckErrorToDisplayString(serializedError)
-  for (const secret of secrets) {
-    const normalizedSecret = secret.trim()
-    if (normalizedSecret) summary = summary.replaceAll(normalizedSecret, '••••')
-  }
+  const knownSecrets = [...secrets].map((secret) => secret.trim()).filter(Boolean)
+  const diagnostic = redactSecretLiterals(serializedError, knownSecrets) as SerializedError
   return {
     i18nKey: classification.category === 'unknown' ? null : classification.i18nKey,
-    summary
+    summary: redactSecretLiterals(healthCheckErrorToDisplayString(diagnostic), knownSecrets) as string,
+    diagnostic
   }
 }

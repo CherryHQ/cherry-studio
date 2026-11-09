@@ -417,7 +417,7 @@ export default function AddModelFormPanel({
               error={submitFailure.error}
               message={submitFailure.message}
               operation="model.add"
-              recordId={providerId}
+              providerId={providerId}
               source="settings.models"
             />
           )}

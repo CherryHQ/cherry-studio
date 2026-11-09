@@ -11,6 +11,7 @@ import { useIsCherryCloudModelSelectable } from '@renderer/hooks/cherryCloud/use
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { isDataApiError } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import {
@@ -333,6 +334,11 @@ export function ResourceCreateWizard({
         skillIds: values.skillIds
       })
     } catch (error) {
+      // A rejected request explains itself; only a real fault gets the generic summary and Details.
+      if (isDataApiError(error) && error.isClientError) {
+        form.setError('root', { message: error.message })
+        return
+      }
       setSubmitFault(error)
       form.setError('root', { message: t('library.config.dialogs.create.submit_failed') })
     }

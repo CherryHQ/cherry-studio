@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUIIcons from '@cherrystudio/ui/icons'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import { errorDetailPopupService } from '@renderer/services/ErrorDetailPopupService'
 import type { Model } from '@shared/data/types/model'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import ProviderApiSetupDialog from '../ProviderApiSetupDialog'
 
@@ -18,6 +21,7 @@ const fetchResolvedProviderModelsMock = vi.fn()
 const checkApiMock = vi.fn()
 const getModelHealthCheckSkipReasonMock = vi.fn()
 const toastSuccessMock = vi.fn()
+const { showErrorDetailPopup } = vi.hoisted(() => ({ showErrorDetailPopup: vi.fn() }))
 let localModels: Model[] = []
 let storedApiKeys: Array<{ id: string; key: string; isEnabled: boolean }> = []
 let storedApiKeysUnavailable = false
@@ -88,6 +92,11 @@ vi.mock('../../ModelList/ProviderModelAdd', () => ({
         </button>
       </div>
     ) : null
+}))
+
+vi.mock('@renderer/components/ErrorDetailModal', () => ({
+  isErrorDetailHostMounted: () => true,
+  showErrorDetailPopup
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -169,6 +178,7 @@ describe('ProviderApiSetupDialog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    errorDetailPopupService.register(() => import('@renderer/components/ErrorDetailModal'))
     localModels = []
     storedApiKeys = []
     storedApiKeysUnavailable = false
@@ -521,6 +531,34 @@ describe('ProviderApiSetupDialog', () => {
 
     await screen.findAllByText('alpha')
     expect(updateApiKeysMock).toHaveBeenCalledWith([{ id: 'saved-key', key: 'sk-replacement', isEnabled: true }])
+  })
+
+  it('keeps a typed key of any shape out of the diagnostic detail', async () => {
+    const typedKey = 'gw7Qx9LmZ2vR4nT8'
+    fetchResolvedProviderModelsMock.mockRejectedValueOnce(
+      new IpcError(aiErrorCodes.AI_REQUEST_FAILED, `rejected ${typedKey}`, {
+        name: 'AI_APICallError',
+        message: `rejected ${typedKey}`,
+        stack: `AI_APICallError: rejected ${typedKey}`,
+        statusCode: 401,
+        responseBody: `{"error":"bad credential ${typedKey}"}`
+      })
+    )
+
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), { target: { value: typedKey } })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.next' }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+
+    await waitFor(() => expect(showErrorDetailPopup).toHaveBeenCalled())
+    const request = showErrorDetailPopup.mock.calls[0]?.[0] as {
+      errorContext: { providerId?: string; statusCode?: number }
+    }
+    expect(JSON.stringify(request)).not.toContain(typedKey)
+    expect(request.errorContext.providerId).toBe('openai')
+    expect(request.errorContext.statusCode).toBe(401)
   })
 
   it('shows a localized reason for a recognized model-loading error', async () => {
