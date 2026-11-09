@@ -54,6 +54,21 @@ For agent sessions, retain `agent_session_message` as the container and add `age
 
 API callers still receive assembled `message.parts[]`. The part table is the sole persisted body source after migration; remove the old stored array and switch readers/writers together. There is no permanent dual-write or runtime fallback between two body authorities. Backfill existing arrays in order, allocate IDs once and preserve message/branch relations, private non-part metadata, tool references and blob envelopes without hydrating tool full output.
 
+#### Part ID carrier
+
+The part ID lives beside the part, never inside it. `CherryMessagePart` stays the unchanged AI SDK `UIMessagePart` payload; IDs are not added to part objects, `providerMetadata` or a `{ id, part }` wrapper on `message.parts[]`.
+
+| Layer | Carrier |
+| --- | --- |
+| SQLite | `agent_session_message_part.id`; the row payload is the unmodified part object |
+| Data/projection contracts | `partIds: readonly string[]` parallel to `parts`: same length and order, unique within the message |
+| Main source projection | Ordered part IDs plus `Map<partId, part>`; checkpoints record part IDs |
+| Transport patches | Address parts by `partId`, not array index; order changes carry the new `partIds` |
+| Renderer | `partId` is the part subscription key and React key |
+| Model input | Built from `parts` only; `partIds` never reach provider conversion |
+
+Main allocates a part ID (UUIDv7) once, when the source projection first creates the part, or during migration backfill. The renderer never allocates content part IDs. `toolCallId` remains the native/tool-output association, not the part key. A patch naming an unknown `partId`, or a `partIds`/`parts` length mismatch, requires a new baseline. Legacy offset/count checkpoints are resolved to part IDs through the ordered list at load time.
+
 Deltas update the current in-memory part and notify its subscribers. Persist that individual part at its own semantic `onDone`, not at the whole assistant reply's `onDone`. Reply completion waits for required saves, then updates container status/statistics; it does not rewrite saved parts. Stop/error saves received content and actual state of unfinished parts before settling the reply. User input acceptance remains an immediate write. There are no scheduled body checkpoints, per-token writes, historical part versions or generic part-replacement protocol. An abrupt Main crash may lose the current unfinished part; committed completed parts remain recoverable. Renderer reload with Main alive can reattach to newer in-memory content.
 
 Related part/result/source-mapping changes use the existing synchronous SQLite transaction. Prepare async blob/native checkpoint work before it, and publish after successful commit. Reuse existing session/attempt guards for stale completion, deletion and fork; no separate batch scheduler is introduced. Part saves do not trigger reply auto-name/usage settlement. Search responds to relevant text/finalization, not tool/hidden-part updates; migrate the old JSON/FTS triggers with storage. Maintain file references only as needed and preserve files referenced by other parts. Measure large single-part serialization and completion writes; independent rows do not imply zero-copy persistence.
@@ -190,7 +205,7 @@ The [message-list rules](../../../../src/renderer/components/chat/messages/READM
 - AC15 — Local, queued, compact-time and external inputs use existing unified activity/disposition facts without fabricated waiting messages or loop interruption (verification: deterministic matrix and real native traces — runtime/renderer owners)
 - AC16 — Subscription callbacks observe complete installed source/binding snapshots, never intermediate row/body combinations (verification: notification-time consistency and refresh race tests — projection owner)
 - AC17 — Pure append retains completed Markdown DOM and stable tool/part keys; handoff does not add navigation or lose reading anchors (verification: explicit DOM/mount and Electron geometry tests — renderer/viewport owners)
-- AC18 — Stable user/part/tool/boundary/continuation identities survive ack, queue promotion, successor binding and reconnect; real new content gets new identity (verification: schema/key/source and Electron traces — shared/Main/renderer owners)
+- AC18 — Stable user/part/tool/boundary/continuation identities survive ack, queue promotion, successor binding and reconnect; real new content gets new identity; part IDs exist only in the parallel `partIds`, never in part payloads or model input (verification: schema/key/source and Electron traces — shared/Main/renderer owners)
 - AC19 — Migration leaves one ordered part body store, preserves branches/tool/file refs and API assembly; one-part writes do not rewrite other completed parts/results (verification: populated migration/transaction and consumer tests — data/Main owners)
 - AC20 — Deltas write no body rows; each part onDone persists independently, reply completion updates terminal/statistics, and Stop/error saves unfinished content without a periodic checkpoint (verification: explicit completion/Stop/error SQLite tests — runtime/data owners)
 
