@@ -16,6 +16,7 @@ import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS } from './ChatMarkdownRenderers'
 import { rehypeBareFilePaths } from './plugins/rehypeBareFilePaths'
+import { rehypeSideChatSource } from './plugins/rehypeSideChatSource'
 import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
 
 const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
@@ -56,6 +57,15 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
     () => (components ? { ...CHAT_MARKDOWN_COMPONENTS, ...components } : CHAT_MARKDOWN_COMPONENTS),
     [components]
   )
+  const rehypePlugins = useMemo<Pluggable[]>(
+    () => [
+      ...(linkifyFilePaths ? FILE_PATH_REHYPE_PLUGINS : []),
+      ...(actions?.openSideChat && linkifyFilePaths
+        ? [[rehypeSideChatSource, { source: block.content }] as Pluggable]
+        : [])
+    ],
+    [actions?.openSideChat, linkifyFilePaths, block.content]
+  )
   const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : undefined
   // Relative markdown links are workspace files only when the host has the
   // workspace-aware artifact opener. Other chat surfaces retain link hardening.
@@ -93,7 +103,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
           singleDollarMath={mathEnableSingleDollar}
           components={mergedComponents}
           remarkPlugins={remarkPlugins}
-          rehypePlugins={linkifyFilePaths ? FILE_PATH_REHYPE_PLUGINS : undefined}
+          rehypePlugins={rehypePlugins}
           className={className}
           transformSource={transformSource}>
           {content}

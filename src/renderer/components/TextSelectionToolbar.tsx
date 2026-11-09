@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { Button, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
 
 interface TextSelectionToolbarProps {
+  onSideChat?: (selection: Selection) => void
+  canSideChat?: (selection: Selection) => boolean
   children: ReactNode
   onCopy: (selection: Selection) => void
   onQuote: (selection: Selection) => void
@@ -17,6 +19,8 @@ const EDITABLE_SELECTOR = 'input, textarea, select, [contenteditable]:not([conte
 
 export function TextSelectionToolbar({
   children,
+  onSideChat,
+  canSideChat,
   onCopy,
   onQuote,
   onSaveToNotes,
@@ -167,6 +171,11 @@ export function TextSelectionToolbar({
             onCloseAutoFocus={(event) => event.preventDefault()}
             onFocusOutside={(event) => event.preventDefault()}
             onPointerDown={(event) => event.preventDefault()}>
+            {onSideChat && window.getSelection() && canSideChat?.(window.getSelection()!) && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => runAction(onSideChat)}>
+                {t('side_chat.create')}
+              </Button>
+            )}
             <Button type="button" variant="ghost" size="sm" onClick={() => runAction(onCopy)}>
               <Copy aria-hidden="true" />
               {t('common.copy')}

@@ -7,6 +7,7 @@ import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { readSideChatSelection } from '@renderer/utils/sideChatSelection'
 import { isHttpUrl } from '@shared/utils/url'
 
 import { TextSelectionToolbar } from './TextSelectionToolbar'
@@ -18,6 +19,7 @@ const MARKDOWN_FENCE_LINE = /^(?:`{3,}[^`]*|~{3,}.*)$/
 const TEXT_BLOCK_TAGS = new Set(['BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'P', 'PRE', 'TR'])
 
 interface SelectionContextMenuProps {
+  openSideChat?: (messageId: string, selection?: string) => void
   children: React.ReactNode
   openBrowserUrl?: (url: string) => void
 }
@@ -108,7 +110,7 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
 /**
  * Context menu and automatic toolbar actions for selected conversation content.
  */
-const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, openBrowserUrl }) => {
+const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, openBrowserUrl, openSideChat }) => {
   const { t } = useTranslation()
   const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [notesPath] = usePreference('feature.notes.path')
@@ -152,6 +154,16 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
       }
     },
     [notesPath, t]
+  )
+
+  const sideChatAction = useCallback(
+    (selection: Selection) => {
+      const source = readSideChatSelection(selection)
+      if (!source) return
+      if (!source.selection) toast.info(t('side_chat.selection_fallback'))
+      openSideChat?.(source.messageId, source.selection)
+    },
+    [openSideChat, t]
   )
 
   const getMenuItems = useCallback(
@@ -245,13 +257,31 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
           : linkItems
       }
 
-      return getMenuItems(selectedText, quoteText, canSaveSelection)
+      const source = selection && openSideChat ? readSideChatSelection(selection) : null
+      return [
+        ...getMenuItems(selectedText, quoteText, canSaveSelection),
+        ...(source
+          ? [
+              {
+                type: 'item' as const,
+                id: 'selection.side-chat',
+                label: t('side_chat.create'),
+                onSelect: () => {
+                  if (!source.selection) toast.info(t('side_chat.selection_fallback'))
+                  openSideChat?.(source.messageId, source.selection)
+                }
+              }
+            ]
+          : [])
+      ]
     },
-    [getMenuItems, handleCopy, mathEnableSingleDollar, openBrowserUrl, t]
+    [getMenuItems, handleCopy, mathEnableSingleDollar, openBrowserUrl, openSideChat, t]
   )
 
   return (
     <TextSelectionToolbar
+      onSideChat={openSideChat ? sideChatAction : undefined}
+      canSideChat={(selection) => readSideChatSelection(selection) !== null}
       onCopy={(selection) => handleCopy(extractSelectedText(selection))}
       onQuote={(selection) => handleQuote(extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }))}
       onSaveToNotes={(selection) =>

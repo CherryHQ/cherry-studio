@@ -1,4 +1,4 @@
-import { Activity, GitBranch, Globe } from 'lucide-react'
+import { Activity, GitBranch, Globe, MessagesSquare } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +19,8 @@ import {
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import { SideChatProvider } from '@renderer/components/chat/sideChat/SideChatContext'
+import { SideChatPanel } from '@renderer/components/chat/sideChat/SideChatPanel'
 import { SessionBrowserView } from '@renderer/components/SessionBrowserView'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useIpcOn } from '@renderer/ipc'
@@ -48,6 +50,7 @@ interface TopicRightPanelScope extends TopicRightPaneMeta {
   developerMode: boolean
   resourcePane: ResourcePaneConfig | null
   traceTitle: string
+  sideChatTitle: string
 }
 
 type TopicBranchLiveStateSetter = (topicId: string, state: TopicMessageFlowLiveState | null) => void
@@ -210,6 +213,15 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       canMaximize: true
     })
   },
+  {
+    component: SideChatPanel,
+    resolve: (scope) => ({
+      id: 'side-chat',
+      instanceKey: `side-chat:${scope.topicId ?? ''}`,
+      title: scope.sideChatTitle,
+      readiness: scope.topicId ? 'ready' : 'unavailable'
+    })
+  },
   TOPIC_TRACE_PANE_CAPABILITY
 ] satisfies readonly RightPanelCapability<TopicRightPanelScope>[]
 
@@ -247,7 +259,8 @@ function TopicRightPaneProvider({
       developerMode: enableDeveloperMode,
       browserTitle: t('settings.browser.title'),
       branchTitle: t('chat.message.flow.title'),
-      traceTitle: t('trace.label')
+      traceTitle: t('trace.label'),
+      sideChatTitle: t('side_chat.title')
     }),
     [enableDeveloperMode, resourcePane, t, topicId, topicName, traceId]
   )
@@ -263,7 +276,9 @@ function TopicRightPaneProvider({
       present={present}>
       <TopicBrowserPaneOpener topicId={topicId} />
       <ResourcePaneLocateOpener revealRequest={revealRequest} />
-      <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
+      <SideChatProvider sourceTopicId={topicId}>
+        <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
+      </SideChatProvider>
     </RightPanelProvider>
   )
 }
@@ -287,6 +302,7 @@ function TopicRightPaneShortcuts({ browserEnabled = true }: { browserEnabled?: b
       {browserEnabled && browserControlEnabled && (
         <RightPanelShortcut tab="browser" label={t('settings.browser.title')} icon={<Globe className="size-3.5" />} />
       )}
+      <RightPanelShortcut tab="side-chat" label={t('side_chat.title')} icon={<MessagesSquare className="size-3.5" />} />
       <RightPanelShortcut tab="branch" label={t('chat.message.flow.title')} icon={<GitBranch className="size-3.5" />} />
       <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Activity className="size-3.5" />} />
     </>

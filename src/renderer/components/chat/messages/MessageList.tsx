@@ -779,7 +779,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
           scopeRef={messageListScopeRef}
         />
       )}
-      <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
+      <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl} openSideChat={actions.openSideChat}>
         <div ref={messageListScopeRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <MessageVirtualList
             handleRef={messageListRef}
