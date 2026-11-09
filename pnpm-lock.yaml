@@ -236,6 +236,7 @@ patchedDependencies:
   '@earendil-works/pi-coding-agent@1.5.0': baa38b5834a01fde79895162e19835a59491bfdd656b7e237582d7bbc2e5311e
   '@earendil-works/pi-durable@1.5.0': d1c485b564bbb6d7024197573d168006f49ff1688b2d941cdff0453296125844
   '@elysia/node@1.4.6': ceae4c188748b0ccfb825739bdbbe02486930f53b0fb1068e21de26527488ad2
+  '@j178/prek@0.3.4': f59e74e485d9524f5d3d76395121114beed831327cea5836f8beee1e5f659a0e
   '@napi-rs/system-ocr@1.2.0': 72d651f33c307945c636ea0a25b97b48018cab99b440ca02d8ea2dac222033d0
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
   '@opeoginni/github-copilot-openai-compatible@1.0.0': e0be38439b76d1d8d7966c0f789373ed393adba22bd9b0ff333898c0c8223301
@@ -626,7 +627,7 @@ importers:
         version: 6.0.2(react@19.3.1)
       '@j178/prek':
         specifier: ^0.3.4
-        version: 0.3.4(debug@4.4.3(supports-color@8.1.1))
+        version: 0.3.4(patch_hash=f59e74e485d9524f5d3d76395121114beed831327cea5836f8beee1e5f659a0e)(debug@4.4.3(supports-color@8.1.1))
       '@larksuiteoapi/node-sdk':
         specifier: ^1.73.0
         version: 1.73.0(debug@4.4.3(supports-color@8.1.1))
@@ -18854,7 +18855,7 @@ snapshots:
 
   '@isaacs/nonrecursive-glob-match@1.1.0': {}
 
-  '@j178/prek@0.3.4(debug@4.4.3(supports-color@8.1.1))':
+  '@j178/prek@0.3.4(patch_hash=f59e74e485d9524f5d3d76395121114beed831327cea5836f8beee1e5f659a0e)(debug@4.4.3(supports-color@8.1.1))':
     dependencies:
       axios: 1.16.0(debug@4.4.3(supports-color@8.1.1))
       axios-proxy-builder: 0.1.2

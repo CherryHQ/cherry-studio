@@ -1,16 +1,14 @@
 # Pi Durable desktop integration
 
-`PiDurableRuntimeDriver` registers the `pi-durable` Agent type. Its connection owns
-one `agent-runtime-pi-durable` backend, the root access and all observed children.
+`PiDurableRuntimeDriver` registers the `pi-durable` Agent type. Its driver owns one `agent-runtime-pi-durable` backend per native store. Connections borrow root accesses and own their observations and child projections.
 The package implements native execution; `agent-behavior` owns product rules.
 
 ## Host services
 
 The connection reuses Pi's gateway model binding, behavior host, approval facts,
 shell configuration and tool rendering. Each native provider call reaches Cherry's
-internal gateway, which owns upstream credentials and billing. Child bindings share
-the root model registry and are restored before native execution resumes. Each added
-model uses its own native provider registration, preserving other models' routes,
+internal gateway, which owns upstream credentials and billing. Root and child bindings share
+the backend model registry and are restored before native execution resumes. Each binding uses its own native provider registration, preserving other models' routes,
 request options and usage callbacks even when their Cherry Provider is the same.
 
 `durableDesktop.ts` installs native coding tools, codemode and tool search, Cherry's
@@ -20,7 +18,7 @@ nested calls pass the shared approval gate. Replay safety follows the server's e
 read-only annotation; other MCP operations use native unsafe replay semantics.
 
 Approvals, questions, model selection, summaries and large output storage use existing
-host services. No additional interaction table or AI SDK model port is introduced.
+host services. Host calls resolve the native ownership tree to a product root. Model options and trace, usage, approvals, questions and attendance stay root-scoped. Each root selects its own named extensions, MCP transports, skills and execution environment. Host resources remain backend-owned while retained work can still use them. Each root stores its non-secret request selection in a native conversation document. Before shared recovery starts, roots with unfinished tasks acquire their Main connection and projection consumer; sibling opening cannot silently resume them with default parameters or without a transcript writer. No additional interaction table or AI SDK model port is introduced.
 
 ## Storage and projection
 
@@ -61,7 +59,7 @@ cancellation and ownership semantics.
 
 - User Stop calls `interrupt()` before closing, records the shared stop policy and
   cancels the native foreground scope. Unconsumed input is withdrawn.
-- Owner shutdown closes and joins the native scheduler without marking ordinary
+- Releasing one root does not shut down its peers. Final backend release closes and joins the native scheduler without marking ordinary
   unfinished root work cancelled. It awaits observation queues and in-flight callbacks before
   flushing child archives; observation detach and access release happen last. Backup uses the
   same write barrier and holds new input until resume. Each child has one connection-owned
@@ -73,7 +71,9 @@ cancellation and ownership semantics.
 
 Background continuation keeps one child identity. Independent continuation of an ended
 foreground child is rejected because native ownership remains attached to its tool task.
-Desktop fork/edit checkpoints and `vcc_recall` are not exposed by this driver.
+Successful foreground completion carries a backend/conversation/entry checkpoint from the same committed observation batch. Fork creates an ownerless conversation in that store through the public native transaction API; retained ancestors support older checkpoints. Cold forks use a Session without enabling a scheduler, serialized against live owner creation and shutdown.
+
+Native fork creation and its new product-context identity commit together. The operation journal records that identity before native preparation; replay reconciles it instead of duplicating the fork. Product session, messages and bindings publish atomically afterward. Failed publication leaves an identifiable inert native orphan because the SDK has no public conversation deletion API. Neither rollback nor source deletion removes shared native ancestry. Edit and resend keeps the existing sibling-message branches. Noninitial edits publish the native fork's context identity, input and checkpoint mapping atomically; first-input edits reserve a fresh empty backend/context. Recovery uses the prepared context identity because numeric native IDs may repeat across stores. File rewind and `vcc_recall` remain unavailable.
 
 ## Verification
 

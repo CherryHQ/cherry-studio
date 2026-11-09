@@ -10,6 +10,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
+import { PiDurableRuntimeDriver } from '@main/ai/runtime/piDurable/PiDurableRuntimeDriver'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
@@ -230,4 +231,23 @@ it('rejects delivery edits and keeps boundary reads scoped to the requested sess
   const actions = runtime.getHistoryActions(sessionId, [first.id, foreign.id])
   expect([...actions.keys()]).toEqual([first.id])
   expect(runtime.getHistoryActions(sessionId, []).size).toBe(0)
+})
+
+// Durable edits need either a fresh first-input context or a valid predecessor checkpoint.
+it('enables Durable edits at first inputs and committed predecessor boundaries', async () => {
+  dbh.db.update(agentTable).set({ type: 'pi-durable' }).where(eq(agentTable.id, agentId)).run()
+  runtimeDriverRegistry.register(new PiDurableRuntimeDriver())
+  const first = user('First Durable input')
+  const completed = answer({ runtime: 'pi-durable', backendId: randomUUID(), conversationId: '1', entryId: '2' })
+  const later = user('Later Durable input')
+  const malformed = answer({ runtime: 'pi-durable', backendId: randomUUID(), conversationId: '1', entryId: '0' })
+  const legacy = answer()
+  const actions = runtime.getHistoryActions(sessionId, [first.id, completed.id, later.id, malformed.id, legacy.id])
+  expect(actions.get(completed.id)?.fork).toBeNull()
+  expect(actions.get(malformed.id)?.fork).toBe('unsupported_checkpoint')
+  expect(actions.get(legacy.id)?.fork).toBe('legacy_history')
+  expect(actions.get(first.id)?.edit).toBeNull()
+  expect(actions.get(later.id)?.edit).toBeNull()
+  expect((await runtime.getEditTarget(sessionId, first.id)).parts).toEqual(first.data.parts)
+  expect((await runtime.getEditTarget(sessionId, later.id)).parts).toEqual(later.data.parts)
 })

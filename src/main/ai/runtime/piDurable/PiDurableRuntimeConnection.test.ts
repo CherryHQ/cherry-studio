@@ -1,8 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { createAssistantMessageEventStream, type AssistantMessage } from '@earendil-works/pi-ai'
+import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
+import { createAssistantMessageEventStream, type AssistantMessage, type Usage } from '@earendil-works/pi-ai'
+import { AgentDoc, configure, createSession, type ConversationId } from '@earendil-works/pi-durable'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,11 +15,16 @@ import type { DurableObservation, PiDurableThreadHandle } from '@cherrystudio/ag
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
+import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
+import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
+import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
@@ -34,9 +42,11 @@ import {
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
+import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
-import { prepareDurableBranch } from './durableContext'
-import { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
+import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
+import type { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
+import { PiDurableRuntimeDriver } from './PiDurableRuntimeDriver'
 
 const modelId = 'test::test-model'
 
@@ -45,7 +55,8 @@ const mocks = vi.hoisted(() => ({
   binding: vi.fn(),
   prompt: vi.fn(),
   interaction: vi.fn<() => ToolGuardInteractionState>(),
-  delegated: vi.fn()
+  delegated: vi.fn(),
+  prime: vi.fn()
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
@@ -57,7 +68,7 @@ vi.mock('@application', async () => {
       getAgentSessionUsageHeaders: () => ({})
     },
     McpCatalogService: { listTools: () => [] },
-    AgentSessionRuntimeService: { getInteractionState: mocks.interaction }
+    AgentSessionRuntimeService: { getInteractionState: mocks.interaction, primeConnection: mocks.prime }
   }
   return mockApplicationFactory(overrides)
 })
@@ -81,11 +92,14 @@ describe('desktop Pi Durable connection', () => {
   let snapshot: PiConnectionSnapshot
   let script: ReturnType<typeof scriptedModel>
   const connections: PiDurableRuntimeConnection[] = []
+  let driver: PiDurableRuntimeDriver
 
   beforeEach(() => {
+    driver = new PiDurableRuntimeDriver()
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     mocks.delegated.mockClear()
-    directory = tempDir('desktop-pi')
+    mocks.prime.mockReset()
+    directory = realpathSync(tempDir('desktop-pi'))
     vi.mocked(application.getPath).mockImplementation((key, file) => {
       const dir = join(directory, key)
       if (key !== 'external.pi.settings_file' && key !== 'feature.agents.pi.sessions')
@@ -147,6 +161,7 @@ describe('desktop Pi Durable connection', () => {
     mocks.binding.mockImplementation(async () => createTestBinding({ model: MODEL, stream: script.model }))
   })
   afterEach(async () => {
+    runtimeDriverRegistry.clearForTest()
     for (const connection of connections.splice(0)) await connection.close()
     vi.restoreAllMocks()
   })
@@ -179,6 +194,536 @@ describe('desktop Pi Durable connection', () => {
     }
     return () => finish()
   }
+  function sharedHosts() {
+    dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: modelId,
+        providerId: 'test',
+        modelId: 'test-model',
+        name: 'Test',
+        capabilities: ['function-call'],
+        supportsStreaming: true,
+        isEnabled: true,
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db.update(agentTable).set({ model: modelId }).where(eq(agentTable.id, input.agentId)).run()
+    mocks.capture.mockImplementation(async (nextSession: string) => ({
+      ...snapshot,
+      session: agentSessionService.getById(nextSession)
+    }))
+    mocks.binding.mockImplementation(async (next: AgentRuntimeConnectInput, _provider, _model, _usage, shared) => {
+      const model = { ...MODEL, provider: next.sessionId }
+      if (!shared) return createTestBinding({ model, stream: (m, c, o) => script.model(m, c, o) })
+      shared.registerProvider(model.provider, {
+        api: model.api,
+        apiKey: 'fixture',
+        baseUrl: model.baseUrl,
+        models: [model],
+        streamSimple: (m, c, o) => script.model(m, c, o)
+      })
+      return { modelRuntime: shared, model: shared.getModel(model.provider, model.id)! }
+    })
+    runtimeDriverRegistry.register(driver)
+  }
+  async function savedAnswer(current: Awaited<ReturnType<typeof connect>>) {
+    await done(current.events)
+    const complete = current.events.findLast((event) => event.type === 'turn-complete')!
+    if (complete.type !== 'turn-complete' || !complete.forkAnchor) throw new Error('Missing committed checkpoint')
+    return messages.saveMessage({
+      sessionId: input.sessionId,
+      nativeContextId: current.connection.contextId,
+      runtimeResumeToken: current.handle.thread.id,
+      runtimeAnchor: complete.forkAnchor,
+      message: {
+        id: uuid(),
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: text(current.events) }] }
+      }
+    })
+  }
+
+  async function editInput(messageId: string, replacement: string, fail?: 'close' | 'commit') {
+    const target = { messageId, version: messages.readEditSnapshotTx(dbh.db, input.sessionId, messageId).version }
+    return new AgentSessionForkOperations().edit(
+      input.sessionId,
+      target,
+      async () => {
+        if (fail === 'close') throw new Error('close failed')
+        for (const connection of connections) await connection.close()
+      },
+      (tx, nativeId, contextId) => {
+        const [row] = messages.saveMessagesTx(tx, {
+          sessionId: input.sessionId,
+          messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: replacement }] } }]
+        })
+        reserveDurableBranchTx(tx, input.sessionId, row.id, nativeId, contextId)
+        if (contextId) messages.setEditRuntimeTx(tx, input.sessionId, row.id, nativeId)
+        if (fail === 'commit') throw new Error('product commit failed')
+        return row
+      }
+    )
+  }
+
+  // Editing the first input must neither recover its original prompt nor guess a numeric native identity.
+  it('edits the first input into a fresh durable context and survives reopening', async () => {
+    sharedHosts()
+    const parent = await connect()
+    const old = message('original first input')
+    await parent.connection.send({ message: old })
+    await savedAnswer(parent)
+    const original = contexts.context(parent.connection.contextId!)
+    writeFileSync(join(directory, 'keep.txt'), 'current files')
+    const calls = script.calls.length
+    const edited = await editInput(old.id, 'replacement first input')
+    const target = prepareDurableBranch(input.sessionId, edited.id)
+    expect(target.backendId).not.toBe(original.backendId)
+    expect(target.nativeThreadId).toBeNull()
+    expect(messages.readEditSnapshotTx(dbh.db, input.sessionId, edited.id).user.data.nativeSessionId).toBeUndefined()
+    expect(script.calls).toHaveLength(calls)
+    expect(messages.listSessionMessages(input.sessionId).items.map((row) => row.id)).toEqual([edited.id])
+    expect(() => messages.getSessionMessage(input.sessionId, old.id)).toThrow()
+    input = { ...input, branchHead: edited.id }
+    const fresh = await connect()
+    expect(fresh.connection.contextId).toBe(target.id)
+    setScript([assistantReply('replacement answer')])
+    await fresh.connection.send({ message: edited })
+    const answer = await savedAnswer(fresh)
+    expect(JSON.stringify(script.calls[0].messages)).toContain('replacement first input')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original first input')
+    expect(readFileSync(join(directory, 'keep.txt'), 'utf8')).toBe('current files')
+    await fresh.connection.close()
+    input = { ...input, branchHead: answer.id }
+    const reopened = await connect()
+    expect(reopened.connection.contextId).toBe(target.id)
+    expect(reopened.handle.thread.id).toBe(fresh.handle.thread.id)
+    setScript([assistantReply('continued replacement')])
+    await reopened.connection.send({ message: message('continue edited context') })
+    await savedAnswer(reopened)
+    expect(JSON.stringify(script.calls[0].messages)).toContain('replacement first input')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original first input')
+  })
+
+  // A second edit must use the first edit's remapped prefix without changing shared product rows.
+  it('replaces a committed tail repeatedly and reopens only the edited context', async () => {
+    sharedHosts()
+    const parent = await connect()
+    await parent.connection.send({ message: message('shared first input') })
+    const shared = await savedAnswer(parent)
+    const original = contexts.context(parent.connection.contextId!)
+    const old = message('original later question')
+    parent.events.length = 0
+    setScript([assistantReply('original later answer')])
+    await parent.connection.send({ message: old })
+    await savedAnswer(parent)
+    const before = messages.getSessionMessage(input.sessionId, shared.id)
+    const edited = await editInput(old.id, 'edited later question')
+    input = { ...input, branchHead: edited.id }
+    const first = await connect()
+    const firstContext = contexts.context(first.connection.contextId!)
+    expect(firstContext.backendId).toBe(original.backendId)
+    expect(first.handle.thread.id).not.toBe(original.nativeThreadId)
+    setScript([assistantReply('edited later answer')])
+    await first.connection.send({ message: edited })
+    await savedAnswer(first)
+    expect(JSON.stringify(script.calls[0].messages)).toContain('shared first input')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original later question')
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original later answer')
+    const repeated = await editInput(edited.id, 'second edited question')
+    input = { ...input, branchHead: repeated.id }
+    const second = await connect()
+    expect(second.handle.thread.id).not.toBe(first.handle.thread.id)
+    setScript([assistantReply('second edited answer')])
+    await second.connection.send({ message: repeated })
+    const final = await savedAnswer(second)
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('edited later question')
+    expect(messages.getSessionMessage(input.sessionId, shared.id)).toEqual(before)
+    const calls = script.calls.length
+    const fork = await new AgentSessionForkOperations().fork(input.sessionId, final.id)
+    expect(messages.listSessionMessages(fork).items).toHaveLength(4)
+    expect(script.calls).toHaveLength(calls)
+    await second.connection.close()
+    expect(() => messages.getSessionMessage(input.sessionId, old.id)).toThrow()
+    expect(() => messages.getSessionMessage(input.sessionId, edited.id)).toThrow()
+    input = { ...input, branchHead: final.id }
+    const reopened = await connect()
+    expect(reopened.handle.thread.id).toBe(second.handle.thread.id)
+    setScript([assistantReply('edited branch continued')])
+    await reopened.connection.send({ message: message('continue edited context') })
+    await savedAnswer(reopened)
+    expect(JSON.stringify(script.calls[0].messages)).not.toContain('original later question')
+    expect(JSON.stringify(script.calls[0].messages)).toContain('second edited question')
+  })
+
+  // Prepared native forks must stay inert when close, publication, or receipt delivery fails.
+  it.each(['close', 'commit', 'receipt'] as const)(
+    'keeps the original durable branch after failed edit: %s',
+    async (fail) => {
+      sharedHosts()
+      const parent = await connect()
+      const initial = message('shared failure boundary')
+      await parent.connection.send({ message: initial })
+      await savedAnswer(parent)
+      const old = message('original failure input')
+      parent.events.length = 0
+      await parent.connection.send({ message: old })
+      const answer = await savedAnswer(parent)
+      const other = messages.saveMessage({
+        sessionId: input.sessionId,
+        parentId: messages.readEditSnapshotTx(dbh.db, input.sessionId, initial.id).user.parentId!,
+        message: { role: 'user', data: { parts: [] } }
+      })
+      const collision = contexts.reserveBranchTx(dbh.db, {
+        sessionId: input.sessionId,
+        backendId: allocateDurableBackendTx(dbh.db).id,
+        anchorMessageId: other.id,
+        nativeThreadId: '2'
+      })
+      contexts.bindContext(collision.id, '2')
+      messages.selectBranch(input.sessionId, answer.id)
+      const before = messages.listSessionMessages(input.sessionId).items
+      if (fail === 'receipt') {
+        const runtime = parent.connection['runtime']!
+        const commit = runtime.durable.commit.bind(runtime.durable)
+        vi.spyOn(runtime.durable, 'commit').mockImplementationOnce(async (...args) => {
+          await commit(...args)
+          throw new Error('receipt lost')
+        })
+      }
+      await expect(editInput(old.id, 'unpublished replacement', fail === 'receipt' ? undefined : fail)).rejects.toThrow(
+        fail === 'receipt' ? 'receipt lost' : fail === 'close' ? 'close failed' : 'product commit failed'
+      )
+      expect(messages.listSessionMessages(input.sessionId).items).toEqual(before)
+      const records = await readForkResources()
+      expect(records).toHaveLength(1)
+      expect(records[0].nativeDisposition).toBe('retained')
+      const prepared = records[0].nativePreparations![0]
+      expect(contexts.roots(prepared.backendId).some((context) => context.id === prepared.contextId)).toBe(false)
+      const calls = script.calls.length
+      await new AgentSessionForkOperations().recover()
+      expect(script.calls).toHaveLength(calls)
+      for (const connection of connections) await connection.close()
+      input = { ...input, branchHead: answer.id }
+      const reopened = await connect()
+      setScript([assistantReply('original survived edit failure')])
+      await reopened.connection.send({ message: message('continue after failure') })
+      await savedAnswer(reopened)
+      expect(text(reopened.events)).toContain('original survived edit failure')
+    }
+  )
+
+  it('forks a committed prefix in the shared owner and survives source deletion and a cold reopen', async () => {
+    sharedHosts()
+    const sourceId = input.sessionId
+    const parent = await connect()
+    await parent.connection.send({ message: message('remember original') })
+    const answer = await savedAnswer(parent)
+    const forkId = await new AgentSessionForkOperations().fork(sourceId, answer.id)
+    const forkContext = prepareDurableBranch(forkId)
+    expect(forkContext.backendId).toBe(prepareDurableBranch(sourceId).backendId)
+    expect(forkContext.nativeThreadId).not.toBe(parent.handle.thread.id)
+    const runtime = parent.connection['runtime']!
+    setScript([assistantReply('later source answer')])
+    parent.events.length = 0
+    await parent.connection.send({ message: message('source only later') })
+    await done(parent.events)
+    input = { ...input, sessionId: forkId }
+    const child = await connect()
+    expect(child.connection['runtime']).toBe(runtime)
+    const inherited = await runtime.durable.commit(
+      async (tx) =>
+        (
+          await tx.scanEntries(
+            { conversationId: Number(child.handle.thread.id) as ConversationId, order: 'ascending' },
+            256
+          )
+        ).items,
+      BACKGROUND_CONTEXT
+    )
+    expect(JSON.stringify(inherited)).toContain('remember original')
+    expect(JSON.stringify(inherited)).not.toContain('source only later')
+    setScript([assistantReply('fork independent answer')])
+    await parent.connection.close()
+    await child.connection.send({ message: message('fork followup') })
+    await done(child.events)
+    expect(text(child.events)).toContain('fork independent answer')
+    expect(child.events.filter((event) => event.type === 'error')).toEqual([])
+    await child.connection.close()
+    dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, sourceId)).run()
+    const reopened = await connect()
+    expect(reopened.connection['runtime']).not.toBe(runtime)
+    setScript([assistantReply('surviving fork answer')])
+    await reopened.connection.send({ message: message('after source purge') })
+    await done(reopened.events)
+    expect(text(reopened.events)).toContain('surviving fork answer')
+    const older = messages.listSessionMessages(forkId).items.find((row) => row.role === 'assistant')!
+    const secondFork = await new AgentSessionForkOperations().fork(forkId, older.id)
+    expect(prepareDurableBranch(secondFork).backendId).toBe(forkContext.backendId)
+    expect(reopened.events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('routes concurrent roots to their own workspace, approval channel and model registration', async () => {
+    sharedHosts()
+    const sourceId = input.sessionId
+    const workspace = join(application.getPath('feature.agents.system_workspaces'), 'source-workspace')
+    mkdirSync(workspace)
+    const workspaceId = snapshot.session.workspace.id
+    dbh.db
+      .update(agentWorkspaceTable)
+      .set({ path: workspace, type: 'system' })
+      .where(eq(agentWorkspaceTable.id, workspaceId))
+      .run()
+    snapshot.agent.configuration = { permission_mode: 'default' }
+    const parent = await connect()
+    await parent.connection.send({ message: message('initial boundary') })
+    const answer = await savedAnswer(parent)
+    const forkId = await new AgentSessionForkOperations().fork(sourceId, answer.id)
+    const forkWorkspace = agentSessionService.getById(forkId).workspace.path
+    input = { ...input, sessionId: forkId }
+    const child = await connect()
+    expect(child.connection['runtime']).toBe(parent.connection['runtime'])
+    script = respondingModel((call) =>
+      call.messages.some((item) => item.role === 'toolResult')
+        ? assistantReply('write complete')
+        : assistantReply(
+            [toolCallPart('write-own', 'write', { path: 'ownership.txt', content: call.model.provider })],
+            'toolUse'
+          )
+    )
+    parent.events.length = 0
+    await Promise.all([
+      parent.connection.send({
+        message: messages.saveMessage({
+          sessionId: sourceId,
+          message: { id: uuid(), role: 'user', data: { parts: [{ type: 'text', text: 'write parent' }] } }
+        })
+      }),
+      child.connection.send({ message: message('write fork') })
+    ])
+    const approvals = (events: AgentRuntimeEvent[]) => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals(parent.events).length + approvals(child.events).length).toBe(2)
+    expect(approvals(parent.events)).toHaveLength(1)
+    expect(approvals(child.events)).toHaveLength(1)
+    expect(approvals(parent.events)[0].request.approvalId).not.toBe(approvals(child.events)[0].request.approvalId)
+    toolApprovalRegistry.dispatch(approvals(parent.events)[0].request.approvalId, { approved: true })
+    await done(parent.events)
+    expect(existsSync(join(forkWorkspace, 'ownership.txt'))).toBe(false)
+    expect(readFileSync(join(workspace, 'ownership.txt'), 'utf8')).toBe(sourceId)
+    toolApprovalRegistry.dispatch(approvals(child.events)[0].request.approvalId, { approved: true })
+    await done(child.events)
+    expect(readFileSync(join(forkWorkspace, 'ownership.txt'), 'utf8')).toBe(forkId)
+    expect([...parent.events, ...child.events].filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('forks history spanning stores whose native conversation IDs are equal', async () => {
+    sharedHosts()
+    const first = await connect()
+    await first.connection.send({ message: message('old context input') })
+    await savedAnswer(first)
+    const old = contexts.context(first.connection.contextId!)
+    await first.connection.close()
+    const nextInput = message('new context input')
+    const next = application.get('DbService').withWriteTx((tx) =>
+      contexts.reserveBranchTx(tx, {
+        sessionId: input.sessionId,
+        backendId: allocateDurableBackendTx(tx).id,
+        anchorMessageId: nextInput.id
+      })
+    )
+    input = { ...input, branchHead: nextInput.id }
+    const current = await connect()
+    await current.connection.send({ message: nextInput })
+    const answer = await savedAnswer(current)
+    expect(current.handle.thread.id).toBe(old.nativeThreadId)
+    expect(next.backendId).not.toBe(old.backendId)
+    const calls = script.calls.length
+    const fork = await new AgentSessionForkOperations().fork(input.sessionId, answer.id)
+    expect(messages.listSessionMessages(fork).items).toHaveLength(4)
+    expect(contexts.roots(old.backendId).some((context) => context.sessionId === fork)).toBe(true)
+    expect(contexts.roots(next.backendId).some((context) => context.sessionId === fork)).toBe(true)
+    expect(script.calls).toHaveLength(calls)
+  })
+
+  it('reconciles a cold native fork without resuming work or losing historical configuration', async () => {
+    sharedHosts()
+    const parent = await connect()
+    await parent.connection.send({ message: message('checkpoint') })
+    const answer = await savedAnswer(parent)
+    const checkpoint = parent.events.findLast((event) => event.type === 'turn-complete')!
+    if (checkpoint.type !== 'turn-complete') throw new Error('Missing completion')
+    await parent.connection['runtime']!.durable.commit(
+      (tx) =>
+        configure(tx, Number(parent.handle.thread.id) as ConversationId, { instructions: 'future configuration' }),
+      BACKGROUND_CONTEXT
+    )
+    await parent.connection.close()
+    const request = {
+      sourceSessionId: input.sessionId,
+      sourceBackendId: prepareDurableBranch(input.sessionId).backendId,
+      checkpoint: checkpoint.forkAnchor!.checkpoint,
+      checkpoints: [checkpoint.forkAnchor!.checkpoint],
+      targetSessionId: uuid(),
+      targetCwd: directory,
+      artifactDirectory: directory,
+      signal: new AbortController().signal
+    }
+    const calls = script.calls.length
+    const [first, repeated] = await Promise.all([driver.fork(request), driver.fork(request)])
+    expect(repeated.resumeToken).toBe(first.resumeToken)
+    expect(script.calls).toHaveLength(calls)
+    const native = createSession(await openDurableStorage(contexts.backend(request.sourceBackendId)))
+    try {
+      expect(
+        (await native.snapshot(AgentDoc, Number(first.resumeToken) as ConversationId, BACKGROUND_CONTEXT))?.instructions
+      ).not.toBe('future configuration')
+    } finally {
+      await native.close(BACKGROUND_CONTEXT)
+    }
+    await expect(driver.fork({ ...request, sourceBackendId: uuid() })).rejects.toThrow('unsupported_checkpoint')
+    const forkId = await new AgentSessionForkOperations().fork(input.sessionId, answer.id)
+    input = { ...input, sessionId: forkId }
+    const fork = await connect()
+    const agent = await fork.connection['runtime']!.durable.commit(
+      async (tx) => ({ ...(await tx.doc(AgentDoc, Number(fork.handle.thread.id) as ConversationId)) }),
+      BACKGROUND_CONTEXT
+    )
+    expect(agent.cwd).toBe(directory)
+  })
+
+  it('recovers an uncertain native commit and serializes final close against a new access', async () => {
+    sharedHosts()
+    const parent = await connect()
+    await parent.connection.send({ message: message('fork boundary') })
+    await savedAnswer(parent)
+    const complete = parent.events.findLast((event) => event.type === 'turn-complete')!
+    if (complete.type !== 'turn-complete') throw new Error('Missing completion')
+    const checkpoint = complete.forkAnchor!.checkpoint
+    const request = {
+      sourceSessionId: input.sessionId,
+      sourceBackendId: prepareDurableBranch(input.sessionId).backendId,
+      checkpoint,
+      checkpoints: [checkpoint],
+      targetSessionId: uuid(),
+      targetCwd: directory,
+      artifactDirectory: directory,
+      signal: new AbortController().signal
+    }
+    const runtime = parent.connection['runtime']!
+    const commit = runtime.durable.commit.bind(runtime.durable)
+    vi.spyOn(runtime.durable, 'commit').mockImplementationOnce(async (...args) => {
+      await commit(...args)
+      throw new Error('native receipt lost')
+    })
+    await expect(driver.fork(request)).rejects.toThrow('native receipt lost')
+    const recovered = await driver.fork(request)
+    expect((await driver.fork(request)).resumeToken).toBe(recovered.resumeToken)
+    const cancelled = new AbortController()
+    cancelled.abort(new Error('cancelled fork'))
+    await expect(driver.fork({ ...request, targetSessionId: uuid(), signal: cancelled.signal })).rejects.toThrow(
+      'cancelled fork'
+    )
+    const closing = parent.connection.close()
+    const opening = connect()
+    await closing
+    const next = await opening
+    expect(next.connection['runtime']).not.toBe(runtime)
+    setScript([assistantReply('after close race')])
+    await next.connection.send({ message: message('new owner') })
+    await done(next.events)
+    expect(text(next.events)).toContain('after close race')
+    expect(next.events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('attaches a pending peer before shared recovery and restores its frozen request settings', async () => {
+    sharedHosts()
+    input = { ...input, reasoningEffort: 'high', fastMode: true }
+    const sourceInput = { ...input }
+    const parent = await connect()
+    await parent.connection.send({ message: message('initial boundary') })
+    const answer = await savedAnswer(parent)
+    const forkId = await new AgentSessionForkOperations().fork(input.sessionId, answer.id)
+    const held = gate()
+    script = respondingModel(() => held.wait(assistantReply('unfinished source answer')))
+    parent.events.length = 0
+    await parent.connection.send({ message: message('pending source input') })
+    await held.reached
+    await parent.connection.close()
+    const recoveredEvents: AgentRuntimeEvent[] = []
+    let recovered: PiDurableRuntimeConnection | undefined
+    mocks.binding.mockImplementation(async (next: AgentRuntimeConnectInput, _provider, _model, _usage, shared) => {
+      const model = { ...MODEL, provider: next.sessionId }
+      const stream = respondingModel(() =>
+        assistantReply(`${next.sessionId}:${next.reasoningEffort}:${next.fastMode}`)
+      ).model
+      if (!shared) return createTestBinding({ model, stream })
+      shared.registerProvider(model.provider, {
+        api: model.api,
+        apiKey: 'fixture',
+        baseUrl: model.baseUrl,
+        models: [model],
+        streamSimple: stream
+      })
+      return { modelRuntime: shared, model: shared.getModel(model.provider, model.id)! }
+    })
+    mocks.prime.mockImplementation(async (sessionId: string) => {
+      recovered = await driver.connect({ sessionId, agentId: sourceInput.agentId, modelId })
+      connections.push(recovered)
+      void (async () => {
+        for await (const event of recovered.events) recoveredEvents.push(event)
+      })()
+    })
+    input = { ...input, sessionId: forkId, reasoningEffort: 'low', fastMode: false }
+    const fork = await connect()
+    await expect.poll(() => recoveredEvents.some((event) => event.type === 'turn-complete')).toBe(true)
+    expect(text(recoveredEvents)).toContain(`${sourceInput.sessionId}:high:true`)
+    expect(recovered!['runtime']).toBe(fork.connection['runtime'])
+    await fork.connection.send({ message: message('independent fork input') })
+    await done(fork.events)
+    expect(text(fork.events)).toContain(`${forkId}:low:false`)
+    expect([...recoveredEvents, ...fork.events].filter((event) => event.type === 'error')).toEqual([])
+    held.open()
+  })
+
+  it('retains an identifiable inert native preparation when product publication fails', async () => {
+    sharedHosts()
+    const parent = await connect()
+    await parent.connection.send({ message: message('publication boundary') })
+    const answer = await savedAnswer(parent)
+    const before = dbh.db.select().from(agentSessionTable).all().length
+    dbh.sqlite.exec(
+      "CREATE TRIGGER reject_durable_fork BEFORE INSERT ON agent_session_message WHEN NEW.session_id != '" +
+        input.sessionId +
+        "' BEGIN SELECT RAISE(ABORT, 'publication failed'); END"
+    )
+    try {
+      await expect(new AgentSessionForkOperations().fork(input.sessionId, answer.id)).rejects.toThrow(
+        'publication failed'
+      )
+    } finally {
+      dbh.sqlite.exec('DROP TRIGGER reject_durable_fork')
+    }
+    expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(before)
+    const records = await readForkResources()
+    expect(records).toEqual([
+      expect.objectContaining({
+        nativeDisposition: 'retained',
+        nativePreparations: [expect.objectContaining({ backendId: prepareDurableBranch(input.sessionId).backendId })]
+      })
+    ])
+    const calls = script.calls.length
+    await new AgentSessionForkOperations().recover()
+    await parent.connection.drainChildWrites()
+    expect(script.calls).toHaveLength(calls)
+    parent.events.length = 0
+    setScript([assistantReply('source remains usable')])
+    await parent.connection.send({ message: message('continue source') })
+    await done(parent.events)
+    expect(text(parent.events)).toContain('source remains usable')
+  })
+
   function message(text: string) {
     return messages.saveMessage({
       sessionId: input.sessionId,
@@ -186,7 +731,7 @@ describe('desktop Pi Durable connection', () => {
     })
   }
   async function connect() {
-    const connection = await new PiDurableRuntimeConnection(input).start()
+    const connection = await driver.connect(input)
     connections.push(connection)
     const nativeInputs: InputState[] = []
     const handle = (connection as unknown as { handle: PiDurableThreadHandle }).handle
@@ -385,6 +930,79 @@ describe('desktop Pi Durable connection', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
+  // Catches a mid-turn mode switch that only reaches the next turn: the running turn's next tool call
+  // would still be approved (or skipped) under the mode the user just left.
+  it.each([
+    { from: 'bypassPermissions', to: 'default', asksForWrite: true },
+    { from: 'default', to: 'bypassPermissions', asksForWrite: false }
+  ] as const)('applies a $from → $to switch to the running turn', async ({ from, to, asksForWrite }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: from }
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('ask', 'AskUserQuestion', {
+            questions: [
+              {
+                question: 'Continue?',
+                header: 'Continue',
+                options: [
+                  { label: 'Yes', description: 'Go on' },
+                  { label: 'No', description: 'Stop' }
+                ]
+              }
+            ]
+          })
+        ],
+        'toolUse'
+      ),
+      assistantReply([toolCallPart('write', 'write', { path: 'after-switch.txt', content: 'written' })], 'toolUse'),
+      assistantReply('finished')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('ask then write') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: to }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
+      approved: true,
+      updatedInput: { answers: { 'Continue?': 'Yes' } }
+    })
+
+    if (asksForWrite) {
+      await expect.poll(() => approvals().length).toBe(2)
+      expect(approvals()[1].request).toMatchObject({ toolCallId: 'write' })
+      expect(existsSync(join(directory, 'after-switch.txt'))).toBe(false)
+      toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
+    }
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(approvals()).toHaveLength(asksForWrite ? 2 : 1)
+    expect(readFileSync(join(directory, 'after-switch.txt'), 'utf8')).toBe('written')
+  })
+
+  // Catches a parked approval card outliving owner shutdown while reopen must still ask again.
+  it('reports a pending approval as aborted on close and asks again after reopen', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([assistantReply([toolCallPart('write', 'write', { path: 'a.txt', content: 'a' })], 'toolUse')])
+    const aborted: string[] = []
+    const subscription = toolApprovalRegistry.onAborted((entry) => aborted.push(entry.approvalId))
+    const approvals = (events: AgentRuntimeEvent[]) =>
+      events.flatMap((event) => (event.type === 'tool-approval-request' ? [event.request.approvalId] : []))
+    const first = await connect()
+    await first.connection.send({ message: message('write') })
+    await expect.poll(() => approvals(first.events)).toHaveLength(1)
+
+    await first.connection.close()
+    subscription.dispose()
+    expect(aborted).toEqual(approvals(first.events))
+
+    const second = await connect()
+    await expect.poll(() => approvals(second.events)).toEqual(approvals(first.events))
+    expect(existsSync(join(directory, 'a.txt'))).toBe(false)
+  })
+
   it('streams incrementally and reopens the same SQLite conversation without replaying old text', async () => {
     setScript([assistantReply('first streaming answer')])
     const finish = holdResponse('first streaming answer')
@@ -411,6 +1029,41 @@ describe('desktop Pi Durable connection', () => {
     expect(text(second.events)).toBe('second answer')
     expect(prepareDurableBranch(input.sessionId).nativeThreadId).toBe(context.nativeThreadId)
     expect(JSON.stringify(script.calls[0].messages)).toContain('first streaming answer')
+  })
+
+  // Catches Durable dropping provider-reported reasoning tokens from the root turn's usage metadata.
+  it('reports reasoning tokens in the root turn usage metadata', async () => {
+    const root: { providerSessionId?: string } = {}
+    const usage: Usage = {
+      input: 5,
+      output: 7,
+      cacheRead: 0,
+      cacheWrite: 0,
+      reasoning: 3,
+      totalTokens: 12,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    }
+    mocks.binding.mockImplementation(async (_input, _provider, _model, onUsage) =>
+      createTestBinding({
+        model: MODEL,
+        stream: (model, context, options) => {
+          onUsage(usage, root.providerSessionId)
+          return script.model(model, context, options)
+        }
+      })
+    )
+    const { connection, events, handle } = await connect()
+    root.providerSessionId = await handle.durable.providerSessionId()
+    await connection.send({ message: message('hello') })
+    await done(events)
+
+    const metadata = events.flatMap((event) =>
+      event.type === 'chunk' && event.chunk.type === 'message-metadata' ? [event.chunk.messageMetadata] : []
+    )
+    expect(metadata.at(-1)).toEqual({
+      totalTokens: 12,
+      stats: { inputTokens: 5, outputTokens: 7, totalTokens: 12, outputTokenDetails: { reasoningTokens: 3 } }
+    })
   })
 
   it('places a late steer as the next input before its model call and records both outcomes', async () => {

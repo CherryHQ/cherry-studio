@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import type { Usage } from '@earendil-works/pi-ai'
 import type { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
@@ -59,7 +61,7 @@ export async function createPiGatewayModelBinding(
       refreshOnCreate: false
     }))
   // Native provider re-registration replaces its models and stream handler.
-  const providerName = sharedModels ? `cherry-gateway/${model.id}` : provider.id
+  const providerName = sharedModels ? `cherry-gateway/${input.sessionId}/${randomUUID()}` : provider.id
   modelRuntime.registerProvider(providerName, {
     name: provider.name,
     api,

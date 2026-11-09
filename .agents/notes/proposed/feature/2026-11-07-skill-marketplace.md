@@ -25,6 +25,8 @@ Expose Marketplace through Launchpad and the sidebar. The resource navigation co
 
 External catalogs share cards, details and installation state. Source identity participates in cache keys. Switching sources remounts the catalog so old results and an open detail do not leak into the next source. Search and browsing use different request paths; clearing search restores browsing. Load more uses the catalog cursor and the actual ScrollArea viewport.
 
+Details prefer the available localized long description and fall back to the summary. Remote package completeness and locally installed members are separate: a refreshed ZIP may have an unknown manifest, but its installed members can still be uninstalled without downloading the package again. An unknown total must not be treated as a complete installation.
+
 For claude-plugins, installation uses `claude-plugins:owner/repo/directoryPath`; the directory comes from metadata, never from the displayed skill name. skills.sh uses its validated source handle. A card with an unsupported source cannot install. Display labels do not rewrite stored IDs, URLs or handles.
 
 ### Installation and subscription boundaries
@@ -37,9 +39,11 @@ Subscription URLs accept HTTP or HTTPS without embedded credentials. GitHub URLs
 
 ### MCP management and layout
 
-The MCP catalog retains its existing add/configuration flow. Manage MCP opens Settings with `mcpStandalone`. Keep the primary Settings navigation and content outlet; hide only the MCP submenu. That mode lasts for the current Settings instance, including leaving MCP and returning. A fresh ordinary Settings instance shows the normal submenu.
+MCP Settings retains the primary Settings navigation and shows the installed-server list and server details directly, without an MCP submenu. Manage MCP opens that same list. Built-in discovery, external markets and provider configuration belong to Marketplace. Provider cards under MCP → More sources open configuration dialogs inside Marketplace; reuse the existing API-token storage, provider cache, fetching and add-server flow. Old discovery and provider Settings URLs redirect to the corresponding Marketplace view, including the requested provider dialog. Legacy `mcpStandalone` URLs do not change the layout.
 
-MCP controls use a title/search/add row and a filter/environment row. Preserve create, import and JSON export actions. Lists stretch inside the content area instead of relying on a fixed window height.
+Resource and MCP-source selections update the URL so reopening a deep link reaches its requested view even when the tab is reused. Pending provider additions reject duplicate submissions; after success, the installed-server list determines the added state so removal permits adding the candidate again. Failed additions can retry. Editing a provider credential clears only that provider's cached candidates, and a response for an outdated credential cannot restore them. Cached server configurations can contain authorization, so they cannot safely be reused under a replacement credential.
+
+The MCP header follows Skills Settings typography, spacing, search dimensions and add-menu styling. Keep the filter beside the title and environment status beside the add menu in the same toolbar. Preserve create, import and JSON export actions. Lists stretch inside the content area instead of relying on a fixed window height.
 
 Keep the existing Store icon geometry and size. The selected icon uses inverse foreground/background treatment. Use shared ScrollArea for lists and horizontal source navigation. Virtual lists, pagination observers and scroll reset target its viewport. Preserve keyboard focus, accessible action names and detail-close focus restoration. Narrow-window, dark-theme and real scrolling checks remain explicit acceptance work.
 
@@ -47,13 +51,15 @@ Keep the existing Store icon geometry and size. The selected icon uses inverse f
 
 Loading, empty results and errors are distinct. A failed request shows retry rather than an empty success. Registry failures log source, cursor and the original error. Retain the source's failure semantics; do not increase a timeout or suppress an error without evidence.
 
+The registry request deadline covers response-body consumption as well as response headers. Receiving successful headers does not make a stalled JSON body a completed request.
+
 Install actions show busy and installed states and prevent duplicate submissions. A failed installation reports failure and permits another attempt. Catalog retry does not imply reinstalling local content. Existing subscription snapshots can remain available while refresh is attempted.
 
 ## Alternatives considered
 
 - Keep discovery in separate settings pages: rejected because users must know the source before they can browse it.
 - Rename source IDs to match shorter labels: rejected because cache identity and exact installation targets must remain stable.
-- Build a parallel installer or persist the MCP layout mode globally: rejected because existing installation safeguards and ordinary Settings behavior already have owners.
+- Build a parallel installer or keep a second discovery sidebar in MCP Settings: rejected because existing installation safeguards must remain intact and Marketplace owns discovery and provider configuration.
 - Include My Resources in this layer: rejected because its hidden navigation and editing behavior belong to the separate draft #21834.
 
 ## Acceptance criteria
@@ -61,7 +67,7 @@ Install actions show busy and installed states and prevent duplicate submissions
 - AC1 — Users can browse CherryIN, skills.sh and claude-plugins, search, open details and load subsequent pages without crossing source identity. (verification: unit and renderer; owner: Frontend)
 - AC2 — Installs use the validated exact directory; duplicate submissions are blocked and collection failures remain visible. Catalog reads never execute skills. (verification: unit and main-process integration; owner: Backend)
 - AC3 — Adding, refreshing or removing a subscription does not silently install, update or uninstall local skills. (verification: unit and renderer; owner: Backend and Frontend)
-- AC4 — Marketplace MCP management hides only its submenu for the current Settings instance; ordinary Settings retains the submenu and create/import/export actions. (verification: renderer and Electron; owner: Frontend)
+- AC4 — MCP Settings shows installed servers without a submenu and retains the Skills-aligned header, title-adjacent filter and create/import/export actions; provider configuration opens inside Marketplace with existing credentials and cache, and old discovery URLs reach the corresponding Marketplace view. (verification: renderer and Electron; owner: Frontend)
 - AC5 — Store icon geometry, keyboard actions, detail focus return and viewport-based pagination work in light/dark and narrow windows. (verification: renderer and Electron; owner: Frontend and QA)
 - AC6 — Loading, empty and failed catalogs remain distinguishable; retry and install recovery preserve the original failure. (verification: unit, renderer and controlled network failure; owner: Frontend and QA)
 - AC7 — The documentation layer contains only this bilingual contract and its consistency record; implementation and personal-library changes remain separate. (verification: docs gate and parent-relative Git diffs; owner: Maintainer)
@@ -70,6 +76,6 @@ Install actions show busy and installed states and prevent duplicate submissions
 
 Remote services may change schemas, slow down or become unavailable. An earlier intermittent catalog failure was not reproduced; successful requests do not establish its cause or prove a fix.
 
-The local dependency installation is incomplete. Standard tests can fail before collection because the installed Claude SDK differs from the manifest. Isolated checks do not certify the standard suite, packaged application or real skill installation. Current-head Electron, dark/narrow-window and real installation acceptance remain unverified. Do not move this note to implemented until its acceptance evidence is complete.
+Focused renderer, main-process and shared tests pass in this workspace. Electron checks cover dark/light and narrow-window layouts, real temporary ZIP installation and removal, Agent creation and built-in MCP addition. These checks do not certify packaged applications, Windows/Linux or real external-provider execution. Do not move this note to implemented until its acceptance evidence is complete.
 
 Rollback follows the existing installation recovery behavior. Reverting a catalog UI change must preserve user-installed skills and subscriptions. No new database migration is part of this contract.
