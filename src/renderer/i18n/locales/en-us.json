@@ -1509,6 +1509,8 @@
   "error.claude_code_exit.code": "Claude Code exited unexpectedly (code {{code}}). Diagnostic reference: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code stopped unexpectedly (signal {{signal}}). Diagnostic reference: {{reference}}",
   "error.claude_code_exit.start": "Claude Code could not start. Diagnostic reference: {{reference}}",
+  "error.claude_code_session_bus_missing": "Claude Code needs an active Linux session bus.",
+  "error.claude_code_session_bus_missing_detail": "Set DBUS_SESSION_BUS_ADDRESS in the desktop environment that starts Cherry Studio, then restart the app. Claude Code was not launched.",
   "error.content": "Content",
   "error.data": "Data",
   "error.detail": "Error Details",
