@@ -79,7 +79,7 @@ export function AgentToolCallCard({
   const rawErrorText = failed ? extractToolErrorText(output) : undefined
   const toolFault = useMemo(() => {
     if (!failed) return undefined
-    if (rawErrorText) return new Error(rawErrorText)
+    if (rawErrorText) return rawErrorText
     if (output !== undefined) return output
     return { status: 'error' as const }
   }, [failed, output, rawErrorText])

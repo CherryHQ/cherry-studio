@@ -95,7 +95,7 @@ export const translateText = async (
         cleanup()
         // Preserve error.name (e.g. 'AbortError') so downstream
         // `isAbortError(...)` classifies user stops correctly.
-        const err = new Error(error?.message ?? 'Translation stream error')
+        const err = new Error(error?.message ?? 'Translation stream error', { cause: error })
         if (error?.name) err.name = error.name
         reject(err)
       })

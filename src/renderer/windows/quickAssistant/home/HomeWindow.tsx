@@ -23,6 +23,7 @@ import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 
 import ClipboardPreview from './components/ClipboardPreview'
@@ -130,16 +131,27 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [clipboardText, isFirstMessage, userInputText])
 
   const [isPreparing, setIsPreparing] = useState(false)
-  const [flowError, setFlowError] = useState<{ message: string; cause: unknown } | null>(null)
+  const [flowError, setFlowError] = useState<{
+    message: string
+    cause: unknown
+    providerId?: string
+    modelId?: string
+  } | null>(null)
+  // Doctor resolves the failed model from the provider and its local model id.
+  const failedModel = useMemo(
+    () =>
+      currentModel ? { providerId: currentModel.providerId, modelId: parseUniqueModelId(currentModel.id).modelId } : {},
+    [currentModel]
+  )
 
   const {
     messages: chatMessages,
     sendMessage,
     stop: stopChat,
     setMessages
-  } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (err) => {
+  } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (err, cause) => {
     setIsPreparing(false)
-    setFlowError({ message: err.message, cause: err })
+    setFlowError({ message: err.message, cause, ...failedModel })
   })
 
   // Local inputs and projected assistant messages share the existing message list.
@@ -403,7 +415,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         }
       } catch (streamError) {
         const message = streamError instanceof Error ? streamError.message : t('error.unexpected')
-        setFlowError({ message, cause: streamError })
+        setFlowError({ message, cause: streamError, ...failedModel })
         logger.error(
           'Error fetching result:',
           streamError instanceof Error
@@ -412,7 +424,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         )
       }
     },
-    [currentModel, isAssistantMode, isTopicReady, requestText, sendMessage, t, temporaryTopicId]
+    [currentModel, failedModel, isAssistantMode, isTopicReady, requestText, sendMessage, t, temporaryTopicId]
   )
 
   const handlePause = useCallback(() => {
@@ -582,6 +594,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 message={flowError.message}
                 source="quickAssistant"
                 operation="quick_assistant.send"
+                providerId={flowError.providerId}
+                modelId={flowError.modelId}
               />
             </div>
           )}
