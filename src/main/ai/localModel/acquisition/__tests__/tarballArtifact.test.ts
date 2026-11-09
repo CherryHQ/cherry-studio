@@ -375,6 +375,29 @@ describe('shared artifact acquisition', () => {
       expect(isArtifactInstalled(FIXTURE_ARTIFACT)).toBe(true)
     })
 
+    it('keeps incomplete copies invisible and cleans up a failed import', async () => {
+      writeFiles(sourceDir(), ['onnxruntime_binding.node', 'libonnxruntime.so.1'])
+      const copyFile = fs.promises.copyFile.bind(fs.promises)
+      const failure = new Error('interrupted copy')
+      const spy = vi.spyOn(fs.promises, 'copyFile').mockImplementation(async (source, destination, mode) => {
+        if (path.basename(String(source)) !== 'onnxruntime_binding.node') return copyFile(source, destination, mode)
+        fs.writeFileSync(destination, 'partial')
+        expect(isArtifactInstalled(FIXTURE_ARTIFACT)).toBe(false)
+        expect(fs.existsSync(artifactEntryPath(FIXTURE_ARTIFACT))).toBe(false)
+        throw failure
+      })
+      try {
+        await expect(importArtifactFromDir(FIXTURE_ARTIFACT, sourceDir())).rejects.toBe(failure)
+      } finally {
+        spy.mockRestore()
+      }
+      expect(isArtifactInstalled(FIXTURE_ARTIFACT)).toBe(false)
+      expect(fs.readdirSync(toolchainDir).filter((name) => name.startsWith('.import-'))).toEqual([])
+      await importArtifactFromDir(FIXTURE_ARTIFACT, sourceDir())
+      expect(isArtifactInstalled(FIXTURE_ARTIFACT)).toBe(true)
+      expect(fs.readFileSync(artifactEntryPath(FIXTURE_ARTIFACT), 'utf8')).toBe('onnxruntime_binding.node')
+    })
+
     it('names the missing files and installs nothing', async () => {
       writeFiles(sourceDir(), ['libonnxruntime.so.1'])
 

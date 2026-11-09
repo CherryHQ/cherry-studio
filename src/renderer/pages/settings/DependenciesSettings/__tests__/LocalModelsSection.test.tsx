@@ -233,6 +233,38 @@ describe('LocalModelsSection', () => {
     expect(within(modelCard!).getByText('settings.dependencies.localModels.download')).toBeInTheDocument()
   })
 
+  it.each([false, true])('routes an offline folder to import and reports failure=%s', async (failed) => {
+    const user = userEvent.setup()
+    window.api.file.selectFolder = vi.fn().mockResolvedValue('/offline/runtime')
+    mockRoutes((route) => {
+      if (route === 'local_model.import_runtime' && failed) return Promise.reject(new Error('bad runtime'))
+      return Promise.resolve()
+    })
+    publishLocalModelStatus(EMBEDDING, { status: 'not_downloaded', percent: 0 })
+    render(<LocalModelsSection />)
+    await screen.findAllByRole('listitem')
+    await user.click(within(embeddingCard()).getByText('settings.dependencies.localModels.importRuntime'))
+    await waitFor(() =>
+      expect(mockRequest).toHaveBeenCalledWith('local_model.import_runtime', {
+        id: EMBEDDING,
+        sourcePath: '/offline/runtime'
+      })
+    )
+    if (failed) await screen.findByText('settings.dependencies.localModels.notice.importFailed')
+    else expect(screen.queryByText('settings.dependencies.localModels.notice.importFailed')).not.toBeInTheDocument()
+  })
+
+  it('does not import when the folder chooser is cancelled', async () => {
+    const user = userEvent.setup()
+    window.api.file.selectFolder = vi.fn().mockResolvedValue(undefined)
+    mockRoutes(() => Promise.resolve())
+    publishLocalModelStatus(EMBEDDING, { status: 'not_downloaded', percent: 0 })
+    render(<LocalModelsSection />)
+    await screen.findAllByRole('listitem')
+    await user.click(within(embeddingCard()).getByText('settings.dependencies.localModels.importRuntime'))
+    expect(mockRequest.mock.calls.some(([route]) => route === 'local_model.import_runtime')).toBe(false)
+  })
+
   it('shows a shared failure as retryable when reopening settings', async () => {
     const user = userEvent.setup()
     mockRoutes((route) => {

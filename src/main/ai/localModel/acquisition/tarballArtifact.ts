@@ -181,10 +181,19 @@ export async function importArtifactFromDir(artifact: SharedArtifact, sourceDir:
     throw new Error(`${artifact.id}: missing ${missing.join(', ')} in ${sourceDir}`)
   }
 
-  const installDir = artifactInstallDir(artifact, platform)
-  await fs.promises.mkdir(installDir, { recursive: true })
-  for (const file of files) {
-    await fs.promises.copyFile(path.join(sourceRoot, file), path.join(installDir, file))
+  // Copy privately on the destination filesystem, then publish completed files by
+  // rename with the loadable entry last, matching the download path. A unique
+  // directory also keeps import cleanup separate from concurrent download staging.
+  const artifactRoot = application.getPath(artifact.installDirKey)
+  await fs.promises.mkdir(artifactRoot, { recursive: true })
+  const stagingDir = await fs.promises.mkdtemp(path.join(artifactRoot, '.import-'))
+  try {
+    for (const file of files) {
+      await fs.promises.copyFile(path.join(sourceRoot, file), path.join(stagingDir, file))
+    }
+    await installExtractedFiles(stagingDir, artifactInstallDir(artifact, platform), platform)
+  } finally {
+    await fs.promises.rm(stagingDir, { recursive: true, force: true })
   }
   logger.info('shared artifact imported', { artifact: artifact.id, platform: currentPlatformKey() })
 }
