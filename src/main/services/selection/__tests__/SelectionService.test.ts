@@ -370,7 +370,7 @@ describe('SelectionService.processAction — fullscreen IME', () => {
   it('does not apply dock behavior when no action window was created', () => {
     getWindow.mockReturnValue(undefined)
     new SelectionService().processAction(
-      { id: 'custom-ime', name: 'Explain', enabled: true, isBuiltIn: false, askInput: true },
+      { id: 'custom-ime', name: 'Explain', enabled: true, isBuiltIn: false, runner: 'assistant', askInput: true },
       true
     )
     expect(hideMacDockWhileShown).not.toHaveBeenCalled()
