@@ -147,6 +147,7 @@ describe('Pi Durable runtime contract', () => {
       { type: 'snapshot', inputs: expect.arrayContaining([{ ...final.completion!.inputs[0] }]) }
     ])
     const body = final.events.flatMap((event) => (event.type === 'snapshot' ? event.messages : []))
+    expect(body.some((message) => message.id.startsWith(`entry:${final.completion!.entryId}:`))).toBe(true)
     expect(body.flatMap((message) => message.parts)).toContainEqual(
       expect.objectContaining({ type: 'text', text: 'truncated body' })
     )

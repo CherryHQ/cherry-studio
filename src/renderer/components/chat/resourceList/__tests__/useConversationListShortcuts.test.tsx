@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { CommandContextKeyProvider, CommandFocusScope, CommandProvider } from '@renderer/components/command'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
+import { useCommandContextReader } from '@renderer/hooks/command'
 import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 import { isMac } from '@renderer/utils/platform'
 
@@ -51,10 +52,12 @@ function List({ name }: { name: string }) {
   )
 }
 function Page({
+  children,
   name = 'chat',
   collapsed = [],
   listActive = true
 }: {
+  children?: ReactNode
   name?: string
   collapsed?: string[]
   listActive?: boolean
@@ -69,9 +72,7 @@ function Page({
             items={items}
             groupBy={(item) => ({ id: item.group, label: item.group })}
             collapsedState={collapsed}>
-            <ResourceList.Frame active={listActive}>
-              <List name={name} />
-            </ResourceList.Frame>
+            <ResourceList.Frame active={listActive}>{children ?? <List name={name} />}</ResourceList.Frame>
           </Provider>
           <textarea aria-label={`${name} composer`} />
         </TabIdProvider>
@@ -111,6 +112,41 @@ afterEach(() => {
 })
 
 describe('conversation number shortcuts', () => {
+  it('keeps navigation live when scope subscribers rerender the list with a new callback and order', () => {
+    function Selection({ prefix }: { prefix: string }) {
+      const [selected, setSelected] = useState('none')
+      useConversationListShortcuts((item) => setSelected(`${prefix}:${item.id}`))
+      return <output aria-label="subscribed selection">{selected}</output>
+    }
+    function SubscribedList({ prefix, collapsed }: { prefix: string; collapsed: string[] }) {
+      useCommandContextReader()
+      const Provider = ResourceList.Provider<(typeof items)[number]>
+      return (
+        <Provider
+          items={items.map((item) => ({ ...item }))}
+          groupBy={(item) => ({ id: item.group, label: item.group })}
+          collapsedState={collapsed}>
+          <Selection prefix={prefix} />
+        </Provider>
+      )
+    }
+    const tree = (prefix: string, collapsed: string[] = []) => (
+      <Root>
+        <Page collapsed={collapsed}>
+          <SubscribedList prefix={prefix} collapsed={collapsed} />
+        </Page>
+      </Root>
+    )
+    const view = render(tree('initial'))
+    expect(pressDigit('2')).toBe(true)
+    expect(screen.getByLabelText('subscribed selection')).toHaveTextContent('initial:recent')
+
+    view.rerender(tree('updated', ['pinned']))
+    expect(pressDigit('1')).toBe(true)
+    expect(screen.getByLabelText('subscribed selection')).toHaveTextContent('updated:recent')
+    expect(pressDigit('3')).toBe(false)
+  })
+
   it.each(['chat', 'agent'])('switches %s conversations while its composer holds focus', (page) => {
     render(
       <Root active={page}>

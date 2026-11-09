@@ -142,6 +142,8 @@ export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir' | 'group'
 
 export type AgentTabSortType = 'tags' | 'list'
 
+export type BrowserStartPageMode = 'blank' | 'last' | 'custom'
+
 export const SIDEBAR_FAVORITES = [
   'assistants',
   'agents',
