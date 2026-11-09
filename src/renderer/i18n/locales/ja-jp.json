@@ -6206,8 +6206,6 @@
   "settings.usage.export.png": "PNG としてエクスポート",
   "settings.usage.export.progress": "使用量レコードを読み込み中（{{count}} / {{total}}）…",
   "settings.usage.export.range": "{{from}} – {{to}}（{{timezone}}）",
-  "settings.usage.export.sheets.metadata": "メタデータ",
-  "settings.usage.export.sheets.usage": "使用量",
   "settings.usage.export.success": "使用量をエクスポートしました",
   "settings.usage.export.title": "エクスポート",
   "settings.usage.export.xlsx": "XLSX としてエクスポート",
