@@ -61,21 +61,27 @@ function Page({
   children,
   name = 'chat',
   collapsed = [],
-  listActive = true
+  listActive = true,
+  loading = false,
+  sectioned = false
 }: {
   children?: ReactNode
   name?: string
   collapsed?: string[]
   listActive?: boolean
+  loading?: boolean
+  sectioned?: boolean
 }) {
   const Provider = ResourceList.Provider<(typeof items)[number]>
   const rootRef = useRef<HTMLDivElement>(null)
   return (
-    <CommandFocusScope rootRef={rootRef}>
+    <CommandFocusScope kind="tab" rootRef={rootRef}>
       <div ref={rootRef}>
         <TabIdProvider tabId={name}>
           <Provider
             items={items}
+            status={loading ? 'loading' : 'idle'}
+            sectionBy={sectioned ? (item) => ({ id: `section-${item.group}`, label: item.group }) : undefined}
             groupBy={(item) => ({ id: item.group, label: item.group })}
             collapsedState={collapsed}>
             <ResourceList.Frame active={listActive}>{children ?? <List name={name} />}</ResourceList.Frame>
@@ -240,7 +246,7 @@ describe('conversation number shortcuts', () => {
     )
     pressDigit('2')
     expect(screen.getByLabelText('chat')).toHaveTextContent('recent')
-    pressDigit('9')
+    expect(pressDigit('9')).toBe(false)
     expect(screen.getByLabelText('chat')).toHaveTextContent('recent')
     view.rerender(
       <Root>
@@ -249,6 +255,33 @@ describe('conversation number shortcuts', () => {
     )
     pressDigit('2')
     expect(screen.getByLabelText('chat')).toHaveTextContent('older')
+  })
+
+  it('does not consume navigation while the source is loading', () => {
+    const tree = (loading: boolean) => (
+      <Root>
+        <Page loading={loading} />
+      </Root>
+    )
+    const { rerender } = render(tree(true))
+    expect(pressDigit('1')).toBe(false)
+    expect(screen.getByLabelText('chat')).toHaveTextContent('none')
+    rerender(tree(false))
+    expect(pressDigit('1')).toBe(true)
+    expect(screen.getByLabelText('chat')).toHaveTextContent('pinned')
+  })
+
+  it('numbers only expanded sections while preserving the order inside each section', () => {
+    render(
+      <Root>
+        <Page sectioned collapsed={['section-pinned']} />
+      </Root>
+    )
+    expect(pressDigit('1')).toBe(true)
+    expect(screen.getByLabelText('chat')).toHaveTextContent('recent')
+    expect(pressDigit('2')).toBe(true)
+    expect(screen.getByLabelText('chat')).toHaveTextContent('older')
+    expect(pressDigit('3')).toBe(false)
   })
 
   it('moves ownership between active pages and unregisters when leaving the conversation page', () => {

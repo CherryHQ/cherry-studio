@@ -107,7 +107,8 @@ runtime.
 `CommandScope` supports `main`, `renderer`, and `both`:
 
 - Renderer bindings are handled by the window-level `CommandProvider`. A command
-  resolves only when its event's active focus scope can find an enabled handler.
+  resolves only when its declared target has one eligible owner; focus supplies
+  the keybinding context independently.
 - Non-global main bindings are handled through `before-input-event` on the main
   window and attached webviews.
 - Main bindings marked `global: true` are registered with Electron's
@@ -131,12 +132,20 @@ command enablement and user shortcut enable switches still apply.
 ### Renderer keyboard
 
 `keydown` → event path's nearest registered focus scope → scoped context and
-shortcut normalization → matching command and scoped handler → that same handler.
+shortcut normalization → matching command and declared target → captured handler.
 
-Sibling scopes never compete by registration order. A scope that owns a command
-but has no enabled handler blocks fallback to an ancestor registration for that
-command. Inactive or detached scopes cannot execute. Unclaimed commands may
-resolve through parent scopes to the window root.
+`RENDERER_COMMAND_TARGETS` in `src/renderer/utils/command.ts` declares every
+renderer command's target. Focused commands search the origin's parent chain;
+a nearer registration with no enabled handler blocks ancestor fallback. Conversation
+number commands select owners in the active tab, even from a nested composer.
+Window search, tab switching/closing and fullscreen exit use window owners.
+Other registrations retain their focused ownership.
+
+Owners keep callbacks in their lifecycle scopes. More than one eligible registration
+for a command/target is ambiguous and leaves the key untouched; mount order never
+chooses a winner. Inactive, detached or transitioning owners cannot execute.
+`TabRouter` marks tab scopes explicitly; standalone windows use their root when
+there is no tab owner. Adding a focus scope does not suppress broader targets.
 
 No-modifier shortcuts are ignored inside input, textarea, select, or inherited
 contenteditable surfaces. Modified shortcuts can still resolve, with
@@ -151,8 +160,8 @@ unless those handlers opt in with `allowInKeyboardLayer: true`. Its own scoped
 commands remain available. Nested layers release independently. Native popups
 use the same boundary policy without requiring a DOM node.
 
-Component programmatic calls use their bound runtime scope; window-root calls
-stay root-scoped. They do not apply keyboard-only `when` or event predicates. See
+Component programmatic calls retain their bound origin and tab; they do not
+select a later active tab. Window commands still use their declared window target. They do not apply keyboard-only `when` or event predicates. See
 [focus scopes and lifecycle](./command-usage.md#focus-scopes-and-lifecycle) for
 surface integration and retained-tab activation.
 

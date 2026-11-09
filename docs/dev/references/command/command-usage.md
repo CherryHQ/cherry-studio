@@ -38,12 +38,14 @@ useCommandHandler('topic.create', handleCreateTopic, { enabled: canCreateTopic }
 ```
 
 Handlers register in the nearest focus scope; callers without a local scope use
-the window root. Within one scope, the most recently registered enabled handler
-runs. A scope with registrations for a command but none enabled blocks fallback
-to an ancestor handler. Sibling scopes never compete for the same keypress.
+the window root. `RENDERER_COMMAND_TARGETS` declares whether dispatch selects the
+focused owner, active-tab owner or window owner. Consumers use the same registration
+API for all three. Multiple eligible registrations for one command/target are a
+conflict, not a last-registration override. Focused commands keep the nearest
+registration's fallback barrier even when all its handlers are disabled.
 `enabled` accepts a boolean or an event-time getter for current business
-eligibility. A command without an eligible handler leaves the keyboard event
-unchanged.
+eligibility. A missing, disabled or ambiguous target leaves the keyboard event
+unchanged. Once a candidate is selected, late refusal does not try another binding.
 
 The optional `shouldHandleKeyEvent` is a synchronous predicate for deciding whether
 a renderer handler accepts a keyboard event. After a trigger resolves to a command,
@@ -79,7 +81,8 @@ Changing focus does not require a React state update before the next keypress.
 The scope provider notifies subscribers when its activation or context values
 change. Passing a new context object with the same values does
 not publish another version. Handler and context-key registrations notify
-subscribers independently. Registry attachment remains stable across ordinary
+subscribers independently; changes also notify ancestor scopes so sibling controls
+can refresh broader target availability. Registry attachment remains stable across ordinary
 rerenders, follows root-element replacement, and is released on unmount or
 Activity concealment.
 
@@ -97,12 +100,13 @@ conversation for a missing focused row. Resource deletion requires
 `resource.focused && !input.focused`; the dispatcher derives editable focus from
 the event path, including inherited contenteditable and select controls.
 
-Conversation-number navigation belongs to the active tab, not its list's focus
-scope. `TabIdProvider` captures that tab's runtime; `useTabCommandRuntime` lets the
-list register navigation there while retaining its own ordering, loading and
-activation guards. The shortcut therefore works from the composer. Outside a
-tab provider, the window runtime is the navigation owner. Permanent deletion
-continues to register in the list scope and does not gain tab-wide eligibility.
+Conversation-number navigation declares an active-tab target. `TabRouter` marks
+its lifecycle scope with `kind="tab"`; the list registers locally through
+`useCommandRuntime`, retaining ordering, loading and list-activation guards.
+The dispatcher selects the owning active tab's eligible list from any focused
+child, including the composer. Outside a tab lifecycle, standalone windows use
+the window root. The old consumer-selected tab runtime is removed. Permanent
+deletion stays focused and does not gain tab-wide eligibility.
 
 Shared Dialog, ContextMenu and DropdownMenu primitives expose their lifecycle
 through `KeyboardLayerProvider`. `CommandProvider` supplies the renderer adapter;
@@ -123,8 +127,9 @@ useCommandHandler('app.search', handleSearch, { allowInKeyboardLayer: true })
 ```
 
 `useCommandRuntime().execute()` and `useResolvedCommand().execute()` use their
-component's bound scope. Calling from the window root does not select a local
-list by current or last-known focus. Explicit execution checks handler
+component's bound origin. An active-tab command stays attached to that origin's
+tab instead of selecting whichever tab becomes active later. Calling a focused
+command from the window root does not select a local list by current or last-known focus. Explicit execution checks handler
 eligibility but does not require the keyboard-only `when` expression or
 `shouldHandleKeyEvent`.
 

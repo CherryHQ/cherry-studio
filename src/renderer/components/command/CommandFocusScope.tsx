@@ -34,7 +34,8 @@ function ScopeProvider({
         element: () => optionsRef.current.element(),
         active: () => optionsRef.current.active(),
         context: () => optionsRef.current.context(),
-        boundary
+        boundary,
+        kind: options.kind
       },
       parent
     )
@@ -85,16 +86,19 @@ export function CommandFocusScope({
   children,
   rootRef,
   active = true,
+  kind,
   context = {}
 }: {
   children: ReactNode
   rootRef: RefObject<HTMLElement | null>
   active?: boolean
+  kind?: 'tab'
   context?: Readonly<Record<string, ContextValue>>
 }) {
   return (
     <ScopeProvider
       options={{
+        kind,
         element: () => rootRef.current,
         active: () => active && Boolean(rootRef.current?.isConnected),
         context: () => context
