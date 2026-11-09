@@ -52,7 +52,7 @@ class ToolApprovalRegistry {
   private readonly _onAborted = new Emitter<AbortedApproval>()
 
   /**
-   * Fired for each approval `abort()` or `clear()` resolves without a user decision. Listeners own
+   * Fired for each approval `abort()`, `clear()` or its own aborted signal resolves without a user decision. Listeners own
    * any durable consequence — a card parked at `approval-requested` must be retired here.
    */
   public readonly onAborted: Event<AbortedApproval> = this._onAborted.event
@@ -79,7 +79,10 @@ class ToolApprovalRegistry {
 
     const stored: PendingApproval = { ...entry, presentation: entry.presentation ?? 'stream' }
     if (signal) {
-      const abortListener = () => this.dispatch(approvalId, { approved: false, reason: 'aborted' })
+      const abortListener = () => {
+        const aborted = this.dispatch(approvalId, { approved: false, reason: 'aborted' })
+        if (aborted) this._onAborted.fire({ ...aborted, approvalId, reason: 'aborted' })
+      }
       stored.abortListener = abortListener
       signal.addEventListener('abort', abortListener, { once: true })
     }

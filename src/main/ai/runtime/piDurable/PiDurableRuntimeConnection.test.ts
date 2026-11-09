@@ -385,6 +385,27 @@ describe('desktop Pi Durable connection', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
+  // Catches a parked approval card outliving owner shutdown while reopen must still ask again.
+  it('reports a pending approval as aborted on close and asks again after reopen', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([assistantReply([toolCallPart('write', 'write', { path: 'a.txt', content: 'a' })], 'toolUse')])
+    const aborted: string[] = []
+    const subscription = toolApprovalRegistry.onAborted((entry) => aborted.push(entry.approvalId))
+    const approvals = (events: AgentRuntimeEvent[]) =>
+      events.flatMap((event) => (event.type === 'tool-approval-request' ? [event.request.approvalId] : []))
+    const first = await connect()
+    await first.connection.send({ message: message('write') })
+    await expect.poll(() => approvals(first.events)).toHaveLength(1)
+
+    await first.connection.close()
+    subscription.dispose()
+    expect(aborted).toEqual(approvals(first.events))
+
+    const second = await connect()
+    await expect.poll(() => approvals(second.events)).toEqual(approvals(first.events))
+    expect(existsSync(join(directory, 'a.txt'))).toBe(false)
+  })
+
   it('streams incrementally and reopens the same SQLite conversation without replaying old text', async () => {
     setScript([assistantReply('first streaming answer')])
     const finish = holdResponse('first streaming answer')
