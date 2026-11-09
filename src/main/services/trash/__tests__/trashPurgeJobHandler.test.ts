@@ -394,10 +394,15 @@ describe('trashPurgeJobHandler', () => {
     }
   })
 
-  it('keeps draining a domain in batches until a batch comes back short', async () => {
+  it.each([
+    { count: 1, cascade: false, batches: [1] },
+    { count: 500, cascade: false, batches: [500, 0] },
+    { count: 501, cascade: false, batches: [500, 1] },
+    { count: 501, cascade: true, batches: [501, 1] }
+  ])('drains topic trash: count=$count cascade=$cascade', async ({ count, cascade, batches }) => {
     const { topicService } = await import('@data/services/TopicService')
 
-    const rows = Array.from({ length: 501 }, (_, i) => ({
+    const rows = Array.from({ length: count }, (_, i) => ({
       id: `topic-bulk-${String(i).padStart(4, '0')}`,
       name: 'bulk',
       orderKey: `a${i}`,
@@ -407,19 +412,44 @@ describe('trashPurgeJobHandler', () => {
       await dbh.db.insert(topicTable).values(rows.slice(i, i + 100))
     }
 
+    if (cascade) {
+      await dbh.db.insert(topicTable).values({ id: 'side-chat', name: 'side', orderKey: 'z0', deletedAt: RECENT })
+      await dbh.db.insert(messageTable).values({
+        ...rootRow('side-chat'),
+        data: {
+          parts: [],
+          sideChat: {
+            version: 1,
+            sourceTopicId: rows[0].id,
+            snapshot: {
+              messageId: 'answer',
+              selection: 'quote',
+              answer: 'quote',
+              question: '',
+              prefix: '',
+              suffix: ''
+            },
+            config: { modelId: 'provider::model', prompt: '' }
+          }
+        }
+      })
+    }
+    const notified = vi.spyOn(topicService, 'notifyPurged')
     const spy = vi.spyOn(topicService, 'purgeExpiredTx')
     try {
-      const result = await trashPurgeJobHandler.execute(makeCtx({}))
+      const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true }))
 
-      // 501 expired rows with batch size 500 → one full batch + one short batch.
-      expect(spy).toHaveBeenCalledTimes(2)
-      expect(result).toMatchObject({ skipped: false, purged: expect.objectContaining({ topic: 501 }) })
+      expect(spy.mock.results.map((result) => result.value.length)).toEqual(batches)
+      expect(result).toMatchObject({ skipped: false, purged: { topic: count + Number(cascade) } })
       expect(dbh.db.select({ id: topicTable.id }).from(topicTable).all()).toEqual([])
+      expect(notified.mock.calls.flatMap(([ids]) => ids).sort()).toEqual(
+        [...rows.map((row) => row.id), ...(cascade ? ['side-chat'] : [])].sort()
+      )
     } finally {
+      notified.mockRestore()
       spy.mockRestore()
     }
   })
-
   it('publishes a committed batch even if the next batch fails', async () => {
     const { topicService } = await import('@data/services/TopicService')
 
