@@ -23,7 +23,9 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, options?: { dependents?: string }) => (options?.dependents ? `${key}:${options.dependents}` : key)
+  })
 }))
 
 describe('useBinaryActions', () => {
@@ -85,11 +87,12 @@ describe('useBinaryActions', () => {
     expect(toast.success).toHaveBeenCalledWith('settings.dependencies.uninstallSuccess')
   })
 
-  it('surfaces a fixed-tool cleanup_blocked as an error with no definition fallback', async () => {
+  it('names the dependent tools blocking a fixed-tool removal, with no definition fallback', async () => {
     ipcRequestMock.mockResolvedValue({
       status: 'cleanup_blocked',
       reason: 'dependency_blocked',
-      message: 'Cannot remove claude while installed tools depend on it: gemini'
+      dependents: ['gemini', 'qwen'],
+      message: 'Cannot remove claude while installed tools depend on it: gemini, qwen'
     })
     const { result } = renderHook(() => useBinaryActions())
 
@@ -101,22 +104,35 @@ describe('useBinaryActions', () => {
     expect(removed).toBe(false)
     // A Code CLI is fixed — never a definition-only follow-up request.
     expect(ipcRequestMock).toHaveBeenCalledTimes(1)
+    // Stopping a dependent is the user's fix, not a fault to report.
+    expect(toast.error).toHaveBeenCalledWith({
+      title: 'settings.dependencies.uninstallFailed',
+      description: 'settings.dependencies.removeDefinitionOnlyDependents:gemini, qwen',
+      data: { suppressDetail: true }
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('shows why a fixed-tool cleanup could not run and keeps it reportable', async () => {
+    ipcRequestMock.mockResolvedValue({
+      status: 'cleanup_blocked',
+      reason: 'cleanup_failed',
+      message: 'Tool is still installed after removal: claude'
+    })
+    const { result } = renderHook(() => useBinaryActions())
+
+    await act(async () => {
+      await result.current.remove(CodeCli.CLAUDE_CODE)
+    })
+
     expect(toast.error).toHaveBeenCalledWith(
       expect.objectContaining({
-        cause: expect.objectContaining({
-          message: 'Cannot remove claude while installed tools depend on it: gemini'
-        }),
-        data: expect.objectContaining({
-          errorContext: expect.objectContaining({
-            message: 'Cannot remove claude while installed tools depend on it: gemini',
-            operation: 'binary.remove_tool'
-          }),
-          localizedErrorMessage: 'settings.dependencies.uninstallFailed'
-        }),
-        title: 'settings.dependencies.uninstallFailed'
+        title: 'settings.dependencies.uninstallFailed',
+        description: 'Tool is still installed after removal: claude',
+        cause: expect.objectContaining({ message: 'Tool is still installed after removal: claude' }),
+        data: { source: 'code.dependencies', operation: 'binary.remove_tool' }
       })
     )
-    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('keeps a thrown remove rejection and allows the same removal to be retried', async () => {

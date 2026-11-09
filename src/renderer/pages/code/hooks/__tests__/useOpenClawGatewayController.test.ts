@@ -186,13 +186,38 @@ describe('useOpenClawGatewayController', () => {
     expect(mocks.requestMock).not.toHaveBeenCalledWith('openclaw.start_gateway', expect.anything())
     expect(mocks.toastError).toHaveBeenCalledWith(
       expect.objectContaining({
+        title: 'code.apply_failed',
+        description: validationMessage,
         cause: expect.objectContaining({ message: validationMessage }),
-        data: expect.objectContaining({
-          errorContext: expect.objectContaining({ message: validationMessage, operation: 'openclaw.sync_config' }),
-          localizedErrorMessage: 'code.apply_failed'
-        }),
-        title: 'code.apply_failed'
+        data: { source: 'code.openclaw', operation: 'openclaw.sync_config' }
       })
+    )
+  })
+
+  it('tells the user to pick another port when the gateway port is taken', async () => {
+    const portMessage = 'Port 18789 is already in use by another application. Please choose a different port.'
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
+      if (route === 'openclaw.start_gateway') return Promise.resolve({ success: false, message: portMessage })
+      return Promise.resolve({ success: true })
+    })
+
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'code.launch.error', description: portMessage })
     )
   })
 
@@ -222,15 +247,10 @@ describe('useOpenClawGatewayController', () => {
     expect(mocks.requestMock).not.toHaveBeenCalledWith('openclaw.start_gateway', expect.anything())
     expect(mocks.toastError).toHaveBeenCalledWith(
       expect.objectContaining({
+        title: 'code.stop_failed',
+        description: 'Failed to stop gateway',
         cause: expect.objectContaining({ message: 'Failed to stop gateway' }),
-        data: expect.objectContaining({
-          errorContext: expect.objectContaining({
-            message: 'Failed to stop gateway',
-            operation: 'openclaw.stop_gateway'
-          }),
-          localizedErrorMessage: 'code.stop_failed'
-        }),
-        title: 'code.stop_failed'
+        data: { source: 'code.openclaw', operation: 'openclaw.stop_gateway' }
       })
     )
   })

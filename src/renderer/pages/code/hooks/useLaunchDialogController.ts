@@ -117,9 +117,11 @@ export function useLaunchDialogController({
         })
         if (!runResult.success) {
           const detail = runResult.message?.trim()
-          toastAppError(t('code.launch.error'), detail ? new Error(detail) : runResult, {
-            source: 'code.launch',
-            operation: 'code_cli.run'
+          toast.error({
+            title: t('code.launch.error'),
+            description: detail,
+            cause: detail ? new Error(detail) : runResult,
+            data: { source: 'code.launch', operation: 'code_cli.run' }
           })
           return
         }
@@ -239,9 +241,11 @@ export function useLaunchDialogController({
       })
       if (!runResult.success) {
         const detail = runResult.message?.trim()
-        toastAppError(t('code.launch.error'), detail ? new Error(detail) : runResult, {
-          source: 'code.launch',
-          operation: 'code_cli.run'
+        toast.error({
+          title: t('code.launch.error'),
+          description: detail,
+          cause: detail ? new Error(detail) : runResult,
+          data: { source: 'code.launch', operation: 'code_cli.run' }
         })
       } else {
         setLaunchOpen(false)

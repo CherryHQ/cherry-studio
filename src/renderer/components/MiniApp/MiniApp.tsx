@@ -132,6 +132,10 @@ const MiniApp: FC<Props> = ({
     } else {
       logger.error('mutation failed', err as Error)
     }
+    if (e.isClientError) {
+      toast.error({ title: t(fallbackKey), description: e.message, data: { suppressDetail: true } })
+      return
+    }
     toastAppError(t(fallbackKey), e, { source: 'miniApp', operation: fallbackKey })
   }
 

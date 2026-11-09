@@ -6,6 +6,7 @@ import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
 import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
@@ -86,9 +87,11 @@ export function useOpenClawGatewayController({
       })
       if (!syncResult.success) {
         const detail = syncResult.message?.trim()
-        toastAppError(t('code.apply_failed'), detail ? new Error(detail) : syncResult, {
-          source: 'code.openclaw',
-          operation: 'openclaw.sync_config'
+        toast.error({
+          title: t('code.apply_failed'),
+          description: detail,
+          cause: detail ? new Error(detail) : syncResult,
+          data: { source: 'code.openclaw', operation: 'openclaw.sync_config' }
         })
         return
       }
@@ -96,9 +99,11 @@ export function useOpenClawGatewayController({
       const startResult = await ipcApi.request('openclaw.start_gateway', { port: gatewayPort })
       if (!startResult.success) {
         const detail = startResult.message?.trim()
-        toastAppError(t('code.launch.error'), detail ? new Error(detail) : startResult, {
-          source: 'code.openclaw',
-          operation: 'openclaw.start_gateway'
+        toast.error({
+          title: t('code.launch.error'),
+          description: detail,
+          cause: detail ? new Error(detail) : startResult,
+          data: { source: 'code.openclaw', operation: 'openclaw.start_gateway' }
         })
         return
       }
@@ -121,9 +126,11 @@ export function useOpenClawGatewayController({
       const result = await ipcApi.request('openclaw.stop_gateway')
       if (!result.success) {
         const detail = result.message?.trim()
-        toastAppError(t('code.stop_failed'), detail ? new Error(detail) : result, {
-          source: 'code.openclaw',
-          operation: 'openclaw.stop_gateway'
+        toast.error({
+          title: t('code.stop_failed'),
+          description: detail,
+          cause: detail ? new Error(detail) : result,
+          data: { source: 'code.openclaw', operation: 'openclaw.stop_gateway' }
         })
         return
       }

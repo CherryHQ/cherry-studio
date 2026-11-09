@@ -92,10 +92,22 @@ export function useBinaryActions() {
         // fail-closed cleanup_blocked has no definition-only fallback — surface it
         // as an error the user resolves (e.g. stop a dependent) before retrying.
         if (result.status === 'cleanup_blocked') {
+          if (result.reason === 'dependency_blocked' && result.dependents?.length) {
+            toast.error({
+              title: t('settings.dependencies.uninstallFailed'),
+              description: t('settings.dependencies.removeDefinitionOnlyDependents', {
+                dependents: result.dependents.join(', ')
+              }),
+              data: { suppressDetail: true }
+            })
+            return false
+          }
           const detail = result.message?.trim()
-          toastAppError(t('settings.dependencies.uninstallFailed'), detail ? new Error(detail) : result, {
-            source: 'code.dependencies',
-            operation: 'binary.remove_tool'
+          toast.error({
+            title: t('settings.dependencies.uninstallFailed'),
+            description: detail,
+            cause: detail ? new Error(detail) : result,
+            data: { source: 'code.dependencies', operation: 'binary.remove_tool' }
           })
           return false
         }
