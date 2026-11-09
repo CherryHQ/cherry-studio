@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-09-skill-user-note.md
+2026-11-09-skill-user-note.md: 3fe792ba8dd1b5eee3685c5b1beca2a47692889f
+2026-11-09-skill-user-note.zh.md: 89dc0194eb719163b27350e43dfdfcc582fc7ff0

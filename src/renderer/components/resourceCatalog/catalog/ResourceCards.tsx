@@ -126,6 +126,21 @@ export function ResourceCard({
                   {r.name}
                 </h4>
               </Tooltip>
+              {r.type === 'skill' && r.raw.note ? (
+                <Tooltip
+                  content={
+                    <div className="max-h-60 max-w-80 overflow-auto whitespace-pre-wrap break-words">{r.raw.note}</div>
+                  }
+                  asChild>
+                  <span
+                    tabIndex={0}
+                    className="max-w-40 truncate text-xs text-muted-foreground"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}>
+                    {r.raw.note}
+                  </span>
+                </Tooltip>
+              ) : null}
               {skillVersion && (
                 <Badge
                   variant="secondary"

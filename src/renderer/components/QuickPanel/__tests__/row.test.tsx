@@ -4,6 +4,17 @@ import { describe, expect, it, vi } from 'vitest'
 import { QuickPanelRow } from '../list'
 
 describe('QuickPanelRow', () => {
+  it('renders the label suffix without changing the label', () => {
+    render(
+      <QuickPanelRow
+        active={false}
+        item={{ id: 'skill', label: 'Skill', labelSuffix: <span>Reminder</span> }}
+        onSelect={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Skill')).toHaveTextContent(/^Skill$/)
+    expect(screen.getByText('Reminder')).toBeVisible()
+  })
   it('lets descriptions use the remaining width while protecting the label and aligning short text right', () => {
     render(
       <QuickPanelRow

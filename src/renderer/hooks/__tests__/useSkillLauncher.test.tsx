@@ -55,6 +55,7 @@ function createSkill(isGlobalEnabled: boolean): InstalledSkill {
     id: 'skill-1',
     name: 'Writer',
     description: null,
+    note: null,
     folderName: 'writer',
     source: 'local',
     sourceUrl: null,

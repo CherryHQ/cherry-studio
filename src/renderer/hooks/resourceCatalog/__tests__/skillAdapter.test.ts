@@ -73,6 +73,16 @@ describe('skillAdapter mutations', () => {
     expect(trigger).toHaveBeenCalledWith({ body: { isGlobalEnabled: false } })
   })
 
+  it('returns the saved note from the partial update', async () => {
+    const trigger = vi.fn().mockResolvedValue({ id: 'skill-1', note: 'Reminder' })
+    vi.mocked(useMutation).mockReturnValue({ trigger, isLoading: false } as unknown as ReturnType<typeof useMutation>)
+    const { result } = renderHook(() => useSkillMutationsById('skill-1'))
+    await act(async () =>
+      expect(await result.current.updateNote('Reminder')).toEqual({ id: 'skill-1', note: 'Reminder' })
+    )
+    expect(trigger).toHaveBeenCalledWith({ body: { note: 'Reminder' } })
+  })
+
   it('uninstalls skills through IPC and invalidates DataApi cache', async () => {
     const { result } = renderHook(() => useSkillMutationsById('skill-1'))
 

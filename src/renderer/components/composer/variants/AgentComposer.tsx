@@ -154,12 +154,30 @@ const createSkillQuickPanelItems = (
   skills: readonly LocalSkill[],
   options: {
     skillLabel: string
+    skillNotesByFilename: ReadonlyMap<string, string>
     onInsertSkill: (skill: LocalSkill, inputAdapter?: QuickPanelInputAdapter) => void
   }
 ): QuickPanelListItem[] => {
   return skills.map((skill) => ({
     id: agentComposerTokenId.skill(skill),
     label: skill.name,
+    labelSuffix: options.skillNotesByFilename.get(skill.filename) ? (
+      <Tooltip
+        content={
+          <div className="max-h-60 max-w-80 overflow-auto whitespace-pre-wrap break-words">
+            {options.skillNotesByFilename.get(skill.filename)}
+          </div>
+        }
+        asChild>
+        <span
+          tabIndex={0}
+          className="max-w-40 truncate text-xs text-muted-foreground"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}>
+          {options.skillNotesByFilename.get(skill.filename)}
+        </span>
+      </Tooltip>
+    ) : undefined,
     description: skill.description ?? undefined,
     icon: <ToolCase size={16} />,
     filterText: [skill.name, skill.description].filter(Boolean).join(' '),
@@ -677,6 +695,7 @@ const AgentComposerInner = ({
     knowledgeBasePanelVisible
   const {
     skills: availableSkills,
+    skillNotesByFilename,
     loading: isAvailableSkillsLoading,
     error: availableSkillsError,
     refresh: refreshAvailableSkills
@@ -971,9 +990,10 @@ const AgentComposerInner = ({
     () =>
       createSkillQuickPanelItems(availableSkills, {
         skillLabel,
+        skillNotesByFilename,
         onInsertSkill: insertSkillToken
       }),
-    [availableSkills, insertSkillToken, skillLabel]
+    [availableSkills, insertSkillToken, skillLabel, skillNotesByFilename]
   )
   const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
     return {

@@ -73,6 +73,74 @@ function SkillPickerDialog({ onOpenChange }: { onOpenChange: (open: boolean) => 
 }
 
 describe('SkillCatalogPicker', () => {
+  it('preserves the creation checkbox state when the note is clicked or focused', async () => {
+    const user = userEvent.setup()
+    const skills = [
+      { id: 'one', name: 'Noted local skill', source: 'local', isGlobalEnabled: true, note: 'For invoice review' }
+    ] as InstalledSkill[]
+
+    function StatefulPicker() {
+      const [selectedIds, setSelectedIds] = useState<string[]>([])
+      return (
+        <SkillCatalogPicker
+          mode="create"
+          skills={skills}
+          loading={false}
+          selectedIds={selectedIds}
+          onSelectedIdsChange={setSelectedIds}
+          emptyLabel="Empty"
+          portalContainer={null}
+        />
+      )
+    }
+
+    render(<StatefulPicker />)
+    const checkbox = screen.getByRole('checkbox', { name: 'Noted local skill' })
+    const note = screen.getByText('For invoice review')
+    expect(checkbox).not.toBeChecked()
+
+    await user.click(note)
+    expect(checkbox).not.toBeChecked()
+
+    await user.tab({ shift: true })
+    expect(checkbox).toHaveFocus()
+    await user.tab()
+    expect(note).toHaveFocus()
+    expect(checkbox).not.toBeChecked()
+
+    await user.click(checkbox)
+    expect(checkbox).toBeChecked()
+    await user.tab()
+    expect(note).toHaveFocus()
+    expect(checkbox).toBeChecked()
+    await user.click(note)
+    expect(checkbox).toBeChecked()
+  })
+
+  it.each(['create', 'edit'] as const)('shows a user note in %s without changing selection', async (mode) => {
+    const user = userEvent.setup()
+    const onSelectedIdsChange = vi.fn()
+    const skills = [
+      { id: 'one', name: 'Noted', source: 'builtin', isGlobalEnabled: true, note: 'A long reminder for this skill' },
+      { id: 'two', name: 'Plain', source: 'local', isGlobalEnabled: true, note: null }
+    ] as InstalledSkill[]
+    render(
+      <SkillCatalogPicker
+        mode={mode}
+        skills={skills}
+        loading={false}
+        selectedIds={[]}
+        onSelectedIdsChange={onSelectedIdsChange}
+        emptyLabel="Empty"
+        portalContainer={null}
+      />
+    )
+    const note = screen.getByText('A long reminder for this skill')
+    expect(note).toBeVisible()
+    expect(screen.getByText('Plain').parentElement?.querySelector('[tabindex]')).toBeNull()
+    await user.click(note)
+    expect(onSelectedIdsChange).not.toHaveBeenCalled()
+  })
   it('hides globally disabled skills from Agent selection and bulk enablement', async () => {
     const user = userEvent.setup()
     const onSelectedIdsChange = vi.fn()

@@ -63,6 +63,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     id: 'skill-1',
     name: 'Skill One',
     description: 'First skill',
+    note: null,
     folderName: 'skill-one',
     source: 'builtin',
     sourceUrl: null,
@@ -220,6 +221,26 @@ describe('useInstalledSkills', () => {
       expect.objectContaining({ name: 'PDF', filename: 'pdf' }),
       expect.objectContaining({ name: 'repo-skill', filename: 'repo-skill' })
     ])
+  })
+
+  it('associates notes only with enabled installed skills', async () => {
+    useQueryMock.mockReturnValue({
+      data: [
+        createSkill({ folderName: 'on', isEnabled: true, note: 'Enabled note' }),
+        createSkill({ id: 'off', folderName: 'off', isEnabled: false, note: 'Private disabled note' })
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    })
+    listLocalSkillsMock.mockResolvedValue({ success: true, data: [{ name: 'Local', filename: 'off' }] })
+    const { result } = renderHook(() => useAvailableSkills('agent-1', '/repo'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.skillNotesByFilename.get('on')).toBe('Enabled note')
+    expect(result.current.skillNotesByFilename.has('off')).toBe(false)
+    expect(result.current.skills.find((skill) => skill.filename === 'off')?.name).toBe('Local')
   })
 
   it('reports loading before the first local skill request resolves for a workspace', async () => {

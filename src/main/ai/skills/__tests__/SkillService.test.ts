@@ -501,6 +501,25 @@ describe('SkillService', () => {
       expect(result.find((s) => s.id === SKILL_ID_BUILTIN)?.isEnabled).toBe(false)
     })
 
+    it('persists notes independently of global, agent and mirror state and excludes them from search', async () => {
+      await seedAgent()
+      await seedSkills()
+      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
+      const before = agentGlobalSkillService.getById(SKILL_ID_1)!
+      const updated = agentGlobalSkillService.updateFields(SKILL_ID_1, { note: 'uniquenoteforsearch' })!
+      expect(updated.note).toBe('uniquenoteforsearch')
+      expect(updated.isGlobalEnabled).toBe(before.isGlobalEnabled)
+      expect(updated.mirrorEnabled).toBe(before.mirrorEnabled)
+      expect(
+        agentGlobalSkillService.list({ agentId: AGENT_ID }).find((skill) => skill.id === SKILL_ID_1)?.isEnabled
+      ).toBe(true)
+      expect(agentGlobalSkillService.list({ search: 'uniquenoteforsearch' })).toEqual([])
+      agentGlobalSkillService.updateGlobalEnabled(SKILL_ID_1, false)
+      expect(agentGlobalSkillService.getById(SKILL_ID_1)?.note).toBe('uniquenoteforsearch')
+      agentGlobalSkillService.update(SKILL_ID_1, { description: 'Updated metadata' })
+      expect(agentGlobalSkillService.getById(SKILL_ID_1)?.note).toBe('uniquenoteforsearch')
+    })
+
     it('filters by search against name or description in the database', async () => {
       const skillService = new SkillService()
       await seedSkills()

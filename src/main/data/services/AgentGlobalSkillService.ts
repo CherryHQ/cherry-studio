@@ -20,6 +20,7 @@ import type { AgentSkillUpdateDto } from '@shared/data/api/schemas/agents'
 import {
   type InstalledSkill,
   type ListSkillsQuery,
+  type UpdateSkillDto,
   SKILL_LIST_MEMBERSHIP_DIMENSIONS
 } from '@shared/data/api/schemas/skills'
 
@@ -125,9 +126,13 @@ export class AgentGlobalSkillService {
   }
 
   updateGlobalEnabled(id: string, isGlobalEnabled: boolean): InstalledSkill | null {
+    return this.updateFields(id, { isGlobalEnabled })
+  }
+
+  updateFields(id: string, patch: UpdateSkillDto): InstalledSkill | null {
     const [updated] = this.db
       .update(agentGlobalSkillTable)
-      .set({ isEnabled: isGlobalEnabled })
+      .set({ isEnabled: patch.isGlobalEnabled, note: patch.note })
       .where(eq(agentGlobalSkillTable.id, id))
       .returning()
       .all()
@@ -135,12 +140,16 @@ export class AgentGlobalSkillService {
 
     notifyDataApiDataChange([
       { endpoint: '/skills', kind: 'projection', entityIds: [id] },
-      {
-        endpoint: '/skills',
-        kind: 'membership',
-        dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
-        entityIds: [id]
-      },
+      ...(patch.isGlobalEnabled !== undefined
+        ? [
+            {
+              endpoint: '/skills' as const,
+              kind: 'membership' as const,
+              dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
+              entityIds: [id]
+            }
+          ]
+        : []),
       { endpoint: '/skills/:skillId', entityIds: [id] }
     ])
     return this.rowToInstalledSkill(updated)
@@ -330,6 +339,7 @@ export class AgentGlobalSkillService {
       id: row.id,
       name: row.name,
       description: row.description,
+      note: row.note,
       folderName: row.folderName,
       source: row.source,
       sourceUrl: row.sourceUrl,

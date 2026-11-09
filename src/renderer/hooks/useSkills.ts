@@ -244,10 +244,20 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
   }, [refreshInstalledSkills, refreshLocalSkills])
 
   const skills = useMemo(() => buildAvailableSkills(installed.skills, localSkills), [installed.skills, localSkills])
+  const skillNotesByFilename = useMemo<ReadonlyMap<string, string>>(
+    () =>
+      new Map(
+        installed.skills
+          .filter((skill) => skill.isEnabled && skill.note)
+          .map((skill) => [skill.folderName, skill.note!])
+      ),
+    [installed.skills]
+  )
   const isInitialLocalLoad = enabled && Boolean(workdir) && loadedLocalSkillsWorkdir !== workdir
 
   return {
     skills,
+    skillNotesByFilename,
     loading: installed.loading || localLoading || isInitialLocalLoad,
     error: installed.error ?? localError,
     refresh

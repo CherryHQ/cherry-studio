@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { mockUseQuery, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
@@ -12,7 +13,11 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import { defaultFilterFn } from '@renderer/components/QuickPanel/defaultStrategies'
+import { QuickPanelRow } from '@renderer/components/QuickPanel/list'
+import type { QuickPanelListItem } from '@renderer/components/QuickPanel/types'
 import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
+import type * as SkillsModule from '@renderer/hooks/useSkills'
 import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
@@ -24,7 +29,7 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import type { LocalSkill } from '@shared/types/skill'
+import type { InstalledSkill, LocalSkill } from '@shared/types/skill'
 
 import { installSyncRafMock } from '../../../../../../tests/__mocks__/requestAnimationFrame'
 import * as ComposerDraftModule from '../../composerDraft'
@@ -80,7 +85,9 @@ const mocks = vi.hoisted(() => ({
   insertToken: vi.fn(),
   replaceDraft: vi.fn(),
   toggleExpanded: vi.fn(),
+  useRealAvailableSkills: false,
   availableSkills: [] as LocalSkill[],
+  skillNotesByFilename: new Map<string, string>(),
   availableSkillsLoading: false,
   availableSkillsError: null as string | null,
   availableSkillsRefresh: vi.fn(),
@@ -538,14 +545,21 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: () => ({ bases: mocks.knowledgeBases, isLoading: mocks.knowledgeBasesLoading })
 }))
 
-vi.mock('@renderer/hooks/useSkills', () => ({
-  useAvailableSkills: () => ({
-    skills: mocks.availableSkills,
-    loading: mocks.availableSkillsLoading,
-    error: mocks.availableSkillsError,
-    refresh: mocks.availableSkillsRefresh
-  })
-}))
+vi.mock('@renderer/hooks/useSkills', async (importOriginal) => {
+  const actual = await importOriginal<typeof SkillsModule>()
+  return {
+    useAvailableSkills: (...args: Parameters<typeof actual.useAvailableSkills>) =>
+      mocks.useRealAvailableSkills
+        ? actual.useAvailableSkills(...args)
+        : {
+            skills: mocks.availableSkills,
+            skillNotesByFilename: mocks.skillNotesByFilename,
+            loading: mocks.availableSkillsLoading,
+            error: mocks.availableSkillsError,
+            refresh: mocks.availableSkillsRefresh
+          }
+  }
+})
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({
@@ -934,6 +948,8 @@ describe('AgentComposer', () => {
     mocks.insertToken.mockReset()
     mocks.replaceDraft.mockReset()
     mocks.toggleExpanded.mockReset()
+    mocks.useRealAvailableSkills = false
+    mocks.skillNotesByFilename = new Map()
     mocks.availableSkills = []
     mocks.availableSkillsLoading = false
     mocks.availableSkillsError = null
@@ -3511,6 +3527,95 @@ describe('AgentComposer', () => {
       })
     )
     expect(items?.[0]?.id).not.toContain('/workspace/docs/notes.md')
+  })
+
+  it('shows installed notes in both skill panels without searching them or leaking them to disabled local matches', async () => {
+    const note = 'Zirconium reminder'
+    const installedSkill: InstalledSkill = {
+      id: 'installed-pdf',
+      name: 'pdf',
+      description: 'Read and analyze PDFs',
+      note,
+      folderName: 'pdf',
+      source: 'local',
+      sourceUrl: null,
+      namespace: null,
+      author: null,
+      version: null,
+      sourceTags: [],
+      contentHash: 'pdf-hash',
+      isGlobalEnabled: true,
+      mirrorEnabled: true,
+      isEnabled: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }
+    const originalQuery = mockUseQuery.getMockImplementation()!
+    const originalIpcRequest = mocks.ipcApiRequest.getMockImplementation()!
+    mocks.useRealAvailableSkills = true
+    MockUseDataApiUtils.mockQueryData('/skills', [installedSkill])
+    mocks.ipcApiRequest.mockImplementation((route, input) =>
+      route === 'skill.list_local'
+        ? Promise.resolve({ success: true, data: [{ ...pdfSkill, description: 'Workspace PDF helper' }] })
+        : originalIpcRequest(route, input)
+    )
+
+    try {
+      const renderComposer = () => (
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      )
+      const { rerender } = render(renderComposer())
+      const panelItems = () => getAgentSkillsPanelItems() as QuickPanelListItem[]
+      const rootItems = () => mocks.registeredLaunchers.get('agent-skills')?.[0]?.rootSearchItems ?? []
+
+      function SkillPanels({ query }: { query: string }) {
+        return [
+          { name: 'Skill launcher', items: panelItems() },
+          { name: 'Root search', items: rootItems() }
+        ].map(({ name, items }) => (
+          <section key={name} aria-label={name}>
+            {items
+              .filter((item) => defaultFilterFn(item, query, new RegExp(query, 'i'), new Map()))
+              .map((item) => (
+                <QuickPanelRow key={item.id} item={item} active={false} onSelect={vi.fn()} />
+              ))}
+          </section>
+        ))
+      }
+
+      await waitFor(() => expect(panelItems()).toHaveLength(1))
+      const panels = render(<SkillPanels query="pdf" />)
+      for (const name of ['Skill launcher', 'Root search']) {
+        const panel = within(screen.getByRole('region', { name }))
+        expect(panel.getByText('pdf')).toBeVisible()
+        for (const summary of panel.getAllByText(note)) expect(summary).toBeVisible()
+      }
+
+      panels.rerender(<SkillPanels query="Zirconium" />)
+      for (const name of ['Skill launcher', 'Root search']) {
+        expect(within(screen.getByRole('region', { name })).queryByText('pdf')).not.toBeInTheDocument()
+      }
+
+      MockUseDataApiUtils.mockQueryData('/skills', [{ ...installedSkill, isEnabled: false }])
+      rerender(renderComposer())
+      await waitFor(() => expect(panelItems()[0]?.description).toBe('Workspace PDF helper'))
+      panels.rerender(<SkillPanels query="pdf" />)
+      for (const name of ['Skill launcher', 'Root search']) {
+        const panel = within(screen.getByRole('region', { name }))
+        expect(panel.getByText('pdf')).toBeVisible()
+        expect(panel.getByText('Workspace PDF helper')).toBeVisible()
+        expect(panel.queryByText(note)).not.toBeInTheDocument()
+      }
+    } finally {
+      mockUseQuery.mockImplementation(originalQuery)
+      mocks.useRealAvailableSkills = false
+    }
   })
 
   it('exposes available skills and a manage footer through the skills submenu launcher', () => {
