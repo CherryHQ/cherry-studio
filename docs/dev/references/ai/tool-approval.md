@@ -35,6 +35,11 @@ Main is the single writer of approval state. The renderer surfaces an
 to Main. Main applies the decision to the DB-authoritative anchor parts,
 persists, and resumes the stream.
 
+A card whose request is gone is never left answerable. When a connection or
+stream ends with an approval still pending, `ToolApprovalRegistry.onAborted`
+retires the persisted card to `output-error`, so the composer stops offering a
+question nothing can receive.
+
 ## End-to-end flow
 
 1. **Tool needs approval** — at `execute` time, the wrapper checks
@@ -61,7 +66,15 @@ persists, and resumes the stream.
      persisted interaction card and dispatches the live approval registry
      entry so the existing runtime proceeds. When a live entry handles it, the handler
      **early-returns — no DB read happens** (and `topicId` / `anchorId`
-     are not required).
+     are not required). When no live entry matches — the connection was torn
+     down, or the app restarted — the card is settled with the decision the
+     user actually made. Only the first decision recorded on a pending or retired,
+     unanswered card returns `{ ok: false, reason: 'undelivered' }`. Already-answered,
+     missing, or mismatched cards return `{ ok: false, reason: 'rejected' }` and are
+     never replayed. An agent-session topic never reaches the MCP chat-table lookup.
+     The renderer sends an undelivered answer as the session's next user message.
+     If sending fails or admission is blocked, it hands the answer to that session's
+     normal composer, appending to any existing draft so the user can retry.
    - **MCP path** (reached only when no live entry matched; requires
      `topicId` + `anchorId`): reads the anchor message's current `parts`
      from DB, applies the decision, and **writes only when the target

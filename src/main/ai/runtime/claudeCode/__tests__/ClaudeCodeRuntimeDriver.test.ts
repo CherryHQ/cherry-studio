@@ -116,6 +116,43 @@ describe('Claude native forks', () => {
     await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
   })
 
+  it.each(['compaction', 'replacement'] as const)(
+    'refuses a fork retaining source UUIDs in %s metadata',
+    async (kind) => {
+      const userUuid = '20249b48-e174-4610-84c2-af6224228290'
+      const boundaryUuid = '590bf21c-a5c3-413d-821e-cd33a4016d33'
+      const entries = [
+        { type: 'user', uuid: userUuid, parentUuid: null, sessionId, message: { role: 'user', content: 'Before' } },
+        kind === 'compaction'
+          ? {
+              type: 'system',
+              subtype: 'compact_boundary',
+              uuid: boundaryUuid,
+              parentUuid: userUuid,
+              sessionId,
+              compactMetadata: {
+                trigger: 'auto',
+                preTokens: 1000,
+                preservedSegment: { headUuid: userUuid, tailUuid: userUuid, anchorUuid: boundaryUuid }
+              }
+            }
+          : { type: 'content-replacement', sessionId, replacements: [{ messageUuid: userUuid, content: 'Replaced' }] },
+        {
+          type: 'assistant',
+          uuid: messageUuid,
+          parentUuid: kind === 'compaction' ? boundaryUuid : userUuid,
+          sessionId,
+          message: { role: 'assistant', content: [{ type: 'text', text: 'After' }] }
+        }
+      ]
+      await mkdir(path.dirname(file), { recursive: true })
+      const source = entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n'
+      await writeFile(file, source)
+      await expect(forkClaudeSession(forkInput())).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+      expect(await readFile(file, 'utf8')).toBe(source)
+    }
+  )
+
   it.each(['\n', '\r\n'])('forks the exact UUID on demand and excludes later history (%j)', async (newline) => {
     await mkdir(path.dirname(file), { recursive: true })
     await writeFile(

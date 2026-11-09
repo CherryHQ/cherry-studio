@@ -1,3 +1,13 @@
+vi.mock('@renderer/components/cherryCloud/useCherryCloudModelSelectorData', () => ({
+  useCherryCloudModelSelectorData: () => mockUseModelSelectorData()
+}))
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'

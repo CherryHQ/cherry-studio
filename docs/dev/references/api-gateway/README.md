@@ -369,6 +369,10 @@ Two independent dialect axes, chosen by `inputFormat` / `outputFormat`:
 The output formats are **`anthropic`**, **`openai`**, **`openai-responses`**, and **`gemini`**
 — the full `OutputFormat` union, each registered in `StreamAdapterFactory`.
 
+The terminal Gemini SSE frame and complete JSON response carry `responseId` equal to the
+adapter's billing identity. Native clients retain this ID so usage can bind to the root
+or child message after delivery, without guessing the active product reply.
+
 Adapters consume the AI SDK **`UIMessageChunk`** stream (not `fullStream`):
 
 - **Usage** comes from `message-metadata` chunks, projected as

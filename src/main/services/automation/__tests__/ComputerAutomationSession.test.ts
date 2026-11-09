@@ -39,6 +39,7 @@ beforeEach(() => {
     appSessionId: 'native-session',
     app: { id: 'dia', name: 'Dia' },
     window: { id: 'window', title: 'Article' },
+    inputChannel: { kind: 'accessibility' },
     tree: {
       status: 'available',
       elements: Array.from({ length: 1200 }, (_, i) => ({
@@ -82,7 +83,12 @@ afterEach(async () => {
 })
 
 describe('computer AX pages', () => {
-  it('delivers structured fields through the real JS kernel without duplicate outline or Pi-sized output', async () => {
+  it.each<Snapshot['inputChannel']>([
+    { kind: 'accessibility' },
+    { kind: 'page', page: 'Article' },
+    { kind: 'accessibility', reason: { code: 'UNSUPPORTED_CAPABILITY', message: 'Page input unavailable' } }
+  ])('delivers input channel %j and structured fields through the real JS kernel', async (inputChannel) => {
+    snapshot.inputChannel = inputChannel
     const kernel = new AutomationKernel()
     const get = application.getContainer().get.bind(application.getContainer())
     vi.spyOn(application, 'get').mockImplementation(((name: string) => {
@@ -126,7 +132,9 @@ describe('computer AX pages', () => {
       expect(Buffer.byteLength(texts.join('\n'))).toBeLessThan(20 * 1024)
       const observation = texts.filter((text) => text.startsWith('OBSERVATION '))
       expect(observation).toHaveLength(1)
-      expect(JSON.parse(observation[0].slice(observation[0].indexOf('\n') + 1))).not.toHaveProperty('text')
+      const state = JSON.parse(observation[0].slice(observation[0].indexOf('\n') + 1))
+      expect(state).not.toHaveProperty('text')
+      expect(state.inputChannel).toEqual(inputChannel)
       expect(texts.filter((text) => text.includes('第 '))).toHaveLength(1)
       expect(observation[0]).not.toContain('OMITTED')
     }
@@ -140,6 +148,15 @@ describe('computer AX pages', () => {
       { name: expect.stringContaining('actions=press'), value: '正文🚀\\\n'.repeat(60), actions: ['click'] }
     ])
     expect(captures).toBe(2)
+  })
+
+  it.each(['getScreenshot', 'getAXStateAndScreenshot'])('includes the page input target in %s', async (method) => {
+    snapshot.inputChannel = { kind: 'page', page: 'Article' }
+    await run('getApp', { query: 'Dia' })
+    const result = await run(method)
+    expect(result.value).toMatchObject({ inputChannel: { kind: 'page', page: 'Article' } })
+    if (!('displayValue' in result)) throw new Error('Missing model observation')
+    expect(result.displayValue).toMatchObject({ inputChannel: { kind: 'page', page: 'Article' } })
   })
 
   it('delivers a large multilingual tree as complete structured nodes without recapturing or omitting it', async () => {

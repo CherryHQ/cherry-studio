@@ -12,14 +12,17 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 let normalTabsValue: Tab[] = []
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: (key: string) => {
-    if (key === 'ui.tab.normal_tabs') return [normalTabsValue, vi.fn()]
-    if (key === 'ui.tab.active_tab_id') return ['home', vi.fn()]
-    return [[], vi.fn()]
-  },
-  usePersistCacheReader: () => () => []
-}))
+vi.mock('@renderer/data/hooks/useCache', async () => {
+  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+  return {
+    ...MockUseCache,
+    usePersistCache: (key: string) => {
+      if (key === 'ui.tab.normal_tabs') return [normalTabsValue, vi.fn()]
+      if (key === 'ui.tab.active_tab_id') return ['home', vi.fn()]
+      return [[], vi.fn()]
+    }
+  }
+})
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn() },

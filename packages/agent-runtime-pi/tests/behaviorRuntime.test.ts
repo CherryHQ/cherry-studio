@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 
-import { Type } from '@earendil-works/pi-ai'
 import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
+import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
 import { createScriptedHost, type HostPorts } from '@cherrystudio/agent-behavior'
@@ -621,7 +621,7 @@ it('uses host approvals and question answers through the shared behavior tools',
         name: 'change_file',
         label: 'Change file',
         description: 'Change a file',
-        parameters: Type.Object({}),
+        parameters: obj({}),
         execute: async () => {
           writes.push('changed')
           return { content: [{ type: 'text', text: 'changed' }], details: {} }
