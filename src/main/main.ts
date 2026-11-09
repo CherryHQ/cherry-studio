@@ -43,7 +43,6 @@ initSentry()
 // process — startApp() itself awaits app.whenReady(), so this cannot move in there.
 protocol.registerSchemesAsPrivileged([CHERRY_MEDIA_SCHEME_DECLARATION, MINI_APP_SCHEME_DECLARATION])
 
-import { electronApp } from '@electron-toolkit/utils'
 import { app, protocol } from 'electron'
 
 import { loggerService } from '@logger'
@@ -73,11 +72,11 @@ const startApp = async () => {
   const migrationResult = await runV2MigrationGate()
   if (migrationResult === 'handled') return
 
-  // Set the Windows AppUserModelID — the identity Windows uses to attribute this
-  // app's notifications, taskbar icon grouping, and Jump Lists (no-op on macOS/Linux).
-  // Must run before any window is created or notification fires, hence after the
-  // migration gate returns and before lifecycle bootstrap.
-  electronApp.setAppUserModelId(getApplicationId())
+  // The toolkit uses the executable path in development, which can exceed Windows' AUMID limit.
+  // Establish the edition identity before bootstrap creates windows or notifications.
+  if (process.platform === 'win32') {
+    app.setAppUserModelId(`${getApplicationId()}${app.isPackaged ? '' : '.Development'}`)
+  }
 
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)

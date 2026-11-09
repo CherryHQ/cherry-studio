@@ -103,7 +103,7 @@ const clients: Client[] = []
 
 async function createServer(): Promise<Client> {
   const client = await connectMcpTestClient(() =>
-    createAssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
+    createAssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace', workspaceType: 'system' })
   )
   clients.push(client)
   return client
@@ -206,8 +206,31 @@ describe('assistant-files MCP server', () => {
     const result = await callTool(server, 'read_file', { filename: createAssistantFileAttachmentHandle('entry') })
 
     expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('Tool execution failed')
-    expect(JSON.stringify(result)).not.toContain('database unavailable')
+    expect(result.content[0].text).toBe('database unavailable')
+  })
+
+  it('returns the protected-path reason for a refused trash move', async () => {
+    mocks.moveWorkspaceItemToTrash.mockRejectedValue(
+      new Error('Refusing to move protected path to trash (the session workspace root): .')
+    )
+    const server = await createServer()
+
+    const result = await callTool(server, 'move_to_trash', { path: '.' })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Refusing to move protected path to trash')
+  })
+
+  it('returns the attachment lookup reason with available handles', async () => {
+    mocks.saveAttachmentToWorkspace.mockRejectedValue(
+      new Error('No attached file named "missing.png". Available: file_abc (report.txt)')
+    )
+    const server = await createServer()
+
+    const result = await callTool(server, 'save_attachment', { filename: 'missing.png', output_path: 'out.png' })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Available: file_abc (report.txt)')
   })
 
   it.each([
@@ -239,7 +262,8 @@ describe('assistant-files MCP server', () => {
     expect(mocks.moveWorkspaceItemToTrash).toHaveBeenCalledWith(
       '/workspace',
       { path: 'old-draft.md' },
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      'system'
     )
     expect(mocks.listSessionMessages).not.toHaveBeenCalled()
     expect(result.isError).not.toBe(true)

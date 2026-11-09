@@ -55,7 +55,7 @@ describe('selectionHandlers', () => {
   })
 
   it('process_action forwards the action item and fullscreen flag', async () => {
-    const actionItem = { id: 'a1', name: 'Translate', enabled: true, isBuiltIn: true }
+    const actionItem = { id: 'translate', name: 'Translate', enabled: true, isBuiltIn: true } as const
     await selectionHandlers['selection.process_action']({ actionItem, isFullScreen: true }, ctx('w1'))
     expect(selectionService.processAction).toHaveBeenCalledWith(actionItem, true)
   })
