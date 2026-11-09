@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { mkdir, realpath, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -20,6 +21,7 @@ import { agentSessionMessageTable as sessionMessagesTable } from '@data/db/schem
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
@@ -28,6 +30,7 @@ import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProj
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
+import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import { ClaudeFeed } from '../../../../../../packages/agent-runtime-claude-code/src/observation'
@@ -38,6 +41,7 @@ import type * as AgentSessionWarmup from '../agentSessionWarmup'
 import { ClaudeCodeProcessManager } from '../ClaudeCodeProcessManager'
 import { ClaudeCodeRuntimeDriver } from '../ClaudeCodeRuntimeDriver'
 import type { ClaudeCodeProcessDiagnostics } from '../processExitDiagnostics'
+import { createClaudeCodeQueryOptions } from '../queryOptions'
 import type * as SettingsBuilder from '../settingsBuilder'
 
 vi.mock(
@@ -45,11 +49,16 @@ vi.mock(
   () => import('../../../../../../packages/agent-runtime-claude-code/src')
 )
 
-const ports = vi.hoisted(() => ({ build: vi.fn(), consume: vi.fn(), spawn: vi.fn() }))
-vi.mock('../agentSessionWarmup', async (original) => ({
-  ...(await original<typeof AgentSessionWarmup>()),
-  buildClaudeCodeQueryRequestForAgentSession: ports.build
-}))
+const ports = vi.hoisted(() => ({ build: vi.fn(), consume: vi.fn(), spawn: vi.fn(), derive: vi.fn() }))
+vi.mock('../agentSessionWarmup', async (original) => {
+  const actual = await original<typeof AgentSessionWarmup>()
+  ports.derive.mockImplementation(actual.deriveConnectionConfig)
+  return {
+    ...actual,
+    buildClaudeCodeQueryRequestForAgentSession: ports.build,
+    deriveConnectionConfig: ports.derive
+  }
+})
 vi.mock('../settingsBuilder', async (original) => ({
   ...(await original<typeof SettingsBuilder>()),
   registerMcpSessionCatalogSync: vi.fn()
@@ -1368,3 +1377,61 @@ it('GATE real clear session switch then subprocess failure drains both roots', a
   expect(await connection.events[Symbol.asyncIterator]().next()).toMatchObject({ done: true })
   console.log('GATE_REAL_SESSION_SWITCH_ROOTS', (connection as any).observations.length)
 }, 15000)
+// Catches a mid-turn mode switch that only reaches the next turn: the real SDK subprocess would run
+// (or refuse) the turn's next tool call under the mode the user just left.
+it.each([
+  { from: 'bypassPermissions', to: 'default', runs: false },
+  { from: 'default', to: 'bypassPermissions', runs: true }
+] as const)(
+  'applies a $from → $to switch to the running turn',
+  async ({ from, to, runs }) => {
+    const modelId = 'native-test::claude-sonnet-4-6'
+    const { permissionMode, allowDangerouslySkipPermissions } = createClaudeCodeQueryOptions({
+      modelId,
+      settings: { permissionMode: from }
+    })
+    const test = await desktop({ permissionMode, allowDangerouslySkipPermissions, tools: ['Bash'] })
+    const agentId = randomUUID()
+    dbh.db
+      .insert(agentTable)
+      .values({ id: agentId, type: 'claude-code', name: 'Agent', instructions: '', orderKey: 'a0' })
+      .run()
+    const agent = agentService.getAgent(agentId)!
+    const snapshot = await createClaudeAgentToolPolicySnapshot({
+      ...agent,
+      configuration: { ...agent.configuration, permission_mode: from }
+    })
+    const refresh = snapshot.update
+    vi.spyOn(snapshot, 'update').mockImplementation(async (nextAgent) => {
+      expect(snapshot.getPermissionMode()).toBe(to)
+      await refresh(nextAgent)
+    })
+    const built = await ports.build()
+    built.settings.toolPolicySnapshot = snapshot
+    built.connectionConfig.live.toolPolicy.permissionMode = from
+    const connection = await test.connect(undefined, undefined, true, { sessionId: test.sessionId, agentId, modelId })
+    await connection.send(test.input('Write the marker'))
+    const first = await test.request()
+
+    const { live } = built.connectionConfig
+    ports.derive.mockResolvedValueOnce({
+      ok: true,
+      config: { ...built.connectionConfig, live: { ...live, toolPolicy: { ...live.toolPolicy, permissionMode: to } } }
+    })
+    expect(await connection.reconcile({ modelId })).toBe('patched')
+    expect(snapshot.getPermissionMode()).toBe(to)
+    first.reply.block({
+      type: 'tool_use',
+      id: 'toolu_marker',
+      name: 'Bash',
+      input: { command: `node -e "require('fs').writeFileSync('marker.txt', 'x')"`, description: 'Write marker' }
+    })
+    first.reply.finish('tool_use')
+    const second = await test.request()
+    second.reply.block({ type: 'text', text: 'Done' })
+    second.reply.finish()
+    await test.wait('turn-complete')
+    expect(existsSync(path.join(test.options.cwd, 'marker.txt'))).toBe(runs)
+  },
+  30000
+)

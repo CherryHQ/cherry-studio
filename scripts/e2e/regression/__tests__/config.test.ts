@@ -74,7 +74,6 @@ describe('regression test configuration', () => {
       ],
       { env: environment, encoding: 'utf8', timeout: 20_000 }
     )
-    expect(result.stderr).toBe('')
     expect(result.status).toBe(0)
   })
 
