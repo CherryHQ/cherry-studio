@@ -244,6 +244,13 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     await expect.poll(async () => (await pins()).length).toBe(2)
     await screenshot('MP-54 restart and drag out back uniqueness')
   } finally {
+    for (const pin of await pins()) {
+      const removed = await page.evaluate(
+        (id) => window.api.dataApi.request({ id: 'mp54-unpin-cleanup', method: 'DELETE', path: `/pins/${id}` }),
+        pin.id
+      )
+      expect(removed.status).toBe(204)
+    }
     await page.evaluate(
       async ({ preferences, ids }) => {
         await window.api.preference.setMultiple({

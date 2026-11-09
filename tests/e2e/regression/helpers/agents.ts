@@ -4,6 +4,10 @@ import { join } from 'node:path'
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+import type { AgentEntity } from '@shared/data/types/agent'
+import { createUniqueModelId } from '@shared/data/types/model'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
+
 import {
   type BuiltinAssistantAgent,
   type BuiltinAssistantAgentIdentity,
@@ -11,7 +15,6 @@ import {
 } from '../../../../scripts/e2e/regression/builtinAgents'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import type { RegressionApp } from '../RegressionApp'
-import { selectVisibleModel } from './models'
 import { selectSidebarApp } from './navigation'
 import { revealVirtualized } from './virtualList'
 
@@ -111,9 +114,14 @@ export async function openAgentPane(page: Page, name: 'Files' | 'Status'): Promi
 
 export async function createAgent(
   page: Page,
-  options: { name: string; runtime: string; model: string; providerId?: string; permission?: string }
+  options: {
+    name: string
+    runtime: 'Claude Agent' | 'Pi'
+    model: string
+    providerId: string
+    permission: 'Full Access' | 'Ask Before Acting'
+  }
 ): Promise<void> {
-  const agentView = await showAgentList(page)
   const agents = await page.evaluate(() =>
     window.api.dataApi.request({
       id: 'existing-regression-agent',
@@ -128,29 +136,21 @@ export async function createAgent(
     return
   }
 
-  await agentView.getByRole('button', { name: 'Add Agent', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'New Agent', exact: true })
-  await dialog.getByPlaceholder('Enter a name', { exact: true }).fill(options.name)
-  await dialog.getByLabel('Runtime mode').getByText(options.runtime, { exact: true }).click()
-  if (options.permission) {
-    const permission = dialog.getByRole('combobox', { name: 'Permission mode', exact: true })
-    await permission.click()
-    await page.getByRole('option').filter({ hasText: options.permission }).click()
-    if (options.permission === 'Full Access') {
-      await page
-        .getByRole('dialog', { name: 'Enable Full Access?', exact: true })
-        .getByRole('button', { name: 'Enable Full Access', exact: true })
-        .click()
+  // The create wizard only offers Pi Durable; seed supported legacy runtimes
+  // through the real command before exercising their UI execution and persistence.
+  const model = createUniqueModelId(options.providerId, options.model)
+  const created = (await page.evaluate((input) => window.api.ipcApi.request('ai.agent.create', input), {
+    name: options.name,
+    type: options.runtime === 'Claude Agent' ? ('claude-code' as const) : ('pi' as const),
+    model,
+    ...(options.runtime === 'Claude Agent' ? { planModel: model, smallModel: model } : {}),
+    configuration: {
+      permission_mode: options.permission === 'Full Access' ? ('bypassPermissions' as const) : ('default' as const)
     }
-    await expect(permission).toHaveText(options.permission)
-  }
-  await dialog.getByRole('button', { name: 'Model', exact: true }).click()
-  await selectVisibleModel(page, options.model, options.providerId)
-  await dialog.getByRole('button', { name: 'Next', exact: true }).click()
-  await dialog.getByRole('button', { name: 'Next', exact: true }).click()
-  await dialog.getByRole('button', { name: 'Next', exact: true }).click()
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
-  await expect(agentView.getByText(options.name, { exact: true }).first()).toBeVisible()
+  })) as IpcResult<AgentEntity>
+  expect(created.ok, JSON.stringify(created)).toBe(true)
+  await page.reload()
+  await selectAgent(page, options.name)
 }
 
 export async function selectAgentWorkspace(app: RegressionApp, page: Page): Promise<void> {
