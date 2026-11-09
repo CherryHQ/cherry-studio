@@ -2,14 +2,13 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, utim
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { PiRuntimeDriver } from '@main/ai/runtime/pi/PiRuntimeDriver'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
@@ -94,7 +93,7 @@ describe('sweepAgentOrphans', () => {
     await dbh.db
       .insert(agentSessionTable)
       .values({ id: sessionId, agentId: null, name: sessionId, workspaceId: `ws-${sessionId}`, orderKey: 'a0' })
-    await dbh.db.insert(agentSessionMessageTable).values({
+    insertAgentSessionMessages(dbh.db, {
       id: `msg-${sessionId}`,
       sessionId,
       role: 'user',

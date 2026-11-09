@@ -1,10 +1,9 @@
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { assistantTable } from '@data/db/schemas/assistant'
@@ -126,19 +125,16 @@ describe('AiUsageRecordMigrator', () => {
         ])
       )
       .run()
-    dbh.db
-      .insert(agentSessionMessageTable)
-      .values({
-        id: agentMessageId,
-        sessionId: 'session-1',
-        role: 'assistant',
-        status: 'success',
-        data: { parts: [] },
-        stats: { totalTokens: 7, requestCount: 1, estimatedRequestCount: 1, unpricedRequestCount: 1 },
-        createdAt: 2_000,
-        updatedAt: 2_000
-      })
-      .run()
+    insertAgentSessionMessages(dbh.db, {
+      id: agentMessageId,
+      sessionId: 'session-1',
+      role: 'assistant',
+      status: 'success',
+      data: { parts: [] },
+      stats: { totalTokens: 7, requestCount: 1, estimatedRequestCount: 1, unpricedRequestCount: 1 },
+      createdAt: 2_000,
+      updatedAt: 2_000
+    })
 
     const migrator = new AiUsageRecordMigrator()
     expect(await migrator.prepare(context())).toMatchObject({ success: true, itemCount: 2 })

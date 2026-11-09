@@ -4,13 +4,13 @@ import { lstat, mkdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
-import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError, agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import type { AgentSessionMessageRecord } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
@@ -412,7 +412,7 @@ export class AgentSessionForkOperations {
 }
 
 function remapNativeHistory(
-  rows: AgentSessionMessageRow[],
+  rows: AgentSessionMessageRecord[],
   resumeToken: string,
   checkpoints: RuntimeForkCheckpoint[]
 ): void {
@@ -431,11 +431,11 @@ function remapNativeHistory(
 }
 
 function cloneMessages(
-  rows: readonly AgentSessionMessageRow[],
+  rows: readonly AgentSessionMessageRecord[],
   targetSessionId: string,
   resumeToken: string,
   checkpoints: RuntimeForkCheckpoint[]
-): AgentSessionMessageRow[] {
+): AgentSessionMessageRecord[] {
   // Preserve the existing (createdAt, id) order even when several source rows share a timestamp.
   const newIds = rows.map(() => randomUUID()).sort()
   const ids = new Map(rows.map((row, index) => [row.id, newIds[index]]))

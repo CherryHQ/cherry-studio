@@ -436,7 +436,7 @@ request row: receiver Session, delivery_in_reply_to = NULL
 result row:  caller Session,   delivery_in_reply_to = request.id
 ```
 
-The result row stores a frozen projection of the terminal assistant output in its own `data.parts`
+The result row stores a frozen projection of the terminal assistant output in its own message parts
 and keeps `sourceMessageId` only as non-authoritative provenance, without a foreign key. Do not use
 a reference-only result: Agent Session messages are editable and deletable, Session deletion
 cascades their messages, and FTS/UI/export read row-local data. A source reference would therefore

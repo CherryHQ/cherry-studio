@@ -1,4 +1,4 @@
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { expect, it } from 'vitest'
 
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -103,16 +103,13 @@ it('projects child fees once and retains unbound auxiliary charges', () => {
     .insert(agentSessionTable)
     .values({ id: 'child-session', workspaceId: 'workspace', name: 'Child', orderKey: 'a0' })
     .run()
-  dbh.db
-    .insert(agentSessionMessageTable)
-    .values({
-      id: 'child-message',
-      sessionId: 'child-session',
-      role: 'assistant',
-      data: { parts: [] },
-      status: 'success'
-    })
-    .run()
+  insertAgentSessionMessages(dbh.db, {
+    id: 'child-message',
+    sessionId: 'child-session',
+    role: 'assistant',
+    data: { parts: [] },
+    status: 'success'
+  })
   const attribution = new AgentSessionUsageAttribution()
   attribution.capture('response')(invocation('visible-call'))
   attribution.capture('auxiliary')(invocation('summary-call'))

@@ -1,19 +1,106 @@
 import { isToolUIPart } from 'ai'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import {
+  agentSessionMessagePartTable as messageParts,
   type AgentSessionMessageRow,
+  type AgentSessionMessageStoredData,
   agentSessionMessageTable as messages,
+  type InsertAgentSessionMessagePartRow,
   agentSessionToolOutputTable as toolOutputs
 } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 const SQLITE_INARRAY_CHUNK = 500
 
-export function hydrateAgentSessionMessageDataTx<T extends AgentSessionMessageRow['data']>(
+/** Message data assembled from the container row and its ordered part rows. */
+export type AgentSessionMessageData = AgentSessionMessageStoredData & { parts?: CherryMessagePart[] }
+export type WithAgentSessionMessageParts<T extends { data: AgentSessionMessageStoredData }> = Omit<T, 'data'> & {
+  data: T['data'] & { parts: CherryMessagePart[] }
+}
+export type AgentSessionMessageRecord = WithAgentSessionMessageParts<AgentSessionMessageRow>
+
+/** Attaches each message's ordered parts; the part table is the only persisted body source. */
+export function attachAgentSessionMessagePartsTx<T extends { id: string; data: AgentSessionMessageStoredData }>(
+  db: DbOrTx,
+  rows: T[]
+): WithAgentSessionMessageParts<T>[] {
+  const partsByMessageId = new Map<string, CherryMessagePart[]>()
+  const ids = rows.map((row) => row.id)
+  for (let index = 0; index < ids.length; index += SQLITE_INARRAY_CHUNK) {
+    const stored = db
+      .select({ messageId: messageParts.messageId, payload: messageParts.payload })
+      .from(messageParts)
+      .where(inArray(messageParts.messageId, ids.slice(index, index + SQLITE_INARRAY_CHUNK)))
+      .orderBy(asc(messageParts.messageId), asc(messageParts.seq))
+      .all()
+    for (const part of stored) {
+      const parts = partsByMessageId.get(part.messageId)
+      if (parts) parts.push(part.payload)
+      else partsByMessageId.set(part.messageId, [part.payload])
+    }
+  }
+  return rows.map((row) => ({ ...row, data: { ...row.data, parts: partsByMessageId.get(row.id) ?? [] } }))
+}
+
+/** Splits assembled data into the container's stored metadata and its ordered body parts. */
+export function splitAgentSessionMessageData(data: AgentSessionMessageData): {
+  data: AgentSessionMessageStoredData
+  parts: CherryMessagePart[]
+} {
+  const { parts = [], ...stored } = data
+  return { data: stored, parts }
+}
+
+/** Mirrors the FTS contract: only visible `text` parts are searchable, never reasoning. */
+export function agentSessionMessageSearchableText(parts: readonly CherryMessagePart[]): string {
+  return parts.flatMap((part) => (part.type === 'text' && typeof part.text === 'string' ? [part.text] : [])).join('\n')
+}
+
+/** Part IDs are allocated by the column default until callers carry stable part identities. */
+export function agentSessionMessagePartRows(input: {
+  sessionId: string
+  messageId: string
+  parts: readonly CherryMessagePart[]
+  timestampMs: number
+}): InsertAgentSessionMessagePartRow[] {
+  const { sessionId, messageId, parts, timestampMs } = input
+  return parts.map((part, seq) => ({
+    messageId,
+    sessionId,
+    seq,
+    type: part.type,
+    payload: part,
+    createdAt: timestampMs,
+    updatedAt: timestampMs
+  }))
+}
+
+/** Replaces a message's ordered body and its searchable text; the message row must already exist. */
+export function replaceAgentSessionMessagePartsTx(
+  db: DbOrTx,
+  input: { sessionId: string; messageId: string; parts: readonly CherryMessagePart[]; timestampMs: number }
+): void {
+  const { messageId, parts } = input
+  db.delete(messageParts).where(eq(messageParts.messageId, messageId)).run()
+  const rows = agentSessionMessagePartRows(input)
+  for (let index = 0; index < rows.length; index += SQLITE_INARRAY_CHUNK) {
+    db.insert(messageParts)
+      .values(rows.slice(index, index + SQLITE_INARRAY_CHUNK))
+      .run()
+  }
+  // Callers own the container timestamp; keep the column's auto-update from overwriting it.
+  db.update(messages)
+    .set({ searchableText: agentSessionMessageSearchableText(parts), updatedAt: messages.updatedAt })
+    .where(eq(messages.id, messageId))
+    .run()
+}
+
+export function hydrateAgentSessionMessageDataTx<T extends AgentSessionMessageData>(
   db: DbOrTx,
   messageId: string,
   data: T
@@ -46,10 +133,9 @@ export function hydrateAgentSessionMessageDataTx<T extends AgentSessionMessageRo
   return hydratedParts ? { ...data, parts: hydratedParts } : data
 }
 
-export function hydrateAgentSessionMessageRowsTx<T extends { id: string; data: AgentSessionMessageRow['data'] }>(
-  db: DbOrTx,
-  rows: T[]
-): T[] {
+export function hydrateAgentSessionMessageRowsTx<
+  T extends { id: string; data: AgentSessionMessageStoredData & { parts: CherryMessagePart[] } }
+>(db: DbOrTx, rows: T[]): T[] {
   const deferredMessageIds: string[] = []
   for (const row of rows) {
     const parts = row.data.parts
@@ -107,7 +193,7 @@ export function ensureAgentSessionRootTx(db: DbOrTx, sessionId: string): string 
     .values({
       sessionId,
       role: 'root',
-      data: { parts: [] },
+      data: {},
       status: 'success'
     })
     .returning({ id: messages.id })
@@ -145,7 +231,10 @@ export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: strin
     .all()
   return hydrateAgentSessionMessageRowsTx(
     db,
-    orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root')
+    attachAgentSessionMessagePartsTx(
+      db,
+      orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root')
+    )
   )
 }
 

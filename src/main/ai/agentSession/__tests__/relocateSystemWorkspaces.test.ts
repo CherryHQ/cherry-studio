@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,6 +18,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { attachAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
 import * as workspaceStorage from '@main/ai/agents/agentWorkspaceStorage'
@@ -178,21 +179,18 @@ describe('system workspace relocation', () => {
         [messageId, workspace.sessionId],
         [foreignMessageId, foreign.sessionId]
       ]) {
-        dbh.db
-          .insert(agentSessionMessageTable)
-          .values({
-            id,
-            sessionId,
-            role: 'assistant',
-            status: 'success',
-            createdAt: 123,
-            updatedAt: 456,
-            data: {
-              parts: [{ type: 'text', text: 'unchanged' }],
-              runtimeAnchor: { checkpoint, excludedMessageIds: ['excluded'] }
-            }
-          })
-          .run()
+        insertAgentSessionMessages(dbh.db, {
+          id,
+          sessionId,
+          role: 'assistant',
+          status: 'success',
+          createdAt: 123,
+          updatedAt: 456,
+          data: {
+            parts: [{ type: 'text', text: 'unchanged' }],
+            runtimeAnchor: { checkpoint, excludedMessageIds: ['excluded'] }
+          }
+        })
       }
       const replacement = { ...checkpoint, locator: { ...checkpoint.locator, volume: 'new' } }
       runtimeDriverRegistry.register({
@@ -212,7 +210,9 @@ describe('system workspace relocation', () => {
       expect(await relocateSystemWorkspaces()).toEqual(new Set(foreignTarget ? [workspace.sessionId] : []))
       expect(workspacePath(workspace.id)).toBe(foreignTarget ? workspace.oldPath : workspace.newPath)
       const read = (id: string) =>
-        dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, id)).get()!
+        attachAgentSessionMessagePartsTx(dbh.db, [
+          dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, id)).get()!
+        ])[0]
       expect(read(messageId)).toMatchObject({
         createdAt: 123,
         updatedAt: 456,
@@ -231,17 +231,14 @@ describe('system workspace relocation', () => {
   it('blocks native admission until the missing history has been recovered', async () => {
     const workspace = await createWorkspace('pi')
     const nativeId = randomUUID()
-    dbh.db
-      .insert(agentSessionMessageTable)
-      .values({
-        id: randomUUID(),
-        sessionId: workspace.sessionId,
-        role: 'assistant',
-        status: 'success',
-        runtimeResumeToken: nativeId,
-        data: { parts: [] }
-      })
-      .run()
+    insertAgentSessionMessages(dbh.db, {
+      id: randomUUID(),
+      sessionId: workspace.sessionId,
+      role: 'assistant',
+      status: 'success',
+      runtimeResumeToken: nativeId,
+      data: { parts: [] }
+    })
     expect(await relocateSystemWorkspaces()).toEqual(new Set([workspace.sessionId]))
     await expect(assertAgentSessionWorkspaceDirectory(workspace.sessionId, workspace.oldPath)).rejects.toThrow(
       'relocation requires recovery'
@@ -423,16 +420,13 @@ describe('system workspace relocation', () => {
         .run()
       const nativeId = randomUUID()
       await writeHistory('pi', workspace.id, nativeId)
-      dbh.db
-        .insert(agentSessionMessageTable)
-        .values({
-          sessionId: workspace.sessionId,
-          role: 'assistant',
-          status: 'success',
-          runtimeResumeToken: nativeId,
-          data: { parts: [] }
-        })
-        .run()
+      insertAgentSessionMessages(dbh.db, {
+        sessionId: workspace.sessionId,
+        role: 'assistant',
+        status: 'success',
+        runtimeResumeToken: nativeId,
+        data: { parts: [] }
+      })
       new AgentSessionMessageTreeSeeder().run(dbh.db)
       if (empty)
         dbh.db.delete(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, workspace.sessionId)).run()
@@ -544,16 +538,13 @@ describe('system workspace relocation', () => {
       const workspace = await createWorkspace('pi')
       const nativeId = randomUUID()
       const nativeFile = await writeHistory('pi', workspace.id, nativeId)
-      dbh.db
-        .insert(agentSessionMessageTable)
-        .values({
-          sessionId: workspace.sessionId,
-          role: 'assistant',
-          status: 'success',
-          runtimeResumeToken: nativeId,
-          data: { parts: [] }
-        })
-        .run()
+      insertAgentSessionMessages(dbh.db, {
+        sessionId: workspace.sessionId,
+        role: 'assistant',
+        status: 'success',
+        runtimeResumeToken: nativeId,
+        data: { parts: [] }
+      })
       await writeFile(path.join(workspace.newPath, 'output.txt'), 'preserved')
       await agentWorkspaceStorageService.archiveWorkspace({ id: workspace.sessionId, path: workspace.newPath })
       const archive = `${workspace.newPath}.tar.gz`
@@ -681,17 +672,14 @@ describe('system workspace relocation', () => {
       const secondFile = await writeHistory('claude-code', workspace.id, secondId, `canonical-${workspace.id}`)
       const originals = await Promise.all([firstFile, secondFile].map((file) => readFile(file, 'utf8')))
       for (const [index, id] of [firstId, secondId].entries()) {
-        dbh.db
-          .insert(agentSessionMessageTable)
-          .values({
-            sessionId: workspace.sessionId,
-            role: 'assistant',
-            status: 'paused',
-            runtimeResumeToken: id,
-            data: { parts: [] },
-            createdAt: index + 1
-          })
-          .run()
+        insertAgentSessionMessages(dbh.db, {
+          sessionId: workspace.sessionId,
+          role: 'assistant',
+          status: 'paused',
+          runtimeResumeToken: id,
+          data: { parts: [] },
+          createdAt: index + 1
+        })
       }
       new AgentSessionMessageTreeSeeder().run(dbh.db)
       const firstArtifact = path.join(path.dirname(firstFile), 'subdirectory', 'first.txt')
@@ -949,34 +937,31 @@ describe('system workspace relocation', () => {
               configDir: path.join(temporaryRoot, 'old', 'Data', 'Agents', '.claude')
             }
           : { runtime, runtimeSessionId: actualId, leafId: 'boundary' }
-      dbh.db
-        .insert(agentSessionMessageTable)
-        .values([
-          {
-            sessionId: workspace.sessionId,
-            role: 'user',
-            status: 'success',
-            data: { nativeSessionId: randomUUID(), parts: [] },
-            createdAt: 1
-          },
-          {
-            sessionId: workspace.sessionId,
-            id: assistantId,
-            role: 'assistant',
-            status: 'success',
-            data: { runtimeAnchor: { checkpoint }, parts: [] },
-            runtimeResumeToken: actualId,
-            createdAt: 2
-          },
-          {
-            sessionId: workspace.sessionId,
-            role: 'user',
-            status: 'success',
-            data: { nativeSessionId: initializationId, parts: [] },
-            createdAt: 3
-          }
-        ])
-        .run()
+      insertAgentSessionMessages(dbh.db, [
+        {
+          sessionId: workspace.sessionId,
+          role: 'user',
+          status: 'success',
+          data: { nativeSessionId: randomUUID(), parts: [] },
+          createdAt: 1
+        },
+        {
+          sessionId: workspace.sessionId,
+          id: assistantId,
+          role: 'assistant',
+          status: 'success',
+          data: { runtimeAnchor: { checkpoint }, parts: [] },
+          runtimeResumeToken: actualId,
+          createdAt: 2
+        },
+        {
+          sessionId: workspace.sessionId,
+          role: 'user',
+          status: 'success',
+          data: { nativeSessionId: initializationId, parts: [] },
+          createdAt: 3
+        }
+      ])
       new AgentSessionMessageTreeSeeder().run(dbh.db)
       const file = await writeHistory(runtime, workspace.id, actualId)
       if (runtime === 'pi')
@@ -1007,15 +992,12 @@ describe('system workspace relocation', () => {
 
   it.each(['claude-code', 'pi'] as const)('allows an unmaterialized %s initialization marker', async (runtime) => {
     const workspace = await createWorkspace(runtime)
-    dbh.db
-      .insert(agentSessionMessageTable)
-      .values({
-        sessionId: workspace.sessionId,
-        role: 'user',
-        status: 'success',
-        data: { nativeSessionId: randomUUID(), parts: [] }
-      })
-      .run()
+    insertAgentSessionMessages(dbh.db, {
+      sessionId: workspace.sessionId,
+      role: 'user',
+      status: 'success',
+      data: { nativeSessionId: randomUUID(), parts: [] }
+    })
 
     expect(await relocateSystemWorkspaces()).toEqual(new Set())
     expect(workspacePath(workspace.id)).toBe(workspace.newPath)
@@ -1026,21 +1008,18 @@ describe('system workspace relocation', () => {
     async (evidence) => {
       const workspace = await createWorkspace('dsh')
       const oldToken = randomUUID()
-      dbh.db
-        .insert(agentSessionMessageTable)
-        .values({
-          sessionId: workspace.sessionId,
-          role: 'assistant',
-          status: 'success',
-          runtimeResumeToken: oldToken,
-          data: {
-            parts: [{ type: 'text', text: 'Preserved DSH answer' }],
-            ...(evidence === 'checkpoint'
-              ? { runtimeAnchor: { checkpoint: { runtime: 'dsh', runtimeSessionId: oldToken, boundary: 1 } } }
-              : {})
-          }
-        })
-        .run()
+      insertAgentSessionMessages(dbh.db, {
+        sessionId: workspace.sessionId,
+        role: 'assistant',
+        status: 'success',
+        runtimeResumeToken: oldToken,
+        data: {
+          parts: [{ type: 'text', text: 'Preserved DSH answer' }],
+          ...(evidence === 'checkpoint'
+            ? { runtimeAnchor: { checkpoint: { runtime: 'dsh', runtimeSessionId: oldToken, boundary: 1 } } }
+            : {})
+        }
+      })
       new AgentSessionMessageTreeSeeder().run(dbh.db)
       queueRetiredAgentRuntimeMigration(dbh.db)
 
@@ -1168,19 +1147,16 @@ describe('system workspace relocation', () => {
   ] as const)('blocks missing %s history required by a %s', async (runtime, evidence) => {
     const workspace = await createWorkspace(runtime)
     const id = randomUUID()
-    dbh.db
-      .insert(agentSessionMessageTable)
-      .values({
-        sessionId: workspace.sessionId,
-        role: 'assistant',
-        status: 'success',
-        runtimeResumeToken: evidence === 'token' ? id : null,
-        data: {
-          parts: [],
-          ...(evidence === 'checkpoint' ? { runtimeAnchor: { checkpoint: { runtime, runtimeSessionId: id } } } : {})
-        }
-      })
-      .run()
+    insertAgentSessionMessages(dbh.db, {
+      sessionId: workspace.sessionId,
+      role: 'assistant',
+      status: 'success',
+      runtimeResumeToken: evidence === 'token' ? id : null,
+      data: {
+        parts: [],
+        ...(evidence === 'checkpoint' ? { runtimeAnchor: { checkpoint: { runtime, runtimeSessionId: id } } } : {})
+      }
+    })
 
     expect(await relocateSystemWorkspaces()).toEqual(new Set([workspace.sessionId]))
     expect(workspacePath(workspace.id)).toBe(workspace.oldPath)
