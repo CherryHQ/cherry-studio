@@ -36,6 +36,13 @@ The main-process observability boundary is `src/main/ai/observability`:
 - `storage/` keeps the in-memory span projection and JSONL-compatible history.
 - `sinks/` defines the extension point for local and future external export.
 
+Trusted internal gateway calls carry the runtime's trace parent in their
+in-process usage context. SDK telemetry and HTTP spans use the session topic,
+while stream management keeps its request-scoped topic. `AdapterTracer` restores
+the parent when the HTTP boundary lost the active context, retaining existing
+nested SDK parents. The outer Agent turn continues to own session history flush.
+External callers cannot supply this in-process context.
+
 ## Local history flush
 
 The container `traceId` is persisted on the topic / agent-session row (one trace

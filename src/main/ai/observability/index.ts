@@ -9,6 +9,7 @@ export {
   deriveRootSpanId,
   endAgentRuntimeSpan,
   startAgentRuntimeChildSpan,
+  type AgentRuntimeTraceContext,
   startAiChildTurnSpan,
   startAiTurnTrace
 } from './core/AiTurnTrace'

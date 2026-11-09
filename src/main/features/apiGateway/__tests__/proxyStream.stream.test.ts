@@ -111,6 +111,7 @@ vi.mock('../adapters', () => ({
 
 import type { OutputFormat } from '../adapters'
 import { AnthropicMessageConverter } from '../adapters/converters/AnthropicMessageConverter'
+import { OpenAiResponsesMessageConverter } from '../adapters/converters/OpenAiResponsesMessageConverter'
 import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
@@ -496,9 +497,9 @@ describe('processMessage (internal Agent continuation normalization)', () => {
             type: 'dynamic-tool',
             toolName: 'Bash',
             toolCallId: 'call_1',
-            state: 'output-available',
+            state: 'output-error',
             input: {},
-            output: 'Tool failed'
+            errorText: 'Tool failed'
           },
           { type: 'text', text: 'Working' }
         ]
@@ -1114,4 +1115,44 @@ describe('processMessage (statusless interruption delivery)', () => {
       }
     }
   }
+})
+
+describe('caller-owned Responses instructions', () => {
+  it.each([undefined, '', 'Client instructions'])(
+    'keeps instructions %s separate from developer turns on the same protocol',
+    async (instructions) => {
+      useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+      const converter = new OpenAiResponsesMessageConverter()
+      mockToUIMessages.mockImplementation((params) =>
+        converter.toUIMessages(params as unknown as Parameters<typeof converter.toUIMessages>[0])
+      )
+      mockIsInternalAgentRequest.mockReturnValue(true)
+      const response = processMessage({
+        params: {
+          model: 'openai:gpt-5',
+          stream: true,
+          instructions,
+          input: [
+            { role: 'developer', content: 'Client skill catalog' },
+            { role: 'user', content: 'Which skills?' }
+          ]
+        },
+        inputFormat: 'openai-responses',
+        outputFormat: 'openai-responses',
+        requestHeaders: new Headers({ 'x-cherry-reasoning-effort': 'low' })
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const request = mockStreamPrompt.mock.calls[0][0]
+      expect(request.callOverrides.providerOptions?.openai?.instructions).toBe(instructions)
+      expect(
+        request.messages.map((message: CherryUIMessage) => ({ role: message.role, parts: message.parts }))
+      ).toEqual([
+        { role: 'system', parts: [{ type: 'text', text: 'Client skill catalog' }] },
+        { role: 'user', parts: [{ type: 'text', text: 'Which skills?' }] }
+      ])
+      commit(captured.listener!)
+      void captured.listener!.onDone({} as never)
+      await readAll((await response).body)
+    }
+  )
 })
