@@ -28,9 +28,9 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
       return assistantDataService.list(parsed)
     },
 
-    POST: async ({ body }) => {
+    POST: async ({ body, context }) => {
       const parsed = CreateAssistantSchema.parse(body)
-      return assistantDataService.create(parsed)
+      return assistantDataService.create(parsed, context)
     }
   },
 
@@ -42,9 +42,9 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
   },
 
   '/assistants/:id/duplicate': {
-    POST: async ({ params, body }) => {
+    POST: async ({ params, body, context }) => {
       const parsed = DuplicateAssistantSchema.parse(body)
-      return assistantDataService.duplicate(params.id, parsed)
+      return assistantDataService.duplicate(params.id, parsed, context)
     }
   },
 

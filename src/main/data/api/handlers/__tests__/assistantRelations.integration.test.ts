@@ -1,6 +1,6 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { assistantHandlers } from '@data/api/handlers/assistants'
 import { assistantTable } from '@data/db/schemas/assistant'
@@ -9,6 +9,7 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { assistantDataService } from '@data/services/AssistantService'
 import { mcpServerService } from '@data/services/McpServerService'
+import { promptService } from '@data/services/PromptService'
 import type { DataApiCallContext } from '@shared/data/api/types'
 
 type RelationField = 'mcpServerIds' | 'knowledgeBaseIds'
@@ -154,6 +155,7 @@ describe('Committed MCP arming audit', () => {
     const t = mcpServerService.create({ name: 'Server T' })
     const assistant = assistantDataService.create({ name: 'Assistant A', mcpServerIds: [t.id, s.id] })
     dbh.db.update(assistantMcpServerTable).set({ createdAt: 1000, updatedAt: 2000 }).run()
+    mockMainLoggerService.info.mockClear()
     return { assistant, s, t }
   }
 
@@ -164,6 +166,117 @@ describe('Committed MCP arming audit', () => {
   }
 
   beforeEach(() => mockMainLoggerService.info.mockClear())
+
+  it('attributes one committed creation record with sorted MCP additions', async () => {
+    const a = mcpServerService.create({ name: 'Server A' })
+    const b = mcpServerService.create({ name: 'Server B' })
+
+    const result = await assistantHandlers['/assistants'].POST({
+      body: { name: 'Created assistant', mcpServerIds: [b.id, a.id] },
+      context
+    })
+    const assistant = 'data' in result ? result.data : result
+
+    expect(assistantDataService.getById(assistant.id).mcpServerIds.sort()).toEqual([a.id, b.id].sort())
+    expect(records()).toEqual([
+      {
+        event: 'assistant.mcp-arming.changed',
+        assistantId: assistant.id,
+        reason: 'create',
+        beforeIds: [],
+        afterIds: [a.id, b.id].sort(),
+        addedIds: [a.id, b.id].sort(),
+        removedIds: [],
+        source: context.source,
+        actor: context.actor,
+        operationId: context.operationId,
+        requestId: context.requestId
+      }
+    ])
+  })
+
+  it.each([undefined, []])('emits no creation record for MCP bindings %j', async (mcpServerIds) => {
+    const result = await assistantHandlers['/assistants'].POST({
+      body: { name: 'Unarmed assistant', mcpServerIds },
+      context
+    })
+
+    expect(result).toMatchObject({ mcpServerIds: [] })
+    expect(dbh.db.select().from(assistantMcpServerTable).all()).toEqual([])
+    expect(records()).toEqual([])
+  })
+
+  it('emits one duplicate record for cloned MCP bindings without replaying the source record', async () => {
+    const a = mcpServerService.create({ name: 'Server A' })
+    const b = mcpServerService.create({ name: 'Server B' })
+    const source = assistantDataService.create({ name: 'Source', mcpServerIds: [b.id, a.id] })
+    expect(records()).toHaveLength(1)
+    mockMainLoggerService.info.mockClear()
+
+    const result = await assistantHandlers['/assistants/:id/duplicate'].POST({
+      params: { id: source.id },
+      body: { name: 'Duplicate' },
+      context
+    })
+    const duplicate = 'data' in result ? result.data : result
+
+    expect(assistantDataService.getById(duplicate.id).mcpServerIds.sort()).toEqual([a.id, b.id].sort())
+    expect(records()).toEqual([
+      {
+        event: 'assistant.mcp-arming.changed',
+        assistantId: duplicate.id,
+        reason: 'duplicate',
+        beforeIds: [],
+        afterIds: [a.id, b.id].sort(),
+        addedIds: [a.id, b.id].sort(),
+        removedIds: [],
+        source: context.source,
+        actor: context.actor,
+        operationId: context.operationId,
+        requestId: context.requestId
+      }
+    ])
+  })
+
+  it('rolls duplicate and MCP bindings back without emitting a record when prompt cloning fails', async () => {
+    const { assistant } = seedAssistant()
+    const assistantsBefore = dbh.db.select().from(assistantTable).all()
+    const bindingsBefore = dbh.db.select().from(assistantMcpServerTable).all()
+    const cloneSpy = vi.spyOn(promptService, 'cloneBindingsForTargetTx').mockImplementationOnce(() => {
+      throw new Error('Prompt cloning failed')
+    })
+
+    try {
+      await expect(
+        assistantHandlers['/assistants/:id/duplicate'].POST({
+          params: { id: assistant.id },
+          body: { name: 'Rolled back duplicate' },
+          context
+        })
+      ).rejects.toThrow('Prompt cloning failed')
+
+      expect(dbh.db.select().from(assistantTable).all()).toEqual(assistantsBefore)
+      expect(dbh.db.select().from(assistantMcpServerTable).all()).toEqual(bindingsBefore)
+      expect(records()).toEqual([])
+    } finally {
+      cloneSpy.mockRestore()
+    }
+  })
+
+  it('rolls creation and MCP additions back on an invalid knowledge base without emitting a record', async () => {
+    const server = mcpServerService.create({ name: 'Server' })
+
+    await expect(
+      assistantHandlers['/assistants'].POST({
+        body: { name: 'Rolled back', mcpServerIds: [server.id], knowledgeBaseIds: ['missing'] },
+        context
+      })
+    ).rejects.toMatchObject({ code: 'SQLITE_CONSTRAINT_FOREIGNKEY' })
+
+    expect(dbh.db.select().from(assistantTable).all()).toEqual([])
+    expect(dbh.db.select().from(assistantMcpServerTable).all()).toEqual([])
+    expect(records()).toEqual([])
+  })
 
   it('attributes the committed removal, preserves retained timestamps and emits nothing for an identical replay', async () => {
     const { assistant, s, t } = seedAssistant()

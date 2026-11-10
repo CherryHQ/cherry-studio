@@ -382,7 +382,10 @@ export class AssistantDataService {
   /**
    * Insert an assistant and its relations inside a caller-owned transaction.
    */
-  private createTx(tx: DbOrTx, dto: CreateAssistantDto): AssistantRowWithModelName {
+  private createTx(
+    tx: DbOrTx,
+    dto: CreateAssistantDto
+  ): AssistantRowWithModelName & { mcpArmingDelta: McpArmingDelta | undefined } {
     // Resolve modelId: explicit values strictly validated; omission falls
     // back to `chat.default_model_id` preference (stale → null with a
     // logger.warn).
@@ -406,9 +409,9 @@ export class AssistantDataService {
       scope: isNull(assistantTable.deletedAt)
     }) as AssistantRow
 
-    this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
+    const mcpArmingDelta = this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
 
-    return this.getActiveRowWithModelNameById(inserted.id, tx)
+    return { ...this.getActiveRowWithModelNameById(inserted.id, tx), mcpArmingDelta }
   }
 
   /**
@@ -418,11 +421,16 @@ export class AssistantDataService {
    * transaction as the insert — one failed binding rolls the assistant row
    * back so callers never observe a half-written record.
    */
-  create(dto: CreateAssistantDto): Assistant {
+  create(dto: CreateAssistantDto, context?: DataApiCallContext): Assistant {
     this.validateName(dto.name)
 
-    const { assistant: row, modelName } = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
+    const {
+      assistant: row,
+      modelName,
+      mcpArmingDelta
+    } = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
 
+    this.emitMcpArmingChange(mcpArmingDelta, 'create', context)
     logger.info('Created assistant', { id: row.id, name: row.name })
 
     return rowToAssistant(
@@ -435,12 +443,13 @@ export class AssistantDataService {
     )
   }
 
-  duplicate(id: string, dto: DuplicateAssistantDto): Assistant {
+  duplicate(id: string, dto: DuplicateAssistantDto, context?: DataApiCallContext): Assistant {
     this.validateName(dto.name)
 
     const {
       assistant: row,
       modelName,
+      mcpArmingDelta,
       relations,
       clonedPromptIds
     } = application.get('DbService').withWriteTx((tx) => {
@@ -464,6 +473,7 @@ export class AssistantDataService {
       return { ...created, relations, clonedPromptIds }
     })
 
+    this.emitMcpArmingChange(mcpArmingDelta, 'duplicate', context)
     logger.info('Duplicated assistant', { id: row.id, sourceId: id })
     if (clonedPromptIds.length > 0) promptService.notifyTargetBindingsChanged()
     return rowToAssistant(row, relations, modelName)
@@ -587,21 +597,29 @@ export class AssistantDataService {
       return { row: next, modelName: nextModelName, mcpArmingDelta }
     })
 
-    if (mcpArmingDelta && mcpArmingDelta.addedIds.length + mcpArmingDelta.removedIds.length > 0) {
+    this.emitMcpArmingChange(mcpArmingDelta, 'update', context)
+
+    logger.info('Updated assistant', { id, changes: Object.keys(dto) })
+
+    return rowToAssistant(row, nextRelations, modelName)
+  }
+
+  private emitMcpArmingChange(
+    delta: McpArmingDelta | undefined,
+    reason: 'create' | 'duplicate' | 'update',
+    context?: DataApiCallContext
+  ): void {
+    if (delta && delta.addedIds.length + delta.removedIds.length > 0) {
       logger.info('MCP arming changed', {
         event: 'assistant.mcp-arming.changed',
-        ...mcpArmingDelta,
-        reason: 'update',
+        ...delta,
+        reason,
         source: context?.source ?? 'unknown',
         actor: context?.actor ?? { kind: 'unknown' },
         operationId: context?.operationId ?? null,
         requestId: context?.requestId ?? null
       })
     }
-
-    logger.info('Updated assistant', { id, changes: Object.keys(dto) })
-
-    return rowToAssistant(row, nextRelations, modelName)
   }
 
   /** Move a single assistant within the active (non-deleted) assistant list. */
