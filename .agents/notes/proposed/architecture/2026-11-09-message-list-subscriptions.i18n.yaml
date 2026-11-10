@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-09-message-list-subscriptions.md
-2026-11-09-message-list-subscriptions.md: a5e61fb639c058fe5b14499de1409adf88907a1f
-2026-11-09-message-list-subscriptions.zh.md: 88b91ed159fb1218dfec714779fe5d6d912b496e
+2026-11-09-message-list-subscriptions.md: 9bf6ead8e01532998f16848cd5e3a42aef055eb3
+2026-11-09-message-list-subscriptions.zh.md: 48b3463232ad7cea08abb38d83412abd90139c42
