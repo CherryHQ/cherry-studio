@@ -5,7 +5,7 @@ if (jobs.changes?.result !== 'success') throw new Error('Change classification d
 const plan = JSON.parse(jobs.changes.outputs.plan)
 const mapping = {
   basic: { repository: 'repository-result', lint: 'lint-checks', types: 'type-checks', i18n: 'i18n-checks' },
-  general: { main: 'main-test', packages: 'package-test', platform: 'platform-test' },
+  general: { main: 'main-test-shard', packages: 'package-test', platform: 'platform-test' },
   renderer: { renderer: 'renderer-test-shard' }
 }[process.argv[2]]
 if (!mapping) throw new Error('Unknown validation gate')

@@ -18,8 +18,8 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
-describe('eight-runner full validation', () => {
-  it('uses six Linux runners and one runner per native platform', () => {
+describe('nine-runner full validation', () => {
+  it('uses seven Linux runners and one runner per native platform', () => {
     const jobs = Object.values(workflow.jobs) as {
       'runs-on': string
       steps: { uses?: string }[]
@@ -40,21 +40,25 @@ describe('eight-runner full validation', () => {
       'ubuntu-latest',
       'ubuntu-latest',
       'ubuntu-latest',
+      'ubuntu-latest',
       'windows-2022'
     ])
   })
 
-  it.each([
-    ['main-test', ['main']],
-    ['package-test', ['packages']]
-  ] as const)('runs the complete selected groups in %s without shard filters', (name, groups) => {
-    const job = workflow.jobs[name]
-    expect(job).toBeDefined()
-    expect(
-      job.steps
-        .filter((step: { run?: string }) => step.run?.startsWith('pnpm check'))
-        .map((step: { run: string }) => step.run)
-    ).toEqual(groups.map((group) => `pnpm check --group ${group}`))
+  it('runs the complete selected package group without shard filters', () => {
+    const job = workflow.jobs['package-test']
+    expect(job.steps.find((step: { run?: string }) => step.run?.startsWith('pnpm check')).run).toBe(
+      'pnpm check --group packages'
+    )
+  })
+
+  it('covers both main/preload shards without cancelling siblings on failure', () => {
+    const job = workflow.jobs['main-test-shard']
+    expect(job.strategy).toEqual({ 'fail-fast': false, matrix: { shard: [1, 2] } })
+    expect(job.steps.find((step: { run?: string }) => step.run?.startsWith('pnpm check')).run).toBe(
+      'pnpm check --group main --shard=${{ matrix.shard }}/2'
+    )
+    expect(workflow.jobs['general-test'].needs).toContain('main-test-shard')
   })
 
   it('covers all three renderer shards without cancelling siblings on failure', () => {
