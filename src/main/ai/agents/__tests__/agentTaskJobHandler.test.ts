@@ -1,4 +1,5 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockNotificationService } from '@test-mocks/main/application'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -88,6 +89,7 @@ describe('AgentTaskJobHandler', () => {
 
   beforeEach(() => {
     vi.mocked(application.get).mockImplementation((name: string) => {
+      if (name === 'NotificationService') return mockNotificationService as never
       if (name === 'JobManager')
         return { updateJobScheduleTx: updateTxSpy, syncJobScheduleTimerById: syncTimerSpy } as never
       if (name === 'DbService') return MockMainDbServiceExport.dbService as never
@@ -155,7 +157,7 @@ describe('AgentTaskJobHandler', () => {
 
   describe('execute', () => {
     it('delegates to runAgentTask with the JobContext', async () => {
-      vi.mocked(runAgentTask).mockResolvedValueOnce({ result: 'ok' })
+      vi.mocked(runAgentTask).mockResolvedValueOnce({ kind: 'executed', result: 'ok' })
       const ctx = {
         jobId: 'j1',
         input: { agentId: 'a', prompt: 'p', timeoutMinutes: 2, workspace: WORKSPACE_SOURCE, reuseRevision: 0 }
@@ -163,7 +165,7 @@ describe('AgentTaskJobHandler', () => {
 
       const out = await agentTaskJobHandler.execute(ctx)
 
-      expect(out).toEqual({ result: 'ok' })
+      expect(out).toEqual({ kind: 'executed', result: 'ok' })
       expect(runAgentTask).toHaveBeenCalledWith(ctx)
     })
 
@@ -171,7 +173,7 @@ describe('AgentTaskJobHandler', () => {
       vi.mocked(jobService.getById).mockReturnValueOnce(makeTerminal('completed', 'j1'))
       vi.mocked(runAgentTask).mockImplementationOnce(async () => {
         expect(vi.mocked(agentTaskService.notifyRunChange).mock.calls).toEqual([['s1', 'j1', 'projection']])
-        return { result: 'ok' }
+        return { kind: 'executed', result: 'ok' }
       })
 
       await agentTaskJobHandler.execute({ jobId: 'j1' } as JobContext<AgentTaskInput>)

@@ -1,6 +1,7 @@
 import {
   type FC,
   memo,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type UIEvent as ReactUIEvent,
   useCallback,
@@ -70,8 +71,6 @@ const RAIL_MIN_EDGE_MARGIN_PX = 24
 const RAIL_TICK_PITCH_PX = 10
 /** Length of the fade applied to whichever end still has ticks scrolled past it. */
 const RAIL_FADE_PX = 44
-/** With fewer turns there is nothing worth anchoring — the rail stays hidden. */
-const RAIL_MIN_TURNS = 5
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
 
 const tickTransitionClassName =
@@ -100,6 +99,12 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   const [scrollTop, setScrollTop] = useState(0)
   /** Cursor Y relative to the rail's top; null when not hovering. */
   const [mouseY, setMouseY] = useState<number | null>(null)
+  /** Anchor id of the tick holding keyboard focus; shows the same preview card
+   * as hover. Stored by identity, not array position: a prepended history page
+   * shifts every index while React keeps the focused button by key, so an
+   * index would silently point at the wrong turn (and blur would fail to
+   * clear the preview, comparing the stale index against the shifted one). */
+  const [keyboardAnchorId, setKeyboardAnchorId] = useState<string | null>(null)
   /** Hide the rail only when its measured wrapper height is too short to be usable. */
   const tooShort = railHeight > 0 && railHeight < RAIL_MIN_HEIGHT_PX
   const visible = !tooShort
@@ -142,6 +147,15 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     return result
   }, [messages])
 
+  // The focused tick's current position, re-derived on every prepend/append so
+  // the preview and blur cleanup follow the turn, not a stale slot. A focused
+  // anchor that left the list (branch switch) yields no keyboard focus.
+  const keyboardIndex = useMemo(() => {
+    if (keyboardAnchorId === null) return null
+    const index = turns.findIndex((turn) => turn.anchorId === keyboardAnchorId)
+    return index >= 0 ? index : null
+  }, [keyboardAnchorId, turns])
+
   const turnIndexByMessageId = useMemo(() => {
     const map = new Map<string, number>()
     turns.forEach((turn, index) => turn.memberIds.forEach((id) => map.set(id, index)))
@@ -182,12 +196,13 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   }, [turns.length, railHeight, scrollTop])
 
   // Nearest tick to the cursor, only when the cursor is genuinely near one.
-  const focusedIndex = useMemo(() => {
+  const pointerFocusedIndex = useMemo(() => {
     if (mouseY === null || turns.length === 0 || railHeight === 0) return null
     const raw = Math.round((mouseY - geometry.centerOf(0)) / RAIL_TICK_PITCH_PX)
     const index = Math.min(Math.max(raw, 0), turns.length - 1)
     return Math.abs(mouseY - geometry.centerOf(index)) <= FOCUS_MAX_DISTANCE ? index : null
   }, [mouseY, turns.length, railHeight, geometry])
+  const focusedIndex = pointerFocusedIndex ?? keyboardIndex
 
   const flushMouseMove = useCallback(() => {
     animationFrameRef.current = null
@@ -221,6 +236,25 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   // The rail scrolls independently of the conversation and never auto-follows
   // reading, so a tick's on-screen position is stable until the user scrolls
   // the rail itself. Mirror that offset into state so the card and wave track it.
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const ticks = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-message-anchor-tick]'))
+    const current = ticks.indexOf(document.activeElement as HTMLElement)
+    if (current < 0) return
+    const next =
+      event.key === 'ArrowUp'
+        ? current - 1
+        : event.key === 'ArrowDown'
+          ? current + 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? ticks.length - 1
+              : null
+    if (next === null) return
+    event.preventDefault()
+    ticks[Math.min(Math.max(next, 0), ticks.length - 1)]?.focus()
+  }
+
   const handleScroll = (event: ReactUIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop)
 
   // Height-based hiding must clear the wave and preview before the rail returns.
@@ -235,9 +269,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     []
   )
 
-  // The gutter is independent of turn count, so mounting the rail at this
-  // threshold leaves the content layout unchanged.
-  const hasRail = turns.length >= RAIL_MIN_TURNS
+  const hasRail = turns.length > 0
 
   // Keep the strip's reading anchor stable across async page loads:
   // • on entry, start at the bottom — the user enters at the newest turn;
@@ -327,12 +359,15 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
       // inert keeps the hidden rail out of the Tab order and the accessibility
       // tree — an invisible layer must not take keyboard focus.
       inert={!visible}
+      role="navigation"
+      aria-label={t('chat.navigation.anchor.label')}
       style={{ width: hitStripWidth }}
       onMouseMove={handleMouseMove}
       onMouseLeave={clearPointerState}>
       <div
         ref={railScrollRef}
         onScroll={handleScroll}
+        onKeyDown={handleKeyDown}
         className={classNames(
           // The scroll viewport is inset by the fixed edge margins (top/bottom),
           // so those margins sit OUTSIDE the scroll and never move while the strip
@@ -374,6 +409,8 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
                 // the layout classes alone keep the visuals unchanged.
                 className="flex w-full shrink-0 cursor-pointer items-center justify-end rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 style={{ height: RAIL_TICK_PITCH_PX }}
+                onFocus={() => setKeyboardAnchorId(turn.anchorId)}
+                onBlur={() => setKeyboardAnchorId((current) => (current === turn.anchorId ? null : current))}
                 onClick={() => scrollToMessageId?.(turn.anchorId)}>
                 <div
                   className={classNames(

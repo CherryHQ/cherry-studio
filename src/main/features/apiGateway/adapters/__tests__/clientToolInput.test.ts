@@ -35,6 +35,21 @@ describe.each([
     }
   }
 ])('$Adapter.name client tool input', ({ Adapter, response }) => {
+  it.each([null, [], false, true, 42, 'invalid json'])(
+    'rejects non-object input even when the SDK reports it available: %j',
+    (input) => {
+      const adapter = new Adapter({ model: 'fixture' })
+      expect(() =>
+        adapter.transformChunk({
+          type: 'tool-input-available',
+          toolCallId: 'call',
+          toolName: 'read_file',
+          input
+        })
+      ).toThrow('Invalid tool arguments for read_file: expected an object')
+    }
+  )
+
   it('preserves schema-invalid object arguments for the client runtime', () => {
     const adapter = new Adapter({ model: 'fixture' })
     adapter.transformChunk({

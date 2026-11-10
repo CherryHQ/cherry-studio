@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
@@ -25,7 +25,6 @@ const scrollToElement = vi.fn()
 const scrollToRange = vi.fn()
 const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
-  navigationBaseKey: null as string | null,
   renderItemLimit: undefined as number | undefined,
   renderVersion: 0,
   readyCallbacks: [] as ((element: HTMLDivElement) => void)[],
@@ -309,7 +308,7 @@ vi.mock('../list/MessageVirtualList', async () => {
           scrollToKey,
           scrollToElement,
           scrollToRange,
-          getNavigationBaseKey: () => messageVirtualListMocks.navigationBaseKey,
+          getNavigationBaseKey: () => null,
           isFollowing: () => false,
           getScrollElement: () => messageVirtualListMocks.scrollElement
         }),
@@ -436,7 +435,6 @@ describe('MessageList', () => {
     scrollToRange.mockClear()
     vi.mocked(exportService.captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
-    messageVirtualListMocks.navigationBaseKey = null
     messageVirtualListMocks.renderItemLimit = undefined
     messageVirtualListMocks.renderVersion = 0
     messageVirtualListMocks.readyCallbacks = []
@@ -463,51 +461,15 @@ describe('MessageList', () => {
     expect(container.querySelector('[data-ui~="chat.message-list"]')).toHaveAttribute('id', 'messages')
   })
 
-  it('keeps rapid navigation moving through assistant and user group owners', async () => {
-    const user = userEvent.setup()
-    const userMessage1 = createMessage('user-1', 'user')
-    const assistantMessage1 = { ...createMessage('assistant-1', 'assistant'), parentId: userMessage1.id }
-    const userMessage2 = createMessage('user-2', 'user')
-    const assistantMessage2 = { ...createMessage('assistant-2', 'assistant'), parentId: userMessage2.id }
-    const userMessage3 = createMessage('user-3', 'user')
-    const assistantMessage3 = { ...createMessage('assistant-3', 'assistant'), parentId: userMessage3.id }
-    messageVirtualListMocks.navigationBaseKey = `assistant${userMessage3.id}`
-    messageVirtualListMocks.scrollElement = null
-    scrollToKey.mockImplementationOnce((key: string) => {
-      messageVirtualListMocks.navigationBaseKey = key
-    })
-
+  it('does not show the removed navigation buttons for a saved buttons preference', () => {
     render(
-      <MessageListProvider
-        value={createValue(
-          [userMessage1, assistantMessage1, userMessage2, assistantMessage2, userMessage3, assistantMessage3],
-          { messageNavigation: 'buttons' }
-        )}>
+      <MessageListProvider value={createValue([createMessage('user-1', 'user')], { messageNavigation: 'buttons' })}>
         <MessageList />
       </MessageListProvider>
     )
 
-    const scrollElement = screen.getByTestId('virtual-list')
-    scrollElement.getBoundingClientRect = vi.fn(() => ({
-      bottom: 500,
-      height: 500,
-      left: 0,
-      right: 500,
-      top: 0,
-      width: 500,
-      x: 0,
-      y: 0,
-      toJSON: () => ({})
-    }))
-    fireEvent.mouseMove(scrollElement, { clientX: 470, clientY: 250 })
-
-    await user.click(screen.getByRole('button', { name: 'Previous Message' }))
-    await user.click(screen.getByRole('button', { name: 'Previous Message' }))
-
-    expect(scrollToKey.mock.calls).toEqual([
-      [`user${userMessage2.id}`, 'start'],
-      [`user${userMessage1.id}`, 'start']
-    ])
+    expect(screen.queryByRole('button', { name: /Previous Message|chat.navigation.prev/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Next Message|chat.navigation.next/ })).not.toBeInTheDocument()
   })
 
   it('keeps artifact popup and approval state when the source virtual row unmounts', async () => {

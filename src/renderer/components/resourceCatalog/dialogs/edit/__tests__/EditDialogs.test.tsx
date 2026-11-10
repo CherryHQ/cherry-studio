@@ -1,3 +1,10 @@
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -6,6 +13,7 @@ import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as UseModelModule from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -112,6 +120,18 @@ const MODEL = vi.hoisted(
       isHidden: false
     }) as const
 )
+
+const DEFAULT_PROMPT_MODEL = vi.hoisted(
+  () =>
+    ({
+      id: 'openai::gpt-4o',
+      name: 'GPT-4o',
+      providerId: 'openai'
+    }) as const
+)
+
+const POLISH_PROMPT_BUTTON = 'Polish prompt · GPT-4o'
+const GENERATE_PROMPT_BUTTON = 'Generate prompt · GPT-4o'
 
 vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
@@ -304,15 +324,28 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: fetchGenerateMock
 }))
 
+vi.mock('@renderer/hooks/useModel', async (importOriginal) => {
+  const actual = await importOriginal<typeof UseModelModule>()
+  return {
+    ...actual,
+    useDefaultModel: () => ({ defaultModel: DEFAULT_PROMPT_MODEL })
+  }
+})
+
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: openSettingsTabMock
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
+  const { createInstance } = await import('i18next')
+  const { default: translations } = await import('@renderer/i18n/locales/en-us.json')
+  const memoryI18n = createInstance()
+  await memoryI18n.init({ lng: 'en', resources: { en: { translation: translations } }, keySeparator: false })
   return {
     ...actual,
     useTranslation: () => ({
+      i18n: memoryI18n,
       // Second arg is a fallback string OR an interpolation options object;
       // an object resolves to the mapped value / key, never to itself.
       t: (key: string, fallbackOrOptions?: string | Record<string, unknown>) =>
@@ -325,6 +358,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.avatar': 'Avatar',
           'common.add': 'Add',
           'common.cancel': 'Cancel',
+          'common.more': 'More',
           'common.clear': 'Clear',
           'common.close': 'Close',
           'common.confirm': 'Confirm',
@@ -434,14 +468,31 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.label': 'System Prompt',
           'library.config.prompt.placeholder': 'Tell this assistant how to respond',
           'library.config.prompt.dblclick_hint': 'Double-click to edit',
+          'library.config.prompt.cancel_with_model': `Cancel · ${
+            typeof fallbackOrOptions === 'object' && fallbackOrOptions?.model != null
+              ? String(fallbackOrOptions.model)
+              : ''
+          }`,
           'library.config.prompt.generate': 'Generate prompt',
           'library.config.prompt.generate_failed_description': 'Check or change the default model, then try again.',
           'library.config.prompt.generate_failed_title': 'Failed to generate prompt',
+          'library.config.prompt.generate_with_model': `Generate prompt · ${
+            typeof fallbackOrOptions === 'object' && fallbackOrOptions?.model != null
+              ? String(fallbackOrOptions.model)
+              : ''
+          }`,
+          'library.config.prompt.no_default_model': 'No default model',
+          'library.config.prompt.open_default_model_settings': 'Open default model settings',
           'library.config.prompt.polish': 'Polish prompt',
           'library.config.prompt.polish_failed_description': 'Check or change the default model, then try again.',
           'library.config.prompt.polish_failed_title': 'Failed to polish prompt',
           'library.config.prompt.polish_variables_changed_description': 'Prompt variables changed.',
           'library.config.prompt.polish_variables_changed_title': 'Could not apply polished prompt',
+          'library.config.prompt.polish_with_model': `Polish prompt · ${
+            typeof fallbackOrOptions === 'object' && fallbackOrOptions?.model != null
+              ? String(fallbackOrOptions.model)
+              : ''
+          }`,
           'library.config.prompt.tokens_label': 'Tokens: ',
           'library.config.prompt.variables_description':
             'Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.',
@@ -526,6 +577,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.prompts.visibility.global.label': 'Use globally',
           'settings.title': 'Settings'
         })[key] ??
+        (key.startsWith('agent.memory.')
+          ? memoryI18n.t(key, typeof fallbackOrOptions === 'object' ? fallbackOrOptions : {})
+          : undefined) ??
         (typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined) ??
         key
     })
@@ -1642,12 +1696,13 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('System Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON }))
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished agent instructions'))
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original instructions',
+      model: DEFAULT_PROMPT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
@@ -1665,7 +1720,7 @@ describe('edit dialogs', () => {
 
     selectTab('System Prompt')
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
-    const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
+    const generateButton = screen.getByRole('button', { name: GENERATE_PROMPT_BUTTON })
     expect(generateButton).toBeEnabled()
     fireEvent.click(generateButton)
 
@@ -1674,6 +1729,7 @@ describe('edit dialogs', () => {
         expect.objectContaining({
           prompt: expect.stringContaining('You are a Prompt Generator.'),
           content: 'Alpha Agent',
+          model: DEFAULT_PROMPT_MODEL,
           throwOnError: true
         })
       )
@@ -1688,7 +1744,7 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
 
     selectTab('System Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON }))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     selectTab('Basic')
 
@@ -2008,7 +2064,7 @@ describe('edit dialogs', () => {
 
     selectTab('System Prompt')
     await expectVariablesHelpOnOpen()
-    const polishButton = screen.getByRole('button', { name: 'Polish prompt' })
+    const polishButton = screen.getByRole('button', { name: POLISH_PROMPT_BUTTON })
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
     fireEvent.click(polishButton)
 
@@ -2016,6 +2072,7 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original prompt',
+      model: DEFAULT_PROMPT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
@@ -2032,20 +2089,21 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={{ ...ASSISTANT, prompt: '' }} onOpenChange={vi.fn()} />)
 
     selectTab('System Prompt')
-    const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
+    const generateButton = screen.getByRole('button', { name: GENERATE_PROMPT_BUTTON })
     fireEvent.click(generateButton)
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated prompt'))
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('You are a Prompt Generator.'),
       content: 'Alpha Assistant',
+      model: DEFAULT_PROMPT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
     expect(fetchGenerateMock.mock.calls[0][0].prompt).not.toContain(
       'Create a useful system prompt from the supplied name or title.'
     )
-    expect(screen.getByRole('button', { name: 'Polish prompt' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON })).toBeInTheDocument()
   })
 
   it('allows closing and tab navigation while an assistant prompt action is in flight', async () => {
@@ -2054,7 +2112,7 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
     selectTab('System Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON }))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     selectTab('Basic')
 
@@ -2707,4 +2765,108 @@ describe('edit dialogs', () => {
     })
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
+})
+
+describe('Agent configuration memory', () => {
+  const files = [
+    { key: 'soul', name: 'SOUL.md', content: 'Original persona' },
+    { key: 'user', name: 'USER.md', content: 'User details' },
+    { key: 'fact', name: 'FACT.md', content: 'Durable facts' },
+    { key: 'journal', name: 'JOURNAL.jsonl', content: '{"event":"remembered"}' }
+  ].map((file) => ({
+    ...file,
+    path: `/agents/agent-1/${file.name}`,
+    exists: true,
+    size: 20,
+    updatedAt: null,
+    version: 'v1',
+    truncated: false
+  }))
+
+  beforeEach(() => {
+    ipcRequestMock.mockImplementation(async (route: string, input: { key?: string; content?: string }) => {
+      if (route === 'agent.memory.read') return { directory: '/agents/agent-1', files }
+      if (route === 'agent.memory.write')
+        return { ...files.find((file) => file.key === input.key), content: input.content, version: 'v2' }
+      return undefined
+    })
+  })
+
+  function Harness() {
+    const [open, setOpen] = useState(true)
+    return <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} />
+  }
+
+  // Catches accidental autosaving of memory drafts through the Agent config form.
+  it('opens memory from configuration and saves only the explicitly submitted file revision', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('tab', { name: 'Memory' }))
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    const editor = screen.getByRole('textbox', { name: 'Edit SOUL.md' })
+    await user.clear(editor)
+    await user.type(editor, 'Updated persona')
+    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'agent.memory.write')).toEqual([])
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Edit SOUL.md' })).not.toBeInTheDocument())
+    expect(ipcRequestMock).toHaveBeenCalledWith('agent.memory.write', {
+      agentId: AGENT.id,
+      key: 'soul',
+      content: 'Updated persona',
+      expectedVersion: 'v1'
+    })
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('tab', { name: 'Event log' }))
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
+    expect(screen.getByText('{"event":"remembered"}')).toBeVisible()
+  })
+
+  it('keeps copy and folder actions available through the memory menu', async () => {
+    const user = userEvent.setup()
+    const writeClipboard = vi.spyOn(navigator.clipboard, 'writeText')
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="memory" />)
+    await screen.findByRole('tab', { name: 'Persona' })
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Copy content' }))
+    expect(writeClipboard).toHaveBeenCalledWith('Original persona')
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Open folder' }))
+    expect(ipcRequestMock).toHaveBeenCalledWith('agent.memory.open_folder', { agentId: AGENT.id })
+    writeClipboard.mockRestore()
+  })
+
+  // Catches losing an unsaved memory draft when switching files, changing tabs, or closing configuration.
+  it.each(['file', 'tab', 'close'] as const)(
+    'protects memory drafts on %s and leaves only after explicit discard',
+    async (destination) => {
+      const user = userEvent.setup()
+      render(<Harness />)
+      await user.click(screen.getByRole('tab', { name: 'Memory' }))
+      await user.click(await screen.findByRole('button', { name: 'Edit' }))
+      await user.type(screen.getByRole('textbox', { name: 'Edit SOUL.md' }), ' unsaved')
+      const leave = () =>
+        destination === 'file'
+          ? user.click(screen.getByRole('tab', { name: 'User profile' }))
+          : destination === 'tab'
+            ? user.click(screen.getByRole('tab', { name: 'Basic' }))
+            : user.keyboard('{Escape}')
+      await leave()
+      const confirmation = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })
+      await user.click(within(confirmation).getByRole('button', { name: 'Cancel' }))
+      expect(screen.getByRole('textbox', { name: 'Edit SOUL.md' })).toHaveValue('Original persona unsaved')
+      await leave()
+      await user.click(
+        within(await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })).getByRole('button', {
+          name: 'Discard changes'
+        })
+      )
+      await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Edit SOUL.md' })).not.toBeInTheDocument())
+      if (destination === 'tab')
+        expect(screen.getByRole('tab', { name: 'Basic' })).toHaveAttribute('aria-selected', 'true')
+      else if (destination === 'file')
+        expect(screen.getByRole('tab', { name: 'User profile' })).toHaveAttribute('aria-selected', 'true')
+      else expect(screen.queryByRole('dialog', { name: 'Edit Agent' })).not.toBeInTheDocument()
+      expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'agent.memory.write')).toEqual([])
+    }
+  )
 })

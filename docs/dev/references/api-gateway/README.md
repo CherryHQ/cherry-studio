@@ -18,6 +18,12 @@ plus Cherry REST and Streamable HTTP MCP endpoints. Compatible clients can point
 configured — Cherry becomes a universal translation gateway in front of every
 provider it knows.
 
+Every generation endpoint converts its inbound dialect to SDK messages, tools,
+and provider options, then makes one SDK call. The selected SDK provider adapter
+owns outgoing serialization and transport, including same-protocol requests.
+This preserves supported semantics, not arbitrary wire fields or byte identity.
+There is no separate raw HTTP branch.
+
 Generation requests route through main's `AiStreamManager` as equal,
 **non-persisting** subscribers (alongside the renderer's `WebContentsListener`
 and the IM `ChannelAdapterListener`), and the resulting `UIMessageChunk` stream
@@ -52,7 +58,7 @@ to enable it. It is disabled by default.
 | Use case | When the gateway is needed |
 |---|---|
 | Another local app uses Cherry Studio's models | Start it and give the app the gateway URL and API key. The gateway translates supported API protocols for the configured provider. |
-| An Agent needs a model bridge | Agent traffic uses the internal loopback listener, started on demand independently of the public gateway setting. Pi registers its native providers against this listener. |
+| An Agent uses a Cherry-managed model | Pi, Pi Durable and Claude Code use the internal loopback listener, started on demand independently of the public gateway setting. |
 | PDF translation | Cherry Studio starts the gateway temporarily for the translation task and releases it afterward. You do not need to enable it manually. |
 | A paired device connects to Cherry Studio | Start it, then allow network access in **Settings → Device Connections** and approve pairing. See [LAN exposure](#lan-exposure-is-confined-to-the-remote-access-upgrade) for the access boundary. |
 
@@ -111,7 +117,8 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── ApiGatewayService.ts             ← lifecycle owner, preference intent, internal listener, running-state reconciler
 ├── McpSessionStore.ts               ← bounded live Streamable HTTP MCP sessions
 ├── ModernMcpProxy.ts                ← MCP 2026-07-28 discovery, MRTR and subscriptions
-├── proxyStream.ts                   ← `processMessage()` — the core request → stream → response engine
+├── gatewayRequest.ts                ← trusted request options and admitted provider/endpoint resolution
+├── proxyStream.ts                   ← `processMessage()` — converter → single SDK call → response adapter
 ├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
 ├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)
 ├── providerExport.ts                ← provider/model export payload served to paired devices over remote access
@@ -255,6 +262,13 @@ internal requests; which Cloud models a feature may use is decided where the
 model is chosen, not here. Gateway requests run without Cherry's retries or
 fallback models, so a request is served only by the model it named.
 
+Internal Anthropic requests prefer Anthropic Messages when the model declares
+that endpoint and the provider configures it. This preserves native thinking
+signatures and tool replay for multi-protocol models. Otherwise normal endpoint
+resolution applies; public requests keep their configured default. Conversion
+and execution share the selected provider/model snapshot without changing the
+stored model catalog.
+
 ## Request flow (generation routes)
 
 The OpenAI, Anthropic, and Gemini generation routes call
@@ -273,7 +287,11 @@ The OpenAI, Anthropic, and Gemini generation routes call
 3. **Convert input.** `MessageConverterFactory.create(inputFormat, …)` returns
    the dialect's `IMessageConverter`, which yields:
    - `toUIMessages(params)` → AI SDK `UIMessage[]` (a system/instructions
-     prompt becomes a leading `role: 'system'` message).
+     prompt becomes a leading `role: 'system'` message). For Responses → Responses,
+     adapters supporting the provider option keep top-level `instructions` separate
+     from developer history, including an explicitly empty string. Open Responses
+     and xAI Responses instead retain the leading system message because their
+     SDK adapters derive instructions from messages.
    - `toAiSdkTools(params)` → a `ToolSet` of **client tools** (no `execute`):
      the model emits the call and the gateway forwards it to the caller.
    - `extractStreamOptions(params)` → sampling (`temperature`, `topP`,
@@ -289,7 +307,7 @@ The OpenAI, Anthropic, and Gemini generation routes call
    turns `UIMessageChunk`s into dialect events) and the `ISseFormatter` (event →
    SSE string).
 6. **Drive the stream.** With `streamId = "gateway-<uuid>"`, call
-   `AiStreamManager.streamPrompt({ streamId, uniqueModelId, messages, listener,
+   `AiStreamManager.streamPrompt({ streamId, uniqueModelId, resolvedModel, messages, listener,
    callOverrides, contextOwner: 'caller', idleTimeoutMs })`. Caller ownership
    keeps externally managed history out of Cherry's context-build and in-loop
    compaction middleware. This uses the **`promptStreamLifecycle`** — no status
@@ -349,6 +367,15 @@ startup buffer, aborts the manager execution, and does not surface a gateway
 error. The gateway never transparently retries after commitment because doing
 so could duplicate model output or tool side effects.
 
+Function tools use SDK `jsonSchema` directly; no JSON Schema → Zod reconstruction
+sits in the gateway. Shared compatibility middleware still removes unsupported
+keywords, repairs invalid `required: null`, and applies endpoint-specific rules.
+Anthropic input retains tool-result errors, tool choice, cache hints and cache
+boundaries. Explicit caller caching suppresses automatic marker placement;
+without caller hints, shared automatic caching remains enabled. Trusted reasoning
+overrides do not discard the caller's unrelated provider options. The pinned AI
+SDK patch preserves result metadata separately from tool-call metadata.
+
 ## Adapter system
 
 Two independent dialect axes, chosen by `inputFormat` / `outputFormat`:
@@ -361,6 +388,10 @@ Two independent dialect axes, chosen by `inputFormat` / `outputFormat`:
 
 The output formats are **`anthropic`**, **`openai`**, **`openai-responses`**, and **`gemini`**
 — the full `OutputFormat` union, each registered in `StreamAdapterFactory`.
+
+The terminal Gemini SSE frame and complete JSON response carry `responseId` equal to the
+adapter's billing identity. Native clients retain this ID so usage can bind to the root
+or child message after delivery, without guessing the active product reply.
 
 Adapters consume the AI SDK **`UIMessageChunk`** stream (not `fullStream`):
 
@@ -567,7 +598,11 @@ frames exclude AI-SDK stack, URL, and request/response diagnostic extras.
 - **Caller-owned history.** Gateway clients own their context. The gateway sets
   `contextOwner: 'caller'`, so Cherry does not truncate tool results, prune or
   window messages, or run summary compaction. Protocol conversion and provider
-  serialization still run normally.
+  serialization still run normally. Prompt assembly, deferred-tool discovery,
+  and Responses system-message removal apply only to Cherry-owned context.
+- **Caller-owned loop.** Gateway requests use single-step SDK `streamText` /
+  `generateText`, without `ToolLoopAgent`, local tool execution, AI tool repair,
+  generation retry, or model fallback. Application chat retains its loop.
 - **Assistant-agnostic.** No assistant/topic context. Sampling, client tools,
   and provider options ride as per-request `CallOverrides`.
 - **Main owns running state.** `feature.api_gateway.running` in the Shared Cache is
