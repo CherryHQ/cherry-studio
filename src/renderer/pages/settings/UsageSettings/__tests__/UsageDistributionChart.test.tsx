@@ -62,7 +62,7 @@ describe('UsageDistributionChart', () => {
     expect(first.timeline?.currentIndex).toBe(1)
 
     chartRender.mockClear()
-    rerender(<UsageDistributionChart {...props} />)
+    rerender(<UsageDistributionChart {...props} range={{ ...props.range }} />)
     await waitFor(() => expect(chartRender.mock.calls.length).toBeGreaterThan(0))
     const last = chartRender.mock.calls.at(-1)![0]
     if (last.type !== 'pie') throw new Error('Expected pie chart')
@@ -73,16 +73,47 @@ describe('UsageDistributionChart', () => {
     expect(last.data).toBe(first.data)
   })
 
-  it.each(['daily', 'total'] as const)('keeps bar options stable across parent rerenders (%s)', async (rollup) => {
-    const { rerender } = render(<UsageDistributionChart {...props} chartType="bar" rollup={rollup} />)
+  it.each([
+    ['bar', 'daily'],
+    ['bar', 'total'],
+    ['line', 'weekly']
+  ] as const)('keeps %s inputs stable across parent rerenders (%s)', async (chartType, rollup) => {
+    const { rerender } = render(<UsageDistributionChart {...props} chartType={chartType} rollup={rollup} />)
     await waitFor(() => expect(chartRender.mock.calls.length).toBeGreaterThan(0))
     const first = chartRender.mock.calls[0][0]
+    if (first.type === 'pie') throw new Error('Expected cartesian chart')
 
     chartRender.mockClear()
-    rerender(<UsageDistributionChart {...props} chartType="bar" rollup={rollup} />)
+    rerender(<UsageDistributionChart {...props} range={{ ...props.range }} chartType={chartType} rollup={rollup} />)
     await waitFor(() => expect(chartRender.mock.calls.length).toBeGreaterThan(0))
     const last = chartRender.mock.calls.at(-1)![0]
+    if (last.type === 'pie') throw new Error('Expected cartesian chart')
 
     expect(last.option).toBe(first.option)
+    expect(last.categories).toBe(first.categories)
+    expect(last.series).toBe(first.series)
+  })
+
+  it('updates pie labels and frames when their inputs change', async () => {
+    const { rerender } = render(<UsageDistributionChart {...props} />)
+    await waitFor(() => expect(chartRender.mock.calls.length).toBeGreaterThan(0))
+
+    rerender(
+      <UsageDistributionChart
+        {...props}
+        getBucketLabel={() => 'Renamed provider'}
+        exploreTimelineRows={[...timelineRows, { ...timelineRows[0], date: '2026-11-03', totalTokens: 400 }]}
+      />
+    )
+    const last = chartRender.mock.calls.at(-1)![0]
+    if (last.type !== 'pie') throw new Error('Expected pie chart')
+
+    expect(last.timeline?.currentIndex).toBe(2)
+    expect(last.timeline?.frames.map((frame) => frame.data)).toEqual([
+      [{ name: 'Renamed provider', value: 100 }],
+      [{ name: 'Renamed provider', value: 200 }],
+      [{ name: 'Renamed provider', value: 400 }]
+    ])
+    expect(last.data).toEqual([{ name: 'Renamed provider', value: 400 }])
   })
 })

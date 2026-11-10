@@ -399,54 +399,66 @@ function UsageSettings() {
     },
     [providerMap]
   )
-  const getProviderName = (id: string, snapshotName?: string | null) => getProviderInfo(id, snapshotName).name
-  const getApiKeyLabel = (apiKey: UsageApiKeyDisplay): string => {
-    if (apiKey.apiKeyAttribution === 'auth') {
-      return apiKey.authMethod
-        ? `${t('settings.usage.cards.providerAuth')} · ${apiKey.authMethod}`
-        : t('settings.usage.cards.providerAuth')
-    }
+  const getProviderName = useCallback(
+    (id: string, snapshotName?: string | null) => getProviderInfo(id, snapshotName).name,
+    [getProviderInfo]
+  )
+  const getApiKeyLabel = useCallback(
+    (apiKey: UsageApiKeyDisplay): string => {
+      if (apiKey.apiKeyAttribution === 'auth') {
+        return apiKey.authMethod
+          ? `${t('settings.usage.cards.providerAuth')} · ${apiKey.authMethod}`
+          : t('settings.usage.cards.providerAuth')
+      }
 
-    if (!apiKey.apiKeyId) {
-      return t('settings.usage.cards.unattributedApiKey')
-    }
+      if (!apiKey.apiKeyId) {
+        return t('settings.usage.cards.unattributedApiKey')
+      }
 
-    const keyLabel = apiKey.apiKeyLabel || apiKey.apiKeyMasked || apiKey.apiKeyId
-    const attributionLabel =
-      apiKey.apiKeyAttribution === 'matched'
-        ? t('settings.usage.cards.matchedApiKey')
-        : t('settings.usage.cards.explicitApiKey')
-    return `${keyLabel} · ${attributionLabel}`
-  }
-  const getSourceLabel = (bucket: AiUsageRecordGroupIdentity): string => {
-    if (!bucket.sourceType || !bucket.sourceId) {
-      return t('settings.usage.cards.unattributedSource')
-    }
+      const keyLabel = apiKey.apiKeyLabel || apiKey.apiKeyMasked || apiKey.apiKeyId
+      const attributionLabel =
+        apiKey.apiKeyAttribution === 'matched'
+          ? t('settings.usage.cards.matchedApiKey')
+          : t('settings.usage.cards.explicitApiKey')
+      return `${keyLabel} · ${attributionLabel}`
+    },
+    [t]
+  )
+  const getSourceLabel = useCallback(
+    (bucket: AiUsageRecordGroupIdentity): string => {
+      if (!bucket.sourceType || !bucket.sourceId) {
+        return t('settings.usage.cards.unattributedSource')
+      }
 
-    return bucket.sourceName || bucket.sourceId
-  }
-  const getBucketLabel = (bucket: AiUsageRecordGroupIdentity): string => {
-    if (groupBy === 'provider') {
-      return getProviderName(bucket.providerId ?? '', bucket.providerName)
-    }
+      return bucket.sourceName || bucket.sourceId
+    },
+    [t]
+  )
+  const getBucketLabel = useCallback(
+    (bucket: AiUsageRecordGroupIdentity): string => {
+      if (groupBy === 'provider') {
+        return getProviderName(bucket.providerId ?? '', bucket.providerName)
+      }
 
-    if (groupBy === 'model') {
-      const modelName = displayModelId(bucket.modelId)
-      return modelName || t('settings.usage.cards.none')
-    }
+      if (groupBy === 'model') {
+        const modelName = displayModelId(bucket.modelId)
+        return modelName || t('settings.usage.cards.none')
+      }
 
-    if (groupBy === 'source') {
-      return getSourceLabel(bucket)
-    }
+      if (groupBy === 'source') {
+        return getSourceLabel(bucket)
+      }
 
-    return getApiKeyLabel({
-      apiKeyId: bucket.apiKeyId ?? null,
-      apiKeyLabel: bucket.apiKeyLabel ?? null,
-      apiKeyMasked: bucket.apiKeyMasked ?? null,
-      apiKeyAttribution: bucket.apiKeyAttribution ?? 'unknown',
-      authMethod: bucket.authMethod ?? null
-    })
-  }
+      return getApiKeyLabel({
+        apiKeyId: bucket.apiKeyId ?? null,
+        apiKeyLabel: bucket.apiKeyLabel ?? null,
+        apiKeyMasked: bucket.apiKeyMasked ?? null,
+        apiKeyAttribution: bucket.apiKeyAttribution ?? 'unknown',
+        authMethod: bucket.authMethod ?? null
+      })
+    },
+    [getApiKeyLabel, getProviderName, getSourceLabel, groupBy, t]
+  )
 
   const formatChartValue = (value: number) =>
     chartMetric === 'cost' ? formatCost(value, exploreTotals.costCurrency) : formatCompactNumber(value)

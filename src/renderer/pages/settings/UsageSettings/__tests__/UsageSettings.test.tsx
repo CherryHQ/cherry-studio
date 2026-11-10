@@ -1,25 +1,31 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type { ChartProps } from '@renderer/components/Chart'
 
 import { EMPTY_STATS_METRICS } from '../usageAnalytics'
 import UsageSettings from '../UsageSettings'
 
 const usageDataOverride = vi.hoisted(() => ({ current: {} as Record<string, unknown> }))
+const { chartRender } = vi.hoisted(() => ({ chartRender: vi.fn<(props: ChartProps) => void>() }))
 
 vi.unmock('@data/hooks/useCache')
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] })
-}))
+vi.mock('@renderer/hooks/useProvider', () => {
+  const providers: [] = []
+  return { useProviders: () => ({ providers }) }
+})
 
 vi.mock('@renderer/components/Chart', () => ({
-  Chart: () => null
+  Chart: (props: ChartProps) => {
+    chartRender(props)
+    return null
+  }
 }))
 
 vi.mock('../UsageEntriesTable', () => ({
@@ -42,24 +48,25 @@ vi.mock('../useUsageData', () => {
     unpricedRequestCount: 0
   }
 
+  const data = {
+    costTotals: [],
+    costCurrency: undefined,
+    timelineBuckets: [],
+    overviewBuckets: [],
+    exploreBuckets: [],
+    exploreTimelineRows: [],
+    overviewTotals: totals,
+    previousOverviewTotals: totals,
+    exploreTotals: totals,
+    exploreOther: totals,
+    timelineLoading: false,
+    overviewLoading: false,
+    exploreStatsLoading: false,
+    exploreTimelineLoading: false
+  }
+
   return {
-    useUsageData: () => ({
-      costTotals: [],
-      costCurrency: undefined,
-      timelineBuckets: [],
-      overviewBuckets: [],
-      exploreBuckets: [],
-      exploreTimelineRows: [],
-      overviewTotals: totals,
-      previousOverviewTotals: totals,
-      exploreTotals: totals,
-      exploreOther: totals,
-      timelineLoading: false,
-      overviewLoading: false,
-      exploreStatsLoading: false,
-      exploreTimelineLoading: false,
-      ...usageDataOverride.current
-    }),
+    useUsageData: () => ({ ...data, ...usageDataOverride.current }),
     useUsageEntriesData: () => ({
       entries: [],
       total: 0,
@@ -300,6 +307,7 @@ async function selectUsageExport(format: 'PNG' | 'XLSX') {
 
 describe('UsageSettings export', () => {
   beforeEach(async () => {
+    chartRender.mockClear()
     MockCacheUtils.resetMocks()
     usageDataOverride.current = { aggregateReady: true, aggregateError: false }
     const hooks = await import('../useUsageData')
@@ -320,6 +328,64 @@ describe('UsageSettings export', () => {
     const { mockDataApiService } = await import('@test-mocks/renderer/DataApiService')
     mockDataApiService.get.mockReset().mockResolvedValue({ items: [], total: 0 })
   })
+
+  it.each(['provider', 'model', 'source', 'apiKey'] as const)(
+    'preserves pie timeline inputs when PNG export starts and finishes (grouped by %s)',
+    async (groupBy) => {
+      MockCacheUtils.setInitialState({
+        persist: [
+          ['settings.usage.chart_type', 'pie'],
+          ['settings.usage.group_by', groupBy]
+        ]
+      })
+      const row = {
+        ...EMPTY_STATS_METRICS,
+        date: new Date().toLocaleDateString('en-CA'),
+        providerId: 'provider',
+        providerName: 'Provider',
+        modelId: 'model',
+        totalTokens: 120,
+        requestCount: 1
+      }
+      usageDataOverride.current = {
+        ...usageDataOverride.current,
+        timelineBuckets: [row],
+        exploreTimelineRows: [row]
+      }
+      const pending = Promise.withResolvers<string>()
+      usageExportMocks.capture.mockReturnValue(pending.promise)
+      render(<UsageSettings />)
+      await waitFor(() => expect(chartRender.mock.calls.length).toBeGreaterThan(0))
+      const initial = chartRender.mock.calls.at(-1)![0]
+      if (initial.type !== 'pie') throw new Error('Expected pie chart')
+      expect(initial.data).toEqual([{ name: expect.any(String), value: 120 }])
+      expect(initial.timeline?.frames.length).toBeGreaterThan(1)
+
+      chartRender.mockClear()
+      await selectUsageExport('PNG')
+      expect(screen.getByRole('button', { name: '导出', exact: true })).toBeDisabled()
+      const starting = chartRender.mock.calls.map(([props]) => props)
+      expect(starting.length).toBeGreaterThan(0)
+
+      chartRender.mockClear()
+      await act(async () => pending.resolve('data:image/png;base64,aW1hZ2U='))
+      await waitFor(() => expect(screen.getByRole('button', { name: '导出', exact: true })).toBeEnabled())
+      const finished = chartRender.mock.calls.map(([props]) => props)
+      expect(finished.length).toBeGreaterThan(0)
+
+      for (const [stage, renders] of [
+        ['starting', starting],
+        ['finished', finished]
+      ] as const) {
+        for (const props of renders) {
+          if (props.type !== 'pie') throw new Error('Expected pie chart')
+          expect.soft(props.option, `${stage}: option reference`).toBe(initial.option)
+          expect.soft(props.timeline, `${stage}: timeline reference`).toBe(initial.timeline)
+          expect.soft(props.data, `${stage}: data reference`).toBe(initial.data)
+        }
+      }
+    }
+  )
 
   it('captures the usage root and saves PNG with one extension and a success notice', async () => {
     const { waitFor } = await import('@testing-library/react')

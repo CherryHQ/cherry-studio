@@ -88,13 +88,13 @@ export function UsageDistributionChart({
     if (rollup === 'total') return ['total']
     const keys: string[] = []
 
-    for (const point of getTimelinePoints(timelineBuckets, range, () => 0)) {
+    for (const point of getTimelinePoints(timelineBuckets, { from: range.from, to: range.to }, () => 0)) {
       const key = toPeriodKey(point.date, rollup, firstDayOfWeek)
       if (keys[keys.length - 1] !== key) keys.push(key)
     }
 
     return keys
-  }, [firstDayOfWeek, range, rollup, timelineBuckets])
+  }, [firstDayOfWeek, range.from, range.to, rollup, timelineBuckets])
   const chartSeries = useMemo(
     () =>
       rollup === 'total'
@@ -118,12 +118,10 @@ export function UsageDistributionChart({
       topCount
     ]
   )
+  const valueCurrency = rollup === 'total' ? exploreTotals.costCurrency : costCurrency
   const formatChartValue = useCallback(
-    (value: number) =>
-      chartMetric === 'cost'
-        ? formatCost(value, rollup === 'total' ? exploreTotals.costCurrency : costCurrency)
-        : formatCompactNumber(value),
-    [chartMetric, costCurrency, exploreTotals.costCurrency, rollup]
+    (value: number) => (chartMetric === 'cost' ? formatCost(value, valueCurrency) : formatCompactNumber(value)),
+    [chartMetric, valueCurrency]
   )
   const formatPeriod = useCallback(
     (periodKey: string) => {
@@ -192,6 +190,17 @@ export function UsageDistributionChart({
     }),
     [chartMetric, chartType, formatChartValue, rollup, tooltip]
   )
+  const categories = useMemo(
+    () => (rollup === 'total' ? names : periodKeys.map(formatPeriod)),
+    [formatPeriod, names, periodKeys, rollup]
+  )
+  const series = useMemo(
+    () =>
+      rollup === 'total'
+        ? [{ name: t(METRIC_LABEL_KEYS[chartMetric]), values: chartSeries.map((item) => item.total) }]
+        : chartSeries.map((item, index) => ({ id: item.key, name: names[index], values: item.values })),
+    [chartMetric, chartSeries, names, rollup, t]
+  )
   const isEmpty = periodKeys.length === 0 || chartSeries.every((series) => series.total <= 0)
 
   const isLoading = rollup === 'total' ? exploreStatsLoading : exploreTimelineLoading
@@ -256,8 +265,8 @@ export function UsageDistributionChart({
                   type="bar"
                   ariaLabel={t(CHART_TYPE_LABEL_KEYS.bar)}
                   className="h-80"
-                  categories={names}
-                  series={[{ name: t(METRIC_LABEL_KEYS[chartMetric]), values: chartSeries.map((item) => item.total) }]}
+                  categories={categories}
+                  series={series}
                   option={cartesianOption}
                 />
               )}
@@ -287,19 +296,13 @@ export function UsageDistributionChart({
     )
   }
 
-  const series = chartSeries.map((item, index) => ({
-    id: item.key,
-    name: names[index],
-    values: item.values
-  }))
-
   return (
     <div data-usage-export-chart data-usage-export-chart-pending={isLoading || undefined} className="min-w-0 p-3">
       <Suspense fallback={<Skeleton data-usage-export-chart-pending className="h-80 rounded-md" />}>
         <Chart
           type={chartType}
           ariaLabel={t(CHART_TYPE_LABEL_KEYS[chartType])}
-          categories={periodKeys.map(formatPeriod)}
+          categories={categories}
           className="h-80"
           loading={exploreTimelineLoading}
           loadingLabel={t('settings.usage.explore.loading')}
