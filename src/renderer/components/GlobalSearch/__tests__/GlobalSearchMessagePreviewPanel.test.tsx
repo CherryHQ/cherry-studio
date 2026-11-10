@@ -27,14 +27,6 @@ const mocks = vi.hoisted(() => ({
 }))
 const flatItemsCache = vi.hoisted(() => new WeakMap<any[], Map<string, any[]>>())
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, type = 'button', ...props }: any) => (
-    <button type={type} {...props}>
-      {children}
-    </button>
-  )
-}))
-
 vi.mock('@data/hooks/useDataApi', () => ({
   useInfiniteQuery: (...args: unknown[]) => mocks.useInfiniteQuery(...args),
   useInfiniteFlatItems: (pages: any[] = [], options?: { reversePages?: boolean; reverseItems?: boolean }) => {

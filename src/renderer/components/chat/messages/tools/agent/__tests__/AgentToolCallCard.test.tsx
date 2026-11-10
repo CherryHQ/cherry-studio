@@ -33,7 +33,7 @@ describe('AgentToolCallCard failure details', () => {
     const { rerender } = render(
       <AgentToolCallCard toolCallId="call-1" toolName="Mystery" output="disk failed" hasError />
     )
-    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     const first = detailMocks.open.mock.calls.at(-1)?.[0]
     expect(first.localizedErrorMessage ?? first.message).toBe('message.tools.error')
@@ -44,7 +44,7 @@ describe('AgentToolCallCard failure details', () => {
 
     detailMocks.open.mockClear()
     rerender(<AgentToolCallCard toolCallId="call-1" toolName="Mystery" output="disk failed" hasError />)
-    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     const again = detailMocks.open.mock.calls.at(-1)?.[0]
     expect(again.error).toBe('disk failed')
@@ -52,7 +52,7 @@ describe('AgentToolCallCard failure details', () => {
 
     rerender(<AgentToolCallCard toolCallId="call-2" toolName="Mystery" output="other failure" hasError />)
     detailMocks.open.mockClear()
-    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     const second = detailMocks.open.mock.calls.at(-1)?.[0]
     expect(second.context?.recordId ?? second.recordId).toBe('call-2')
@@ -61,7 +61,7 @@ describe('AgentToolCallCard failure details', () => {
     expect(second).not.toBe(first)
 
     rerender(<AgentToolCallCard toolCallId="call-2" toolName="Mystery" output="ok" status="done" />)
-    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
   })
 
   it('keeps the open-flow control free of a nested details button', async () => {
@@ -76,7 +76,7 @@ describe('AgentToolCallCard failure details', () => {
       />
     )
     const flow = screen.getByRole('button', { name: /Inspect files/ })
-    const details = screen.getByRole('button', { name: 'error.details' })
+    const details = screen.getByRole('button', { name: 'common.detail' })
     expect(flow.contains(details)).toBe(false)
     fireEvent.click(details)
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
