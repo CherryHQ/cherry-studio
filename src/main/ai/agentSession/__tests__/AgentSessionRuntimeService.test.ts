@@ -4148,7 +4148,7 @@ describe('AgentSessionRuntimeService', () => {
       mocks.startRuntimeTurn.mockClear()
       // The detach's provenance names A's reply, so the wake continues it instead of folding into the
       // reply B's accepted input currently holds.
-      ;(entry as any).currentTurn.projection = wakeProjection('assistant-1')
+      entry.currentTurn.projection = wakeProjection('assistant-1')
       ;(service as any).handleRuntimeEvent(
         entry,
         {
@@ -4229,7 +4229,7 @@ describe('AgentSessionRuntimeService', () => {
       mocks.startRuntimeTurn.mockClear()
       // The detach's provenance names A's reply, so the wake continues it instead of folding into the
       // reply B's accepted input currently holds.
-      ;(entry as any).currentTurn.projection = wakeProjection('assistant-1')
+      entry.currentTurn.projection = wakeProjection('assistant-1')
       ;(service as any).handleRuntimeEvent(
         entry,
         {
