@@ -1636,6 +1636,7 @@
   "error.update_banner.downloading": "Yeni sürüm {{version}} indiriliyor",
   "error.update_banner.failed": "Güncellemeler denetlenemedi. En son sürümü resmi web sitesinden indirebilirsiniz.",
   "error.update_banner.open_releases": "İndirme sayfasını aç",
+  "error.update_check.hint": "Daha yeni bir sürüm bu hatayı zaten düzeltmiş olabilir.",
   "error.usage": "Kullanım",
   "error.user_message_not_found": "Yeniden gönderilecek özgün kullanıcı mesajı bulunamıyor",
   "error.value": "Değer",

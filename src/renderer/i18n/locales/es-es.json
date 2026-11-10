@@ -1636,6 +1636,7 @@
   "error.update_banner.downloading": "Descargando la nueva versión {{version}}",
   "error.update_banner.failed": "No se pudo comprobar si hay actualizaciones. Puedes descargar la última versión desde el sitio web oficial.",
   "error.update_banner.open_releases": "Abrir página de descargas",
+  "error.update_check.hint": "Puede que una versión más reciente ya corrija este error.",
   "error.usage": "Cantidad de uso",
   "error.user_message_not_found": "No se pudo encontrar el mensaje original del usuario",
   "error.value": "Valor",

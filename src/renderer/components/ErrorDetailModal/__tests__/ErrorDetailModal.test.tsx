@@ -184,6 +184,7 @@ const translations: Record<string, string> = {
   'settings.doctor.status.warn': 'Warning',
   'chat.artifacts.preview.openExternal.error.content': 'Error opening the external browser.',
   'settings.about.checkUpdate.label': 'Check Update',
+  'error.update_check.hint': 'A newer version may already fix this error.',
   'error.update_banner.failed':
     "Couldn't check for updates. You can download the latest version from the official website.",
   'error.update_banner.open_releases': 'Open download page',
@@ -1346,5 +1347,21 @@ describe('ErrorDetailContent diagnostics', () => {
       window.removeEventListener('unhandledrejection', onWindowRejection)
       process.off('unhandledRejection', onProcessRejection)
     }
+  })
+})
+
+describe('ErrorDetailContent update check', () => {
+  it('explains on hover why checking for updates can help with this error', async () => {
+    const user = userEvent.setup()
+    renderErrorDetailContent({ error: providerError })
+
+    await user.hover(screen.getByRole('button', { name: 'Check Update' }))
+
+    // Another control's tooltip can still be closing, so look among all open tooltips.
+    await waitFor(() =>
+      expect(screen.getAllByRole('tooltip').map((tooltip) => tooltip.textContent)).toContain(
+        'A newer version may already fix this error.'
+      )
+    )
   })
 })

@@ -1636,6 +1636,7 @@
   "error.update_banner.downloading": "正在下載新版本 {{version}}",
   "error.update_banner.failed": "檢查更新失敗，可以到官網下載最新版本。",
   "error.update_banner.open_releases": "開啟官網下載頁",
+  "error.update_check.hint": "新版本可能已修正此問題",
   "error.usage": "用量",
   "error.user_message_not_found": "無法找到原始使用者訊息",
   "error.value": "值",

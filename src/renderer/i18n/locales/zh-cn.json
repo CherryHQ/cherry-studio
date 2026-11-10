@@ -1636,6 +1636,7 @@
   "error.update_banner.downloading": "正在下载新版本 {{version}}",
   "error.update_banner.failed": "检查更新失败，可以到官网下载最新版本。",
   "error.update_banner.open_releases": "打开官网下载页",
+  "error.update_check.hint": "新版本可能已修复此问题",
   "error.usage": "用量",
   "error.user_message_not_found": "无法找到原始用户消息",
   "error.value": "值",

@@ -1636,6 +1636,7 @@
   "error.update_banner.downloading": "Đang tải phiên bản mới {{version}}",
   "error.update_banner.failed": "Không thể kiểm tra bản cập nhật. Bạn có thể tải phiên bản mới nhất từ trang web chính thức.",
   "error.update_banner.open_releases": "Mở trang tải xuống",
+  "error.update_check.hint": "Phiên bản mới hơn có thể đã sửa lỗi này.",
   "error.usage": "Utilización",
   "error.user_message_not_found": "Không tìm thấy tin nhắn gốc để gửi lại",
   "error.value": "Giá trị",

@@ -1636,6 +1636,7 @@
   "error.update_banner.downloading": "กำลังดาวน์โหลดเวอร์ชันใหม่ {{version}}",
   "error.update_banner.failed": "ตรวจสอบการอัปเดตไม่สำเร็จ คุณสามารถดาวน์โหลดเวอร์ชันล่าสุดได้จากเว็บไซต์ทางการ",
   "error.update_banner.open_releases": "เปิดหน้าดาวน์โหลด",
+  "error.update_check.hint": "เวอร์ชันใหม่อาจแก้ไขข้อผิดพลาดนี้แล้ว",
   "error.usage": "การใช้งาน",
   "error.user_message_not_found": "ไม่พบข้อความผู้ใช้ต้นฉบับที่จะส่งอีกครั้ง",
   "error.value": "ค่า",

@@ -1636,6 +1636,7 @@
   "error.update_banner.downloading": "新しいバージョン {{version}} をダウンロード中",
   "error.update_banner.failed": "アップデートを確認できませんでした。公式サイトから最新版をダウンロードできます。",
   "error.update_banner.open_releases": "ダウンロードページを開く",
+  "error.update_check.hint": "新しいバージョンで修正されている可能性があります。",
   "error.usage": "用量",
   "error.user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
   "error.value": "値",
