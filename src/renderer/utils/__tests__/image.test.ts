@@ -62,6 +62,22 @@ const readBlobBytes = (blob: Blob) =>
     reader.readAsArrayBuffer(blob)
   })
 
+// jsdom never decodes images, so the settle wait would ride its timeout cap;
+// settle each swapped-in src on the next macrotask the way a browser decode would.
+const armJsdomImageSettle = (root: HTMLElement) => {
+  for (const img of root.querySelectorAll('img')) {
+    // The initial page image is loaded; source swaps still emit their own load event.
+    Object.defineProperty(img, 'complete', { value: true, configurable: true })
+    const observer = new MutationObserver(() => {
+      if ((img.getAttribute('src') ?? '').startsWith('data:')) {
+        observer.disconnect()
+        setTimeout(() => img.dispatchEvent(new Event('load')), 0)
+      }
+    })
+    observer.observe(img, { attributes: true, attributeFilter: ['src'] })
+  }
+}
+
 describe('utils/image', () => {
   describe('transformImageToPng', () => {
     const sourcePixels = [
@@ -377,6 +393,7 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
+      armJsdomImageSettle(div)
 
       await expect(captureScrollable(ref)).resolves.toBe(finalCanvas)
 
@@ -405,6 +422,7 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
+      armJsdomImageSettle(div)
 
       await captureScrollable(ref)
 
@@ -458,6 +476,7 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
+      armJsdomImageSettle(div)
 
       await expect(captureScrollable(ref)).rejects.toThrow('capture failed')
 
@@ -580,22 +599,6 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       div.appendChild(img)
       return div
-    }
-
-    // jsdom never decodes images, so the settle wait would ride its timeout cap;
-    // settle each swapped-in src on the next macrotask the way a browser decode would.
-    const armJsdomImageSettle = (root: HTMLElement) => {
-      for (const img of root.querySelectorAll('img')) {
-        // The initial page image is loaded; source swaps still emit their own load event.
-        Object.defineProperty(img, 'complete', { value: true, configurable: true })
-        const observer = new MutationObserver(() => {
-          if ((img.getAttribute('src') ?? '').startsWith('data:')) {
-            observer.disconnect()
-            setTimeout(() => img.dispatchEvent(new Event('load')), 0)
-          }
-        })
-        observer.observe(img, { attributes: true, attributeFilter: ['src'] })
-      }
     }
 
     const captureWithRasterSpy = async (root: HTMLDivElement) => {
