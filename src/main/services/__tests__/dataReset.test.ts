@@ -528,7 +528,7 @@ describe('runDataReset', () => {
     expect(markerExists()).toBe(false)
     expect(showMessageBoxMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        buttons: ['dialog.support.close', 'dialog.support.copy', 'dialog.support.feedback', 'dialog.support.releases'],
+        buttons: ['dialog.support.close', 'dialog.support.copy_and_feedback', 'dialog.support.releases'],
         message: 'dialog.data_reset.cancelled.message',
         title: 'dialog.data_reset.cancelled.title'
       })
