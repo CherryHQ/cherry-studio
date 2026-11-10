@@ -198,7 +198,7 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
       })
     })
 
-    await user.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    await user.click(await screen.findByRole('button', { name: i18n.t('error.diagnosis.view_details') }))
     expect(openAppErrorDetail).toHaveBeenCalledWith(
       expect.objectContaining({
         error: expect.objectContaining({ message: 'disk full', name: 'Error' }),
@@ -221,7 +221,7 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
       void popup.error({ content: 'Disk is full.', title: 'Backup failed' })
     })
 
-    await user.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    await user.click(await screen.findByRole('button', { name: i18n.t('error.diagnosis.view_details') }))
     expect(openAppErrorDetail).toHaveBeenCalledWith(expect.objectContaining({ localizedErrorMessage: 'Backup failed' }))
     expect(screen.getByRole('button', { name: i18n.t('common.confirm') })).toBeInTheDocument()
   })
@@ -238,7 +238,7 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
       })
     })
 
-    await user.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    await user.click(await screen.findByRole('button', { name: i18n.t('error.diagnosis.view_details') }))
     expect(openAppErrorDetail).toHaveBeenCalledWith(
       expect.objectContaining({
         error: expect.objectContaining({ message: 'disk full' }),

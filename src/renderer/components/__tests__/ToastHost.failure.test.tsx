@@ -37,7 +37,7 @@ describe('ToastHost chunk failure', () => {
     act(() => {
       viewportToast.error({ cause: new Error('first'), title: 'Failed' })
     })
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     expect(toast.error).toHaveBeenCalledWith(
       expect.objectContaining({

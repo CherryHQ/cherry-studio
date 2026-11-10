@@ -1,7 +1,7 @@
 import { getToastUtilities, type ToastLabels } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
-import { isAbortError, providerErrorText } from '@renderer/utils/error'
+import { isAbortError } from '@renderer/utils/error'
 import { classifyError, type ErrorCategory } from '@renderer/utils/errorClassifier'
 import {
   type ErrorToastAction,
@@ -54,7 +54,6 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const cloudPresentation = getCherryCloudErrorPresentation(serialized, provider?.id, category)
   const planQuota = cloudPresentation.quota
   const presentation: ErrorToastPresentation = planQuota ? { type: 'warning' } : errorToastPresentations[category]
-  const details = planQuota ? cloudPresentation.text : providerErrorText(serialized)
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
     : undefined
@@ -71,11 +70,8 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const diagnosisKey = `error.diagnosis.${category}`
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
-  const title = planQuota
-    ? i18n.t('models.detail.quota_insufficient_for_request')
-    : category === 'unknown'
-      ? details || i18n.t('error.unknown')
-      : i18n.t(diagnosisKey)
+  // Provider wording never becomes the title; it stays reachable through `cause` in the detail modal.
+  const title = planQuota ? i18n.t('models.detail.quota_insufficient_for_request') : i18n.t(diagnosisKey)
   let running = false
   const key = notifications[presentation.type]({
     key: context.key,
@@ -90,7 +86,8 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
       ]
         .filter(Boolean)
         .join(' · ') || undefined,
-    details: category === 'unknown' ? undefined : details,
+    // Cherry's own quota message carries the server's retry estimate, so it stays visible.
+    details: planQuota ? cloudPresentation.text : undefined,
     cause: error,
     data: {
       source: context.mcpServer ? 'mcp' : provider ? 'provider' : 'toast',

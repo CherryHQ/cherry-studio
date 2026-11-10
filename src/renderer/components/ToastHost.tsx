@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, type ToastRecord, ToastViewport } from '@cherrystudio/ui'
+import { type ToastRecord, ToastViewport } from '@cherrystudio/ui'
+import { ErrorDetailLink } from '@renderer/components/ErrorDetailLink'
 import {
   detailErrorFromHost,
   isDetailSuppressed,
@@ -48,11 +49,7 @@ function ToastErrorDetail({ toast }: { readonly toast: ToastRecord }) {
   // Freeze identity, time, and origin when the toast is shown. A later click reuses this snapshot.
   const context = appErrorContextService.contextForHostError(String(toast.occurrence), toast)
   return (
-    <Button
-      type="button"
-      className="shrink-0"
-      size="sm"
-      variant="link"
+    <ErrorDetailLink
       onClick={(event) => {
         event.stopPropagation()
         const error = detailErrorFromHost(toast.cause, toast.data)
@@ -60,8 +57,7 @@ function ToastErrorDetail({ toast }: { readonly toast: ToastRecord }) {
           localizedSummaryFromHost({ data: toast.data, description: toast.description, title: toast.title }) ??
           t('error.unexpected')
         openLoadedErrorDetail(error ? { context, error, localizedErrorMessage } : { context, localizedErrorMessage })
-      }}>
-      {t('error.details')}
-    </Button>
+      }}
+    />
   )
 }

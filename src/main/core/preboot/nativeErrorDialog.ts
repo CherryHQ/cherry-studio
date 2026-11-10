@@ -25,32 +25,36 @@ interface SupportedDialogInput {
   readonly action?: SupportedDialogAction
 }
 
+/** Native dialogs stack every button; past four they stop reading as a choice. */
+const MAX_BUTTONS = 4
+
+/** Caller action first, then support, trimmed so the whole row stays within MAX_BUTTONS. */
 function supportActions(
   input: SupportedDialogInput,
-  language: DialogLanguage
-): Array<{ label: string; run: () => Promise<void> }> {
-  const actions = [
-    {
-      label: t('dialog.support.copy', undefined, language),
-      run: async () => {
+  language: DialogLanguage,
+  primaryLength: number
+): SupportedDialogAction[] {
+  const copyAndFeedback: SupportedDialogAction = {
+    label: t('dialog.support.copy_and_feedback', undefined, language),
+    run: async () => {
+      let copyError: unknown
+      try {
         await clipboard.writeText(input.technicalDetail ?? input.box.message)
+      } catch (error) {
+        copyError = error
       }
-    },
-    {
-      label: t('dialog.support.feedback', undefined, language),
-      run: async () => {
-        await shell.openExternal(FEEDBACK_URL)
-      }
-    },
-    {
-      label: t('dialog.support.releases', undefined, language),
-      run: async () => {
-        await shell.openExternal(OFFICIAL_RELEASES_URL)
-      }
+      await shell.openExternal(FEEDBACK_URL)
+      if (copyError) throw copyError
     }
-  ]
-  if (input.action) actions.push(input.action)
-  return actions
+  }
+  const releases: SupportedDialogAction = {
+    label: t('dialog.support.releases', undefined, language),
+    run: async () => {
+      await shell.openExternal(OFFICIAL_RELEASES_URL)
+    }
+  }
+  const actions = input.action ? [input.action, copyAndFeedback, releases] : [copyAndFeedback, releases]
+  return actions.slice(0, Math.max(0, MAX_BUTTONS - primaryLength))
 }
 
 function failureLine(language: DialogLanguage): string {
@@ -63,27 +67,25 @@ function cancelIndex(cancelId: number | undefined, primaryLength: number): numbe
 }
 
 /**
- * Show the original dialog, then Copy / Feedback / Releases, plus one caller action
- * when that caller supplied one. Support choices loop back to the same dialog.
- * The returned index is always one of the original buttons. A response outside
- * that set returns the original cancel button and does not ask again.
- * Analysis is unavailable on this path; the detail says so. Technical text is
- * copied on request and is not placed on the dialog options.
+ * Show the original dialog, then the caller action (if any), "Copy error and send
+ * feedback", and "Open download page", capped at four buttons in total. Support
+ * choices loop back to the same dialog. The returned index is always one of the
+ * original buttons. A response outside that set returns the original cancel
+ * button and does not ask again. Technical text is copied on request and is not
+ * placed on the dialog options.
  */
 export async function showSupportedMessageBox(input: SupportedDialogInput): Promise<number> {
   if (typeof app.isReady === 'function' && !app.isReady()) await app.whenReady()
   const language = input.language ?? resolveSystemLanguage(app.getLocale())
   const primary = input.box.buttons ?? [t('dialog.support.ok', undefined, language)]
-  const support = supportActions(input, language)
+  const support = supportActions(input, language, primary.length)
   const cancelId = cancelIndex(input.box.cancelId, primary.length)
-  const analysis = t('dialog.support.analysis_unavailable', undefined, language)
   let failure = ''
   for (;;) {
-    const baseDetail = [input.box.detail, analysis].filter(Boolean).join('\n\n')
     const result = await dialog.showMessageBox({
       ...input.box,
       buttons: [...primary, ...support.map((item) => item.label)],
-      detail: failure ? [baseDetail, failure].filter(Boolean).join('\n\n') : baseDetail
+      detail: failure ? [input.box.detail, failure].filter(Boolean).join('\n\n') : input.box.detail
     })
     const response = result?.response
     const supportIndex = typeof response === 'number' ? response - primary.length : -1

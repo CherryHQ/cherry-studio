@@ -12,6 +12,7 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { ErrorDetailLink } from '@renderer/components/ErrorDetailLink'
 import i18n from '@renderer/i18n/resolver'
 import {
   detailErrorFromHost,
@@ -171,10 +172,9 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
         {(showOkButton || showCancelButton || showDetails) && (
           <DialogFooter>
             {showDetails ? (
-              <Button
-                type="button"
-                variant="link"
+              <ErrorDetailLink
                 className="me-auto"
+                label={i18n.t('error.diagnosis.view_details')}
                 onClick={(event) => {
                   event.preventDefault()
                   if (!presentedContext) return
@@ -187,9 +187,8 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
                       ? { context: presentedContext, error, localizedErrorMessage }
                       : { context: presentedContext, localizedErrorMessage }
                   )
-                }}>
-                {i18n.t('error.details')}
-              </Button>
+                }}
+              />
             ) : null}
             {showCancelButton && (
               <Button

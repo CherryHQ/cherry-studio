@@ -364,7 +364,7 @@ export const ToastProvider = ({ children, labels }: { children: React.ReactNode;
 )
 
 const typeIconMap: Record<ToastType, React.ReactNode> = {
-  error: <AlertCircle className="size-4 text-destructive" />,
+  error: <AlertCircle className="size-4 text-error" />,
   success: <CheckCircle2 className="size-4 text-success" />,
   warning: <AlertTriangle className="size-4 text-warning" />,
   info: <Info className="size-4 text-info" />,
@@ -393,8 +393,18 @@ const ToastItem = ({
   const extra = renderExtra?.(toast)
   const action = toast.action
   const secondaryAction = toast.secondaryAction
+  const hasActions = Boolean(action || secondaryAction)
   const icon = toast.icon ?? typeIconMap[toast.type]
   const a11yProps = getToastA11yProps(toast.type)
+  // The host extra always ends the last row: the description row, or the action row when there is one.
+  const extraSlot = extra ? <div className="ml-auto flex shrink-0 items-center">{extra}</div> : null
+  const showMetaRow = Boolean(toast.description) || (extraSlot !== null && !hasActions)
+
+  const runAction = (event: React.MouseEvent, item: ToastAction) => {
+    event.stopPropagation()
+    store.remove(toast.key)
+    void item.onClick()
+  }
 
   return (
     <div
@@ -402,90 +412,78 @@ const ToastItem = ({
       className={cn(
         // no-drag punches the popup's area out of any titlebar drag region it overlaps,
         // so hover/click reach the items instead of the window-drag hit test (Electron).
-        'pointer-events-auto flex w-[min(420px,calc(100vw-2rem))] flex-col gap-2 [-webkit-app-region:no-drag]',
+        'group pointer-events-auto flex w-[min(420px,calc(100vw-2rem))] items-start gap-3 [-webkit-app-region:no-drag]',
         'rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-lg',
-        (action || secondaryAction || extra) && 'w-[min(480px,calc(100vw-2rem))]',
+        (hasActions || extra) && 'w-[min(480px,calc(100vw-2rem))]',
         toast.className
       )}
       style={toast.style}
       onClick={toast.onClick}>
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="flex min-h-7 shrink-0 items-center justify-center">{icon}</div>
-        <div className="min-w-0 flex-1">
-          {toast.title && (
-            <div
-              title={typeof toast.title === 'string' ? toast.title : undefined}
-              className="line-clamp-3 py-1 text-sm leading-5 font-medium break-words">
-              {toast.title}
-            </div>
-          )}
-          {toast.description && (
-            <div
-              className={cn(
-                'text-xs leading-5 break-words text-muted-foreground',
-                (toast.title || !action) && 'mt-0.5',
-                action && !toast.title && 'min-h-7 py-1'
-              )}>
-              {toast.description}
-            </div>
-          )}
-          {toast.details && (
-            <details className="mt-1 text-xs text-muted-foreground" onClick={(event) => event.stopPropagation()}>
-              <summary className="cursor-pointer" title={toast.details}>
-                {labels.details ?? DEFAULT_TOAST_LABELS.details}
-              </summary>
-              <pre className="mt-1 max-h-40 overflow-auto font-mono break-words whitespace-pre-wrap">
-                {toast.details}
-              </pre>
-            </details>
-          )}
-        </div>
-        <div className="flex min-h-7 shrink-0 items-center">
-          <button
-            type="button"
-            aria-label={labels.close}
-            className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            onClick={(event) => {
-              event.stopPropagation()
-              store.remove(toast.key)
-            }}>
-            <X className="size-3.5" />
-          </button>
-        </div>
+      <div className="flex min-h-7 shrink-0 items-center justify-center">{icon}</div>
+      <div className="min-w-0 flex-1">
+        {toast.title && (
+          <div
+            title={typeof toast.title === 'string' ? toast.title : undefined}
+            className="line-clamp-3 py-1 text-sm leading-5 font-medium break-words">
+            {toast.title}
+          </div>
+        )}
+        {showMetaRow && (
+          <div
+            className={cn(
+              'flex items-center gap-2 text-xs leading-5 text-muted-foreground',
+              toast.title ? 'mt-0.5' : 'min-h-7 py-1'
+            )}>
+            {toast.description && <div className="min-w-0 flex-1 break-words">{toast.description}</div>}
+            {!hasActions && extraSlot}
+          </div>
+        )}
+        {toast.details && (
+          <details className="mt-1 text-xs text-muted-foreground" onClick={(event) => event.stopPropagation()}>
+            <summary className="cursor-pointer" title={toast.details}>
+              {labels.details ?? DEFAULT_TOAST_LABELS.details}
+            </summary>
+            <pre className="mt-1 max-h-40 overflow-auto font-mono break-words whitespace-pre-wrap">{toast.details}</pre>
+          </details>
+        )}
+        {hasActions && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            {secondaryAction && (
+              <Button
+                type="button"
+                className="shrink-0"
+                size="sm"
+                variant="link"
+                onClick={(event) => runAction(event, secondaryAction)}>
+                {secondaryAction.label}
+              </Button>
+            )}
+            {action && (
+              <Button
+                type="button"
+                className="shrink-0 rounded-[5px] text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground"
+                size="sm"
+                variant="outline"
+                onClick={(event) => runAction(event, action)}>
+                {action.label}
+              </Button>
+            )}
+            {extraSlot}
+          </div>
+        )}
       </div>
-      {extra || secondaryAction || action ? (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {extra}
-          {secondaryAction && (
-            <Button
-              type="button"
-              className="shrink-0"
-              size="sm"
-              variant="link"
-              onClick={(event) => {
-                event.stopPropagation()
-                store.remove(toast.key)
-                void secondaryAction.onClick()
-              }}>
-              {secondaryAction.label}
-            </Button>
-          )}
-          {action && (
-            <Button
-              type="button"
-              className="shrink-0"
-              size="sm"
-              variant="outline"
-              onClick={(event) => {
-                event.stopPropagation()
-                store.remove(toast.key)
-                void action.onClick()
-              }}>
-              {action.label}
-            </Button>
-          )}
-        </div>
-      ) : null}
+      <div className="flex min-h-7 shrink-0 items-center">
+        <button
+          type="button"
+          aria-label={labels.close}
+          className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          onClick={(event) => {
+            event.stopPropagation()
+            store.remove(toast.key)
+          }}>
+          <X className="size-3.5" />
+        </button>
+      </div>
     </div>
   )
 }

@@ -31,7 +31,7 @@ describe('ErrorDetailAction chunk failure', () => {
     })
     expect(toast.error).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     expect(toast.error).toHaveBeenCalledWith(
       expect.objectContaining({
