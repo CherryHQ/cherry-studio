@@ -3007,10 +3007,11 @@ export class AgentSessionRuntimeService extends BaseService {
   private publishTurnMessage(
     entry: AgentSessionRuntimeEntry,
     turn: AgentSessionTurn,
-    parts: CherryUIMessage['parts']
+    parts: CherryUIMessage['parts'],
+    options?: { preserveRetryStatus?: boolean }
   ): void {
     if (!turn.controller?.message || !this.isTurnLive(entry, turn)) return
-    this.clearApiRetry(entry)
+    if (!options?.preserveRetryStatus) this.clearApiRetry(entry)
     turn.activeToolIds.clear()
     for (const part of parts) {
       if (!isToolUIPart(part)) continue
@@ -3044,7 +3045,12 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!turn.projection && contextId) turn.projection = this.rootProjection(entry, contextId)
     turn.projection?.control(turn.assistantMessageId, chunk)
     const parts = turn.projection?.parts(turn.assistantMessageId)
-    if (parts) this.publishTurnMessage(entry, turn, parts)
+    if (parts)
+      this.publishTurnMessage(entry, turn, parts, {
+        // The durable retry marker is history, not resumption: publishing it must not retire the
+        // live countdown/announcement while the provider retry is still running.
+        preserveRetryStatus: chunk.type === 'data-agent-api-retry'
+      })
     if (!hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn)) {
       this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', turn, chunk })
       return true

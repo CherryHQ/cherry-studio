@@ -1323,6 +1323,29 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheSetShared).toHaveBeenCalledWith(RETRY_KEY, { status: 'idle' })
     })
 
+    it('keeps the live retry status while its durable marker is published on an open turn', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const turn = (service as any).currentTurn(entry)
+      const message = vi.fn()
+      turn.controller = { message, enqueue: vi.fn() }
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
+      turn.projection = {
+        control: vi.fn(),
+        parts: vi.fn(() => [{ type: 'data-agent-api-retry', id: 'agent-api-retry-assistant-1' }])
+      }
+      mocks.cacheGetShared.mockImplementation((key: string) => (key === RETRY_KEY ? { status: 'retrying' } : undefined))
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, retryEvent)
+
+      // The durable marker is history, not resumption: the countdown/announcement must survive it.
+      expect(message).toHaveBeenCalled()
+      expect(mocks.cacheSetShared).not.toHaveBeenCalledWith(RETRY_KEY, { status: 'idle' })
+    })
+
     it('lands a retry that arrives during a steer handoff on the continuation reply', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
