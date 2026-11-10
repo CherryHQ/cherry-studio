@@ -297,9 +297,9 @@ describe('validation execution', () => {
     expect(commands.some((command) => command.includes('vitest'))).toBe(false)
   })
 
-  it.each(['types', 'packages', 'platform'].flatMap((group) => [false, true].map((prepared) => ({ group, prepared }))))(
-    'prepares exports only when needed before $group validation (prepared=$prepared)',
-    ({ group, prepared }) => {
+  it.each(['types', 'packages', 'platform'])(
+    'builds workspace exports before system speech validation in the %s group',
+    (group) => {
       const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-speech-'))
       directories.push(cwd)
       const log = join(cwd, 'commands.jsonl')
@@ -313,7 +313,6 @@ describe('validation execution', () => {
           ...process.env,
           npm_execpath: pnpm,
           COMMAND_LOG: log,
-          VALIDATION_WORKSPACE_PREPARED: String(prepared),
           VALIDATION_PLAN: JSON.stringify(createPlan(['native/system-speech/src/SystemSpeechNativeClient.ts']))
         },
         encoding: 'utf8'
@@ -323,7 +322,7 @@ describe('validation execution', () => {
         .trim()
         .split('\n')
         .map((line) => JSON.parse(line))
-      expect(commands.filter((command) => command.join(' ') === 'run postinstall')).toHaveLength(prepared ? 0 : 1)
+      expect(commands[0]).toEqual(['run', 'postinstall'])
       if (group === 'types') {
         expect(commands).toContainEqual(['--filter', '@cherrystudio/system-speech', 'typecheck'])
       } else {

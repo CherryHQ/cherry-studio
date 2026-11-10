@@ -1,6 +1,6 @@
 import { use, useEffect, useMemo, useRef } from 'react'
 
-import { CommandFocusScopeContext } from '@renderer/hooks/command'
+import { CommandFocusHostContext, CommandFocusScopeContext } from '@renderer/hooks/command'
 import { useIsActiveTab, useTabCommandRuntime } from '@renderer/hooks/tab'
 import { useNumberShortcutHints } from '@renderer/hooks/useNumberShortcutHints'
 import { CONVERSATION_NUMBER_COMMANDS as CONVERSATION_COMMANDS } from '@renderer/utils/numberShortcuts'
@@ -12,7 +12,10 @@ export function useConversationListShortcuts<T extends ResourceListItemBase>(onO
   const { status } = useResourceListControlsState()
   const active = useIsActiveTab()
   const listScope = use(CommandFocusScopeContext)
-  const runtime = useTabCommandRuntime()
+  const host = use(CommandFocusHostContext)
+  const tabRuntime = useTabCommandRuntime()
+  // Conversation navigation must survive the composer unmount returning focus to document.body.
+  const runtime = useMemo(() => (host ? host.forScope(host.rootScope) : tabRuntime), [host, tabRuntime])
   const items = useMemo(() => {
     const groups =
       view.sections.length > 0
