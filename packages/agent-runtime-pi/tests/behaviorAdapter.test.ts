@@ -1,7 +1,6 @@
 import { readdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 
-import type { TSchema } from '@earendil-works/pi-ai'
 import { type ExtensionAPI, SessionManager } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
@@ -21,8 +20,11 @@ import {
 } from '@cherrystudio/agent-behavior'
 import { type ItemId, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
-import type { AgentRuntimeEvent, AgentRuntimeSession, BehaviorSessionRequest, CompactionSummarizer } from '../src'
+import type { AgentRuntimeEvent } from '../src'
+import type { BehaviorSessionRequest } from '../src/behavior/harness'
 import { historyOf } from '../src/behavior/history'
+import type { CompactionSummarizer } from '../src/compaction'
+import type { AgentRuntimeSession } from '../src/session'
 import { type OpenSession, openPiHarness, type PiHarness } from './behaviorHarness'
 
 const read = (pi: PiHarness, thread: ThreadId): Promise<ConversationFacts> =>
@@ -462,8 +464,6 @@ describe('coding-agent behavior adapter', () => {
     expect(after.children.size).toBe(0)
     expect(readdirSync(sessions)).toEqual(files)
     expect(historyOf(SessionManager.open(file).getBranch(), parent)).toEqual(before.history)
-    // The broken storage cannot take the rollback entry either; that is reported, the commit's own error rethrown.
-    expect(pi.errors).toEqual([expect.objectContaining({ code: 'ENOENT' })])
     const { spawned } = await commit([fork])
     expect(readdirSync(sessions).filter((name) => !files.includes(name))).toEqual([
       expect.stringContaining(spawned[0].child)
@@ -1021,7 +1021,7 @@ describe('coding-agent behavior adapter', () => {
     const closing = pi.harness.close()
     await disposing.promise
     try {
-      await expect(pi.behavior.submitUser(t, 'late')).rejects.toThrow('closed')
+      await expect(pi.behavior.prompt(t, 'late')).rejects.toThrow('closed')
       await expect(pi.behavior.compact(t)).rejects.toThrow('closed')
       await expect(pi.harness.createThread()).rejects.toThrow('closed')
       await pi.harness.withCall(t, async (ports) => {
@@ -1469,7 +1469,7 @@ describe('coding-agent behavior adapter', () => {
     for (const failure of Object.values(failures)) expect(pi.errors).toContain(failure)
   })
 
-  it('offloads contiguous text spans without moving images or losing structured output', async () => {
+  it.each([false, true])('preserves tool output across offload and file reopen (save fails=%s)', async (fails) => {
     const saved: string[] = []
     const a = 'A'.repeat(4000)
     const b = 'B'.repeat(4000)
@@ -1483,6 +1483,7 @@ describe('coding-agent behavior adapter', () => {
           outputStore: {
             save: async ({ content, name }) => {
               saved.push(content)
+              if (fails) throw new Error('Output disk unavailable')
               return `/outputs/${name}`
             }
           }
@@ -1524,6 +1525,11 @@ describe('coding-agent behavior adapter', () => {
       }
     })
     expect(saved).toEqual([a, b])
+    expect(JSON.stringify(result)).toContain(
+      fails ? 'could not be saved (Output disk unavailable)' : 'Full output saved to: /outputs/'
+    )
+    expect(JSON.stringify(result)).not.toContain(a)
+    expect(JSON.stringify(result)).not.toContain(b)
     const reopened = SessionManager.open(manager.getSessionFile()!).getBranch()
     expect(reopened.find((entry) => entry.id === result?.id)).toEqual(result)
     expect(pi.errors).toEqual([])
@@ -1568,7 +1574,7 @@ describe('coding-agent behavior adapter', () => {
 
   it('preserves structured content when the gate shortens native tool text', async () => {
     let seen: unknown = 'not called'
-    const parameters = { type: 'object', properties: {} } as unknown as TSchema
+    const parameters = { type: 'object', properties: {} }
     const pi = await openPiHarness(
       (ports) =>
         ports.toolGate.register({

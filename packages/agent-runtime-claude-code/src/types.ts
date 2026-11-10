@@ -1,7 +1,9 @@
 import type {
   Options,
   Query,
+  SDKAssistantMessage,
   SDKMessage,
+  SDKPartialAssistantMessage,
   SDKUserMessage,
   SessionMessage,
   WarmQuery
@@ -13,14 +15,16 @@ import type {
   BusyPolicy,
   RuntimeMessage,
   InputId,
-  ItemRef,
   Observation,
   ObservationPayload,
   OperationResult,
   SubmitResult,
+  Subagent,
   Thread,
   ThreadHandle
 } from '@cherrystudio/agent-runtime'
+
+import type { ClaudeControl } from './control'
 
 export type ClaudeSessionOptions = Omit<
   Options,
@@ -38,6 +42,8 @@ export type ClaudeSessionOptions = Omit<
 export interface ClaudeCodeRuntimeOptions {
   readonly backendId: BackendId
   readonly configDir: string
+  /** Authoritative capacity supplied for an externally routed model. */
+  readonly contextWindow?: { readonly model: string; readonly tokens: number }
   /** Resolve the configuration of this exact saved root, without starting execution. */
   readonly load?: (root: Thread) => Promise<ClaudeSessionOptions | undefined>
   readonly onError?: (error: unknown) => void
@@ -52,11 +58,38 @@ export interface ClaudeCommandLifecycle {
   readonly session_id: string
 }
 
-export type ClaudeNativeMessage =
+export type ClaudeNativeMessage = (
   | { readonly source: 'live'; readonly message: SDKMessage | ClaudeCommandLifecycle }
   | { readonly source: 'archive'; readonly message: SessionMessage }
+) & {
+  /** Validated native rejection identity; never inferred from assistant text. */
+  readonly isApiErrorMessage?: true
+}
+
+export interface ClaudeInvocation {
+  readonly responseId: SDKAssistantMessage['message']['id']
+  readonly model?: SDKAssistantMessage['message']['model']
+  readonly usage?:
+    | SDKAssistantMessage['message']['usage']
+    | Extract<SDKPartialAssistantMessage['event'], { type: 'message_delta' }>['usage']
+  readonly metrics?: {
+    readonly timeFirstTokenMs?: number
+    readonly timeCompletionMs?: number
+    readonly timeThinkingMs?: number
+  }
+}
 
 export interface ClaudeObservation {
+  readonly controls?: readonly ClaudeControl[]
+  readonly state?: {
+    readonly aborted: boolean
+  }
+  /** Completed native invocations not yet delivered to this observation; absent from its baseline. */
+  readonly invocations?: readonly ClaudeInvocation[]
+  /** Sources produced by native execution, retained through observer recovery. */
+  readonly live?: readonly string[]
+  /** Provisional-to-committed source aliases retained after their update batch is folded. */
+  readonly replaces?: Readonly<Record<string, string>>
   readonly legacy?: Readonly<Record<string, { messageId: string; parts: number[] }>>
   readonly events: readonly ObservationPayload[]
   /** Native payload captured with this batch, never looked up at delivery time. */
@@ -67,40 +100,43 @@ export interface ClaudeObservation {
 
 export type ClaudeObservationSink = (batch: ClaudeObservation) => void | Promise<void>
 
-export interface ClaudeSource {
-  readonly ref: ItemRef
-  readonly uuid: string
-  readonly block: number
-}
-
 export interface ClaudeArchive {
-  readonly thread: Thread
-  readonly coverage: 'current-view'
   readonly content: readonly RuntimeMessage[]
-  readonly sources: readonly ClaudeSource[]
   readonly legacy: Readonly<Record<string, { messageId: string; parts: number[] }>>
-  readonly messages: readonly SessionMessage[]
   /** Explicit native retractions; absence from the selected view is not a deletion. */
   readonly retracted: readonly string[]
 }
 
 export interface ClaudeThreadHandle extends ThreadHandle {
   readonly claude: {
+    /** `generation` identifies the open turn: a stop latches it so a successor cannot stand in. */
+    state(): { readonly active: boolean; readonly generation: number }
+    relation(): Subagent | undefined
+    openChild(
+      toolCallId: string,
+      signal?: AbortSignal
+    ): Promise<
+      OperationResult<{
+        readonly relation: Subagent & { readonly child: Thread }
+        readonly handle: ClaudeThreadHandle
+      }>
+    >
     readonly sessionId: string
-    readonly agentId?: string
     /** Start the native connection without submitting input; a warm handoff transfers sole ownership. */
     start(warm?: { query: WarmQuery; exited: Promise<void> }): OperationResult<void>
     supportedCommands(): Promise<OperationResult<Awaited<ReturnType<Query['supportedCommands']>>>>
-    contextUsage(): Promise<OperationResult<Awaited<ReturnType<Query['getContextUsage']>>>>
     setPermissionMode(mode: Parameters<Query['setPermissionMode']>[0]): Promise<OperationResult<void>>
     submit(inputId: InputId, content: SDKUserMessage['message']['content'], whenBusy: BusyPolicy): Promise<SubmitResult>
     observe(sink: ClaudeObservationSink): Promise<OperationResult<Observation>>
-    archive(): Promise<OperationResult<ClaudeArchive>>
-    stopTask(taskId: string): Promise<OperationResult<{ readonly effect: 'requested' }>>
+    /** Without refresh, reads already observed committed sources without producing new observation events. */
+    archive(options?: { readonly refresh: boolean }): Promise<OperationResult<ClaudeArchive>>
+    stopTask(taskId: string): Promise<OperationResult<void>>
   }
 }
 
 export interface ClaudeCodeRuntime extends AgentRuntime {
+  /** Join admitted native input and background work without closing the owner. */
+  settled(): Promise<void>
   create(options: ClaudeSessionOptions): Promise<OperationResult<ClaudeThreadHandle>>
   open(thread: Thread): Promise<OperationResult<ClaudeThreadHandle>>
 }

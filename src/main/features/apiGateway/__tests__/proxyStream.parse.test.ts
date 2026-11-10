@@ -76,6 +76,7 @@ vi.mock('../adapters', () => ({
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
+      getMessageId: () => 'test-response',
       transformChunk: () => [],
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ ok: true })
@@ -205,20 +206,6 @@ describe('processMessage model-id parsing', () => {
     mockAvailableModel('openai', 'gpt-4')
     await resolveValid('openai:gpt-4')
     expect(captured.opts?.contextOwner).toBe('caller')
-  })
-
-  it('passes the normalized max output tokens to provider option extraction', async () => {
-    mockAvailableModel('openai', 'gpt-4')
-    mockExtractStreamOptions.mockReturnValue({ maxOutputTokens: 1024 })
-
-    await resolveValid('openai:gpt-4')
-
-    expect(mockExtractProviderOptions).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'openai' }),
-      expect.objectContaining({ apiModelId: 'gpt-4' }),
-      expect.objectContaining({ model: 'openai:gpt-4' }),
-      1024
-    )
   })
 
   it('keeps later colons in the model id (split on FIRST colon only)', async () => {

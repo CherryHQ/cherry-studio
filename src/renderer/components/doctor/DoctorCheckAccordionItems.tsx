@@ -241,22 +241,29 @@ function DoctorCheckEvidence({
                   />
                 ))}
               </dl>
-              {sensitiveEvidence.length > 0 && !isEvidenceRevealed ? (
+              {sensitiveEvidence.length > 0 ? (
                 <Dialog
                   open={isConfirming}
                   onOpenChange={(open) => {
                     if (!open && isConfirming) controller.cancelConfirmation()
                   }}>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="link"
-                      className="mt-2 h-auto px-0 py-0 text-xs"
-                      disabled={controller.isInteracting}
-                      onClick={() => controller.requestEvidence(row.id)}>
-                      {t('settings.doctor.actions.show_details')}
-                    </Button>
-                  </DialogTrigger>
+                  {!isEvidenceRevealed ? (
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="link"
+                        className="mt-2 h-auto px-0 py-0 text-xs"
+                        disabled={controller.isInteracting}
+                        onClick={() => controller.requestEvidence(row.id)}>
+                        {t('settings.doctor.actions.show_details')}
+                      </Button>
+                    </DialogTrigger>
+                  ) : null}
                   <DialogContent
+                    onCloseAutoFocus={(event) => {
+                      if (!isEvidenceRevealed) return
+                      event.preventDefault()
+                      sensitiveEvidenceRef.current?.focus()
+                    }}
                     aria-describedby={undefined}
                     closeOnOverlayClick={false}
                     showCloseButton={false}

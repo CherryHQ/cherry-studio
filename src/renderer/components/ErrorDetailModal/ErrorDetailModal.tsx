@@ -8,6 +8,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { DoctorAgentDialog } from '@renderer/components/doctor'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import i18n from '@renderer/i18n/resolver'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
@@ -500,6 +501,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   const { t } = useTranslation()
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [agentOpen, setAgentOpen] = useState(false)
+  const { isPresent: agentPresent } = useExitPresence(agentOpen ? true : null)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
   const copyErrorDetails = useCallback(() => {
     if (!error) {
@@ -606,11 +608,11 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
           ) : null}
         </div>
       ) : null}
-      {subject && agentOpen ? (
+      {subject && agentPresent ? (
         <DoctorAgentDialog
           subject={subject}
           incident={incident}
-          open
+          open={agentOpen}
           onOpenChange={setAgentOpen}
           onReportProblem={diagnosticReport && onOpenDiagnosticReport ? openDiagnosticReport : undefined}
         />
