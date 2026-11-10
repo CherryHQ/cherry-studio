@@ -625,6 +625,8 @@
   "agent.tools.builtin.list_agents.label": "Listează subagenți",
   "agent.tools.builtin.ls.description": "Listează conținutul directorului",
   "agent.tools.builtin.ls.label": "Listează conținutul directorului",
+  "agent.tools.builtin.powershell.description": "Execută comenzi PowerShell pe Windows",
+  "agent.tools.builtin.powershell.label": "Execută comenzi PowerShell",
   "agent.tools.builtin.read.description": "Citește fișiere",
   "agent.tools.builtin.read.label": "Citește fișiere",
   "agent.tools.builtin.read_image.description": "Citește un fișier PNG, JPEG, WebP sau GIF cu un model capabil de analiză vizuală",

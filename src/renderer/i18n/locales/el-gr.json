@@ -625,6 +625,8 @@
   "agent.tools.builtin.list_agents.label": "Λίστα υποπράκτορων",
   "agent.tools.builtin.ls.description": "Λίστα περιεχομένου καταλόγου",
   "agent.tools.builtin.ls.label": "Λίστα περιεχομένου καταλόγου",
+  "agent.tools.builtin.powershell.description": "Εκτέλεση εντολών PowerShell στα Windows",
+  "agent.tools.builtin.powershell.label": "Εκτέλεση εντολών PowerShell",
   "agent.tools.builtin.read.description": "Ανάγνωση αρχείων",
   "agent.tools.builtin.read.label": "Ανάγνωση αρχείων",
   "agent.tools.builtin.read_image.description": "Διαβάζει ένα αρχείο PNG, JPEG, WebP ή GIF με μοντέλο που υποστηρίζει όραση",

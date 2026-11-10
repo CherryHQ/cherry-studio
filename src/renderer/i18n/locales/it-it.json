@@ -625,6 +625,8 @@
   "agent.tools.builtin.list_agents.label": "Elenca sottoagenti",
   "agent.tools.builtin.ls.description": "Elenca i contenuti della cartella",
   "agent.tools.builtin.ls.label": "Elenca i contenuti della cartella",
+  "agent.tools.builtin.powershell.description": "Esegui comandi PowerShell su Windows",
+  "agent.tools.builtin.powershell.label": "Esegui comandi PowerShell",
   "agent.tools.builtin.read.description": "Leggi file",
   "agent.tools.builtin.read.label": "Leggi file",
   "agent.tools.builtin.read_image.description": "Leggi un file PNG, JPEG, WebP o GIF con un modello in grado di analizzare immagini",
