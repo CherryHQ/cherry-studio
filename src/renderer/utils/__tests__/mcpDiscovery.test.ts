@@ -1,5 +1,6 @@
-import enUS from '@renderer/i18n/locales/en-us.json'
 import { describe, expect, it } from 'vitest'
+
+import enUS from '@renderer/i18n/locales/en-us.json'
 
 import { MCP_MARKETS } from '../mcpDiscovery'
 
