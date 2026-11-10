@@ -74,12 +74,12 @@ formatting with the pinned tools, without installing workspace dependencies. Fai
 planning or preflight prevents heavy jobs from starting; required gates still report
 the failure.
 
-Main/preload and selected package tests run sequentially in one unsharded Linux job,
-sharing installation and workspace preparation. Both selected groups run even if the
-first fails, and their actual step outcomes are verified. Renderer tests keep a separate
-unsharded Linux job. Together with basic checks and one job per macOS/Windows platform,
-a full plan uses five heavy runners and three lightweight classification/aggregation
-jobs. macOS/Windows retain the platform-gated test inventory (including
+Main/preload and selected package tests use separate unsharded Linux jobs, so neither
+waits for the other. Renderer tests use three Vitest shards with fail-fast disabled.
+Together with basic checks and one job per macOS/Windows platform, a full plan uses
+eight heavy runners and three lightweight classification/aggregation jobs. This targets
+about ten minutes of execution; shared-runner queue time is measured separately.
+macOS/Windows retain the platform-gated test inventory (including
 system speech); platform selection is deliberately conservative whenever main is selected.
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.

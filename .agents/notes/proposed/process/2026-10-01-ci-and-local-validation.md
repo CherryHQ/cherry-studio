@@ -135,7 +135,7 @@ Give ordinary documentation a lightweight path on PRs and pushes. Split heavy li
 
 Retain the current Linux main and renderer shard counts as an initial baseline. More shards duplicate large cache restores and installations; platform jobs already spend substantial time preparing dependencies. Select macOS/Windows work from platform-sensitive modules and their dependencies, not only changed files containing `process.platform`. Preserve the native-safe main test pool.
 
-The [five-runner execution policy](../../implemented/process/2026-11-10-ci-runner-consolidation.md) supersedes this initial main/renderer shard baseline; the selection, inventory, and required-gate contracts still apply.
+The [eight-runner execution policy](../../implemented/process/2026-11-10-ci-runner-consolidation.md) supersedes this initial main/renderer shard baseline; the selection, inventory, and required-gate contracts still apply.
 
 Cancel superseded PR runs, with concurrency scoped by workflow and PR. Do not extend cancellation automatically to release/publication workflows. Retain manual full validation and add scheduled full validation as a backstop; neither replaces required checks for affected changes.
 

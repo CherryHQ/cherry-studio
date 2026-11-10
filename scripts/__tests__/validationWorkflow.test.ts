@@ -18,8 +18,8 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
-describe('five-runner full validation', () => {
-  it('uses three Linux runners and one runner per native platform', () => {
+describe('eight-runner full validation', () => {
+  it('uses six Linux runners and one runner per native platform', () => {
     const jobs = Object.values(workflow.jobs) as {
       'runs-on': string
       steps: { uses?: string }[]
@@ -32,12 +32,21 @@ describe('five-runner full validation', () => {
         return matrix?.os ?? Array.from({ length: matrix?.shard?.length ?? 1 }, () => job['runs-on'])
       })
 
-    expect(runners.sort()).toEqual(['macos-latest', 'ubuntu-latest', 'ubuntu-latest', 'ubuntu-latest', 'windows-2022'])
+    expect(runners.sort()).toEqual([
+      'macos-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'windows-2022'
+    ])
   })
 
   it.each([
-    ['main-packages-test', ['main', 'packages']],
-    ['renderer-test', ['renderer']]
+    ['main-test', ['main']],
+    ['package-test', ['packages']]
   ] as const)('runs the complete selected groups in %s without shard filters', (name, groups) => {
     const job = workflow.jobs[name]
     expect(job).toBeDefined()
@@ -48,35 +57,13 @@ describe('five-runner full validation', () => {
     ).toEqual(groups.map((group) => `pnpm check --group ${group}`))
   })
 
-  it('runs package tests after main tests fail and rejects unsuccessful or missing selected groups', () => {
-    const job = workflow.jobs['main-packages-test']
-    const jobs = { changes: { result: 'success', outputs: { plan: JSON.stringify(createPlan(['package.json'])) } } }
-    const steps = { dependencies: { outcome: 'success' }, 'main-tests': { outcome: 'failure' } }
-    const packages = job.steps.find((step: { id?: string }) => step.id === 'package-tests')
-    expect(
-      new Function('needs', 'steps', 'cancelled', `return (${packages.if})`)(
-        { changes: { outputs: { packages: 'true' } } },
-        steps,
-        () => false
-      )
-    ).toBe(true)
-    const outcomes: Record<string, { outcome?: string }> = {
-      'main-tests': { outcome: 'success' },
-      'package-tests': { outcome: 'success' }
-    }
-    expect(verify('main-packages', jobs, outcomes)).toBe(0)
-    for (const id of Object.keys(outcomes)) {
-      for (const outcome of ['failure', 'cancelled', 'skipped', undefined]) {
-        expect(verify('main-packages', jobs, { ...outcomes, [id]: { outcome } })).not.toBe(0)
-      }
-    }
-    jobs.changes.outputs.plan = JSON.stringify(createPlan(['src/renderer/components/Thing.tsx']))
-    expect(
-      verify('main-packages', jobs, {
-        'main-tests': { outcome: 'skipped' },
-        'package-tests': { outcome: 'skipped' }
-      })
-    ).toBe(0)
+  it('covers all three renderer shards without cancelling siblings on failure', () => {
+    const job = workflow.jobs['renderer-test-shard']
+    expect(job.strategy).toEqual({ 'fail-fast': false, matrix: { shard: [1, 2, 3] } })
+    expect(job.steps.find((step: { run?: string }) => step.run?.startsWith('pnpm check')).run).toBe(
+      'pnpm check --group renderer --shard=${{ matrix.shard }}/3'
+    )
+    expect(workflow.jobs['render-test'].needs).toContain('renderer-test-shard')
   })
 })
 

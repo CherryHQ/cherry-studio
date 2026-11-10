@@ -207,10 +207,10 @@ jobs:
           VALIDATION_STEPS: ${{ toJSON(steps) }}
         run: node scripts/validation/verify.mjs basic
 
-  main-packages-test:
+  main-test:
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.main == 'true' || needs.changes.outputs.packages == 'true'
+    if: needs.changes.outputs.main == 'true'
     env:
       VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
     steps:
@@ -219,31 +219,37 @@ jobs:
         id: dependencies
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
-      - name: Main and preload tests
-        id: main-tests
-        if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.main == 'true'"
-        run: pnpm check --group main
-      - name: Package tests
-        id: package-tests
-        if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.packages == 'true'"
-        run: pnpm check --group packages
+      - run: pnpm check --group main
+
+  package-test:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.packages == 'true'
+    env:
+      VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-validation
+        id: dependencies
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        run: ":"
+      - run: pnpm check --group packages
       - name: Check Web Search Package
-        if: "!cancelled() && steps.package-tests.outcome == 'success' && contains(fromJSON(needs.changes.outputs.plan).projects, 'web-search')"
+        if: contains(fromJSON(needs.changes.outputs.plan).projects, 'web-search')
         run: pnpm --filter @cherrystudio/web-search test:package
       - name: Check Provider Registry Package
-        if: "!cancelled() && steps.package-tests.outcome == 'success' && contains(fromJSON(needs.changes.outputs.plan).projects, 'provider-registry')"
+        if: contains(fromJSON(needs.changes.outputs.plan).projects, 'provider-registry')
         run: pnpm --filter @cherrystudio/provider-registry test:package
-      - name: Verify planned test groups
-        if: "!cancelled()"
-        env:
-          VALIDATION_JOBS: ${{ toJSON(needs) }}
-          VALIDATION_STEPS: ${{ toJSON(steps) }}
-        run: node scripts/validation/verify.mjs main-packages
 
-  renderer-test:
+  renderer-test-shard:
+    name: renderer-test (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.renderer == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     env:
       VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
     steps:
@@ -252,7 +258,7 @@ jobs:
         id: dependencies
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
-      - run: pnpm check --group renderer
+      - run: pnpm check --group renderer --shard=${{ matrix.shard }}/3
 
   platform-test:
     name: platform-test (${{ matrix.os }})
@@ -280,7 +286,7 @@ jobs:
 
   general-test:
     runs-on: ubuntu-latest
-    needs: [changes, main-packages-test, platform-test]
+    needs: [changes, main-test, package-test, platform-test]
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     steps:
       - uses: actions/checkout@v7
@@ -291,7 +297,7 @@ jobs:
 
   render-test:
     runs-on: ubuntu-latest
-    needs: [changes, renderer-test]
+    needs: [changes, renderer-test-shard]
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     steps:
       - uses: actions/checkout@v7
