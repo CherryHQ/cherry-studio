@@ -41,7 +41,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   }
 
   get redirectUrl(): string {
-    return `http://127.0.0.1:${this.config.callbackPort}${this.config.callbackPath}`
+    return `http://localhost:${this.config.callbackPort}${this.config.callbackPath}`
   }
 
   get clientMetadata() {
@@ -106,6 +106,9 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
     // Only an active authorized request can consume the callback and finish authorization.
     const prepareAuthorization = this.prepareAuthorization
     if (!prepareAuthorization) throw new UnauthorizedError()
+    const state = await this.storage.getState()
+    if (!state) throw new Error('OAuth authorization state is missing')
+    authorizationUrl.searchParams.set('state', state)
     await prepareAuthorization()
     if (this.prepareAuthorization !== prepareAuthorization) throw new UnauthorizedError()
     try {

@@ -15,6 +15,9 @@ import {
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { openMock } = vi.hoisted(() => ({ openMock: vi.fn() }))
+vi.mock('open', () => ({ default: openMock }))
+
 // The provider constructor reads application.getPath('feature.mcp.oauth'); the
 // unified mock supplies a deterministic path so construction never touches Electron.
 // We pass an explicit configDir per test, so storage actually lands in a temp dir.
@@ -34,6 +37,43 @@ const { McpOAuthClientProvider } = await import('../provider')
 
 const CLIENT_INFO = { client_id: 'cid', client_secret: 'csecret' } as StoredOAuthClientInformation
 const TOKENS = { access_token: 'at', token_type: 'Bearer', refresh_token: 'rt' } as StoredOAuthTokens
+
+describe('McpOAuthClientProvider authorization redirect', () => {
+  let configDir: string
+
+  beforeEach(async () => {
+    configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'oauth-redirect-test-'))
+    openMock.mockClear()
+  })
+
+  afterEach(async () => {
+    await fs.rm(configDir, { recursive: true, force: true })
+  })
+
+  it('uses localhost and ensures the saved state is sent to the authorization server', async () => {
+    const provider = new McpOAuthClientProvider({ serverUrlHash: 'redirect-test', configDir })
+    const state = await provider.state()
+    provider.prepareAuthorization = vi.fn()
+    const authorizationUrl = new URL('https://auth.example.com/authorize')
+
+    await provider.redirectToAuthorization(authorizationUrl)
+
+    expect(provider.clientMetadata.redirect_uris).toEqual([provider.redirectUrl])
+    expect(provider.redirectUrl).toContain('http://localhost:')
+    expect(authorizationUrl.searchParams.get('state')).toBe(state)
+    expect(openMock).toHaveBeenCalledWith(authorizationUrl.toString())
+  })
+
+  it('does not open an authorization request without a persisted state', async () => {
+    const provider = new McpOAuthClientProvider({ serverUrlHash: 'redirect-test', configDir })
+    provider.prepareAuthorization = vi.fn()
+
+    await expect(provider.redirectToAuthorization(new URL('https://auth.example.com/authorize'))).rejects.toThrow(
+      'OAuth authorization state is missing'
+    )
+    expect(openMock).not.toHaveBeenCalled()
+  })
+})
 
 describe('McpOAuthClientProvider.invalidateCredentials', () => {
   let configDir: string
@@ -296,6 +336,7 @@ describe('McpOAuthClientProvider.saveDiscoveryState', () => {
         provider.withAuthorizationFlow(() => transport.send({ jsonrpc: '2.0', id: 1, method: 'ping' }))
       ).rejects.toBeInstanceOf(UnauthorizedError)
       expect(redirect.mock.calls[0]?.[0].toString()).toContain(`${issuer}/new/authorize`)
+      expect(redirect.mock.calls[0]?.[0].searchParams.get('state')).toBeTruthy()
       expect(requests).toContain(resourceMetadataUrl)
       if (change === 'issuer') {
         expect(await provider.tokens({ issuer })).toBeUndefined()

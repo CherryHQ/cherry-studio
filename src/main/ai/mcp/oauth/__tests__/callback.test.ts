@@ -77,7 +77,7 @@ describe('CallBackServer.waitForAuthCallback', () => {
     const { port } = listener.address() as AddressInfo
     const status = await new Promise<number | undefined>((resolve, reject) => {
       http
-        .get(`http://127.0.0.1:${port}/oauth/callback?code=early-code`, (response) => {
+        .get(`http://localhost:${port}/oauth/callback?code=early-code`, (response) => {
           response.resume()
           response.on('end', () => resolve(response.statusCode))
         })
