@@ -207,10 +207,10 @@ export const translateHistoryFileRefTable = sqliteTable(
  */
 
 /** Ref rows owned by queued composer follow-up drafts. The data layer writes
- * one row per blob-attachment file entry at enqueue; queue rows are
- * hard-deleted on dequeue, so the FK cascade keeps each ref alive exactly
- * until removal or transfer - which is what stops the idle sweep reclaiming
- * the bytes while the draft is still waiting. No unique (sourceId, role)
+ * one row per blob-attachment file entry at enqueue. Dequeue retains a closed
+ * receipt and explicitly releases these refs in the same transaction. The FK
+ * cascade handles physical queue-row purges. Refs protect the bytes from the
+ * idle sweep only while the draft owns them. No unique (sourceId, role)
  * index: one draft may attach several files. */
 export const followupQueueFileRefTable = sqliteTable(
   'followup_queue_file_ref',

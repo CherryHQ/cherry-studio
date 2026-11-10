@@ -598,10 +598,10 @@ export const translateHistoryFileRefSchema = createRefSchema(translateHistoryRef
 // Links a FileEntry to a queued composer follow-up draft. The owning service
 // writes refs at enqueue time for blob attachments the renderer persisted as
 // managed entries, so the entry survives the idle sweep for the draft's whole
-// queue lifetime. The association table has an FK to `followup_queue`, and
-// queue rows are hard-deleted on dequeue - so the ref lives exactly until
-// removal or transfer, which is what keeps the sweep from reclaiming the
-// bytes while the draft is still waiting.
+// queue lifetime. Dequeue retains a closed receipt and explicitly releases
+// its refs in the same transaction; the FK cascade handles physical purges.
+// Refs therefore stop protecting bytes when the draft relinquishes ownership,
+// without waiting for the retained receipt to be collected.
 
 export const followupQueueSourceType = 'followup_queue' as const
 
