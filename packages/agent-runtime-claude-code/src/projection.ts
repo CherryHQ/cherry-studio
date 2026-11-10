@@ -23,7 +23,6 @@ import {
   decodeArchiveContent,
   json,
   projectBlock,
-  retainMcpMetadata,
   type NativeBlock,
   type ProjectedBlock,
   type ToolResult
@@ -154,12 +153,9 @@ export class ClaudeProjection {
     return this.upsertContent(
       message.uuid,
       message.type,
-      retainMcpMetadata(
-        typeof content === 'string'
-          ? [projectBlock({ type: 'text', text: content }, partial)]
-          : content.map((block) => projectBlock(block, partial)),
-        message.type === 'user' ? message.tool_use_result : undefined
-      ),
+      typeof content === 'string'
+        ? [projectBlock({ type: 'text', text: content }, partial)]
+        : content.map((block) => projectBlock(block, partial)),
       message.type === 'assistant' ? message.message.id : undefined,
       options
     )
@@ -448,18 +444,9 @@ export class ClaudeProjection {
       const decoded = decodeArchiveContent(message.message, this.aborted.has(message.uuid))
       if (decoded)
         events.push(
-          ...this.upsertContent(
-            message.uuid,
-            message.type,
-            retainMcpMetadata(
-              decoded.blocks,
-              metadata.get(message.uuid)?.mcpMeta ?? metadata.get(message.uuid)?.toolUseResult
-            ),
-            decoded.id,
-            {
-              inputId: inputs.get(runtimeId<'native-input'>(message.uuid))
-            }
-          )
+          ...this.upsertContent(message.uuid, message.type, decoded.blocks, decoded.id, {
+            inputId: inputs.get(runtimeId<'native-input'>(message.uuid))
+          })
         )
     }
     this.feed.publish(

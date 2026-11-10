@@ -13,7 +13,6 @@ import type { MessageDecorator } from '@main/ai/agentSession/ThreadMessageProjec
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { stripClaudeCodeRejectionPrefix } from '@shared/ai/providerError'
-import { COMPUTER_USE_APP_META_KEY, getComputerUseApp } from '@shared/ai/tools/computerUse'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 
@@ -232,12 +231,8 @@ export class ClaudeMessageMetadata {
     rawContent?: unknown
   ): NonNullable<JSONValue> {
     if (state.toolType !== 'mcp') return result
-    const app = getComputerUseApp(rawContent)
-    const content = isRecord(rawContent) && isRecord(rawContent._meta) ? rawContent.content : rawContent
     return {
-      content:
-        app || hasMcpNonTextContent(content) ? normalizeMcpToolContent(content) : normalizeClaudeToolResult(content),
-      ...(app && { _meta: { [COMPUTER_USE_APP_META_KEY]: app } }),
+      content: hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result,
       metadata: {
         type: 'mcp',
         name: state.displayName ?? state.name,

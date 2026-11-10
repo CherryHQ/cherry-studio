@@ -6,7 +6,6 @@ import { cn } from '@renderer/utils/style'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
-import { ComputerUseAppIcon } from '../ComputerUseAppIcon'
 import {
   AgentToolsType,
   TO_MARKDOWN_RUNTIME_TOOL_NAME,
@@ -158,7 +157,6 @@ export function AgentToolCallCard({
       <AgentToolDisclosureLabel
         label={
           <div className="flex min-w-0 items-center gap-1.5">
-            <ComputerUseAppIcon output={output} />
             <div className="min-w-0">{renderedItem.label}</div>
             {status && (status !== 'done' || hasError || openFlowOnClick) && (
               <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />

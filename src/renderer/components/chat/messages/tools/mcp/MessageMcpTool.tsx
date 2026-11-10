@@ -16,7 +16,6 @@ import {
   useOptionalMessageListActions,
   useOptionalMessageListUi
 } from '../../MessageListProvider'
-import { ComputerUseAppIcon } from '../ComputerUseAppIcon'
 import { useToolApproval } from '../hooks/useToolApproval'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
 import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../shared/GenericTools'
@@ -115,7 +114,6 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
         <MessageTitleLabel>
           <TitleContent>
             <ToolName className="min-w-0 items-center gap-1">
-              <ComputerUseAppIcon output={response} />
               <span className="truncate">
                 {tool.serverName} : {tool.name}
               </span>

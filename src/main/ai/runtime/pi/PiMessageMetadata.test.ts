@@ -107,15 +107,3 @@ describe('Pi message display metadata', () => {
     })
   })
 })
-
-it('keeps app icons from host-only MCP details beside screenshot content', () => {
-  const content = [{ type: 'image', data: 'c2hvdA==', mimeType: 'image/png' }]
-  const app = { name: 'Finder', icon: { mimeType: 'image/png', data: 'aWNvbg==' } }
-  expect(
-    output('mcp__desktop__snapshot', {
-      content,
-      details: { _meta: { 'com.cherrystudio.computer-use/app': app } },
-      structuredContent: { content }
-    }).output
-  ).toEqual({ content, _meta: { 'com.cherrystudio.computer-use/app': app } })
-})

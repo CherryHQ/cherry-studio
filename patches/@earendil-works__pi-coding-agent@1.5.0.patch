@@ -868,15 +868,6 @@ diff --git a/dist/core/system-prompt.js b/dist/core/system-prompt.js
 diff --git a/dist/extensions/mcp/tools.js b/dist/extensions/mcp/tools.js
 --- a/dist/extensions/mcp/tools.js
 +++ b/dist/extensions/mcp/tools.js
-@@ -210,7 +210,7 @@
-     const { _meta: _ignored, ...scriptResult } = result;
-     return {
-         content,
--        details: { server, tool, ...(fullOutputPath ? { fullOutputPath } : {}) },
-+        details: { server, tool, ...(result._meta ? { _meta: result._meta } : {}), ...(fullOutputPath ? { fullOutputPath } : {}) },
-         structuredContent: scriptResult,
-         ...(result.isError ? { isError: true } : {}),
-     };
 @@ -250,6 +250,7 @@
          outputSchema: createMcpResultSchema(tool.outputSchema),
          exposure: toToolExposure(options.exposure),

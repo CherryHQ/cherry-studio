@@ -3,7 +3,6 @@ import type { AgentToolResult, ToolDefinition } from '@earendil-works/pi-coding-
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_EXEC_TOOL_NAME, PI_TOOL_SEARCH_TOOL_NAME } from '@shared/ai/piBuiltinTools'
-import { COMPUTER_USE_APP_META_KEY, getComputerUseApp } from '@shared/ai/tools/computerUse'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -95,8 +94,6 @@ function asToolResult(result: unknown): AgentToolResult<unknown> | undefined {
 function projectPiToolOutput(toolName: string, result: unknown): unknown {
   const toolResult = asToolResult(result)
   if (!toolResult) return result ?? null
-  const app = getComputerUseApp(toolResult.details)
-  if (app) return { content: toolResult.content, _meta: { [COMPUTER_USE_APP_META_KEY]: app } }
   if (toolName === PI_TOOL_EXEC_TOOL_NAME) return unwrapMcpContent(toolResult)
   if (toolName === PI_TOOL_SEARCH_TOOL_NAME || toolName === 'tool_exec') {
     return toolResult.details ?? toolResult

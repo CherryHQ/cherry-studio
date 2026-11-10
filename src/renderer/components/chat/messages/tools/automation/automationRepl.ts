@@ -1,4 +1,5 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/core'
+import * as z from 'zod'
 
 import type { BaseTool, McpTool } from '@renderer/types/tool'
 
@@ -68,4 +69,28 @@ function parseJson(text: string): unknown {
   } catch {
     return undefined
   }
+}
+
+const cellContextSchema = z.object({ cell: z.uuid() })
+
+export function getAutomationCell(response: unknown): string | undefined {
+  const parsed = CallToolResultSchema.safeParse(Array.isArray(response) ? { content: response } : response)
+  if (!parsed.success) return undefined
+  const structured = z.object({ replContext: cellContextSchema }).safeParse(parsed.data.structuredContent)
+  if (structured.success) return structured.data.replContext.cell
+  const [only] = parsed.data.content
+  if (parsed.data.isError && parsed.data.content.length === 1 && only.type === 'text') {
+    return getAutomationCell(parseJson(only.text))
+  }
+  for (const part of parsed.data.content) {
+    if (
+      part.type === 'text' &&
+      part.text.startsWith('REPL_CONTEXT ') &&
+      part.annotations?.audience?.includes('assistant')
+    ) {
+      const context = cellContextSchema.safeParse(parseJson(part.text.slice('REPL_CONTEXT '.length)))
+      if (context.success) return context.data.cell
+    }
+  }
+  return undefined
 }

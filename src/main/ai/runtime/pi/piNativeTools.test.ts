@@ -24,7 +24,7 @@ import { createPiRuntime } from '@cherrystudio/agent-runtime-pi'
 
 import { readPiApprovalFacts } from './piApprovalFacts'
 import { createPiMcpExtension } from './piMcpExtension'
-import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
+import { resolvePiMcpToolMetadata } from './PiMessageMetadata'
 
 // Real SDK session + MCP wire + QuickJS: catches bypassed nested policy and lost structured results.
 it.each(['cherry-tools', 'my-server', 'my_server'])(
@@ -46,7 +46,6 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
     const cwd = await mkdtemp(join(tmpdir(), 'cherry-pi-native-'))
     const calls: string[] = []
     const events: ObservationPayload[] = []
-    const appParts: unknown[] = []
     let resolveMetadata: (name: string) => ReturnType<typeof resolvePiMcpToolMetadata> = () => undefined
     const server = serveMcpTestServer(() => {
       const fixture = new Server({ name: 'fixture', version: '1.0.0' }, { capabilities: { tools: {} } })
@@ -59,13 +58,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
       }))
       fixture.setRequestHandler('tools/call', async (request) => {
         calls.push(request.params.name)
-        return {
-          content: [{ type: 'text', text: 'value' }],
-          structuredContent: { value: 42 },
-          _meta: {
-            'com.cherrystudio.computer-use/app': { name: 'Finder', icon: { mimeType: 'image/png', data: 'aWNvbg==' } }
-          }
-        }
+        return { content: [{ type: 'text', text: 'value' }], structuredContent: { value: 42 } }
       })
       return fixture
     })
@@ -87,8 +80,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
       refreshOnCreate: false
     })
     let turn = 0
-    const streamSimple = (_model: unknown, context: { messages: unknown[] }) => {
-      expect(JSON.stringify(context.messages)).not.toContain('aWNvbg==')
+    const streamSimple = () => {
       const message: AssistantMessage = {
         role: 'assistant',
         api: 'openai-completions',
@@ -103,7 +95,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
                   id: 'script',
                   name: 'codemode',
                   arguments: {
-                    code: `const result = await tools.${nativePrefix}read_value({}); text(result.structuredContent.value); if (result._meta) throw new Error("MCP metadata leaked into code mode"); const long = await searchTools("${longTool}", { namespace: "mcp__${serverId.replaceAll('-', '_')}" }); await tools[long[0].name]({}); ${binding === 'cherry-tools' ? '' : `await tools.mcp__${shadowId.replaceAll('-', '_')}__forbidden({});`} try { await tools.${nativePrefix}forbidden({}) } catch (e) { text(e.message) }`
+                    code: `const result = await tools.${nativePrefix}read_value({}); text(result.structuredContent.value); const long = await searchTools("${longTool}", { namespace: "mcp__${serverId.replaceAll('-', '_')}" }); await tools[long[0].name]({}); ${binding === 'cherry-tools' ? '' : `await tools.mcp__${shadowId.replaceAll('-', '_')}__forbidden({});`} try { await tools.${nativePrefix}forbidden({}) } catch (e) { text(e.message) }`
                   }
                 }
               ]
@@ -186,26 +178,6 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
         behavior: { host, configureChild: () => ({}) },
         compaction: { enabled: false, reserveTokens: 1000, keepRecentTokens: 1000 },
         extensionFactories: [
-          (api) => {
-            api.on('tool_result', (event) => {
-              appParts.push(
-                ...new PiMessageMetadata().decorate({
-                  id: event.toolCallId,
-                  role: 'assistant',
-                  parts: [
-                    {
-                      type: 'dynamic-tool',
-                      toolName: event.toolName,
-                      toolCallId: event.toolCallId,
-                      input: {},
-                      state: 'output-available',
-                      output: { content: event.content, details: event.details }
-                    }
-                  ]
-                }).parts
-              )
-            })
-          },
           createCodemodeExtension({ models: false }),
           createToolSearchExtension(),
           createPiMcpExtension(
@@ -250,18 +222,6 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
         .find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'script')
       expect(JSON.stringify(output)).toContain('42')
       expect(JSON.stringify(output)).toContain('disabled for this agent')
-      expect(appParts).toContainEqual(
-        expect.objectContaining({
-          toolName: `${nativePrefix}read_value`,
-          output: expect.objectContaining({
-            _meta: {
-              'com.cherrystudio.computer-use/app': { name: 'Finder', icon: { mimeType: 'image/png', data: 'aWNvbg==' } }
-            }
-          })
-        })
-      )
-      expect(output).toMatchObject({ output: expect.not.stringContaining('MCP metadata leaked') })
-      expect(JSON.stringify(output)).not.toContain('aWNvbg==')
     } finally {
       confirmed(await runtime.shutdown())
       await handle.release()

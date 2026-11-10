@@ -121,3 +121,15 @@ invalidates the old tab handle; the model must reacquire the conversation tab.
 Initial tab observations blocked by a dialog still return the tab handle and dialog
 metadata, allowing `handleDialog()` recovery. Result-formatting errors from guest
 getters or `toJSON()` retain bindings; cancellation and runtime failure still clear them.
+
+
+## Client-only app presentation
+
+Computer host dispatch reports actual resolved app identities to the host, separately from
+its guest return value. The service retains at most 256 call-to-app associations keyed by
+the existing REPL cell ID. `computer_use.get_call_apps` serves this transient display data;
+the renderer queries `computer_use.get_app_icon` lazily by stable identity and shares reads
+through SWR. Neither icons nor the association list enter tool results, model context or
+persisted session metadata. A cell may display several app icons. Evicted/previous-process
+calls have no inferred targets. The current SDK needs the upstream `getAppIcon` release;
+older SDKs retain the named fallback without altering tool execution.

@@ -1,4 +1,4 @@
-# Agent Note: Display the operated app on Computer Use tool calls
+# Agent Note: Display operated apps through a client-only channel
 
 Status: implemented
 
@@ -6,29 +6,31 @@ English | [中文](2026-11-10-computer-use-app-icons.zh.md)
 
 ## Problem
 
-Computer Use MCP calls identify a tool but do not show which application it operated. Inferring that identity from the foreground window can label a background operation incorrectly.
+The client needs to identify the applications operated by an Automation REPL call. Icons are application presentation data, not tool results or session history. Inferring a target from the foreground application or JavaScript text can label the wrong app.
 
 ## Decision
 
-Read the producer's `com.cherrystudio.computer-use/app` MCP `_meta` entry. The producer resolves the actual target and supplies a name, optional bundle identifier and optional 64×64 PNG. Validate the name, PNG MIME type and base64 payload with a 65,536-character bound before displaying it through the shared Avatar component. Preserve tool content and use a named fallback when the icon is missing or cannot load.
+Record actual resolved targets during Computer Use host dispatch, outside the guest result. Associate them with the existing per-call REPL cell ID in a bounded, process-local cache of 256 calls. Deduplicate targets within each call. The renderer reads the cell ID already present in REPL context and queries the call's app list through IPC; it does not read app metadata from tool output.
 
-Claude Code preserves message-scoped MCP metadata only when exactly one tool result can own it. Live observations and native archive recovery use the same association rule. The desktop decorator converts screenshot blocks independently of the app icon.
+The card displays every app used by that call. SWR deduplicates lazy icon queries by stable application identity. A standalone SDK client queries `getAppIcon({ identity })` and closes after the read. Validate PNG MIME type and bounded base64 before returning the image to the renderer. Missing identities, unavailable icons and failed image loading retain the accessible app-name fallback.
 
-The pinned Pi SDK patch retains MCP `_meta` in host-only tool details while continuing to exclude it from code-mode structured results and model content. The Pi desktop decorator reads those details; native execution, discovery and teardown remain SDK-owned.
+No Pi dependency patch, Claude result projection change, MCP `_meta`, or icon-bearing `ToolResult` is needed. Both runtimes use the existing Automation REPL card and cell-context transport.
 
 ## Alternatives considered
 
-- Inferring identity from tool names or foreground state can show the wrong app.
-- Putting icon data in text or screenshot content would expose presentation data to the model.
-- Assigning message-scoped metadata to multiple results would falsely identify their targets.
+- Tool-result or session metadata duplicates UI-only data in execution and history contracts.
+- Foreground state and source-code parsing do not prove the application's actual identity.
+- A single icon for a multi-app cell hides other operated applications.
 
 ## Consequences
 
-The UI remains unchanged for tools without valid app metadata. The macOS producer must include the new metadata; no bundled runtime upgrade, database migration or Windows/Linux producer support is introduced here. Existing stored results without metadata cannot acquire an icon retrospectively.
+The association cache is transient. Evicted calls and calls from an earlier application process show no inferred icon. Calls without Computer Use targets have no app icons. This change does not persist icons or update model-visible output. Icons appear once the call returns its cell context.
+
+The SDK producer PR adds the independent API. Until that SDK and matching native package are published and installed, the current published dependency uses named fallbacks. No local SDK path is committed. macOS supplies icons; Windows/Linux return unavailable. External third-party Computer Use MCP servers are outside this built-in REPL integration.
 
 ## Verification
 
-- AC1 — shared-schema and renderer tests cover valid targets, malformed or oversized payloads, target switching and fallback behavior.
-- AC2 — Claude projection tests cover live and archived metadata ownership and reject ambiguous result batches; desktop tests preserve screenshot content.
-- AC3 — native Pi SDK, MCP transport and QuickJS tests verify the app icon reaches presentation without entering code-mode results or model context.
-- Electron and packaged-runtime visual verification remain pending.
+- AC1 — real REPL kernel and Computer Use service tests retain the resolved target separately, deduplicate repeated operations and keep pure-JavaScript cells unassociated.
+- AC2 — renderer tests display multiple targets, share icon reads between calls and remove stale targets when the cell changes; schema checks reject non-PNG icon data.
+- AC3 — client icon reads leave app control empty; the upstream SDK/native tests verify independent request validation and icon generation.
+- Electron visual acceptance remains pending; runtime support follows the common REPL presentation path rather than provider-specific output patches.

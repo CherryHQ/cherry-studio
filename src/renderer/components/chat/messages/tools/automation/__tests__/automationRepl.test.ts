@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { normalizeToolErrorResponse } from '../../toolResponse'
-import { parseAutomationReplOutput } from '../automationRepl'
+import { getAutomationCell, parseAutomationReplOutput } from '../automationRepl'
 
 const failedCell = {
   isError: true,
@@ -28,4 +28,23 @@ describe('parseAutomationReplOutput', () => {
       isError: true
     })
   })
+})
+
+it('correlates only validated cell IDs without reading target apps from tool output', () => {
+  const cell = '12345678-1234-4234-8234-123456789abc'
+  expect(getAutomationCell({ content: [], structuredContent: { replContext: { cell } } })).toBe(cell)
+  expect(
+    getAutomationCell({
+      isError: true,
+      content: [{ type: 'text', text: 'Failed' }],
+      structuredContent: { replContext: { cell } }
+    })
+  ).toBe(cell)
+  expect(
+    getAutomationCell([
+      { type: 'text', text: `REPL_CONTEXT ${JSON.stringify({ cell })}`, annotations: { audience: ['assistant'] } }
+    ])
+  ).toBe(cell)
+  expect(getAutomationCell([{ type: 'text', text: `REPL_CONTEXT ${JSON.stringify({ cell })}` }])).toBeUndefined()
+  expect(getAutomationCell({ content: [], structuredContent: { replContext: { cell: 'invalid' } } })).toBeUndefined()
 })

@@ -13,7 +13,7 @@ import {
 } from '@cherrystudio/computer-use'
 import { loggerService } from '@logger'
 import { BaseService, Emitter, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { ComputerUseControl, ControlStatus } from '@shared/ipc/schemas/computerUse'
+import { computerUseAppIconSchema, type ComputerUseControl, type ControlStatus } from '@shared/ipc/schemas/computerUse'
 
 const logger = loggerService.withContext('ComputerUseService')
 
@@ -487,12 +487,22 @@ export class ComputerUseService extends BaseService {
     this.changed.fire()
   }
 
+  getAppIcon(identity: string) {
+    return this.withStandaloneClient(async (client) => {
+      // The published SDK predates the read-only icon API; older installations retain the named fallback.
+      if (!('getAppIcon' in client) || typeof client.getAppIcon !== 'function')
+        return { status: 'unavailable' as const }
+      const result: unknown = await client.getAppIcon({ identity }, { signal: this.shutdown.signal })
+      return computerUseAppIconSchema.parse(result)
+    })
+  }
+
   getPermissionStatus(): Promise<PermissionStatus> {
-    return this.withPermissionSession((client) => client.getPermissionStatus({ signal: this.shutdown.signal }))
+    return this.withStandaloneClient((client) => client.getPermissionStatus({ signal: this.shutdown.signal }))
   }
 
   requestPermissions(ids: [string, ...string[]]): Promise<PermissionStatus> {
-    return this.withPermissionSession((client) => client.requestPermissions({ ids }, { signal: this.shutdown.signal }))
+    return this.withStandaloneClient((client) => client.requestPermissions({ ids }, { signal: this.shutdown.signal }))
   }
 
   protected async onStop(): Promise<void> {
@@ -504,9 +514,7 @@ export class ComputerUseService extends BaseService {
     this.changed.dispose()
   }
 
-  private withPermissionSession(
-    run: (client: ComputerUseClient) => Promise<PermissionStatus>
-  ): Promise<PermissionStatus> {
+  private withStandaloneClient<T>(run: (client: ComputerUseClient) => Promise<T>): Promise<T> {
     return this.permissionMutex.runExclusive(async () => {
       this.shutdown.signal.throwIfAborted()
       // Requests retain the helper until onboarding closes; later queries use fresh permission preflight.
