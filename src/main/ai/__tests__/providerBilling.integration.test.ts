@@ -225,6 +225,7 @@ describe('provider billing through AiService and the real SDK', () => {
       })
     const result = await service.generateText({
       ...request,
+      contextOwner: 'cherry',
       callOverrides: {
         tools: {
           next: tool({
@@ -293,7 +294,7 @@ describe('provider billing through AiService and the real SDK', () => {
         expect(String(url)).toContain('fallback.test')
         return completion()
       })
-    expect((await service.generateText({ ...request, requestOptions: {} })).text).toBe('ok')
+    expect((await service.generateText({ ...request, contextOwner: 'cherry', requestOptions: {} })).text).toBe('ok')
     const rows = dbh.db.select().from(aiUsageRecordTable).all()
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({

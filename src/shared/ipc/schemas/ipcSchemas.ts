@@ -11,7 +11,7 @@ import { type CherryCloudEventSchemas, cherryCloudRequestSchemas } from './cherr
 import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
-import { computerUseRequestSchemas } from './computerUse'
+import { type ComputerUseEventSchemas, computerUseRequestSchemas } from './computerUse'
 import { decisionsRequestSchemas } from './decisions'
 import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
 import { diagnosticsRequestSchemas } from './diagnostics'
@@ -129,6 +129,7 @@ export type IpcEventSchemas = AiEventSchemas &
   BrowserEventSchemas &
   ChannelEventSchemas &
   CherryCloudEventSchemas &
+  ComputerUseEventSchemas &
   FileEventSchemas &
   McpEventSchemas &
   MiniAppEventSchemas &

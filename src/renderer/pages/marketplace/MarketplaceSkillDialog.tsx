@@ -124,7 +124,7 @@ export function MarketplaceSkillDialog({
             ]}
           />
           <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
-            {item.subscription && detail?.longDescription.en ? text(detail.longDescription) : text(item.description)}
+            {(detail && text(detail.longDescription)) || text(item.description)}
           </p>
           <dl className="grid grid-cols-[max-content_minmax(0,1fr)_max-content_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
             {[

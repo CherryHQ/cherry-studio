@@ -111,7 +111,7 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
   }
   const send = async (prompt: string) => {
     await page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first().fill(prompt)
-    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click({ noWaitAfter: true })
   }
   const message = () => page.locator('[data-ui~="chat.message"][data-message-id]:visible').last()
   const expectError = async (detail: string, action: string) => {
@@ -331,9 +331,16 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
     mcpId = (createdMcp.data as { id: string }).id
     await openSettingsSection(page, 'MCP')
     await page.getByText('MP17 offline MCP', { exact: true }).first().click()
+    await expect(page.locator('#mcp-settings-form').getByRole('textbox', { name: 'Name', exact: true })).toHaveValue(
+      'MP17 offline MCP'
+    )
     await page.getByRole('switch').first().click()
-    await expect(page.getByRole('button', { name: 'View MCP server', exact: true })).toBeVisible({ timeout: 60_000 })
-    await screenshot('MP-17 offline MCP recovery action')
+    const startFailure = page.getByRole('dialog', { name: 'Start failed', exact: true })
+    await expect(startFailure).toBeVisible({ timeout: 60_000 })
+    await expect(startFailure).toContainText('HTTP 503')
+    await startFailure.getByRole('button', { name: 'Confirm', exact: true }).click()
+    await expect(startFailure).toBeHidden()
+    await page.getByRole('button', { name: 'Retry', exact: true }).click()
     await page.getByRole('button', { name: 'View MCP server', exact: true }).click()
     await expect(page.locator('#mcp-settings-form').getByRole('textbox', { name: 'Name', exact: true })).toHaveValue(
       'MP17 offline MCP'
