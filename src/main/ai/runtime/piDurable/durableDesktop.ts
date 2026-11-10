@@ -23,7 +23,7 @@ import { buildCitationsGuidance } from '../citationsGuidance'
 import { capturePiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
-import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from '../pi/piShell'
+import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableMcp } from './durableMcp'
 
@@ -132,13 +132,25 @@ export async function prepareDurableDesktop(
     const bash = tools.createBashTool({
       commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env)),
       prepare(execution) {
-        execution.env = mergePiBashExecutionEnv(execution.env)
+        execution.env = mergePiShellExecutionEnv(execution.env)
       }
     })
     registry.install(
       native.defineExtension({
         ...coding,
-        tools: [...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'), bash]
+        tools: [
+          ...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'),
+          bash,
+          ...(process.platform === 'win32'
+            ? [
+                tools.createPowerShellTool({
+                  prepare(execution) {
+                    execution.env = mergePiShellExecutionEnv(execution.env)
+                  }
+                })
+              ]
+            : [])
+        ]
       })
     )
     registry.install(createCodemodeExtension({ sandbox: new CodemodeSandbox(), models: false }))
@@ -182,7 +194,7 @@ export async function prepareDurableDesktop(
     const environment = new NodeExecutionEnv({
       cwd,
       shellPath: resolvePiShellPath(),
-      shellEnv: mergePiBashExecutionEnv(env)
+      shellEnv: mergePiShellExecutionEnv(env)
     })
     const agentConfig: AgentChange = {
       ...(namespace && { extensions: registry.snapshot().installed() }),

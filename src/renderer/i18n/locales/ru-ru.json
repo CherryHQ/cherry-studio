@@ -625,6 +625,8 @@
   "agent.tools.builtin.list_agents.label": "Список субагентов",
   "agent.tools.builtin.ls.description": "Просматривать содержимое каталога",
   "agent.tools.builtin.ls.label": "Просматривать содержимое каталога",
+  "agent.tools.builtin.powershell.description": "Выполнение команд PowerShell в Windows",
+  "agent.tools.builtin.powershell.label": "Выполнение команд PowerShell",
   "agent.tools.builtin.read.description": "Читать файлы",
   "agent.tools.builtin.read.label": "Читать файлы",
   "agent.tools.builtin.read_image.description": "Читает файл PNG, JPEG, WebP или GIF с помощью модели с поддержкой зрения",

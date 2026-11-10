@@ -625,6 +625,8 @@
   "agent.tools.builtin.list_agents.label": "แสดงเอเจนต์ย่อย",
   "agent.tools.builtin.ls.description": "แสดงรายการในไดเรกทอรี",
   "agent.tools.builtin.ls.label": "แสดงรายการในไดเรกทอรี",
+  "agent.tools.builtin.powershell.description": "เรียกใช้คำสั่ง PowerShell บน Windows",
+  "agent.tools.builtin.powershell.label": "เรียกใช้คำสั่ง PowerShell",
   "agent.tools.builtin.read.description": "อ่านไฟล์",
   "agent.tools.builtin.read.label": "อ่านไฟล์",
   "agent.tools.builtin.read_image.description": "อ่านไฟล์ PNG, JPEG, WebP หรือ GIF ด้วยโมเดลที่รองรับภาพ",
