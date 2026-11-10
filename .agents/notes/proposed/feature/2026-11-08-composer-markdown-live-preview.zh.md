@@ -30,7 +30,7 @@ Composer 不能直接换编辑器。它的 Tiptap 文档承载原子 token 节�
 - 代码块没有按语言缩进，缩进单位固定为两个空格。
 - 选区格式只覆盖粗体、斜体和行内代码。
 - 缩进代码（行首四个空格）在这里不算代码块，这些行保持普通文本。
-- `renderInputMessageAsMarkdown` 消息气泡设置不变，也不新增关闭实时预览的偏好项。
+- 不新增单独的实时预览偏好项，由现有的输入消息 Markdown 渲染设置控制开关（见第 6 节）。
 
 ### 2. 文档与草稿契约
 
@@ -81,9 +81,11 @@ Composer 不能直接换编辑器。它的 Tiptap 文档承载原子 token 节�
 
 `createComposerEditorPreset` 新增 `markdownLivePreview` 选项，由 `ComposerSurface` 透传。
 
+实时预览跟随现有的 `chat.message.render_as_markdown` 偏好（设置里的“Markdown 渲染输入消息”），所以 Composer 只在发送后的消息会渲染 Markdown 时才预览。这个设置默认关闭。Tiptap 在创建编辑器时就固定了扩展，所以 `ComposerSurface` 按这个选项给 runtime 设 key；切换时用当前草稿重建编辑器，只丢掉撤销历史和光标位置。
+
 | 界面 | 实时预览 |
 | --- | --- |
-| `ChatComposer`、`AgentComposer`、`MissingAgentHomeComposer`、`SelectionAgentComposeBar` | 开启 |
+| `ChatComposer`、`AgentComposer`、`MissingAgentHomeComposer`、`SelectionAgentComposeBar` | 跟随 `chat.message.render_as_markdown` |
 | `PaintingComposer`、`WebviewAnnotationControls` | 关闭，因为图片提示词和网页批注不是 Markdown 文档 |
 
 核心暴露 `isMarkdownFencedCodePosition(state, position)`。Chat 和 Agent 把 token、QuickPanel、steer 留在各自的层，只使用这个查询和上述选项。
@@ -138,7 +140,7 @@ src/renderer/components/composer/markdownLivePreview/
 - AC13 — 光标在代码块内时，`/` 和 `@` 不打开 QuickPanel，粘贴的 URL、skill 标记和知识库标记保持纯文本。 (verification: renderer)
 - AC14 — placeholder 只在整个 Composer 为空时出现在第一行，清空 Composer 后重新出现。 (verification: renderer)
 - AC15 — token 原子节点在样式范围和标题内保持原有的渲染、选择和删除行为，并在原来的 `textOffset` 处完成往返。 (verification: renderer)
-- AC16 — Chat、Agent 和划词智能体输入条显示实时预览，绘画提示词和网页批注输入保持纯文本。 (verification: renderer)
+- AC16 — “Markdown 渲染输入消息”开启时，Chat、Agent 和划词智能体输入条显示实时预览，关闭时保持纯文本；切换对已打开的 Composer 生效且不改变草稿；绘画提示词和网页批注输入保持纯文本。 (verification: renderer)
 - AC17 — 复制和剪切导出选中的源文本（包括其中隐藏的标记），并保留 token。 (verification: renderer)
 - AC18 — 在基准机器 MacBook Pro M5 上的生产构建中，与同一时段、同一份不开实时预览的草稿对照，实时预览让每次按键或移动光标时主线程最长单个任务的中位数最多增加 33 ms；草稿包括 40,000 字符的长段落草稿（约 340 行）和 40,000 字符、每行都很短且带格式的最坏情况草稿（约 2,400 行）。 (verification: production build)
 - AC19 — 表格、图片和 LaTeX 公式保持源码原样，没有专门的渲染，并逐字发送。 (verification: renderer)
@@ -154,6 +156,7 @@ src/renderer/components/composer/markdownLivePreview/
 - 真实的 macOS 输入法和鼠标拖选没有经过自动化验证，原型只在无头 Chromium 中模拟了组字。AC4 和 AC5 是这项工作的把关条件，基于 schema 的模型是后备方案。
 - LaTeX 不被解析，所以 `$2*3*4$`、`\frac{a*b}{c*d}` 和 `$$` 块这类公式里的 `*` 会被当作强调，其标记在光标到达之前处于隐藏状态。发送的文本不受影响。在支持公式之前接受这一点。
 - Composer 的解析器与消息渲染器的解析器不同，边缘情况下的 Markdown 预览可能与发送后的消息不一致。源文本永远不会被改动。
+- 输入消息 Markdown 渲染设置默认关闭，所以只有开启它的用户才会看到实时预览。
 - 代码块位于消息末尾时，发送需要点击发送按钮或先离开代码块，而离开代码块会在草稿末尾多一个换行。
 - 隐藏的标记仍在无障碍树和选区中，屏幕阅读器会读出它们。这是保持源文本完整的结果。
 - 显示标记会让光标所在行的文字发生位移。这是这一模型固有的特性。

@@ -30,7 +30,7 @@ Out of scope:
 - Code blocks get no language-aware indentation, and the indent unit stays two spaces.
 - Selection formatting covers bold, italic, and inline code only.
 - Indented code (four leading spaces) is not a code block here. Those lines stay ordinary text.
-- The `renderInputMessageAsMarkdown` message-bubble setting is unchanged, and no preference for turning live preview off is added.
+- No separate live-preview preference is added. The existing input-message Markdown setting turns it on and off (§6).
 
 ### 2. Document and draft contract
 
@@ -81,9 +81,11 @@ Typing a backtick with a selection outside fenced code toggles inline code under
 
 `createComposerEditorPreset` gains a `markdownLivePreview` option and `ComposerSurface` passes it through.
 
+Live preview follows the existing `chat.message.render_as_markdown` preference ("Markdown render input message" in Settings), so the Composer previews Markdown exactly when the sent message renders it. The setting stays off by default. Tiptap fixes extensions when the editor is created, so `ComposerSurface` keys its runtime by the option; a toggle rebuilds the editor from the current draft and loses only undo history and the caret position.
+
 | Surface | Live preview |
 | --- | --- |
-| `ChatComposer`, `AgentComposer`, `MissingAgentHomeComposer`, `SelectionAgentComposeBar` | On |
+| `ChatComposer`, `AgentComposer`, `MissingAgentHomeComposer`, `SelectionAgentComposeBar` | Follows `chat.message.render_as_markdown` |
 | `PaintingComposer`, `WebviewAnnotationControls` | Off, because image prompts and page annotations are not Markdown documents |
 
 The core exposes `isMarkdownFencedCodePosition(state, position)`. Chat and Agent keep tokens, QuickPanel, and steer in their own layers and consume only that query and the option.
@@ -138,7 +140,7 @@ Styles join the `.composer-tiptap` rules in `richtext.css` and use design tokens
 - AC13 — With the caret inside a code block, `/` and `@` do not open QuickPanel, and pasted URLs, skill markers, and knowledge-base markers stay plain text. (verification: renderer)
 - AC14 — The placeholder appears only when the whole Composer is empty, on the first line, and reappears after the Composer is cleared. (verification: renderer)
 - AC15 — Token atoms keep their rendering, selection, and deletion behavior inside styled spans and headings, and round-trip at their original `textOffset`. (verification: renderer)
-- AC16 — Chat, Agent, and the selection agent compose bar show live preview, while the painting prompt and webview annotation input stay plain. (verification: renderer)
+- AC16 — Chat, Agent, and the selection agent compose bar show live preview while "Markdown render input message" is on and stay plain while it is off, a toggle applies to an open Composer without changing its draft, and the painting prompt and webview annotation input stay plain. (verification: renderer)
 - AC17 — Copy and cut export the selected source text including its hidden markers, with tokens preserved. (verification: renderer)
 - AC18 — In a production build on the reference MacBook Pro M5, measured in the same session against the same draft without live preview, live preview adds at most 33 ms to the median longest main-thread task per keystroke or caret move, on a 40,000-character draft of long paragraphs (about 340 lines) and on a worst-case 40,000-character draft of short formatted lines (about 2,400 lines). (verification: production build)
 - AC19 — Tables, images, and LaTeX formulas stay literal source with no dedicated rendering and are sent verbatim. (verification: renderer)
@@ -154,6 +156,7 @@ Styles join the `.composer-tiptap` rules in `richtext.css` and use design tokens
 - Real macOS IME and mouse drag were not verified by automation; the prototype only simulated composition in headless Chromium. AC4 and AC5 gate the work, and the schema-based model is the fallback.
 - LaTeX is not parsed, so `*` inside formulas such as `$2*3*4$`, `\frac{a*b}{c*d}`, and `$$` blocks is read as emphasis and its markers hide until the caret arrives. The sent text is unaffected. This is accepted until formula support exists.
 - The Composer's parser differs from the message renderer's, so edge-case Markdown can preview differently from the sent message. The source text is never altered.
+- The input-message Markdown setting is off by default, so live preview reaches only users who turn it on.
 - When a code block ends the message, sending takes the send button or leaving the block first, and leaving it adds a trailing newline to the draft.
 - Hidden markers stay in the accessibility tree and in selections, so screen readers read them. This follows from keeping the source text intact.
 - Revealing markers shifts text on the caret's line. This is inherent to the model.
