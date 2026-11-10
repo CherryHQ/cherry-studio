@@ -1,0 +1,23 @@
+{
+  "requestId": "exa-contents-request",
+  "results": [
+    {
+      "id": "https://exa.example/article",
+      "title": "Exa Article",
+      "url": "https://exa.example/article",
+      "publishedDate": "2026-01-01T00:00:00.000Z",
+      "author": "Exa Author",
+      "text": "Exa crawled article body."
+    }
+  ],
+  "statuses": [
+    {
+      "id": "https://exa.example/article",
+      "status": "success",
+      "source": "cached"
+    }
+  ],
+  "costDollars": {
+    "total": 0.001
+  }
+}

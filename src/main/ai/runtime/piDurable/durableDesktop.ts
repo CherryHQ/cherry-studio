@@ -23,7 +23,7 @@ import { buildCitationsGuidance } from '../citationsGuidance'
 import { capturePiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
-import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from '../pi/piShell'
+import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableMcp } from './durableMcp'
 
@@ -130,15 +130,16 @@ export async function prepareDurableDesktop(
     const registry = native.createRegistry()
     const coding = tools.createCodingTools({ images: await images.createNodePhotonImages() })
     const bash = tools.createBashTool({
-      commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env)),
-      prepare(execution) {
-        execution.env = mergePiBashExecutionEnv(execution.env)
-      }
+      commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env))
     })
     registry.install(
       native.defineExtension({
         ...coding,
-        tools: [...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'), bash]
+        tools: [
+          ...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'),
+          bash,
+          ...(process.platform === 'win32' ? [tools.createPowerShellTool()] : [])
+        ]
       })
     )
     registry.install(createCodemodeExtension({ sandbox: new CodemodeSandbox(), models: false }))
@@ -182,7 +183,8 @@ export async function prepareDurableDesktop(
     const environment = new NodeExecutionEnv({
       cwd,
       shellPath: resolvePiShellPath(),
-      shellEnv: mergePiBashExecutionEnv(env)
+      // Per-call PATH overrides the SDK's inherited environment. Merge the complete PATH here.
+      shellEnv: mergePiShellExecutionEnv(env)
     })
     const agentConfig: AgentChange = {
       ...(namespace && { extensions: registry.snapshot().installed() }),
