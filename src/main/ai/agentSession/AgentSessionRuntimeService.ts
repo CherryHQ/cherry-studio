@@ -2795,8 +2795,10 @@ export class AgentSessionRuntimeService extends BaseService {
           taskIds: [],
           userMessage: createSyntheticUserMessage(entry.sessionId),
           parentId: entry.branchHead,
+          // A resumed reply keeps its own persisted author: the connection capture is only for a
+          // wake that still has to open a new one, never a later rename of the same agent.
           messageSnapshot: detached
-            ? messageSnapshot
+            ? (saved?.messageSnapshot ?? messageSnapshot)
             : background
               ? (saved?.messageSnapshot ?? source?.messageSnapshot ?? entry.messageSnapshot)
               : entry.messageSnapshot,
