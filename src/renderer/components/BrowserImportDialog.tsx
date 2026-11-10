@@ -324,17 +324,17 @@ function BrowserImportContent({
       {fault != null && (
         <div role="alert" className="flex flex-wrap items-center gap-2 text-error text-sm">
           <span>{t('settings.browser.error')}</span>
+          {!sourceId && (
+            <Button variant="ghost" onClick={() => setScan((value) => value + 1)}>
+              {t('common.refresh')}
+            </Button>
+          )}
           <ErrorDetailAction
             error={fault}
             message={t('settings.browser.error')}
             operation={sourceId ? 'browser.import.run' : 'browser.import.sources'}
             source="settings.browser"
           />
-          {!sourceId && (
-            <Button variant="ghost" onClick={() => setScan((value) => value + 1)}>
-              {t('common.refresh')}
-            </Button>
-          )}
         </div>
       )}
       <DialogFooter>

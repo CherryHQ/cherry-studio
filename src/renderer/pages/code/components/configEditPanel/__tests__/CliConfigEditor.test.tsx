@@ -96,6 +96,6 @@ describe('CliConfigEditor', () => {
       data: { suppressDetail: true }
     })
     expect(screen.getByText('Unexpected end of JSON input')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
   })
 })
