@@ -26,7 +26,7 @@ No Pi dependency patch, Claude result projection change, MCP `_meta`, or icon-be
 
 The association cache is transient. Evicted calls and calls from an earlier application process show no inferred icon. Calls without Computer Use targets have no app icons. This change does not persist icons or update model-visible output. Icons appear once the call returns its cell context.
 
-The SDK producer PR adds the independent API. Until that SDK and matching native package are published and installed, the current published dependency uses named fallbacks. No local SDK path is committed. macOS supplies icons; Windows/Linux return unavailable. External third-party Computer Use MCP servers are outside this built-in REPL integration.
+The SDK producer PR adds the independent API. Until that SDK and matching native package are published and installed, the current published dependency uses named fallbacks. No local SDK path is committed. macOS, Windows and Linux supply native icons. Windows reads executable/AppsFolder icons; Linux uses GTK 3/GdkPixbuf for desktop-entry icons, including SVG and themes. Missing icons or native libraries use the named fallback. External third-party Computer Use MCP servers are outside this built-in REPL integration.
 
 ## Verification
 

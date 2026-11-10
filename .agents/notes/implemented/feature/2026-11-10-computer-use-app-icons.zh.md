@@ -26,7 +26,7 @@ Status: implemented
 
 关联缓存是临时的。被淘汰的调用及前一次应用进程中的调用不推断图标。没有 Computer Use 目标的调用不显示应用图标。本次不持久化图标，也不修改模型可见输出。调用返回 cell 上下文后才显示图标。
 
-SDK 生产端 PR 提供独立接口。在该 SDK 及配套原生包发布并安装前，当前已发布依赖使用带名称的回退图标。不提交本地 SDK 路径。macOS 提供图标；Windows/Linux 返回 unavailable。第三方外部 Computer Use MCP 服务不在此次内置 REPL 集成范围内。
+SDK 生产端 PR 提供独立接口。在该 SDK 及配套原生包发布并安装前，当前已发布依赖使用带名称的回退图标。不提交本地 SDK 路径。macOS、Windows 和 Linux 均提供原生图标。Windows 读取可执行文件或 AppsFolder 图标；Linux 使用 GTK 3/GdkPixbuf 读取 desktop entry 图标，支持 SVG 和主题图标。缺少图标或原生图像库时使用带名称的回退图标。第三方外部 Computer Use MCP 服务不在此次内置 REPL 集成范围内。
 
 ## 验证
 
