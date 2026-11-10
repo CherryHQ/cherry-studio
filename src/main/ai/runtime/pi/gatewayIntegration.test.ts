@@ -339,7 +339,7 @@ describe('native Pi through the production gateway', () => {
     const binding = await createPiGatewayModelBinding(input, providerService.getByProviderId('port'), model)
     return createPiBehaviorHost({
       input,
-      root: runtimeId('root'),
+      root: () => runtimeId('root'),
       binding,
       model,
       approval: {

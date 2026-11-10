@@ -23,7 +23,7 @@ import { PI_TRANSPORT } from './PiMessageMetadata'
 type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
 type HostOptions = {
   input: AgentRuntimeConnectInput
-  root: ThreadId
+  root(): ThreadId
   binding: Binding
   model: Model
   rootModelKey?: string
@@ -53,7 +53,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
   const rootKey = options.rootModelKey ?? `${binding.model.provider}/${binding.model.id}`
   const models = new Map<string, Model>([[rootKey, options.model]])
   const bindings = new Map<string, Binding>([[rootKey, binding]])
-  const threads = new Map<ThreadId, string>([[options.root, rootKey]])
+  const threads = new Map<ThreadId, string>([[options.root(), rootKey]])
   async function complete(thread: ThreadId, system: string, value: JsonValue, signal: AbortSignal) {
     const selected = bindings.get(threads.get(thread) ?? rootKey)!
     const usage = application
@@ -153,7 +153,8 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
     settings: {
       goalDefaults: () => ({ maxGoalRounds: 100, maxGoalRoundsCeiling: 1000, blockedAfter: 3 }),
       autonomy: () => 'auto',
-      permissionMode: () => approval.getPermissionMode() ?? 'default',
+      permissionMode: (thread) =>
+        thread === options.root() ? (approval.getPermissionMode() ?? 'default') : 'bypassPermissions',
       attendance: () => approval.getInteractionState().userResponse,
       maxBackground: () => DEFAULT_MAX_BACKGROUND,
       offloadThreshold: () => 20_000

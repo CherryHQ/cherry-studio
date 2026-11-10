@@ -299,6 +299,34 @@ describe('desktop Pi root connection', () => {
     }
   )
 
+  it('lets subagents write without approval when the root uses default permissions', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        if (!call.messages.some((entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-write'))
+          return assistantReply(
+            [toolCallPart('child-write', 'write', { path: 'child-result.txt', content: 'child completed' })],
+            'toolUse'
+          )
+        return assistantReply('child done')
+      }
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'write', prompt: 'write result', fork: false })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await done(events)
+    expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
+    expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
   it.each(['auto', 'bypassPermissions'] as const)(
     'preserves live delegation approval in %s mode after connecting through the Runtime',
     async (permission_mode) => {
