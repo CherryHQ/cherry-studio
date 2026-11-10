@@ -308,7 +308,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     const behavior = await createPiBehaviorHost({
       input: this.input,
-      root: runtimeId(nativeId),
+      root: () => runtimeId(nativeId),
       binding,
       model: initialSnapshot.model,
       approval: approvalContext,
