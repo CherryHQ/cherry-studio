@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { createAssistantMessageEventStream, type AssistantMessage, type Usage } from '@earendil-works/pi-ai'
 import { AgentDoc, configure, createSession, type ConversationId } from '@earendil-works/pi-durable'
+import { trace } from '@opentelemetry/api'
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
@@ -27,10 +29,12 @@ import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSess
 import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
+import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
+import type { SpanEntity } from '@shared/data/types/trace'
 
 import {
   assistantReply,
@@ -724,6 +728,71 @@ describe('desktop Pi Durable connection', () => {
     expect(text(parent.events)).toContain('source remains usable')
   })
 
+  it('uses native Durable tool phases and forwards the generation phase parent', async () => {
+    const captured: SpanEntity[] = []
+    const provider = new BasicTracerProvider()
+    vi.spyOn(trace, 'getTracer').mockImplementation((name) => provider.getTracer(name))
+    const preferences = application.get('PreferenceService')
+    const previous = preferences.get('app.developer_mode.enabled')
+    await preferences.set('app.developer_mode.enabled', true)
+    observabilitySinks.register({
+      id: 'durable-native-test',
+      writeSpanEntity: (span) => {
+        captured.push(span)
+      }
+    })
+    input.trace = {
+      topicId: `agent-session:${input.sessionId}`,
+      sessionId: input.sessionId,
+      turnId: 'native-turn',
+      traceId: '11111111111111111111111111111111',
+      rootSpanId: '2222222222222222'
+    }
+    setScript([
+      {
+        ...assistantReply(''),
+        content: [toolCallPart('native-tool', 'bash', { command: 'printf native-telemetry' })],
+        stopReason: 'toolUse'
+      },
+      assistantReply('finished')
+    ])
+    const parents: ReturnType<typeof getPiTraceContext>[] = []
+    const original = script.model
+    script.model = (model, context, options) => {
+      parents.push(getPiTraceContext(options?.telemetry))
+      return original(model, context, options)
+    }
+    try {
+      const current = await connect()
+      await current.connection.send({ message: message('run a tool') })
+      await done(current.events)
+      await current.connection.close()
+      expect(text(current.events)).toContain('finished')
+      const submission = captured.find((span) => span.name === 'pi.durable.submit')
+      expect(submission).toMatchObject({ traceId: input.trace.traceId, parentId: input.trace.rootSpanId })
+      const tool = captured.find((span) => span.attributes?.['tool.call_id'] === 'native-tool')
+      expect(tool).toMatchObject({
+        name: 'pi.durable.phase',
+        status: 'OK',
+        attributes: { 'tool.name': 'bash', outcome: 'done' }
+      })
+      expect(tool?.events?.some((event) => event.name === 'pi.durable.entry')).toBe(true)
+      expect(parents).toHaveLength(2)
+      for (const parent of parents) {
+        expect(parent).toMatchObject({ sessionId: input.sessionId, traceId: input.trace.traceId })
+        expect(captured.find((span) => span.id === parent?.rootSpanId)?.name).toBe('pi.durable.phase')
+      }
+      expect(
+        captured.some((span) =>
+          ['pi.generate_content', 'pi.execute_tool', 'pi.ai.request', 'pi.ai.poll'].includes(span.name)
+        )
+      ).toBe(false)
+    } finally {
+      await preferences.set('app.developer_mode.enabled', previous)
+      await provider.shutdown()
+    }
+  })
+
   function message(text: string) {
     return messages.saveMessage({
       sessionId: input.sessionId,
@@ -1180,6 +1249,80 @@ describe('desktop Pi Durable connection', () => {
       await reopened.connection.messageChild(contextId, 'continue after reopen')
       await expect.poll(() => JSON.stringify(restored!.snapshot().messages)).toContain('child answer after reopen')
       expect(script.calls[0].model.id).toBe(MODEL.id)
+    }
+  )
+
+  // Catches a continuation saved ahead of child output that the projection has received but not yet written.
+  it.each(['acknowledged', 'rejected'] as const)(
+    'keeps a %s continuation after child output that is still pending its archive write',
+    async (outcome) => {
+      const held = gate()
+      let root = ''
+      let childRuns = 0
+      script = respondingModel((call) => {
+        root ||= call.sessionId!
+        if (call.sessionId !== root) {
+          childRuns++
+          return childRuns === 1
+            ? held.wait(assistantReply('child first answer'))
+            : assistantReply('child continued answer')
+        }
+        if (!call.messages.some((entry) => entry.role === 'toolResult'))
+          return assistantReply(
+            [
+              toolCallPart('spawn', 'subagent', {
+                description: 'research',
+                prompt: 'child work',
+                background: true,
+                fork: false
+              })
+            ],
+            'toolUse'
+          )
+        return assistantReply('parent done')
+      })
+      const { connection, events } = await connect()
+      await connection.send({ message: message('delegate') })
+      await held.reached
+      await done(events)
+      const view = (await connection.childProjection('spawn'))!
+      const contextId = view.snapshot().contextId
+      const [child] = await connection['childResources']()
+      if (outcome === 'rejected')
+        vi.spyOn(child.handle.input, 'submit').mockImplementationOnce(async (draft) => ({
+          status: 'rejected',
+          inputId: draft.inputId,
+          error: { operation: 'submit', code: 'busy', message: 'child is busy' }
+        }))
+      const order = (messages: readonly { parts: readonly { type: string; text?: string }[] }[]) => {
+        const texts = messages.flatMap((entry) =>
+          entry.parts.flatMap((part) => (part.type === 'text' ? [part.text] : []))
+        )
+        return { answer: texts.indexOf('child first answer'), steer: texts.indexOf('steer now') }
+      }
+      const inverted: unknown[] = []
+      view.subscribe(() => {
+        const { answer, steer } = order(view.snapshot().messages)
+        if (steer >= 0 && steer < answer) inverted.push(view.snapshot().messages)
+      })
+      let steering: Promise<string> | undefined
+      await child.handle.observe(async (event) => {
+        if (!steering && event.type === 'snapshot' && JSON.stringify(event.messages).includes('child first answer'))
+          steering = connection.messageChild(contextId, 'steer now').then(
+            () => 'sent',
+            (error: Error) => error.message
+          )
+      })
+      held.open()
+      await expect.poll(() => steering !== undefined).toBe(true)
+      expect(await steering).toBe(outcome === 'rejected' ? 'child is busy' : 'sent')
+      if (outcome === 'acknowledged')
+        await expect.poll(() => JSON.stringify(view.snapshot().messages)).toContain('child continued answer')
+      await connection.drainChildWrites()
+      const saved = order(savedChildView(contexts.context(contextId)).messages)
+      expect(saved.answer).toBeGreaterThanOrEqual(0)
+      expect(saved.steer).toBeGreaterThan(saved.answer)
+      expect(inverted).toEqual([])
     }
   )
 

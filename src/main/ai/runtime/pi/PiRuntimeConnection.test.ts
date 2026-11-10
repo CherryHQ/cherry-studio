@@ -803,6 +803,42 @@ describe('desktop Pi root connection', () => {
     expect(events[started]).toMatchObject({ origin: { kind: 'goal-round', round: 1 } })
   })
 
+  // Catches a verdict rejected as unverified only because the model wrapped its JSON in prose or a code fence.
+  it.each([
+    ['a markdown code fence', '```json\n{"verdict":"met","reason":"checked"}\n```'],
+    ['a prose preamble', 'Here is the verdict:\n{"verdict":"met","reason":"checked"}']
+  ])('completes a goal when the verifier wraps its verdict in %s', async (_shape, verdict) => {
+    script = respondingModel((call) => {
+      if (call.systemPrompt?.includes('Evaluate whether the objective')) return assistantReply(verdict)
+      const last = call.messages.at(-1)
+      if (last?.role === 'toolResult' && last.toolName === 'get_goal') {
+        const content = last.content.find((part) => part.type === 'text')
+        if (content?.type !== 'text') throw new Error('No goal view')
+        const { goal } = JSON.parse(content.text)
+        return assistantReply(
+          [
+            toolCallPart('complete', 'update_goal', {
+              goal_id: goal.id,
+              revision: goal.revision,
+              action: 'complete',
+              evidence: 'checked files'
+            })
+          ],
+          'toolUse'
+        )
+      }
+      if (last?.role === 'toolResult') return assistantReply('completed')
+      return assistantReply([toolCallPart('get', 'get_goal')], 'toolUse')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('/goal check the files') })
+    await expect.poll(() => text(events)).toContain('completed')
+    const completion = projected(events)
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === 'dynamic-tool' && part.toolName === 'update_goal')
+    expect(completion).toMatchObject({ state: 'output-available' })
+  })
+
   it('streams through the Runtime, keeps native identity without mirroring completion, and saves a native checkpoint', async () => {
     const { connection, events } = await connect()
     expect(nativeFiles()).toEqual([])

@@ -1,4 +1,3 @@
-import '@data/services/AgentSessionMessageService'
 import path from 'path'
 
 import { setupTestDatabase } from '@test-helpers/db'
@@ -16,6 +15,7 @@ import { jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
@@ -1949,6 +1949,96 @@ describe('AgentSessionService', () => {
     expect(await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, trashed.id))).toEqual([])
     const [activeRow] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, active.id))
     expect(activeRow).toMatchObject({ id: active.id, deletedAt: null })
+  })
+
+  describe('beyond the SQLite bound-parameter limit', () => {
+    const SESSION_COUNT = 33_000
+
+    async function seedTaskSessions(): Promise<{ taskId: string; ids: string[] }> {
+      const task = createTaskSchedule()
+      const workspace = await createWorkspace('high-frequency-task')
+      const ids = Array.from({ length: SESSION_COUNT }, (_, i) => `task-run-${i}`)
+      dbh.db.transaction((tx) => {
+        for (let i = 0; i < ids.length; i += 500) {
+          tx.insert(agentSessionTable)
+            .values(
+              ids.slice(i, i + 500).map((id, offset) => ({
+                id,
+                agentId: 'agent-session-test',
+                name: id,
+                workspaceId: workspace.id,
+                taskId: task.id,
+                orderKey: `a${String(i + offset).padStart(6, '0')}`
+              }))
+            )
+            .run()
+        }
+      })
+      pinService.pin({ entityType: 'session', entityId: ids[SESSION_COUNT - 1] })
+      return { taskId: task.id, ids }
+    }
+
+    it('trashes and then permanently deletes every session of a task', async () => {
+      const { taskId, ids } = await seedTaskSessions()
+
+      const trashed = dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, ids))
+
+      expect(trashed.trashedIds).toHaveLength(SESSION_COUNT)
+      const deletedAts = new Set(
+        (await dbh.db.select({ deletedAt: agentSessionTable.deletedAt }).from(agentSessionTable)).map(
+          (row) => row.deletedAt
+        )
+      )
+      expect(deletedAts.size).toBe(1)
+      expect([...deletedAts][0]).not.toBeNull()
+      expect(await dbh.db.select().from(pinTable)).toEqual([])
+
+      const purged = agentSessionService.deleteByIdsWithImpact(agentSessionService.listTaskSessionIds(taskId), {
+        permanent: true
+      })
+
+      expect(purged.deletedIds).toHaveLength(SESSION_COUNT)
+      expect(await dbh.db.select().from(agentSessionTable)).toEqual([])
+    })
+
+    it('resolves pre-deletion lookups for every session of a task', async () => {
+      const { ids } = await seedTaskSessions()
+      const systemSession = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'System workspace run',
+        workspace: { type: 'system' }
+      })
+      const lookupIds = [...ids, systemSession.id]
+      const lastTaskSessionId = ids[SESSION_COUNT - 1]
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values({
+          id: crypto.randomUUID(),
+          sessionId: lastTaskSessionId,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'Last run' }] },
+          runtimeResumeToken: 'native-last-run'
+        })
+        .run()
+
+      expect(agentSessionService.listSystemWorkspaceSessions(lookupIds).map((row) => row.id)).toEqual([
+        systemSession.id
+      ])
+      expect(agentSessionMessageService.listRuntimeResumeTokensBySession(lookupIds)).toEqual(
+        new Map([[lastTaskSessionId, new Set(['native-last-run'])]])
+      )
+    })
+
+    it('purges every expired trashed session of a task', async () => {
+      const { ids } = await seedTaskSessions()
+      dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, ids, { deletedAt: 100 }))
+
+      const purgedIds = dbh.db.transaction((tx) => agentSessionService.purgeExpiredByIdsTx(tx, ids, 200))
+
+      expect(purgedIds).toHaveLength(SESSION_COUNT)
+      expect(await dbh.db.select().from(agentSessionTable)).toEqual([])
+    })
   })
 
   it('deletes system workspace rows when deleting agent sessions', async () => {

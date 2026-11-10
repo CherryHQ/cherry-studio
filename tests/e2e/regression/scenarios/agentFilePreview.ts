@@ -6,7 +6,11 @@ import { expect, type Page, type TestInfo } from '@playwright/test'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { closeExternalText, openExternalText } from '../../../../scripts/e2e/regression/systemAutomation'
+import {
+  closeExternalText,
+  openExternalText,
+  sendSystemHotkey
+} from '../../../../scripts/e2e/regression/systemAutomation'
 import { createAgent, openAgentPane, selectAgentWorkspace, startNewAgentTask } from '../helpers/agents'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { closeSettings } from '../helpers/settings'
@@ -82,34 +86,35 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
   if ((await code.getAttribute('aria-expanded')) !== 'true') await code.click()
   await page.getByRole('treeitem', { name: 'sample.py', exact: true }).click()
   await expect(preview).toBeVisible()
-  const previewText = () =>
-    preview
-      .locator('[data-ui~="ui.code-viewer"] .line-content')
-      .allTextContents()
-      .then((lines) => lines.join('\n'))
-  await expect.poll(previewText).toBe(original)
+  const expectPreview = async (text: string) => {
+    for (const line of text.trimEnd().split('\n')) {
+      await expect(preview.getByText(line.trim(), { exact: true })).toBeVisible()
+    }
+  }
+  await expectPreview(original)
   await screenshot('MP-52 original file preview')
-  await page.getByTestId('artifact-pane-header').getByRole('button', { name: 'Back', exact: true }).click()
+  await page
+    .getByTestId('artifact-pane-header')
+    .getByRole('button', { name: 'Close preview sample.py', exact: true })
+    .click()
 
   const edited = await send(
-    'Edit only code/sample.py using the Edit tool: rename add to add_numbers and add exactly one comment line "# Add two numbers." before the function. Preserve all other bytes, including the final newline. Do not create or modify any other files. Reply MP52_EDIT_DONE.'
+    'Edit only code/sample.py using exactly one Edit tool call covering the whole file: rename add to add_numbers and add exactly one comment line "# Add two numbers." before the function. Preserve all other bytes, including the final newline. Do not create or modify any other files. Reply MP52_EDIT_DONE.'
   )
   await expect.poll(() => readFile(target, 'utf8'), { timeout: 30_000 }).toBe(expected)
   await edited.getByTestId('completed-process-trigger').click()
-  for (let round = 0; round < 3; round += 1) {
-    const controls = await edited
-      .locator('[aria-expanded="false"][aria-controls]')
-      .filter({ hasText: /\S/ })
-      .evaluateAll((elements) => elements.map((element) => element.getAttribute('aria-controls')!))
-    for (const control of controls) {
-      const disclosure = edited.locator(`[aria-controls=${JSON.stringify(control)}]`)
-      if ((await disclosure.getAttribute('aria-expanded')) === 'false') await disclosure.click()
-    }
+  for (const group of await edited.getByTestId('child-tool-group').all()) {
+    const trigger = group.getByRole('button', { expanded: false }).first()
+    if (await trigger.isVisible()) await trigger.click()
   }
-  const editToggle = edited.getByRole('button', { name: /^(Edit|Modify)(?:\s|$)/i }).first()
+  const diff = edited.getByTestId('collapse-content-MultiEdit').or(edited.getByTestId('collapse-content-Edit'))
+  await expect(diff).toHaveCount(1)
+  const editToggle = edited.locator(`[aria-controls="${await diff.getAttribute('id')}"]`)
   await expect(editToggle).toBeVisible()
-  if ((await editToggle.getAttribute('aria-expanded')) !== 'true') await editToggle.click()
-  const diff = edited.getByTestId('collapse-content-Edit')
+  if ((await editToggle.getAttribute('aria-expanded')) !== 'true') {
+    await editToggle.focus()
+    await editToggle.press('Enter')
+  }
   await expect(diff).toBeVisible()
   await expect(diff.getByText('def add(a, b):', { exact: true })).toBeVisible()
   await expect(diff.getByText('# Add two numbers.', { exact: true })).toBeVisible()
@@ -117,7 +122,8 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
   await screenshot('MP-52 tool diff matches disk')
   await page.getByRole('treeitem', { name: 'sample.py', exact: true }).click()
   await expect(preview).toBeVisible()
-  await expect.poll(previewText).toBe(expected)
+  await expectPreview(expected)
+  await expect(preview.getByText('def add(a, b):', { exact: true })).toHaveCount(0)
   await expect(page.getByLabel('Unsaved', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('dialog', { name: /File changed on disk|Discard unsaved changes/ })).toHaveCount(0)
   await screenshot('MP-52 latest file preview')
@@ -127,16 +133,27 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
   for (const [path, contents] of baseline) {
     expect(await readFile(path, 'utf8'), path).toBe(path === target ? expected : contents)
   }
-  expect(app.record.platform, 'External editor verification currently uses macOS TextEdit').toBe('macos')
+  const mac = app.record.platform === 'macos'
+  await page.evaluate(() => navigator.clipboard.writeText('MP52_COPY_PENDING'))
   try {
     openExternalText(app.record.platform, { ...app.paths, fixtures: app.paths.workspace }, target)
-    const external = execFileSync(
-      'osascript',
-      ['-e', 'tell application "TextEdit" to get text of document "sample.py"'],
-      { encoding: 'utf8' }
-    )
-    expect(external.replace(/\n$/, '')).toBe(await readFile(target, 'utf8'))
-    await testInfo.attach('MP-52 external TextEdit contents', { body: external, contentType: 'text/plain' })
+    sendSystemHotkey(app.record.platform, [mac ? 'Meta' : 'Control', 'c'])
+    await expect
+      .poll(() => {
+        const text = mac
+          ? execFileSync('pbpaste', { encoding: 'utf8', timeout: 10_000 })
+          : execFileSync(
+              'powershell.exe',
+              ['-NoProfile', '-NonInteractive', '-Command', '[Console]::Write((Get-Clipboard -Raw))'],
+              { encoding: 'utf8', timeout: 10_000 }
+            )
+        return text.replace(/\r\n/g, '\n')
+      })
+      .toBe(expected)
+    await testInfo.attach(`MP-52 external ${mac ? 'TextEdit' : 'Notepad'} contents`, {
+      body: expected,
+      contentType: 'text/plain'
+    })
   } finally {
     closeExternalText(app.record.platform)
   }

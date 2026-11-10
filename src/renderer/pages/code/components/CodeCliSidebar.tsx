@@ -123,7 +123,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
                           variant="ghost"
                           size="icon-sm"
                           aria-label={t('common.more')}
-                          className="size-7 opacity-0 shadow-none group-focus-within/row:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100"
+                          className="size-7 opacity-0 shadow-none group-focus-within/row:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100 text-muted-foreground"
                           onClick={(event) => event.stopPropagation()}>
                           <MoreHorizontal className="size-4" />
                         </Button>
