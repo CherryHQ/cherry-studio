@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-10-pi-windows-powershell.md
-2026-11-10-pi-windows-powershell.md: ccf070ffee94aef65ae8a3c5938e03077cf4d454
-2026-11-10-pi-windows-powershell.zh.md: 3ae55aaff1f20cde2df745c0bc965e9ab1614e9f
+2026-11-10-pi-windows-powershell.md: c8462463764b86cf2d7abd79a74dabc2170f8c99
+2026-11-10-pi-windows-powershell.zh.md: 9fd13b090e8162cfa836fd1069dc3d27d8d95405
