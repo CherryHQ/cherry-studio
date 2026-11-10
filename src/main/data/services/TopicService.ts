@@ -640,6 +640,17 @@ export class TopicService {
     return deletedIds
   }
 
+  purgeSideChatsForSourcesTx(tx: DbOrTx, sourceIds: readonly string[]): void {
+    const ids = associatedSideChatIds(tx, sourceIds)
+    for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
+      const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
+      getDataService('MessageService').purgeByTopicIdsTx(tx, chunk)
+      tagService.purgeForEntitiesTx(tx, 'topic', chunk)
+      pinService.purgeForEntitiesTx(tx, 'topic', chunk)
+      tx.delete(topicTable).where(inArray(topicTable.id, chunk)).run()
+    }
+  }
+
   restore(id: string): Topic {
     const row = application.get('DbService').withWriteTx((tx) => {
       const original = tx

@@ -1,13 +1,15 @@
 import { and, count, eq, isNull } from 'drizzle-orm'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { Message } from '@shared/data/types/message'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   SideChatConfigSchema,
   SideChatSourceSchema,
+  SideChatSourceIdSchema,
   SideChatRootDataSchema,
   type SideChatConfig,
   type SideChatMetadata,
@@ -15,11 +17,14 @@ import {
   type SideChatSource
 } from '@shared/data/types/sideChat'
 
+import { agentSessionMessageService } from './AgentSessionMessageService'
+import { readAgentSessionPath } from './agentSessionMessageTree'
+import { agentSessionService } from './AgentSessionService'
 import { messageService } from './MessageService'
 import { topicService } from './TopicService'
 import { sideChatRootFilter, sideChatSourceTopicId } from './utils/sideChatRoot'
 
-function textOf(message: Message): string {
+function textOf(message: { data: { parts: CherryMessagePart[] } }): string {
   return message.data.parts
     .filter((part) => part.type === 'text')
     .map((part) => part.text)
@@ -27,13 +32,35 @@ function textOf(message: Message): string {
 }
 
 export class SideChatService {
+  assertSource(sourceTopicId: string): void {
+    SideChatSourceIdSchema.parse(sourceTopicId)
+    if (!sourceTopicId.startsWith('agent-session:')) {
+      topicService.getById(sourceTopicId)
+      return
+    }
+    const session = agentSessionService.getConversationById(sourceTopicId.slice('agent-session:'.length))
+    if (session.agentId) {
+      const agent = application
+        .get('DbService')
+        .getDb()
+        .select({ id: agentTable.id })
+        .from(agentTable)
+        .where(and(eq(agentTable.id, session.agentId), isNull(agentTable.deletedAt)))
+        .get()
+      if (!agent) throw DataApiErrorFactory.notFound('Agent', session.agentId)
+    }
+  }
+
   captureSource(input: SideChatSource): SideChatSnapshot {
     const source = SideChatSourceSchema.parse(input)
-    topicService.getById(source.topicId)
+    this.assertSource(source.topicId)
     if (this.find(source.topicId))
       throw DataApiErrorFactory.invalidOperation('create side chat', 'Nested side chats are unsupported')
-    const answer = messageService.getById(source.messageId)
-    if (answer.topicId !== source.topicId || answer.role !== 'assistant') {
+    const sessionId = source.topicId.startsWith('agent-session:') ? source.topicId.slice('agent-session:'.length) : null
+    const answer = sessionId
+      ? agentSessionMessageService.getSessionMessage(sessionId, source.messageId)
+      : messageService.getById(source.messageId)
+    if ((!sessionId && 'topicId' in answer && answer.topicId !== source.topicId) || answer.role !== 'assistant') {
       throw DataApiErrorFactory.invalidOperation('create side chat', 'Source must be an answer in the selected topic')
     }
     const answerText = textOf(answer)
@@ -41,7 +68,10 @@ export class SideChatService {
     const offset = answerText.indexOf(selection)
     if (!selection || offset < 0)
       throw DataApiErrorFactory.invalidOperation('create side chat', 'Selection does not match the source answer')
-    const question = messageService.getPathToNode(answer.id).findLast((message) => message.role === 'user')
+    const path = sessionId
+      ? readAgentSessionPath(application.get('DbService').getDb(), sessionId, answer.id)
+      : messageService.getPathToNode(answer.id)
+    const question = path.findLast((message) => message.role === 'user')
     if (!question) throw DataApiErrorFactory.invalidOperation('create side chat', 'Source answer has no user question')
     const unique = answerText.indexOf(selection, offset + 1) < 0
     return {
@@ -89,13 +119,13 @@ export class SideChatService {
   get(topicId: string) {
     const row = this.find(topicId)
     if (!row) throw DataApiErrorFactory.notFound('SideChat', topicId)
-    topicService.getById(row.sourceTopicId)
+    this.assertSource(row.sourceTopicId)
     topicService.getById(topicId)
     return { ...row, questionCount: this.questionCount(topicId) }
   }
 
   list(sourceTopicId: string) {
-    topicService.getById(sourceTopicId)
+    this.assertSource(sourceTopicId)
     return application
       .get('DbService')
       .getDb()

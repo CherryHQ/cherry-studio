@@ -2,8 +2,11 @@ import * as z from 'zod'
 
 import { UniqueModelIdSchema } from './model'
 
+/** Ordinary topic UUID or the existing Agent conversation stream identity. */
+export const SideChatSourceIdSchema = z.union([z.uuidv4(), z.string().regex(/^agent-session:[^\s:]+$/)])
+
 export const SideChatSourceSchema = z.strictObject({
-  topicId: z.uuidv4(),
+  topicId: SideChatSourceIdSchema,
   messageId: z.string().min(1),
   selection: z.string().min(1).max(200_000).optional()
 })
@@ -35,7 +38,7 @@ export type SideChatMetadata = z.infer<typeof SideChatMetadataSchema>
 /** Main-owned structural data on the side topic's existing virtual root, never model history. */
 export const SideChatRootDataSchema = z.strictObject({
   parts: z.tuple([]),
-  sideChat: SideChatMetadataSchema.extend({ sourceTopicId: z.uuidv4(), version: z.literal(1) })
+  sideChat: SideChatMetadataSchema.extend({ sourceTopicId: SideChatSourceIdSchema, version: z.literal(1) })
 })
 
 export interface SavedSideChat {

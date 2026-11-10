@@ -1304,6 +1304,10 @@ export class AgentSessionService {
     if (rows.length === 0) return []
 
     const purgedIds = rows.map((row) => row.session.id)
+    getDataService('TopicService').purgeSideChatsForSourcesTx(
+      tx,
+      purgedIds.map((id) => `agent-session:${id}`)
+    )
     const systemWorkspaceIds = rows
       .filter((row) => row.session.ownerSessionId === null && row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM)
       .map((row) => row.workspace.id)
@@ -1359,6 +1363,10 @@ export class AgentSessionService {
       .returning({ id: sessionsTable.id })
       .all()
     const sessionIds = deletedSessions.map((session) => session.id)
+    getDataService('TopicService').purgeSideChatsForSourcesTx(
+      tx,
+      sessionIds.map((id) => `agent-session:${id}`)
+    )
     pinService.purgeForEntitiesTx(tx, 'session', sessionIds)
     return sessionIds
   }
@@ -1566,6 +1574,11 @@ export class AgentSessionService {
       })
       .all()
     const deletedIds = rows.map((row) => row.id)
+
+    getDataService('TopicService').purgeSideChatsForSourcesTx(
+      tx,
+      deletedIds.map((id) => `agent-session:${id}`)
+    )
 
     pinService.purgeForEntitiesTx(tx, 'session', deletedIds)
     return deletedIds

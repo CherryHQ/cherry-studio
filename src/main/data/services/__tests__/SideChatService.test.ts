@@ -2,7 +2,11 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { messageTable } from '@data/db/schemas/message'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { messageService } from '@data/services/MessageService'
 import { sideChatService } from '@data/services/SideChatService'
 import { topicService } from '@data/services/TopicService'
@@ -30,6 +34,81 @@ function source() {
 
 describe('saved side-chat source and lifecycle', () => {
   const dbh = setupTestDatabase()
+
+  function agentSource() {
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'workspace', name: 'Workspace', path: '/test', type: 'user', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'session', name: 'Session', workspaceId: 'workspace', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values([
+        {
+          id: 'question',
+          sessionId: 'session',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'Branch question' }] },
+          status: 'success'
+        },
+        {
+          id: 'answer',
+          sessionId: 'session',
+          parentId: 'question',
+          role: 'assistant',
+          data: {
+            parts: [
+              { type: 'text', text: 'Branch answer' },
+              { type: 'reasoning', text: 'Private reasoning' }
+            ]
+          },
+          status: 'success'
+        },
+        {
+          id: 'sibling',
+          sessionId: 'session',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'Unrelated branch' }] },
+          status: 'success'
+        }
+      ])
+      .run()
+    return { topicId: 'agent-session:session', messageId: 'answer', selection: 'answer' }
+  }
+
+  it('captures the Agent answer ancestry without sibling, reasoning or foreign-session content', () => {
+    const input = agentSource()
+    const side = sideChatService.create(input, config)
+    expect(side.metadata.snapshot).toMatchObject({
+      answer: 'Branch answer',
+      question: 'Branch question',
+      selection: 'answer'
+    })
+    expect(sideChatService.list(input.topicId).map((item) => item.topicId)).toEqual([side.topicId])
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'other', name: 'Other', workspaceId: 'workspace', orderKey: 'a1' })
+      .run()
+    expect(() => sideChatService.create({ ...input, topicId: 'agent-session:other' }, config)).toThrow()
+    dbh.db.update(agentSessionTable).set({ type: 'background' }).where(eq(agentSessionTable.id, 'session')).run()
+    expect(() => sideChatService.get(side.topicId)).toThrow()
+  })
+
+  it('hides and restores Agent side chats and purges their root data with the source', () => {
+    const input = agentSource()
+    const side = sideChatService.create(input, config)
+    agentSessionService.delete('session')
+    expect(() => sideChatService.get(side.topicId)).toThrow()
+    agentSessionService.restore('session')
+    expect(sideChatService.get(side.topicId).metadata.snapshot.question).toBe('Branch question')
+    agentSessionService.delete('session')
+    agentSessionService.delete('session', { permanent: true })
+    expect(sideChatService.find(side.topicId)).toBeUndefined()
+    expect(() => topicService.getById(side.topicId)).toThrow()
+  })
 
   it('keeps structural metadata outside history and preserves it when messages are cleared', () => {
     const input = source()
