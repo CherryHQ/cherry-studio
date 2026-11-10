@@ -345,6 +345,58 @@ describe('desktop Pi root connection', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
+  // Catches a mid-turn mode switch that only reaches the next turn: the running turn's next tool call
+  // would still be approved (or skipped) under the mode the user just left.
+  it.each([
+    { from: 'bypassPermissions', to: 'default', asksForWrite: true },
+    { from: 'default', to: 'bypassPermissions', asksForWrite: false }
+  ] as const)('applies a $from → $to switch to the running turn', async ({ from, to, asksForWrite }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: from }
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('ask', 'AskUserQuestion', {
+            questions: [
+              {
+                question: 'Continue?',
+                header: 'Continue',
+                options: [
+                  { label: 'Yes', description: 'Go on' },
+                  { label: 'No', description: 'Stop' }
+                ]
+              }
+            ]
+          })
+        ],
+        'toolUse'
+      ),
+      assistantReply([toolCallPart('write', 'write', { path: 'after-switch.txt', content: 'written' })], 'toolUse'),
+      assistantReply('finished')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('ask then write') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: to }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
+      approved: true,
+      updatedInput: { answers: { 'Continue?': 'Yes' } }
+    })
+
+    if (asksForWrite) {
+      await expect.poll(() => approvals().length).toBe(2)
+      expect(approvals()[1].request).toMatchObject({ toolCallId: 'write' })
+      expect(existsSync(join(directory, 'after-switch.txt'))).toBe(false)
+      toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
+    }
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(approvals()).toHaveLength(asksForWrite ? 2 : 1)
+    expect(readFileSync(join(directory, 'after-switch.txt'), 'utf8')).toBe('written')
+  })
+
   // Catches shutdown waiting indefinitely for an unanswered desktop question.
   it('withdraws a pending question on close without another model request', async () => {
     setScript([
@@ -749,6 +801,42 @@ describe('desktop Pi root connection', () => {
     expect(events.filter((event) => event.type === 'autonomous-turn-state').at(-1)).toMatchObject({ state: 'finished' })
     expect(script.calls).toHaveLength(4)
     expect(events[started]).toMatchObject({ origin: { kind: 'goal-round', round: 1 } })
+  })
+
+  // Catches a verdict rejected as unverified only because the model wrapped its JSON in prose or a code fence.
+  it.each([
+    ['a markdown code fence', '```json\n{"verdict":"met","reason":"checked"}\n```'],
+    ['a prose preamble', 'Here is the verdict:\n{"verdict":"met","reason":"checked"}']
+  ])('completes a goal when the verifier wraps its verdict in %s', async (_shape, verdict) => {
+    script = respondingModel((call) => {
+      if (call.systemPrompt?.includes('Evaluate whether the objective')) return assistantReply(verdict)
+      const last = call.messages.at(-1)
+      if (last?.role === 'toolResult' && last.toolName === 'get_goal') {
+        const content = last.content.find((part) => part.type === 'text')
+        if (content?.type !== 'text') throw new Error('No goal view')
+        const { goal } = JSON.parse(content.text)
+        return assistantReply(
+          [
+            toolCallPart('complete', 'update_goal', {
+              goal_id: goal.id,
+              revision: goal.revision,
+              action: 'complete',
+              evidence: 'checked files'
+            })
+          ],
+          'toolUse'
+        )
+      }
+      if (last?.role === 'toolResult') return assistantReply('completed')
+      return assistantReply([toolCallPart('get', 'get_goal')], 'toolUse')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('/goal check the files') })
+    await expect.poll(() => text(events)).toContain('completed')
+    const completion = projected(events)
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === 'dynamic-tool' && part.toolName === 'update_goal')
+    expect(completion).toMatchObject({ state: 'output-available' })
   })
 
   it('streams through the Runtime, keeps native identity without mirroring completion, and saves a native checkpoint', async () => {

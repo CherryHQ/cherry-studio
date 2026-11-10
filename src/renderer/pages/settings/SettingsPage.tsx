@@ -25,11 +25,6 @@ const SettingsPage: FC = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { pathname } = location
-  const standaloneRequested = String(location.search?.mcpStandalone) === 'true'
-  const [keepMcpStandalone, setKeepMcpStandalone] = useState(standaloneRequested)
-  useEffect(() => {
-    if (standaloneRequested) setKeepMcpStandalone(true)
-  }, [standaloneRequested])
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
   // Anchor-lookup scope for SettingsFocusScroll (this tab's content column)
@@ -42,11 +37,7 @@ const SettingsPage: FC = () => {
   }, [pathname])
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
-  const go = (path: string) =>
-    navigate({
-      to: path,
-      ...(path.startsWith('/settings/mcp') ? { search: { mcpStandalone: keepMcpStandalone ? 'true' : undefined } } : {})
-    })
+  const go = (path: string) => navigate({ to: path })
 
   const openExternalLink = (event: MouseEvent<HTMLDivElement>) => {
     if (event.type === 'auxclick' && event.button !== 1) return

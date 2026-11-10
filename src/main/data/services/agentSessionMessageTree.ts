@@ -45,6 +45,14 @@ export function agentSessionPathIds(sessionId: string, head: string) {
   ) select id from path)`
 }
 
+export function agentSessionDescendantIds(sessionId: string, messageId: string) {
+  return sql`(with recursive descendants(id) as (
+    select id from agent_session_message where session_id = ${sessionId} and id = ${messageId}
+    union
+    select m.id from agent_session_message m join descendants d on m.parent_id = d.id where m.session_id = ${sessionId}
+  ) select id from descendants)`
+}
+
 export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: string | null) {
   const selected = head ?? getAgentSessionHead(db, sessionId)
   if (!selected) return []
