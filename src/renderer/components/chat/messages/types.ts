@@ -455,6 +455,8 @@ export interface MessageListActions {
     parts: CherryMessagePart[],
     options?: { lockedMentionedModels?: Model[] }
   ) => void
+  /** Presentation eligibility for deleting this message on this surface. Absent = every message the action supports. */
+  canDeleteMessage?: (message: MessageListItem) => boolean
   getMessageDeleteAvailability?: (messageId: string) => MessageDeleteAvailability
   deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
