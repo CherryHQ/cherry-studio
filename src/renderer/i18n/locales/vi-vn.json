@@ -1521,6 +1521,7 @@
   "error.claude_code_session_bus_missing": "Claude Code cần một bus phiên Linux đang hoạt động.",
   "error.claude_code_session_bus_missing_detail": "Hãy đặt DBUS_SESSION_BUS_ADDRESS trong môi trường desktop khởi chạy Cherry Studio, sau đó khởi động lại ứng dụng. Claude Code chưa được khởi chạy.",
   "error.content": "Nội dung",
+  "error.content_filtered": "Bộ lọc nội dung của nhà cung cấp đã chặn phản hồi này trước khi có bất kỳ đầu ra nào. Hãy diễn đạt lại tin nhắn hoặc đổi sang mô hình khác.",
   "error.data": "Dữ liệu",
   "error.detail": "Chi tiết lỗi",
   "error.details": "Chi tiết",

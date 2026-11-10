@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { jsonSchema, type StepResult, type ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
 
@@ -169,6 +171,17 @@ describe('resolveContentFilterTerminalError', () => {
     expect(error).toBeDefined()
     const serialized = serializeError(error) as { finishReason?: string; message?: string }
     expect(classifyErrorCategory({ text: serialized.message, finishReason: serialized.finishReason })).toBe('content')
+  })
+
+  it('carries an i18nKey the renderer catalog defines, so the card never falls back to the English message', () => {
+    const serialized = serializeError(resolveContentFilterTerminalError([step({})])) as { i18nKey?: string }
+
+    // Read as data: main must not import renderer modules, but the key is a cross-process contract.
+    const rendererCatalog = JSON.parse(
+      readFileSync(new URL('../../../../../../renderer/i18n/locales/en-us.json', import.meta.url), 'utf8')
+    ) as Record<string, string>
+    expect(serialized.i18nKey).toBeDefined()
+    expect(rendererCatalog).toHaveProperty([`error.${serialized.i18nKey}`])
   })
 
   it('leaves a filtered final step that still called a tool to the normal loop', () => {

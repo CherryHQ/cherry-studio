@@ -1521,6 +1521,7 @@
   "error.claude_code_session_bus_missing": "Claude Code necesită un bus de sesiune Linux activ.",
   "error.claude_code_session_bus_missing_detail": "Setează DBUS_SESSION_BUS_ADDRESS în mediul desktop care pornește Cherry Studio, apoi repornește aplicația. Claude Code nu a fost pornit.",
   "error.content": "Conținut",
+  "error.content_filtered": "Filtrul de conținut al furnizorului a blocat acest răspuns înainte de orice rezultat. Reformulează mesajul sau schimbă modelul.",
   "error.data": "Date",
   "error.detail": "Detalii eroare",
   "error.details": "Detalii",

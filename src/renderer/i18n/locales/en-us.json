@@ -1521,6 +1521,7 @@
   "error.claude_code_session_bus_missing": "Claude Code needs an active Linux session bus.",
   "error.claude_code_session_bus_missing_detail": "Set DBUS_SESSION_BUS_ADDRESS in the desktop environment that starts Cherry Studio, then restart the app. Claude Code was not launched.",
   "error.content": "Content",
+  "error.content_filtered": "The provider's content filter blocked this response before any output. Rephrase the message or switch models.",
   "error.data": "Data",
   "error.detail": "Error Details",
   "error.details": "Details",

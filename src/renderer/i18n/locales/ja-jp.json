@@ -1521,6 +1521,7 @@
   "error.claude_code_session_bus_missing": "Claude Code の実行には Linux のセッションバスが必要です。",
   "error.claude_code_session_bus_missing_detail": "Cherry Studio を起動するデスクトップ環境で DBUS_SESSION_BUS_ADDRESS を設定してから、アプリを再起動してください。Claude Code は起動されていません。",
   "error.content": "内容",
+  "error.content_filtered": "プロバイダーのコンテンツフィルターにより、出力が始まる前にこの応答がブロックされました。メッセージを言い換えるか、別のモデルに切り替えてください。",
   "error.data": "データ",
   "error.detail": "エラーの詳細",
   "error.details": "詳細",

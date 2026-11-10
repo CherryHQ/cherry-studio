@@ -1521,6 +1521,7 @@
   "error.claude_code_session_bus_missing": "Для Claude Code требуется активная шина сеанса Linux.",
   "error.claude_code_session_bus_missing_detail": "Установите DBUS_SESSION_BUS_ADDRESS в среде рабочего стола, из которой запускается Cherry Studio, а затем перезапустите приложение. Claude Code не был запущен.",
   "error.content": "Содержание",
+  "error.content_filtered": "Фильтр контента провайдера заблокировал этот ответ до начала вывода. Переформулируйте сообщение или выберите другую модель.",
   "error.data": "данные",
   "error.detail": "Детали ошибки",
   "error.details": "Подробности",

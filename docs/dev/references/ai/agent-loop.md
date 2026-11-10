@@ -139,8 +139,9 @@ see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
 - A streamed turn whose final step ends with `content-filter` and produced no
   text or tool call is converted into `ContentFilterTerminalError`. Its
   `finishReason` lets the renderer classify it as a content error instead of
-  persisting an empty success. A filtered step that already streamed text
-  still finishes normally.
+  persisting an empty success, and its `i18nKey` (`error.content_filtered`)
+  localizes the message. A filtered step that already streamed text still
+  finishes normally.
 - The writer is settled exactly once via the `then`/`catch` of the
   internal IIFE — listeners never see a half-closed stream.
 

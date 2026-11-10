@@ -111,9 +111,10 @@ export function resolveToolLoopTerminalError({
   return undefined
 }
 
-/** A provider content filter that ended the turn; `finishReason` lets error classification name it. */
+/** A provider content filter that ended the turn; `finishReason` classifies it, `i18nKey` localizes it. */
 export class ContentFilterTerminalError extends Error {
   readonly finishReason = 'content-filter'
+  readonly i18nKey = 'content_filtered'
 
   constructor() {
     super(CONTENT_FILTER_MESSAGE)

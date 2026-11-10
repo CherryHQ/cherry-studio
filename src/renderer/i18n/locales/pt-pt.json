@@ -1521,6 +1521,7 @@
   "error.claude_code_session_bus_missing": "O Claude Code necessita de um barramento de sessão Linux ativo.",
   "error.claude_code_session_bus_missing_detail": "Defina DBUS_SESSION_BUS_ADDRESS no ambiente de trabalho que inicia o Cherry Studio e, em seguida, reinicie a aplicação. O Claude Code não foi iniciado.",
   "error.content": "conteúdo",
+  "error.content_filtered": "O filtro de conteúdo do fornecedor bloqueou esta resposta antes de qualquer saída. Reformule a mensagem ou mude de modelo.",
   "error.data": "dados",
   "error.detail": "Detalhes do erro",
   "error.details": "Detalhes",
