@@ -6,16 +6,16 @@ English | [中文](2026-11-10-attachment-bounded-reads.zh.md)
 
 ## Problem
 
-Chat attachments are read in full before the request budget is applied. `prepareChatMessages()` prepares every message with `Promise.all`, and each non-native attachment calls `extractDocumentText()` on its whole body. Only afterwards does `applyInlineCaps()` decide how much text reaches the prompt ([`attachmentRouting.ts`](../../../../src/main/ai/messages/attachmentRouting.ts)). The request budget therefore limits the prompt, but not the bytes read, decoded, or cached.
+On extraction-cache misses, chat attachments are read in full before the request budget is applied. `prepareChatMessages()` prepares every message with `Promise.all`, and each non-native attachment calls `extractDocumentText()`, which reads its whole body on a cache miss. Only afterwards does `applyInlineCaps()` decide how much text reaches the prompt ([`attachmentRouting.ts`](../../../../src/main/ai/messages/attachmentRouting.ts)). The request budget therefore limits the prompt, but not the bytes read, decoded, or cached.
 
 The worker change in [the 2026-11-09 attachment preparation note](../../implemented/bug-fix/2026-11-09-attachment-preparation-workers.md) moved plain-text decoding and allocation off Electron main. It deliberately left input byte reads, full extracted-text caching, and PDF/Office parsing unchanged. Those are the remaining unbounded costs:
 
-- `FileManager.read(..., { encoding: 'binary' })` loads the whole file into memory for every attachment in every message.
+- `FileManager.read(..., { encoding: 'binary' })` loads the whole file into memory on an extraction-cache miss, including after the 30-minute TTL expires or the file version changes. An unchanged attachment with a valid cache entry returns its cached result without reading the body.
 - `extractDocumentText()` caches the full extracted text for 30 minutes with no total byte capacity ([`attachmentTextExtraction.ts`](../../../../src/main/ai/messages/attachmentTextExtraction.ts)).
 - `read_file` extracts the full text and then pages it, so page size limits the result, not the work ([`ReadFileTool.ts`](../../../../src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts)).
 - PDF and Office parsers run on main without a cancellation signal.
 
-Work scales with source file size, not with the attachment allowance. An 11 MB Markdown file with a very long line can therefore cost full-file I/O and memory on every send. This note does not claim that this mechanism alone caused the crash in #22667.
+Work scales with source file size, not with the attachment allowance. An 11 MB Markdown file with a very long line can therefore cost full-file I/O and memory on a send that misses the extraction cache; cache hits reuse the extracted text. This note does not claim that this mechanism alone caused the crash in #22667.
 
 ## Proposal
 
@@ -24,7 +24,7 @@ Make the request budget govern reads, not only the prompt.
 ### Ordering
 
 - `resolveAttachmentBudget()` already runs before `prepareChatMessages()` in `AiService`. Its result becomes a byte allowance for the request, converted with the same conservative UTF-8 bound the worker already uses.
-- The allowance is split across the request's non-native text attachments with the existing `allocateAttachmentBudget` rule. Each file reads at most its share, plus a small look-ahead for decoding.
+- The allowance is split across the request's non-native text attachments with the existing `allocateAttachmentBudget` rule. Each file reads at most its share, including any encoding-detection sample and decoding look-ahead; these reads do not add an allowance beyond the share.
 - Extraction never reads beyond that share for plain text. A file larger than its share gets a head excerpt and a truncation marker.
 
 ### Plain-text reads
@@ -59,14 +59,14 @@ PDF and Office parsing limits, page-wise PDF reads, and isolated execution for O
 ## Alternatives considered
 
 - **Per-file size ceiling (for example 8 MiB, from PR #22670).** Rejected as the final design. It is closed and unmerged, bounds neither the total nor the time spent on accepted files, and several accepted files can still exhaust the request allowance. It may remain a temporary guard only if the migration needs one.
-- **Keep whole-file reads and cache only.** Rejected. The CPU work moved by #23927 is not the only cost. Full-file reads and a full-text cache still scale with source size on every send.
+- **Keep whole-file reads and cache only.** Rejected. The CPU work moved by #23927 is not the only cost. On cache misses, full-file reads still scale with source size; the full-text cache also has no aggregate byte capacity.
 - **Remove inline attachment text and rely on `read_file`.** Rejected. Models without tool calling would lose attachment content entirely, which changes behavior for every provider.
 - **Utility process for all extraction.** Deferred. It fits Office conversion, which is not in this Spec. Plain-text decoding does not need a native crash boundary.
 
 ## Acceptance criteria
 
-- AC1 — For an 11 MB plain-text attachment, the bytes read during preparation do not exceed the request's per-file allowance. (verification: unit, fake `FileManager` counting read bytes)
-- AC2 — For many non-native text attachments in one request, the total bytes read and the inlined tokens do not exceed the request allowance. (verification: unit)
+- AC1 — For an 11 MB plain-text attachment, all bytes read during preparation, including encoding-detection samples and decoding look-ahead, do not exceed the request's per-file allowance. (verification: unit, fake `FileManager` counting read bytes)
+- AC2 — For many non-native text attachments in one request, the total bytes read across attachments, including encoding-detection samples and decoding look-ahead, and the inlined tokens do not exceed their respective request allowances. (verification: unit)
 - AC3 — Chunked decoding matches whole-buffer decoding for multi-byte UTF-8 characters split across chunk boundaries, a single line larger than one chunk, and a legacy-encoded sample. (verification: unit)
 - AC4 — Consecutive `read_file` pages are contiguous, with no lost or repeated characters. If the file's version changes between pages, the tool returns an explicit changed-file error. (verification: unit)
 - AC5 — Aborting a request during a read or a queued worker task stops further reads and prevents the task from starting. (verification: unit)

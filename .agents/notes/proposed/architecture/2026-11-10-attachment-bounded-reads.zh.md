@@ -6,16 +6,16 @@ Status: proposed
 
 ## Problem
 
-聊天附件在请求预算生效之前就被整体读取。`prepareChatMessages()` 通过 `Promise.all` 准备每条消息，每个非原生附件都对整个正文调用 `extractDocumentText()`。之后 `applyInlineCaps()` 才决定有多少文本进入 prompt（[`attachmentRouting.ts`](../../../../src/main/ai/messages/attachmentRouting.ts)）。因此请求预算只限制 prompt，并不限制读取、解码或缓存的字节数。
+提取缓存未命中时，聊天附件在请求预算生效之前就被整体读取。`prepareChatMessages()` 通过 `Promise.all` 准备每条消息，每个非原生附件都调用 `extractDocumentText()`，后者在缓存未命中时读取整个正文。之后 `applyInlineCaps()` 才决定有多少文本进入 prompt（[`attachmentRouting.ts`](../../../../src/main/ai/messages/attachmentRouting.ts)）。因此请求预算只限制 prompt，并不限制读取、解码或缓存的字节数。
 
 [2026-11-09 附件准备 note](../../implemented/bug-fix/2026-11-09-attachment-preparation-workers.md) 中的 worker 改动把纯文本解码和分配移出了 Electron 主进程。它有意保留了输入字节读取、完整提取文本缓存以及 PDF/Office 解析的现状。剩余的无界成本包括：
 
-- `FileManager.read(..., { encoding: 'binary' })` 会为每条消息中的每个附件把整个文件读入内存。
+- `FileManager.read(..., { encoding: 'binary' })` 在提取缓存未命中时把整个文件读入内存，包括 30 分钟 TTL 到期或文件版本变化之后。未变化的附件有有效缓存条目时直接返回缓存结果，不读取正文。
 - `extractDocumentText()` 以 30 分钟 TTL 缓存完整提取文本，且没有总字节容量上限（[`attachmentTextExtraction.ts`](../../../../src/main/ai/messages/attachmentTextExtraction.ts)）。
 - `read_file` 先提取完整文本再分页，因此页大小限制的是结果，而不是工作量（[`ReadFileTool.ts`](../../../../src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts)）。
 - PDF 和 Office 解析器在主进程运行，且没有取消信号。
 
-工作量随源文件大小增长，而不是随附件配额增长。因此一个带超长单行的 11 MB Markdown 文件，每次发送都可能产生全文件的 I/O 和内存开销。本 note 不声称这一机制单独导致了 #22667 的崩溃。
+工作量随源文件大小增长，而不是随附件配额增长。因此一个带超长单行的 11 MB Markdown 文件，在发送时提取缓存未命中的情况下，可能产生全文件的 I/O 和内存开销；缓存命中时复用已提取的文本。本 note 不声称这一机制单独导致了 #22667 的崩溃。
 
 ## Proposal
 
@@ -24,7 +24,7 @@ Status: proposed
 ### 顺序
 
 - `resolveAttachmentBudget()` 在 `AiService` 中已经早于 `prepareChatMessages()` 运行。它的结果转换为请求的字节配额，使用 worker 已采用的保守 UTF-8 上界。
-- 该配额按现有的 `allocateAttachmentBudget` 规则分配给本次请求的非原生文本附件。每个文件最多读取其份额，并为解码保留少量前瞻。
+- 该配额按现有的 `allocateAttachmentBudget` 规则分配给本次请求的非原生文本附件。每个文件最多读取其份额，包括编码检测样本和解码前瞻；这些读取不在份额之外增加配额。
 - 对于纯文本，提取永远不会超过其份额读取。超过份额的文件只获得头部摘录和截断标记。
 
 ### 纯文本读取
@@ -59,14 +59,14 @@ PDF 和 Office 解析限制、按页读取 PDF，以及 Office 转换的隔离�
 ## Alternatives considered
 
 - **单文件大小上限（例如 PR #22670 中的 8 MiB）。** 作为最终设计被拒绝。该 PR 已关闭且未合并，既不限制总量，也不限制已接受文件的耗时，多个被接受的文件仍可能耗尽请求配额。如果迁移需要，它可以作为临时防护保留。
-- **保留整文件读取，只加缓存。** 被拒绝。#23927 移走的 CPU 工作不是唯一成本。整文件读取和完整文本缓存仍会在每次发送时随源文件大小增长。
+- **保留整文件读取，只加缓存。** 被拒绝。#23927 移走的 CPU 工作不是唯一成本。缓存未命中时，整文件读取仍随源文件大小增长；完整文本缓存也没有总字节容量上限。
 - **移除内联附件文本，只依赖 `read_file`。** 被拒绝。不支持工具调用的模型会完全丢失附件内容，这会改变所有提供商的行为。
 - **所有提取都使用 utility process。** 推迟。它适合 Office 转换，但 Office 不在本 Spec 中。纯文本解码不需要原生崩溃边界。
 
 ## Acceptance criteria
 
-- AC1 — 对于 11 MB 纯文本附件，准备阶段读取的字节数不超过该请求的单文件配额。(verification: unit, fake `FileManager` counting read bytes)
-- AC2 — 对于一次请求中的多个非原生文本附件，读取的总字节数和内联的 token 数都不超过请求配额。(verification: unit)
+- AC1 — 对于 11 MB 纯文本附件，准备阶段读取的全部字节数，包括编码检测样本和解码前瞻，不超过该请求的单文件配额。(verification: unit, fake `FileManager` counting read bytes)
+- AC2 — 对于一次请求中的多个非原生文本附件，跨附件读取的总字节数（包括编码检测样本和解码前瞻）以及内联的 token 数，分别不超过相应的请求配额。(verification: unit)
 - AC3 — 分块解码与整缓冲区解码结果一致，包括跨块边界拆分的多字节 UTF-8 字符、大于单块的单行文本，以及遗留编码样本。(verification: unit)
 - AC4 — 连续的 `read_file` 分页内容连续，没有丢失或重复字符。如果两页之间文件版本发生变化，工具返回明确的文件已变更错误。(verification: unit)
 - AC5 — 在读取或排队的 worker 任务期间中止请求，会停止后续读取，并阻止该任务启动。(verification: unit)
