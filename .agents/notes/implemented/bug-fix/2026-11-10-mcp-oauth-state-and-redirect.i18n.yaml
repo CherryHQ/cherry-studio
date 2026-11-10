@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-10-mcp-oauth-state-and-redirect.md
-2026-11-10-mcp-oauth-state-and-redirect.md: 05f5f4e9c42487e37f7d7cd6403856a0e8dcaa4b
-2026-11-10-mcp-oauth-state-and-redirect.zh.md: 192c8d07e2bd1cd48dc289671478ca3eab5c2ff2
+2026-11-10-mcp-oauth-state-and-redirect.md: 8a58eb60974b3823045aa76e9911543b356b8533
+2026-11-10-mcp-oauth-state-and-redirect.zh.md: be7f6f17318f26e7c598f5501562a1ca1e32382b

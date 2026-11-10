@@ -10,7 +10,7 @@ MCP authorization depends on a CSRF state value and an exact registered redirect
 
 ## Decision
 
-Before opening an authorization URL, the MCP OAuth provider requires its persisted state and sets that value on the URL. If no state was persisted, the authorization attempt fails without opening a browser. The registered redirect URI uses `localhost`; the callback server remains bound to `127.0.0.1`.
+Before opening an authorization URL, the MCP OAuth provider requires its persisted state and sets that value on the URL. If no state was persisted, the authorization attempt fails without opening a browser. New client registrations use `localhost`; saved clients keep their registered loopback URI during authorization and code exchange. Metadata-less legacy clients keep the previous `127.0.0.1` URI. Selection is isolated per authorization flow and reloaded from the issuer-bound saved client on a restarted callback. The callback server remains bound to `127.0.0.1`.
 
 ## Alternatives considered
 
@@ -20,8 +20,8 @@ Before opening an authorization URL, the MCP OAuth provider requires its persist
 ## Consequences
 
 - MCP authorization requests always carry the same state stored for callback validation; an incomplete request fails before the browser opens.
-- The advertised redirect URI matches providers configured for `localhost`, while the local callback listener remains restricted to IPv4 loopback.
+- New registrations advertise `localhost`, while existing registrations retain their exact URI. The local callback listener remains restricted to IPv4 loopback.
 
 ## Verification
 
-- Regression — `pnpm test:main src/main/ai/mcp/oauth/__tests__/provider.test.ts`: authorization redirects include persisted state, missing state blocks the browser launch, and client metadata uses `localhost`.
+- Regression — `pnpm test:main src/main/ai/mcp/oauth/__tests__/provider.test.ts`: authorization redirects include persisted state, missing state blocks the browser launch, and new client metadata uses `localhost`. The SDK protocol regression also checks saved IPv4, metadata-less legacy, saved localhost, and new registrations through authorization and a restarted callback. Concurrent issuer selections remain isolated. This uses intercepted protocol requests, not live-provider or real-browser sign-in.
