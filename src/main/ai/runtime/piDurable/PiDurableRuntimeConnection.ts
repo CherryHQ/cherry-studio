@@ -486,6 +486,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     const projection = child?.projection
     const handle = child?.handle
     if (!handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
+    await projection.flush()
     const { sessionId } = projection.context
     const id = randomUUID()
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })

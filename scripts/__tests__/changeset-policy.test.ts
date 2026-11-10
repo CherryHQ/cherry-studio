@@ -117,7 +117,7 @@ describe('changeset release policy', () => {
     expect(manifest.scripts['changeset:check']).toBe('node scripts/release/check-changesets.mjs')
 
     for (const [file, job] of [
-      ['ci.yml', 'basic-checks'],
+      ['ci.yml', 'repository-checks'],
       ['release-packages.yml', 'release']
     ]) {
       const workflow = parse(readFileSync(path.join(repo, '.github/workflows', file), 'utf8'))
@@ -127,6 +127,7 @@ describe('changeset release policy', () => {
       const guard = steps[guardIndex]
       expect(guard['continue-on-error']).toBeUndefined()
       if (file === 'ci.yml') {
+        expect(workflow.jobs['basic-checks'].needs).toContain('repository-checks')
         expect(guard.if).toBe("needs.changes.outputs.repository == 'true'")
       } else {
         expect(guard.if).toBeUndefined()

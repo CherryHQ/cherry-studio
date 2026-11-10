@@ -43,6 +43,26 @@ describe('web search provider schemas', () => {
     expect(exaMcp?.capabilities.map((item) => item.feature)).toEqual(['searchKeywords'])
   })
 
+  it('models Exa as one provider with keyword search and URL fetch capabilities', () => {
+    const exa = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'exa')
+
+    expect(exa).toBeDefined()
+    expect(exa!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.exa.ai'
+      },
+      {
+        feature: 'fetchUrls',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.exa.ai'
+      }
+    ])
+  })
+
   it('models Jina as one provider with keyword search and URL fetch capabilities', () => {
     expect(WEB_SEARCH_PROVIDER_IDS).toContain('jina')
     expect(WEB_SEARCH_PROVIDER_IDS).not.toContain('jina-reader')
