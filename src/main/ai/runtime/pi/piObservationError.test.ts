@@ -20,6 +20,10 @@ describe('PiObservationError', () => {
     expect(error.message).toContain('disconnected')
     expect(error.message).toContain('send your message again')
     expect(error.isRetryable).toBe(true)
+    expect(error.providerErrorCategory).toBe('stream')
+    expect(error.i18nKey).toBe('pi_observation_interrupted')
+    expect(error.detailI18nKey).toBe('pi_observation_interrupted_detail')
+    expect(error.detailI18nValues).toMatchObject({ reason: 'disconnected' })
     expect(isPiObservationError(error)).toBe(true)
     expect(isPiObservationError(new Error('other'))).toBe(false)
   })
@@ -27,8 +31,8 @@ describe('PiObservationError', () => {
   it('names the durable runtime and preserves the native detail', () => {
     const error = new PiObservationError({
       runtime: 'pi-durable',
-      kind: 'diagnostic',
-      reason: 'native-error',
+      kind: 'closed',
+      reason: 'source-lost',
       sessionId: 'session-2',
       causeMessage: 'native boom'
     })
@@ -37,10 +41,29 @@ describe('PiObservationError', () => {
     expect(error.message).toContain('native boom')
     expect(error.toLogContext()).toMatchObject({
       runtime: 'pi-durable',
-      kind: 'diagnostic',
+      kind: 'closed',
       sessionId: 'session-2',
       causeMessage: 'native boom'
     })
+  })
+
+  it('preserves provider classification and retry policy for failed outcomes', () => {
+    const error = new PiObservationError({
+      runtime: 'pi',
+      kind: 'outcome',
+      reason: 'failed',
+      sessionId: 'session-auth',
+      causeMessage: '401 Unauthorized: invalid API key'
+    })
+
+    // Ordinary provider failures keep their own diagnosis (auth, not stream)
+    // so the renderer preserves the provider-settings navigation.
+    expect(error.providerErrorCategory).toBe('auth')
+    expect(error.isRetryable).toBe(false)
+    expect(error.i18nKey).toBeUndefined()
+    expect(error.message).toContain('401 Unauthorized')
+    expect(error.message).not.toContain('send your message again')
+    expect(error.toLogContext()).toMatchObject({ runtime: 'pi', kind: 'outcome' })
   })
 
   it('survives main-process serialization with retry and stream diagnosis intact', () => {
@@ -65,5 +88,7 @@ describe('PiObservationError', () => {
     // `providerErrorCategory: 'stream'` is what routes the renderer to the
     // stream diagnosis (retry guidance) instead of the generic unknown wrapper.
     expect(serialized.providerErrorCategory).toBe('stream')
+    expect(serialized.i18nKey).toBe('pi_observation_interrupted')
+    expect(serialized.detailI18nKey).toBe('pi_observation_interrupted_detail')
   })
 })

@@ -1,4 +1,4 @@
-import type { ErrorCategory } from '@shared/utils/errorCategory'
+import { classifyErrorCategory, type ErrorCategory } from '@shared/utils/errorCategory'
 
 export type PiObservationFailureKind = 'gap' | 'closed' | 'diagnostic' | 'outcome'
 export type PiObservationRuntime = 'pi' | 'pi-durable'
@@ -14,18 +14,30 @@ export interface PiObservationErrorDetails {
   causeMessage?: string
 }
 
+/** Categories where an automatic retry on the next turn is safe. */
+const RETRYABLE_OBSERVATION_CATEGORIES: ReadonlySet<ErrorCategory> = new Set([
+  'stream',
+  'network',
+  'server',
+  'rate_limit'
+])
+
+function isObservationLoss(kind: PiObservationFailureKind): boolean {
+  return kind === 'gap' || kind === 'closed'
+}
+
 /**
  * Structured mid-turn observation failure for the Pi runtimes.
  *
- * Replaces the generic `Pi observation interrupted/ended` Errors that surfaced
- * as a bare closed-transport message (the Pi successor of DSH's
- * `dsh bridge disconnected` / `JSON-RPC input closed`). The message names the
- * runtime component and the reason, marks the turn retryable, and carries the
- * session/backend/thread identity needed for main-process diagnostics.
+ * Gap/closed events are transport observation loss: they name the runtime
+ * component, stay retryable with the stream diagnosis, and carry localized
+ * recovery copy plus the session/backend/thread identity for diagnostics.
  *
- * `providerErrorCategory: 'stream'` routes the serialized error to the stream
- * diagnosis (retry guidance) instead of the generic unknown-error wrapper.
- * `isRetryable` survives `serializeError` for IPC.
+ * Diagnostic/outcome events carry the provider's own failure text. They keep
+ * the structured runtime identity for logging/rebuild but preserve the
+ * provider classification (e.g. auth stays auth with provider-settings
+ * navigation, not stream) and its retry policy instead of forcing the stream
+ * diagnosis.
  */
 export class PiObservationError extends Error {
   override name = 'PiObservationError'
@@ -36,11 +48,16 @@ export class PiObservationError extends Error {
   readonly backendId?: string
   readonly nativeThreadId?: string
   readonly causeMessage?: string
-  readonly isRetryable = true
-  readonly providerErrorCategory: ErrorCategory = 'stream'
+  readonly isRetryable: boolean
+  readonly providerErrorCategory: ErrorCategory
+  readonly i18nKey?: string
+  readonly detailI18nKey?: string
+  readonly detailI18nValues?: Record<string, string>
 
   constructor(details: PiObservationErrorDetails) {
-    super(describePiObservationFailure(details))
+    super(
+      isObservationLoss(details.kind) ? describePiObservationFailure(details) : (details.causeMessage ?? details.reason)
+    )
     this.runtime = details.runtime
     this.kind = details.kind
     this.reason = details.reason
@@ -49,6 +66,20 @@ export class PiObservationError extends Error {
     this.nativeThreadId = details.nativeThreadId
     this.causeMessage = details.causeMessage
     if (details.causeMessage) this.cause = details.causeMessage
+    if (isObservationLoss(details.kind)) {
+      this.providerErrorCategory = 'stream'
+      this.isRetryable = true
+      this.i18nKey =
+        details.runtime === 'pi-durable' ? 'pi_durable_observation_interrupted' : 'pi_observation_interrupted'
+      this.detailI18nKey = 'pi_observation_interrupted_detail'
+      this.detailI18nValues = { reason: details.reason }
+    } else {
+      const category = classifyErrorCategory({
+        text: [details.causeMessage, details.reason].filter(Boolean).join('\n')
+      })
+      this.providerErrorCategory = category
+      this.isRetryable = RETRYABLE_OBSERVATION_CATEGORIES.has(category)
+    }
   }
 
   toLogContext(): Record<string, unknown> {
