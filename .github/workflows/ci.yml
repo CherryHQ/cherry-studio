@@ -60,6 +60,20 @@ jobs:
 
       - name: "Validation scope: ${{ steps.plan.outputs.scope }}"
         run: ":"
+      - name: Lint GitHub Actions workflows
+        if: steps.plan.outputs.repository == 'true'
+        uses: docker://rhysd/actionlint:1.7.12
+        env:
+          SHELLCHECK_OPTS: --severity=error
+        with:
+          args: -color
+      - uses: pnpm/action-setup@v5
+        if: contains(fromJSON(steps.plan.outputs.plan).tasks, 'format')
+      - name: Check formatting
+        if: contains(fromJSON(steps.plan.outputs.plan).tasks, 'format')
+        run: |
+          OXFMT_VERSION=$(node -p 'require("./package.json").devDependencies.oxfmt')
+          pnpm dlx "oxfmt@$OXFMT_VERSION" --check .
 
   basic-checks:
     runs-on: ubuntu-latest
@@ -72,13 +86,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
-      - name: Lint GitHub Actions workflows
-        if: needs.changes.outputs.repository == 'true'
-        uses: docker://rhysd/actionlint:1.7.12
-        env:
-          SHELLCHECK_OPTS: --severity=error
-        with:
-          args: -color
+      - name: Reject failed planning or preflight
+        if: needs.changes.result != 'success'
+        run: exit 1
       - name: Prepare base reference
         if: needs.changes.outputs.repository == 'true' && github.event_name == 'pull_request'
         env:
@@ -108,7 +118,7 @@ jobs:
 
       - uses: ./.github/actions/setup-validation
         id: dependencies
-        if: "!cancelled() && (needs.changes.outputs.repository == 'true' || needs.changes.outputs.types == 'true' || needs.changes.outputs.lint == 'true' || needs.changes.outputs.i18n == 'true')"
+        if: "!cancelled() && needs.changes.result == 'success' && (needs.changes.outputs.repository == 'true' || needs.changes.outputs.types == 'true' || needs.changes.outputs.lint == 'true' || needs.changes.outputs.i18n == 'true')"
         with:
           save-cache: ${{ github.event_name != 'pull_request' }}
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
@@ -195,10 +205,10 @@ jobs:
           VALIDATION_STEPS: ${{ toJSON(steps) }}
         run: node scripts/validation/verify.mjs basic
 
-  main-test:
+  main-packages-test:
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.main == 'true'
+    if: needs.changes.outputs.main == 'true' || needs.changes.outputs.packages == 'true'
     env:
       VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
     steps:
@@ -207,7 +217,26 @@ jobs:
         id: dependencies
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
-      - run: pnpm check --group main
+      - name: Main and preload tests
+        id: main-tests
+        if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.main == 'true'"
+        run: pnpm check --group main
+      - name: Package tests
+        id: package-tests
+        if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.packages == 'true'"
+        run: pnpm check --group packages
+      - name: Check Web Search Package
+        if: "!cancelled() && steps.package-tests.outcome == 'success' && contains(fromJSON(needs.changes.outputs.plan).projects, 'web-search')"
+        run: pnpm --filter @cherrystudio/web-search test:package
+      - name: Check Provider Registry Package
+        if: "!cancelled() && steps.package-tests.outcome == 'success' && contains(fromJSON(needs.changes.outputs.plan).projects, 'provider-registry')"
+        run: pnpm --filter @cherrystudio/provider-registry test:package
+      - name: Verify planned test groups
+        if: "!cancelled()"
+        env:
+          VALIDATION_JOBS: ${{ toJSON(needs) }}
+          VALIDATION_STEPS: ${{ toJSON(steps) }}
+        run: node scripts/validation/verify.mjs main-packages
 
   renderer-test:
     runs-on: ubuntu-latest
@@ -222,26 +251,6 @@ jobs:
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
       - run: pnpm check --group renderer
-
-  package-test:
-    runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.packages == 'true'
-    env:
-      VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-validation
-        id: dependencies
-      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
-        run: ":"
-      - run: pnpm check --group packages
-      - name: Check Web Search Package
-        if: contains(fromJSON(needs.changes.outputs.plan).projects, 'web-search')
-        run: pnpm --filter @cherrystudio/web-search test:package
-      - name: Check Provider Registry Package
-        if: contains(fromJSON(needs.changes.outputs.plan).projects, 'provider-registry')
-        run: pnpm --filter @cherrystudio/provider-registry test:package
 
   platform-test:
     name: platform-test (${{ matrix.os }})
@@ -269,7 +278,7 @@ jobs:
 
   general-test:
     runs-on: ubuntu-latest
-    needs: [changes, main-test, package-test, platform-test]
+    needs: [changes, main-packages-test, platform-test]
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     steps:
       - uses: actions/checkout@v7
@@ -291,8 +300,8 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    needs: [basic-checks, general-test, package-test, render-test]
-    if: always() && (needs.basic-checks.result == 'failure' || needs.general-test.result == 'failure' || needs.package-test.result == 'failure' || needs.render-test.result == 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [basic-checks, general-test, render-test]
+    if: always() && (needs.basic-checks.result == 'failure' || needs.general-test.result == 'failure' || needs.render-test.result == 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7

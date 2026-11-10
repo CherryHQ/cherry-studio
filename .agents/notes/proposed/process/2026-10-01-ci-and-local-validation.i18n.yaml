@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/process/2026-10-01-ci-and-local-validation.md
-2026-10-01-ci-and-local-validation.md: dc62413e2b91c8c3e6dd1f61aa1a021e7045d3f1
-2026-10-01-ci-and-local-validation.zh.md: d72d5c232c82d4c3d4eedae96b6282aefc6ba933
+2026-10-01-ci-and-local-validation.md: 2bedacd25bc3985b0195f121739bba747fb5202f
+2026-10-01-ci-and-local-validation.zh.md: 93d8b078091a9ee5a358e5e9fb605e0d7e528931

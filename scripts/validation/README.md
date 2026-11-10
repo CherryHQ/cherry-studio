@@ -37,8 +37,10 @@ prints a machine-readable plan. Test commands are one Vitest invocation with exp
 projects; compilers run serially. Local Vitest defaults to two workers, overridable
 through the direct Vitest command or project wrappers' `--maxWorkers` option.
 
-Required workspace packages are built before typechecks and tests; main tests rebuild
-SQLite for Node. Do not run Electron development and Node tests concurrently in one
+Required workspace packages are built before typechecks and tests. CI setup marks a
+successful installation with `VALIDATION_WORKSPACE_PREPARED=true`, so later groups
+reuse those exports in the same job. Unprepared local validation still builds them;
+main tests still rebuild SQLite for Node. Do not run Electron development and Node tests concurrently in one
 worktree. Use isolated worktrees and dependency installations for concurrent agents.
 
 `VALIDATION_PLAN` lets CI execute the exact plan from its classification job.
@@ -67,10 +69,17 @@ branches remain untouched.
 
 Repository, typecheck, lint and i18n groups share one dependency installation in
 `basic-checks`, with separate plan conditions and step outcomes; later groups still
-run after an earlier group fails. Main/preload, renderer and selected package tests
-each run in one unsharded Linux job. Together with basic checks and one job per
-macOS/Windows platform, a full plan uses six heavy runners and three lightweight
-classification/aggregation jobs. macOS/Windows retain the platform-gated test inventory (including
+run after an earlier group fails. The classification job first checks workflows and
+formatting with the pinned tools, without installing workspace dependencies. Failed
+planning or preflight prevents heavy jobs from starting; required gates still report
+the failure.
+
+Main/preload and selected package tests run sequentially in one unsharded Linux job,
+sharing installation and workspace preparation. Both selected groups run even if the
+first fails, and their actual step outcomes are verified. Renderer tests keep a separate
+unsharded Linux job. Together with basic checks and one job per macOS/Windows platform,
+a full plan uses five heavy runners and three lightweight classification/aggregation
+jobs. macOS/Windows retain the platform-gated test inventory (including
 system speech); platform selection is deliberately conservative whenever main is selected.
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.

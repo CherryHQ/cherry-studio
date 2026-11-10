@@ -297,41 +297,44 @@ describe('validation execution', () => {
     expect(commands.some((command) => command.includes('vitest'))).toBe(false)
   })
 
-  it.each(['types', 'packages', 'platform'])(
-    'builds workspace exports before system speech validation in the %s group',
-    (group) => {
-      const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-speech-'))
-      directories.push(cwd)
-      const log = join(cwd, 'commands.jsonl')
-      const pnpm = join(cwd, 'pnpm.cjs')
-      writeFileSync(
-        pnpm,
-        `require('node:fs').appendFileSync(process.env.COMMAND_LOG, JSON.stringify(process.argv.slice(2)) + '\\n')`
-      )
-      const result = spawnSync(process.execPath, ['scripts/validation/run.mjs', '--group', group], {
-        env: {
-          ...process.env,
-          npm_execpath: pnpm,
-          COMMAND_LOG: log,
-          VALIDATION_PLAN: JSON.stringify(createPlan(['native/system-speech/src/SystemSpeechNativeClient.ts']))
-        },
-        encoding: 'utf8'
-      })
-      expect(result.status, result.stderr).toBe(0)
-      const commands: string[][] = readFileSync(log, 'utf8')
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line))
-      expect(commands[0]).toEqual(['run', 'postinstall'])
-      if (group === 'types') {
-        expect(commands).toContainEqual(['--filter', '@cherrystudio/system-speech', 'typecheck'])
-      } else {
-        const test = commands.find((command) => command[0] === 'exec' && command[1] === 'vitest')!
-        expect(test).toContain('system-speech')
-        if (group === 'platform') expect(test).toContain('native/system-speech/tests/SystemSpeechNativeClient.test.ts')
-      }
+  it.each(
+    ['types', 'main', 'packages', 'platform'].flatMap((group) => ['', 'true'].map((prepared) => [group, prepared]))
+  )('preserves complete %s validation with prepared workspace state %s', (group, prepared) => {
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-speech-'))
+    directories.push(cwd)
+    const log = join(cwd, 'commands.jsonl')
+    const pnpm = join(cwd, 'pnpm.cjs')
+    writeFileSync(
+      pnpm,
+      `require('node:fs').appendFileSync(process.env.COMMAND_LOG, JSON.stringify(process.argv.slice(2)) + '\\n')`
+    )
+    const result = spawnSync(process.execPath, ['scripts/validation/run.mjs', '--group', group], {
+      env: {
+        ...process.env,
+        npm_execpath: pnpm,
+        COMMAND_LOG: log,
+        VALIDATION_WORKSPACE_PREPARED: prepared,
+        VALIDATION_PLAN: JSON.stringify(createPlan(['native/system-speech/src/SystemSpeechNativeClient.ts']))
+      },
+      encoding: 'utf8'
+    })
+    expect(result.status, result.stderr).toBe(0)
+    const commands: string[][] = readFileSync(log, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    if (prepared === 'true') expect(commands).not.toContainEqual(['run', 'postinstall'])
+    else expect(commands[0]).toEqual(['run', 'postinstall'])
+    if (group === 'types') {
+      expect(commands).toContainEqual(['--filter', '@cherrystudio/system-speech', 'typecheck'])
+    } else {
+      const test = commands.find((command) => command[0] === 'exec' && command[1] === 'vitest')!
+      if (group !== 'main') expect(test).toContain('system-speech')
+      if (group === 'main') expect(test).toEqual(['exec', 'vitest', 'run', '--project', 'main', '--project', 'preload'])
+      if (group === 'platform') expect(test).toContain('native/system-speech/tests/SystemSpeechNativeClient.test.ts')
+      if (group === 'main' || group === 'platform') expect(commands).toContainEqual(['rebuild:node'])
     }
-  )
+  })
 
   it('executes only planned read-only tasks and propagates command failures', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-run-'))

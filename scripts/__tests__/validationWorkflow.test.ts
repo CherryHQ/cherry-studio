@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -18,8 +18,8 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
-describe('six-runner full validation', () => {
-  it('uses four Linux runners and one runner per native platform', () => {
+describe('five-runner full validation', () => {
+  it('uses three Linux runners and one runner per native platform', () => {
     const jobs = Object.values(workflow.jobs) as {
       'runs-on': string
       steps: { uses?: string }[]
@@ -32,24 +32,95 @@ describe('six-runner full validation', () => {
         return matrix?.os ?? Array.from({ length: matrix?.shard?.length ?? 1 }, () => job['runs-on'])
       })
 
-    expect(runners.sort()).toEqual([
-      'macos-latest',
-      'ubuntu-latest',
-      'ubuntu-latest',
-      'ubuntu-latest',
-      'ubuntu-latest',
-      'windows-2022'
-    ])
+    expect(runners.sort()).toEqual(['macos-latest', 'ubuntu-latest', 'ubuntu-latest', 'ubuntu-latest', 'windows-2022'])
   })
 
-  it.each(['main', 'renderer'])('runs the complete selected %s group without a shard filter', (group) => {
-    const job = workflow.jobs[`${group}-test`]
+  it.each([
+    ['main-packages-test', ['main', 'packages']],
+    ['renderer-test', ['renderer']]
+  ] as const)('runs the complete selected groups in %s without shard filters', (name, groups) => {
+    const job = workflow.jobs[name]
     expect(job).toBeDefined()
     expect(
       job.steps
         .filter((step: { run?: string }) => step.run?.startsWith('pnpm check'))
         .map((step: { run: string }) => step.run)
-    ).toEqual([`pnpm check --group ${group}`])
+    ).toEqual(groups.map((group) => `pnpm check --group ${group}`))
+  })
+
+  it('runs package tests after main tests fail and rejects unsuccessful or missing selected groups', () => {
+    const job = workflow.jobs['main-packages-test']
+    const jobs = { changes: { result: 'success', outputs: { plan: JSON.stringify(createPlan(['package.json'])) } } }
+    const steps = { dependencies: { outcome: 'success' }, 'main-tests': { outcome: 'failure' } }
+    const packages = job.steps.find((step: { id?: string }) => step.id === 'package-tests')
+    expect(
+      new Function('needs', 'steps', 'cancelled', `return (${packages.if})`)(
+        { changes: { outputs: { packages: 'true' } } },
+        steps,
+        () => false
+      )
+    ).toBe(true)
+    const outcomes: Record<string, { outcome?: string }> = {
+      'main-tests': { outcome: 'success' },
+      'package-tests': { outcome: 'success' }
+    }
+    expect(verify('main-packages', jobs, outcomes)).toBe(0)
+    for (const id of Object.keys(outcomes)) {
+      for (const outcome of ['failure', 'cancelled', 'skipped', undefined]) {
+        expect(verify('main-packages', jobs, { ...outcomes, [id]: { outcome } })).not.toBe(0)
+      }
+    }
+    jobs.changes.outputs.plan = JSON.stringify(createPlan(['src/renderer/components/Thing.tsx']))
+    expect(
+      verify('main-packages', jobs, {
+        'main-tests': { outcome: 'skipped' },
+        'package-tests': { outcome: 'skipped' }
+      })
+    ).toBe(0)
+  })
+})
+
+describe('CI preparation and preflight', () => {
+  it.each([0, 7])('marks workspace exports prepared only after installation succeeds: exit %s', (exitCode) => {
+    const action = parse(readFileSync('.github/actions/setup-validation/action.yml', 'utf8'))
+    const install = action.runs.steps.find((step: { name?: string }) => step.name === 'Install dependencies')
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-install-'))
+    directories.push(cwd)
+    writeFileSync(join(cwd, 'pnpm'), '#!/bin/sh\nexit "$INSTALL_EXIT"\n', { mode: 0o755 })
+    const envFile = join(cwd, 'environment')
+    const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', install.run], {
+      env: { ...process.env, PATH: `${cwd}:${process.env.PATH}`, INSTALL_EXIT: String(exitCode), GITHUB_ENV: envFile }
+    })
+    expect(result.status).toBe(exitCode)
+    expect(existsSync(envFile) ? readFileSync(envFile, 'utf8') : '').toBe(
+      exitCode === 0 ? 'VALIDATION_WORKSPACE_PREPARED=true\n' : ''
+    )
+  })
+
+  it('checks formatting without installing workspace dependencies', () => {
+    const format = workflow.jobs.changes.steps.find((step: { name?: string }) => step.name === 'Check formatting')
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-preflight-'))
+    directories.push(cwd)
+    const log = join(cwd, 'arguments')
+    writeFileSync(join(cwd, 'pnpm'), '#!/bin/sh\nprintf "%s\\n" "$@" > "$COMMAND_LOG"\n', { mode: 0o755 })
+    const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', format.run], {
+      env: { ...process.env, PATH: `${cwd}:${process.env.PATH}`, COMMAND_LOG: log }
+    })
+    expect(result.status).toBe(0)
+    const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
+    expect(readFileSync(log, 'utf8').trim().split('\n')).toEqual([
+      'dlx',
+      `oxfmt@${manifest.devDependencies.oxfmt}`,
+      '--check',
+      '.'
+    ])
+    const setup = workflow.jobs['basic-checks'].steps.find((step: { id?: string }) => step.id === 'dependencies')
+    expect(
+      new Function('needs', 'cancelled', `return (${setup.if})`)(
+        { changes: { result: 'failure', outputs: { repository: 'true', types: 'true', lint: 'true', i18n: 'true' } } },
+        () => false
+      )
+    ).toBe(false)
   })
 })
 
