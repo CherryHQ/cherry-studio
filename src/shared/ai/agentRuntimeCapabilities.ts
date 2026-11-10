@@ -64,7 +64,8 @@ const CLAUDE_CODE_BUILTIN_COMMANDS = [
 ] as const satisfies readonly SlashCommand[]
 
 const PI_BUILTIN_COMMANDS = [
-  { command: '/compact', description: 'Compact conversation with optional focus instructions' }
+  { command: '/compact', description: 'Compact conversation with optional focus instructions' },
+  { command: '/goal', description: 'Set a goal to work toward until it is completed' }
 ] as const satisfies readonly SlashCommand[]
 
 const PI_CAPABILITIES = {

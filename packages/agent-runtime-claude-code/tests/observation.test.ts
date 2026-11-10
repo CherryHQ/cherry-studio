@@ -10,6 +10,7 @@ import type {
 import { expect, it } from 'vitest'
 
 import { claudeThread, type ClaudeObservation } from '../src'
+import { ClaudeFeed } from '../src/observation'
 import { confirmed, observe, textOf } from './nativeFixture'
 import { assistantMessage, wireFixture } from './wireFixture'
 
@@ -25,6 +26,59 @@ function denied(sessionId: string, toolUseId: string): SDKPermissionDeniedMessag
   }
 }
 
+it('attaches current background occupancy without replaying an earlier completion or charge', async () => {
+  const test = await wireFixture()
+  try {
+    test.send(test.assistant('Earlier reply'))
+    test.send({
+      type: 'result',
+      subtype: 'success',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      result: 'Earlier reply',
+      is_error: false,
+      usage: { input_tokens: 1, output_tokens: 1 },
+      modelUsage: {},
+      permission_denials: []
+    } as unknown as SDKMessage)
+    test.send({
+      type: 'system',
+      subtype: 'background_tasks_changed',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      tasks: [{ task_id: 'child', task_type: 'local_agent', description: 'Still working' }]
+    })
+    await expect
+      .poll(() =>
+        test.view.batches.flatMap((batch) => batch.controls ?? []).some((fact) => fact.type === 'background-tasks')
+      )
+      .toBe(true)
+    expect(test.view.batches.flatMap((batch) => batch.controls ?? []).some((fact) => fact.type === 'result')).toBe(true)
+    const batches: ClaudeObservation[] = []
+    const observation = confirmed(
+      await test.root.claude.observe((batch) => {
+        batches.push(batch)
+      })
+    )
+    await observation.drain()
+    expect(batches[0].controls).toEqual(
+      expect.arrayContaining([
+        {
+          type: 'background-tasks',
+          tasks: [{ task_id: 'child', task_type: 'local_agent', description: 'Still working' }]
+        },
+        { type: 'background-work-state', active: true }
+      ])
+    )
+    expect(batches[0].controls).not.toContainEqual(expect.objectContaining({ type: 'result' }))
+    expect(batches[0].invocations ?? []).toEqual([])
+    expect(batches[0].live).toEqual([])
+    await observation.stop()
+  } finally {
+    await test.close()
+  }
+})
+
 it('delivers queued final content before close without waiting for a detached or slow consumer', async () => {
   const test = await wireFixture()
   let resume!: () => void
@@ -33,7 +87,7 @@ it('delivers queued final content before close without waiting for a detached or
   })
   try {
     const events: ClaudeObservation[] = []
-    confirmed(
+    const observation = confirmed(
       await test.root.claude.observe(async (batch) => {
         events.push(batch)
         if (events.length === 1) await gate
@@ -43,9 +97,16 @@ it('delivers queued final content before close without waiting for a detached or
     test.send(test.assistant('Last content'))
     await expect.poll(() => textOf(test.view.snapshot)).toContain('Last content')
     confirmed(await test.runtime.shutdown())
+    let drained = false
+    const barrier = observation.drain().then(() => {
+      drained = true
+    })
     expect(events).toHaveLength(1)
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(drained).toBe(false)
     resume()
-    await expect.poll(() => events.at(-1)?.events.at(-1)?.type).toBe('closed')
+    await barrier
+    expect(events.at(-1)?.events.at(-1)?.type).toBe('closed')
     expect(
       events
         .slice(0, -1)
@@ -208,11 +269,26 @@ it('retains permission denials for every invocation in a late observer baseline'
     const denials = [denied(test.sessionId, 'call-a'), denied(test.sessionId, 'call-b')]
     for (const denial of denials) test.send(denial)
     await test.view.event((message) => message.uuid === denials[1].uuid)
+    const assistant = test.assistant('')
+    assistant.message.content = [
+      { type: 'tool_use', id: 'call-a', name: 'Bash', input: { command: 'pwd' } },
+      { type: 'tool_use', id: 'call-b', name: 'Bash', input: { command: 'whoami' } }
+    ]
+    test.send(assistant)
+    await expect
+      .poll(() => test.view.snapshot.messages.flatMap((message) => message.parts))
+      .toMatchObject([
+        { type: 'dynamic-tool', toolCallId: 'call-a', state: 'output-denied', approval: { approved: false } },
+        { type: 'dynamic-tool', toolCallId: 'call-b', state: 'output-denied', approval: { approved: false } }
+      ])
     const late = await observe(test.root)
     await expect.poll(() => late.batches.length).toBeGreaterThan(0)
     expect(
       late.native.filter((message) => message.type === 'system' && message.subtype === 'permission_denied')
     ).toEqual(denials)
+    expect(late.snapshot.messages.flatMap((message) => message.parts)).toEqual(
+      test.view.snapshot.messages.flatMap((message) => message.parts)
+    )
   } finally {
     await test.close()
   }
@@ -225,6 +301,19 @@ it('recovers a slow observer with a paired native baseline while other observers
     resume = resolve
   })
   try {
+    const partial = (event: SDKPartialAssistantMessage['event']) =>
+      test.send({
+        type: 'stream_event',
+        uuid: randomUUID(),
+        session_id: test.sessionId,
+        parent_tool_use_id: null,
+        event
+      })
+    partial({ type: 'message_start', message: { ...test.assistant('').message, content: [] } })
+    partial({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '', citations: [] } })
+    partial({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Uncommitted' } })
+    await expect.poll(() => textOf(test.view.snapshot)).toEqual(['Uncommitted'])
+    const provisional = test.view.snapshot.messages[0].id
     const batches: ClaudeObservation[] = []
     confirmed(
       await test.root.claude.observe(async (batch) => {
@@ -250,6 +339,12 @@ it('recovers a slow observer with a paired native baseline while other observers
     const snapshot = baseline.events.find((event) => event.type === 'snapshot')!
     expect(baseline.native.filter((entry) => entry.message.type === 'assistant')).toHaveLength(snapshot.messages.length)
     expect(new Set(snapshot.messages.map((item) => item.id)).size).toBe(snapshot.messages.length)
+    expect(batches[0].live).toEqual([])
+    expect(baseline.live).toEqual(
+      snapshot.messages.map((message) => message.id).filter((id) => id !== baseline.replaces?.[provisional])
+    )
+    expect(baseline.replaces?.[provisional]).toBe(snapshot.messages[0].id)
+    expect(baseline.live).not.toContain(provisional)
     expect(
       baseline.native.flatMap(({ message }) =>
         message.type === 'system' && 'subtype' in message && message.subtype === 'permission_denied' ? [message] : []
@@ -458,4 +553,49 @@ it('retains native-only content and advisory events in the late baseline without
   } finally {
     await test.close()
   }
+})
+
+it('retains validated rejection identity for a late subscriber and overflow recovery', async () => {
+  const feed = new ClaudeFeed((error) => {
+    throw error
+  })
+  const source = assistantMessage(randomUUID(), [{ type: 'text', text: 'Refused request', citations: null }], {
+    error: 'rate_limit'
+  })
+  feed.publish([], [{ source: 'live', message: source }])
+  let release!: () => void
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const batches: ClaudeObservation[] = []
+  const observation = feed.observe(async (batch) => {
+    batches.push(batch)
+    if (batches.length === 1) await blocked
+  })
+  await Promise.resolve()
+  for (let index = 0; index < 110; index++)
+    feed.publish(
+      [],
+      [
+        {
+          source: 'live',
+          message: assistantMessage(source.session_id, [{ type: 'text', text: `ordinary ${index}`, citations: null }])
+        }
+      ]
+    )
+  release()
+  await observation.drain()
+  expect(batches[0].native.find((entry) => entry.message.uuid === source.uuid)?.isApiErrorMessage).toBe(true)
+  const gap = batches.findIndex((batch) => batch.events.some((event) => event.type === 'gap'))
+  expect(gap).toBeGreaterThan(0)
+  const recovery = batches.slice(gap + 1).find((batch) => batch.events.some((event) => event.type === 'snapshot'))
+  expect(recovery?.native.find((entry) => entry.message.uuid === source.uuid)?.isApiErrorMessage).toBe(true)
+  const late: ClaudeObservation[] = []
+  const lateObservation = feed.observe((batch) => {
+    late.push(batch)
+  })
+  await lateObservation.drain()
+  expect(late[0].native.find((entry) => entry.message.uuid === source.uuid)?.isApiErrorMessage).toBe(true)
+  await lateObservation.stop()
+  await observation.stop()
 })

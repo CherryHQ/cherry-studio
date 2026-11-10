@@ -1317,7 +1317,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const config = await providerToAiSdkConfig(provider, imageModel)
 
       expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('')
-      await expectNativeSubmit(config, 'https://dashscope.aliyuncs.com')
+      await expectNativeSubmit(config, 'https://maas.qianwenaiapi.com')
     })
 
     it('propagates the chat-derived image base URL to Responses settings', async () => {
