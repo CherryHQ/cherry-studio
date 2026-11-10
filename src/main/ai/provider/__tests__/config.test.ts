@@ -1735,6 +1735,30 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
     })
 
+    it('leaves MiniMax-H3-Image on the OpenAI-compatible image path', async () => {
+      const provider = makeProvider({
+        id: 'minimax-global',
+        presetProviderId: 'minimax',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://api.minimax.io/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'minimax-global',
+        apiModelId: 'MiniMax-H3-Image',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('openai-compatible')
+    })
+
     it('leaves MiniMax CHAT models on openai-compatible', async () => {
       const provider = makeProvider({
         id: 'minimax',

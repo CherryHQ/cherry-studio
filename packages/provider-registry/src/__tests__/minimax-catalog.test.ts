@@ -63,4 +63,17 @@ describe('MiniMax M3.1 Flash catalog', () => {
       }
     })
   })
+
+  it.each(['minimax', 'minimax-global'])('offers MiniMax-H3-Image on OpenAI image endpoints for %s', (providerId) => {
+    expect(loader.findOverride(providerId, 'minimax-h3-image')).toMatchObject({
+      apiModelId: 'MiniMax-H3-Image',
+      endpointTypes: ['openai-image-generation', 'openai-image-edit']
+    })
+    expect(loader.findModel('MiniMax-H3-Image')).toMatchObject({
+      name: 'MiniMax-H3-Image',
+      capabilities: expect.arrayContaining(['image-generation']),
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image']
+    })
+  })
 })

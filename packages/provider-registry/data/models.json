@@ -12831,6 +12831,53 @@
       "ownedBy": "minimax"
     },
     {
+      "capabilities": ["image-generation"],
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "id": "minimax-h3-image",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 16,
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "2048x2048", "4096x4096"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "2048x2048", "4096x4096"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "MiniMax-H3-Image",
+      "outputModalities": ["image"],
+      "ownedBy": "minimax"
+    },
+    {
       "capabilities": ["image-recognition", "video-generation", "file-input"],
       "family": "minimax",
       "id": "minimax-h3-max",
@@ -23523,5 +23570,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "a0418e1cc8f8499c"
+  "version": "0ab42e6a18903eb4"
 }

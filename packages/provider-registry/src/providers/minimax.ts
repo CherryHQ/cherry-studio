@@ -19,6 +19,11 @@ export const minimaxOverrides = [
     endpointTypes: ['openai-chat-completions', 'anthropic-messages']
   },
   {
+    modelId: 'minimax-h3-image',
+    apiModelId: 'MiniMax-H3-Image',
+    endpointTypes: ['openai-image-generation', 'openai-image-edit']
+  },
+  {
     apiModelId: 'image-01',
     imageGeneration: {
       modes: {

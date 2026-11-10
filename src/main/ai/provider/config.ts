@@ -377,7 +377,11 @@ export async function resolveProviderAiSdkConfig(
     // Native image transports take precedence over the selected text adapter.
     { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
     {
-      match: (p, id) => id === 'openai-compatible' && isGenerateImageModel(model) && matchesPreset(p, 'minimax'),
+      match: (p, id) =>
+        id === 'openai-compatible' &&
+        isGenerateImageModel(model) &&
+        matchesPreset(p, 'minimax') &&
+        !model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION),
       build: withSelectedApiKey((ctx) => ({
         providerId: 'minimax',
         endpoint: ctx.endpoint,
