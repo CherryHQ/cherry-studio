@@ -8,6 +8,8 @@ import { GENERATE_IMAGE_TOOLBAR_MANIFEST } from '@renderer/components/composer/t
 import { defineTool, type ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 
+import { useComposerAssistant } from '../ComposerAssistantContext'
+
 interface Props {
   assistantId: string
   launcher: ToolLauncherApi
@@ -21,7 +23,9 @@ interface Props {
  */
 const useGenerateImageToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
-  const { assistant, updateAssistant } = useAssistant(assistantId)
+  const override = useComposerAssistant()
+  const loaded = useAssistant(override ? null : assistantId, { loadDefaultModel: !override })
+  const { assistant, updateAssistant } = override ?? loaded
   const [paintingModelId] = usePreference('feature.paintings.default_model_id')
 
   const enabled = assistant?.settings.enableGenerateImage ?? false

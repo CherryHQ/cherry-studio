@@ -27,7 +27,7 @@ describe('side-chat source selection', () => {
     rehypeSideChatSource({ source: 'original' })(transformed)
     expect(transformed.children[0].type).toBe('text')
   })
-  it('maps within an attested text node and rejects cross-span or modified text', () => {
+  it('keeps rendered text across formatting nodes even without an exact Markdown match', () => {
     document.body.innerHTML =
       '<div data-side-chat-message="answer"><span data-side-chat-source="hello">hello</span><b>world</b></div>'
     const span = document.querySelector('span')!
@@ -38,11 +38,22 @@ describe('side-chat source selection', () => {
     selection.addRange(range)
     expect(readSideChatSelection(selection)).toEqual({ messageId: 'answer', selection: 'ell' })
     range.setEnd(document.querySelector('b')!.firstChild!, 3)
-    expect(readSideChatSelection(selection)).toBeNull()
+    expect(readSideChatSelection(selection)).toEqual({ messageId: 'answer', selection: 'ellowor' })
     range.setEnd(span.firstChild!, 4)
     span.dataset.sideChatSource = 'different'
-    expect(readSideChatSelection(selection)).toBeNull()
+    expect(readSideChatSelection(selection)).toEqual({ messageId: 'answer', selection: 'ell' })
   })
+  it.each(['<button>Copy</button>', '<div contenteditable="true">Draft</div>'])(
+    'excludes controls and editable text: %s',
+    (html) => {
+      document.body.innerHTML = `<div data-side-chat-message="answer">${html}</div>`
+      const range = document.createRange()
+      range.selectNodeContents(document.body.firstElementChild!.firstElementChild!)
+      const selection = window.getSelection()!
+      selection.addRange(range)
+      expect(readSideChatSelection(selection)).toBeNull()
+    }
+  )
   it('rejects selections across answers or outside assistant answers', () => {
     document.body.innerHTML = '<div data-side-chat-message="a">one</div><div data-side-chat-message="b">two</div>'
     const range = document.createRange()

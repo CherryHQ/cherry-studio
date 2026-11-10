@@ -1,4 +1,4 @@
-import { Copy, NotebookPen, Quote } from 'lucide-react'
+import { Copy, MessageSquarePlus, NotebookPen, Quote } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -171,11 +171,6 @@ export function TextSelectionToolbar({
             onCloseAutoFocus={(event) => event.preventDefault()}
             onFocusOutside={(event) => event.preventDefault()}
             onPointerDown={(event) => event.preventDefault()}>
-            {onSideChat && window.getSelection() && canSideChat?.(window.getSelection()!) && (
-              <Button type="button" variant="ghost" size="sm" onClick={() => runAction(onSideChat)}>
-                {t('side_chat.create')}
-              </Button>
-            )}
             <Button type="button" variant="ghost" size="sm" onClick={() => runAction(onCopy)}>
               <Copy aria-hidden="true" />
               {t('common.copy')}
@@ -184,6 +179,12 @@ export function TextSelectionToolbar({
               <Quote aria-hidden="true" />
               {t('chat.message.quote')}
             </Button>
+            {onSideChat && window.getSelection() && canSideChat?.(window.getSelection()!) && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => runAction(onSideChat)}>
+                <MessageSquarePlus aria-hidden="true" />
+                {t('side_chat.create')}
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"

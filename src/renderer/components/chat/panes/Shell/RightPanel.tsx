@@ -28,6 +28,7 @@ export interface RightPanelInstance {
   /** Stable semantic identity for both the component and its presentation intent. */
   instanceKey: string
   title: ReactNode
+  headerActions?: ReactNode
   readiness: RightPanelReadiness
   /** Selection-only panels must not become the generic sidebar fallback. */
   defaultEligible?: boolean
@@ -476,7 +477,15 @@ export function RightPanelHeaderControls({ canMaximize = false }: { canMaximize?
   )
 }
 
-function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolean; title?: ReactNode }) {
+function RightPanelHeader({
+  canMaximize = false,
+  title,
+  actions
+}: {
+  canMaximize?: boolean
+  title?: ReactNode
+  actions?: ReactNode
+}) {
   const state = useRightPanelState()
 
   return (
@@ -491,7 +500,10 @@ function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolea
         className="min-w-0 flex-1 truncate px-1 text-sm font-medium text-foreground select-none">
         {title}
       </div>
-      <RightPanelHeaderControls canMaximize={canMaximize} />
+      <div className="flex shrink-0 items-center gap-0.5">
+        {actions}
+        <RightPanelHeaderControls canMaximize={canMaximize} />
+      </div>
     </div>
   )
 }
@@ -538,7 +550,11 @@ export function RightPanel() {
   return (
     <div className="flex h-full flex-col gap-0 overflow-hidden text-card-foreground">
       {activeEntry?.headerMode === 'content' ? null : (
-        <RightPanelHeader canMaximize={activeEntry?.canMaximize} title={activeEntry?.title} />
+        <RightPanelHeader
+          canMaximize={activeEntry?.canMaximize}
+          title={activeEntry?.title}
+          actions={activeEntry?.headerActions}
+        />
       )}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {mountedEntries.map((entry) => {

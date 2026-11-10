@@ -20,7 +20,7 @@ import {
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { SideChatProvider } from '@renderer/components/chat/sideChat/SideChatContext'
-import { SideChatPanel } from '@renderer/components/chat/sideChat/SideChatPanel'
+import { SideChatDeleteButton, SideChatPanel } from '@renderer/components/chat/sideChat/SideChatPanel'
 import { SessionBrowserView } from '@renderer/components/SessionBrowserView'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useIpcOn } from '@renderer/ipc'
@@ -220,6 +220,7 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       defaultEligible: false,
       instanceKey: `side-chat:${scope.topicId ?? ''}`,
       title: scope.sideChatTitle,
+      headerActions: <SideChatDeleteButton />,
       readiness: scope.topicId ? 'ready' : 'unavailable'
     })
   },

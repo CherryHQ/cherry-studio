@@ -69,7 +69,7 @@ import { useArtifactPanePreviewNavigation } from '@renderer/components/chat/pane
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { SideChatProvider } from '@renderer/components/chat/sideChat/SideChatContext'
-import { SideChatPanel } from '@renderer/components/chat/sideChat/SideChatPanel'
+import { SideChatDeleteButton, SideChatPanel } from '@renderer/components/chat/sideChat/SideChatPanel'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
 import { FilePreviewNavigationProvider, hasRenderedFilePreview } from '@renderer/components/FilePreview'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
@@ -1029,6 +1029,7 @@ function AgentRightPaneStateProvider({
                 setFileTreeSearchKeyword={setFileTreeSearchKeyword}
                 workspaceCurrent={fileWorkspace.key === workspaceKey}>
                 <SideChatProvider
+                  agentId={agentId}
                   sourceTopicId={sessionId ? buildAgentSessionTopicId(sessionId) : undefined}
                   modelId={model?.id}>
                   <AgentDetailsScope present={present}>{children}</AgentDetailsScope>
@@ -1729,6 +1730,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       defaultEligible: false,
       instanceKey: `side-chat:${scope.meta.sessionId ?? ''}`,
       title: scope.sideChatTitle,
+      headerActions: <SideChatDeleteButton />,
       readiness: scope.meta.sessionId ? scope.meta.conversationState : 'unavailable'
     })
   },

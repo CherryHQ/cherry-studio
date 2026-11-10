@@ -7,6 +7,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { SideChatSource } from '@shared/data/types/sideChat'
 
 interface SideChatContextValue {
+  agentId?: string
   modelId?: UniqueModelId
   setModelId: (modelId?: UniqueModelId) => void
   sourceTopicId?: string
@@ -25,9 +26,10 @@ export const useSideChatContext = () => use(SideChatContext)
 
 export function SideChatProvider({
   sourceTopicId,
+  agentId,
   modelId: ownerModelId,
   children
-}: PropsWithChildren<{ sourceTopicId?: string; modelId?: UniqueModelId }>) {
+}: PropsWithChildren<{ sourceTopicId?: string; modelId?: UniqueModelId; agentId?: string }>) {
   const [model, setModel] = useState<{ sourceTopicId?: string; modelId?: UniqueModelId }>({})
   const setModelId = useCallback((modelId?: UniqueModelId) => setModel({ sourceTopicId, modelId }), [sourceTopicId])
   const modelId = ownerModelId ?? (model.sourceTopicId === sourceTopicId ? model.modelId : undefined)
@@ -106,6 +108,7 @@ export function SideChatProvider({
   )
   const value = useMemo(
     () => ({
+      agentId,
       sourceTopicId,
       modelId,
       setModelId,
@@ -120,6 +123,7 @@ export function SideChatProvider({
       reload
     }),
     [
+      agentId,
       sourceTopicId,
       modelId,
       setModelId,

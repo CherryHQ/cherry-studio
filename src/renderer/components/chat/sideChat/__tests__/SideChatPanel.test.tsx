@@ -101,10 +101,14 @@ it.each([
   })
   const existing = view(`${first.topicId}-existing`, next)
   const responses: Array<(result: unknown) => void> = []
-  vi.mocked(window.api.ipcApi.request).mockImplementation(async (name) => {
+  const request = vi.mocked(window.api.ipcApi.request).mockImplementation(async (name, input) => {
     if (name === 'side_chat.list') return { ok: true, data: [] }
     if (name === 'side_chat.get') return { ok: true, data: existing }
     if (name === 'side_chat.create') return new Promise((resolve) => responses.push(resolve))
+    if (name === 'side_chat.submit') {
+      const { topicId } = input as { topicId: string }
+      return { ok: true, data: view(topicId, topicId.endsWith('-old') ? first : next) }
+    }
     return { ok: true, data: undefined }
   })
   const content = (quote: SideChatSource) => (
@@ -117,15 +121,24 @@ it.each([
   const user = userEvent.setup()
   const ui = render(content(first))
   await user.click(screen.getByRole('button', { name: 'Select quote' }))
-  await user.click(screen.getByRole('button', { name: 'side_chat.create' }))
+  expect(screen.queryByRole('button', { name: 'side_chat.create' })).toBeNull()
+  await waitFor(() =>
+    expect(document.querySelector('[data-ui~="chat.composer"] [data-composer-token-kind="quote"]')).toHaveTextContent(
+      'selection.action.builtin.quote'
+    )
+  )
+  expect(responses).toHaveLength(0)
+  await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
+  await waitFor(() => expect(responses).toHaveLength(1))
   ui.rerender(content(next))
   if (choice === 'existing') {
     await user.click(screen.getByRole('button', { name: `Open ${existing.topicId}` }))
     await user.type(await screen.findByPlaceholderText('side_chat.question'), 'keep this draft')
   } else {
     await user.click(screen.getByRole('button', { name: 'Select quote' }))
-    expect(screen.getByRole('button', { name: 'side_chat.create' })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: 'side_chat.create' }))
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute('aria-disabled', 'false')
+    await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
+    await waitFor(() => expect(responses).toHaveLength(2))
   }
   await act(async () =>
     responses[0](
@@ -138,12 +151,77 @@ it.each([
   if (choice === 'existing') {
     expect(screen.getByPlaceholderText('side_chat.question')).toHaveValue('keep this draft')
   } else {
-    expect(screen.getByRole('button', { name: 'side_chat.create' })).toBeDisabled()
-    expect(screen.queryByPlaceholderText('side_chat.question')).toBeNull()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute('aria-disabled', 'true')
     await act(async () => responses[1]({ ok: true, data: view(`${first.topicId}-new`, next) }))
     expect(await screen.findByPlaceholderText('side_chat.question')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'side_chat.create' })).toBeNull()
+    expect(request).toHaveBeenCalledWith('side_chat.submit', {
+      topicId: `${first.topicId}-new`,
+      text: '<blockquote>\n\nselected quote\n</blockquote> ',
+      modelId: 'provider::current',
+      composer: {
+        version: 1,
+        tokens: [expect.objectContaining({ kind: 'quote', description: 'selected quote', textOffset: 0 })]
+      }
+    })
   }
+})
+
+it('keeps the quoted question after a failed first send and reuses the created conversation', async () => {
+  const source: SideChatSource = { topicId: 'first-send', messageId: 'answer', selection: 'selected words' }
+  const view: SideChatView = {
+    topicId: 'first-send-side',
+    sourceTopicId: source.topicId,
+    revision: 1,
+    mode: 'temporary',
+    questionCount: 0,
+    generating: false,
+    omittedContext: [],
+    messages: [],
+    metadata: {
+      config: { modelId: 'provider::current', prompt: '' },
+      snapshot: { messageId: 'answer', selection: 'selected words', answer: '', question: '', prefix: '', suffix: '' }
+    }
+  }
+  let failSend = true
+  const request = vi.mocked(window.api.ipcApi.request).mockImplementation(async (name) => {
+    if (name === 'side_chat.list') return { ok: true, data: [] }
+    if (name === 'side_chat.submit' && failSend)
+      return { ok: false, error: { code: 'side_chat_model_unavailable', message: 'unavailable' } }
+    return { ok: true, data: view }
+  })
+  const user = userEvent.setup()
+  const { container } = render(
+    <SideChatProvider sourceTopicId={source.topicId} modelId="provider::current">
+      <SelectQuote source={source} />
+      <SideChatPanel />
+    </SideChatProvider>
+  )
+  await user.click(screen.getByRole('button', { name: 'Select quote' }))
+  await waitFor(() => expect(container.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument())
+  const editor = container.querySelector<HTMLElement>('[contenteditable="true"]')!
+  await user.click(editor)
+  await user.keyboard('{Control>}{End}{/Control}Explain this')
+  await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('code.model_required')
+  expect(editor).toHaveTextContent('Explain this')
+  expect(container.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument()
+  failSend = false
+  await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+  expect(request.mock.calls.filter(([name]) => name === 'side_chat.create')).toHaveLength(1)
+  expect(request).toHaveBeenLastCalledWith(
+    'side_chat.submit',
+    expect.objectContaining({
+      topicId: view.topicId,
+      modelId: 'provider::current',
+      text: expect.stringMatching(/^<blockquote>\n\nselected words\n<\/blockquote>\s*Explain this$/),
+      composer: {
+        version: 1,
+        tokens: [expect.objectContaining({ kind: 'quote', description: 'selected words', textOffset: 0 })]
+      }
+    })
+  )
 })
 
 it('keeps drafts scoped across topics, follows the current model, and clears temporary content on removal', async () => {
@@ -231,11 +309,14 @@ it('keeps drafts scoped across topics, follows the current model, and clears tem
   failSend = true
   await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('code.model_required')
-  expect(request).toHaveBeenCalledWith('side_chat.submit', {
-    topicId: 'a',
-    text: 'private a',
-    modelId: 'provider::replacement'
-  })
+  expect(request).toHaveBeenCalledWith(
+    'side_chat.submit',
+    expect.objectContaining({
+      topicId: 'a',
+      text: 'private a',
+      modelId: 'provider::replacement'
+    })
+  )
   expect(screen.getByPlaceholderText('side_chat.question')).toHaveValue('private a')
   expect(request.mock.calls.some(([name]) => name === 'side_chat.configure')).toBe(false)
   failSend = false

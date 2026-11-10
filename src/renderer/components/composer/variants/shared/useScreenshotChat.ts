@@ -24,7 +24,8 @@ export function useScreenshotChat({
   active,
   actionsRef,
   setFiles,
-  isBlocked
+  isBlocked,
+  registerOnMount = true
 }: {
   scopeKey: string
   editingId?: string | number
@@ -32,6 +33,7 @@ export function useScreenshotChat({
   actionsRef: MutableRefObject<ProviderActionHandlers>
   setFiles: Dispatch<SetStateAction<ComposerAttachment[]>>
   isBlocked: () => boolean
+  registerOnMount?: boolean
 }) {
   const { t } = useTranslation()
   const isActiveTab = useIsActiveTab()
@@ -43,13 +45,16 @@ export function useScreenshotChat({
   )
   const startScreenshot = useCallback(() => {
     closeQuickPanel?.('screenshot')
-    void ipcApi.request('chat.screenshot.capture').catch((error) => {
-      logger.error('Failed to start screenshot capture', error)
-      toast.error(t('common.error'))
-    })
-  }, [closeQuickPanel, t])
+    void ipcApi
+      .request('chat.screenshot.target', { scopeKey: target })
+      .then(() => ipcApi.request('chat.screenshot.capture'))
+      .catch((error) => {
+        logger.error('Failed to start screenshot capture', error)
+        toast.error(t('common.error'))
+      })
+  }, [closeQuickPanel, t, target])
   useEffect(() => {
-    if (!active || !isActiveTab) return
+    if (!active || !isActiveTab || !registerOnMount) return
     void ipcApi
       .request('chat.screenshot.target', { scopeKey: target })
       .catch((error) => logger.error('Failed to register screenshot target', error))
@@ -58,7 +63,7 @@ export function useScreenshotChat({
         .request('chat.screenshot.target', { scopeKey: null })
         .catch((error) => logger.error('Failed to clear screenshot target', error))
     }
-  }, [active, isActiveTab, target])
+  }, [active, isActiveTab, registerOnMount, target])
   const receiver = useRef({ active: false, target, isBlocked, actionsRef, setFiles, closeQuickPanel })
   receiver.current = { active: active && isActiveTab, target, isBlocked, actionsRef, setFiles, closeQuickPanel }
   const mounted = useRef(false)

@@ -22,6 +22,8 @@ import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMe
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
+import { useComposerAssistant } from '../ComposerAssistantContext'
+
 interface Props {
   assistantId: string
   launcher: ToolLauncherApi
@@ -63,7 +65,9 @@ const WebSearchProviderIcon: FC<{ iconRef?: IconRef; providerName?: string }> = 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { assistant, model, updateAssistant } = useAssistant(assistantId)
+  const override = useComposerAssistant()
+  const loaded = useAssistant(override ? null : assistantId, { loadDefaultModel: !override })
+  const { assistant, model, updateAssistant } = override ?? loaded
   const { provider: modelProvider } = useProviderById(model?.providerId)
   const {
     defaultFetchUrlsProvider,

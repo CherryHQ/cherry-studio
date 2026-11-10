@@ -295,7 +295,8 @@ export function createMcpStatusLauncher(
 }
 
 export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolContext }) => {
-  const { assistant, launcher, scope, session, t } = context
+  const { assistant, launcher, session, t } = context
+  const scope = session?.agentId ? TopicType.Session : context.scope
   const { isVisible, symbol, updateList } = useQuickPanel()
   const [dataRequested, setDataRequested] = useState(false)
   const mode =

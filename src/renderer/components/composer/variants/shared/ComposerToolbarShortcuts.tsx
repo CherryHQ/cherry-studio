@@ -61,6 +61,7 @@ interface ShortcutCandidate {
 
 interface ComposerToolbarShortcutsProps {
   scope: ComposerToolScope
+  menuScope?: ComposerToolScope
   pinnedIds: readonly string[]
   onPinnedIdsChange: (next: string[]) => void
   onResetPinnedIds: () => void
@@ -124,6 +125,7 @@ const reconcileCustomizeOrder = (
  */
 export const ComposerToolbarShortcuts = ({
   scope,
+  menuScope,
   pinnedIds,
   onPinnedIdsChange,
   onResetPinnedIds,
@@ -139,7 +141,12 @@ export const ComposerToolbarShortcuts = ({
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const panelUnavailable = !unifiedPanelControl?.available
-  const toolbarManifests = useMemo(() => getComposerToolbarManifestsForScope(scope, t), [scope, t])
+  const toolbarManifests = useMemo(() => {
+    const manifests = getComposerToolbarManifestsForScope(scope, t)
+    if (!menuScope) return manifests
+    const visibleIds = new Set(getComposerToolbarManifestsForScope(menuScope, t).map((manifest) => manifest.id))
+    return manifests.filter((manifest) => visibleIds.has(manifest.id))
+  }, [menuScope, scope, t])
   const toolbarManifestById = useMemo(
     () => new Map(toolbarManifests.map((manifest) => [manifest.id, manifest])),
     [toolbarManifests]

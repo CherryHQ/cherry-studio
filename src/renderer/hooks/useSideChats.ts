@@ -30,3 +30,6 @@ export function useSideChatDraft(topicId: string) {
 
 export const clearSubmittedSideChatDraft = (topicId: string, submitted: string) =>
   state.clearSubmittedDraft(topicId, submitted)
+
+export const readSideChatComposerDraft = state.getComposerDraft
+export const writeSideChatComposerDraft = state.setComposerDraft.bind(state)

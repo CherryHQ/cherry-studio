@@ -61,6 +61,7 @@ export const ComposerToolRuntimeProvider = ({ children, initialState, actions }:
 
 interface ComposerToolRuntimeBootstrapProps {
   scope: ComposerToolScope
+  menuScope?: ComposerToolScope
   assistant?: Assistant
   model?: Model
   session?: ToolContext['session']
@@ -145,7 +146,13 @@ const MemoizedComposerToolRuntimeEntry = memo(ComposerToolRuntimeEntry, (previou
   return true
 })
 
-export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
+export const ComposerToolRuntimeHost = ({
+  scope,
+  menuScope,
+  assistant,
+  model,
+  session
+}: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
   const toolState = useComposerToolProviderState()
   const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
@@ -164,8 +171,12 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   )
 
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, session }).filter((tool) => model || tool.availableWithoutModel)
-  }, [assistant, model, scope, session])
+    return getToolsForScope(scope, { assistant, model, session }).filter(
+      (tool) =>
+        (model || tool.availableWithoutModel) &&
+        (!menuScope || !tool.visibleInScopes || tool.visibleInScopes.includes(menuScope))
+    )
+  }, [assistant, menuScope, model, scope, session])
 
   const getLauncherApiForTool = useCallback(
     (toolKey: string): ToolRenderContext<any, any>['launcher'] => {

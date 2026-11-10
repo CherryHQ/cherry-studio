@@ -97,17 +97,21 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
         exportTableAsExcel={actions?.exportTableAsExcel}
         notifySuccess={actions?.notifySuccess}
         notifyError={actions?.notifyError}>
-        <AppMarkdown
-          id={block.id}
-          isStreaming={isStreaming}
-          singleDollarMath={mathEnableSingleDollar}
-          components={mergedComponents}
-          remarkPlugins={remarkPlugins}
-          rehypePlugins={rehypePlugins}
-          className={className}
-          transformSource={transformSource}>
-          {content}
-        </AppMarkdown>
+        <div
+          className="contents"
+          data-side-chat-block-source={actions?.openSideChat && linkifyFilePaths ? block.content : undefined}>
+          <AppMarkdown
+            id={block.id}
+            isStreaming={isStreaming}
+            singleDollarMath={mathEnableSingleDollar}
+            components={mergedComponents}
+            remarkPlugins={remarkPlugins}
+            rehypePlugins={rehypePlugins}
+            className={className}
+            transformSource={transformSource}>
+            {content}
+          </AppMarkdown>
+        </div>
       </MarkdownHostProvider>
     </ChatMarkdownRenderProvider>
   )

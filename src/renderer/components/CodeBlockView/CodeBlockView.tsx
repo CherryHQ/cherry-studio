@@ -31,7 +31,7 @@ import {
   useViewSourceTool,
   useWrapTool
 } from '@renderer/components/CodeToolbar'
-import CodeViewer from '@renderer/components/CodeViewer'
+import CodeViewer, { type CodeLineRenderer } from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
@@ -52,6 +52,7 @@ const logger = loggerService.withContext('CodeBlockView')
 const HIGHLIGHTED_CODE_VIEWER_OPTIONS = { highlight: true } as const
 
 interface Props {
+  renderLine?: CodeLineRenderer
   children: string
   language: string
   onSave?: (newContent: string) => void
@@ -81,6 +82,7 @@ interface Props {
  */
 export const CodeBlockView: React.FC<Props> = memo((props) => {
   const {
+    renderLine,
     children,
     language,
     onSave,
@@ -351,6 +353,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const viewer = useMemo(
     () => (
       <CodeViewer
+        renderLine={renderLine}
         className="source-view"
         value={source}
         editorState={editorState}
@@ -366,6 +369,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     ),
     [
       source,
+      renderLine,
       editorState,
       language,
       handleHeightChange,

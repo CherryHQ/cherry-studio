@@ -158,7 +158,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
 
   const sideChatAction = useCallback(
     (selection: Selection) => {
-      const source = readSideChatSelection(selection)
+      const source = readSideChatSelection(selection, extractSelectedText(selection))
       if (!source) return
       openSideChat?.(source.messageId, source.selection)
     },
@@ -202,6 +202,17 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
     (event: React.MouseEvent): CommandContextMenuExtraItem[] => {
       const selection = window.getSelection()
       const selectedText = selection ? extractSelectedText(selection) : ''
+      const source = selection && openSideChat ? readSideChatSelection(selection, selectedText) : null
+      const sideChatItems: CommandContextMenuExtraItem[] = source
+        ? [
+            {
+              type: 'item',
+              id: 'selection.side-chat',
+              label: t('side_chat.create'),
+              onSelect: () => openSideChat?.(source.messageId, source.selection)
+            }
+          ]
+        : []
       const quoteText = selection ? extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }) : ''
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null
       const canSaveSelection =
@@ -252,26 +263,16 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
           }
         ]
         return selectedLinkText
-          ? [...getMenuItems(selectedLinkText, quoteText, canSaveSelection), { type: 'separator' }, ...linkItems]
+          ? [
+              ...getMenuItems(selectedLinkText, quoteText, canSaveSelection),
+              ...sideChatItems,
+              { type: 'separator' },
+              ...linkItems
+            ]
           : linkItems
       }
 
-      const source = selection && openSideChat ? readSideChatSelection(selection) : null
-      return [
-        ...getMenuItems(selectedText, quoteText, canSaveSelection),
-        ...(source
-          ? [
-              {
-                type: 'item' as const,
-                id: 'selection.side-chat',
-                label: t('side_chat.create'),
-                onSelect: () => {
-                  openSideChat?.(source.messageId, source.selection)
-                }
-              }
-            ]
-          : [])
-      ]
+      return [...getMenuItems(selectedText, quoteText, canSaveSelection), ...sideChatItems]
     },
     [getMenuItems, handleCopy, mathEnableSingleDollar, openBrowserUrl, openSideChat, t]
   )
@@ -279,7 +280,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
   return (
     <TextSelectionToolbar
       onSideChat={openSideChat ? sideChatAction : undefined}
-      canSideChat={(selection) => readSideChatSelection(selection) !== null}
+      canSideChat={(selection) => readSideChatSelection(selection, extractSelectedText(selection)) !== null}
       onCopy={(selection) => handleCopy(extractSelectedText(selection))}
       onQuote={(selection) => handleQuote(extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }))}
       onSaveToNotes={(selection) =>

@@ -2,9 +2,11 @@ import type { Node } from 'mdast'
 import React, { memo, type ReactNode, useCallback, useMemo } from 'react'
 
 import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
+import { SideChatSourceText } from '@renderer/components/chat/sideChat/SideChatSourceText'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/components/CodeBlockView/constants'
 import HtmlArtifactsCard from '@renderer/components/CodeBlockView/HtmlArtifactsCard'
+import type { CodeLineRenderer } from '@renderer/components/CodeViewer'
 import { INLINE_CODE_CLASS, useMarkdownCode } from '@renderer/components/markdown'
 import { getCodeBlockId } from '@renderer/utils/markdownLight'
 
@@ -47,6 +49,20 @@ const CodeBlock: React.FC<Props> = ({
 
   const actions = useOptionalMessageListActions()
   const canSaveCodeBlock = !!id && !!actions?.saveCodeBlock
+  const lineOffsets = useMemo(() => {
+    let offset = 0
+    return text.split('\n').map((line) => {
+      const start = offset
+      offset += line.length + 1
+      return start
+    })
+  }, [text])
+  const renderLine = useCallback<CodeLineRenderer>(
+    (line, index, renderText) => (
+      <SideChatSourceText text={line} sourceText={text} sourceOffset={lineOffsets[index]} renderText={renderText} />
+    ),
+    [text, lineOffsets]
+  )
 
   const handleSave = useCallback(
     (newContent: string) => {
@@ -112,17 +128,26 @@ const CodeBlock: React.FC<Props> = ({
     }
 
     return (
-      <CodeBlockView
-        language={language}
-        onSave={handleSave}
-        editable={canSaveCodeBlock}
-        isStreaming={isStreaming || isIncomplete}>
-        {text}
-      </CodeBlockView>
+      <div className="contents" data-side-chat-code={actions?.openSideChat ? text : undefined}>
+        <CodeBlockView
+          language={language}
+          onSave={handleSave}
+          editable={canSaveCodeBlock}
+          isStreaming={isStreaming || isIncomplete}
+          renderLine={actions?.openSideChat ? renderLine : undefined}>
+          {text}
+        </CodeBlockView>
+      </div>
     )
   }
 
-  return <code className={mergeClassNames(className, INLINE_CODE_CLASS)}>{children}</code>
+  return (
+    <code
+      className={mergeClassNames(className, INLINE_CODE_CLASS)}
+      data-side-chat-source={actions?.openSideChat ? text : undefined}>
+      {actions?.openSideChat ? <SideChatSourceText text={text} /> : children}
+    </code>
+  )
 }
 
 export default memo(CodeBlock)

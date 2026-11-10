@@ -71,6 +71,35 @@ describe('automatic selected-text actions', () => {
     expect(window.api.quoteToMainWindow).toHaveBeenCalledWith('Selected message text')
   })
 
+  it('offers side chat beside copy and quote across formatted text and table cells', async () => {
+    const user = userEvent.setup()
+    const openSideChat = vi.fn()
+    render(
+      <CommandSharedPreferencesContext value={{ menuPresentationMode: 'cherry', shortcutPreferences: {} }}>
+        <SelectionContextMenu openSideChat={openSideChat}>
+          <div data-side-chat-message="answer">
+            <p>
+              <strong>First</strong> paragraph
+            </p>
+            <table>
+              <tbody>
+                <tr>
+                  <td>Second</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </SelectionContextMenu>
+      </CommandSharedPreferencesContext>
+    )
+    await selectText(screen.getByText('First'), screen.getByRole('cell', { name: 'Second' }))
+
+    expect(screen.getByRole('button', { name: 'common.copy' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'chat.message.quote' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'side_chat.create' }))
+    expect(openSideChat).toHaveBeenCalledWith('answer', 'First paragraphSecond')
+  })
+
   it('excludes editable content, outside selections, and selections crossing the scope boundary', async () => {
     renderContent()
     await selectText(screen.getByText('Editable draft'))

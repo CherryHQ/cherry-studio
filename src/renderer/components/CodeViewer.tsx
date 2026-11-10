@@ -60,7 +60,14 @@ interface SavedSelection {
   endOffset: number
 }
 
+export type CodeLineRenderer = (
+  text: string,
+  index: number,
+  renderText: (start: number, end: number) => React.ReactNode
+) => React.ReactNode
+
 interface CodeViewerProps {
+  renderLine?: CodeLineRenderer
   /** Seed visible syntax from the matching editor document when switching back to reading. */
   editorState?: EditorState | null
   /** Code string value. */
@@ -123,6 +130,7 @@ interface CodeViewerProps {
  * Virtualized code viewer with viewport-only highlighting in a worker.
  */
 const CodeViewer = ({
+  renderLine,
   editorState,
   value,
   language,
@@ -814,6 +822,7 @@ const CodeViewer = ({
                 data-index={virtualItem.index}
                 ref={capture ? undefined : virtualizer.measureElement}>
                 <VirtualizedRow
+                  renderLine={renderLine}
                   rawLine={renderedLines[virtualItem.index]}
                   tokenLine={highlight ? renderedTokens?.lines[virtualItem.index - renderedTokens.start] : undefined}
                   showLineNumbers={lineNumbers}
@@ -833,6 +842,7 @@ const CodeViewer = ({
 CodeViewer.displayName = 'CodeViewer'
 
 interface VirtualizedRowData {
+  renderLine?: CodeLineRenderer
   rawLine: string
   tokenLine?: CodeBlockToken[]
   showLineNumbers: boolean
@@ -844,7 +854,15 @@ interface VirtualizedRowData {
  * 单行代码渲染
  */
 const VirtualizedRow = memo(
-  ({ rawLine, tokenLine, showLineNumbers, expanded, wrapped, index }: VirtualizedRowData & { index: number }) => {
+  ({
+    rawLine,
+    tokenLine,
+    showLineNumbers,
+    expanded,
+    wrapped,
+    index,
+    renderLine
+  }: VirtualizedRowData & { index: number }) => {
     const completeTokenLine = useMemo(() => {
       const tokens = tokenLine ?? []
       const length = tokens.reduce((total, token) => total + token.content.length, 0)
@@ -852,6 +870,20 @@ const VirtualizedRow = memo(
         ? tokens
         : [...tokens, { content: rawLine.slice(length), offset: length }]
     }, [rawLine, tokenLine])
+
+    const renderText = (start: number, end: number) => {
+      let offset = 0
+      return completeTokenLine.map((token, tokenIndex) => {
+        const from = Math.max(0, start - offset)
+        const to = Math.min(token.content.length, end - offset)
+        offset += token.content.length
+        return from < to ? (
+          <span key={`${tokenIndex}:${start}`} className={token.className}>
+            {token.content.slice(from, to)}
+          </span>
+        ) : null
+      })
+    }
 
     return (
       <div
@@ -877,11 +909,7 @@ const VirtualizedRow = memo(
             'line-content min-w-0 flex-1 pr-[1em] whitespace-pre',
             wrapped ? '[&_*]:break-words! [&_*]:whitespace-pre-wrap!' : '[&_*]:break-normal [&_*]:whitespace-pre'
           )}>
-          {completeTokenLine.map((token, tokenIndex) => (
-            <span key={tokenIndex} className={token.className}>
-              {token.content}
-            </span>
-          ))}
+          {renderLine ? renderLine(rawLine, index, renderText) : renderText(0, rawLine.length)}
         </span>
       </div>
     )
