@@ -297,6 +297,7 @@ describe('portable provider contracts', () => {
   })
 
   it.each([
+    [exa, 'exa-contents-response.json', '/contents', { urls: ['https://example.com'], text: true }, 'Exa Article'],
     [
       querit,
       'querit-contents-response.json',
@@ -328,6 +329,49 @@ describe('portable provider contracts', () => {
     expect(JSON.parse(requests[0].body!)).toEqual(body)
     expect(result.results[0].title).toBe(title)
     expect(result.results[0].content.length).toBeGreaterThan(0)
+  })
+
+  it('sends the Exa API key on contents requests and falls back to the URL as title', async () => {
+    const { client, requests } = setup(
+      exa,
+      JSON.stringify({ results: [{ url: 'https://example.com', text: 'Page body' }] })
+    )
+    const result = await client.execute({
+      providerId: 'exa',
+      capability: 'fetchUrls',
+      input: 'https://example.com',
+      config: { apiHost: 'https://service.example/proxy' },
+      credentials: { apiKey: 'test-key' }
+    })
+    expect(new Headers(requests[0].headers).get('x-api-key')).toBe('test-key')
+    expect(result.results[0]).toMatchObject({
+      title: 'https://example.com',
+      content: 'Page body',
+      url: 'https://example.com',
+      sourceInput: 'https://example.com'
+    })
+  })
+
+  it.each([
+    ['no results', { results: [] }],
+    ['blank text', { results: [{ title: 'Exa Article', url: 'https://example.com', text: '  \n ' }] }]
+  ])('requires usable Exa Contents content: %s', async (_reason, payload) => {
+    const { client } = setup(exa, JSON.stringify(payload))
+    await expect(
+      client.execute({
+        providerId: 'exa',
+        capability: 'fetchUrls',
+        input: 'https://example.com',
+        config: { apiHost: 'https://service.example/proxy' },
+        credentials: { apiKey: 'test-key' }
+      })
+    ).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'empty_content',
+      message: 'Exa Contents returned empty content',
+      providerId: 'exa',
+      capability: 'fetchUrls'
+    })
   })
 })
 
