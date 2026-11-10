@@ -32,7 +32,7 @@ vi.mock('@logger', () => ({
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
 import { readDefaultModel } from '@renderer/utils/model'
 
-import { classifyErrorByAI, diagnoseError } from '../errorDiagnosis'
+import { classifyErrorByAI, diagnoseError, translateErrorByAI } from '../errorDiagnosis'
 
 const mockFetchGenerate = vi.mocked(fetchGenerate)
 const mockReadDefaultModel = vi.mocked(readDefaultModel)
@@ -315,6 +315,31 @@ required service tier.`,
         })
       )
       expect(mockReadDefaultModel).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('translateErrorByAI', () => {
+    it('returns an empty result instead of falling back when free Qwen fails', async () => {
+      mockFetchGenerate.mockRejectedValue(new Error('network unavailable'))
+
+      await expect(translateErrorByAI('Service temporarily unavailable', 'zh-CN')).resolves.toBe('')
+      expect(mockFetchGenerate).toHaveBeenCalledTimes(1)
+      expect(mockFetchGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }),
+          throwOnError: true
+        })
+      )
+      expect(mockReadDefaultModel).not.toHaveBeenCalled()
+    })
+
+    it('translates the error text itself into the requested UI language', async () => {
+      mockFetchGenerate.mockResolvedValue('  服务暂时不可用  ')
+
+      await expect(translateErrorByAI('Service temporarily unavailable', 'zh-CN')).resolves.toBe('服务暂时不可用')
+      const request = mockFetchGenerate.mock.calls[0][0]
+      expect(request.content).toBe('Service temporarily unavailable')
+      expect(request.prompt).toContain('zh-CN')
     })
   })
 })
