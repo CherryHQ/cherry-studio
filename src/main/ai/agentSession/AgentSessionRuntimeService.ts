@@ -1304,7 +1304,11 @@ export class AgentSessionRuntimeService extends BaseService {
     // A successor owns the shared connection. An already-settled stopped turn does not.
     const liveTurn = this.liveTurn(entry)
     if (liveTurn && stoppingTurnId && liveTurn.turnId !== stoppingTurnId) return
-    await this.closeSession(sessionId)
+    // The fallback IS the user's Stop: carry the cancellation intent into the teardown. Drivers
+    // without a graceful `abortTurn` (pi-durable) only ever see the interrupt through this flag —
+    // closing alone preserves their unfinished native work, and reopening the session would let
+    // the stopped prompt run again (piDurable/README.md's Stop contract).
+    await this.closeSession(sessionId, true)
   }
 
   /**

@@ -5355,6 +5355,47 @@ describe('AgentSessionRuntimeService', () => {
     await stream.cancel().catch(() => undefined)
   })
 
+  it('interrupts the native work before the fallback close when the driver has no graceful abort', async () => {
+    // pi-durable implements `interrupt()` but no `abortTurn()`: a user stop never reaches the
+    // graceful path there, and the teardown fallback is the only place the cancellation can be
+    // handed to the driver. Without it the close preserves the stopped native turn and reopening
+    // the session executes that prompt again.
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      interrupt: vi.fn(async () => {
+        events.end()
+      }),
+      close: vi.fn(async () => undefined)
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn()
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const controller = new AbortController()
+    const stream = openChunkStream(service, {
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: controller.signal
+    }).getReader()
+
+    await expect(stream.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+    controller.abort('user-requested')
+
+    await vi.waitFor(() => expect(connection.interrupt).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+    // Interrupt-before-close, per the driver contract: the close must not orphan live native work.
+    expect(connection.interrupt.mock.invocationCallOrder[0]).toBeLessThan(connection.close.mock.invocationCallOrder[0])
+    await vi.waitFor(() => expect(service.inspect('session-1')).toBeUndefined())
+    await stream.cancel().catch(() => undefined)
+  })
+
   it('does not admit a turn whose user stop landed while the stream was still connecting', async () => {
     const events = createAsyncQueue<any>()
     const connection = {
