@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -103,13 +103,13 @@ describe('desktop Pi Durable connection', () => {
   const connections: PiDurableRuntimeConnection[] = []
   let driver: PiDurableRuntimeDriver
 
-  beforeEach(() => {
+  beforeEach(async () => {
     driver = new PiDurableRuntimeDriver()
     vi.mocked(getShellEnv).mockReset()
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     mocks.delegated.mockClear()
     mocks.prime.mockReset()
-    directory = realpathSync(tempDir('desktop-pi'))
+    directory = await realpath(tempDir('desktop-pi'))
     vi.mocked(application.getPath).mockImplementation((key, file) => {
       const dir = join(directory, key)
       if (key !== 'external.pi.settings_file' && key !== 'feature.agents.pi.sessions')
@@ -478,9 +478,8 @@ describe('desktop Pi Durable connection', () => {
   it('routes concurrent roots to their own workspace, approval channel and model registration', async () => {
     sharedHosts()
     const sourceId = input.sessionId
-    const workspacePath = join(application.getPath('feature.agents.system_workspaces'), 'source-workspace')
-    mkdirSync(workspacePath)
-    const workspace = await realpath(workspacePath)
+    const workspace = join(application.getPath('feature.agents.system_workspaces'), 'source-workspace')
+    mkdirSync(workspace)
     const workspaceId = snapshot.session.workspace.id
     dbh.db
       .update(agentWorkspaceTable)
