@@ -66,6 +66,8 @@ export type RunState = {
   /** The run's calls in call order, for the gate's goal-round window. */
   readonly window: ToolCallFact[]
   lastReply?: AssistantMessage
+  /** Exact native response object retained until public input settlement (extension events may be cloned). */
+  settlementReply?: AssistantMessage
   readonly done: Promise<void>
   readonly end: () => void
 }

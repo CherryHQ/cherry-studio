@@ -1046,3 +1046,72 @@ it('reports automatic compaction exhausted at request 20 as a public run limit',
   })
   expect(provider.calls).toHaveLength(20)
 })
+
+it.each([
+  { request: 20, error: 'maximum context length exceeded', outcome: 'failed', code: 'run-limit' },
+  { request: 18, error: 'maximum context length exceeded', outcome: 'completed', code: undefined },
+  { request: 20, error: 'ordinary provider failure', outcome: 'failed', code: 'model-error' }
+] as const)(
+  'settles recovery after request $request with $error as $code',
+  async ({ request, error, outcome, code }) => {
+    const provider = respondingModel((_call, index) =>
+      index < request
+        ? assistantReply(
+            [{ type: 'toolCall', id: `overflow-${index}`, name: 'budget_echo', arguments: {} }],
+            'toolUse',
+            1,
+            0
+          )
+        : index === request
+          ? { ...assistantReply([], 'error', 0, 0), errorMessage: error }
+          : assistantReply('next input completed')
+    )
+    const { runtime, config, host } = await setup(provider.model, {
+      settings: { retry: { enabled: false } },
+      // Pi's default compaction policy. Large permitted reads make a real summary boundary available.
+      compaction: { enabled: true, reserveTokens: 16384, keepRecentTokens: 20000 },
+      tools: [
+        defineTool({
+          name: 'budget_echo',
+          label: 'Read',
+          description: 'Read',
+          parameters: obj({}),
+          async execute() {
+            return { content: [{ type: 'text', text: 'read '.repeat(2000) }], details: undefined }
+          }
+        })
+      ]
+    })
+    let summaries = 0
+    const root = confirmed(
+      await runtime.create({
+        ...config,
+        behavior: {
+          ...config.behavior,
+          host: {
+            ...host,
+            summarizer: {
+              summarize: async () => {
+                summaries++
+                return 'read results summary'
+              }
+            }
+          }
+        }
+      })
+    )
+    const events = await observe(root)
+    await root.input.submit(draft('overflow-budget'))
+    await expect.poll(() => inputs(events, 'overflow-budget').at(-1)?.outcome).toBe(outcome)
+    const settled = inputs(events, 'overflow-budget').at(-1)
+    if (code)
+      expect(settled).toMatchObject({ error: { code, message: code === 'run-limit' ? PI_RUN_LIMIT_MESSAGE : error } })
+    else expect(settled?.error).toBeUndefined()
+    expect(summaries).toBe(request === 18 ? 1 : 0)
+    const calls = request + (request === 18 ? 1 : 0)
+    expect(provider.calls).toHaveLength(calls)
+    await root.input.submit(draft('fresh-after-overflow'))
+    await expect.poll(() => inputs(events, 'fresh-after-overflow').at(-1)?.outcome).toBe('completed')
+    expect(provider.calls).toHaveLength(calls + 1)
+  }
+)

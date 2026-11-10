@@ -283,6 +283,7 @@ export function resetRunBudget(run: RunState): void {
   run.admissions = 0
   run.window.length = 0
   run.lastReply = undefined
+  run.settlementReply = undefined
 }
 
 /** Message ends of the active run: its last reply and usage, and the steered messages Pi placed in it. */

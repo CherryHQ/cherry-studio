@@ -255,7 +255,9 @@ export function meterRequests(adapter: Adapter, conv: Conversation, session: Age
   const finishTurn = session.agent.finishTurn
   session.agent.finishTurn = async (turn, signal): Promise<AgentTurnDecision | undefined> => {
     const decision = (await finishTurn?.(turn, signal)) ?? undefined
-    const refused = conv.active?.refused
+    const run = conv.active
+    if (run) run.settlementReply = turn.message
+    const refused = run?.refused
     if (refused === undefined) return decision
     recordRunRefusal(turn.message, refused)
     // Pi's per-call terminate flag stops only an entirely refused batch. Enforce the
@@ -293,7 +295,12 @@ export function compactionSummarizer(adapter: Adapter, conv: Conversation): Comp
     if (run) {
       const allowance = allow(adapter, conv, run.requests)
       if (!allowance.ok) {
-        if (conv.lineage.kind === 'root' && run.requests >= PI_RUN_LIMIT) run.refused = allowance.text
+        if (conv.lineage.kind === 'root' && run.requests >= PI_RUN_LIMIT) {
+          run.refused = allowance.text
+          // Overflow recovery may compact after finishTurn has already returned.
+          // Keep the refusal on that exact response before Pi settles its input.
+          if (run.settlementReply) recordRunRefusal(run.settlementReply, allowance.text)
+        }
         return decline(allowance.text)
       }
       run.requests += 1
