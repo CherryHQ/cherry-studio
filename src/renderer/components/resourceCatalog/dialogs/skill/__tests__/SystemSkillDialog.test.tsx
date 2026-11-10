@@ -215,7 +215,7 @@ describe('SystemSkillDialog', () => {
     render(<SystemSkillDialog mode="manage" open onOpenChange={vi.fn()} />)
 
     expect(screen.getByText('error.unexpected')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
     expect(screen.queryByText('discover down')).not.toBeInTheDocument()
   })
 })

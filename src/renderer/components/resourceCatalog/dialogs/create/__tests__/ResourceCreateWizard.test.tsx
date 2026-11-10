@@ -555,7 +555,7 @@ describe('ResourceCreateWizard', () => {
 
     expect(await screen.findByText('An assistant named My Resource exists')).toBeInTheDocument()
     expect(screen.queryByText('library.config.dialogs.create.submit_failed')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
   })
 
   it('reports an unexpected submit fault with Details and leaves the dialog closable', async () => {
@@ -566,7 +566,7 @@ describe('ResourceCreateWizard', () => {
 
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
     expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
-    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -575,7 +575,7 @@ describe('ResourceCreateWizard', () => {
 
     expect(await screen.findByText('library.config.dialogs.create.submit_failed')).toBeInTheDocument()
     expect(screen.queryByText(cause.message)).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'error.details' }))
+    await user.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({

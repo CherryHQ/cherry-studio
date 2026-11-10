@@ -46,7 +46,7 @@ describe('BrowserHistoryDialog errors', () => {
     render(<BrowserHistoryDialog onOpenPage={vi.fn()} />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(i18n.t('settings.browser.error'))
-    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -63,7 +63,7 @@ describe('BrowserHistoryDialog errors', () => {
     await act(async () => {
       await refresh.mock.results[0]?.value?.catch(() => undefined)
     })
-    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({

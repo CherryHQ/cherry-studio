@@ -168,6 +168,11 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           description={<div className="line-clamp-3 text-xs leading-5 text-error">{errorDetails}</div>}
           action={
             <div className="flex items-center gap-1">
+              <Button variant="destructive" size="sm" onClick={handleDeleteClick}>
+                <Tooltip content={t('common.delete')}>
+                  <DeleteIcon size={16} />
+                </Tooltip>
+              </Button>
               <ErrorDetailAction
                 error={error}
                 message={t('error.boundary.mcp.invalid')}
@@ -175,11 +180,6 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
                 recordId={server.id}
                 source="mcp"
               />
-              <Button variant="destructive" size="sm" onClick={handleDeleteClick}>
-                <Tooltip content={t('common.delete')}>
-                  <DeleteIcon size={16} />
-                </Tooltip>
-              </Button>
             </div>
           }
         />

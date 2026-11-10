@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
@@ -408,20 +409,21 @@ export default function AddModelFormPanel({
       </ProviderSection>
 
       {submitFailure && (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center gap-2 rounded-md border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
-          <span>{submitFailure.message}</span>
-          {submitFailure.kind === 'operation' && (
-            <ErrorDetailAction
-              error={submitFailure.error}
-              message={submitFailure.message}
-              operation="model.add"
-              providerId={providerId}
-              source="settings.models"
-            />
-          )}
-        </div>
+        <ErrorNotice
+          variant="inline"
+          title={submitFailure.message}
+          detail={
+            submitFailure.kind === 'operation' ? (
+              <ErrorDetailAction
+                error={submitFailure.error}
+                message={submitFailure.message}
+                operation="model.add"
+                providerId={providerId}
+                source="settings.models"
+              />
+            ) : undefined
+          }
+        />
       )}
 
       <ProviderActions>

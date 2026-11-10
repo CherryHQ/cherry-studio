@@ -410,7 +410,7 @@ describe('SkillMarketplaceDialog', () => {
 
     expect(screen.getByText('common.error')).toBeInTheDocument()
     expect(screen.getByText('library.skill_marketplace.search_failed_description')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
     expect(screen.queryByText('Search failed')).not.toBeInTheDocument()
     expect(screen.queryByText('registry timeout')).not.toBeInTheDocument()
   })

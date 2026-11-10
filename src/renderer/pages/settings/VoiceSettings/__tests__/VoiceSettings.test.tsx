@@ -1478,7 +1478,7 @@ describe('VoiceSettings', () => {
     expect(play).toHaveAccessibleDescription(/operation failed/i)
 
     expect(playbackTest.getByRole('alert')).toHaveTextContent(/operation failed/i)
-    const detail = await openedVoiceDetail(playbackTest.getByRole('button', { name: i18n.t('error.details') }))
+    const detail = await openedVoiceDetail(playbackTest.getByRole('button', { name: i18n.t('common.detail') }))
     expect(detail).toEqual(
       expect.objectContaining({
         context: expect.objectContaining({
@@ -1572,7 +1572,7 @@ describe('VoiceSettings', () => {
     await user.click(await screen.findByRole('button', { name: /open microphone settings/i }))
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/operation failed/i)
-    const detail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('error.details') }))
+    const detail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('common.detail') }))
     expect(detail).toEqual(
       expect.objectContaining({
         context: expect.objectContaining({
@@ -1595,7 +1595,7 @@ describe('VoiceSettings', () => {
     expect(await screen.findByText(i18n.t('settings.voice.status.operation_failed'))).toBeInTheDocument()
     const retry = await screen.findByRole('button', { name: i18n.t('common.retry') })
     await waitFor(() => expect(retry).toBeEnabled())
-    const detail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('error.details') }))
+    const detail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('common.detail') }))
     expect(detail).toEqual(
       expect.objectContaining({
         context: expect.objectContaining({
@@ -1625,7 +1625,7 @@ describe('VoiceSettings', () => {
 
     expect(await screen.findByText(i18n.t('settings.voice.status.operation_failed'))).toBeInTheDocument()
     await waitFor(() => expect(screen.getByRole('button', { name: i18n.t('common.retry') })).toBeEnabled())
-    const detail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('error.details') }))
+    const detail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('common.detail') }))
     expect(detail?.context.message).toBe('model_load_failed')
     expect(detail?.context.operation).toBe('voice.load')
     expect(detail?.localizedErrorMessage).toBe(i18n.t('settings.voice.status.operation_failed'))
@@ -1639,7 +1639,7 @@ describe('VoiceSettings', () => {
 
     const listed = await screen.findByRole('alert')
     expect(listed).toHaveTextContent(/operation failed/i)
-    const listDetail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('error.details') }))
+    const listDetail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('common.detail') }))
     expect(listDetail).toEqual(
       expect.objectContaining({
         context: expect.objectContaining({
@@ -1661,7 +1661,7 @@ describe('VoiceSettings', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Test microphone' }))
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(i18n.t('settings.voice.status.microphone_permission'))
-    const detail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('error.details') }))
+    const detail = await openedVoiceDetail(screen.getByRole('button', { name: i18n.t('common.detail') }))
     expect(detail).toEqual(
       expect.objectContaining({
         context: expect.objectContaining({
@@ -1685,7 +1685,7 @@ describe('VoiceSettings', () => {
 
     const retry = await screen.findByRole('button', { name: i18n.t('common.retry') })
     await waitFor(() => expect(retry).toBeEnabled())
-    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('model catalog unavailable'))
 
     voice.listModels.mockResolvedValue({
@@ -1697,7 +1697,7 @@ describe('VoiceSettings', () => {
     await user.click(retry)
     await waitFor(() => expect(voice.listVoices).toHaveBeenCalled())
     open.mockClear()
-    fireEvent.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(await screen.findByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('voice list unavailable'))
     expect(screen.getByRole('button', { name: i18n.t('common.retry') })).toBeEnabled()
   })
@@ -1711,8 +1711,8 @@ describe('VoiceSettings', () => {
       window.dispatchEvent(new Event('focus'))
     })
     const open = vi.spyOn(appErrorDetail.appErrorDetailService, 'openAppErrorDetail').mockResolvedValue('opened')
-    await waitFor(() => expect(screen.getByRole('button', { name: i18n.t('error.details') })).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await waitFor(() => expect(screen.getByRole('button', { name: i18n.t('common.detail') })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('voice list unavailable'))
     expect(screen.getByRole('button', { name: i18n.t('common.retry') })).toBeEnabled()
   })
@@ -1754,7 +1754,7 @@ describe('VoiceSettings', () => {
     })
     expect(screen.getByTestId('speech-status')).toHaveTextContent(i18n.t('settings.voice.status.ready'))
     expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent('Exact Voice')
-    fireEvent.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(await screen.findByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('automatic voice unavailable'))
     expect(open.mock.calls.at(-1)?.[0]?.context.operation).toBe('voice.load')
     await user.click(screen.getByRole('combobox', { name: 'Speech voice' }))
@@ -1768,14 +1768,14 @@ describe('VoiceSettings', () => {
     automaticFailure = new Error('automatic voice renamed')
     open.mockClear()
     await user.click(screen.getByRole('button', { name: i18n.t('common.retry') }))
-    fireEvent.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(await screen.findByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('automatic voice renamed'))
     expect(preview).toBeEnabled()
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent('Exact Voice'))
 
     automaticFailure = undefined
     await user.click(screen.getByRole('button', { name: i18n.t('common.retry') }))
-    await waitFor(() => expect(screen.queryByRole('button', { name: i18n.t('error.details') })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('button', { name: i18n.t('common.detail') })).not.toBeInTheDocument())
     expect(preview).toBeEnabled()
     await user.click(screen.getByRole('combobox', { name: 'Speech voice' }))
     expect(await screen.findByRole('option', { name: 'Language default · Exact Voice' })).toBeInTheDocument()
@@ -1811,7 +1811,7 @@ describe('VoiceSettings', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Preview voice' })).toBeEnabled())
     expect(screen.getByTestId('speech-status')).toHaveTextContent(i18n.t('settings.voice.status.ready'))
     expect(voiceSelect).toHaveTextContent('Exact Voice')
-    fireEvent.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(await screen.findByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('model_load_failed'))
     expect(open.mock.calls.at(-1)?.[0]?.context.operation).toBe('voice.load')
     await user.click(voiceSelect)
@@ -1828,12 +1828,12 @@ describe('VoiceSettings', () => {
     voice.resolveTranscription.mockRejectedValue(new Error('recognition resolve failed'))
     const view = render(<VoiceSettings />)
     const open = vi.spyOn(appErrorDetail.appErrorDetailService, 'openAppErrorDetail').mockResolvedValue('opened')
-    fireEvent.click(await screen.findByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(await screen.findByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('recognition resolve failed'))
 
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'not-a-model')
     view.rerender(<VoiceSettings />)
-    await waitFor(() => expect(screen.queryByRole('button', { name: i18n.t('error.details') })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('button', { name: i18n.t('common.detail') })).not.toBeInTheDocument())
     expect(screen.queryByText('recognition resolve failed')).not.toBeInTheDocument()
   })
 })

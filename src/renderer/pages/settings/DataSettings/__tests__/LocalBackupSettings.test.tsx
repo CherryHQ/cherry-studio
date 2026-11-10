@@ -97,7 +97,7 @@ describe('LocalBackupSettings', () => {
     expect(screen.getByTestId('warn-tooltip')).toHaveTextContent(
       `${i18n.t('settings.data.local.syncError')}: disk full`
     )
-    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     const first = detailMocks.open.mock.calls.at(-1)?.[0]
     expect(first.localizedErrorMessage ?? first.message).toBe(i18n.t('settings.data.local.syncError'))
@@ -107,7 +107,7 @@ describe('LocalBackupSettings', () => {
 
     detailMocks.open.mockClear()
     rerender(<LocalBackupSettings />)
-    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     const again = detailMocks.open.mock.calls.at(-1)?.[0]
     expect(again.error.message).toBe('disk full')
@@ -116,7 +116,7 @@ describe('LocalBackupSettings', () => {
     setBackupSyncState('local', { lastSyncError: 'permission denied' })
     rerender(<LocalBackupSettings />)
     detailMocks.open.mockClear()
-    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(detailMocks.open.mock.calls.at(-1)?.[0].error.message).toBe('permission denied'))
     expect(detailMocks.open.mock.calls.at(-1)?.[0]).not.toBe(first)
   })

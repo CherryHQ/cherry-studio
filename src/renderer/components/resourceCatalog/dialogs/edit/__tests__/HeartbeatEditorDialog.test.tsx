@@ -87,7 +87,7 @@ describe('HeartbeatEditorDialog', () => {
     expect(editor).toHaveValue('Keep this draft')
     expect(ipcApi.request).not.toHaveBeenCalledWith('ai.agent.heartbeat.run', expect.anything())
     expect(screen.getByRole('button', { name: en['agent.heartbeat.reload'] })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: en['error.details'] }))
+    await user.click(screen.getByRole('button', { name: en['common.detail'] }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -107,7 +107,7 @@ describe('HeartbeatEditorDialog', () => {
     vi.mocked(ipcApi.request).mockRejectedValue(loadCause)
     render(<HeartbeatEditorDialog agentId="a1" enabled onOpenChange={vi.fn()} />)
     expect(await screen.findByRole('alert')).toHaveTextContent(en['agent.heartbeat.load_failed'])
-    await user.click(screen.getByRole('button', { name: en['error.details'] }))
+    await user.click(screen.getByRole('button', { name: en['common.detail'] }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -134,7 +134,7 @@ describe('HeartbeatEditorDialog', () => {
     })
     const { rerender } = render(<HeartbeatEditorDialog agentId="a1" enabled onOpenChange={vi.fn()} />)
     expect(await screen.findByText('runner exploded')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: en['error.details'] }))
+    await user.click(screen.getByRole('button', { name: en['common.detail'] }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -151,7 +151,7 @@ describe('HeartbeatEditorDialog', () => {
     rerender(<HeartbeatEditorDialog agentId="a1" enabled onOpenChange={vi.fn()} />)
     expect(await screen.findByRole('alert')).toHaveTextContent(en['agent.tasks.logs.loadError'])
     detailMocks.open.mockClear()
-    await user.click(screen.getByRole('button', { name: en['error.details'] }))
+    await user.click(screen.getByRole('button', { name: en['common.detail'] }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({

@@ -77,7 +77,7 @@ function readDetail(request: {
 }
 
 async function openDetail() {
-  fireEvent.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+  fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
   await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
   return readDetail(detailMocks.open.mock.calls.at(-1)?.[0])
 }
@@ -158,6 +158,6 @@ describe('backup sync error details', () => {
     })
 
     setBackupSyncState('s3', { lastSyncError: null })
-    await waitFor(() => expect(screen.queryByRole('button', { name: i18n.t('error.details') })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('button', { name: i18n.t('common.detail') })).not.toBeInTheDocument())
   })
 })

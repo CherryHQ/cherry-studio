@@ -541,7 +541,7 @@ describe('ArchiveSettings permanent-delete confirmation', () => {
 
     expect(await screen.findByText('Could not check file references.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({

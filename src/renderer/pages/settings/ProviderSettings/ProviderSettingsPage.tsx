@@ -152,10 +152,10 @@ export default function ProviderSettingsPage() {
           description={error.message}
           action={
             <div className="flex items-center gap-2">
-              <ErrorDetailAction error={error} source="settings.provider" operation="provider.list" />
               <Button variant="outline" size="sm" onClick={() => void refetch()}>
                 {t('common.retry')}
               </Button>
+              <ErrorDetailAction error={error} source="settings.provider" operation="provider.list" />
             </div>
           }
           className="max-w-lg rounded-md px-4 py-3 shadow-none"
