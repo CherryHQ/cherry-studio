@@ -19,6 +19,7 @@ import {
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toContentRole } from '@shared/data/types/message'
+import type { SideChatSource } from '@shared/data/types/sideChat'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { sideChatErrorCodes } from '@shared/ipc/errors/sideChat'
 import type { SideChatView } from '@shared/ipc/schemas/sideChat'
@@ -29,35 +30,43 @@ export function SideChatPanel() {
   const context = useSideChatContext()
   const views = useSideChats(context?.sourceTopicId)
   const { t } = useTranslation()
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string>()
+  const [creation, setCreation] = useState<{ source: SideChatSource; busy: boolean; error?: string }>()
   if (!context) return null
+  const busy = creation?.source === context.pending && creation?.busy
+  const error = creation?.source === context.pending ? creation?.error : undefined
   const active = views.find((view) => view.topicId === context.selectedId)
   const create = async () => {
     if (!context.pending || busy) return
+    const source = context.pending
     if (!context.modelId) {
-      setError('code.model_required')
+      setCreation({ source, busy: false, error: 'code.model_required' })
       return
     }
-    setBusy(true)
-    setError(undefined)
+    setCreation({ source, busy: true })
     connectSideChats()
     try {
       const view = acceptSideChat(
         await ipcApi.request('side_chat.create', {
-          source: context.pending,
+          source,
           config: { modelId: context.modelId }
         })
       )
-      context.select(view.topicId)
+      context.completeCreate(source, view.topicId)
     } catch (cause) {
-      setError(
-        cause instanceof IpcError && cause.code === sideChatErrorCodes.MODEL_UNAVAILABLE
-          ? 'code.model_required'
-          : 'side_chat.request_error'
+      setCreation((current) =>
+        current?.source === source
+          ? {
+              source,
+              busy: false,
+              error:
+                cause instanceof IpcError && cause.code === sideChatErrorCodes.MODEL_UNAVAILABLE
+                  ? 'code.model_required'
+                  : 'side_chat.request_error'
+            }
+          : current
       )
     } finally {
-      setBusy(false)
+      setCreation((current) => (current?.source === source ? { ...current, busy: false } : current))
     }
   }
   return (

@@ -17,6 +17,7 @@ interface SideChatContextValue {
   openSource: (source: SideChatSource) => void
   open: (topicId: string) => void
   select: (topicId?: string) => void
+  completeCreate: (source: SideChatSource, topicId: string) => void
   reload: () => void
 }
 const SideChatContext = createContext<SideChatContextValue | null>(null)
@@ -31,8 +32,10 @@ export function SideChatProvider({
   const setModelId = useCallback((modelId?: UniqueModelId) => setModel({ sourceTopicId, modelId }), [sourceTopicId])
   const modelId = ownerModelId ?? (model.sourceTopicId === sourceTopicId ? model.modelId : undefined)
   const actions = useRightPanelActions()
-  const [selected, setSelected] = useState<Record<string, string | undefined>>({})
-  const [pending, setPending] = useState<SideChatSource>()
+  const [{ selected, pending }, setSelection] = useState<{
+    selected: Record<string, string | undefined>
+    pending?: SideChatSource
+  }>({ selected: {} })
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(false)
   const requestSequence = useRef(0)
@@ -69,11 +72,17 @@ export function SideChatProvider({
   })
   const select = useCallback(
     (topicId?: string) => {
-      if (sourceTopicId) setSelected((current) => ({ ...current, [sourceTopicId]: topicId }))
-      setPending(undefined)
+      setSelection((current) => ({
+        selected: sourceTopicId ? { ...current.selected, [sourceTopicId]: topicId } : current.selected
+      }))
     },
     [sourceTopicId]
   )
+  const completeCreate = useCallback((source: SideChatSource, topicId: string) => {
+    setSelection((current) =>
+      current.pending === source ? { selected: { ...current.selected, [source.topicId]: topicId } } : current
+    )
+  }, [])
   const open = useCallback(
     (topicId: string) => {
       connectSideChats()
@@ -86,11 +95,14 @@ export function SideChatProvider({
   const openSource = useCallback(
     (source: SideChatSource) => {
       if (!source.selection?.trim() || source.topicId !== sourceTopicId) return
-      select(undefined)
-      setPending(source)
+      setSelection((current) => ({
+        selected: { ...current.selected, [source.topicId]: undefined },
+        // Reselecting even the same excerpt must invalidate earlier creation results.
+        pending: { ...source }
+      }))
       actions.requestOpen('side-chat', { userInitiated: true })
     },
-    [actions, select, sourceTopicId]
+    [actions, sourceTopicId]
   )
   const value = useMemo(
     () => ({
@@ -104,9 +116,23 @@ export function SideChatProvider({
       openSource,
       open,
       select,
+      completeCreate,
       reload
     }),
-    [sourceTopicId, modelId, setModelId, selected, pending, error, loading, openSource, open, select, reload]
+    [
+      sourceTopicId,
+      modelId,
+      setModelId,
+      selected,
+      pending,
+      error,
+      loading,
+      openSource,
+      open,
+      select,
+      completeCreate,
+      reload
+    ]
   )
   return <SideChatContext value={value}>{children}</SideChatContext>
 }

@@ -1,11 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { expect, it, vi } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
 
 import type * as CherryUi from '@cherrystudio/ui'
 import type * as VirtualList from '@renderer/components/chat/messages/list/MessageVirtualList'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { SideChatSource } from '@shared/data/types/sideChat'
 import type { SideChatEventSchemas, SideChatView } from '@shared/ipc/schemas/sideChat'
 
 import { SideChatProvider, useSideChatContext } from '../SideChatContext'
@@ -36,6 +37,14 @@ vi.mock('@renderer/components/chat/messages/list/MessageVirtualList', async (imp
   )
 }))
 
+const listeners = new Map<string, (event: never) => void>()
+beforeEach(() => {
+  vi.mocked(window.api.ipcApi.on).mockImplementation((name, listener) => {
+    listeners.set(name, listener)
+    return () => listeners.delete(name)
+  })
+})
+
 function OpenChat({ id }: { id: string }) {
   const context = useSideChatContext()!
   return (
@@ -45,12 +54,99 @@ function OpenChat({ id }: { id: string }) {
   )
 }
 
-it('keeps drafts scoped across topics, follows the current model, and clears temporary content on removal', async () => {
-  const listeners = new Map<string, (event: never) => void>()
-  vi.mocked(window.api.ipcApi.on).mockImplementation((name, listener) => {
-    listeners.set(name, listener)
-    return () => listeners.delete(name)
+function SelectQuote({ source }: { source: SideChatSource }) {
+  const context = useSideChatContext()!
+  return (
+    <button type="button" onClick={() => context.openSource(source)}>
+      Select quote
+    </button>
+  )
+}
+
+it.each([
+  ['cross-topic', false],
+  ['same-topic', false],
+  ['existing', false],
+  ['cross-topic', true],
+  ['same-topic', true],
+  ['existing', true]
+] as const)('preserves a newer %s choice when an old create settles (failure: %s)', async (choice, fails) => {
+  const source = (id: string): SideChatSource => ({
+    topicId: id,
+    messageId: `answer-${id}`,
+    selection: 'selected quote'
   })
+  const first = source(`qa2-${choice}-${fails}`)
+  const next = choice === 'cross-topic' ? source(`${first.topicId}-next`) : first
+  const view = (id: string, quote: SideChatSource): SideChatView => ({
+    topicId: id,
+    sourceTopicId: quote.topicId,
+    revision: 1,
+    mode: 'temporary',
+    questionCount: 0,
+    generating: false,
+    omittedContext: [],
+    messages: [],
+    metadata: {
+      config: { modelId: 'provider::current', prompt: '' },
+      snapshot: {
+        messageId: quote.messageId,
+        selection: quote.selection!,
+        answer: '',
+        question: '',
+        prefix: '',
+        suffix: ''
+      }
+    }
+  })
+  const existing = view(`${first.topicId}-existing`, next)
+  const responses: Array<(result: unknown) => void> = []
+  vi.mocked(window.api.ipcApi.request).mockImplementation(async (name) => {
+    if (name === 'side_chat.list') return { ok: true, data: [] }
+    if (name === 'side_chat.get') return { ok: true, data: existing }
+    if (name === 'side_chat.create') return new Promise((resolve) => responses.push(resolve))
+    return { ok: true, data: undefined }
+  })
+  const content = (quote: SideChatSource) => (
+    <SideChatProvider sourceTopicId={quote.topicId} modelId="provider::current">
+      <SelectQuote source={quote} />
+      <OpenChat id={existing.topicId} />
+      <SideChatPanel />
+    </SideChatProvider>
+  )
+  const user = userEvent.setup()
+  const ui = render(content(first))
+  await user.click(screen.getByRole('button', { name: 'Select quote' }))
+  await user.click(screen.getByRole('button', { name: 'side_chat.create' }))
+  ui.rerender(content(next))
+  if (choice === 'existing') {
+    await user.click(screen.getByRole('button', { name: `Open ${existing.topicId}` }))
+    await user.type(await screen.findByPlaceholderText('side_chat.question'), 'keep this draft')
+  } else {
+    await user.click(screen.getByRole('button', { name: 'Select quote' }))
+    expect(screen.getByRole('button', { name: 'side_chat.create' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'side_chat.create' }))
+  }
+  await act(async () =>
+    responses[0](
+      fails
+        ? { ok: false, error: { code: 'side_chat_model_unavailable', message: 'unavailable' } }
+        : { ok: true, data: view(`${first.topicId}-old`, first) }
+    )
+  )
+  expect(screen.queryByRole('alert')).toBeNull()
+  if (choice === 'existing') {
+    expect(screen.getByPlaceholderText('side_chat.question')).toHaveValue('keep this draft')
+  } else {
+    expect(screen.getByRole('button', { name: 'side_chat.create' })).toBeDisabled()
+    expect(screen.queryByPlaceholderText('side_chat.question')).toBeNull()
+    await act(async () => responses[1]({ ok: true, data: view(`${first.topicId}-new`, next) }))
+    expect(await screen.findByPlaceholderText('side_chat.question')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'side_chat.create' })).toBeNull()
+  }
+})
+
+it('keeps drafts scoped across topics, follows the current model, and clears temporary content on removal', async () => {
   const makeView = (id: string): SideChatView => ({
     topicId: id,
     sourceTopicId: `source-${id}`,
