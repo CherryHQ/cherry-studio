@@ -14,8 +14,8 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { formatErrorMessage } from '@renderer/utils/error'
 
 const logger = loggerService.withContext('NotionSettings')
@@ -26,7 +26,7 @@ const NotionSettings: FC = () => {
   const [notionPageNameKey, setNotionPageNameKey] = usePreference('data.integration.notion.page_name_key')
   const [notionExportReasoning, setNotionExportReasoning] = usePreference('data.integration.notion.export_reasoning')
 
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { theme } = useTheme()
 
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,7 +73,9 @@ const NotionSettings: FC = () => {
   }
 
   const handleNotionTitleClick = () => {
-    void ipcApi.request('system.shell.open_website', 'https://docs.cherry-ai.com/advanced-basic/notion')
+    void openExternalWebsite(
+      `${i18n.language.startsWith('zh') ? 'https://cherryai.com.cn/docs/zh-cn' : 'https://cherryai.com/docs/en'}/pre-basic/data-settings/notion/`
+    )
   }
 
   return (

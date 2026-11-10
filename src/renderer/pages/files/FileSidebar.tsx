@@ -1,12 +1,12 @@
 import type { TFunction } from 'i18next'
-import { FileCode, FileQuestion, Files, FileText, Image as ImageIcon, Music, Trash2, Video } from 'lucide-react'
+import { FileCode, FileQuestion, Files, FileText, Image as ImageIcon, Music, Video } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { MenuDivider, MenuItem, MenuList, PageHeader, Scrollbar } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList, PageHeader, ScrollArea } from '@cherrystudio/ui'
 
 export type SidebarFilter =
-  | { kind: 'library'; value: 'all' | 'trash' }
+  | { kind: 'library'; value: 'all' }
   | { kind: 'type'; value: 'image' | 'video' | 'audio' | 'text' | 'document' | 'other' }
 
 type SidebarEntry = {
@@ -27,8 +27,7 @@ const TYPE_ENTRIES: SidebarEntry[] = [
 ]
 
 const LIBRARY_ENTRIES: SidebarEntry[] = [
-  { kind: 'library', value: 'all', label: (t) => t('files.all'), icon: Files, countKey: 'all' },
-  { kind: 'library', value: 'trash', label: (t) => t('files.trash'), icon: Trash2, countKey: 'trash' }
+  { kind: 'library', value: 'all', label: (t) => t('files.all'), icon: Files, countKey: 'all' }
 ]
 
 export function FileSidebar({
@@ -68,14 +67,14 @@ export function FileSidebar({
       data-ui="files.navigation"
       className="flex w-(--settings-width) min-w-(--settings-width) shrink-0 flex-col border-r-[0.5px] border-border select-none">
       <PageHeader title={t('files.title')} />
-      <Scrollbar className="min-h-0 flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <MenuList className="gap-0.5 px-2.5 pb-2.5">
           <div className="px-2.5 pb-0.5 text-xs text-muted-foreground">{t('files.type')}</div>
           {TYPE_ENTRIES.map(renderEntry)}
           <MenuDivider className="my-1 bg-transparent" />
           {LIBRARY_ENTRIES.map(renderEntry)}
         </MenuList>
-      </Scrollbar>
+      </ScrollArea>
     </aside>
   )
 }

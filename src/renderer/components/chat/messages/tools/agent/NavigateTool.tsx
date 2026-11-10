@@ -1,7 +1,6 @@
+export { isKnownNavigationPath } from '@shared/utils/navigationPath'
 import { Compass } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-
-import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 
@@ -13,6 +12,7 @@ interface NavigateToolInput {
 const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   // Top-level pages
   '/app/chat': { icon: '💬', labelKey: 'agent.session.group.conversation' },
+  '/app/scheduled-tasks': { icon: '⏰', labelKey: 'settings.scheduledTasks.title' },
   '/app/paintings': { icon: '🎨', labelKey: 'title.paintings' },
   '/app/translate': { icon: '🌐', labelKey: 'title.translate' },
   '/app/files': { icon: '📁', labelKey: 'title.files' },
@@ -34,6 +34,7 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/settings/mcp': { icon: '🔌', labelKey: 'agent.settings.toolsMcp.mcp.tab' },
   '/settings/websearch': { icon: '🔍', labelKey: 'settings.tool.websearch.title' },
   '/settings/api-gateway': { icon: '🌐', labelKey: 'apiGateway.title' },
+  '/settings/device-connections': { icon: '📱', labelKey: 'deviceConnections.title' },
   '/settings/file-processing': {
     icon: '📄',
     labelKey: 'settings.tool.file_processing.features.document_to_markdown.title'
@@ -46,9 +47,9 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/settings/channels': { icon: '📡', labelKey: 'settings.channels.title' },
   '/settings/code-execution': { icon: '⚙️', labelKey: 'chat.settings.code_execution.title' },
   '/settings/dependencies': { icon: '🛠️', labelKey: 'settings.dependencies.title' },
-  '/settings/scheduled-tasks': { icon: '⏰', labelKey: 'settings.scheduledTasks.title' },
   '/settings/skills': { icon: '🧰', labelKey: 'settings.skills.title' },
   '/settings/usage': { icon: '📊', labelKey: 'settings.usage.title' },
+  '/settings/profile': { icon: '👤', labelKey: 'settings.profile.title' },
 
   // MCP sub-pages
   '/settings/mcp/servers': { icon: '📋', labelKey: 'settings.mcp.title' },
@@ -61,19 +62,6 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
 
 // Sorted by path length descending for longest prefix match
 const SORTED_ROUTES = Object.entries(ROUTE_LABELS).sort((a, b) => b[0].length - a[0].length)
-const KNOWN_NAVIGATION_ROUTES = [
-  ...Object.keys(ROUTE_LABELS),
-  '/app/mini-app/$appId',
-  '/app/paintings/$',
-  '/settings/mcp/$',
-  '/settings/mcp/settings/$serverId',
-  '/settings/scheduled-tasks/$taskId'
-]
-
-export function isKnownNavigationPath(path: string): boolean {
-  const cleanPath = path.split('?')[0]
-  return isAllowedNavigationPath(cleanPath, KNOWN_NAVIGATION_ROUTES)
-}
 
 function getRouteInfo(path: string): { icon: string; labelKey?: string; label?: string } {
   // Exact match first

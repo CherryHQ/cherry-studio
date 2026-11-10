@@ -2,6 +2,8 @@ import { application } from '@application'
 import {
   assertOutsideManagedStorageMutation,
   ContentCommittedMetadataPendingError,
+  copyFileToClipboard,
+  getClipboardCopyStatus,
   dispatchHandle,
   getMetadataByPath,
   readByPath,
@@ -10,8 +12,10 @@ import {
   showInFolder as showPathInFolder,
   writeIfUnchangedByPath
 } from '@main/services/file'
-import { DirectoryTreeStoppedError, StaleVersionError } from '@main/services/file'
+import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
+import { validateNotesDirectory } from '@main/services/notesDirectory'
 import { copyNew, PathStaleVersionError } from '@main/utils/file'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -28,10 +32,10 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
   return senderId == null ? undefined : application.get('WindowManager').getWindow(senderId)?.webContents
 }
 
-function requireSenderWebContents(senderId: WindowId | null): Electron.WebContents {
-  const wc = senderWebContents(senderId)
-  if (!wc) throw new Error('file.tree.create requires a managed window sender')
-  return wc
+function requireManagedSender(senderId: WindowId | null): TreeOwner {
+  const webContents = senderWebContents(senderId)
+  if (senderId == null || !webContents) throw new Error('file.tree.create requires a managed window sender')
+  return { windowId: senderId, webContents }
 }
 
 /**
@@ -39,6 +43,14 @@ function requireSenderWebContents(senderId: WindowId | null): Electron.WebConten
  * on DataApi; these handlers cover live FS metadata and user-triggered mutations.
  */
 export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
+  'file.edit.open': async ({ handle }, { senderId }) =>
+    application.get('FileEditService').open(requireManagedSender(senderId).windowId, handle),
+  'file.edit.read': async ({ editId }, { senderId }) =>
+    application.get('FileEditService').read(requireManagedSender(senderId).windowId, editId),
+  'file.edit.write': async (input, { senderId }) =>
+    application.get('FileEditService').write(requireManagedSender(senderId).windowId, input),
+  'file.edit.close': async ({ editId }, { senderId }) =>
+    application.get('FileEditService').close(requireManagedSender(senderId).windowId, editId),
   'file.read': async ({ handle, options }) => {
     const fileManager = application.get('FileManager')
     if (options.mode === 'range') {
@@ -134,8 +146,9 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     application.get('FileManager').batchCreateInternalEntries(items),
   'file.batch_trash': async ({ ids }) => application.get('FileManager').batchTrash(ids),
   'file.batch_restore': async ({ ids }) => application.get('FileManager').batchRestore(ids),
-  'file.batch_permanent_delete': async ({ ids }) => application.get('FileManager').batchPermanentDelete(ids),
-  'file.empty_trash': async () => application.get('FileManager').emptyTrash(),
+  'file.batch_permanent_delete_from_trash': async ({ ids }) =>
+    application.get('FileManager').batchPermanentDeleteFromTrash(ids),
+  'file.batch_remove_from_library': async ({ ids }) => application.get('FileManager').batchRemoveFromLibrary(ids),
   'file.rename': async ({ id, newName }) => application.get('FileManager').rename(id, newName),
   // Guard the destination only: sources legitimately live inside managed storage
   // (attachments, generated images) and copying reads them without mutating.
@@ -153,9 +166,38 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const fileManager = application.get('FileManager')
     return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
   },
+  'file.copy_to_clipboard': async (handle, { senderId }) => {
+    if (senderId == null) throw new Error('file.copy_to_clipboard requires a managed window sender')
+    return dispatchHandle(
+      handle as FileHandle,
+      (id) => copyFileToClipboard(application.get('FileManager').getPhysicalPath(id)),
+      copyFileToClipboard
+    )
+  },
+  'file.get_clipboard_status': async (handle) => {
+    return dispatchHandle(
+      handle as FileHandle,
+      async (id) => {
+        try {
+          return await getClipboardCopyStatus(application.get('FileManager').getPhysicalPath(id))
+        } catch (error) {
+          if (
+            error instanceof DataApiError &&
+            error.code === ErrorCode.NOT_FOUND &&
+            error.details?.resource === 'FileEntry' &&
+            error.details.id === id
+          )
+            return { ok: false as const, reason: 'missing' as const }
+          throw error
+        }
+      },
+      getClipboardCopyStatus
+    )
+  },
+  'file.validate_notes_directory': async (path) => validateNotesDirectory(path),
   'file.tree.create': async ({ rootPath, options }, { senderId }) => {
     try {
-      return await application.get('DirectoryTreeManager').create(requireSenderWebContents(senderId), rootPath, options)
+      return await application.get('DirectoryTreeManager').create(requireManagedSender(senderId), rootPath, options)
     } catch (error) {
       // Shutdown-in-flight, not a failure the user should be toasted about — carry a
       // domain code so the renderer can stay quiet (`error.name` does not survive IpcApi).

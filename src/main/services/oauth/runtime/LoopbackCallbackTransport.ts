@@ -6,6 +6,7 @@ import type { LoopbackCallbackConfig } from './types'
 export class LoopbackCallbackTransport {
   private activeServers: Server[] = []
   private busy = false
+  ready: Promise<void> = Promise.resolve()
 
   constructor(private readonly config: LoopbackCallbackConfig) {}
 
@@ -99,11 +100,15 @@ export class LoopbackCallbackTransport {
           this.activeServers.push(server)
 
           server.once('listening', resolveListen)
+          // Closing during bind must also release callers waiting on `ready`.
+          server.once('close', () => {
+            rejectListen(new OAuthServiceError(`OAuth callback server on ${host} closed before it started listening`))
+          })
           server.once('error', (err: NodeJS.ErrnoException) => {
             this.activeServers = this.activeServers.filter((activeServer) => activeServer !== server)
-            server.close()
             if (host === '::1' && err.code === 'EADDRNOTAVAIL') {
               resolveListen()
+              server.close()
               return
             }
             rejectListen(
@@ -112,13 +117,20 @@ export class LoopbackCallbackTransport {
                 err
               )
             )
+            server.close()
           })
 
           server.listen(this.config.port, host)
         })
 
-      void Promise.all(this.config.hosts.map(listen)).catch(settleReject)
-      signal.addEventListener('abort', () => settleReject(new OAuthServiceError('Sign-in timed out')), { once: true })
+      this.ready = Promise.all(this.config.hosts.map(listen)).then(() => undefined)
+      void this.ready.catch(settleReject)
+
+      const handleAbort = () => {
+        settleReject(new OAuthServiceError('Sign-in timed out'))
+      }
+      if (signal.aborted) handleAbort()
+      else signal.addEventListener('abort', handleAbort, { once: true })
     })
   }
 }

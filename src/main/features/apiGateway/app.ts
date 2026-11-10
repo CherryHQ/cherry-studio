@@ -9,8 +9,9 @@ import { DataApiError } from '@shared/data/api/errors'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 
 import { gatewayErrorHandler } from './errors'
+import { screenLanRequest } from './lanGuard'
 import { McpSessionStore } from './McpSessionStore'
-import { authorizeApiRequest } from './middleware/auth'
+import { authorizeApiRequest, authorizeCredentialScope, type GatewaySurface } from './middleware/auth'
 import {
   buildOpenApiDocument,
   DOC_DESCRIPTIONS,
@@ -20,11 +21,12 @@ import {
   resolveDocsLanguage
 } from './openapiDocs'
 import { chatRoutes } from './routes/chat'
-import { geminiRoutes } from './routes/gemini'
+import { createGeminiRoutes } from './routes/gemini'
 import { knowledgeRoutes } from './routes/knowledge'
 import { createMcpRoutes } from './routes/mcp'
 import { messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
+import { remoteRoutes } from './routes/remote'
 import { responsesRoutes } from './routes/responses'
 
 const logger = loggerService.withContext('ApiGateway')
@@ -35,14 +37,16 @@ const logger = loggerService.withContext('ApiGateway')
  * shaped by the single root `gatewayErrorHandler` (see `buildApp`), which selects
  * the dialect by path.
  */
-const buildV1Routes = (mcpSessions: McpSessionStore) =>
+const buildV1Routes = (mcpSessions: McpSessionStore, surface: GatewaySurface) =>
   new Elysia({ prefix: '/v1' })
     // `@elysia/bearer` derives `bearer` from `Authorization: Bearer …` / `?access_token`.
     .use(bearer())
     .guard({
       as: 'scoped',
-      beforeHandle: ({ bearer, headers, set }) => {
-        const failure = authorizeApiRequest(headers['x-api-key'], bearer)
+      beforeHandle: ({ bearer, headers, set, request, body }) => {
+        const failure =
+          authorizeApiRequest(headers['x-api-key'], bearer, undefined, request.headers, surface) ??
+          authorizeCredentialScope(request, body, surface)
         if (!failure) return undefined
         set.status = failure.status
         return { error: failure.error }
@@ -64,6 +68,8 @@ interface BuildAppOptions {
    * them; omitting it (tests, `buildApp()` with no args) gets a throwaway store.
    */
   mcpSessions?: McpSessionStore
+  /** `internal` serves Cherry-launched consumers and accepts only their in-memory keys. */
+  surface?: GatewaySurface
 }
 
 /**
@@ -82,9 +88,21 @@ interface BuildAppOptions {
 export function buildApp({
   host = '127.0.0.1',
   port = 23333,
-  mcpSessions = new McpSessionStore()
+  mcpSessions = new McpSessionStore(),
+  surface = 'public'
 }: BuildAppOptions = {}) {
   const app = new Elysia({ adapter: node() })
+    // HTTP is loopback-only; remote devices use the encrypted WebSocket upgrade instead.
+    // Loopback and in-process callers are unrestricted. Runs before request-id
+    // stamping so a rejected LAN request short-circuits cheaply.
+    .onRequest(({ request, set }) => {
+      const failure = screenLanRequest(request, new URL(request.url).pathname)
+      if (failure) {
+        set.status = 403
+        return failure
+      }
+      return undefined
+    })
     .use(
       cors({
         origin: true,
@@ -180,8 +198,11 @@ export function buildApp({
     // reads only `x-api-key`/Bearer, so it would 401 the Gemini `x-goog-api-key` /
     // `?key=` credentials). Registering `/v1beta` first keeps it out of that guard's
     // reach; the `local` gemini guard does not leak back onto `/v1`.
-    .use(geminiRoutes)
-    .use(buildV1Routes(mcpSessions))
+    // Paired devices upgrade to the encrypted remote channel here; it must stay out of the
+    // `/v1` bearer guard because a device authenticates inside the channel, not with a key.
+    .use(remoteRoutes)
+    .use(createGeminiRoutes(surface))
+    .use(buildV1Routes(mcpSessions, surface))
 
   return app
 }

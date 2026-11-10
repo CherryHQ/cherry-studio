@@ -57,7 +57,9 @@ const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.tool.respond_approval' ? toolApprovalRespondMock(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval'
+        ? toolApprovalRespondMock(input)
+        : Promise.resolve(route === 'ai.agent.attachment_selections.list' ? [] : undefined),
     on: () => () => {}
   },
   useIpcOn: vi.fn()
@@ -135,6 +137,7 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
     key === 'agent.model_switch_confirmation.skipped'
       ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
       : [null, vi.fn()],
+  useSharedCacheValue: () => undefined,
   usePersistCache: () => [undefined, vi.fn()]
 }))
 
@@ -201,6 +204,7 @@ vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls'
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: () => ({
+    persistedPartsByMessageId: partsByMessageIdMock.value,
     messages: Object.entries(partsByMessageIdMock.value).map(([id, parts]) => ({
       id,
       role: 'assistant',
@@ -260,6 +264,7 @@ vi.mock('../components/AgentRightPane', () => {
   return {
     AgentRightPane: {
       Scope: MockAgentRightPaneScope,
+      DetailsLayout: ({ children }: PropsWithChildren) => <>{children}</>,
       Shell: ({ children }: PropsWithChildren) => <>{children}</>,
       Viewport: () => <div data-testid="agent-right-pane-viewport" />,
       Shortcuts: () => <button type="button">Shortcuts</button>
@@ -268,9 +273,12 @@ vi.mock('../components/AgentRightPane', () => {
     useAgentRightPaneActions: () => ({
       canOpenAgentToolFlow: true,
       canOpenArtifactFile: true,
+      canPreviewInputFileInRightPane: true,
       openAgentToolFlow: agentRightPanePropsMock.openAgentToolFlow,
-      openArtifactFile: agentRightPanePropsMock.openArtifactFile
-    })
+      openArtifactFile: agentRightPanePropsMock.openArtifactFile,
+      previewInputFileInRightPane: vi.fn()
+    }),
+    useOptionalAgentRightPaneActions: () => undefined
   }
 })
 
@@ -287,7 +295,21 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
     )
   },
   AgentHomeComposer: () => <div data-testid="agent-home-composer" />,
-  MissingAgentHomeComposer: () => <div data-testid="missing-agent-home-composer" />
+  MissingAgentHomeComposer: ({
+    onAgentChange,
+    agentChanging
+  }: {
+    onAgentChange?: (agentId: string | null) => void | Promise<void>
+    agentChanging?: boolean
+  }) => (
+    <button
+      type="button"
+      data-testid="missing-agent-home-composer"
+      disabled={agentChanging}
+      onClick={() => void Promise.resolve(onAgentChange?.('agent-2')).catch(() => undefined)}>
+      select replacement agent
+    </button>
+  )
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
@@ -482,6 +504,7 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-agent-id', 'agent-1')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-model-id', 'provider::model-1')
     expect(agentConversationControlsPropsMock.last?.workspaceId).toBe('workspace-1')
+    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(true)
     expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()
     expect(agentComposerPropsMock.last?.onAgentChange).toBeUndefined()
 
@@ -512,6 +535,53 @@ describe('AgentChat settings panel', () => {
     expect(agentComposerPropsMock.last?.agentId).toBe('agent-1')
     expect(agentComposerPropsMock.last?.sendDisabled).toBe(true)
     expect(container.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
+  })
+
+  it('reassigns an unlinked existing session without replacing it', async () => {
+    const user = userEvent.setup()
+    let finishUpdate: (() => void) | undefined
+    updateSessionMock.updateSession.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishUpdate = resolve
+      })
+    )
+    activeAgentMock.value = undefined
+    const session = { id: 'session-unlinked', agentId: null, accessiblePaths: [] } as any
+
+    renderAgentChat({ conversationBootstrap: createConversationBootstrap(session) })
+
+    const selectAgent = screen.getByRole('button', { name: 'select replacement agent' })
+    await user.click(selectAgent)
+
+    expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+      { id: 'session-unlinked', agentId: 'agent-2' },
+      { showSuccessToast: false }
+    )
+    expect(selectAgent).toBeDisabled()
+
+    finishUpdate?.()
+    await waitFor(() => expect(selectAgent).toBeEnabled())
+  })
+
+  it('re-enables agent selection when reassigning an unlinked session fails', async () => {
+    const user = userEvent.setup()
+    let failUpdate: ((error: Error) => void) | undefined
+    updateSessionMock.updateSession.mockReturnValueOnce(
+      new Promise<void>((_resolve, reject) => {
+        failUpdate = reject
+      })
+    )
+    activeAgentMock.value = undefined
+    const session = { id: 'session-unlinked', agentId: null, accessiblePaths: [] } as any
+
+    renderAgentChat({ conversationBootstrap: createConversationBootstrap(session) })
+
+    const selectAgent = screen.getByRole('button', { name: 'select replacement agent' })
+    await user.click(selectAgent)
+    expect(selectAgent).toBeDisabled()
+
+    failUpdate?.(new Error('update failed'))
+    await waitFor(() => expect(selectAgent).toBeEnabled())
   })
 
   it('keeps the composer mounted during later model changes', () => {
@@ -555,6 +625,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(false)
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'edit')
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
@@ -576,6 +647,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(false)
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'edit')
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
@@ -598,6 +670,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(false)
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
 

@@ -1,6 +1,9 @@
 import { EventEmitter } from 'events'
 
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { t } from '@main/i18n'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -8,18 +11,10 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../../ChannelManager', () => ({
-  registerAdapterFactory: vi.fn()
-}))
-
-// Mock net.fetch for all Slack API calls
 const mockNetFetch = vi.fn()
-
-vi.mock('electron', () => ({
-  app: { getPath: () => '/mock/userData' },
-  nativeTheme: { themeSource: '', shouldUseDarkColors: false },
-  net: { fetch: (...args: unknown[]) => mockNetFetch(...args) }
-}))
+beforeEach(() => {
+  vi.mocked(net.fetch).mockImplementation((...args) => mockNetFetch(...args))
+})
 
 // Mock WebSocket — create a fake class that emits events like a real WS
 class MockWebSocket extends EventEmitter {
@@ -42,15 +37,7 @@ vi.mock('ws', () => {
   return { default: Ctor, WebSocket: Ctor }
 })
 
-import '../slack/SlackAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
-
-function getFactory() {
-  const calls = vi.mocked(registerAdapterFactory).mock.calls
-  const slackCall = calls.find((c) => c[0] === 'slack')
-  if (!slackCall) throw new Error('registerAdapterFactory was not called for slack')
-  return slackCall[1] as (channel: any, agentId: string) => any
-}
+import { createSlackAdapter } from '../slack/SlackAdapter'
 
 // Helper to build a mock Response
 function mockJsonResponse(data: unknown, ok = true, status = 200): Response {
@@ -111,21 +98,17 @@ describe('SlackAdapter', () => {
     vi.useRealTimers()
   })
 
-  function createAdapter(overrides: Record<string, unknown> = {}) {
-    const factory = getFactory()
-    return factory(
-      {
-        id: (overrides.channelId as string) ?? 'ch-slack-1',
-        type: 'slack',
-        enabled: true,
-        config: {
-          bot_token: (overrides.bot_token as string) ?? 'xoxb-test-token',
-          app_token: (overrides.app_token as string) ?? 'xapp-test-token',
-          allowed_channel_ids: (overrides.allowed_channel_ids as string[]) ?? ['C0ALLOWED']
-        }
-      },
-      (overrides.agentId as string) ?? 'agent-1'
-    )
+  function createAdapter(overrides: Record<string, unknown> = {}): any {
+    return createSlackAdapter({
+      channelId: (overrides.channelId as string) ?? 'ch-slack-1',
+      channelType: 'slack',
+      agentId: (overrides.agentId as string) ?? 'agent-1',
+      channelConfig: {
+        bot_token: (overrides.bot_token as string) ?? 'xoxb-test-token',
+        app_token: (overrides.app_token as string) ?? 'xapp-test-token',
+        allowed_channel_ids: (overrides.allowed_channel_ids as string[]) ?? ['C0ALLOWED']
+      }
+    })
   }
 
   async function connectAdapter(overrides: Record<string, unknown> = {}) {
@@ -157,13 +140,6 @@ describe('SlackAdapter', () => {
     const envelope = { envelope_id: envelopeId, type: 'slash_commands', payload }
     mockWsInstance!.emit('message', Buffer.from(JSON.stringify(envelope)))
   }
-
-  // ─── Registration ─────────────────────────────────────────
-
-  it('registers itself as a slack adapter factory', () => {
-    const calls = vi.mocked(registerAdapterFactory).mock.calls
-    expect(calls.some((c) => c[0] === 'slack')).toBe(true)
-  })
 
   // ─── Constructor & Config ─────────────────────────────────
 
@@ -215,6 +191,29 @@ describe('SlackAdapter', () => {
     const wsRef = mockWsInstance!
     await adapter.disconnect()
     expect(wsRef.close).toHaveBeenCalled()
+  })
+
+  it('aborts a stalled startup request when disconnected', async () => {
+    let startupSignal: AbortSignal | undefined
+    let rejectStartup!: (error: Error) => void
+    mockNetFetch.mockImplementation((_url: string, init?: RequestInit) => {
+      startupSignal = init?.signal ?? undefined
+      return new Promise((_resolve, reject) => {
+        rejectStartup = reject
+        startupSignal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+      })
+    })
+    const adapter = createAdapter()
+
+    const connecting = adapter.connect()
+    await vi.waitFor(() => expect(mockNetFetch).toHaveBeenCalled())
+
+    const observedSignal = startupSignal
+    await adapter.disconnect()
+    if (!observedSignal) rejectStartup(new Error('test cleanup'))
+    await expect(connecting).resolves.toBeUndefined()
+    expect(observedSignal).toBeInstanceOf(AbortSignal)
+    expect(mockWsInstance).toBeNull()
   })
 
   // ─── Message Sending ──────────────────────────────────────
@@ -587,6 +586,25 @@ describe('SlackAdapter', () => {
   })
 
   // ─── Streaming ────────────────────────────────────────────
+
+  it('clears a withdrawn draft while keeping the same Slack message for resumed content', async () => {
+    const adapter = await connectAdapter()
+    vi.useFakeTimers()
+    const calls = (method: string) =>
+      mockNetFetch.mock.calls.filter((call) => String(call[0]).includes(method)).map((call) => JSON.parse(call[1].body))
+    await adapter.onTextUpdate('C0ALLOWED', '')
+    expect(calls('chat.postMessage')).toEqual([])
+    await adapter.onTextUpdate('C0ALLOWED', 'Withdrawn')
+    await vi.advanceTimersByTimeAsync(2000)
+    await adapter.onTextUpdate('C0ALLOWED', '')
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(calls('chat.update').at(-1)).toMatchObject({ ts: '1234567890.123456', text: t('common.channel_processing') })
+    await adapter.onTextUpdate('C0ALLOWED', 'Replacement')
+    await vi.advanceTimersByTimeAsync(2000)
+    await adapter.onStreamComplete('C0ALLOWED', 'Final')
+    expect(calls('chat.postMessage')).toHaveLength(1)
+    expect(calls('chat.update').at(-1)).toMatchObject({ ts: '1234567890.123456', text: 'Final' })
+  })
 
   it('onTextUpdate() creates a message then edits it on subsequent updates', async () => {
     const adapter = await connectAdapter()

@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
@@ -37,11 +38,13 @@ vi.mock('react-i18next', () => ({
           'common.save': '保存',
           'chat.add.assistant.title': '添加助手',
           'assistants.presets.import.action': '导入助手',
+          'assistants.presets.export.action': '导出',
           'library.assistant_catalog.add': '添加',
           'library.assistant_catalog.title': '助手库',
           'library.assistant_catalog.go_to_chat': '去对话',
           'library.create_menu.create': '新建助手',
           'library.skill_add.add': '添加技能',
+          'library.skill_add.create_with_agent': '通过 Agent 创建',
           'library.skill_add.local_import': '本地导入',
           'library.skill_add.online_search': '在线搜索',
           'library.skill_add.system_search': '系统搜索',
@@ -49,7 +52,10 @@ vi.mock('react-i18next', () => ({
           'library.toolbar.group_button': '分组',
           'library.type.assistant': '助手',
           'library.type.skill': '技能',
+          'settings.skills.globalEnabled': '全局启用',
           'settings.skills.globalToggle': '全局启用技能',
+          'settings.skills.source.local': '本地',
+          'settings.skills.tryNow': '立即试用',
           'settings.skills.toggleFailed': '更新技能全局状态失败'
         }) satisfies Record<string, string>
       )[key] ?? key
@@ -337,11 +343,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     },
     Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
     Separator: () => <div />,
-    Scrollbar: ({ children, ...props }: ComponentProps<'div'>) => (
-      <div data-testid="shared-scrollbar" {...props}>
-        {children}
-      </div>
-    ),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
     Switch: actual.Switch,
     Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -432,7 +434,7 @@ function createSkillResource(version: string | null = null, isGlobalEnabled = tr
     avatar: 'S',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: { version, isGlobalEnabled } as Extract<ResourceItem, { type: 'skill' }>['raw']
+    raw: { version, isGlobalEnabled, source: 'local' } as Extract<ResourceItem, { type: 'skill' }>['raw']
   }
 }
 
@@ -463,6 +465,7 @@ function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> 
       onExport={vi.fn()}
       onCreate={vi.fn()}
       onImportAssistant={vi.fn()}
+      onExportAssistants={vi.fn()}
       onOpenSkillMarketplace={vi.fn()}
       groups={[]}
       activeGroupId={null}
@@ -516,7 +519,7 @@ describe('ResourceGrid empty state copy', () => {
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
   })
 
-  it('keeps the settings grid single-column with a little more space below the header', async () => {
+  it('defaults the settings grid to a single column', async () => {
     const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200)
 
     try {
@@ -524,8 +527,6 @@ describe('ResourceGrid empty state copy', () => {
 
       const loadingGrid = screen.getByTestId('resource-grid-loading')
       await waitFor(() => expect(loadingGrid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
-      expect(loadingGrid.parentElement).toBe(screen.getByTestId('shared-scrollbar'))
-      expect(loadingGrid.parentElement).toHaveClass('pt-4', 'pb-3')
     } finally {
       clientWidthSpy.mockRestore()
     }
@@ -576,9 +577,32 @@ describe('ResourceGrid empty state copy', () => {
     expect(screen.getByText('library.empty_state.no_match_title')).toBeInTheDocument()
     expect(screen.getByText('library.empty_state.no_match_description')).toBeInTheDocument()
   })
+
+  it('uses the no-match copy when an external filter hides installed resources', () => {
+    renderResourceGrid({ hasHiddenResources: true })
+
+    expect(screen.getByText('library.empty_state.no_match_title')).toBeInTheDocument()
+    expect(screen.getByText('library.empty_state.no_match_description')).toBeInTheDocument()
+  })
 })
 
 describe('ResourceGrid assistant add actions', () => {
+  it('offers batch Export only for assistants and keeps it distinct from per-card export', async () => {
+    const user = userEvent.setup()
+    const onExportAssistants = vi.fn()
+    const onExport = vi.fn()
+    const view = renderResourceGrid({ onExportAssistants, onExport })
+    await user.click(screen.getByRole('button', { name: '导出' }))
+    expect(onExportAssistants).toHaveBeenCalledExactlyOnceWith(expect.anything())
+    expect(onExport).not.toHaveBeenCalled()
+    view.unmount()
+    const agent = renderResourceGrid({ activeResourceType: 'agent' })
+    expect(screen.queryByRole('button', { name: '导出' })).not.toBeInTheDocument()
+    agent.unmount()
+    renderResourceGrid({ activeResourceType: 'skill' })
+    expect(screen.queryByRole('button', { name: '导出' })).not.toBeInTheDocument()
+  })
+
   it('renders assistant actions inline and dispatches the selected action', async () => {
     const user = userEvent.setup()
     const onCreate = vi.fn()
@@ -654,6 +678,17 @@ describe('ResourceGrid skill add actions', () => {
     fireEvent.click(screen.getByRole('button', { name: '添加技能' }))
 
     expect(screen.queryByRole('menuitem', { name: '系统搜索' })).not.toBeInTheDocument()
+  })
+
+  it('offers Agent creation when the builtin creator is available', async () => {
+    const user = userEvent.setup()
+    const onCreateSkillWithAgent = vi.fn()
+
+    renderResourceGrid({ activeResourceType: 'skill', onCreateSkillWithAgent })
+    await user.click(screen.getByRole('button', { name: '添加技能' }))
+    await user.click(screen.getByRole('menuitem', { name: '通过 Agent 创建' }))
+
+    expect(onCreateSkillWithAgent).toHaveBeenCalledOnce()
   })
 })
 
@@ -820,6 +855,20 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it('shows only the visibly labeled global switch on Skill settings cards', () => {
+    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
+
+    expect(screen.getAllByRole('switch')).toHaveLength(1)
+    expect(screen.getByText('全局启用')).toBeVisible()
+    expect(screen.queryByRole('switch', { name: '同步技能到外部目录' })).not.toBeInTheDocument()
+  })
+
+  it('does not expose a sidebar shortcut action on Skill settings cards', () => {
+    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
+
+    expect(screen.queryByRole('button', { name: 'launchpad.pin_to_sidebar' })).not.toBeInTheDocument()
+  })
+
   it('toggles a Skill globally from its settings card without opening the card', async () => {
     const user = userEvent.setup()
     const onEdit = vi.fn()
@@ -851,16 +900,42 @@ describe('ResourceGrid card actions', () => {
     expect(screen.queryByText('1.2.3')).not.toBeInTheDocument()
   })
 
-  it('shows the overflow menu only for assistant cards', () => {
-    render(<ResourceCard resource={createAssistantResource()} {...getResourceCardProps()} />)
+  it('keeps Try Now and More visible on every settings Skill card', async () => {
+    const user = userEvent.setup()
+    const skill = createSkillResource()
+    const onLaunchSkill = vi.fn()
+    const onDelete = vi.fn()
+
+    render(<ResourceCard resource={skill} variant="settings" {...getResourceCardProps({ onDelete, onLaunchSkill })} />)
+
+    expect(screen.getByText('本地')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '立即试用' }))
+    expect(onLaunchSkill).toHaveBeenCalledExactlyOnceWith(skill)
 
     expect(screen.getByRole('button', { name: /common.more/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
   })
 
+  it.each([createAssistantResource, createAgentResource])(
+    'offers only archiving for owner cards',
+    async (createResource) => {
+      const user = userEvent.setup()
+      const resource = createResource()
+      const onDelete = vi.fn()
+      render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
+
+      await user.click(screen.getByRole('button', { name: /common.more/ }))
+      expect(screen.getByRole('menuitem', { name: 'common.archive' })).toBeInTheDocument()
+      expect(screen.queryByRole('menuitem', { name: 'common.delete_permanently' })).not.toBeInTheDocument()
+      await user.click(screen.getByRole('menuitem', { name: 'common.archive' }))
+      await waitFor(() => expect(onDelete).toHaveBeenCalledExactlyOnceWith(resource))
+      expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+    }
+  )
+
   it('shows a direct delete action when delete is the only card action', async () => {
     const user = userEvent.setup()
-    const resource = createAgentResource()
+    const resource = createPromptResource()
     const onDelete = vi.fn()
 
     render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
@@ -1107,15 +1182,17 @@ describe('ResourceCardMenu group binding', () => {
     expect(screen.queryByTestId('menu-divider')).not.toBeInTheDocument()
   })
 
-  it('keeps the divider when assistant resources have actions before delete', async () => {
+  it('offers archive without permanent deletion for assistant resources', async () => {
     const user = userEvent.setup()
+    const resource = createAssistantResource()
+    const onDelete = vi.fn()
 
     render(
       <ResourceCardMenu
-        resource={createAssistantResource()}
+        resource={resource}
         onClose={vi.fn()}
         onDuplicate={vi.fn()}
-        onDelete={vi.fn()}
+        onDelete={onDelete}
         onExport={vi.fn()}
         allGroups={[]}
       />
@@ -1124,6 +1201,8 @@ describe('ResourceCardMenu group binding', () => {
     await user.click(screen.getByRole('button', { name: /common.more/ }))
     expect(screen.queryByRole('button', { name: /common.edit/ })).not.toBeInTheDocument()
     expect(screen.getByTestId('menu-divider')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: '删除' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'common.delete_permanently' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('menuitem', { name: 'common.archive' }))
+    await waitFor(() => expect(onDelete).toHaveBeenLastCalledWith(resource))
   })
 })

@@ -3,46 +3,49 @@ import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Sortable } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import agentsIcon from '@renderer/assets/images/apps/launchpad-agents.svg'
 import assistantsIcon from '@renderer/assets/images/apps/launchpad-assistants.svg'
 import codeToolsIcon from '@renderer/assets/images/apps/launchpad-code-tools.svg'
-import dshIcon from '@renderer/assets/images/apps/launchpad-dsh.svg'
 import filesIcon from '@renderer/assets/images/apps/launchpad-files.svg'
 import knowledgeIcon from '@renderer/assets/images/apps/launchpad-knowledge.svg'
+import marketplaceIcon from '@renderer/assets/images/apps/launchpad-marketplace.svg'
 import miniAppIcon from '@renderer/assets/images/apps/launchpad-mini-app.svg'
 import notesIcon from '@renderer/assets/images/apps/launchpad-notes.svg'
 import paintingsIcon from '@renderer/assets/images/apps/launchpad-paintings.svg'
+import scheduledTasksIcon from '@renderer/assets/images/apps/launchpad-scheduled-tasks.svg'
 import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
+import { SidebarIcon } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
+import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import { getSidebarMenuPath } from '@renderer/utils/sidebar'
+import { createSidebarShortcutTarget, getSidebarMenuPath, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
-
-const BASE_URL = 'https://www.cherry-ai.com/'
-const DEEPSEEK_HARNESS_URL = '/app/code?tool=deepseek-harness'
 
 const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
-const APP_ICON_TILE_CLASS =
-  'flex size-14 items-center justify-center rounded-2xl border border-border-subtle bg-transparent'
+const APP_ICON_SURFACE_CLASS =
+  'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl border border-border-subtle bg-transparent transition-[background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:bg-accent motion-reduce:transition-none'
 const APP_ICON_FRAME_CLASS =
-  'relative flex size-[50px] shrink-0 items-center justify-center overflow-hidden rounded-xl select-none'
-const APP_ICON_CLASS = 'size-[50px] object-contain'
+  'relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl select-none'
+const APP_ICON_CLASS = 'size-11 object-contain'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
-const APP_ICON_SOURCES: Record<SidebarAppId, string> = {
+const APP_ICON_SOURCES: Record<SidebarAppId, string | undefined> = {
   assistants: assistantsIcon,
   agents: agentsIcon,
+  scheduled_tasks: scheduledTasksIcon,
   paintings: paintingsIcon,
+  marketplace: marketplaceIcon,
   translate: translateIcon,
   mini_app: miniAppIcon,
   knowledge: knowledgeIcon,
@@ -65,20 +68,40 @@ export default function LaunchpadPage() {
     removeCustomMiniApp,
     reorderMiniAppsByStatus
   } = useMiniApps()
-  const { appFavorites, miniAppFavoriteIds, setAppPinned, toggleMiniApp } = useSidebarFavorites()
+  const { shortcuts, isPinned, setPinned } = useSidebarShortcuts()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
 
-  const visibleSidebarFavoriteSet = useMemo(() => new Set(appFavorites), [appFavorites])
-  const miniAppFavoriteIdSet = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
+  const miniAppFavoriteIdSet = useMemo(
+    () =>
+      new Set(
+        shortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [shortcuts]
+  )
   const openedMiniAppIdSet = useMemo(
     () => new Set(openedKeepAliveMiniApps.map((app) => app.appId)),
     [openedKeepAliveMiniApps]
   )
-
-  const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
-    draggedItemIdRef.current = String(event.active.id)
+  const toggleMiniApp = useCallback(
+    (appId: string) => {
+      const app = pinned.find((item) => item.appId === appId)
+      const fallbackLabel = app ? (app.nameKey ? t(app.nameKey) : app.name) : undefined
+      setPinned(
+        createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId),
+        !miniAppFavoriteIdSet.has(appId),
+        fallbackLabel
+      )
+    },
+    [pinned, t, setPinned, miniAppFavoriteIdSet]
+  )
+  const handleSortableDragStart = useCallback((event: { activeId: string | number }) => {
+    draggedItemIdRef.current = String(event.activeId)
     suppressClickUntilRef.current = Date.now() + 500
   }, [])
 
@@ -96,7 +119,8 @@ export default function LaunchpadPage() {
 
   const navigateToUrl = useCallback(
     (url: string) => {
-      const parsedUrl = new URL(url, BASE_URL)
+      const parsedUrl = parseAppRouteUrl(url)
+      if (!parsedUrl) return
       if (parsedUrl.search) {
         return navigate({
           to: parsedUrl.pathname,
@@ -129,47 +153,40 @@ export default function LaunchpadPage() {
     [navigateToUrl, shouldSuppressLaunchClick]
   )
 
-  const openDeepSeekHarness = () => {
-    void navigateToUrl(DEEPSEEK_HARNESS_URL)
-  }
-
   const pinToSidebar = useCallback(
     (favorite: SidebarAppId) => {
-      if (visibleSidebarFavoriteSet.has(favorite)) return
-      setAppPinned(favorite, true)
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, favorite)
+      setPinned(target, true, t(getSidebarIconLabelKey(favorite)))
     },
-    [setAppPinned, visibleSidebarFavoriteSet]
+    [setPinned, t]
   )
 
   const unpinFromSidebar = useCallback(
     (favorite: SidebarAppId) => {
-      if (!visibleSidebarFavoriteSet.has(favorite)) return
-      if (visibleSidebarFavoriteSet.size <= 1) return
-      setAppPinned(favorite, false)
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, favorite)
+      setPinned(target, false)
     },
-    [setAppPinned, visibleSidebarFavoriteSet]
+    [setPinned]
   )
 
   const getAppContextMenuItems = useCallback(
     (favorite: SidebarAppId): CommandContextMenuExtraItem[] => {
-      const isPinned = visibleSidebarFavoriteSet.has(favorite)
-      const isLastPinned = isPinned && visibleSidebarFavoriteSet.size <= 1
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, favorite)
+      const pinned = isPinned(target)
 
       return [
         {
           type: 'item',
-          id: `launchpad.${isPinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
-          label: t(isPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
-          enabled: !isLastPinned,
-          onSelect: () => (isPinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
+          id: `launchpad.${pinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
+          label: t(pinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
+          icon: <SidebarShortcutIcon size={14} pinned={pinned} />,
+          onSelect: () => (pinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
         }
       ]
     },
-    [pinToSidebar, t, unpinFromSidebar, visibleSidebarFavoriteSet]
+    [isPinned, pinToSidebar, t, unpinFromSidebar]
   )
 
-  // Sidebar-backed app tiles keep their existing launchpad order. The direct
-  // Harness shortcut is fixed because it is not a sidebar destination.
   const appMenuItems = useMemo(
     () =>
       orderedAppIds.flatMap((favorite) => {
@@ -232,12 +249,17 @@ export default function LaunchpadPage() {
     <CommandContextMenu key={item.id} location="webcontents.context" extraItems={item.menuItems}>
       <button
         type="button"
+        data-dnd-row-control
         onClick={() => openLaunchpadItem(item.id)}
         className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
         <span className="relative flex size-14 items-center justify-center">
-          <span className={APP_ICON_TILE_CLASS}>
+          <span className={APP_ICON_SURFACE_CLASS}>
             <span className={APP_ICON_FRAME_CLASS}>
-              <img src={item.iconSrc} alt="" className={APP_ICON_CLASS} draggable={false} />
+              {item.iconSrc ? (
+                <img src={item.iconSrc} alt="" className={APP_ICON_CLASS} draggable={false} />
+              ) : (
+                <SidebarIcon icon={item.id} className="size-9 text-foreground" />
+              )}
             </span>
           </span>
         </span>
@@ -271,7 +293,7 @@ export default function LaunchpadPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <Scrollbar className="min-h-0 flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto flex w-full max-w-180 flex-col gap-5 py-12.5">
           <section className="flex flex-col gap-2">
             <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
@@ -289,19 +311,6 @@ export default function LaunchpadPage() {
                 onSortEnd={handleAppsSortEnd}
                 renderItem={(item) => renderAppMenuItem(item)}
               />
-              <button
-                type="button"
-                onClick={openDeepSeekHarness}
-                className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
-                <span className={APP_ICON_TILE_CLASS}>
-                  <span className={APP_ICON_FRAME_CLASS}>
-                    <img src={dshIcon} alt="" className={APP_ICON_CLASS} draggable={false} />
-                  </span>
-                </span>
-                <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
-                  {t('launchpad.deepseek_harness_shortcut')}
-                </span>
-              </button>
             </div>
           </section>
 
@@ -326,7 +335,7 @@ export default function LaunchpadPage() {
             </section>
           )}
         </div>
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }

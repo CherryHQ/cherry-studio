@@ -51,8 +51,10 @@ import {
 } from '@renderer/components/BinaryInstallErrorDialog'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { formatFileSize } from '@renderer/utils/file'
 import { cn } from '@renderer/utils/style'
 import type { BinaryInstallSettings, CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
@@ -70,6 +72,7 @@ import type {
   BinaryAvailability,
   BinaryOperation,
   BinaryRemoveResult,
+  BinaryToolInstalledSizes,
   BinaryToolSnapshot
 } from '@shared/types/binary'
 
@@ -120,6 +123,8 @@ interface EnvironmentDependenciesProps {
 
 const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
   const [snapshots, setSnapshots] = useState<Record<string, BinaryToolSnapshot>>({})
+  const [installedSizes, setInstalledSizes] = useState<BinaryToolInstalledSizes>({})
+  const [sizeSnapshotGeneration, setSizeSnapshotGeneration] = useState(-1)
   const [resolutionsReady, setResolutionsReady] = useState(false)
   const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
@@ -146,6 +151,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const mountedRef = useRef(true)
   const resolutionRequestIdRef = useRef(0)
   const latestRequestIdRef = useRef(0)
+  const sizeGenerationRef = useRef(0)
 
   useEffect(() => {
     mountedRef.current = true
@@ -154,18 +160,30 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }, [])
 
-  const refreshState = useCallback(async () => {
+  const refreshState = useCallback(async (propagateError = false): Promise<boolean> => {
     const requestId = ++resolutionRequestIdRef.current
+    const sizeGeneration = ++sizeGenerationRef.current
+    setInstalledSizes({})
     try {
       const nextSnapshots = await ipcApi.request(
         'binary.get_tool_snapshots',
         PRESETS_BINARY_TOOLS.map((tool) => tool.name)
       )
-      if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return
+      if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return false
       setSnapshots(nextSnapshots)
       setResolutionsReady(true)
+      setSizeSnapshotGeneration(sizeGeneration)
+      const queryFailure = Object.values(nextSnapshots).find(
+        (snapshot) => snapshot.application?.status === 'unknown' && snapshot.application.reason === 'query_failed'
+      )?.application
+      if (propagateError && queryFailure?.status === 'unknown') {
+        throw new Error(queryFailure.message ?? queryFailure.reason)
+      }
+      return true
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
+      if (propagateError) throw error
+      return false
     }
   }, [])
 
@@ -174,23 +192,30 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       const requestId = ++latestRequestIdRef.current
       setCheckingUpdates(true)
       try {
-        const versions = await ipcApi.request('binary.get_latest_versions', force)
+        const [versionsResult, stateResult] = await Promise.allSettled([
+          ipcApi.request('binary.get_latest_versions', force),
+          force ? refreshState(true) : Promise.resolve(true)
+        ])
+        if (versionsResult.status === 'rejected') throw versionsResult.reason
+        if (stateResult.status === 'rejected') throw stateResult.reason
         if (mountedRef.current && requestId === latestRequestIdRef.current) {
-          setLatestVersions(versions)
+          setLatestVersions(versionsResult.value)
           // Only the manual refresh (force) gets a toast — the background check on
           // mount must stay silent.
-          if (force) toast.success(t('settings.dependencies.updateCheckSuccess'))
+          if (force && stateResult.value) toast.success(t('settings.dependencies.updateCheckSuccess'))
         }
-        return versions
+        return versionsResult.value
       } catch (error) {
         logger.error('Failed to fetch latest versions', error as Error)
-        if (force) toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+        if (force && mountedRef.current && requestId === latestRequestIdRef.current) {
+          toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+        }
         return null
       } finally {
         if (mountedRef.current && requestId === latestRequestIdRef.current) setCheckingUpdates(false)
       }
     },
-    [t]
+    [refreshState, t]
   )
 
   useEffect(() => {
@@ -205,7 +230,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }, [fetchLatestVersions, mini])
 
   useIpcOn('binary.availability_changed', () => {
+    latestRequestIdRef.current++
     setLatestVersions(null)
+    setCheckingUpdates(false)
     void refreshState()
   })
 
@@ -312,8 +339,28 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   // One unified inventory: presets first, then the user's custom tools (Code CLIs
   // stay on their dedicated page).
-  const presetNames = new Set(PRESETS_BINARY_TOOLS.map((tool) => tool.name))
-  const extraTools = inventorySnapshots.filter((snapshot) => !presetNames.has(snapshot.name))
+  const extraTools = useMemo(
+    () => inventorySnapshots.filter((snapshot) => !PRESETS_BINARY_TOOLS.some((tool) => tool.name === snapshot.name)),
+    [inventorySnapshots]
+  )
+  useEffect(() => {
+    if (mini || sizeSnapshotGeneration !== sizeGenerationRef.current) return
+    let active = true
+    const generation = sizeSnapshotGeneration
+    const names = [
+      ...new Set([...PRESETS_BINARY_TOOLS.map((tool) => tool.name), ...extraTools.map((tool) => tool.name)])
+    ]
+    void ipcApi.request('binary.get_tool_installed_sizes', names).then(
+      (sizes) => {
+        if (active && mountedRef.current && generation === sizeGenerationRef.current) setInstalledSizes(sizes)
+      },
+      () => undefined
+    )
+    return () => {
+      active = false
+    }
+  }, [extraTools, mini, sizeSnapshotGeneration])
+
   const totalCount = PRESETS_BINARY_TOOLS.length + extraTools.length
 
   if (mini) {
@@ -390,6 +437,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               systemPath={view.systemPath}
               installedVersion={view.installedVersion}
               latestVersion={view.hasUpdate ? latestVersion : undefined}
+              sizeBytes={mini ? undefined : installedSizes[tool.name]}
               operation={snapshot?.operation}
               onShowError={(message) =>
                 setInstallError({
@@ -432,6 +480,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               systemPath={view.systemPath}
               installedVersion={view.installedVersion}
               latestVersion={view.hasUpdate ? latestVersion : undefined}
+              sizeBytes={mini ? undefined : installedSizes[snapshot.name]}
               operation={snapshot.operation}
               onShowError={(message) =>
                 setInstallError({
@@ -514,6 +563,7 @@ const BinaryToolPresetCard: FC<{
   systemPath?: string
   installedVersion?: string
   latestVersion?: string
+  sizeBytes?: number | null
   operation?: BinaryOperation
   onShowError: (message: string) => void
   onInstall: () => void
@@ -527,6 +577,7 @@ const BinaryToolPresetCard: FC<{
   systemPath,
   installedVersion,
   latestVersion,
+  sizeBytes,
   operation,
   onShowError,
   onInstall,
@@ -599,6 +650,11 @@ const BinaryToolPresetCard: FC<{
                     {t('settings.dependencies.source.system')}
                   </Badge>
                 )}
+                {sizeBytes != null && (
+                  <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                    {formatFileSize(sizeBytes)}
+                  </Badge>
+                )}
               </div>
             )}
           </div>
@@ -640,7 +696,7 @@ const BinaryToolPresetCard: FC<{
         <button
           type="button"
           className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-          onClick={() => void ipcApi.request('system.shell.open_website', tool.repoUrl)}>
+          onClick={() => void openExternalWebsite(tool.repoUrl)}>
           <ExternalLink className="size-3 shrink-0" />
           <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
         </button>
@@ -648,7 +704,7 @@ const BinaryToolPresetCard: FC<{
           <button
             type="button"
             className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-            onClick={() => void ipcApi.request('system.shell.open_website', tool.homepage!)}>
+            onClick={() => void openExternalWebsite(tool.homepage!)}>
             <ExternalLink className="size-3 shrink-0" />
             <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
           </button>
@@ -670,7 +726,7 @@ const BinaryToolPresetCard: FC<{
       )}
 
       {canInstall && !failedRemove && (
-        <div className="mt-3 border-t border-border pt-3">
+        <div className="mt-3 pt-3">
           <Button
             variant="outline"
             size="sm"
@@ -700,6 +756,7 @@ const CustomToolCard: FC<{
   systemPath?: string
   installedVersion?: string
   latestVersion?: string
+  sizeBytes?: number | null
   operation?: BinaryOperation
   onShowError: (message: string) => void
   onInstall: () => void
@@ -714,6 +771,7 @@ const CustomToolCard: FC<{
   systemPath,
   installedVersion,
   latestVersion,
+  sizeBytes,
   operation,
   onShowError,
   onInstall,
@@ -784,6 +842,11 @@ const CustomToolCard: FC<{
                     <ArrowBigUp className="size-2.5" />v{latestVersion}
                   </Badge>
                 )}
+                {sizeBytes != null && (
+                  <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                    {formatFileSize(sizeBytes)}
+                  </Badge>
+                )}
               </div>
             )}
           </div>
@@ -831,7 +894,7 @@ const CustomToolCard: FC<{
       )}
 
       {canInstall && !failedRemove && (
-        <div className="mt-3 border-t border-border pt-3">
+        <div className="mt-3 pt-3">
           <Button
             variant="outline"
             size="sm"

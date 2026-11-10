@@ -1,3 +1,13 @@
+vi.mock('../attachmentWorkerClient', async () => {
+  const { allocateInlineCaps } = await import('../attachmentInlineBudget')
+  return {
+    runAttachmentWorker: async (_type: string, input: { bodies: string[]; tokens: number }, signal?: AbortSignal) => {
+      signal?.throwIfAborted()
+      return allocateInlineCaps(input.bodies, input.tokens)
+    }
+  }
+})
+
 import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -81,7 +91,6 @@ const composerText = (text: string, ...fileTokenSourceIds: string[]): CherryMess
 })
 
 /** One token per character, so a test's `cap` reads directly as a character cap. */
-const charTokenizer = { id: 'chars', count: (text: string) => text.length }
 
 const run = (
   parts: CherryMessagePart[],
@@ -93,7 +102,7 @@ const run = (
     attachments: collectFileAttachments(messages),
     nativeSupport: ns,
     isToolCapable: opts.isToolCapable ?? true,
-    budget: opts.cap === undefined ? undefined : { tokens: opts.cap, tokenizer: charTokenizer }
+    budget: opts.cap === undefined ? undefined : { tokens: opts.cap }
   })
 }
 
@@ -177,9 +186,14 @@ describe('prepareChatMessages — routing', () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     ocrMock.mockResolvedValueOnce('   ')
 
+    // The detail key tells an empty OCR result apart from a failing OCR path (#20343).
+    // The reason rides the i18n fields, never `message`: provider-flavored wording in
+    // the message would hand the error to the chat provider's auth classifier.
     await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toMatchObject({
       name: 'NonVisionImageOcrError',
-      i18nKey: 'image_unreadable_for_non_vision_model'
+      i18nKey: 'image_unreadable_for_non_vision_model',
+      detailI18nKey: 'ocr_detail_empty',
+      message: expect.not.stringContaining('OCR')
     })
 
     expect(resolveMock).toHaveBeenCalledOnce()
@@ -191,7 +205,9 @@ describe('prepareChatMessages — routing', () => {
 
     await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toMatchObject({
       name: 'NonVisionImageOcrError',
-      i18nKey: 'image_unreadable_for_non_vision_model'
+      i18nKey: 'image_unreadable_for_non_vision_model',
+      detailI18nKey: 'ocr_detail_failed',
+      detailI18nValues: { reason: 'Default file processor for image_to_text is not configured' }
     })
 
     expect(resolveMock).toHaveBeenCalledOnce()
@@ -202,6 +218,14 @@ describe('prepareChatMessages — routing', () => {
     extractMock.mockResolvedValueOnce('word body')
     const [out] = await run([fileWithEntry('e1', 'a.docx', 'application/octet-stream')], ALL)
     expect(textOf(out.parts)[0]).toBe('Attached file "a.docx":\nword body')
+  })
+
+  it('inlines XML text with an unrecognized extension', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'lrmx' })
+    const text = '<XingMing>张三</XingMing>'
+    extractMock.mockResolvedValueOnce(text)
+    const [out] = await run([fileWithEntry('e1', 'a.lrmx', 'application/octet-stream')], NONE)
+    expect(textOf(out.parts)).toEqual([`Attached file "a.lrmx":\n${text}`])
   })
 
   it('inlines extracted text for an extensionless text file', async () => {
@@ -250,6 +274,23 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(out.parts)[0]).toBe(
       'Attached file "a.zip":\nCannot read the attached file "a.zip" as text (unsupported file type).'
     )
+    expect(extractMock).not.toHaveBeenCalled()
+  })
+
+  // An AVIF/HEIC image is accepted wildcard-style on the agent surface, yet no ext list
+  // classifies it — the note above would drop the only usable reference to the file.
+  it('keeps an unlisted-extension attachment as a file part for a path-forwarding caller', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'avif' })
+    const part = fileWithEntry('e1', 'photo.avif', 'image/avif')
+
+    const [out] = await prepareChatMessages([userMessage([part])] as UIMessage[], {
+      attachments: [{ fileEntryId: 'e1', handle: 'photo.avif', displayName: 'photo.avif' }],
+      nativeSupport: ALL,
+      isToolCapable: true,
+      keepUnroutableFileParts: true
+    })
+
+    expect(out.parts).toEqual([part])
     expect(extractMock).not.toHaveBeenCalled()
   })
 
@@ -317,7 +358,7 @@ describe('prepareChatMessages — routing', () => {
       attachments: collectFileAttachments(messages),
       nativeSupport: NONE,
       isToolCapable: true,
-      budget: { tokens: 60, tokenizer: charTokenizer }
+      budget: { tokens: 60 }
     })
 
     // b.txt fits whole, so a.txt takes the 40 it leaves behind rather than half.
@@ -441,7 +482,7 @@ describe('prepareChatMessages — routing', () => {
       attachments: [],
       nativeSupport: NONE,
       isToolCapable: true,
-      budget: { tokens: 5, tokenizer: charTokenizer }
+      budget: { tokens: 5 }
     })
 
     const text = textOf(out.parts)[0]
@@ -465,7 +506,7 @@ describe('prepareChatMessages — routing', () => {
       attachments: [],
       nativeSupport: NONE,
       isToolCapable: true,
-      budget: { tokens: 5, tokenizer: charTokenizer }
+      budget: { tokens: 5 }
     })
 
     const text = textOf(out.parts)[0]
@@ -490,7 +531,7 @@ describe('prepareChatMessages — routing', () => {
       attachments: collectFileAttachments(messages),
       nativeSupport: NONE,
       isToolCapable: true,
-      budget: { tokens: 10, tokenizer: charTokenizer }
+      budget: { tokens: 10 }
     })
 
     const texts = textOf(out.parts)

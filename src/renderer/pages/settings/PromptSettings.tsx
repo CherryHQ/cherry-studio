@@ -15,7 +15,7 @@ import {
   EmojiIcon,
   EmptyState,
   ReorderableList,
-  Scrollbar,
+  ScrollArea,
   Skeleton,
   type SortableDragHandleProps
 } from '@cherrystudio/ui'
@@ -94,21 +94,14 @@ export function PromptSettings() {
         label: assistant.name,
         group: t('common.assistant_other'),
         target: { type: 'assistant' as const, id: assistant.id },
-        icon: <EmojiIcon emoji={assistant.emoji || '💬'} size={24} fontSize={14} className="mr-0" />
+        icon: <EmojiIcon emoji={assistant.emoji || '💬'} size={24} />
       })),
       ...agentData.map((agent) => ({
         value: `agent:${agent.id}`,
         label: agent.name,
         group: t('common.agent_other'),
         target: { type: 'agent' as const, id: agent.id },
-        icon: (
-          <EmojiIcon
-            emoji={getAgentAvatarFromConfiguration(agent.configuration)}
-            size={24}
-            fontSize={14}
-            className="mr-0"
-          />
-        )
+        icon: <EmojiIcon emoji={getAgentAvatarFromConfiguration(agent.configuration)} size={24} />
       }))
     ],
     [agentData, assistantData, t]
@@ -296,7 +289,7 @@ export function PromptSettings() {
             className="py-14"
           />
         ) : (
-          <Scrollbar className="min-h-0 flex-1 pb-3">
+          <ScrollArea viewportProps={{ className: 'pb-3' }} className="min-h-0 flex-1">
             <ReorderableList
               items={prompts}
               visibleItems={visiblePrompts}
@@ -323,7 +316,7 @@ export function PromptSettings() {
                 />
               )}
             />
-          </Scrollbar>
+          </ScrollArea>
         )}
       </div>
 
@@ -432,8 +425,6 @@ function PromptRow({
         type="button"
         variant="ghost"
         size="icon-sm"
-        {...dragHandleProps?.attributes}
-        {...dragHandleProps?.listeners}
         aria-label={t('settings.prompts.reorder', { title: prompt.title })}
         onClick={(event) => event.stopPropagation()}
         className="shrink-0 cursor-grab text-foreground-tertiary active:cursor-grabbing">
@@ -468,7 +459,11 @@ function PromptRow({
       ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={`${t('common.more')} ${prompt.title}`}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`${t('common.more')} ${prompt.title}`}
+            className="text-muted-foreground">
             <MoreHorizontal size={13} />
           </Button>
         </DropdownMenuTrigger>

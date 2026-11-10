@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,6 +11,7 @@ const agentComposerPropsMock = vi.hoisted(() => ({
   last: undefined as any
 }))
 const rightPanelPresentationMock = vi.hoisted(() => ({ maximized: false }))
+const previewInputFileInRightPaneMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/components/chat/panes/Shell', () => ({
   useRightPanelPresentationMaximized: () => rightPanelPresentationMock.maximized
@@ -23,7 +25,25 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
   default: (props: any) => {
     agentComposerPropsMock.last = props
     return <div data-testid="agent-composer" />
-  }
+  },
+  MissingAgentHomeComposer: ({
+    onAgentChange,
+    agentChanging
+  }: {
+    onAgentChange?: (agentId: string | null) => void | Promise<void>
+    agentChanging?: boolean
+  }) => (
+    <button type="button" disabled={agentChanging} onClick={() => void onAgentChange?.('agent-2')}>
+      Select active agent
+    </button>
+  )
+}))
+
+vi.mock('../components/AgentRightPane', () => ({
+  useOptionalAgentRightPaneActions: () => ({
+    canPreviewInputFileInRightPane: true,
+    previewInputFileInRightPane: previewInputFileInRightPaneMock
+  })
 }))
 
 const session = { id: 'session-1', agentId: 'agent-1' } as AgentSessionEntity
@@ -37,6 +57,8 @@ const baseProps = {
   stop: vi.fn(),
   isStreaming: false,
   sendDisabled: true,
+  cancelEditing: vi.fn(),
+  resendEditedMessage: vi.fn(),
   composerContext: {}
 }
 
@@ -54,7 +76,8 @@ describe('AgentComposerSlot', () => {
       expect.objectContaining({
         agentId: 'agent-1',
         resolvedAgent: undefined,
-        sendDisabled: true
+        sendDisabled: true,
+        previewInputFile: previewInputFileInRightPaneMock
       })
     )
   })
@@ -101,10 +124,14 @@ describe('AgentComposerSlot', () => {
     expect(agentComposerPropsMock.last?.compactWhenSingleLine).toBe(maximized)
   })
 
-  it('does not leave an orphan session in a permanent loading state', () => {
-    const { container } = render(<AgentComposerSlot {...baseProps} agentId={undefined} />)
+  it('lets an unlinked session select an active agent', async () => {
+    const user = userEvent.setup()
+    const onAgentChange = vi.fn()
+    render(<AgentComposerSlot {...baseProps} agentId={undefined} onAgentChange={onAgentChange} />)
 
-    expect(container).toBeEmptyDOMElement()
+    await user.click(screen.getByRole('button', { name: 'Select active agent' }))
+
+    expect(onAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
   it('hides the composer in multi-select mode', () => {

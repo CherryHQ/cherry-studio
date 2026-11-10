@@ -1,3 +1,22 @@
+vi.mock('../attachmentWorkerClient', async () => {
+  const { decodeTextBufferIfText, decodeTextWithAutoEncoding } = await import('@main/utils/textEncoding')
+  const { allocateInlineCaps } = await import('../attachmentInlineBudget')
+  type Input = { content: Uint8Array; conservative: boolean; bodies: string[]; tokens: number }
+  return {
+    runAttachmentWorker: async (type: string, input: Input, signal?: AbortSignal) => {
+      signal?.throwIfAborted()
+      if (type === 'allocate') return allocateInlineCaps(input.bodies, input.tokens)
+      const bytes = Buffer.from(input.content)
+      return (
+        (input.conservative
+          ? decodeTextBufferIfText(bytes)
+          : decodeTextWithAutoEncoding(bytes, { warn() {}, error() {} })
+        )?.trim() ?? null
+      )
+    }
+  }
+})
+
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -5,6 +24,7 @@ import { pathToFileURL } from 'node:url'
 
 import { convertToModelMessages, type UIMessage } from 'ai'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
+import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -33,11 +53,10 @@ vi.mock('@application', async () => {
 
 import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
 
-const png = Buffer.from(
-  '89504E470D0A1A0A0000000D49484452000000010000000108060000001F15C4890000000D4944415478DA636400' +
-    '01000000050001A7DFAA680000000049454E44AE426082',
-  'hex'
-)
+// A decodable image with edges of at least 15 px, so validation and padding keep the bytes unchanged.
+const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#123456' } })
+  .png()
+  .toBuffer()
 
 const docx = Buffer.from(
   'UEsDBAoAAAAIAK9OLl2sbhJangAAANwAAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbF2PsQ7CMBBDf6XKitqrGBhQ24UdGPiBU3JtI5pLlBwF/p4EpA6Mlu1nubu9A6Xq5RZOvZpFwhEg6ZkcpsYH4uyMPjqULOMEAfUdJ4J92x5AexZiqaUw1NBdVorRGqquGOWMjnoFTx8NGK8fLiebTFPV6Vcry73CEBarUaxnWNn8bdZ+HK2mrV9oIXpNKVme3NJsjkPLu4KHoYPvqeEDUEsDBAoAAAAAAK9OLl0AAAAAAAAAAAAAAAAFAAAAd29yZC9QSwMECgAAAAgAr04uXZwma2R3AAAAnQAAABEAAAB3b3JkL2RvY3VtZW50LnhtbEXOzQ3CMAwF4FWqDoArDhyikBWYIeSnjVTHkR0U2J66HLh8lt+TJdthIoUXptqnN+5VzLjPW+/NAEjYEnq5UEv16DIx+n6svMIgjo0pJJFSV9zhuiw3QF/q7OwwT4ofnU1hpbtHziWkSSsLGqh82k5/R/B/yH0BUEsBAhQACgAAAAgAr04uXaxuElqeAAAA3AAAABMAAAAAAAAAAAAAAAAAAAAAAFtDb250ZW50X1R5cGVzXS54bWxQSwECFAAKAAAAAACvTi5dAAAAAAAAAAAAAAAABQAAAAAAAAAAABAAAADPAAAAd29yZC9QSwECFAAKAAAACACvTi5dnCZrZHcAAACdAAAAEQAAAAAAAAAAAAAAAADyAAAAd29yZC9kb2N1bWVudC54bWxQSwUGAAAAAAMAAwCzAAAAmAEAAAAA',
@@ -229,7 +248,7 @@ describe('chat attachment content admission into AI SDK', () => {
       attachments,
       nativeSupport: { image: false, pdf: false, audio: false, video: false },
       isToolCapable: true,
-      budget: { tokens: 5, tokenizer: { id: 'chars', count: (text: string) => text.length } }
+      budget: { tokens: 5 }
     })
     const inline = (prepared[0].parts[0] as { text: string }).text
     const offset = Number(inline.match(/read_file\("notes\.bin", offset=(\d+)\)/)?.[1])

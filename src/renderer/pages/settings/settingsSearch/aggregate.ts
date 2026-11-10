@@ -1,4 +1,5 @@
-import { settingsMenu } from '../settingsMenu'
+import { settingsMenu } from '@renderer/components/settingsMenu'
+
 import type { SettingsSearchSection, SettingsSearchSectionModule } from './types'
 
 const globModules = import.meta.glob('../**/*.search.ts', { eager: true })

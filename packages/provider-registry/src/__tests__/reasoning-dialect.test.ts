@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { providerModelEntries } from '../../scripts/canonicalize'
 import { PROVIDERS } from '../providers'
 import { configureOpenAIResponsesSummary, REASONING_FORMAT_PROFILES, selectFormatWire } from '../reasoningProfiles'
 import type { ModelConfig, ReasoningWireDialect } from '../schemas/model'
@@ -57,7 +58,8 @@ describe('native-protocol reasoning dialect', () => {
     ['claude-sonnet-4-5', 'budget'],
     ['claude-opus-4-6', 'effort'],
     ['claude-opus-4-8', 'effort'],
-    ['claude-fable-5', 'effort']
+    ['claude-fable-5', 'effort'],
+    ['claude-sonnet-5-5', 'adaptive-between-tools']
   ])('resolves %s to the %s dialect', (modelId, dialect) => {
     expect(models.find((m) => m.id === modelId)?.reasoning?.wireDialect).toBe(dialect)
   })
@@ -118,7 +120,10 @@ describe('native-protocol reasoning dialect', () => {
     (format) => {
       const profile = REASONING_FORMAT_PROFILES[format]
       expect(profile.budgetWire).toBeUndefined()
-      for (const dialect of [undefined, 'effort', 'budget'] as (ReasoningWireDialect | undefined)[]) {
+      for (const dialect of [undefined, 'effort', 'budget', 'adaptive-between-tools'] as (
+        | ReasoningWireDialect
+        | undefined
+      )[]) {
         expect(selectFormatWire(profile, dialect)).toBe(profile.wire)
       }
     }
@@ -128,14 +133,14 @@ describe('native-protocol reasoning dialect', () => {
     const NATIVE = { 'google-generate-content': /thinkingConfig\./, 'anthropic-messages': /^thinking\./ }
     const leftovers: string[] = []
     for (const provider of PROVIDERS) {
-      for (const override of provider.overrides ?? []) {
+      for (const override of providerModelEntries(provider)) {
         for (const [endpoint, pattern] of Object.entries(NATIVE)) {
           const wire = override.reasoningContracts?.[endpoint as keyof typeof NATIVE]?.wire
           if (!wire) continue
           // aws-bedrock uses its own `reasoningConfig.*` namespace, and opencode
           // /mimo route non-Claude models over anthropic-messages with bespoke
           // budget policies — those are genuine provider variation, not dialect.
-          if (targetsOf(wire).some((t) => pattern.test(t)) && /^(gemini|claude)/.test(override.modelId ?? '')) {
+          if (targetsOf(wire).some((t) => pattern.test(t)) && /^(gemini|claude)/.test(override.modelId)) {
             leftovers.push(`${provider.id}/${override.modelId}/${endpoint}`)
           }
         }

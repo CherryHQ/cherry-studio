@@ -81,7 +81,9 @@ const MessageMenuBar: FC<Props> = (props) => {
 
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
 
-  const isEditable = isAssistantMessage ? canEditAssistantMessageParts(messageParts) : hasTextParts(messageParts)
+  const isEditable =
+    actions.canEditMessage?.(message) ??
+    (isAssistantMessage ? canEditAssistantMessageParts(messageParts) : hasTextParts(messageParts))
 
   const hasTranslationBlocks = hasTranslationParts(messageParts)
   const isSelectedForContext = !!message.isActiveBranch
@@ -92,7 +94,7 @@ const MessageMenuBar: FC<Props> = (props) => {
 
   const actionContext = useMemo<MessageMenuBarActionContext>(
     () => ({
-      actions,
+      actions: actions.canDeleteMessage?.(message) === false ? { ...actions, deleteMessage: undefined } : actions,
       message,
       messageParts,
       messageForExport,

@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next'
 import {
+  Archive,
   Copy,
   Database,
   ExternalLink,
@@ -10,13 +11,14 @@ import {
   PinIcon,
   PinOffIcon,
   Sparkles,
+  Trash,
   UploadIcon
 } from 'lucide-react'
 
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
@@ -37,12 +39,16 @@ export type SessionExportMenuOptions = Record<
 export interface SessionActionContext {
   exportMenuOptions?: Partial<SessionExportMenuOptions>
   isActiveInCurrentTab: boolean
+  isDeleting?: boolean
   isRenaming?: boolean
   onAutoRename?: () => void | Promise<void>
   onCopyImage?: () => void | Promise<void>
   onCopyMarkdown?: () => void | Promise<void>
   onCopyPlainText?: () => void | Promise<void>
-  onDelete: () => void
+  onDelete: () => void | Promise<void>
+  onDeletePermanently?: () => void | Promise<void>
+  permanentDeleteShortcut?: string
+  isBusy?: boolean
   onExportImage?: () => void | Promise<void>
   onExportJoplin?: () => void | Promise<void>
   onExportMarkdown?: () => void | Promise<void>
@@ -58,8 +64,10 @@ export interface SessionActionContext {
   onSaveToNotes?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin?: () => void
+  onToggleSidebar?: () => void
   panePosition?: TopicTabPosition
   pinned?: boolean
+  sidebarPinned?: boolean
   sessionName: string
   startEdit: (value: string) => void
   t: TFunction
@@ -113,6 +121,12 @@ sessionActionRegistry.registerCommand({
   id: 'session.toggle-pin',
   availability: ({ onTogglePin }) => ({ visible: !!onTogglePin, enabled: !!onTogglePin }),
   run: ({ onTogglePin }) => onTogglePin?.()
+})
+
+sessionActionRegistry.registerCommand({
+  id: 'session.toggle-sidebar',
+  availability: ({ onToggleSidebar }) => ({ visible: !!onToggleSidebar, enabled: !!onToggleSidebar }),
+  run: ({ onToggleSidebar }) => onToggleSidebar?.()
 })
 
 sessionActionRegistry.registerCommand({
@@ -276,6 +290,14 @@ sessionActionRegistry.registerCommand({
   run: ({ onDelete }) => onDelete()
 })
 
+sessionActionRegistry.registerCommand({
+  id: 'session.delete-permanently',
+  run: ({ isBusy, isDeleting, onDeletePermanently, pinned }) => {
+    if (!onDeletePermanently || pinned || isBusy || isDeleting) return
+    return onDeletePermanently()
+  }
+})
+
 sessionActionRegistry.registerAction({
   id: 'session.auto-rename',
   commandId: 'session.auto-rename',
@@ -300,6 +322,15 @@ sessionActionRegistry.registerAction({
   label: ({ pinned, t }) => (pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')),
   icon: ({ pinned }) => (pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
   order: 30,
+  surface: 'menu'
+})
+
+sessionActionRegistry.registerAction({
+  id: 'session.toggle-sidebar',
+  commandId: 'session.toggle-sidebar',
+  label: ({ sidebarPinned, t }) => (sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar')),
+  icon: ({ sidebarPinned }) => <SidebarShortcutIcon pinned={sidebarPinned} size={14} />,
+  order: 32,
   surface: 'menu'
 })
 
@@ -480,19 +511,27 @@ sessionActionRegistry.registerAction({
 sessionActionRegistry.registerAction({
   id: 'session.delete',
   commandId: 'session.delete',
-  label: ({ t }) => t('common.delete'),
-  icon: () => <DeleteIcon size={14} className="lucide-custom" />,
+  label: ({ t }) => t('common.archive'),
+  icon: () => <Archive size={14} />,
   group: 'danger',
   order: 90,
   surface: 'menu',
+  availability: ({ isBusy }) => ({ enabled: !isBusy })
+})
+
+sessionActionRegistry.registerAction({
+  id: 'session.delete-permanently',
+  commandId: 'session.delete-permanently',
+  label: ({ t }) => t('common.delete_permanently'),
+  icon: () => <Trash size={14} />,
+  group: 'danger',
+  order: 100,
+  surface: 'menu',
   danger: true,
-  availability: ({ pinned }) => ({ visible: !pinned }),
-  confirm: ({ t }) => ({
-    title: t('agent.session.delete.title'),
-    description: t('agent.session.delete.content'),
-    confirmText: t('common.delete'),
-    cancelText: t('common.cancel'),
-    destructive: true
+  shortcut: ({ permanentDeleteShortcut }) => permanentDeleteShortcut ?? '',
+  availability: ({ isBusy, isDeleting, onDeletePermanently, pinned }) => ({
+    visible: Boolean(onDeletePermanently) && !pinned,
+    enabled: !isBusy && !isDeleting
   })
 })
 

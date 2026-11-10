@@ -1,0 +1,119 @@
+import { readFileSync, statSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+
+import { describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
+
+import { getNativeModuleFilters } from '../packaging/before-pack'
+
+const projectRoot = path.resolve(import.meta.dirname, '../..')
+const require = createRequire(import.meta.url)
+const builderRequire = createRequire(require.resolve('electron-builder'))
+const { FileMatcher } = builderRequire('app-builder-lib/out/fileMatcher')
+const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8')) as { files: string[] }
+const fileStat = statSync(path.join(projectRoot, 'package.json'))
+
+function includesFile(filename: string, patterns = config.files): boolean {
+  return new FileMatcher(projectRoot, projectRoot, (value: string) => value, patterns).createFilter()(
+    path.join(projectRoot, filename),
+    fileStat
+  )
+}
+
+describe('packaged dependency contents', () => {
+  it.each(['node_modules', 'node_modules/consumer/node_modules'])(
+    'excludes on-demand Claude binaries under %s while preserving the SDK',
+    (modules) => {
+      for (const target of [
+        'darwin-arm64',
+        'darwin-x64',
+        'linux-arm64',
+        'linux-x64',
+        'linux-arm64-musl',
+        'linux-x64-musl',
+        'win32-arm64',
+        'win32-x64'
+      ]) {
+        const root = `${modules}/@anthropic-ai/claude-agent-sdk-${target}`
+        for (const file of ['package.json', target.startsWith('win32') ? 'claude.exe' : 'claude']) {
+          expect(includesFile(`${root}/${file}`), `${root}/${file}`).toBe(false)
+        }
+      }
+      for (const file of ['package.json', 'sdk.mjs']) {
+        const sdkFile = `${modules}/@anthropic-ai/claude-agent-sdk/${file}`
+        expect(includesFile(sdkFile), sdkFile).toBe(true)
+      }
+    }
+  )
+
+  it.each([
+    ['darwin', 'arm64'],
+    ['darwin', 'x64'],
+    ['linux', 'arm64'],
+    ['linux', 'x64'],
+    ['win32', 'arm64'],
+    ['win32', 'x64']
+  ])('keeps only %s %s native payloads, including nested dependencies', (platform, arch) => {
+    const patterns = [...config.files, ...getNativeModuleFilters(platform, arch)]
+    for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
+      for (const targetPlatform of ['darwin', 'linux', 'win32']) {
+        for (const targetArch of ['arm64', 'x64']) {
+          const file = `${modules}/selection-hook/prebuilds/${targetPlatform}-${targetArch}/selection.node`
+          expect(includesFile(file, patterns), file).toBe(targetPlatform === platform && targetArch === arch)
+        }
+      }
+    }
+  })
+
+  it.each(['node_modules', 'node_modules/consumer/node_modules'])(
+    'excludes SQLite build inputs and cached binaries under %s while preserving its runtime',
+    (modules) => {
+      const root = `${modules}/better-sqlite3`
+      for (const file of [
+        'deps/sqlite3/sqlite3.c',
+        'build/Release/obj/gen/sqlite3/sqlite3.c',
+        'bin/darwin-x64-149/better-sqlite3.node',
+        'src/better_sqlite3.cpp'
+      ]) {
+        expect(includesFile(`${root}/${file}`), file).toBe(false)
+      }
+      for (const file of [
+        'package.json',
+        'lib/database.js',
+        'build/Release/better_sqlite3.node',
+        'prebuilds/linux-x64.node',
+        'prebuilds/linux-arm64.node'
+      ]) {
+        expect(includesFile(`${root}/${file}`), file).toBe(true)
+      }
+    }
+  )
+
+  it('excludes dependency documentation images without removing runtime assets or source JS', () => {
+    for (const file of [
+      'node_modules/selection-hook/docs/images/selection-hook.gif',
+      'node_modules/@earendil-works/pi-coding-agent/docs/images/exy.png'
+    ]) {
+      expect(includesFile(file), file).toBe(false)
+    }
+    for (const file of ['resources/builtin-agents/icon.png']) {
+      expect(includesFile(file), file).toBe(true)
+    }
+  })
+
+  it('keeps the files each trimmed package loads at runtime', () => {
+    for (const file of [
+      'node_modules/mammoth/lib/index.js',
+      'node_modules/selection-hook/index.js',
+      'node_modules/@earendil-works/pi-coding-agent/dist/index.js',
+      'node_modules/onnxruntime-node/dist/index.js',
+      'node_modules/sherpa-onnx-node/sherpa-onnx.js',
+      // tesseract.js defaults to the LSTM_ONLY OEM and picks the SIMD build wherever wasm SIMD exists.
+      'node_modules/tesseract.js-core/tesseract-core-simd-lstm.js',
+      'node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm'
+    ]) {
+      expect(includesFile(file), file).toBe(true)
+    }
+  })
+})

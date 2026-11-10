@@ -1,12 +1,19 @@
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listSessionMessagesMock, getSessionMessageMock, updateSessionMessageMock, deleteSessionMessageMock } =
-  vi.hoisted(() => ({
-    listSessionMessagesMock: vi.fn(),
-    getSessionMessageMock: vi.fn(),
-    updateSessionMessageMock: vi.fn(),
-    deleteSessionMessageMock: vi.fn()
-  }))
+const {
+  getConversationByIdMock,
+  listSessionMessagesMock,
+  getSessionMessageMock,
+  updateSessionMessageMock,
+  deleteSessionMessageMock
+} = vi.hoisted(() => ({
+  getConversationByIdMock: vi.fn(),
+  listSessionMessagesMock: vi.fn(),
+  getSessionMessageMock: vi.fn(),
+  updateSessionMessageMock: vi.fn(),
+  deleteSessionMessageMock: vi.fn()
+}))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
@@ -17,34 +24,29 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
+    getConversationById: getConversationByIdMock
+  }
+}))
+
 import { agentSessionMessageHandlers } from '../agentSessionMessages'
 
 describe('agentSessionMessageHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockApplicationUtils.setService('AgentSessionRuntimeService', {
+      getHistoryActions: () =>
+        new Map([
+          ['assistant-message', { fork: 'legacy_history', edit: 'invalid_target' }],
+          ['user-message', { fork: 'not_turn_boundary', edit: 'checkpoint_unsupported' }]
+        ])
+    })
+    // `getConversationById` is synchronous; scope violations throw inline.
+    getConversationByIdMock.mockReturnValue({ id: 'session-1' })
   })
 
   describe('/agent-sessions/:sessionId/messages', () => {
-    it('forwards messageId query to agentSessionMessageService.listSessionMessages', async () => {
-      // `listSessionMessages` is synchronous (better-sqlite3), so the mock must return, not resolve.
-      const response = { items: [], nextCursor: undefined }
-      listSessionMessagesMock.mockReturnValueOnce(response)
-
-      const result = await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
-        params: { sessionId: 'session-1' },
-        query: {
-          messageId: 'message-1',
-          limit: '25'
-        }
-      } as never)
-
-      expect(listSessionMessagesMock).toHaveBeenCalledWith('session-1', {
-        messageId: 'message-1',
-        limit: 25
-      })
-      expect(result).toBe(response)
-    })
-
     it('replaces an oversized assistant tool output with a reference, leaving the stored data alone', async () => {
       const output = { content: 'x'.repeat(64 * 1024) }
       const assistant = {
@@ -63,7 +65,7 @@ describe('agentSessionMessageHandlers', () => {
       const result = (await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
         params: { sessionId: 'session-1' },
         query: { deferToolOutputs: true }
-      } as never)) as unknown as { items: { data: { parts: unknown[] } }[] }
+      })) as unknown as { items: { data: { parts: unknown[] } }[] }
 
       expect(result.items[0].data.parts[1]).toEqual({
         type: 'dynamic-tool',
@@ -74,12 +76,25 @@ describe('agentSessionMessageHandlers', () => {
           $deferredToolResult: {
             topicId: 'agent-session:session-1',
             messageId: 'assistant-message',
-            toolCallId: 'tool-call-1'
+            toolCallId: 'tool-call-1',
+            revision: expect.any(String)
           }
         }
       })
-      expect(result.items[1]).toBe(user)
+      expect(result.items[1]).toMatchObject(user)
+      expect(result.items[0]).toHaveProperty('historyActions', { fork: 'legacy_history', edit: 'invalid_target' })
       expect(assistant.data.parts[1]).toMatchObject({ output })
+      const replaced = {
+        ...assistant,
+        data: { parts: [{ ...assistant.data.parts[1], output: { content: 'y'.repeat(64 * 1024) } }] }
+      }
+      listSessionMessagesMock.mockReturnValueOnce({ items: [replaced], nextCursor: undefined })
+      const next = await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
+        params: { sessionId: 'session-1' },
+        query: { deferToolOutputs: true }
+      })
+      if (!('items' in next)) throw new Error('Expected a message page')
+      expect(next.items[0].data.parts![0]).not.toEqual(result.items[0].data.parts[1])
     })
 
     it('leaves a small tool output inline so no round trip is needed to render it', async () => {
@@ -95,9 +110,9 @@ describe('agentSessionMessageHandlers', () => {
       const result = (await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
         params: { sessionId: 'session-1' },
         query: { deferToolOutputs: true }
-      } as never)) as unknown as { items: unknown[] }
+      })) as unknown as { items: unknown[] }
 
-      expect(result.items[0]).toBe(assistant)
+      expect(result.items[0]).toMatchObject(assistant)
     })
 
     it('returns stored tool outputs verbatim unless the caller opts in', async () => {
@@ -117,7 +132,24 @@ describe('agentSessionMessageHandlers', () => {
         agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
           params: { sessionId: 'session-1' }
         })
-      ).resolves.toBe(response)
+      ).resolves.toEqual({
+        ...response,
+        items: [{ ...assistant, historyActions: { fork: 'legacy_history', edit: 'invalid_target' } }]
+      })
+    })
+
+    it('hides the message list of a session outside the conversation scope', async () => {
+      getConversationByIdMock.mockImplementationOnce(() => {
+        throw new Error('not found')
+      })
+
+      await expect(
+        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
+          params: { sessionId: 'session-bg' }
+        })
+      ).rejects.toThrow('not found')
+
+      expect(listSessionMessagesMock).not.toHaveBeenCalled()
     })
   })
 
@@ -154,6 +186,25 @@ describe('agentSessionMessageHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(updateSessionMessageMock).not.toHaveBeenCalled()
+    })
+
+    it('refuses to read, update, or delete messages of a background session', async () => {
+      getConversationByIdMock.mockImplementation(() => {
+        throw new Error('not found')
+      })
+      const call = (method: 'GET' | 'PATCH' | 'DELETE') =>
+        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages/:messageId'][method]({
+          params: { sessionId: 'session-bg', messageId: 'message-1' },
+          body: { data: { parts: [] } }
+        } as never)
+
+      await expect(call('GET')).rejects.toThrow('not found')
+      await expect(call('PATCH')).rejects.toThrow('not found')
+      await expect(call('DELETE')).rejects.toThrow('not found')
+
+      expect(getSessionMessageMock).not.toHaveBeenCalled()
+      expect(updateSessionMessageMock).not.toHaveBeenCalled()
+      expect(deleteSessionMessageMock).not.toHaveBeenCalled()
     })
   })
 })

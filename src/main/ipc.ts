@@ -4,14 +4,15 @@ import { dialog } from 'electron'
 
 import { loggerService } from '@logger'
 import { handleGuarded } from '@main/core/security/guardedIpc'
+import { runManualBackup } from '@main/services/backupNotifications'
 import {
   listDirectory as searchListDirectory,
   listDirectoryEntries as searchListDirectoryEntries
 } from '@main/services/file'
-import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
+import { isSameOrInside } from '@main/utils/file'
+import { hasWritePermission, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import { skillService } from './ai/skills/SkillService'
 import { copilotService } from './services/CopilotService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
@@ -68,10 +69,8 @@ export async function registerIpc() {
 
   // Check if a path is inside another path (proper parent-child relationship)
   handleGuarded(IpcChannel.App_IsPathInside, async (_, childPath: string, parentPath: string) => {
-    return isPathInside(childPath, parentPath)
+    return isSameOrInside(childPath, parentPath)
   })
-
-  // Application_Relaunch is registered by Application.registerApplicationIpc()
 
   // zip
   handleGuarded(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
@@ -82,10 +81,12 @@ export async function registerIpc() {
   // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
   // backup
-  handleGuarded(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_Backup, (event, fileName, destinationPath, slimBackup) =>
+    runManualBackup(() => backupManager.backup(event, fileName, destinationPath, slimBackup))
+  )
   handleGuarded(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToWebdav, async (event, config) => {
-    const { result, cleanupError } = await backupManager.backupToWebdav(event, config)
+    const { result, cleanupError } = await runManualBackup(() => backupManager.backupToWebdav(event, config))
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
@@ -94,25 +95,24 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
   handleGuarded(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToLocalDir, async (event, fileName, config) => {
-    const { result, cleanupError } = await backupManager.backupToLocalDir(event, fileName, config)
+    const { result, cleanupError } = await runManualBackup(() =>
+      backupManager.backupToLocalDir(event, fileName, config)
+    )
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
   handleGuarded(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
   handleGuarded(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToS3, async (event, config) => {
-    const { result, cleanupError } = await backupManager.backupToS3(event, config)
+    const { result, cleanupError } = await runManualBackup(() => backupManager.backupToS3(event, config))
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
   handleGuarded(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
   handleGuarded(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
 
   // file
   handleGuarded(IpcChannel.File_Open, fileManager.open.bind(fileManager))
-  handleGuarded(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
   handleGuarded(IpcChannel.File_Save, fileManager.save.bind(fileManager))
   handleGuarded(IpcChannel.File_Select, fileManager.selectFile.bind(fileManager))
   handleGuarded(IpcChannel.File_ReadExternal, fileManager.readExternalFile.bind(fileManager))
@@ -136,7 +136,6 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
   handleGuarded(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
   handleGuarded(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
-  handleGuarded(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
   // fs
   handleGuarded(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
@@ -161,28 +160,6 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.Nutstore_GetDirectoryContents, (_, token: string, path: string) =>
     NutstoreService.getDirectoryContents(token, path)
   )
-
-  // Global Skills: install / uninstall / install-from-zip / install-from-directory / list-local
-  // migrated to IpcApi (skill.*). read-file / list-files stay on legacy IPC (roadmap placeholders).
-  handleGuarded(IpcChannel.Skill_ReadFile, async (_, skillId: string, filename: string) => {
-    try {
-      const data = await skillService.readFile(skillId, filename)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to read skill file', { skillId, filename, error })
-      return { success: false, error }
-    }
-  })
-
-  handleGuarded(IpcChannel.Skill_ListFiles, async (_, skillId: string) => {
-    try {
-      const data = await skillService.listFiles(skillId)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to list skill files', { skillId, error })
-      return { success: false, error }
-    }
-  })
 
   // MainWindow_CrashRenderProcess handler moved into MainWindowService (dev-only).
 }

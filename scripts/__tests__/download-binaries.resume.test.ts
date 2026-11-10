@@ -78,13 +78,14 @@ describe('download – resume and fallback', () => {
     expect(fs.readFileSync(dest, 'utf8')).toBe('complete payload')
   })
 
-  it('passes -C - so a fresh run is still resumable', () => {
+  it('enables resume and retries for transient transport errors', () => {
     const dest = path.join(makeTmpDir(), 'rg.14.1.1.part')
     execFileSync.mockImplementationOnce((() => '') as never)
 
     download('https://example.invalid/rg.tar.gz', dest)
 
     expect(execFileSync.mock.calls[0][1]).toContain('-C')
+    expect(execFileSync.mock.calls[0][1]).toContain('--retry-all-errors')
   })
 })
 

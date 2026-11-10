@@ -160,6 +160,40 @@ function createExportView(parts: any[], role: 'user' | 'assistant' | 'system' = 
   }
 }
 
+/** User message whose composer file token resolves through a pasted-text attachment. */
+function createPastedTextExportView(
+  sourceId: string,
+  fileUrl: string,
+  options?: { label?: string; preface?: string }
+): MessageExportView {
+  const label = options?.label ?? 'Pasted text.txt'
+  const preface = options?.preface ?? 'Look at this:'
+  return createExportView(
+    [
+      {
+        type: 'text',
+        text: preface,
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [{ id: `file:${sourceId}`, kind: 'file', label, index: 0, textOffset: preface.length }]
+            }
+          }
+        }
+      },
+      {
+        type: 'file',
+        mediaType: 'text/plain',
+        url: fileUrl,
+        filename: label,
+        providerMetadata: { cherry: { fileTokenSourceId: sourceId, composerFileKind: 'pasted-text' } }
+      }
+    ],
+    'user'
+  )
+}
+
 // --- Global Test Setup ---
 
 beforeEach(() => {
@@ -373,6 +407,117 @@ describe('export', () => {
 
     it('falls back to "Assistant:" for a snapshot-less assistant row', async () => {
       expect(await messagesToPlainText([createExportView([{ type: 'text', text: 'hi' }])])).toContain('Assistant:')
+    })
+
+    // Catches a serial await waterfall: independent pasted-text reads must all
+    // start before any resolve; out-of-order completion must not scramble export order.
+    it('starts independent pasted-text reads concurrently and keeps message order', async () => {
+      const started: string[] = []
+      const resolvers = new Map<string, (value: string) => void>()
+      ;(window.api.fs.readText as any).mockImplementation((path: string) => {
+        started.push(path)
+        return new Promise<string>((resolve) => {
+          resolvers.set(path, resolve)
+        })
+      })
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
+
+      const messages = [
+        createPastedTextExportView('src-a', 'file:///tmp/a.txt', { preface: 'A:' }),
+        createPastedTextExportView('src-b', 'file:///tmp/b.txt', { preface: 'B:' }),
+        createPastedTextExportView('src-c', 'file:///tmp/c.txt', { preface: 'C:' })
+      ]
+      const resultPromise = messagesToPlainText(messages)
+      // One microtask is enough for concurrent starts; a serial await leaves started.length === 1.
+      await Promise.resolve()
+
+      expect(started).toEqual(['/tmp/a.txt', '/tmp/b.txt', '/tmp/c.txt'])
+
+      resolvers.get('/tmp/c.txt')!('content-c')
+      resolvers.get('/tmp/a.txt')!('content-a')
+      resolvers.get('/tmp/b.txt')!('content-b')
+
+      const result = await resultPromise
+      expect(result).toBe('User:\nA:content-a\n\nUser:\nB:content-b\n\nUser:\nC:content-c')
+    })
+
+    // Catches eager dedupe that skips later paths after a failed first read for the same sourceId.
+    it('retries the next path when a duplicate sourceId fails on the first read', async () => {
+      ;(window.api.fs.readText as any).mockImplementation((path: string) => {
+        if (path === '/tmp/missing.txt') return Promise.reject(new Error('ENOENT'))
+        return Promise.resolve(`from:${path}`)
+      })
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
+
+      const message = createPastedTextExportView('dup-src', 'file:///tmp/missing.txt', { preface: 'Dup:' })
+      message.parts = [
+        ...(message.parts ?? []),
+        {
+          type: 'file',
+          mediaType: 'text/plain',
+          url: 'file:///tmp/recovered.txt',
+          filename: 'Pasted text.txt',
+          providerMetadata: { cherry: { fileTokenSourceId: 'dup-src', composerFileKind: 'pasted-text' } }
+        }
+      ]
+
+      const result = await messagesToPlainText([message])
+
+      expect(result).toContain('from:/tmp/recovered.txt')
+      expect(window.api.fs.readText).toHaveBeenCalledWith('/tmp/missing.txt')
+      expect(window.api.fs.readText).toHaveBeenCalledWith('/tmp/recovered.txt')
+    })
+
+    // Catches fileUrlToPath throwing on a malformed or non-file pasted-text URL and
+    // rejecting the whole export instead of leaving that token's display label.
+    it('falls back to the token label when a pasted-text URL is malformed or not a file', async () => {
+      ;(window.api.fs.readText as any).mockImplementation((path: string) => {
+        if (path === '/tmp/ok.txt') return Promise.resolve('recovered body')
+        return Promise.reject(new Error(`unexpected read ${path}`))
+      })
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
+
+      const malformed = createPastedTextExportView('bad-src', 'file:///tmp/100%.txt', {
+        label: 'Broken paste.txt',
+        preface: 'Bad:'
+      })
+      const nonFile = createPastedTextExportView('http-src', 'https://example.com/paste.txt', {
+        label: 'Remote paste.txt',
+        preface: 'Remote:'
+      })
+      const readable = createPastedTextExportView('ok-src', 'file:///tmp/ok.txt', { preface: 'Ok:' })
+
+      const result = await messagesToPlainText([malformed, nonFile, readable])
+
+      expect(result).toContain('Bad:Broken paste.txt')
+      expect(result).toContain('Remote:Remote paste.txt')
+      expect(result).toContain('Ok:recovered body')
+      expect(window.api.fs.readText).toHaveBeenCalledTimes(1)
+      expect(window.api.fs.readText).toHaveBeenCalledWith('/tmp/ok.txt')
+    })
+
+    // Catches parallel fan-out that re-reads every duplicate path after the first success.
+    it('does not re-read a duplicate sourceId after the first successful read', async () => {
+      ;(window.api.fs.readText as any).mockResolvedValue('first-success')
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
+
+      const message = createPastedTextExportView('dup-src', 'file:///tmp/first.txt', { preface: 'Dup:' })
+      message.parts = [
+        ...(message.parts ?? []),
+        {
+          type: 'file',
+          mediaType: 'text/plain',
+          url: 'file:///tmp/second.txt',
+          filename: 'Pasted text.txt',
+          providerMetadata: { cherry: { fileTokenSourceId: 'dup-src', composerFileKind: 'pasted-text' } }
+        }
+      ]
+
+      const result = await messagesToPlainText([message])
+
+      expect(result).toContain('first-success')
+      expect(window.api.fs.readText).toHaveBeenCalledTimes(1)
+      expect(window.api.fs.readText).toHaveBeenCalledWith('/tmp/first.txt')
     })
   })
 })

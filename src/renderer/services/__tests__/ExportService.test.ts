@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import { preferenceService } from '@data/PreferenceService'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
+import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
@@ -170,6 +171,7 @@ import {
   exportNote,
   ExportService,
   exportService,
+  exportContentToNotes,
   exportTopicToNotes,
   messagesToMarkdown,
   messageToMarkdown,
@@ -791,6 +793,99 @@ describe('ExportService', () => {
     })
   })
 
+  describe('force dollar math', () => {
+    beforeEach(async () => {
+      await preferenceService.set('data.export.markdown.force_dollar_math', true)
+    })
+
+    afterEach(async () => {
+      await preferenceService.set('data.export.markdown.force_dollar_math', false)
+    })
+
+    it('converts math delimiters in prose but leaves inline and fenced code untouched', async () => {
+      const message = createExportView([
+        {
+          type: 'text',
+          text: [
+            'Euler: \\(e^{i\\pi}+1=0\\) and inline `re.match(r"\\(\\d+\\)", s)`',
+            '```bash',
+            'if \\[ -f x \\]; then echo "\\(ok\\)"; fi',
+            '```',
+            '\\[ a^2+b^2=c^2 \\]'
+          ].join('\n')
+        }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('Euler: $e^{i\\pi}+1=0$')
+      expect(markdown).toContain('$$ a^2+b^2=c^2 $$')
+      expect(markdown).toContain('`re.match(r"\\(\\d+\\)", s)`')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo "\\(ok\\)"; fi')
+    })
+
+    it('leaves code inside the reasoning trace untouched', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'Check \\(x\\) first\n```bash\nif \\[ -f x \\]; then echo hi; fi\n```' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('Check $x$ first')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo hi; fi')
+    })
+
+    it('keeps a stray backtick in the reasoning trace from pairing with a later fence', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'the ` char\nmath \\(x\\)\n```bash\nif \\[ -f x \\]; fi\n```' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('math $x$')
+      expect(markdown).toContain('if \\[ -f x \\]; fi')
+    })
+
+    it('leaves a tilde-fenced block in the reasoning trace untouched', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'Check \\(x\\) first\n~~~bash\nif \\[ -f x \\]; then echo hi; fi\n~~~' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('Check $x$ first')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo hi; fi')
+    })
+
+    it('converts prose between code blocks when the first block contains a literal fence', async () => {
+      const message = createExportView([
+        {
+          type: 'text',
+          text: [
+            '```python',
+            'print("```")',
+            '```',
+            '',
+            'Formula: \\(x\\)',
+            '',
+            '```python',
+            're.match(r"\\(\\d+\\)", s)',
+            '```'
+          ].join('\n')
+        }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('Formula: $x$')
+      expect(markdown).toContain('print("```")')
+      expect(markdown).toContain('re.match(r"\\(\\d+\\)", s)')
+    })
+  })
+
   describe('messagesToMarkdown', () => {
     beforeEach(() => {
       // Use the specific Block type required by createBlock
@@ -821,7 +916,37 @@ describe('ExportService', () => {
   describe('exportTopicToNotes', () => {
     beforeEach(() => {
       vi.clearAllMocks()
-      ;(addNote as any).mockResolvedValue(undefined)
+      vi.mocked(addNote).mockResolvedValue({ path: '/notes/Topic (1).md', name: 'Topic (1)' })
+    })
+
+    it('offers to open the actual saved note without navigating before the user clicks', async () => {
+      const navigations: string[] = []
+      const handleRoute = (event: Event) => {
+        event.preventDefault()
+        navigations.push((event as OpenMainRouteEvent).detail.path)
+      }
+      window.addEventListener(OPEN_MAIN_ROUTE_EVENT, handleRoute)
+      try {
+        await exportContentToNotes('Topic', 'Synthetic note content', '/notes')
+        expect(navigations).toEqual([])
+        const notification = vi.mocked(toast.success).mock.calls[0][0]
+        expect(notification).toMatchObject({
+          title: 'message.success.notes.export',
+          action: { label: 'notes.open' }
+        })
+        if (typeof notification !== 'object' || !notification.action) throw new Error('Missing open-note action')
+        await notification.action.onClick()
+        expect(navigations).toEqual(['/app/notes?notePath=%2Fnotes%2FTopic+%281%29.md'])
+      } finally {
+        window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, handleRoute)
+      }
+    })
+
+    it('does not offer an open-note action when writing the note fails', async () => {
+      vi.mocked(addNote).mockRejectedValueOnce(new Error('Write failed'))
+      await expect(exportContentToNotes('Topic', 'Synthetic content', '/notes')).rejects.toThrow('Write failed')
+      expect(toast.success).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith('message.error.notes.export')
     })
 
     it('logs and toasts when topic markdown generation fails', async () => {
@@ -1371,6 +1496,29 @@ describe('ExportService image capture serialization', () => {
     vi.mocked(htmlToImage.toCanvas).mockReset()
     vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => canvasStub('data:image/png;base64,xxx'))
   })
+
+  it.each(['data-url', 'blob'] as const)(
+    'keeps conversation and default backdrops separate in queued %s captures',
+    async (format) => {
+      const root = document.createElement('div')
+      root.style.cssText = '--background: #191919; --chat-message-well-solid: #141414'
+      const backgrounds: unknown[] = []
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (_element, options) => {
+        backgrounds.push(options?.backgroundColor)
+        return canvasStub('data:image/png;base64,xxx')
+      })
+
+      if (format === 'data-url') {
+        await captureService.captureScrollableAsDataUrl({ current: root }, '--chat-message-well-solid')
+        await captureService.captureScrollableAsDataUrl({ current: root })
+      } else {
+        await captureService.captureScrollableAsBlob({ current: root }, () => {}, '--chat-message-well-solid')
+        await captureService.captureScrollableAsBlob({ current: root }, () => {})
+      }
+
+      expect(backgrounds).toEqual(['#141414', '#141414', '#191919', '#191919'])
+    }
+  )
 
   it('serializes capture lifecycles across roots and restores each root before the next starts', async () => {
     const rootA = document.createElement('div')

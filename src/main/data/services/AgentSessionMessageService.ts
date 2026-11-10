@@ -1,16 +1,21 @@
-import { isToolUIPart } from 'ai'
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { createHash } from 'node:crypto'
+
+import { isDataUIPart, isToolUIPart } from 'ai'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { chunk } from 'es-toolkit'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import {
   type AgentSessionMessageRow as SessionMessageRow,
   agentSessionMessageTable as sessionMessagesTable,
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
 } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -60,6 +65,20 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
+import { agentSessionContextService, type RootProjectionCheckpoint } from './AgentSessionContextService'
+import { AgentSessionEditError } from './AgentSessionEditError'
+import { RuntimeForkAnchorSchema, type RuntimeForkCheckpoint } from './agentSessionForkContract'
+import {
+  advanceAgentSessionHeadTx,
+  agentSessionDescendantIds,
+  agentSessionPathIds,
+  ensureAgentSessionRootTx,
+  getAgentSessionHead,
+  orderAgentSessionPath,
+  readAgentSessionAncestry,
+  readAgentSessionPath,
+  validateAgentSessionParent
+} from './agentSessionMessageTree'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -84,12 +103,36 @@ export interface AgentSessionMessageRangeMetadata {
   readonly sessionId: string
 }
 
+function isLegacyMessage(): SQL {
+  return sql`NOT EXISTS (
+    SELECT 1 FROM agent_session_context AS native_context
+    JOIN agent_session_message AS native_input ON native_input.input_context_id = native_context.id
+    WHERE native_context.session_id = ${sessionMessagesTable.sessionId}
+      AND native_context.native_thread_id = COALESCE(
+        json_extract(${sessionMessagesTable.data}, '$.nativeSessionId'), ${sessionMessagesTable.runtimeResumeToken}
+      )
+  ) AND NOT EXISTS (
+    WITH RECURSIVE input_path(id, parent_id, role, input_context_id) AS (
+      SELECT candidate.id, candidate.parent_id, candidate.role, candidate.input_context_id
+        FROM agent_session_message AS candidate
+        WHERE candidate.id = ${sessionMessagesTable.id} AND candidate.session_id = ${sessionMessagesTable.sessionId}
+      UNION
+      SELECT parent.id, parent.parent_id, parent.role, parent.input_context_id
+        FROM agent_session_message AS parent JOIN input_path ON parent.id = input_path.parent_id
+        WHERE input_path.role != 'user' AND parent.session_id = ${sessionMessagesTable.sessionId}
+    )
+    SELECT 1 FROM input_path WHERE input_context_id IS NOT NULL
+      AND ${sessionMessagesTable.runtimeResumeToken} IS NULL
+      AND json_extract(${sessionMessagesTable.data}, '$.nativeSessionId') IS NULL
+  )`
+}
+
 function agentSessionMessageEntityJsonBytes(): SQL<number> {
   return sql<number>`length(cast(json_object(
     'id', ${sessionMessagesTable.id},
     'sessionId', ${sessionMessagesTable.sessionId},
     'role', ${sessionMessagesTable.role},
-    'data', json(${sessionMessagesTable.data}),
+    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.deliveryReplyAnchor'),
     'searchableText', ${sessionMessagesTable.searchableText},
     'status', ${sessionMessagesTable.status},
     'modelId', ${sessionMessagesTable.modelId},
@@ -145,8 +188,12 @@ type ListSessionMessagesOptions = {
 
 type SaveAgentSessionMessageParams = {
   sessionId: string
+  parentId?: string
+  deliveryReplyAnchor?: string
+  runtimeAnchor?: unknown
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
+  nativeContextId?: string
   message: CreateAgentSessionMessageDto & {
     delivery?: AgentSessionDeliveryEnvelope
     deliveryStatus?: AgentSessionDeliveryStatus
@@ -197,9 +244,9 @@ export class AgentSessionDeliveryRoutingError extends Error {
   }
 }
 
-type SaveAgentSessionMessageOptions =
-  | { db: DbOrTx; publishDataChange?: never }
-  | { db?: undefined; publishDataChange?: boolean }
+type SaveAgentSessionMessageOptions = {
+  projection?: RootProjectionCheckpoint
+} & ({ db: DbOrTx; publishDataChange?: never } | { db?: undefined; publishDataChange?: boolean })
 
 type SavedAgentSessionMessage = {
   entity: AgentSessionMessageEntity
@@ -218,7 +265,7 @@ function replaceAgentSessionMessageFileRefsTx(
     ...new Set(
       (data.parts ?? [])
         .filter((part) => part.type === 'file')
-        .map((part) => readCherryMeta(part)?.fileEntryId)
+        .flatMap((part) => [readCherryMeta(part)?.fileEntryId, readCherryMeta(part)?.workingFileEntryId])
         .filter((id): id is string => Boolean(id))
     )
   ]
@@ -282,7 +329,412 @@ function terminalResultData(
   return { parts: [{ type: 'text', text }] }
 }
 
+function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessageEntity['data'] {
+  const result = { ...data }
+  delete result.runtimeAnchor
+  delete result.nativeSessionId
+  delete result.deliveryReplyAnchor
+  return result
+}
+
 export class AgentSessionMessageService {
+  readWorkspaceRelocationHistory(workspaceId: string) {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({
+        messageId: sessionMessagesTable.id,
+        sessionId: sessionTable.id,
+        runtime: agentTable.type,
+        role: sessionMessagesTable.role,
+        status: sessionMessagesTable.status,
+        userText: sql<
+          string | null
+        >`case when ${sessionMessagesTable.role} = 'user' then ${sessionMessagesTable.searchableText} end`,
+        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`,
+        resumeToken: sessionMessagesTable.runtimeResumeToken,
+        checkpoint: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.runtimeAnchor.checkpoint')`
+      })
+      .from(sessionTable)
+      .leftJoin(
+        sessionMessagesTable,
+        and(eq(sessionTable.id, sessionMessagesTable.sessionId), ne(sessionMessagesTable.role, 'root'))
+      )
+      .leftJoin(agentTable, eq(agentTable.id, sessionTable.agentId))
+      .where(eq(sessionTable.workspaceId, workspaceId))
+      .all()
+  }
+
+  relocateCheckpointsTx(
+    tx: DbOrTx,
+    workspaceId: string,
+    checkpoints: readonly { messageId: string; checkpoint: RuntimeForkCheckpoint }[]
+  ): void {
+    for (const { messageId, checkpoint } of checkpoints) {
+      const result = tx
+        .update(sessionMessagesTable)
+        .set({
+          data: sql`json_set(${sessionMessagesTable.data}, '$.runtimeAnchor.checkpoint', json(${JSON.stringify(checkpoint)}))`,
+          updatedAt: sessionMessagesTable.updatedAt
+        })
+        .where(
+          and(
+            eq(sessionMessagesTable.id, messageId),
+            inArray(
+              sessionMessagesTable.sessionId,
+              tx.select({ id: sessionTable.id }).from(sessionTable).where(eq(sessionTable.workspaceId, workspaceId))
+            )
+          )
+        )
+        .run()
+      if (result.changes !== 1) throw new Error('Session message changed during relocation')
+    }
+  }
+
+  hasContextInput(sessionId: string, contextId: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.inputContextId, contextId)))
+        .limit(1)
+        .get()
+    )
+  }
+
+  inputBinding(sessionId: string, messageId: string) {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ contextId: sessionMessagesTable.inputContextId, nativeInputId: sessionMessagesTable.nativeInputId })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.id, messageId),
+          eq(sessionMessagesTable.role, 'user'),
+          isNotNull(sessionMessagesTable.inputContextId)
+        )
+      )
+      .get()
+  }
+
+  inputMessageId(sessionId: string, contextId: string, nativeInputId: string): string | undefined {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.inputContextId, contextId),
+          eq(sessionMessagesTable.nativeInputId, nativeInputId),
+          eq(sessionMessagesTable.role, 'user')
+        )
+      )
+      .get()?.id
+  }
+
+  bindInputContextTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string): SessionMessageRow {
+    this.assertActiveSession(tx, sessionId)
+    const row = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (!row || row.role !== 'user') throw new Error('Input binding requires a retained user message')
+    const context = tx.select().from(agentSessionContextTable).where(eq(agentSessionContextTable.id, contextId)).get()
+    if (!context || context.sessionId !== sessionId) throw new Error('Input context does not belong to this session')
+    if (row.inputContextId) throw new Error('Message already bound; create a new input')
+    tx.update(sessionMessagesTable)
+      .set({ inputContextId: contextId })
+      .where(eq(sessionMessagesTable.id, messageId))
+      .run()
+    return row
+  }
+
+  bindNativeInputTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string, nativeInputId: string): void {
+    const row = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (
+      row?.role !== 'user' ||
+      row.inputContextId !== contextId ||
+      (row.nativeInputId && row.nativeInputId !== nativeInputId)
+    )
+      throw new Error('Native input identity changed')
+    if (row.nativeInputId === nativeInputId) return
+    tx.update(sessionMessagesTable).set({ nativeInputId }).where(eq(sessionMessagesTable.id, messageId)).run()
+  }
+
+  releaseInputBindingTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string): void {
+    tx.update(sessionMessagesTable)
+      .set({ inputContextId: null })
+      .where(
+        and(
+          eq(sessionMessagesTable.id, messageId),
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.inputContextId, contextId),
+          isNull(sessionMessagesTable.nativeInputId)
+        )
+      )
+      .run()
+  }
+
+  captureHead(sessionId: string): string {
+    return application.get('DbService').withWriteTx((tx) => {
+      this.assertActiveSession(tx, sessionId)
+      return getAgentSessionHead(tx, sessionId) ?? ensureAgentSessionRootTx(tx, sessionId)
+    })
+  }
+
+  sharesBranch(sessionId: string, left: string, right: string): boolean {
+    const db = application.get('DbService').getDb()
+    return (
+      left === right ||
+      readAgentSessionAncestry(db, sessionId, left).some((row) => row.id === right) ||
+      readAgentSessionAncestry(db, sessionId, right).some((row) => row.id === left)
+    )
+  }
+
+  branchTip(sessionId: string, messageId: string, db: DbOrTx = application.get('DbService').getDb()): string {
+    validateAgentSessionParent(db, sessionId, messageId)
+    let head = messageId
+    for (;;) {
+      const child = db
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.parentId, head)))
+        .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+        .get()
+      if (!child) return head
+      head = child.id
+    }
+  }
+
+  selectBranch(sessionId: string, messageId: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      this.assertActiveSession(tx, sessionId)
+      const head = this.branchTip(sessionId, messageId, tx)
+      tx.update(sessionTable).set({ activeNodeId: head }).where(eq(sessionTable.id, sessionId)).run()
+    })
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } }
+    ])
+  }
+
+  readEditSnapshotTx(tx: DbOrTx, sessionId: string, messageId: string) {
+    const { index, ...snapshot } = this.readEditVersionTx(tx, sessionId, messageId)
+    return {
+      ...snapshot,
+      prefix: this.applyForkCheckpointsTx(tx, sessionId, messageId, snapshot.rows.slice(0, index))
+    }
+  }
+
+  private readEditVersionTx(tx: DbOrTx, sessionId: string, messageId: string) {
+    this.assertActiveSession(tx, sessionId)
+    const source = tx
+      .select({ session: sessionTable, workspace: agentWorkspaceTable })
+      .from(sessionTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionTable.id, sessionId))
+      .get()!
+    const rows = readAgentSessionPath(tx, sessionId)
+    const index = rows.findIndex((row) => row.id === messageId)
+    const user = rows[index]
+    if (!user || user.role !== 'user' || user.delivery || source.session.type !== 'conversation')
+      throw new AgentSessionEditError('invalid_target')
+    if (
+      tx
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          or(
+            and(
+              eq(sessionMessagesTable.sessionId, sessionId),
+              or(
+                inArray(sessionMessagesTable.status, ['pending', 'streaming']),
+                inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+              )
+            ),
+            and(
+              eq(sessionMessagesTable.deliverySenderSessionId, sessionId),
+              inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+            )
+          )
+        )
+        .limit(1)
+        .get()
+    )
+      throw new AgentSessionEditError('busy')
+    return {
+      ...source,
+      rows,
+      user,
+      index,
+      version: createHash('sha256').update(JSON.stringify({ source, rows })).digest('hex')
+    }
+  }
+
+  replaceEditBranchTx(tx: DbOrTx, sessionId: string, target: { messageId: string; version: string }): void {
+    const snapshot = this.readEditVersionTx(tx, sessionId, target.messageId)
+    if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
+    const replaced = and(
+      eq(sessionMessagesTable.sessionId, sessionId),
+      inArray(sessionMessagesTable.id, agentSessionDescendantIds(sessionId, target.messageId))
+    )
+    const rows = tx.select({ id: sessionMessagesTable.id }).from(sessionMessagesTable).where(replaced).all()
+    agentSessionContextService.removeRootMessagesTx(
+      tx,
+      sessionId,
+      rows.map((row) => row.id)
+    )
+    tx.update(sessionTable).set({ activeNodeId: snapshot.user.parentId }).where(eq(sessionTable.id, sessionId)).run()
+    tx.delete(sessionMessagesTable).where(replaced).run()
+  }
+
+  hasRuntimeResumeToken(sessionId: string, resumeToken: string, contextId?: string): boolean {
+    if (
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: agentSessionContextTable.id })
+        .from(agentSessionContextTable)
+        .where(
+          and(
+            eq(agentSessionContextTable.sessionId, sessionId),
+            contextId ? eq(agentSessionContextTable.id, contextId) : undefined,
+            eq(agentSessionContextTable.bindingState, 'bound'),
+            eq(agentSessionContextTable.nativeThreadId, resumeToken)
+          )
+        )
+        .get()
+    )
+      return true
+    if (contextId) return false
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.runtimeResumeToken, resumeToken))
+        )
+        .limit(1)
+        .get()
+    )
+  }
+
+  setEditRuntimeTx(tx: DbOrTx, sessionId: string, userMessageId: string, nativeSessionId: string): void {
+    tx.update(sessionMessagesTable)
+      .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.nativeSessionId', ${nativeSessionId})` })
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, userMessageId)))
+      .run()
+  }
+
+  private nativePath(sessionId: string, messageId?: string) {
+    const db = application.get('DbService').getDb()
+    const head = messageId ?? getAgentSessionHead(db, sessionId)
+    if (!head) return []
+    const rows = db
+      .select({
+        id: sessionMessagesTable.id,
+        parentId: sessionMessagesTable.parentId,
+        runtimeResumeToken: sessionMessagesTable.runtimeResumeToken,
+        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`
+      })
+      .from(sessionMessagesTable)
+      .where(inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head)))
+      .all()
+    return orderAgentSessionPath(rows, head)
+  }
+
+  getNativeSessionId(sessionId: string, messageId?: string): string | undefined {
+    const rows = this.nativePath(sessionId, messageId).toReversed()
+    const row = rows.find((row) => row.nativeSessionId || row.runtimeResumeToken)
+    return row?.nativeSessionId ?? row?.runtimeResumeToken ?? undefined
+  }
+
+  /** Main-only native fork read. API callers must never receive these raw rows. */
+  readForkPrefixTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageId: string,
+    excludedIds: readonly string[] = []
+  ): SessionMessageRow[] | undefined {
+    const rows = readAgentSessionPath(tx, sessionId, messageId)
+    if (!rows.some((row) => row.id === messageId)) return undefined
+    const excluded = new Set(excludedIds)
+    return this.applyForkCheckpointsTx(
+      tx,
+      sessionId,
+      messageId,
+      rows.filter((row) => !excluded.has(row.id))
+    )
+  }
+
+  private applyForkCheckpointsTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageId: string,
+    rows: SessionMessageRow[]
+  ): SessionMessageRow[] {
+    const context = agentSessionContextService.branchTx(tx, sessionId, messageId)
+    const mapping = context?.checkpointMapping?.fork
+    return rows.map((row) => {
+      const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+      const checkpoint = mapping?.[row.id]
+      return checkpoint && anchor.success && context
+        ? {
+            ...row,
+            runtimeResumeToken: context.nativeThreadId,
+            data: { ...row.data, runtimeAnchor: { ...anchor.data, checkpoint } }
+          }
+        : row
+    })
+  }
+
+  /** Inserts historical facts only, never delivery, billing, queue or approval ownership. */
+  insertForkMessagesTx(tx: DbOrTx, sessionId: string, rows: readonly SessionMessageRow[]): void {
+    let parentId = ensureAgentSessionRootTx(tx, sessionId)
+    for (const row of rows) {
+      tx.insert(sessionMessagesTable)
+        .values({
+          id: row.id,
+          parentId,
+          sessionId,
+          role: row.role,
+          data: row.data,
+          status: row.status,
+          modelId: row.modelId,
+          messageSnapshot: row.messageSnapshot,
+          runtimeResumeToken: row.runtimeResumeToken,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt
+        })
+        .run()
+      replaceAgentSessionMessageFileRefsTx(tx, row.id, row.data)
+      advanceAgentSessionHeadTx(tx, sessionId, parentId, row.id)
+      parentId = row.id
+    }
+  }
+
+  private invalidateForkPrefixTx(tx: DbOrTx, sessionId: string, messageId: string): void {
+    const row = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (!row) return
+    tx.update(sessionMessagesTable)
+      .set({
+        data: sql`json_remove(${sessionMessagesTable.data}, '$.runtimeAnchor')`,
+        updatedAt: Date.now()
+      })
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          inArray(sessionMessagesTable.id, agentSessionDescendantIds(sessionId, messageId)),
+          sql`json_type(${sessionMessagesTable.data}, '$.runtimeAnchor') is not null`
+        )
+      )
+      .run()
+  }
+
   search(query: SessionMessageContentSearchInput) {
     const db = application.get('DbService').getDb()
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
@@ -310,7 +762,8 @@ export class AgentSessionMessageService {
           JOIN agent_session_message_fts fts ON sm.fts_rowid = fts.rowid
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
-          WHERE sm.searchable_text != ''
+          WHERE s.type = 'conversation' AND sm.searchable_text != ''
+            AND s.deleted_at IS NULL
             AND ${messageSessionCondition}
             AND ${createdAtCondition}
             AND ${sql.join(ftsConditions, sql` AND `)}
@@ -366,7 +819,8 @@ export class AgentSessionMessageService {
         JOIN agent_session_message sm ON sm.fts_rowid = agent_session_message_fts.rowid
         JOIN agent_session s ON s.id = sm.session_id
         LEFT JOIN agent a ON a.id = s.agent_id
-        WHERE agent_session_message_fts MATCH ${matchQuery}
+        WHERE s.type = 'conversation' AND agent_session_message_fts MATCH ${matchQuery}
+            AND s.deleted_at IS NULL
           AND ${agentCondition}
           AND ${addressableCondition}
           ${shortTermConditions.length > 0 ? sql`AND ${sql.join(shortTermConditions, sql` AND `)}` : sql``}
@@ -417,7 +871,8 @@ export class AgentSessionMessageService {
           FROM agent_session_message sm
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
-          WHERE ${agentCondition}
+          WHERE s.type = 'conversation' AND ${agentCondition}
+            AND s.deleted_at IS NULL
             AND ${addressableCondition}
             AND ${sql.join(conditions, sql` AND `)}
           ORDER BY length(sm.searchable_text), sm.created_at DESC, sm.id DESC
@@ -453,6 +908,7 @@ export class AgentSessionMessageService {
         .where(
           and(
             eq(sessionMessagesTable.sessionId, sessionId),
+            ne(sessionMessagesTable.role, 'root'),
             excludingMessageId ? ne(sessionMessagesTable.id, excludingMessageId) : undefined
           )
         )
@@ -465,7 +921,7 @@ export class AgentSessionMessageService {
     return this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId) !== null
   }
 
-  listCreatedInRangeMetadataPage({
+  listLiveCreatedInRangeMetadataPage({
     fromMs,
     toMs,
     cursor: rawCursor,
@@ -491,10 +947,13 @@ export class AgentSessionMessageService {
         sessionId: sessionMessagesTable.sessionId
       })
       .from(sessionMessagesTable)
+      .innerJoin(sessionTable, eq(sessionTable.id, sessionMessagesTable.sessionId))
       .where(
         and(
+          ne(sessionMessagesTable.role, 'root'),
           gte(sessionMessagesTable.createdAt, fromMs),
           lte(sessionMessagesTable.createdAt, toMs),
+          isNull(sessionTable.deletedAt),
           cursor ? ordering.where(cursor) : undefined
         )
       )
@@ -506,7 +965,10 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const tail = pageRows[pageRows.length - 1]
     return {
-      items: pageRows.map((row) => ({ ...row, createdAt: timestampToISO(row.createdAt) })),
+      items: pageRows.map((row) => ({
+        ...row,
+        createdAt: timestampToISO(row.createdAt)
+      })),
       nextCursor: hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
     }
   }
@@ -523,13 +985,7 @@ export class AgentSessionMessageService {
   ): CursorPaginationResponse<AgentSessionMessageEntity> {
     const database = application.get('DbService').getDb()
 
-    const [session] = database
-      .select({ id: sessionTable.id })
-      .from(sessionTable)
-      .where(eq(sessionTable.id, sessionId))
-      .limit(1)
-      .all()
-    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+    this.assertActiveSession(database, sessionId)
 
     const limit = Math.min(options.limit ?? AGENT_SESSION_MESSAGES_DEFAULT_LIMIT, AGENT_SESSION_MESSAGES_MAX_LIMIT)
     const ordering = keysetOrdering(sessionMessagesTable.createdAt, sessionMessagesTable.id, {
@@ -537,15 +993,14 @@ export class AgentSessionMessageService {
       tie: 'desc'
     })
     const cursor = decodeListCursor(options.cursor, asNumericKey, 'agent-session-message')
-    const [anchor] =
-      !options.cursor && options.messageId
-        ? database
-            .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
-            .from(sessionMessagesTable)
-            .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, options.messageId)))
-            .limit(1)
-            .all()
-        : []
+    const [anchor] = options.messageId
+      ? database
+          .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
+          .from(sessionMessagesTable)
+          .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, options.messageId)))
+          .limit(1)
+          .all()
+      : []
     if (!options.cursor && options.messageId && !anchor) {
       logger.warn('Session message anchor not found, falling back to newest page', {
         sessionId,
@@ -553,7 +1008,12 @@ export class AgentSessionMessageService {
       })
     }
 
-    const filters = [eq(sessionMessagesTable.sessionId, sessionId)]
+    const head = anchor?.id ?? getAgentSessionHead(database, sessionId)
+    const filters = [
+      eq(sessionMessagesTable.sessionId, sessionId),
+      ne(sessionMessagesTable.role, 'root'),
+      head ? inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head)) : sql`0`
+    ]
     if (cursor) {
       filters.push(ordering.where(cursor))
     } else if (anchor) {
@@ -576,11 +1036,43 @@ export class AgentSessionMessageService {
 
     const hasNext = rows.length > limit
     const pageRows = hasNext ? rows.slice(0, limit) : rows
-    const items = pageRows.map((row) => this.rowToEntity(row))
+    const parents = pageRows.flatMap((row) => (row.parentId ? [row.parentId] : []))
+    const siblings = parents.length
+      ? database
+          .select({ id: sessionMessagesTable.id, parentId: sessionMessagesTable.parentId })
+          .from(sessionMessagesTable)
+          .where(and(eq(sessionMessagesTable.sessionId, sessionId), inArray(sessionMessagesTable.parentId, parents)))
+          .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+          .all()
+      : []
+    const items = pageRows.map((row) => ({
+      ...this.rowToEntity(row),
+      siblings: siblings.filter((sibling) => sibling.parentId === row.parentId).map((sibling) => sibling.id)
+    }))
     const tail = pageRows[pageRows.length - 1]
     const nextCursor = hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
 
     return { items, nextCursor }
+  }
+
+  listApprovalMessages(sessionId: string): AgentSessionMessageEntity[] {
+    const database = application.get('DbService').getDb()
+    this.assertActiveSession(database, sessionId)
+    return database
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          sql`exists (
+        select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+        where json_extract(part.value, '$.approval.id') is not null
+      )`
+        )
+      )
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .all()
+      .map((row) => this.rowToEntity(row))
   }
 
   deleteSessionMessage(sessionId: string, messageId: string): void {
@@ -589,13 +1081,7 @@ export class AgentSessionMessageService {
     }
     const database = application.get('DbService').getDb()
 
-    const [session] = database
-      .select({ id: sessionTable.id })
-      .from(sessionTable)
-      .where(eq(sessionTable.id, sessionId))
-      .limit(1)
-      .all()
-    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+    this.assertActiveSession(database, sessionId)
 
     const existing = this.findExistingMessageRow(database, sessionId, messageId)
     if (existing?.deliveryStatus === 'accepted' || existing?.deliveryStatus === 'delivering') {
@@ -603,18 +1089,22 @@ export class AgentSessionMessageService {
     }
 
     const result = withSqliteErrors(
-      () => this.deleteSessionMessageTx(database, sessionId, messageId),
+      () => application.get('DbService').withWriteTx((tx) => this.deleteSessionMessageTx(tx, sessionId, messageId)),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } }
+    ])
   }
 
   getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
     const database = application.get('DbService').getDb()
+    this.assertActiveSession(database, sessionId)
     const row = this.findExistingMessageRow(database, sessionId, messageId)
-    if (!row) throw DataApiErrorFactory.notFound('Message', messageId)
+    if (!row || row.role === 'root') throw DataApiErrorFactory.notFound('Message', messageId)
     return this.rowToEntity(row)
   }
 
@@ -623,14 +1113,19 @@ export class AgentSessionMessageService {
     messageId: string,
     dto: UpdateAgentSessionMessageDto
   ): AgentSessionMessageEntity {
-    return application.get('DbService').withWriteTx((tx) => {
+    const message = application.get('DbService').withWriteTx((tx) => {
+      this.assertActiveSession(tx, sessionId)
       const existing = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
+      if (existing.inputContextId || existing.data.nativeSessionId || existing.role === 'root')
+        throw DataApiErrorFactory.resourceLocked('Message', messageId, 'native input binding')
 
       const updatedAt = Date.now()
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
-      const mergedData = { ...existing.data, ...dto.data }
+      const mergedData: SessionMessageRow['data'] = publicMessageData({ ...existing.data, ...dto.data })
+      if (existing.data.deliveryReplyAnchor) mergedData.deliveryReplyAnchor = existing.data.deliveryReplyAnchor
+      this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)
         .set({ data: mergedData, updatedAt })
@@ -641,9 +1136,42 @@ export class AgentSessionMessageService {
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+    ])
+    return message
   }
 
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
+    const existing = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (existing?.role === 'root')
+      throw DataApiErrorFactory.resourceLocked('Message', messageId, 'the conversation root')
+    const ownsPendingReply = tx
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          sql`json_extract(${sessionMessagesTable.data}, '$.deliveryReplyAnchor') = ${messageId}`,
+          inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+        )
+      )
+      .limit(1)
+      .get()
+    if (existing?.inputContextId || existing?.data.nativeSessionId || ownsPendingReply) {
+      throw DataApiErrorFactory.resourceLocked('Message', messageId, 'native input binding')
+    }
+    this.invalidateForkPrefixTx(tx, sessionId, messageId)
+    if (existing) {
+      agentSessionContextService.removeRootMessagesTx(tx, sessionId, [messageId])
+      tx.update(sessionMessagesTable)
+        .set({ parentId: existing.parentId })
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.parentId, messageId)))
+        .run()
+      tx.update(sessionTable)
+        .set({ activeNodeId: existing.parentId })
+        .where(and(eq(sessionTable.id, sessionId), eq(sessionTable.activeNodeId, messageId)))
+        .run()
+    }
     const result = tx
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
@@ -651,8 +1179,8 @@ export class AgentSessionMessageService {
     return { rowsAffected: result.changes }
   }
 
-  /** Assistant rows whose in-memory owner cannot survive a main-process restart. */
-  findCrashOrphanedAssistantMessages(): Array<{
+  /** Legacy orphans plus native agent types whose caller owns restart terminalization. */
+  findCrashOrphanedAssistantMessages(includeNativeAgentTypes: readonly string[] = []): Array<{
     id: string
     sessionId: string
     data: AgentSessionMessageEntity['data']
@@ -668,6 +1196,20 @@ export class AgentSessionMessageService {
       .where(
         and(
           eq(sessionMessagesTable.role, 'assistant'),
+          or(
+            isLegacyMessage(),
+            includeNativeAgentTypes.length > 0
+              ? sql`EXISTS (
+                  SELECT 1 FROM agent_session AS owner_session
+                  JOIN agent AS owner_agent ON owner_agent.id = owner_session.agent_id
+                  WHERE owner_session.id = ${sessionMessagesTable.sessionId}
+                    AND owner_agent.type IN (${sql.join(
+                      includeNativeAgentTypes.map((type) => sql`${type}`),
+                      sql`, `
+                    )})
+                )`
+              : undefined
+          ),
           or(
             eq(sessionMessagesTable.status, 'pending'),
             sql<boolean>`exists (
@@ -687,7 +1229,7 @@ export class AgentSessionMessageService {
 
   /**
    * Boot reconcile of crash-orphaned `pending` rows: resolve each row to `error` (with the
-   * caller's terminalized `data`) and discard the affected sessions' resume tokens, atomically.
+   * caller's terminalized `data`) and discard only legacy resume tokens, atomically.
    * A crashed turn leaves the external CLI session in an untrusted state — resuming it can replay
    * a runaway execution (#18281) — so the next connection must start without a token.
    */
@@ -701,13 +1243,13 @@ export class AgentSessionMessageService {
       for (const message of messages) {
         tx.update(sessionMessagesTable)
           .set({ status: 'error', data: message.data, updatedAt })
-          .where(eq(sessionMessagesTable.id, message.id))
+          .where(and(eq(sessionMessagesTable.id, message.id), eq(sessionMessagesTable.role, 'assistant')))
           .run()
       }
       if (sessionIds.length > 0) {
         tx.update(sessionMessagesTable)
           .set({ runtimeResumeToken: null })
-          .where(inArray(sessionMessagesTable.sessionId, sessionIds))
+          .where(and(inArray(sessionMessagesTable.sessionId, sessionIds), isLegacyMessage()))
           .run()
       }
     })
@@ -738,7 +1280,7 @@ export class AgentSessionMessageService {
       id: row.id,
       sessionId: row.sessionId,
       role: row.role as AgentSessionMessageEntity['role'],
-      data: row.data,
+      data: publicMessageData(row.data),
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],
       modelId: row.modelId,
@@ -759,32 +1301,117 @@ export class AgentSessionMessageService {
     }
   }
 
-  getLastRuntimeResumeToken(sessionId: string): string | null {
-    try {
-      const database = application.get('DbService').getDb()
-      const result = database
-        .select({ runtimeResumeToken: sessionMessagesTable.runtimeResumeToken })
-        .from(sessionMessagesTable)
-        .where(and(eq(sessionMessagesTable.sessionId, sessionId), isNotNull(sessionMessagesTable.runtimeResumeToken)))
-        .orderBy(desc(sessionMessagesTable.createdAt))
-        .limit(1)
-        .all()
-
-      logger.silly('Last runtime resume token result:', {
-        runtimeResumeToken: result[0]?.runtimeResumeToken,
-        sessionId
-      })
-      return result[0]?.runtimeResumeToken ?? null
-    } catch (error) {
-      logger.error('Failed to get last runtime resume token', {
-        sessionId,
-        error
-      })
-      throw error
+  getLastRuntimeResumeToken(sessionId: string, messageId?: string): string | null {
+    const db = application.get('DbService').getDb()
+    const path = this.nativePath(sessionId, messageId)
+    for (const row of path.toReversed()) {
+      if (row.runtimeResumeToken) return row.runtimeResumeToken
+      if (row.nativeSessionId) {
+        const context = agentSessionContextService.branchTx(db, sessionId, row.id)
+        return context?.bindingState === 'bound' ? context.nativeThreadId : null
+      }
     }
+    return null
+  }
+
+  /**
+   * Every resume token still claimed by a session row — the keep-set for the
+   * agent orphan sweep. Trashed sessions are included (their message rows
+   * survive), so a trashed session's runtime state is only reclaimed once the
+   * session is purged and the FK cascade drops its tokens.
+   */
+  listAllRuntimeResumeTokens(): Set<string> {
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .selectDistinct({ runtimeResumeToken: sessionMessagesTable.runtimeResumeToken })
+      .from(sessionMessagesTable)
+      .where(isNotNull(sessionMessagesTable.runtimeResumeToken))
+      .all()
+    const bindings = application
+      .get('DbService')
+      .getDb()
+      .select({ nativeThreadId: agentSessionContextTable.nativeThreadId })
+      .from(agentSessionContextTable)
+      .where(isNotNull(agentSessionContextTable.nativeThreadId))
+      .all()
+    return new Set([
+      ...rows.flatMap((row) => (row.runtimeResumeToken ? [row.runtimeResumeToken] : [])),
+      ...bindings.flatMap((row) => (row.nativeThreadId ? [row.nativeThreadId] : []))
+    ])
+  }
+
+  listRuntimeResumeTokensBySession(sessionIds: readonly string[]): Map<string, Set<string>> {
+    const tokensBySession = new Map<string, Set<string>>()
+    if (sessionIds.length === 0) return tokensBySession
+    const db = application.get('DbService').getDb()
+    const owners = [
+      ...new Map(
+        chunk([...sessionIds], SQLITE_INARRAY_CHUNK)
+          .flatMap((idChunk) =>
+            db
+              .select({ id: sessionTable.id, owner: sessionTable.ownerSessionId })
+              .from(sessionTable)
+              .where(or(inArray(sessionTable.id, idChunk), inArray(sessionTable.ownerSessionId, idChunk)))
+              .all()
+          )
+          .map((row) => [row.id, row] as const)
+      ).values()
+    ]
+    if (!owners.length) return tokensBySession
+    const requested = new Set(sessionIds)
+    const destinations = new Map(
+      owners.map(({ id, owner }) => [id, [id, owner].filter((key): key is string => !!key && requested.has(key))])
+    )
+    const collect = (sessionId: string, token: string | null) => {
+      if (!token) return
+      for (const owner of destinations.get(sessionId) ?? []) {
+        const tokens = tokensBySession.get(owner) ?? new Set<string>()
+        tokens.add(token)
+        tokensBySession.set(owner, tokens)
+      }
+    }
+    for (const idChunk of chunk(
+      owners.map(({ id }) => id),
+      SQLITE_INARRAY_CHUNK
+    )) {
+      const rows = db
+        .selectDistinct({
+          sessionId: sessionMessagesTable.sessionId,
+          runtimeResumeToken: sessionMessagesTable.runtimeResumeToken
+        })
+        .from(sessionMessagesTable)
+        .where(
+          and(inArray(sessionMessagesTable.sessionId, idChunk), isNotNull(sessionMessagesTable.runtimeResumeToken))
+        )
+        .all()
+      for (const row of rows) collect(row.sessionId, row.runtimeResumeToken)
+      const bindings = db
+        .select({
+          sessionId: agentSessionContextTable.sessionId,
+          nativeThreadId: agentSessionContextTable.nativeThreadId
+        })
+        .from(agentSessionContextTable)
+        .where(inArray(agentSessionContextTable.sessionId, idChunk))
+        .all()
+      for (const binding of bindings) {
+        collect(binding.sessionId, binding.nativeThreadId)
+      }
+    }
+    return tokensBySession
   }
 
   // ── Persistence methods ──────────────────────────────────────────
+
+  private assertActiveSession(db: DbOrTx, sessionId: string): void {
+    const [session] = db
+      .select({ id: sessionTable.id })
+      .from(sessionTable)
+      .where(and(eq(sessionTable.id, sessionId), isNull(sessionTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+  }
 
   private findExistingMessageRow(db: DbOrTx, sessionId: string, messageId: string): SessionMessageRow | null {
     const rows = db
@@ -815,8 +1442,19 @@ export class AgentSessionMessageService {
     }
 
     const existingRow = this.findExistingMessageRow(db, sessionId, messageId)
+    const data: SessionMessageRow['data'] = publicMessageData(message.data)
+    if (params.runtimeAnchor) data.runtimeAnchor = params.runtimeAnchor
+    if (params.deliveryReplyAnchor) data.deliveryReplyAnchor = params.deliveryReplyAnchor
 
     if (existingRow) {
+      if (
+        existingRow.inputContextId &&
+        (JSON.stringify(existingRow.data.parts) !== JSON.stringify(data.parts) || message.role !== existingRow.role)
+      ) {
+        throw DataApiErrorFactory.resourceLocked('Message', messageId, 'native input binding')
+      }
+      if (existingRow.data.deliveryReplyAnchor) data.deliveryReplyAnchor = existingRow.data.deliveryReplyAnchor
+      if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
@@ -848,7 +1486,7 @@ export class AgentSessionMessageService {
             .set({
               role: message.role,
               status,
-              data: message.data,
+              data,
               modelId,
               messageSnapshot,
               stats,
@@ -871,7 +1509,7 @@ export class AgentSessionMessageService {
           ...existingRow,
           role: message.role,
           status,
-          data: message.data,
+          data,
           searchableText: existingRow.searchableText,
           modelId,
           messageSnapshot,
@@ -889,12 +1527,15 @@ export class AgentSessionMessageService {
       }
     }
 
+    const parentId = params.parentId ?? getAgentSessionHead(db, sessionId) ?? ensureAgentSessionRootTx(db, sessionId)
+    validateAgentSessionParent(db, sessionId, parentId)
     const insertData: InsertSessionMessageRow = {
+      parentId,
       id: messageId,
       sessionId,
       role: message.role,
       status,
-      data: message.data,
+      data,
       modelId: message.modelId,
       messageSnapshot: message.messageSnapshot,
       stats: mergeMessageRuntimeStats(undefined, runtimeStats) ?? null,
@@ -910,6 +1551,7 @@ export class AgentSessionMessageService {
 
     const [saved] = db.insert(sessionMessagesTable).values(insertData).returning().all()
     replaceAgentSessionMessageFileRefsTx(db, saved.id, message.data)
+    advanceAgentSessionHeadTx(db, sessionId, parentId, saved.id)
     return {
       entity: this.rowToEntity(saved),
       dataChange: 'membership',
@@ -923,6 +1565,15 @@ export class AgentSessionMessageService {
     timestampMs = Date.now()
   ): SavedAgentSessionMessage {
     const result = this.upsertMessage(db, params, timestampMs)
+    if (params.nativeContextId && params.runtimeResumeToken) {
+      agentSessionContextService.confirmBranchTx(
+        db,
+        params.nativeContextId,
+        params.sessionId,
+        result.entity.id,
+        params.runtimeResumeToken
+      )
+    }
     agentSessionService.touchUpdatedAtTx(db, params.sessionId, timestampMs)
     if (result.activityTimestamp !== null) {
       agentSessionService.advanceLastActivityAtTx(db, params.sessionId, result.activityTimestamp)
@@ -936,8 +1587,13 @@ export class AgentSessionMessageService {
   ): AgentSessionMessageEntity {
     const { db, publishDataChange } = options
     const timestampMs = Date.now()
-    if (db) return this.saveMessageTx(db, params, timestampMs).entity
-    const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    const persist = (tx: DbOrTx) => {
+      const saved = this.saveMessageTx(tx, params, timestampMs)
+      if (options.projection) agentSessionContextService.saveRootProjectionTx(tx, params.sessionId, options.projection)
+      return saved
+    }
+    if (db) return persist(db).entity
+    const result = application.get('DbService').withWriteTx(persist)
     if (result.entity.role === 'assistant') {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
@@ -959,7 +1615,7 @@ export class AgentSessionMessageService {
   }
 
   saveMessages(
-    params: CreateAgentSessionMessagesDto,
+    params: CreateAgentSessionMessagesDto & { parentId?: string },
     expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
   ): AgentSessionMessageEntity[] {
     const { entities: saved, activityTimestamp } = application
@@ -978,23 +1634,58 @@ export class AgentSessionMessageService {
 
   saveMessagesTx(
     tx: DbOrTx,
-    params: CreateAgentSessionMessagesDto,
+    params: CreateAgentSessionMessagesDto & { parentId?: string },
     expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
   ): AgentSessionMessageEntity[] {
     return this.saveMessagesWithActivityTx(tx, params, expectedAgent).entities
   }
 
+  /** Reconciles a child archive's proven source order without editing a product conversation branch. */
+  orderChildArchiveTx(tx: DbOrTx, sessionId: string, order: readonly string[], removed: readonly string[] = []): void {
+    const session = tx.select().from(sessionTable).where(eq(sessionTable.id, sessionId)).get()
+    if (!session?.ownerSessionId) throw new Error('Only owned child archives can reconcile message order')
+    const rows = tx
+      .select({ id: sessionMessagesTable.id, parentId: sessionMessagesTable.parentId, role: sessionMessagesTable.role })
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.sessionId, sessionId))
+      .all()
+    const byId = new Map(rows.filter((row) => row.role !== 'root').map((row) => [row.id, row]))
+    const priorPath = new Set(
+      readAgentSessionAncestry(tx, sessionId, session.activeNodeId ?? ensureAgentSessionRootTx(tx, sessionId)).map(
+        (row) => row.id
+      )
+    )
+    const ordered = new Set(order)
+    const removedIds = new Set(removed)
+    if (
+      ordered.size !== order.length ||
+      order.some((id) => !byId.has(id)) ||
+      [...priorPath].some((id) => byId.has(id) && !ordered.has(id) && !removedIds.has(id))
+    )
+      throw new Error('Child archive order must retain messages without explicit removal')
+    let parentId = ensureAgentSessionRootTx(tx, sessionId)
+    for (const id of order) {
+      if (byId.get(id)!.parentId !== parentId)
+        tx.update(sessionMessagesTable).set({ parentId }).where(eq(sessionMessagesTable.id, id)).run()
+      parentId = id
+    }
+    tx.update(sessionTable).set({ activeNodeId: parentId }).where(eq(sessionTable.id, sessionId)).run()
+  }
+
   private saveMessagesWithActivityTx(
     tx: DbOrTx,
-    params: CreateAgentSessionMessagesDto,
+    params: CreateAgentSessionMessagesDto & { parentId?: string },
     expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
   ): { entities: AgentSessionMessageEntity[]; activityTimestamp: number | null } {
     const { sessionId, runtimeResumeToken, messages } = params
     this.assertExpectedAgentTx(tx, sessionId, expectedAgent)
     const timestampMs = Date.now()
-    const saved = messages.map((message) =>
-      this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs)
-    )
+    let parentId = params.parentId
+    const saved = messages.map((message) => {
+      const result = this.upsertMessage(tx, { sessionId, runtimeResumeToken, message, parentId }, timestampMs)
+      parentId = this.branchTip(sessionId, result.entity.id, tx)
+      return result
+    })
     const activityTimestamp = saved.reduce<number | null>(
       (latest, result) =>
         result.activityTimestamp === null
@@ -1019,6 +1710,7 @@ export class AgentSessionMessageService {
   acceptSessionDelivery(input: {
     senderAgentId: string
     senderSessionId: string
+    senderMessageId?: string
     receiverSessionId: string
     content: string
     replyPolicy?: AgentSessionDeliveryReplyPolicy
@@ -1037,10 +1729,12 @@ export class AgentSessionMessageService {
     return saved
   }
 
-  /** Atomically create a same-Agent Session and persist its first durable delivery. */
+  /** Atomically create a Session and persist its first durable delivery. */
   createSessionWithDelivery(input: {
     senderAgentId: string
     senderSessionId: string
+    senderMessageId?: string
+    targetAgentId?: string
     sessionName: string
     workspace: AgentSessionWorkspaceSource
     content: string
@@ -1053,13 +1747,14 @@ export class AgentSessionMessageService {
       () =>
         application.get('DbService').withWriteTx((tx) => {
           agentSessionService.createTx(tx, sessionId, {
-            agentId: input.senderAgentId,
+            agentId: input.targetAgentId ?? input.senderAgentId,
             name: input.sessionName,
             workspace: input.workspace
           })
           return this.acceptSessionDeliveryTx(tx, {
             senderAgentId: input.senderAgentId,
             senderSessionId: input.senderSessionId,
+            senderMessageId: input.senderMessageId,
             receiverSessionId: sessionId,
             content,
             replyPolicy: 'completion'
@@ -1087,6 +1782,7 @@ export class AgentSessionMessageService {
     input: {
       senderAgentId: string
       senderSessionId: string
+      senderMessageId?: string
       receiverSessionId: string
       content: string
       replyPolicy?: AgentSessionDeliveryReplyPolicy
@@ -1096,7 +1792,7 @@ export class AgentSessionMessageService {
       .select({ agentId: sessionTable.agentId, agentName: agentTable.name, sessionName: sessionTable.name })
       .from(sessionTable)
       .leftJoin(agentTable, and(eq(sessionTable.agentId, agentTable.id), isNull(agentTable.deletedAt)))
-      .where(eq(sessionTable.id, input.senderSessionId))
+      .where(and(eq(sessionTable.id, input.senderSessionId), isNull(sessionTable.deletedAt)))
       .limit(1)
       .all()
     if (!sender || sender.agentId !== input.senderAgentId || sender.agentName === null) {
@@ -1109,7 +1805,7 @@ export class AgentSessionMessageService {
     const [receiverSession] = tx
       .select({ agentId: sessionTable.agentId, sessionName: sessionTable.name })
       .from(sessionTable)
-      .where(eq(sessionTable.id, input.receiverSessionId))
+      .where(and(eq(sessionTable.id, input.receiverSessionId), isNull(sessionTable.deletedAt)))
       .limit(1)
       .all()
     if (!receiverSession) {
@@ -1165,8 +1861,14 @@ export class AgentSessionMessageService {
       statusAt
     }
 
+    const replyAnchor =
+      input.senderMessageId ??
+      getAgentSessionHead(tx, input.senderSessionId) ??
+      ensureAgentSessionRootTx(tx, input.senderSessionId)
+    validateAgentSessionParent(tx, input.senderSessionId, replyAnchor)
     return this.saveMessageTx(tx, {
       sessionId: input.receiverSessionId,
+      deliveryReplyAnchor: replyAnchor,
       message: {
         id,
         role: 'user',
@@ -1418,7 +2120,7 @@ export class AgentSessionMessageService {
         const callerExists = tx
           .select({ id: sessionTable.id })
           .from(sessionTable)
-          .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+          .where(and(eq(sessionTable.id, request.delivery.sender.sessionId), isNull(sessionTable.deletedAt)))
           .limit(1)
           .all()[0]
         if (!callerExists) {
@@ -1451,6 +2153,9 @@ export class AgentSessionMessageService {
         }
         result = this.saveMessageTx(tx, {
           sessionId: request.delivery.sender.sessionId,
+          parentId: request.data.deliveryReplyAnchor
+            ? this.branchTip(request.delivery.sender.sessionId, request.data.deliveryReplyAnchor, tx)
+            : undefined,
           message: {
             id: uuidv7(),
             role: 'user',
@@ -1502,7 +2207,7 @@ export class AgentSessionMessageService {
         const callerExists = tx
           .select({ id: sessionTable.id })
           .from(sessionTable)
-          .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+          .where(and(eq(sessionTable.id, request.delivery.sender.sessionId), isNull(sessionTable.deletedAt)))
           .limit(1)
           .all()[0]
         const existingResult = tx
@@ -1519,6 +2224,9 @@ export class AgentSessionMessageService {
               : null
             : this.saveMessageTx(tx, {
                 sessionId: request.delivery.sender.sessionId,
+                parentId: request.data.deliveryReplyAnchor
+                  ? this.branchTip(request.delivery.sender.sessionId, request.data.deliveryReplyAnchor, tx)
+                  : undefined,
                 message: {
                   id: uuidv7(),
                   role: 'user',
@@ -1569,24 +2277,38 @@ export class AgentSessionMessageService {
   prepareSessionDeletionTx(tx: DbOrTx, sessionIds: readonly string[]): AgentSessionMessageEntity[] {
     const deleting = [...new Set(sessionIds)]
     if (deleting.length === 0) return []
-    const requests = tx
-      .select()
-      .from(sessionMessagesTable)
-      .where(
-        and(
-          inArray(sessionMessagesTable.sessionId, deleting),
-          inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+    const requests = chunk(deleting, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
+      tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            inArray(sessionMessagesTable.sessionId, idChunk),
+            inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+          )
         )
-      )
-      .all()
+        .all()
+    )
     const results: AgentSessionMessageEntity[] = []
     const now = new Date().toISOString()
+    const error = { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' }
     for (const request of requests) {
-      if (
-        !request.delivery ||
-        request.delivery.replyPolicy !== 'completion' ||
-        deleting.includes(request.delivery.sender.sessionId)
-      )
+      if (!request.delivery) continue
+      tx.update(sessionMessagesTable)
+        .set({
+          deliveryStatus: 'failed',
+          deliveryTurnRef: null,
+          delivery: { ...request.delivery, outcome: 'interrupted', error, statusAt: now }
+        })
+        .where(
+          and(
+            eq(sessionMessagesTable.id, request.id),
+            inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+          )
+        )
+        .run()
+
+      if (request.delivery.replyPolicy !== 'completion' || deleting.includes(request.delivery.sender.sessionId))
         continue
       const existingResult = tx
         .select({ id: sessionMessagesTable.id })
@@ -1598,13 +2320,16 @@ export class AgentSessionMessageService {
       const callerExists = tx
         .select({ id: sessionTable.id })
         .from(sessionTable)
-        .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+        .where(and(eq(sessionTable.id, request.delivery.sender.sessionId), isNull(sessionTable.deletedAt)))
         .limit(1)
         .all()[0]
       if (!callerExists) continue
       results.push(
         this.saveMessageTx(tx, {
           sessionId: request.delivery.sender.sessionId,
+          parentId: request.data.deliveryReplyAnchor
+            ? this.branchTip(request.delivery.sender.sessionId, request.data.deliveryReplyAnchor, tx)
+            : undefined,
           message: {
             id: uuidv7(),
             role: 'user',
@@ -1619,7 +2344,7 @@ export class AgentSessionMessageService {
               replyPolicy: 'none',
               sourceMessageId: null,
               outcome: 'failed',
-              error: { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' },
+              error,
               statusAt: now
             },
             deliveryStatus: 'accepted',
@@ -1679,13 +2404,16 @@ export class AgentSessionMessageService {
       const callerExists = tx
         .select({ id: sessionTable.id })
         .from(sessionTable)
-        .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+        .where(and(eq(sessionTable.id, request.delivery.sender.sessionId), isNull(sessionTable.deletedAt)))
         .limit(1)
         .get()
       if (!callerExists) continue
       changes.push(
         this.saveMessageTx(tx, {
           sessionId: request.delivery.sender.sessionId,
+          parentId: request.data.deliveryReplyAnchor
+            ? this.branchTip(request.delivery.sender.sessionId, request.data.deliveryReplyAnchor, tx)
+            : undefined,
           message: {
             id: uuidv7(),
             role: 'user',
@@ -1774,14 +2502,27 @@ export class AgentSessionMessageService {
   replaceMessageParts(
     sessionId: string,
     messageId: string,
-    parts: AgentSessionMessageEntity['data']['parts']
+    parts: AgentSessionMessageEntity['data']['parts'],
+    projection?: RootProjectionCheckpoint
   ): AgentSessionMessageEntity {
     const saved = application.get('DbService').withWriteTx((tx) => {
       const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existingRow) throw DataApiErrorFactory.notFound('Message', messageId)
 
       const updatedAt = Date.now()
-      const data = { ...existingRow.data, parts }
+      const data = {
+        ...existingRow.data,
+        parts: projection
+          ? [
+              ...(parts ?? []),
+              ...(existingRow.data.parts ?? []).filter(
+                (part) =>
+                  isDataUIPart(part) &&
+                  !parts?.some((native) => isDataUIPart(native) && native.type === part.type && native.id === part.id)
+              )
+            ]
+          : parts
+      }
       const [updated] = tx
         .update(sessionMessagesTable)
         .set({ data, updatedAt })
@@ -1789,6 +2530,7 @@ export class AgentSessionMessageService {
         .returning()
         .all()
       replaceAgentSessionMessageFileRefsTx(tx, messageId, data)
+      if (projection) agentSessionContextService.saveRootProjectionTx(tx, sessionId, projection)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })
@@ -1815,12 +2557,18 @@ export class AgentSessionMessageService {
       if (!existingRow) return false
 
       const existing = this.rowToEntity(existingRow)
-      const parts = existing.data.parts ?? []
+      const parts = (existing.data.parts ?? []).map((part): CherryMessagePart => {
+        if (
+          !isToolUIPart(part) ||
+          part.state !== 'output-error' ||
+          part.approval?.id !== decision.approvalId ||
+          part.approval.approved !== undefined
+        )
+          return part
+        return { ...part, errorText: undefined, state: 'approval-requested', approval: { id: decision.approvalId } }
+      })
       const hasPendingApproval = parts.some(
-        (part) =>
-          isToolUIPart(part) &&
-          part.state === 'approval-requested' &&
-          (part as { approval?: { id?: string } }).approval?.id === decision.approvalId
+        (part) => isToolUIPart(part) && part.state === 'approval-requested' && part.approval.id === decision.approvalId
       )
       if (!hasPendingApproval) return false
 
@@ -1847,6 +2595,63 @@ export class AgentSessionMessageService {
       ])
     }
     return applied
+  }
+
+  /**
+   * Terminalize a persisted approval card whose live request went away without a user decision. The
+   * row keeps its status and role — it is a settled interaction record, not a live turn — and only
+   * the parked part becomes terminal, so the card stops reading as answerable.
+   *
+   * Returns `false` when nothing is parked on that approval: already answered, or already retired.
+   */
+  retireAbandonedApproval(sessionId: string, approvalId: string, errorText: string): boolean {
+    const retired = application.get('DbService').withWriteTx((tx) => {
+      const [parkedRow] = tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            sql<boolean>`exists (
+              select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+              where json_extract(part.value, '$.state') = 'approval-requested'
+                and json_extract(part.value, '$.approval.id') = ${approvalId}
+            )`
+          )
+        )
+        .limit(1)
+        .all()
+      if (!parkedRow) return null
+
+      const parked = this.rowToEntity(parkedRow)
+      const updatedAt = Date.now()
+      // The part keeps every field it was parked with; only its state leaves the approval machine.
+      const parts = (parked.data.parts ?? []).map((part): CherryMessagePart => {
+        const parkedApprovalId = (part as { approval?: { id?: string } }).approval?.id
+        if (!isToolUIPart(part) || part.state !== 'approval-requested' || parkedApprovalId !== approvalId) {
+          return part
+        }
+        return { ...part, state: 'output-error', errorText } as unknown as CherryMessagePart
+      })
+      tx.update(sessionMessagesTable)
+        .set({ data: { ...parked.data, parts }, updatedAt })
+        .where(eq(sessionMessagesTable.id, parked.id))
+        .run()
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return parked.id
+    })
+
+    if (!retired) return false
+    agentSessionService.notifyReadModelChange([sessionId], 'projection')
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId },
+        entityIds: [retired]
+      }
+    ])
+    return true
   }
 }
 

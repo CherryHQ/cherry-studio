@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { serializeError } from '../../../utils/serializeError'
 import {
+  canSalvageClaudeOutput,
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
   recordClaudeCodeProcessExit,
@@ -9,6 +10,14 @@ import {
 } from '../processExitDiagnostics'
 
 describe('Claude Code process exit diagnostics', () => {
+  it('keeps interrupted partial output without hiding unrelated failures', () => {
+    expect(canSalvageClaudeOutput(new Error('interrupted'), 0, true)).toBe(true)
+    expect(canSalvageClaudeOutput(new SyntaxError('Unterminated string in JSON'), 1024, false)).toBe(true)
+    expect(canSalvageClaudeOutput(new SyntaxError('Unexpected end of JSON input'), 12, false)).toBe(false)
+    expect(canSalvageClaudeOutput(new Error('Authentication failed'), 4096, false)).toBe(false)
+    expect(canSalvageClaudeOutput(new SyntaxError('Unexpected token'), 4096, false)).toBe(false)
+  })
+
   it.each([
     ['Authentication failed', 'auth'],
     ['model claude-sonnet-4 was not found', 'model'],
@@ -32,6 +41,26 @@ describe('Claude Code process exit diagnostics', () => {
 
     expect(serialized.claudeCodeExitCategory).toBe(category)
     expect(serialized.diagnosticReference).toBe('known-ref')
+  })
+
+  it('preserves runtime connection recovery without exposing private stderr', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('connection-ref')
+    const stderr =
+      'API Error: Unable to connect to API (ConnectionRefused); api_key=sk-ant-private https://private.example/internal'
+
+    recordClaudeCodeProcessExit(diagnostics, 1, null, stderr)
+
+    const serialized = serializeError(createClaudeCodeProcessExitError(new Error('process exited'), diagnostics))
+    const rendererPayload = JSON.stringify(serialized)
+
+    expect(serialized).toMatchObject({
+      message: 'Claude Code process exited with code 1',
+      claudeCodeExitCategory: 'network',
+      diagnosticReference: 'connection-ref',
+      processExitCode: 1
+    })
+    expect(rendererPayload).not.toContain('sk-ant-private')
+    expect(rendererPayload).not.toContain('https://private.example/internal')
   })
 
   it('keeps an unknown raw terminal reason out of the renderer payload', () => {

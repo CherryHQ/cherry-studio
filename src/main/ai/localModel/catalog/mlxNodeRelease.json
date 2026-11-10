@@ -1,0 +1,93 @@
+{
+  "sourceRevision": "5db3d24bc87a9eb6fdb48c7ab3c9d8f126bf8d7d",
+  "modelRevision": "85e237c12c027371202489a0ec509ded67b5e4b5",
+  "runtime": {
+    "repository": "CherryHQ/mlx-node",
+    "tag": "mlx-node-5db3d24bc87a-r2",
+    "modelscope": {
+      "repo": "CherryHQ/mlx-node",
+      "revision": "3cb705b9d16cb89b478e2604ef0a1d751f975935"
+    },
+    "asset": "mlx-node-darwin-arm64.tgz",
+    "sha256": "8958083299fbf9c8bc2d991cc793d1dd675f58ec31c3bad288c7648c9e5f9653",
+    "entryFile": "mlx-core.darwin-arm64.node",
+    "supportFiles": ["mlx.metallib", "paged_attn.metallib", "LICENSE", "MLX-LICENSE"]
+  },
+  "model": {
+    "repository": "CherryHQ/cherry-studio",
+    "tag": "mlx-node-5db3d24bc87a-r1",
+    "modelscope": {
+      "repo": "CherryHQ/Qwen3-TTS-0.6B-CustomVoice-8bit",
+      "revision": "c3826d31e92d4f7f37f0df427282cca05a89e304"
+    },
+    "id": "qwen3-tts-0.6b-customvoice-8bit",
+    "files": [
+      {
+        "relPath": "config.json",
+        "asset": "qwen3-tts-0.6b-customvoice-8bit--config.json",
+        "sizeBytes": 4992,
+        "sha256": "fc247cac3197f58042eefb7bc485e5f29d681ae09b5596c6e03305b220a94a33"
+      },
+      {
+        "relPath": "generation_config.json",
+        "asset": "qwen3-tts-0.6b-customvoice-8bit--generation_config.json",
+        "sizeBytes": 245,
+        "sha256": "f1b90b4513f3b34c62851049e2492d7b4c5940daf1276f89c82b8ef04127f3aa"
+      },
+      {
+        "relPath": "merges.txt",
+        "asset": "qwen3-tts-0.6b-customvoice-8bit--merges.txt",
+        "sizeBytes": 1671839,
+        "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3"
+      },
+      {
+        "relPath": "model.safetensors",
+        "asset": "qwen3-tts-0.6b-customvoice-8bit--model.safetensors",
+        "sizeBytes": 1316230498,
+        "sha256": "f6c1a80908ed7ce513a7b497df7cc4178bf705cb0648f61207177a8e59056e2a"
+      },
+      {
+        "relPath": "preprocessor_config.json",
+        "asset": "qwen3-tts-0.6b-customvoice-8bit--preprocessor_config.json",
+        "sizeBytes": 127,
+        "sha256": "efdde1022ea9d76928bf7a9cd53139138f5ba2e466e837f08f6105ab1af1c119"
+      },
+      {
+        "relPath": "tokenizer_config.json",
+        "asset": "qwen3-tts-0.6b-customvoice-8bit--tokenizer_config.json",
+        "sizeBytes": 7344,
+        "sha256": "dc3c31c3bdaedd5016382bb3cbe07323026775ad51f5a4fb564505992ae4a670"
+      },
+      {
+        "relPath": "vocab.json",
+        "asset": "qwen3-tts-0.6b-customvoice-8bit--vocab.json",
+        "sizeBytes": 2776833,
+        "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+      },
+      {
+        "relPath": "speech_tokenizer/config.json",
+        "asset": "qwen3-tts-0.6b-customvoice-8bit--speech_tokenizer--config.json",
+        "sizeBytes": 2336,
+        "sha256": "ee65bb901c876664ab8707c487157aa1a6ee57c65969b28fb5ec9dc211e68167"
+      },
+      {
+        "relPath": "speech_tokenizer/configuration.json",
+        "asset": "qwen3-tts-0.6b-customvoice-8bit--speech_tokenizer--configuration.json",
+        "sizeBytes": 76,
+        "sha256": "6bc26d64eb5024b4d1dab5a52371958b429256d6c9d59787f1f5294a54e0cebd"
+      },
+      {
+        "relPath": "speech_tokenizer/model.safetensors",
+        "asset": "qwen3-tts-0.6b-customvoice-8bit--speech_tokenizer--model.safetensors",
+        "sizeBytes": 682293092,
+        "sha256": "836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258"
+      },
+      {
+        "relPath": "speech_tokenizer/preprocessor_config.json",
+        "asset": "qwen3-tts-0.6b-customvoice-8bit--speech_tokenizer--preprocessor_config.json",
+        "sizeBytes": 234,
+        "sha256": "fcb3805e597e786d4067706e602f6688524640f8d3396790e2e09b5942fcbdfb"
+      }
+    ]
+  }
+}

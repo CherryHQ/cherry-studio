@@ -1,6 +1,6 @@
 import type { SettingsSearchEntry } from '../settingsSearch/types'
 
-// Data settings switches its 13 panels via component state, not sub-routes, so
+// Data settings switches its panels via component state, not sub-routes, so
 // each entry carries the owning panel key — jumps navigate as /settings/data?panel=<key>
 // and DataSettings mounts that panel before the anchor lookup. Conditional rows
 // (v1 remigration) and modal-only actions stay out per D8.

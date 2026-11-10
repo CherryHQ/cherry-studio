@@ -7,7 +7,6 @@ vi.mock('react-i18next', () => ({
       ({
         'agent.session_delivery.status.accepted': 'Accepted',
         'message.tools.sessionCreate.untitled': 'Untitled session',
-        'message.tools.sessionSend.open': 'Open session',
         'message.tools.sessionSend.sent': 'Sent to',
         'message.tools.sessionSend.to': 'To',
         'message.tools.cancelled': 'Cancelled',

@@ -64,19 +64,22 @@ describe('error', () => {
     )
   })
 
+  it('maps Agent Session archive busy errors to localized guidance without the internal message', () => {
+    const error = new IpcError(aiErrorCodes.AI_AGENT_SESSION_ARCHIVE_BUSY, 'internal session IDs', {
+      sessionIds: ['session-a']
+    })
+
+    expect(getErrorMessage(error)).toBe('recycle_bin.move.blocked_generation')
+    expect(formatErrorMessageWithPrefix(error, 'Failed to delete the session')).toBe(
+      'recycle_bin.move.blocked_generation'
+    )
+  })
+
   describe('getErrorDetails', () => {
     it('should handle null or non-object values', () => {
       expect(getErrorDetails(null)).toBeNull()
       expect(getErrorDetails('string error')).toBe('string error')
       expect(getErrorDetails(123)).toBe(123)
-    })
-
-    it('should handle circular references', () => {
-      const circularObj: any = {}
-      circularObj.self = circularObj
-
-      const result = getErrorDetails(circularObj)
-      expect(result).toEqual({ self: circularObj })
     })
 
     it('should extract properties from Error objects', () => {

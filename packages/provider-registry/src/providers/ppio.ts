@@ -7,11 +7,13 @@ const editAndGenerate = (mode: ImageModeDef) => ({ edit: mode, generate: mode })
 export default openaiCompatible({
   id: 'ppio',
   name: 'PPIO',
+  // The API lists chat, embedding and reranker models but omits the image endpoints.
+  supplementModelsFromRegistry: true,
   availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.ppinfra.com/v3/openai/',
   website: {
     apiKey: 'https://ppio.com/settings/key-management',
-    docs: 'https://docs.cherry-ai.com/pre-basic/providers/ppio',
+    docs: 'https://cherryai.com/docs/en/pre-basic/providers/',
     models: 'https://ppio.com/model-api/product/llm-api',
     official: 'https://ppio.com/'
   },
@@ -122,7 +124,7 @@ export default openaiCompatible({
       pricing: { input: { currency: 'CNY', perMillionTokens: 6 }, output: { currency: 'CNY', perMillionTokens: 22 } }
     },
     {
-      modelId: 'glm-image',
+      apiModelId: 'glm-image',
       imageGeneration: {
         modes: {
           generate: {
@@ -210,7 +212,7 @@ export default openaiCompatible({
           }
         }
       },
-      modelId: 'qwen-image-edit'
+      apiModelId: 'qwen-image-edit'
     },
     {
       apiModelId: 'qwen/qwen2.5-7b-instruct',
@@ -377,7 +379,7 @@ export default openaiCompatible({
           vendorTransport: { endpoint: '/v3/seedream-4.0', isSync: true }
         })
       },
-      modelId: 'seedream-4-0'
+      apiModelId: 'seedream-4-0'
     },
     {
       imageGeneration: {
@@ -394,7 +396,7 @@ export default openaiCompatible({
           vendorTransport: { endpoint: '/v3/seedream-4.5', isSync: true }
         })
       },
-      modelId: 'seedream-4-5'
+      apiModelId: 'seedream-4-5'
     },
     {
       imageGeneration: {
@@ -411,7 +413,7 @@ export default openaiCompatible({
           vendorTransport: { endpoint: '/v3/seedream-5.0-lite', isSync: true }
         })
       },
-      modelId: 'seedream-5-0-lite'
+      apiModelId: 'seedream-5-0-lite'
     },
     {
       modelId: 'jimeng-txt2img-v3-1',

@@ -1,5 +1,6 @@
 import type { FC } from 'react'
 
+import { getProviderIconAssetMetrics } from '@cherrystudio/ui/icons'
 import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
@@ -7,13 +8,15 @@ import { getIconDisplayConfig, miniAppContainedIcon } from './iconDisplayConfig'
 
 interface Props {
   app: Pick<MiniApp, 'logo' | 'logoSrc' | 'name' | 'background'>
-  /** `avatar` keeps bordered Avatar chrome; `plain` uses launchpad sizing; `bare` is raw; `sidebar` is circular. */
+  /** `avatar` keeps bordered Avatar chrome; `plain` uses launchpad sizing; `bare` removes chrome; `sidebar` is circular. */
   appearance?: 'avatar' | 'plain' | 'bare' | 'sidebar'
+  /** Visible artwork target for inset registry icons rendered without chrome. */
+  artworkSize?: number
   size?: number
   style?: React.CSSProperties
 }
 
-const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }) => {
+const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size = 48, style }) => {
   // Branching is decided synchronously from the ref; the CompoundIcon itself
   // loads async — a size-stable placeholder covers the brief loading window.
   const logoRef = getMiniAppsLogoRef(app.logo || undefined)
@@ -34,7 +37,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
       )
     }
     if (appearance === 'sidebar') {
-      const displayConfig = getIconDisplayConfig('mini-app', app.logo)
+      const displayConfig = getIconDisplayConfig('mini-app', logoRef.meta.id)
       if (displayConfig?.scale && displayConfig.scale < 1) {
         return <Icon.Avatar size={size} className="select-none" shape="circle" />
       }
@@ -55,8 +58,15 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
       )
     }
     if (appearance === 'plain' || appearance === 'bare') {
-      const displayConfig = appearance === 'plain' ? getIconDisplayConfig('mini-app', app.logo) : undefined
-      const iconSize = size * (displayConfig?.scale ?? 1)
+      const displayConfig = getIconDisplayConfig('mini-app', logoRef.meta.id)
+      const metrics =
+        appearance === 'bare' && artworkSize !== undefined
+          ? getProviderIconAssetMetrics({ kind: logoRef.kind, iconId: logoRef.meta.id })
+          : undefined
+      const iconSize =
+        metrics && artworkSize !== undefined
+          ? artworkSize * (displayConfig && displayConfig.scale < 1 ? 1 : metrics.canvasScale)
+          : size * (displayConfig?.scale ?? 1)
 
       return (
         <span
@@ -68,14 +78,15 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
             ...style
           }}>
           <Icon
+            {...(displayConfig?.viewBox ? { viewBox: displayConfig.viewBox } : {})}
             aria-label={app.name || 'MiniApp Icon'}
             className="select-none"
             style={{
               width: `${iconSize}px`,
               height: `${iconSize}px`,
               flexShrink: 0,
-              borderRadius: displayConfig?.borderRadius === undefined ? undefined : `${displayConfig.borderRadius}px`,
-              overflow: displayConfig?.borderRadius === undefined ? undefined : 'hidden'
+              borderRadius: appearance === 'plain' ? displayConfig?.borderRadius : undefined,
+              overflow: appearance === 'plain' && displayConfig?.borderRadius !== undefined ? 'hidden' : undefined
             }}
           />
         </span>

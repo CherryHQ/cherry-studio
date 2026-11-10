@@ -148,6 +148,8 @@ describe('input', () => {
       expect(matchesComposerShortcut({ key: 'Enter' }, ['Enter'])).toBe(true)
       expect(matchesComposerShortcut({ key: 'Enter', ctrlKey: true }, ['CommandOrControl', 'Enter'])).toBe(true)
       expect(matchesComposerShortcut({ key: 'Enter', shiftKey: true }, ['Shift', 'Enter'])).toBe(true)
+      // The keypad key normalizes to its own token; matching treats it as Enter.
+      expect(matchesComposerShortcut({ key: 'Enter', code: 'NumpadEnter' }, ['Enter'])).toBe(true)
     })
 
     it('requires the exact combination', () => {

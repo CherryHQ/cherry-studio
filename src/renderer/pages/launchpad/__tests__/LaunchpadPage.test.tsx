@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -6,7 +7,11 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import {
+  createSidebarShortcutId,
+  type SidebarShortcutItem,
+  type SidebarShortcutTarget
+} from '@shared/data/preference/preferenceTypes'
 import type { SiteMiniApp } from '@shared/data/types/miniApp'
 
 const mocks = vi.hoisted(() => ({
@@ -14,8 +19,8 @@ const mocks = vi.hoisted(() => ({
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
-  setSidebarFavorites: vi.fn(() => Promise.resolve()),
-  sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
+  setSidebarFavorites: vi.fn<(value: SidebarShortcutItem[]) => Promise<void>>(() => Promise.resolve()),
+  sidebarFavorites: [] as SidebarShortcutItem[],
   setAppOrder: vi.fn(() => Promise.resolve()),
   appOrder: [] as SidebarAppId[],
   sortableCalls: [] as any[],
@@ -23,6 +28,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
     mocks.sortableCalls.push({ items, itemKey, renderItem, ...props })
     const getKey = typeof itemKey === 'function' ? itemKey : (item: any) => item[itemKey]
@@ -87,12 +93,6 @@ vi.mock('@renderer/components/ProviderAvatar', () => ({
   ProviderAvatarPrimitive: () => <svg aria-hidden="true" />
 }))
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, className }: { children: ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
-  )
-}))
-
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
     openedKeepAliveMiniApps: mocks.openedMiniApps,
@@ -101,27 +101,26 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({
+    shortcuts: mocks.sidebarFavorites,
+    isPinned: (target: SidebarShortcutTarget) =>
+      mocks.sidebarFavorites.some((item) => item.id === createSidebarShortcutId(target)),
+    setPinned: (target: SidebarShortcutTarget, pinned: boolean, fallbackLabel?: string) => {
+      const id = createSidebarShortcutId(target)
+      void mocks.setSidebarFavorites(
+        pinned
+          ? [...mocks.sidebarFavorites, { type: 'shortcut', id, target, fallbackLabel }]
+          : mocks.sidebarFavorites.filter((item) => item.id !== id)
+      )
+    }
+  })
+}))
+
 vi.mock('@renderer/services/toast', () => ({
   toast: {
     error: mocks.toastError
   }
-}))
-
-vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabelKey: (key: SidebarAppId) =>
-    ({
-      assistants: 'Chat',
-      agents: 'Agent',
-      store: 'Library',
-      paintings: 'Paintings',
-      translate: 'Translate',
-      mini_app: 'Mini Apps',
-      knowledge: 'Knowledge',
-      files: 'Files',
-      code_tools: 'Code',
-      notes: 'Notes',
-      openclaw: 'OpenClaw'
-    })[key]
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -135,12 +134,15 @@ vi.mock('react-i18next', () => ({
         {
           'agent.sidebar_title': 'Agent',
           'title.chat': 'Chat',
+          'title.work': 'Agent',
+          'title.paintings': 'Paintings',
+          'title.marketplace': 'Marketplace',
+          'settings.scheduledTasks.title': 'Scheduled Tasks',
           'assistants.presets.title': 'Library',
           'code.title': 'Code',
           'files.title': 'Files',
           'knowledge.title': 'Knowledge',
           'launchpad.apps': 'Apps',
-          'launchpad.deepseek_harness_shortcut': 'DSH',
           'launchpad.miniApps': 'Mini Apps',
           'launchpad.pin_to_sidebar': 'Add to Sidebar',
           'launchpad.unpin_from_sidebar': 'Remove from Sidebar',
@@ -162,8 +164,12 @@ vi.mock('react-i18next', () => ({
 
 import LaunchpadPage from '../LaunchpadPage'
 
-const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
-const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
+const shortcut = (providerId: string, resourceId: string): SidebarShortcutItem => {
+  const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId, resourceId } }
+  return { type: 'shortcut', id: createSidebarShortcutId(target), target }
+}
+const appFavorite = (id: SidebarAppId) => shortcut('core.app', id)
+const miniAppFavorite = (id: string) => shortcut('core.mini-app', id)
 const createMiniApp = (appId: string, overrides: Partial<SiteMiniApp> = {}): SiteMiniApp => ({
   appId,
   kind: 'site',
@@ -194,6 +200,12 @@ describe('LaunchpadPage', () => {
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
   })
 
+  it('opens the marketplace from its launchpad tile', async () => {
+    render(<LaunchpadPage />)
+    await userEvent.click(screen.getByRole('button', { name: 'Marketplace' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/marketplace' })
+  })
+
   it('renders the launchpad page chrome and app grid', () => {
     mocks.pinnedMiniApps = [createMiniApp('calculator')]
 
@@ -201,17 +213,11 @@ describe('LaunchpadPage', () => {
 
     const appsHeading = screen.getByRole('heading', { name: 'Apps' })
     const miniAppsHeading = screen.getByRole('heading', { name: 'Mini Apps' })
-    const chatButton = screen.getByRole('button', { name: 'Chat' })
-
-    expect(appsHeading.closest('section')?.parentElement).toHaveClass('max-w-180', 'gap-5')
-    expect(appsHeading.nextElementSibling).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
-    expect(miniAppsHeading.nextElementSibling).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
-    expect(chatButton).toHaveClass('mx-auto', 'w-[92px]')
-    expect(screen.getByRole('button', { name: 'Calculator' }).parentElement).toHaveClass(
-      'mx-auto',
-      'w-[92px]',
-      'justify-center'
-    )
+    expect(appsHeading).toBeVisible()
+    expect(miniAppsHeading).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Chat' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Calculator' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Scheduled Tasks' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Knowledge' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
@@ -232,6 +238,7 @@ describe('LaunchpadPage', () => {
           'Translate',
           'Chat',
           'Agent',
+          'Scheduled Tasks',
           'Paintings',
           'Library',
           'Mini Apps',
@@ -243,7 +250,7 @@ describe('LaunchpadPage', () => {
         ].includes(label ?? '')
       )
 
-    expect(appLabels.slice(0, 4)).toEqual(['Translate', 'Chat', 'Agent', 'Paintings'])
+    expect(appLabels.slice(0, 5)).toEqual(['Translate', 'Chat', 'Agent', 'Scheduled Tasks', 'Paintings'])
   })
 
   it('sorts every app tile and persists to the launchpad app order, not the sidebar favorites', () => {
@@ -270,28 +277,17 @@ describe('LaunchpadPage', () => {
     expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
   })
 
-  it('navigates apps inside the current launchpad tab', async () => {
+  it.each([
+    { label: 'Knowledge', path: '/app/knowledge' },
+    { label: 'Scheduled Tasks', path: '/app/scheduled-tasks' }
+  ])('navigates $label inside the current launchpad tab', async ({ label, path }) => {
     const user = userEvent.setup()
 
     render(<LaunchpadPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Knowledge' }))
+    await user.click(screen.getByRole('button', { name: label }))
 
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
-  })
-
-  it('opens the dedicated DeepSeek Harness CodeMate view from its app shortcut', async () => {
-    const user = userEvent.setup()
-
-    render(<LaunchpadPage />)
-    const shortcut = screen.getByRole('button', { name: 'DSH' })
-
-    await user.click(shortcut)
-
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: '/app/code',
-      search: { tool: 'deepseek-harness' }
-    })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: path })
   })
 
   it('suppresses only the dragged launchpad item click', () => {
@@ -299,7 +295,7 @@ describe('LaunchpadPage', () => {
 
     const systemSortable = mocks.sortableCalls.find((call) => call.itemKey === 'id')
     act(() => {
-      systemSortable.onDragStart({ active: { id: 'knowledge' } })
+      systemSortable.onDragStart({ activeId: 'knowledge' })
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Knowledge' }))
@@ -350,7 +346,7 @@ describe('LaunchpadPage', () => {
     })
 
     // The launchpad persists mini app order to the shared order key (independent of
-    // the sidebar favorites), never writing `ui.sidebar.favorites`.
+    // the sidebar favorites), never writing `ui.sidebar_shortcut`.
     expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('pinned', [
       expect.objectContaining({ appId: 'docs' }),
       expect.objectContaining({ appId: 'calculator' })
@@ -504,17 +500,19 @@ describe('LaunchpadPage', () => {
     render(<LaunchpadPage />)
 
     expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toHaveTextContent('Remove from Sidebar')
-    expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toBeDisabled()
     expect(screen.getByTestId('menu-launchpad.pin-to-sidebar.knowledge')).toHaveTextContent('Add to Sidebar')
 
     await user.click(screen.getByTestId('menu-launchpad.pin-to-sidebar.knowledge'))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('knowledge')])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
+      appFavorite('assistants'),
+      { ...appFavorite('knowledge'), fallbackLabel: 'Knowledge' }
+    ])
   })
 
-  it('removes an existing sidebar app icon from the context menu', async () => {
+  it('removes the final sidebar app icon from the context menu', async () => {
     const user = userEvent.setup()
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge')]
+    mocks.sidebarFavorites = [appFavorite('knowledge')]
 
     render(<LaunchpadPage />)
 
@@ -522,6 +520,6 @@ describe('LaunchpadPage', () => {
 
     await user.click(screen.getByTestId('menu-launchpad.unpin-from-sidebar.knowledge'))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants')])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([])
   })
 })

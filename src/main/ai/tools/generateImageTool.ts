@@ -8,7 +8,13 @@ import {
   type SupportSpec
 } from '@cherrystudio/provider-registry'
 
-const MAX_INPUT_IMAGES = 1
+/**
+ * Tool-contract cap on edit reference images. An omitted model limit leaves references uncapped, matching
+ * the renderer paintings-page enforcement (`canonicalGenerate`).
+ */
+export function editInputImageLimit(support: ImageGenerationSupport | null | undefined): number | undefined {
+  return support?.modes.edit?.maxInputImages
+}
 
 const GENERATE_IMAGE_PROMPT_FIELD = z
   .string()
@@ -144,13 +150,14 @@ export function buildGenerateImageToolSchema(
   }
 
   if (modes.includes('edit')) {
-    const imageIds = z
-      .array(z.string().trim().min(1))
-      .min(1)
-      .max(MAX_INPUT_IMAGES)
-      .describe('FileEntry id of an existing image to edit or use as a reference. Omit to generate a new image.')
+    const maxInputImages = editInputImageLimit(support)
+    const imageIds = z.array(z.string().trim().min(1)).min(1)
+    const limitedImageIds = maxInputImages === undefined ? imageIds : imageIds.max(maxInputImages)
+    const describedImageIds = limitedImageIds.describe(
+      'FileEntry ids of existing images to edit or use as references. Omit to generate a new image.'
+    )
     const editOnly = !modes.includes('generate')
-    inputShape.image_ids = editOnly ? imageIds : imageIds.optional()
+    inputShape.image_ids = editOnly ? describedImageIds : describedImageIds.optional()
   }
 
   return z.object(inputShape).strict()
@@ -159,6 +166,6 @@ export function buildGenerateImageToolSchema(
 /** Fallback contract used when the configured model has no registry capability block. */
 export const generateImageInputSchema = buildGenerateImageToolSchema(undefined)
 
-export function limitGenerateImageInputIds(imageIds: readonly string[]): string[] {
-  return imageIds.slice(0, MAX_INPUT_IMAGES)
+export function limitGenerateImageInputIds(imageIds: readonly string[], max?: number): string[] {
+  return max === undefined ? [...imageIds] : imageIds.slice(0, max)
 }

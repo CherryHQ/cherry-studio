@@ -33,9 +33,8 @@ export interface Notification<T = any> {
 
 type ConversationNotificationBase = Notification<ConversationNavigationTarget> & {
   meta: ConversationNavigationTarget
+  conversationName: string
   actionKey: typeof CONVERSATION_NOTIFICATION_ACTION_KEY
 }
 
-export type ConversationNotification =
-  | (ConversationNotificationBase & { kind: 'task-completion'; type: 'success' })
-  | (ConversationNotificationBase & { kind: 'approval-request'; type: 'warning' })
+export type ConversationNotification = ConversationNotificationBase & { kind: 'approval-request'; type: 'warning' }

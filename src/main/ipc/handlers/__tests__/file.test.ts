@@ -8,6 +8,8 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 
 const {
   appGetMock,
+  clipboardCopyMock,
+  clipboardStatusMock,
   assertOutsideManagedStorageMutationMock,
   copyNewMock,
   getMetadataByPathMock,
@@ -15,9 +17,12 @@ const {
   readChunkByPathMock,
   safeOpenMock,
   showPathInFolderMock,
+  validateNotesDirectoryMock,
   writeIfUnchangedByPathMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
+  clipboardCopyMock: vi.fn(),
+  clipboardStatusMock: vi.fn(),
   assertOutsideManagedStorageMutationMock: vi.fn(),
   copyNewMock: vi.fn(),
   getMetadataByPathMock: vi.fn(),
@@ -25,9 +30,11 @@ const {
   readChunkByPathMock: vi.fn(),
   safeOpenMock: vi.fn(),
   showPathInFolderMock: vi.fn(),
+  validateNotesDirectoryMock: vi.fn(),
   writeIfUnchangedByPathMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@main/services/notesDirectory', () => ({ validateNotesDirectory: validateNotesDirectoryMock }))
 vi.mock('@main/utils/file', async (importOriginal) => ({
   ...(await importOriginal<typeof FileUtilsModule>()),
   copyNew: copyNewMock
@@ -59,6 +66,8 @@ vi.mock('@main/services/file', async () => {
     },
     assertOutsideManagedStorageMutation: assertOutsideManagedStorageMutationMock,
     dispatchHandle,
+    copyFileToClipboard: clipboardCopyMock,
+    getClipboardCopyStatus: clipboardStatusMock,
     getMetadataByPath: getMetadataByPathMock,
     readByPath: readByPathMock,
     readChunkByPath: readChunkByPathMock,
@@ -70,6 +79,7 @@ vi.mock('@main/services/file', async () => {
 
 import { ContentCommittedMetadataPendingError, DirectoryTreeStoppedError } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -96,8 +106,8 @@ const fileManager = {
   batchGetDanglingStates: vi.fn(),
   batchTrash: vi.fn(),
   batchRestore: vi.fn(),
-  batchPermanentDelete: vi.fn(),
-  emptyTrash: vi.fn(),
+  batchPermanentDeleteFromTrash: vi.fn(),
+  batchRemoveFromLibrary: vi.fn(),
   rename: vi.fn(),
   readChunk: vi.fn(),
   open: vi.fn(),
@@ -118,6 +128,7 @@ const windowManager = { getWindow: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  fileManager.getPhysicalPath.mockReset()
   windowManager.getWindow.mockImplementation((id: string) =>
     id === 'win-1' ? { webContents: senderWebContents } : undefined
   )
@@ -133,6 +144,39 @@ const ctx = { senderId: null }
 const windowCtx = { senderId: 'win-1' }
 
 describe('fileHandlers', () => {
+  it('copies path handles and entry storage paths, and refuses unmanaged callers first', async () => {
+    const path = '/tmp/physical' as AbsoluteFilePath
+    const pathHandle = { kind: 'path' as const, path }
+    const entryHandle = { kind: 'entry' as const, entryId: ids[0] } as Parameters<
+      (typeof fileHandlers)['file.copy_to_clipboard']
+    >[0]
+    fileManager.getPhysicalPath.mockReturnValueOnce('/storage/actual')
+    await fileHandlers['file.copy_to_clipboard'](pathHandle, windowCtx)
+    await fileHandlers['file.copy_to_clipboard'](entryHandle, windowCtx)
+    expect(clipboardCopyMock.mock.calls.map(([target]) => target)).toEqual([path, '/storage/actual'])
+    vi.clearAllMocks()
+    await expect(fileHandlers['file.copy_to_clipboard'](entryHandle, ctx)).rejects.toThrow('managed window sender')
+    expect(appGetMock).not.toHaveBeenCalled()
+    expect(clipboardCopyMock).not.toHaveBeenCalled()
+  })
+
+  it('maps only removed entry errors to missing', async () => {
+    const handle = { kind: 'entry', entryId: ids[0] } as Parameters<
+      (typeof fileHandlers)['file.get_clipboard_status']
+    >[0]
+    fileManager.getPhysicalPath.mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('FileEntry', ids[0])
+    })
+    await expect(fileHandlers['file.get_clipboard_status'](handle, ctx)).resolves.toEqual({
+      ok: false,
+      reason: 'missing'
+    })
+    fileManager.getPhysicalPath.mockImplementationOnce(() => {
+      throw new Error('database failure')
+    })
+    await expect(fileHandlers['file.get_clipboard_status'](handle, ctx)).rejects.toThrow('database failure')
+  })
+
   it('does not expose the pure-SQL content-hash lookup through IpcApi', () => {
     expect('file.find_internal_by_content_hash' in fileRequestSchemas).toBe(false)
     expect('file.find_internal_by_content_hash' in fileHandlers).toBe(false)
@@ -410,22 +454,22 @@ describe('fileHandlers', () => {
     fileManager.batchGetDanglingStates.mockResolvedValue({ [ids[0]]: 'present' })
     fileManager.batchTrash.mockResolvedValue(batchResult)
     fileManager.batchRestore.mockResolvedValue(batchResult)
-    fileManager.batchPermanentDelete.mockResolvedValue(batchResult)
-    fileManager.emptyTrash.mockResolvedValue(batchResult)
+    fileManager.batchPermanentDeleteFromTrash.mockResolvedValue(batchResult)
+    fileManager.batchRemoveFromLibrary.mockResolvedValue(batchResult)
 
     await expect(fileHandlers['file.batch_get_dangling_states']({ ids }, ctx)).resolves.toEqual({
       [ids[0]]: 'present'
     })
     await expect(fileHandlers['file.batch_trash']({ ids }, ctx)).resolves.toBe(batchResult)
     await expect(fileHandlers['file.batch_restore']({ ids }, ctx)).resolves.toBe(batchResult)
-    await expect(fileHandlers['file.batch_permanent_delete']({ ids }, ctx)).resolves.toBe(batchResult)
-    await expect(fileHandlers['file.empty_trash'](undefined, ctx)).resolves.toBe(batchResult)
+    await expect(fileHandlers['file.batch_permanent_delete_from_trash']({ ids }, ctx)).resolves.toBe(batchResult)
+    await expect(fileHandlers['file.batch_remove_from_library']({ ids }, ctx)).resolves.toBe(batchResult)
 
     expect(fileManager.batchGetDanglingStates).toHaveBeenCalledWith({ ids })
     expect(fileManager.batchTrash).toHaveBeenCalledWith(ids)
     expect(fileManager.batchRestore).toHaveBeenCalledWith(ids)
-    expect(fileManager.batchPermanentDelete).toHaveBeenCalledWith(ids)
-    expect(fileManager.emptyTrash).toHaveBeenCalled()
+    expect(fileManager.batchPermanentDeleteFromTrash).toHaveBeenCalledWith(ids)
+    expect(fileManager.batchRemoveFromLibrary).toHaveBeenCalledWith(ids)
   })
 
   it('delegates single-entry commands to FileManager', async () => {
@@ -449,6 +493,15 @@ describe('fileHandlers', () => {
     expect(showPathInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
     expect(fileManager.open).not.toHaveBeenCalled()
     expect(fileManager.showInFolder).not.toHaveBeenCalled()
+  })
+
+  it('validates Notes directories through the typed file route', async () => {
+    validateNotesDirectoryMock.mockReturnValueOnce(true)
+
+    await expect(fileHandlers['file.validate_notes_directory']('/tmp/notes' as AbsoluteFilePath, ctx)).resolves.toBe(
+      true
+    )
+    expect(validateNotesDirectoryMock).toHaveBeenCalledWith('/tmp/notes')
   })
 
   it('dispatches range reads for entry and path handles through file.read', async () => {
@@ -489,7 +542,7 @@ describe('fileHandlers', () => {
     expect(fileManager.batchCreateInternalEntries).toHaveBeenCalledWith(items)
   })
 
-  it('creates a directory tree addressed to the caller window WebContents', async () => {
+  it('creates a directory tree owned by the caller window', async () => {
     const created = { treeId: 't-1', revision: 0, snapshot: { kind: 'directory', path: '/tmp/ws', basename: 'ws' } }
     directoryTreeManager.create.mockResolvedValueOnce(created)
 
@@ -497,7 +550,11 @@ describe('fileHandlers', () => {
       fileHandlers['file.tree.create']({ rootPath: '/tmp/ws' as AbsoluteFilePath, options: { maxDepth: 1 } }, windowCtx)
     ).resolves.toBe(created)
 
-    expect(directoryTreeManager.create).toHaveBeenCalledWith(senderWebContents, '/tmp/ws', { maxDepth: 1 })
+    expect(directoryTreeManager.create).toHaveBeenCalledWith(
+      { windowId: 'win-1', webContents: senderWebContents },
+      '/tmp/ws',
+      { maxDepth: 1 }
+    )
   })
 
   it('refuses to create a directory tree for a sender that is not a managed window', async () => {

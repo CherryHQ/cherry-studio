@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Native WebMCP fixture</title>
+  </head>
+  <body>
+    <h1>Native website tools</h1>
+    <p id="status">Checking native WebMCP…</p>
+    <output id="effect">0</output>
+    <output id="cancellations">0</output>
+    <button id="remove" type="button">Remove registered tools</button>
+    <form toolname="fixture_form" tooldescription="A declarative form requiring human submission">
+      <input name="query" /><button type="submit">Submit</button>
+    </form>
+    <script>
+      ;(async () => {
+        const api = document.modelContext
+        if (!api) {
+          document.querySelector('#status').textContent = 'unsupported'
+          return
+        }
+        const registration = new AbortController()
+        document.querySelector('#remove').onclick = () => registration.abort()
+        const register = (tool) => api.registerTool(tool, { signal: registration.signal })
+        await register({
+          name: 'fixture_add',
+          description: 'Increment the fixture counter by a supplied integer',
+          inputSchema: {
+            type: 'object',
+            properties: { amount: { type: 'integer', minimum: 1 } },
+            required: ['amount'],
+            additionalProperties: false
+          },
+          execute({ amount }) {
+            const output = document.querySelector('#effect')
+            output.textContent = String(Number(output.textContent) + amount)
+            return { counter: Number(output.textContent) }
+          }
+        })
+        await register({
+          name: 'fixture_wait',
+          description: 'Wait until the agent cancels this invocation',
+          inputSchema: { type: 'object', additionalProperties: false },
+          execute() {
+            return new Promise((resolve) => {
+              window.addEventListener(
+                'toolcancel',
+                () => {
+                  const output = document.querySelector('#cancellations')
+                  output.textContent = String(Number(output.textContent) + 1)
+                  resolve({ canceled: true })
+                },
+                { once: true }
+              )
+            })
+          }
+        })
+        await register({
+          name: 'fixture_error',
+          description: 'Reject with a fixture error',
+          execute() {
+            throw new Error('Expected website tool failure')
+          }
+        })
+        document.querySelector('#status').textContent = 'ready'
+      })().catch((error) => {
+        document.querySelector('#status').textContent = String(error)
+      })
+    </script>
+  </body>
+</html>

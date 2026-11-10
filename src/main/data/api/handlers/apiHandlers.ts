@@ -11,7 +11,6 @@
  * - providers.ts - Provider API handlers
  * - translate.ts - Translate API handlers
  */
-
 import type { ApiImplementation } from '@shared/data/api/types'
 
 import { agentChannelHandlers } from './agentChannels'
@@ -20,7 +19,11 @@ import { agentSessionMessageHandlers } from './agentSessionMessages'
 import { agentSessionHandlers } from './agentSessions'
 import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { aiUsageRecordHandlers } from './aiUsageRecords'
+import { apiGatewayPairedDeviceHandlers } from './apiGatewayPairedDevices'
+import { archiveHandlers } from './archives'
 import { assistantHandlers } from './assistants'
+import { browserVisitHandlers } from './browserVisits'
+import { diagnosticReportHandlers } from './diagnosticReports'
 import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
 import { jobHandlers } from './jobs'
@@ -30,6 +33,7 @@ import { messageHandlers } from './messages'
 import { miniAppHandlers } from './miniApps'
 import { modelHandlers } from './models'
 import { noteHandlers } from './notes'
+import { notificationHandlers } from './notifications'
 import { paintingHandlers } from './paintings'
 import { pinHandlers } from './pins'
 import { promptHandlers } from './prompts'
@@ -49,9 +53,13 @@ import { translateHandlers } from './translate'
  * TypeScript ensures exhaustive coverage - missing handlers cause compile errors.
  */
 export const apiHandlers: ApiImplementation = {
+  ...apiGatewayPairedDeviceHandlers,
   ...agentHandlers,
+  ...archiveHandlers,
   ...assistantHandlers,
   ...agentChannelHandlers,
+  ...browserVisitHandlers,
+  ...diagnosticReportHandlers,
   ...topicHandlers,
   ...messageHandlers,
   ...fileHandlers,
@@ -67,6 +75,7 @@ export const apiHandlers: ApiImplementation = {
   ...mcpServerHandlers,
   ...miniAppHandlers,
   ...noteHandlers,
+  ...notificationHandlers,
   ...tagHandlers,
   ...groupHandlers,
   ...pinHandlers,

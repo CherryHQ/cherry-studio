@@ -1,11 +1,13 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { gt as semverGt } from 'semver'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { loggerService } from '@logger'
 import babeldocIcon from '@renderer/assets/images/dependencies/babeldoc.png'
 import { BABELDOC_MINIMUM_VERSION } from '@shared/data/presets/binaryTools'
-import type { BinaryToolSnapshot } from '@shared/types/binary'
+import type { BinaryToolInstalledSizes, BinaryToolSnapshot } from '@shared/types/binary'
 
 import EnvironmentDependencies from '../EnvironmentDependencies'
 
@@ -17,6 +19,7 @@ const usePreferenceMock = vi.hoisted(() => vi.fn())
 const snapshotRecords = vi.hoisted(() => ({ value: {} as Record<string, BinaryToolSnapshot> }))
 const ipcMocks = vi.hoisted(() => ({
   snapshots: vi.fn(),
+  installedSizes: vi.fn(),
   latestVersions: vi.fn(),
   installTool: vi.fn(),
   addCustomTool: vi.fn(),
@@ -25,6 +28,12 @@ const ipcMocks = vi.hoisted(() => ({
 }))
 const toastMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
 const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
+const translationMock = vi.hoisted(() => ({
+  t: (key: string, options?: { details?: string; dependents?: string }) => {
+    const interpolation = options?.details ?? options?.dependents
+    return interpolation ? `${key} ${interpolation}` : key
+  }
+}))
 
 const setSnapshots = (records: Record<string, BinaryToolSnapshot>) => {
   snapshotRecords.value = records
@@ -56,6 +65,8 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.addCustomTool(input)
         case 'binary.remove_tool':
           return ipcMocks.removeTool(input)
+        case 'binary.get_tool_installed_sizes':
+          return ipcMocks.installedSizes(input)
         case 'binary.get_latest_versions':
           return ipcMocks.latestVersions(input)
         case 'binary.search_registry':
@@ -74,12 +85,7 @@ vi.mock('@renderer/ipc/useIpcOn', () => ({ useIpcOn: vi.fn() }))
 vi.mock('@renderer/services/toast', () => ({ toast: toastMock }))
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({
-    t: (key: string, options?: { details?: string; dependents?: string }) => {
-      const interpolation = options?.details ?? options?.dependents
-      return interpolation ? `${key} ${interpolation}` : key
-    }
-  })
+  useTranslation: () => translationMock
 }))
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
 vi.mock('@data/hooks/usePreference', () => ({
@@ -177,6 +183,7 @@ describe('EnvironmentDependencies', () => {
       verifySignatures: true
     }
     ipcMocks.snapshots.mockImplementation(async () => snapshotRecords.value)
+    ipcMocks.installedSizes.mockReset().mockResolvedValue({})
     ipcMocks.latestVersions.mockResolvedValue({})
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.addCustomTool.mockResolvedValue(undefined)
@@ -593,6 +600,134 @@ describe('EnvironmentDependencies', () => {
     await waitFor(() => expect(ipcMocks.snapshots).toHaveBeenCalledTimes(2))
   })
 
+  it('re-probes dependency state after a manual update check recovers the backend', async () => {
+    const user = userEvent.setup()
+    const unknown: BinaryToolSnapshot = {
+      name: 'uv',
+      application: { status: 'unknown', reason: 'query_failed' },
+      availability: { source: 'bundled', path: 'C:\\Cherry\\bin\\uv.exe', version: '0.9.0' }
+    }
+    const recovered: BinaryToolSnapshot = {
+      name: 'uv',
+      application: { status: 'absent' },
+      availability: unknown.availability
+    }
+    ipcMocks.snapshots.mockResolvedValueOnce({ uv: unknown }).mockResolvedValue({ uv: recovered })
+
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
+    expect(within(card).getByText('common.retry')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
+
+    await waitFor(() => expect(within(card).queryByText('common.retry')).not.toBeInTheDocument())
+  })
+
+  it('re-probes dependency state even when the version catalog request fails', async () => {
+    const user = userEvent.setup()
+    const unknown: BinaryToolSnapshot = {
+      name: 'uv',
+      application: { status: 'unknown', reason: 'query_failed' },
+      availability: { source: 'bundled', path: 'C:\\Cherry\\bin\\uv.exe', version: '0.9.0' }
+    }
+    ipcMocks.snapshots
+      .mockResolvedValueOnce({ uv: unknown })
+      .mockResolvedValue({ uv: { ...unknown, application: { status: 'absent' } } })
+    ipcMocks.latestVersions.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('catalog offline'))
+
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
+    expect(within(card).getByText('common.retry')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
+
+    await waitFor(() => expect(within(card).queryByText('common.retry')).not.toBeInTheDocument())
+    expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.updateCheckFailed: catalog offline')
+    expect(toastMock.success).not.toHaveBeenCalled()
+  })
+
+  it('keeps Retry and reports the probe error when a manual re-probe returns query_failed', async () => {
+    const user = userEvent.setup()
+    const unknown: BinaryToolSnapshot = {
+      name: 'uv',
+      application: { status: 'unknown', reason: 'query_failed' },
+      availability: { source: 'bundled', path: 'C:\\Cherry\\bin\\uv.exe', version: '0.9.0' }
+    }
+    const failedProbe: BinaryToolSnapshot = {
+      ...unknown,
+      application: { status: 'unknown', reason: 'query_failed', message: 'mise ls failed' }
+    }
+    ipcMocks.snapshots.mockResolvedValueOnce({ uv: unknown }).mockResolvedValueOnce({ uv: failedProbe })
+
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
+
+    await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
+
+    await waitFor(() =>
+      expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.updateCheckFailed: mise ls failed')
+    )
+    expect(toastMock.success).not.toHaveBeenCalled()
+    expect(within(card).getByText('common.retry')).toBeInTheDocument()
+  })
+
+  it('does not report success when a concurrent refresh supersedes the manual re-probe', async () => {
+    const user = userEvent.setup()
+    const unknown: BinaryToolSnapshot = {
+      name: 'uv',
+      application: { status: 'unknown', reason: 'query_failed', message: 'mise ls failed' },
+      availability: { source: 'bundled', path: 'C:\\Cherry\\bin\\uv.exe', version: '0.9.0' }
+    }
+    const recovered: BinaryToolSnapshot = {
+      name: 'uv',
+      application: { status: 'absent' },
+      availability: unknown.availability
+    }
+    let resolveManualProbe: (snapshots: Record<string, BinaryToolSnapshot>) => void = () => undefined
+    const manualProbe = new Promise<Record<string, BinaryToolSnapshot>>((resolve) => {
+      resolveManualProbe = resolve
+    })
+    ipcMocks.snapshots
+      .mockResolvedValueOnce({ uv: unknown })
+      .mockReturnValueOnce(manualProbe)
+      .mockResolvedValueOnce({ uv: unknown })
+
+    render(<EnvironmentDependencies />)
+    await screen.findByText('uv')
+
+    await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
+    await waitFor(() => expect(ipcMocks.snapshots).toHaveBeenCalledTimes(2))
+    act(() => ipcEventHandlers.get('binary.availability_changed')?.(undefined))
+    await waitFor(() => expect(ipcMocks.snapshots).toHaveBeenCalledTimes(3))
+    act(() => resolveManualProbe({ uv: recovered }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' })).toBeEnabled()
+    )
+    expect(toastMock.success).not.toHaveBeenCalled()
+  })
+
+  it('does not restore stale version badges after an availability change', async () => {
+    const user = userEvent.setup()
+    setSnapshots({ uv: miseSnapshot('uv') })
+    let resolveCatalog: (versions: Record<string, string>) => void = () => undefined
+    const manualCatalog = new Promise<Record<string, string>>((resolve) => {
+      resolveCatalog = resolve
+    })
+    ipcMocks.latestVersions.mockResolvedValueOnce({}).mockReturnValueOnce(manualCatalog)
+
+    render(<EnvironmentDependencies />)
+    await screen.findByText('uv')
+    await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledTimes(2))
+
+    act(() => ipcEventHandlers.get('binary.availability_changed')?.(undefined))
+    await act(async () => resolveCatalog({ uv: '9.0.0' }))
+
+    expect(screen.queryByText('v9.0.0')).not.toBeInTheDocument()
+    expect(toastMock.success).not.toHaveBeenCalled()
+  })
+
   it('hides the mini warning when bundled core dependencies are available', async () => {
     setSnapshots({
       uv: { name: 'uv', availability: { source: 'bundled', path: '/bundled/uv' } },
@@ -980,5 +1115,122 @@ describe('EnvironmentDependencies', () => {
     // A fixed tool has no definition to drop — only the error, never a fallback.
     expect(ipcMocks.removeTool).toHaveBeenCalledTimes(1)
     expect(ipcMocks.removeTool).not.toHaveBeenCalledWith({ name: 'gh', definitionOnly: true })
+  })
+
+  describe('installed sizes', () => {
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      let reject!: (error: Error) => void
+      const promise = new Promise<T>((done, fail) => {
+        resolve = done
+        reject = fail
+      })
+      return { promise, resolve, reject }
+    }
+    const sizeText = /\b(?:KB|MB|GB)\b/
+
+    afterEach(() => vi.restoreAllMocks())
+
+    it('U1 renders both card types and operations before sizes settle, then adds actual formatted bytes', async () => {
+      const sizes = deferred<BinaryToolInstalledSizes>()
+      ipcMocks.installedSizes.mockReturnValueOnce(sizes.promise)
+      setSnapshots({
+        uv: miseSnapshot('uv', 'uv', '1.0.0', false),
+        custom: miseSnapshot('custom', 'github:example/custom'),
+        codex: miseSnapshot('codex', 'npm:codex'),
+        node: miseSnapshot('node', 'core:node', '22.0.0', false)
+      })
+      render(<EnvironmentDependencies />)
+      await waitFor(() => expect(ipcMocks.installedSizes).toHaveBeenCalledOnce())
+      const cards = screen.getAllByRole('listitem')
+      expect(cards.some((card) => within(card).queryByText('custom'))).toBe(true)
+      expect(screen.getAllByTitle('settings.dependencies.update')).toHaveLength(2)
+      expect(screen.queryByText(sizeText)).not.toBeInTheDocument()
+      expect(ipcMocks.installedSizes.mock.calls[0][0]).toContain('custom')
+      expect(ipcMocks.installedSizes.mock.calls[0][0]).not.toContain('codex')
+      expect(ipcMocks.installedSizes.mock.calls[0][0]).not.toContain('node')
+      await act(async () => sizes.resolve({ uv: 1_048_576, custom: 2_097_152 }))
+      expect(screen.getByText('1.0 MB')).toBeInTheDocument()
+      expect(screen.getByText('2.0 MB')).toBeInTheDocument()
+    })
+
+    it.each(['null', 'missing', 'reject'])(
+      'U2 keeps %s sizes entirely silent and preserves operations',
+      async (scenario) => {
+        setSnapshots({ uv: miseSnapshot('uv', 'uv', '1.0.0', false), custom: miseSnapshot('custom') })
+        const error = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+        if (scenario === 'reject') ipcMocks.installedSizes.mockRejectedValueOnce(new Error('size failed'))
+        else ipcMocks.installedSizes.mockResolvedValueOnce(scenario === 'null' ? { uv: null, custom: null } : {})
+        render(<EnvironmentDependencies />)
+        await waitFor(() => expect(ipcMocks.installedSizes).toHaveBeenCalledOnce())
+        await act(async () => undefined)
+        expect(screen.queryByText(sizeText)).not.toBeInTheDocument()
+        expect(screen.queryByText(/Unknown|^N\/A$|^—$|size failed/)).not.toBeInTheDocument()
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+        expect(screen.getAllByTitle('settings.dependencies.update')).toHaveLength(2)
+        expect(toastMock.error).not.toHaveBeenCalled()
+        expect(error).not.toHaveBeenCalled()
+      }
+    )
+
+    it('U2 distinguishes actual zero bytes from missing data', async () => {
+      setSnapshots({ uv: miseSnapshot('uv', 'uv', '1.0.0', false) })
+      ipcMocks.installedSizes.mockResolvedValueOnce({ uv: 0 })
+      render(<EnvironmentDependencies />)
+      expect(await screen.findByText('0.00 KB')).toBeInTheDocument()
+    })
+
+    it('U3 invalidates immediately on events, while snapshots wait, and ignores an old rejection after new success', async () => {
+      setSnapshots({ uv: miseSnapshot('uv', 'uv', '1.0.0', false) })
+      const first = deferred<BinaryToolInstalledSizes>()
+      const second = deferred<BinaryToolInstalledSizes>()
+      const nextSnapshots = deferred<Record<string, BinaryToolSnapshot>>()
+      ipcMocks.installedSizes
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(second.promise)
+        .mockResolvedValueOnce({ uv: 2_097_152 })
+      render(<EnvironmentDependencies />)
+      await waitFor(() => expect(ipcMocks.installedSizes).toHaveBeenCalledTimes(1))
+      ipcMocks.snapshots.mockReturnValueOnce(nextSnapshots.promise)
+      act(() => ipcEventHandlers.get('binary.availability_changed')?.(undefined))
+      await act(async () => first.resolve({ uv: 1_048_576 }))
+      expect(screen.queryByText(sizeText)).not.toBeInTheDocument()
+      await act(async () => nextSnapshots.resolve({ uv: miseSnapshot('uv', 'uv', '2.0.0', false) }))
+      await waitFor(() => expect(ipcMocks.installedSizes).toHaveBeenCalledTimes(2))
+      act(() => ipcEventHandlers.get('binary.availability_changed')?.(undefined))
+      expect(await screen.findByText('2.0 MB')).toBeInTheDocument()
+      await act(async () => second.reject(new Error('late size failure')))
+      expect(screen.getByText('2.0 MB')).toBeInTheDocument()
+      expect(toastMock.error).not.toHaveBeenCalled()
+    })
+
+    it('U3 does not resurrect a removed custom card from an old size response', async () => {
+      const user = userEvent.setup()
+      setSnapshots({ custom: miseSnapshot('custom', 'github:example/custom') })
+      const old = deferred<BinaryToolInstalledSizes>()
+      ipcMocks.installedSizes.mockReturnValueOnce(old.promise)
+      ipcMocks.removeTool.mockImplementationOnce(async () => {
+        setSnapshots({})
+        return { status: 'removed' }
+      })
+      render(<EnvironmentDependencies />)
+      await waitFor(() => expect(ipcMocks.installedSizes).toHaveBeenCalledTimes(1))
+      await user.click(screen.getByLabelText('settings.dependencies.remove'))
+      await user.click(screen.getByTestId('confirm-dialog-confirm'))
+      await waitFor(() => expect(screen.queryByText('custom')).not.toBeInTheDocument())
+      await act(async () => old.resolve({ custom: 1_048_576 }))
+      expect(screen.queryByText('custom')).not.toBeInTheDocument()
+      expect(screen.queryByText(sizeText)).not.toBeInTheDocument()
+      expect(ipcMocks.installedSizes.mock.lastCall?.[0]).not.toContain('custom')
+    })
+
+    it('U4 never requests sizes in mini mode and preserves the dependency warning', async () => {
+      ipcMocks.installedSizes.mockResolvedValue({ uv: 1_048_576 })
+      render(<EnvironmentDependencies mini />)
+      expect(await screen.findByRole('button', { name: 'settings.dependencies.title' })).toBeInTheDocument()
+      expect(ipcMocks.installedSizes).not.toHaveBeenCalled()
+      expect(screen.queryByText(sizeText)).not.toBeInTheDocument()
+    })
   })
 })

@@ -1,6 +1,9 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
+
+import { MessagePartsScopeProvider } from '../MessagePartsContext'
 import ThinkingBlock from '../ThinkingBlock'
 
 // Mock dependencies
@@ -48,6 +51,7 @@ vi.mock('../ThinkingEffect', () => ({
 describe('ThinkingBlock', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
+    invalidateCachedMessageUiStates(['thinking-test-message'])
 
     mockRenderConfig.messageFont = 'sans-serif'
     mockRenderConfig.fontSize = 14
@@ -84,7 +88,14 @@ describe('ThinkingBlock', () => {
         content={block.content}
         isStreaming={block.status === 'streaming'}
         showTitlePreview={props.showTitlePreview}
-      />
+      />,
+      {
+        wrapper: ({ children }) => (
+          <MessagePartsScopeProvider messageId="thinking-test-message" parts={[]}>
+            {children}
+          </MessagePartsScopeProvider>
+        )
+      }
     )
   }
 
@@ -94,7 +105,7 @@ describe('ThinkingBlock', () => {
   const getContentContainer = () => {
     const contentId = getToggleButton().getAttribute('aria-controls')
     if (!contentId) throw new Error('Missing thinking content id')
-    return document.getElementById(contentId)
+    return document.getElementById(contentId)?.closest<HTMLElement>('[data-slot=scroll-area]')
   }
 
   describe('basic rendering', () => {
@@ -258,6 +269,43 @@ describe('ThinkingBlock', () => {
       expect(getContentContainer()).not.toHaveAttribute('hidden')
     })
 
+    it('should restore the user-selected disclosure state after remounting', () => {
+      const block = createThinkingBlock()
+      const firstRender = renderThinkingBlock(block)
+
+      fireEvent.click(getToggleButton())
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+
+      firstRender.unmount()
+      renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it.each([true, false])('reconciles a preference changed while unmounted: %s', (initial) => {
+      mockRenderConfig.thoughtAutoCollapse = initial
+      const block = createThinkingBlock()
+      const first = renderThinkingBlock(block)
+      mockRenderConfig.thoughtAutoCollapse = !initial
+      first.rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(initial))
+      first.unmount()
+      mockRenderConfig.thoughtAutoCollapse = initial
+      renderThinkingBlock(block)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(!initial))
+    })
+
+    it.each([true, false])('preserves a manual choice with unchanged preference: %s', (initial) => {
+      mockRenderConfig.thoughtAutoCollapse = initial
+      const block = createThinkingBlock()
+      const first = renderThinkingBlock(block)
+      fireEvent.click(getToggleButton())
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(initial))
+      first.unmount()
+      renderThinkingBlock(block)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(initial))
+    })
+
     it('should render expanded by default when auto-collapse is disabled', () => {
       mockRenderConfig.thoughtAutoCollapse = false
       const block = createThinkingBlock()
@@ -294,6 +342,76 @@ describe('ThinkingBlock', () => {
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
       expect(getContentContainer()).not.toHaveAttribute('hidden')
     })
+  })
+
+  describe('layout and readability', () => {
+    it('uses viewport-aware max height on the content panel', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock()
+      renderThinkingBlock(block)
+
+      // Bound long reasoning to the viewport so the message list remains reachable.
+      expect(getContentContainer()).toHaveClass('max-h-[min(32rem,60dvh)]')
+    })
+
+    it('uses theme-aware muted foreground for panel and markdown content', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock({ content: 'Readable reasoning text' })
+      renderThinkingBlock(block)
+
+      const panel = getContentContainer()!
+      expect(panel).toHaveClass('text-muted-foreground')
+
+      const markdownWrapper = screen.getByText('Markdown: Readable reasoning text').parentElement
+      expect(markdownWrapper).toHaveClass('text-muted-foreground')
+      expect(markdownWrapper).toHaveStyle({ '--markdown-foreground': 'var(--muted-foreground)' })
+    })
+
+    it('keeps short thinking content compact without a minimum panel height', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock({ content: 'Short thought.' })
+      renderThinkingBlock(block)
+
+      expect(getContentContainer()?.className).not.toMatch(/min-h-/)
+    })
+  })
+
+  it('follows streamed thinking only while the reader remains at the bottom', () => {
+    mockRenderConfig.thoughtAutoCollapse = false
+    let resize: (() => void) | undefined
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          resize = () => callback([], this as unknown as ResizeObserver)
+        }
+        observe() {}
+        disconnect() {}
+      }
+    )
+    try {
+      renderThinkingBlock(createThinkingBlock({ status: 'streaming' }))
+      const panel = getContentContainer()!.querySelector<HTMLElement>('[data-slot=scroll-area-viewport]')!
+      let height = 200
+      Object.defineProperties(panel, {
+        clientHeight: { configurable: true, get: () => 100 },
+        scrollHeight: { configurable: true, get: () => height }
+      })
+      act(() => resize?.())
+      expect(panel.scrollTop).toBe(100)
+      panel.scrollTop = 25
+      fireEvent.scroll(panel)
+      height = 400
+      act(() => resize?.())
+      expect(panel.scrollTop).toBe(25)
+      panel.scrollTop = 300
+      fireEvent.scroll(panel)
+      height = 500
+      act(() => resize?.())
+      expect(panel.scrollTop).toBe(400)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   describe('integration and edge cases', () => {

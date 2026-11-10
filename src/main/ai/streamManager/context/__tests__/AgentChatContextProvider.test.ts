@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
+
 import type { StreamListener } from '../../types'
 import type { MainDispatchRequest } from '../dispatch'
 
@@ -7,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   ensureTraceIdTx: vi.fn(),
   getAgent: vi.fn(),
+  captureHead: vi.fn(),
+  branchTip: vi.fn(),
   saveMessage: vi.fn(),
   saveMessagesTx: vi.fn(),
   hasSessionMessages: vi.fn(),
@@ -16,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   runtimeBeginTurn: vi.fn(),
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
+  runtimeAssertWritable: vi.fn(),
   runtimeValidateSession: vi.fn()
 }))
 
@@ -37,6 +42,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     }
   },
   agentSessionMessageService: {
+    captureHead: mocks.captureHead,
+    branchTip: mocks.branchTip,
     saveMessage: mocks.saveMessage,
     saveMessagesTx: mocks.saveMessagesTx,
     hasSessionMessages: mocks.hasSessionMessages
@@ -87,10 +94,8 @@ describe('AgentChatContextProvider', () => {
     runtimeDriverRegistry.clearForTest()
     runtimeDriverRegistry.register({
       type: 'claude-code',
-      capabilities: ['agent-session'],
       connect: vi.fn(),
-      validateSession: mocks.runtimeValidateSession,
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: mocks.runtimeValidateSession
     })
     mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
     mocks.ensureTraceIdTx.mockReturnValue('a'.repeat(32))
@@ -132,12 +137,16 @@ describe('AgentChatContextProvider', () => {
       }))
     )
     mocks.hasSessionMessages.mockReturnValue(false)
+    mocks.captureHead.mockReturnValue('branch-head')
+    mocks.branchTip.mockImplementation((_sessionId, messageId) => messageId)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') {
         return {
+          prepareBranch: async () => {},
           beginTurn: mocks.runtimeBeginTurn,
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
-          isSessionBusy: mocks.runtimeIsSessionBusy
+          isSessionBusy: mocks.runtimeIsSessionBusy,
+          assertSessionWritable: mocks.runtimeAssertWritable
         }
       }
       if (name === 'DbService') return { withWriteTx: (fn: (tx: object) => unknown) => fn({}) }
@@ -150,6 +159,41 @@ describe('AgentChatContextProvider', () => {
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
   })
+
+  it('keeps the captured branch when the user changes selection during validation', async () => {
+    const validation = Promise.withResolvers<void>()
+    mocks.runtimeValidateSession.mockReturnValueOnce(validation.promise)
+    const dispatch = provider.prepareDispatch(makeSubscriber(), openReq())
+    mocks.captureHead.mockReturnValue('other-branch')
+    validation.resolve()
+    const prepared = await dispatch
+    expect(prepared.reservedMessages?.map((message) => message.role)).toEqual(['user', 'assistant'])
+    expect(mocks.saveMessagesTx.mock.calls[0][1].parentId).toBe('branch-head')
+  })
+
+  it.each([false, true])('rejects a stale append instead of creating an un-forked sibling (busy: %s)', async (busy) => {
+    const validation = Promise.withResolvers<void>()
+    mocks.runtimeValidateSession.mockReturnValueOnce(validation.promise)
+    mocks.runtimeIsSessionBusy.mockReturnValue(busy)
+    const dispatch = provider.prepareDispatch(makeSubscriber(), openReq())
+    mocks.branchTip.mockReturnValue('newly-appended-message')
+    validation.resolve()
+    await expect(dispatch).rejects.toMatchObject({ code: 'RESOURCE_LOCKED' })
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+  })
+
+  it.each(['busy', 'close_failed'] as const)(
+    'rejects ordinary sends before persistence while edit state is %s',
+    async (reason) => {
+      mocks.runtimeAssertWritable.mockImplementationOnce(() => {
+        throw new AgentSessionEditError(reason)
+      })
+      await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toMatchObject({ reason })
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+      expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+    }
+  )
 
   it('prepares fresh agent-session dispatch through the long-lived runtime service', async () => {
     const subscriber = makeSubscriber()

@@ -71,6 +71,22 @@ afterEach(() => {
 })
 
 describe('ConversationPickerDialog', () => {
+  it('matches initials in names without romanizing hidden prompt text', async () => {
+    const user = userEvent.setup()
+    const items: ConversationPickerItem[] = [
+      { id: 'name', name: '知识库助手', icon: null },
+      { id: 'prompt', name: 'Other', searchText: '知识库助手', icon: null }
+    ]
+    render(<ConversationPickerDialog open onOpenChange={vi.fn()} items={items} labels={LABELS} onSelect={vi.fn()} />)
+    const search = screen.getByRole('combobox')
+    await user.type(search, 'ZSKZS')
+    expect(screen.getByRole('option', { name: '知识库助手' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Other' })).not.toBeInTheDocument()
+    await user.clear(search)
+    await user.type(search, '知识')
+    expect(screen.getByRole('option', { name: 'Other' })).toBeInTheDocument()
+  })
+
   it('renders items in order and selects an item', () => {
     const onSelect = vi.fn()
 
@@ -80,7 +96,7 @@ describe('ConversationPickerDialog', () => {
     expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
 
     // The list scrolls inside the shared Scrollbar viewport (auto-hiding thumb), not the cmdk list.
-    expect(screen.getByText('Alpha Assistant').closest('[data-scrolling]')).toBeInTheDocument()
+    expect(screen.getByText('Alpha Assistant').closest('[data-slot=scroll-area-viewport]')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Product Manager'))
 
@@ -382,7 +398,7 @@ describe('ConversationPickerDialog', () => {
     expect(screen.queryByText('Item 5')).not.toBeInTheDocument()
 
     // jsdom reports zero layout metrics, so a scroll event always crosses the bottom threshold.
-    const scroller = screen.getByText('Item 0').closest('[data-scrolling]') as HTMLElement
+    const scroller = screen.getByText('Item 0').closest('[data-slot=scroll-area-viewport]') as HTMLElement
     fireEvent.scroll(scroller)
 
     expect(screen.getByText('Item 9')).toBeInTheDocument()

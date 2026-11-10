@@ -126,6 +126,13 @@ async function resolveFallback(
   if (!configured) return null
   const { provider, model } = configured
 
+  // The API gateway refuses a disabled provider's models, so routing here only
+  // buys an opaque 404 instead of advancing to the next fallback (issue #20547).
+  if (!provider.isEnabled) {
+    logger.info('skipping fallback whose provider is disabled', { uniqueModelId })
+    return null
+  }
+
   const required = args.requiredNativeFileSupport
   if (required.image && !isVisionModel(model)) {
     logger.info('skipping fallback without vision for an image request', { uniqueModelId })

@@ -18,11 +18,12 @@
 
 import { useCallback, useRef } from 'react'
 
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/model'
 import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
@@ -85,28 +86,25 @@ export function useAssistantApiById(id: string | undefined) {
 }
 
 /**
- * Assistant mutations (create / update / delete) backed by DataApi.
+ * Assistant mutations backed by DataApi, with archive commands routed through IpcApi.
  */
 export function useAssistantMutations() {
+  const invalidate = useInvalidateCache()
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/assistants', {
     refresh: ASSISTANTS_REFRESH_KEYS
   })
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/assistants/:id', {
     refresh: ASSISTANTS_REFRESH_KEYS
   })
-  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/assistants/:id', {
-    refresh: ({ args }) => [
-      ...ASSISTANTS_REFRESH_KEYS,
-      '/pins',
-      ...(args?.query?.deleteTopics === true ? (['/topics'] as ConcreteApiPaths[]) : [])
-    ]
+  const { trigger: restoreTrigger } = useMutation('POST', '/assistants/:id/restore', {
+    refresh: ASSISTANTS_REFRESH_KEYS
   })
   const createTriggerRef = useRef(createTrigger)
   const updateTriggerRef = useRef(updateTrigger)
-  const deleteTriggerRef = useRef(deleteTrigger)
+  const restoreTriggerRef = useRef(restoreTrigger)
   createTriggerRef.current = createTrigger
   updateTriggerRef.current = updateTrigger
-  deleteTriggerRef.current = deleteTrigger
+  restoreTriggerRef.current = restoreTrigger
 
   const createAssistant = useCallback(async (dto: CreateAssistantDto): Promise<Assistant> => {
     const created = await createTriggerRef.current({ body: dto })
@@ -124,23 +122,57 @@ export function useAssistantMutations() {
   }, [])
 
   const deleteAssistant = useCallback(
-    async (id: string, options: { deleteTopics?: boolean } = {}): Promise<DeleteAssistantResult> => {
-      const result: DeleteAssistantResult = await deleteTriggerRef.current(
-        options.deleteTopics === true ? { params: { id }, query: { deleteTopics: true } } : { params: { id } }
-      )
-      logger.info('Deleted assistant', { id, deleteTopics: options.deleteTopics === true })
+    async (
+      id: string,
+      options: { deleteTopics?: boolean; permanent?: boolean } = {}
+    ): Promise<DeleteAssistantResult> => {
+      const deleteTopics = options.deleteTopics === true
+      // Deleting the assistant drops its pin; kept children move to the unassociated
+      // list and cascaded children take their pins with them, so both lists refresh.
+      const refreshKeys = [...ASSISTANTS_REFRESH_KEYS, '/pins', '/topics']
+      const refreshAfterDelete = (phase: 'failed' | 'completed') =>
+        invalidate(refreshKeys).catch((refreshError) => {
+          logger.warn(
+            phase === 'failed'
+              ? 'Failed to refresh assistants after delete failed'
+              : 'Failed to refresh assistants after delete succeeded',
+            refreshError as Error,
+            { assistantId: id }
+          )
+        })
+
+      let result: DeleteAssistantResult
+      try {
+        result = await ipcApi.request(
+          options.permanent ? 'trash.assistant.delete_permanently' : 'trash.assistant.archive',
+          { assistantId: id, deleteTopics }
+        )
+      } catch (error) {
+        await refreshAfterDelete('failed')
+        throw error
+      }
+
+      await refreshAfterDelete('completed')
+      logger.info('Deleted assistant', { id, deleteTopics, deleted: result.deleted })
       return result
     },
-    []
+    [invalidate]
   )
+
+  const restoreAssistant = useCallback(async (id: string): Promise<Assistant> => {
+    const restored = await restoreTriggerRef.current({ params: { id } })
+    logger.info('Restored assistant', { id })
+    return restored
+  }, [])
 
   return {
     createAssistant,
     updateAssistant,
     deleteAssistant,
+    restoreAssistant,
     isCreating,
     isUpdating,
-    isDeleting
+    isDeleting: false
   }
 }
 

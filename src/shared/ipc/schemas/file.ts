@@ -22,6 +22,7 @@ import { type CreateTreeIpcResult, DirectoryTreeOptionsSchema, type TreeMutation
 
 import { defineRoute } from '../define'
 import { uint8ArraySchema } from './common'
+import { fileEditRequestSchemas } from './fileEdit'
 
 /** Maximum entry ids accepted by one file batch IPC call. */
 export const FILE_IPC_MAX_BATCH_IDS = 500
@@ -123,6 +124,12 @@ const batchCreateInternalEntriesInputSchema = z.strictObject({
 
 const treeIdSchema = z.string().min(1)
 
+/** Availability probe result for file.copy_to_clipboard: ready or unavailable. */
+const clipboardCopyStatusSchema = z.union([
+  z.strictObject({ ok: z.literal(true) }),
+  z.strictObject({ ok: z.literal(false), reason: z.enum(['missing', 'inaccessible']) })
+])
+
 /**
  * File IPC schemas — filesystem-backed FileManager operations.
  *
@@ -130,6 +137,7 @@ const treeIdSchema = z.string().min(1)
  * live FS metadata and mutations / system actions that must run in main.
  */
 export const fileRequestSchemas = {
+  ...fileEditRequestSchemas,
   'file.read': defineRoute({ input: binaryReadInputSchema, output: binaryReadResultSchema }),
   'file.write_if_unchanged': defineRoute({ input: writeIfUnchangedInputSchema, output: FileVersionSchema }),
   'file.batch_get_metadata': defineRoute({
@@ -151,8 +159,14 @@ export const fileRequestSchemas = {
   }),
   'file.batch_trash': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
   'file.batch_restore': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
-  'file.batch_permanent_delete': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
-  'file.empty_trash': defineRoute({ input: z.void(), output: batchMutationResultSchema }),
+  'file.batch_permanent_delete_from_trash': defineRoute({
+    input: fileEntryIdsInputSchema,
+    output: batchMutationResultSchema
+  }),
+  'file.batch_remove_from_library': defineRoute({
+    input: fileEntryIdsInputSchema,
+    output: batchMutationResultSchema
+  }),
   'file.rename': defineRoute({
     input: z.strictObject({ id: FileEntryIdSchema, newName: SafeNameSchema }),
     output: FileEntrySchema
@@ -165,10 +179,13 @@ export const fileRequestSchemas = {
   }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() }),
+  'file.get_clipboard_status': defineRoute({ input: FileHandleSchema, output: clipboardCopyStatusSchema }),
+  'file.copy_to_clipboard': defineRoute({ input: FileHandleSchema, output: z.void() }),
+  'file.validate_notes_directory': defineRoute({ input: AbsoluteFilePathSchema, output: z.boolean() }),
 
   // DirectoryTreeBuilder primitive. `create` returns the snapshot with its revision;
   // `activate` releases the buffered mutations once the renderer mirror is listening.
-  // See docs/references/file/directory-tree.md.
+  // See docs/dev/references/file/directory-tree.md.
   'file.tree.create': defineRoute({
     input: z.strictObject({ rootPath: AbsoluteFilePathSchema, options: DirectoryTreeOptionsSchema.optional() }),
     // Output schemas are not parsed at runtime, and `SerializedTreeNode` is recursive —

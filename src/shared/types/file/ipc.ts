@@ -113,14 +113,14 @@ export type CreateInternalEntryIpcParams =
       /** Copy the file at `path` into Cherry storage. `name` / `ext` derived from basename+extname. */
       source: 'path'
       path: AbsoluteFilePath
-      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      /** Cleanup intent for the new entry — see docs/dev/references/file/file-entry-cleanup.md §4.1. */
       cleanupPolicy: CleanupPolicy
     }
   | {
       /** Download the URL into Cherry storage. `name` / `ext` derived from URL tail, Content-Disposition, and Content-Type. */
       source: 'url'
       url: UrlString
-      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      /** Cleanup intent for the new entry — see docs/dev/references/file/file-entry-cleanup.md §4.1. */
       cleanupPolicy: CleanupPolicy
     }
   | {
@@ -129,7 +129,7 @@ export type CreateInternalEntryIpcParams =
       data: Base64String
       /** Optional display name override. If omitted, FileManager synthesizes one (e.g. `Pasted Image 2026-04-21`). */
       name?: string
-      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      /** Cleanup intent for the new entry — see docs/dev/references/file/file-entry-cleanup.md §4.1. */
       cleanupPolicy: CleanupPolicy
     }
   | {
@@ -140,7 +140,7 @@ export type CreateInternalEntryIpcParams =
       name: string
       /** File extension without leading dot (e.g. `'pdf'`), or `null` for extensionless. */
       ext: string | null
-      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      /** Cleanup intent for the new entry — see docs/dev/references/file/file-entry-cleanup.md §4.1. */
       cleanupPolicy: CleanupPolicy
     }
 
@@ -177,7 +177,7 @@ export type CreateInternalEntryIpcParams =
  */
 export type EnsureExternalEntryIpcParams = {
   externalPath: AbsoluteFilePath
-  /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+  /** Cleanup intent for the new entry — see docs/dev/references/file/file-entry-cleanup.md §4.1. */
   cleanupPolicy: CleanupPolicy
 }
 
@@ -185,12 +185,6 @@ export type EnsureExternalEntryIpcParams = {
 export type GetPhysicalPathIpcParams = {
   id: FileEntryId
 }
-
-/**
- * Params for permanently deleting a file by handle. See `FileIpcApi.permanentDelete`
- * for the entry-vs-path branch semantics.
- */
-export type PermanentDeleteIpcParams = FileHandle
 
 // ─── IPC Result ───
 //
@@ -202,8 +196,9 @@ export type PermanentDeleteIpcParams = FileHandle
 
 /**
  * Result shape for batch *mutations* on existing entries — `batchTrash`,
- * `batchRestore`, `batchPermanentDelete`. Each input is a `FileEntryId`, so
- * both halves of the result are id-keyed.
+ * `batchRestore`, `batchPermanentDeleteFromTrash`, and
+ * `batchRemoveFromLibrary`. Each input is a `FileEntryId`, so both halves of
+ * the result are id-keyed.
  *
  * `succeeded` and `failed` together cover the input set exactly once. Order
  * within `succeeded` matches the input order; order within `failed` is
@@ -250,7 +245,7 @@ export interface BatchCreateResult {
  *
  * | IpcApi — wired | Legacy preload — still wired | Type-only / future |
  * |---|---|---|
- * | binary `read`, `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder`, `getMetadata` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, `runSweep` | everything else |
+ * | binary `read`, `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDeleteFromTrash`, `batchRemoveFromLibrary`, entry `rename`, entry `open`, entry `showInFolder`, `getMetadata` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `runSweep` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -453,9 +448,8 @@ export interface FileIpcApi {
 
   // ─── E. Trash / Delete ───
   //
-  // Section status: batch entry operations used by Files page are wired through
-  // IpcApi routes; handle-level `permanentDelete` remains on the legacy preload
-  // surface for existing non-Files-page consumers.
+  // Section status: batch entry operations are wired through protected IpcApi
+  // routes. No generic renderer-facing permanent-delete surface remains.
 
   /**
    * Move entry to Trash (soft delete via deletedAt). Internal-origin entries only.
@@ -475,33 +469,6 @@ export interface FileIpcApi {
   restore(params: { id: FileEntryId }): Promise<FileEntry>
 
   /**
-   * Permanently delete.
-   * - Entry handle, internal origin: unlinks `{userData}/Data/Files/{id}.{ext}`, then deletes DB row.
-   * - Entry handle, external origin: **DB-only** — the user's physical file
-   *   is left untouched. Entry-level deletion is deliberately decoupled from
-   *   physical deletion; callers wanting to also delete the file on disk
-   *   should invoke the path-handle branch below separately.
-   * - Path handle: removes the file at the given path (delegates to `@main/utils/file/fs.remove`).
-   *
-   * **⚠️ UX label warning**: the literal name `permanentDelete` is misleading
-   * for the external-entry branch, where nothing is "permanently deleted"
-   * on disk. UI surfaces MUST choose the user-facing label per
-   * `(handle.kind, origin)` — see the UX labeling convention table in
-   * `docs/references/file/architecture.md §3.4` before wiring this call
-   * into a button. Failing to differentiate results in either (a) user
-   * expects disk deletion and files a bug report, or (b) user avoids the
-   * action fearing data loss and accumulates dangling library entries.
-   *
-   * @phase 2 — wired in Batch 0 (`IpcChannel.File_PermanentDelete` →
-   * `FileManager.registerIpcHandlers`). Both `FileEntryHandle` and `FilePathHandle`
-   * branches are live: entry handles route through `FileManager.permanentDelete`,
-   * path handles delegate to `@main/utils/file/fs.remove`. Currently unused by the
-   * renderer (no v2-native consumer yet); Batches A-E will wire callers once those
-   * consumers natively handle v2 UUIDs.
-   */
-  permanentDelete(handle: FileHandle): Promise<void>
-
-  /**
    * Batch trash — internal-origin only; external ids fail like `trash`.
    * @phase 2 — wired for Files page as IpcApi route `file.batch_trash`.
    */
@@ -511,11 +478,10 @@ export interface FileIpcApi {
    * @phase 2 — wired for Files page as IpcApi route `file.batch_restore`.
    */
   batchRestore(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
-  /**
-   * Batch permanently delete entries (DB row always removed; physical FS follows origin rules above).
-   * @phase 2 — wired for Files page as IpcApi route `file.batch_permanent_delete`.
-   */
-  batchPermanentDelete(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
+  /** Permanently delete unreferenced internal entries that are currently in Trash. */
+  batchPermanentDeleteFromTrash(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
+  /** Remove unreferenced external entries from the library without modifying user files. */
+  batchRemoveFromLibrary(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
 
   // ─── F. Rename ───
   //

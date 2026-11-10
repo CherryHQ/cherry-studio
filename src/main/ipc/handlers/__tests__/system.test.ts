@@ -1,12 +1,13 @@
+import { createMockApplication, MockApplicationUtils } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  appGetMock,
   getDeviceTypeMock,
   getCountryMock,
   getFontsMock,
   isTrustedMock,
   openPathMock,
+  openRequestPathMock,
   openExternalMock,
   isSafeMock,
   nativeThemeMock,
@@ -15,12 +16,12 @@ const {
   requestScreenCaptureMock,
   openScreenCaptureSettingsMock
 } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
   getDeviceTypeMock: vi.fn(),
   getCountryMock: vi.fn(),
   getFontsMock: vi.fn(),
   isTrustedMock: vi.fn(),
   openPathMock: vi.fn(),
+  openRequestPathMock: vi.fn(),
   openExternalMock: vi.fn(),
   isSafeMock: vi.fn(),
   nativeThemeMock: { shouldUseDarkColors: false },
@@ -30,9 +31,9 @@ const {
   openScreenCaptureSettingsMock: vi.fn()
 }))
 
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@main/utils/system', () => ({ getDeviceType: getDeviceTypeMock }))
 vi.mock('@main/services/RegionService', () => ({ regionService: { getCountry: getCountryMock } }))
+vi.mock('@main/services/file', () => ({ openRequestPath: openRequestPathMock }))
 vi.mock('@main/utils/externalUrlSafety', () => ({ isSafeExternalUrl: isSafeMock }))
 vi.mock('@main/core/platform', () => ({
   get isMac() {
@@ -53,10 +54,19 @@ vi.mock('@main/utils/screenCapturePermission', () => ({
   openScreenCaptureSettings: openScreenCaptureSettingsMock
 }))
 
+import { systemRequestSchemas } from '@shared/ipc/schemas/system'
+
 import { systemHandlers } from '../system'
 
-const toggleDevTools = vi.fn()
-const windowManager = { getWindow: vi.fn(() => ({ webContents: { toggleDevTools } })) }
+const navigation = createMockApplication().get('MainWindowService') as { openWebsite: (url: string) => Promise<void> }
+const webContents = {
+  isDevToolsOpened: vi.fn(() => false),
+  openDevTools: vi.fn(),
+  closeDevTools: vi.fn()
+}
+const windowManager = {
+  getWindow: vi.fn((): { webContents: typeof webContents } | undefined => ({ webContents }))
+}
 
 const ctx = (senderId: string | null) => ({ senderId })
 
@@ -64,10 +74,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   platform.isMac = true
   nativeThemeMock.shouldUseDarkColors = false
-  appGetMock.mockImplementation((name: string) => {
-    if (name === 'WindowManager') return windowManager
-    throw new Error(`Unexpected application.get(${name})`)
-  })
+  MockApplicationUtils.resetServices()
+  MockApplicationUtils.setService('WindowManager', windowManager)
+  webContents.isDevToolsOpened.mockReturnValue(false)
 })
 
 describe('systemHandlers', () => {
@@ -98,15 +107,35 @@ describe('systemHandlers', () => {
     expect(await systemHandlers['system.get_fonts'](undefined, ctx('w1'))).toEqual([])
   })
 
-  it('toggle_dev_tools toggles the caller window resolved from senderId', async () => {
+  it('opens the caller window DevTools docked at the bottom', async () => {
     await systemHandlers['system.toggle_dev_tools'](undefined, ctx('w1'))
+
     expect(windowManager.getWindow).toHaveBeenCalledWith('w1')
-    expect(toggleDevTools).toHaveBeenCalledOnce()
+    expect(webContents.openDevTools).toHaveBeenCalledWith({ mode: 'bottom' })
+    expect(webContents.closeDevTools).not.toHaveBeenCalled()
   })
 
-  it('toggle_dev_tools is a no-op when the caller is not a tracked window', async () => {
+  it('closes DevTools when they are already open', async () => {
+    webContents.isDevToolsOpened.mockReturnValue(true)
+
+    await systemHandlers['system.toggle_dev_tools'](undefined, ctx('w1'))
+
+    expect(webContents.closeDevTools).toHaveBeenCalledOnce()
+    expect(webContents.openDevTools).not.toHaveBeenCalled()
+  })
+
+  it('toggle_dev_tools is a no-op without a caller window', async () => {
     await systemHandlers['system.toggle_dev_tools'](undefined, ctx(null))
     expect(windowManager.getWindow).not.toHaveBeenCalled()
+  })
+
+  it('toggle_dev_tools is a no-op when the caller window is gone', async () => {
+    windowManager.getWindow.mockReturnValueOnce(undefined)
+
+    await systemHandlers['system.toggle_dev_tools'](undefined, ctx('closed-window'))
+
+    expect(webContents.openDevTools).not.toHaveBeenCalled()
+    expect(webContents.closeDevTools).not.toHaveBeenCalled()
   })
 
   it('mac.is_process_trusted queries systemPreferences on darwin', async () => {
@@ -145,20 +174,36 @@ describe('systemHandlers', () => {
     expect(await systemHandlers['system.mac.request_screen_capture'](undefined, ctx('w1'))).toBe('denied')
   })
 
-  it('shell.open_path delegates straight to shell.openPath', async () => {
+  it('shell.open_path delegates to the file entry point that validates the path', async () => {
     await systemHandlers['system.shell.open_path']('/tmp/foo', ctx('w1'))
-    expect(openPathMock).toHaveBeenCalledWith('/tmp/foo')
+
+    expect(openRequestPathMock).toHaveBeenCalledWith('/tmp/foo')
+    expect(openPathMock).not.toHaveBeenCalled()
   })
 
   it('shell.open_website opens a URL that passes the scheme guard', async () => {
     isSafeMock.mockReturnValue(true)
     await systemHandlers['system.shell.open_website']('https://example.com', ctx('w1'))
-    expect(openExternalMock).toHaveBeenCalledWith('https://example.com')
+    expect(navigation.openWebsite).toHaveBeenCalledWith('https://example.com')
   })
 
-  it('shell.open_website drops an unsafe URL without calling shell.openExternal', async () => {
+  it('shell.open_website delegates unsafe URL rejection to main without calling shell.openExternal', async () => {
     isSafeMock.mockReturnValue(false)
     await systemHandlers['system.shell.open_website']('javascript:alert(1)', ctx('w1'))
+    expect(openExternalMock).not.toHaveBeenCalled()
+    expect(navigation.openWebsite).toHaveBeenCalledWith('javascript:alert(1)')
+  })
+})
+
+describe('external website input compatibility', () => {
+  it.each([
+    'https://example.test',
+    { url: 'obsidian://open?vault=Notes', options: { activate: false, workingDirectory: '/tmp', logUsage: true } }
+  ])('accepts and delegates %j with forced-external routing', async (input) => {
+    const parsed = systemRequestSchemas['system.shell.open_external_website'].input.parse(input)
+    await systemHandlers['system.shell.open_external_website'](parsed, ctx('w1'))
+    const { url, options } = typeof input === 'string' ? { url: input, options: undefined } : input
+    expect(navigation.openWebsite).toHaveBeenCalledExactlyOnceWith(url, true, options)
     expect(openExternalMock).not.toHaveBeenCalled()
   })
 })

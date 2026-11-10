@@ -29,6 +29,8 @@ interface QuitPreventionHold extends Disposable {
   readonly id: string
 }
 
+type QuitGuard = () => boolean | Promise<boolean>
+
 /**
  * Application
  * Main application class that orchestrates the entire application lifecycle
@@ -41,6 +43,9 @@ export class Application {
   private isBootstrapped = false
   private isShuttingDown = false
   private _isQuitting = false
+  private quitGuardsPending = false
+  private quitGuardsPassed = false
+  private readonly quitGuards = new Set<QuitGuard>()
   private quitPreventionHolds = new Map<string, string>()
   private ipcQuitHolds = new Map<string, QuitPreventionHold>()
 
@@ -400,13 +405,15 @@ export class Application {
   public relaunch(options?: Electron.RelaunchOptions): void {
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
-      dialog.showMessageBoxSync({
-        type: 'info',
-        title: 'Manual Restart Required',
-        message: 'Auto-relaunch is not available in development mode.',
-        detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
-        buttons: ['OK']
-      })
+      if (app.isReady()) {
+        dialog.showMessageBoxSync({
+          type: 'info',
+          title: 'Manual Restart Required',
+          message: 'Auto-relaunch is not available in development mode.',
+          detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
+          buttons: ['OK']
+        })
+      }
       app.exit(0)
       return
     }
@@ -482,10 +489,37 @@ export class Application {
       if (!this.canQuit()) {
         event.preventDefault()
         this._isQuitting = false // Reset — quit was blocked, not actually quitting
+        this.quitGuardsPassed = false
         const reasons = [...this.quitPreventionHolds.values()].join(', ')
         logger.info(`Quit prevented: ${reasons}`)
         return
       }
+      if (!this._isQuitting && !this.quitGuardsPassed) {
+        if (this.quitGuardsPending) {
+          event.preventDefault()
+          return
+        }
+        this.quitGuardsPending = true
+        try {
+          const allowed = this.checkQuitGuards()
+          if (typeof allowed !== 'boolean') {
+            event.preventDefault()
+            void this.finishQuitGuards(allowed)
+            return
+          }
+          this.quitGuardsPending = false
+          if (!allowed) {
+            event.preventDefault()
+            return
+          }
+        } catch (error) {
+          this.quitGuardsPending = false
+          event.preventDefault()
+          logger.error('Failed to evaluate quit guards', error as Error)
+          return
+        }
+      }
+      this.quitGuardsPassed = false
       this._isQuitting = true
     })
 
@@ -510,6 +544,39 @@ export class Application {
     })
   }
 
+  private checkQuitGuards(guards = this.quitGuards.values()): boolean | Promise<boolean> {
+    for (const guard of guards) {
+      const allowed = guard()
+      if (typeof allowed !== 'boolean') {
+        return allowed.then(
+          (approved) =>
+            approved &&
+            this.quitGuards.has(guard) &&
+            !this._isQuitting &&
+            !this.isShuttingDown &&
+            this.checkQuitGuards(guards)
+        )
+      }
+      if (!allowed) return false
+    }
+    return true
+  }
+
+  private async finishQuitGuards(decision: Promise<boolean>): Promise<void> {
+    let allowed = false
+    try {
+      allowed = await decision
+    } catch (error) {
+      logger.error('Failed to evaluate quit guards', error as Error)
+    } finally {
+      this.quitGuardsPending = false
+    }
+    if (allowed && !this._isQuitting && !this.isShuttingDown) {
+      this.quitGuardsPassed = true
+      this.quit()
+    }
+  }
+
   /**
    * Setup Electron app event handlers that require app.whenReady().
    */
@@ -530,10 +597,6 @@ export class Application {
    * All application lifecycle operations exposed to renderer live here.
    */
   private registerApplicationIpc(): void {
-    handleGuarded(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
-      this.relaunch(options)
-    })
-
     handleGuarded(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
       const hold = this.preventQuit(reason)
       this.ipcQuitHolds.set(hold.id, hold)
@@ -566,6 +629,16 @@ export class Application {
    */
   public getOptional<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
     return this.container.getOptional(name)
+  }
+
+  /**
+   * Resolve a service only if the container already created it — never
+   * registers, instantiates, or throws. For preboot-era callers that run before
+   * `bootstrap()` and must degrade gracefully; use `get()` everywhere else.
+   * @param name - Service name from ServiceRegistry
+   */
+  public getExisting<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
+    return this.container.getInstance(name) as ServiceRegistry[K] | undefined
   }
 
   /**
@@ -608,15 +681,27 @@ export class Application {
     }
   }
 
+  /**
+   * Register a user-quit guard. All guards must approve, in registration order.
+   * Async decisions share one pending quit attempt; errors cancel it. Hard holds take precedence.
+   * @returns A disposable that unregisters the guard and invalidates its pending approval.
+   */
+  public registerQuitGuard(guard: QuitGuard): Disposable {
+    const registeredGuard = () => guard()
+    this.quitGuards.add(registeredGuard)
+    return { dispose: () => this.quitGuards.delete(registeredGuard) }
+  }
+
   private canQuit(): boolean {
     return this.quitPreventionHolds.size === 0
   }
 
   /**
-   * Graceful quit: set flag then trigger the Electron quit event chain.
+   * Graceful quit through the Electron quit event chain.
    * before-quit checks preventQuit holds, then will-quit runs shutdown().
    */
-  public quit(): void {
+  public quit(reason: 'user' | 'system-shutdown' = 'user'): void {
+    if (reason === 'system-shutdown') this.quitGuardsPassed = true
     if (this._isQuitting) {
       // Re-kick app.quit(): if a prior quit stalled (e.g. a BrowserWindow close
       // handler preventDefault'd and broke the chain), this gives the user a
@@ -626,7 +711,6 @@ export class Application {
       return
     }
     logger.info('Quitting application...')
-    this._isQuitting = true
     app.quit()
   }
 

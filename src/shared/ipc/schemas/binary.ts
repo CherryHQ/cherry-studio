@@ -79,7 +79,11 @@ const binaryApplicationSchema: z.ZodType<BinaryApplication> = z.discriminatedUni
   z.object({ status: z.literal('broken'), version: z.string().optional() }),
   z.object({ status: z.literal('absent') }),
   z.object({ status: z.literal('conflict') }),
-  z.object({ status: z.literal('unknown'), reason: z.enum(['backend_unavailable', 'query_failed']) })
+  z.object({
+    status: z.literal('unknown'),
+    reason: z.enum(['backend_unavailable', 'query_failed']),
+    message: z.string().optional()
+  })
 ])
 
 const binaryOperationSchema: z.ZodType<BinaryOperation> = z.discriminatedUnion('status', [
@@ -114,6 +118,10 @@ export const binaryRequestSchemas = {
   'binary.get_tool_snapshots': defineRoute({
     input: z.array(toolNameSchema),
     output: z.record(z.string(), binaryToolSnapshotSchema)
+  }),
+  'binary.get_tool_installed_sizes': defineRoute({
+    input: z.array(toolNameSchema),
+    output: z.record(z.string(), z.number().int().nonnegative().nullable())
   }),
   'binary.search_registry': defineRoute({ input: z.string(), output: z.array(registryEntrySchema) }),
   // false = read session shared cache only; true = run mise latest and refresh the cache.

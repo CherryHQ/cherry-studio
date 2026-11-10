@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { resolve as resolvePath } from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -54,12 +55,21 @@ describe('checkUpgradePathCompatibility', () => {
     expect(result).toStrictEqual({ outcome: 'pass' })
   })
 
-  it('#6 blocks when v2 gateway is skipped (1.9.12 -> 2.1.0)', () => {
-    const result = check({ previousVersion: '1.9.12', versionLogExists: true, currentAppVersion: '2.1.0' })
-    expect(result).toStrictEqual({
-      outcome: 'block',
-      reason: 'v2_gateway_skipped',
-      details: { previousVersion: '1.9.12', currentVersion: '2.1.0', gatewayVersion: '2.0.x' }
+  it.each(['3.0.0', '3.0.0-beta', '3.0.0-rc.1', '3.1.0'])(
+    'blocks when v2 gateway is skipped (1.9.12 -> %s)',
+    (currentAppVersion) => {
+      const result = check({ previousVersion: '1.9.12', versionLogExists: true, currentAppVersion })
+      expect(result).toStrictEqual({
+        outcome: 'block',
+        reason: 'v2_gateway_skipped',
+        details: { previousVersion: '1.9.12', currentVersion: currentAppVersion, gatewayVersion: '2.x' }
+      })
+    }
+  )
+
+  it.each(['2.1.0', '2.1.0-beta', '2.99.99'])('allows direct v1 migration to %s', (currentAppVersion) => {
+    expect(check({ previousVersion: '1.9.12', versionLogExists: true, currentAppVersion })).toStrictEqual({
+      outcome: 'pass'
     })
   })
 
@@ -79,11 +89,12 @@ describe('checkUpgradePathCompatibility', () => {
   })
 
   it('#10 blocks when previous is 2.0.0-beta (pre-release < 2.0.0)', () => {
-    const result = check({ previousVersion: '2.0.0-beta', versionLogExists: true, currentAppVersion: '2.1.0' })
+    const currentAppVersion = '3.0.0'
+    const result = check({ previousVersion: '2.0.0-beta', versionLogExists: true, currentAppVersion })
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'v2_gateway_skipped',
-      details: { previousVersion: '2.0.0-beta', currentVersion: '2.1.0', gatewayVersion: '2.0.x' }
+      details: { previousVersion: '2.0.0-beta', currentVersion: currentAppVersion, gatewayVersion: '2.x' }
     })
   })
 
@@ -115,13 +126,13 @@ describe('readPreviousVersion', () => {
     ].join('\n')
     mockedReadFileSync.mockReturnValue(content)
 
-    expect(readPreviousVersion('/tmp/version.log', '2.0.0')).toBe('1.9.0')
+    expect(readPreviousVersion(resolvePath('/tmp/version.log'), '2.0.0')).toBe('1.9.0')
   })
 
   it('returns null for an empty file', () => {
     mockedReadFileSync.mockReturnValue('')
 
-    expect(readPreviousVersion('/tmp/version.log', '2.0.0')).toBeNull()
+    expect(readPreviousVersion(resolvePath('/tmp/version.log'), '2.0.0')).toBeNull()
   })
 
   it('returns null when all records match current version', () => {
@@ -131,7 +142,7 @@ describe('readPreviousVersion', () => {
     ].join('\n')
     mockedReadFileSync.mockReturnValue(content)
 
-    expect(readPreviousVersion('/tmp/version.log', '2.0.0')).toBeNull()
+    expect(readPreviousVersion(resolvePath('/tmp/version.log'), '2.0.0')).toBeNull()
   })
 
   it('skips corrupted lines and returns the valid previous version', () => {
@@ -143,13 +154,13 @@ describe('readPreviousVersion', () => {
     ].join('\n')
     mockedReadFileSync.mockReturnValue(content)
 
-    expect(readPreviousVersion('/tmp/version.log', '2.0.0')).toBe('1.9.0')
+    expect(readPreviousVersion(resolvePath('/tmp/version.log'), '2.0.0')).toBe('1.9.0')
   })
 
   it('returns null when a single valid entry matches current version', () => {
     mockedReadFileSync.mockReturnValue('2.0.0|darwin|production|true|normal|2025-03-01T00:00:00Z')
 
-    expect(readPreviousVersion('/tmp/version.log', '2.0.0')).toBeNull()
+    expect(readPreviousVersion(resolvePath('/tmp/version.log'), '2.0.0')).toBeNull()
   })
 
   it('returns null when the file does not exist', () => {
@@ -157,7 +168,7 @@ describe('readPreviousVersion', () => {
       throw new Error('ENOENT: no such file or directory')
     })
 
-    expect(readPreviousVersion('/tmp/nonexistent.log', '2.0.0')).toBeNull()
+    expect(readPreviousVersion(resolvePath('/tmp/nonexistent.log'), '2.0.0')).toBeNull()
   })
 })
 
@@ -174,7 +185,7 @@ describe('evaluateCandidateVersion', () => {
   it('blocks with no_version_log when the directory has no version.log', () => {
     mockedExistsSync.mockReturnValue(false)
 
-    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+    const result = evaluateCandidateVersion(resolvePath('/data/dir'), '2.0.0')
 
     expect(result.check).toStrictEqual({
       outcome: 'block',
@@ -185,14 +196,14 @@ describe('evaluateCandidateVersion', () => {
     expect(result.versionLogExists).toBe(false)
     expect(result.previousVersion).toBeNull()
     // version.log path is derived from the candidate directory.
-    expect(mockedExistsSync).toHaveBeenCalledWith('/data/dir/version.log')
+    expect(mockedExistsSync).toHaveBeenCalledWith(resolvePath('/data/dir/version.log'))
   })
 
   it('passes when version.log records a previous version at or above the required v1', () => {
     mockedExistsSync.mockReturnValue(true)
     mockedReadFileSync.mockReturnValue('1.9.12|darwin|production|true|normal|2025-03-01T00:00:00Z')
 
-    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+    const result = evaluateCandidateVersion(resolvePath('/data/dir'), '2.0.0')
 
     expect(result.check).toStrictEqual({ outcome: 'pass' })
     expect(result.previousVersion).toBe('1.9.12')
@@ -203,7 +214,7 @@ describe('evaluateCandidateVersion', () => {
     mockedExistsSync.mockReturnValue(true)
     mockedReadFileSync.mockReturnValue('1.8.0|darwin|production|true|normal|2025-01-01T00:00:00Z')
 
-    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+    const result = evaluateCandidateVersion(resolvePath('/data/dir'), '2.0.0')
 
     expect(result.check).toStrictEqual({
       outcome: 'block',

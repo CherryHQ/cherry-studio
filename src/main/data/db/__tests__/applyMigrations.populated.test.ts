@@ -70,6 +70,100 @@ describe('applyMigrations over a populated database', () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  it('adds mirror_enabled when upgrading a populated pre-export database', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0030_skill_mirror_export'))
+    sqlite
+      .prepare(`INSERT INTO agent_global_skill
+      (id, name, folder_name, source, content_hash, is_enabled, created_at, updated_at)
+      VALUES ('existing-skill', 'Existing skill', 'existing-skill', 'local', 'hash', 1, 1000, 2000)`)
+      .run()
+    sqlite.close()
+    sqlite = new Database(join(tempDir, 'test.db'))
+    db = drizzle({ client: sqlite, casing: 'snake_case' })
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare('SELECT name, mirror_enabled, is_enabled FROM agent_global_skill').all()).toEqual([
+      { name: 'Existing skill', mirror_enabled: 1, is_enabled: 1 }
+    ])
+    sqlite.prepare('UPDATE agent_global_skill SET mirror_enabled = 0').run()
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare('SELECT mirror_enabled FROM agent_global_skill').get()).toEqual({ mirror_enabled: 0 })
+    expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
+  })
+
+  it('adds diagnostic history to a populated database and retains it after reopening', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        'INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+      )
+      .run('existing', 'Existing', 'a0', now, now)
+
+    sqlite.close()
+    sqlite = new Database(join(tempDir, 'test.db'))
+    db = drizzle({ client: sqlite, casing: 'snake_case' })
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare('SELECT name FROM user_provider WHERE provider_id = ?').get('existing')).toEqual({
+      name: 'Existing'
+    })
+    sqlite
+      .prepare('INSERT INTO diagnostic_report (report_id, submitted_at, processing_status) VALUES (?, ?, ?)')
+      .run('report-1', now, 'pending')
+    sqlite.close()
+    sqlite = new Database(join(tempDir, 'test.db'))
+    expect(sqlite.prepare('SELECT report_id, submitted_at, processing_status FROM diagnostic_report').all()).toEqual([
+      { report_id: 'report-1', submitted_at: now, processing_status: 'pending' }
+    ])
+    expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
+  })
+
+  it('preserves legacy paired devices and creates durable receipts with device cascade', () => {
+    sqlite.pragma('foreign_keys = ON')
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0025_remote-access'))
+    const insertDevice = sqlite.prepare(`INSERT INTO api_gateway_paired_device
+      (id, name, platform, token_hash, created_at, updated_at)
+      VALUES (?, ?, 'ios', ?, 1000, 2000)`)
+    for (const id of ['phone', 'tablet']) insertDevice.run(id, id, id)
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare('SELECT * FROM api_gateway_paired_device ORDER BY id').all()).toEqual(
+      ['phone', 'tablet'].map((id) => ({
+        id,
+        name: id,
+        platform: 'ios',
+        created_at: 1000,
+        updated_at: 2000,
+        peer_identity: null,
+        configuration_grant_id: null,
+        agent_grant_id: null
+      }))
+    )
+    const insertReceipt = sqlite.prepare(`INSERT INTO remote_command
+      (device_id, grant_id, command_id, method, identity_digest, status, session_id, execution_id,
+       result, error, admitted_at, created_at, updated_at)
+      VALUES (?, ?, 'command', 'agent.messages.send', 'digest', 'applied', 'session', 'execution',
+              '{"executionId":"execution"}', NULL, 1000, 1000, 2000)`)
+    insertReceipt.run('phone', 'previous-grant')
+    insertReceipt.run('phone', 'current-grant')
+    insertReceipt.run('tablet', 'current-grant')
+    const owned = sqlite.prepare('SELECT * FROM remote_command ORDER BY device_id, grant_id').all() as Array<{
+      device_id: string
+    }>
+
+    applyMigrations(db, resolveMigrationsPath())
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare('SELECT * FROM remote_command ORDER BY device_id, grant_id').all()).toEqual(owned)
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1)
+    expect(() => insertReceipt.run('deleted-device', 'old-grant')).toThrow('FOREIGN KEY constraint failed')
+    sqlite.prepare("DELETE FROM api_gateway_paired_device WHERE id = 'phone'").run()
+    expect(sqlite.prepare('SELECT * FROM remote_command').all()).toEqual(
+      owned.filter((row) => row.device_id === 'tablet')
+    )
+    expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
+  })
+
   /** Seed rows that exercise both `file_entry` variants plus a child reference. */
   function seedBaselineRows(): void {
     const now = Date.now()
@@ -108,8 +202,70 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('classifies only proven heartbeat sessions while preserving conversation data', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0024_lying_shatterstar'))
+    const now = Date.now()
+    sqlite
+      .prepare(`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+      VALUES ('workspace', 'Workspace', '/tmp/heartbeat-migration', 'user', 'a0', ?, ?)`)
+      .run(now, now)
+    const insertSession = sqlite.prepare(`INSERT INTO agent_session
+      (id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+      VALUES (?, ?, 'workspace', ?, ?, ?, ?)`)
+    for (const id of ['heartbeat', 'ordinary', 'unknown', 'shared', 'unlinked']) {
+      insertSession.run(id, 'heartbeat', id, now, now, now)
+    }
+    sqlite
+      .prepare(`INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at)
+      VALUES ('message', 'heartbeat', 'assistant', ?, 'success', ?, ?)`)
+      .run(JSON.stringify({ parts: [{ type: 'text', text: 'kept result' }] }), now, now)
+    sqlite
+      .prepare(`INSERT INTO job_schedule
+      (id, type, name, trigger, job_input_template, catch_up_policy, created_at, updated_at)
+      VALUES ('heartbeat-schedule', 'agent.task', 'heartbeat_agent-1', ?, ?, ?, ?, ?)`)
+      .run(
+        JSON.stringify({ kind: 'interval', ms: 60_000 }),
+        JSON.stringify({ agentId: 'agent-1', prompt: '__heartbeat__' }),
+        JSON.stringify({ kind: 'skip-missed' }),
+        now,
+        now
+      )
+    const insertJob = sqlite.prepare(`INSERT INTO job
+      (id, type, status, queue, schedule_id, scheduled_at, input, metadata, created_at, updated_at)
+      VALUES (?, 'agent.task', 'completed', 'agent', ?, ?, ?, ?, ?, ?)`)
+    for (const [id, sessionId, prompt, scheduleId] of [
+      ['heartbeat-run', 'heartbeat', '__heartbeat__', 'heartbeat-schedule'],
+      ['ordinary-run', 'ordinary', 'summarize', null],
+      ['shared-heartbeat', 'shared', '__heartbeat__', 'heartbeat-schedule'],
+      ['shared-ordinary', 'shared', 'summarize', null],
+      ['unlinked-heartbeat', 'unlinked', '__heartbeat__', null]
+    ]) {
+      insertJob.run(id, scheduleId, now, JSON.stringify({ prompt }), JSON.stringify({ sessionId }), now, now)
+    }
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare('SELECT id, type FROM agent_session ORDER BY id').all()).toEqual([
+      { id: 'heartbeat', type: 'background' },
+      { id: 'ordinary', type: 'conversation' },
+      { id: 'shared', type: 'conversation' },
+      { id: 'unknown', type: 'conversation' },
+      { id: 'unlinked', type: 'conversation' }
+    ])
+    expect(sqlite.prepare('SELECT session_id, data FROM agent_session_message').get()).toEqual({
+      session_id: 'heartbeat',
+      data: JSON.stringify({ parts: [{ type: 'text', text: 'kept result' }] })
+    })
+    sqlite.prepare('DELETE FROM job').run()
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare("SELECT type FROM agent_session WHERE id = 'heartbeat'").get()).toEqual({
+      type: 'background'
+    })
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
   it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO mcp_server (id, name, type, command, install_source, is_active, created_at, updated_at)
@@ -133,7 +289,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('carries mini_app rows through the kind rebuild and calls every pre-existing one a site', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO mini_app (app_id, name, url, order_key, created_at, updated_at)
@@ -161,7 +317,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('widens the ai_usage_record source_type check to accept mini-app without dropping records', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
     const now = Date.now()
     // A REALISTIC row, because the table carries four composite identity checks: an
     // `invocation` needs a provider and model, a non-null `source_type` needs a
@@ -1017,10 +1173,8 @@ describe('applyMigrations over a populated database', () => {
 
     applyMigrations(db, resolveMigrationsPath())
 
-    expect(
-      sqlite.prepare(`SELECT task_schedule_id FROM agent_session WHERE id = 'session-task-migrate'`).get()
-    ).toEqual({
-      task_schedule_id: 'schedule-new'
+    expect(sqlite.prepare(`SELECT task_id FROM agent_session WHERE id = 'session-task-migrate'`).get()).toEqual({
+      task_id: 'schedule-new'
     })
     const metadata = sqlite
       .prepare(`SELECT id, metadata FROM job_schedule WHERE id IN ('schedule-old', 'schedule-new') ORDER BY id`)
@@ -1030,27 +1184,26 @@ describe('applyMigrations over a populated database', () => {
       { reuse: { enabled: true, revision: 3 } }
     ])
 
-    // One session cannot serve two schedules after migration, and schedule
-    // deletion clears the internal pointer rather than retaining stale state.
+    // Each task selects at most one reuse target; clearing that selection
+    // lets schedule deletion detach ownership without deleting the session.
     expect(() =>
       sqlite
         .prepare(
-          `INSERT INTO agent_session (id, agent_id, name, workspace_id, task_schedule_id, order_key, created_at, updated_at)
-           VALUES ('session-duplicate-binding', 'agent-task-migrate', 'Duplicate', 'workspace-task-migrate', 'schedule-new', 'a1', ?, ?)`
+          `INSERT INTO agent_session (id, agent_id, name, workspace_id, task_id, is_task_reuse_target, order_key, last_activity_at, created_at, updated_at)
+           VALUES ('session-duplicate-binding', 'agent-task-migrate', 'Duplicate', 'workspace-task-migrate', 'schedule-new', 1, 'a1', 1, ?, ?)`
         )
         .run(now, now)
-    ).toThrow(/UNIQUE|constraint/i)
+    ).toThrow(/UNIQUE/i)
+    sqlite.prepare(`UPDATE agent_session SET is_task_reuse_target = 0 WHERE task_id = 'schedule-new'`).run()
     sqlite.prepare(`DELETE FROM job_schedule WHERE id = 'schedule-new'`).run()
-    expect(
-      sqlite.prepare(`SELECT task_schedule_id FROM agent_session WHERE id = 'session-task-migrate'`).get()
-    ).toEqual({
-      task_schedule_id: null
+    expect(sqlite.prepare(`SELECT task_id FROM agent_session WHERE id = 'session-task-migrate'`).get()).toEqual({
+      task_id: null
     })
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
   it('backfills cancel_requested_at from updated_at only for cancel-requested job rows', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0020_wooden_fat_cobra'))
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO job

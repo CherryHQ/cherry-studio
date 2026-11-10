@@ -1,16 +1,19 @@
-import '@data/services/AgentSessionMessageService'
 import path from 'path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
+import { applyMigrations } from '@data/db/applyMigrations'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
@@ -105,6 +108,49 @@ describe('AgentSessionService', () => {
       )
     })
   }
+
+  it('keeps task sessions out of conversations after job retention cleanup', async () => {
+    const task = createTaskSchedule()
+    const workspace = await createWorkspace('task-runs')
+    const sessions = ['run-one', 'run-two'].map((name) =>
+      agentSessionService.create(
+        {
+          agentId: 'agent-session-test',
+          name,
+          workspace: { type: 'user', workspaceId: workspace.id }
+        },
+        'conversation',
+        task.id
+      )
+    )
+    for (const session of sessions) {
+      dbh.db
+        .insert(jobTable)
+        .values({
+          type: 'agent.task',
+          status: 'completed',
+          queue: 'agent',
+          scheduleId: task.id,
+          scheduledAt: 0,
+          finishedAt: 1,
+          input: {},
+          metadata: { sessionId: session.id }
+        })
+        .run()
+    }
+    expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual(sessions.map((s) => s.id).sort())
+    expect(agentSessionService.getLatestActive()).toBeNull()
+    dbh.db.delete(jobTable).run()
+    expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual(sessions.map((s) => s.id).sort())
+    expect(agentSessionService.getLatestActive()).toBeNull()
+    expect(agentSessionService.listByCursor().items).toEqual([])
+    expect(agentSessionService.listByCursor({ ids: sessions.map((s) => s.id) }).items).toHaveLength(2)
+    expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
+    dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, [sessions[0].id]))
+    agentSessionService.restore(sessions[0].id)
+    expect(agentSessionService.listByCursor().items.map((s) => s.id)).toEqual([sessions[0].id])
+    expect(agentSessionService.listTaskSessionIds(task.id)).toEqual([sessions[1].id])
+  })
 
   it('orders matching sessions and exposes timestamps by conversation activity', async () => {
     const workspace = await createWorkspace('search')
@@ -252,6 +298,65 @@ describe('AgentSessionService', () => {
     expect(
       agentSessionService.searchWithMetadataEvidence({ q: 'orphan evidence', limit: 5, addressableOnly: true })
     ).toEqual([])
+  })
+
+  it('keeps retained history visible for a trashed owner but excludes it from addressable queries', async () => {
+    const workspace = await createWorkspace('trashed-owner-visibility')
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-trashed-owner',
+      type: 'claude-code',
+      name: 'Trashed Owner',
+      instructions: '',
+      orderKey: 'trashed-owner',
+      deletedAt: 100
+    })
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-trashed-owner',
+        agentId: 'agent-trashed-owner',
+        name: 'Trashed owner evidence',
+        workspaceId: workspace.id,
+        orderKey: 'a0',
+        lastActivityAt: 300
+      },
+      {
+        id: 'session-true-orphan',
+        agentId: null,
+        name: 'True orphan evidence',
+        workspaceId: workspace.id,
+        orderKey: 'a1',
+        lastActivityAt: 200
+      }
+    ])
+
+    expect(agentSessionService.search({ q: 'owner evidence', limit: 5 })).toEqual([
+      expect.objectContaining({
+        id: 'session-trashed-owner',
+        subtitle: undefined,
+        target: { sessionId: 'session-trashed-owner', agentId: 'agent-trashed-owner' }
+      })
+    ])
+    expect(
+      agentSessionService.searchWithMetadataEvidence({ q: 'owner evidence', limit: 5, addressableOnly: true })
+    ).toEqual([])
+    expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual([
+      'session-trashed-owner',
+      'session-true-orphan'
+    ])
+    expect(agentSessionService.listByCursor({ agentId: 'agent-trashed-owner' }).items).toEqual([])
+    expect(agentSessionService.listAddressableByCursor({ agentId: 'agent-trashed-owner' }).items).toEqual([])
+    expect(agentSessionService.getLatestActive()?.id).toBe('session-trashed-owner')
+    expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-trashed-owner')
+    expect(agentSessionService.getLatestActive({ agentId: 'agent-trashed-owner' })).toBeNull()
+    expect(agentSessionService.getById('session-trashed-owner').id).toBe('session-trashed-owner')
+    expect(agentSessionService.getById('session-true-orphan').id).toBe('session-true-orphan')
+
+    await dbh.db
+      .update(agentSessionTable)
+      .set({ deletedAt: 400 })
+      .where(eq(agentSessionTable.id, 'session-trashed-owner'))
+    const trash = agentSessionService.listByCursor({ agentId: 'agent-trashed-owner', inTrash: true })
+    expect(trash.items.map((session) => session.id)).toEqual(['session-trashed-owner'])
   })
 
   it('pages only Sessions whose active Agent can receive a delivery', async () => {
@@ -437,7 +542,7 @@ describe('AgentSessionService', () => {
     })
   })
 
-  describe('reuseOrCreatePlaceholderForDelivery', () => {
+  describe('reuseOrCreatePlaceholderWithImpact', () => {
     it('filters by exact workspace and message emptiness, ordered by updatedAt', async () => {
       const userWorkspace = await createWorkspace('reusable-user')
       await dbh.db.insert(agentWorkspaceTable).values({
@@ -510,13 +615,13 @@ describe('AgentSessionService', () => {
       await insertSessionMessage('user-with-message', 'message-prevents-reuse')
 
       expect(
-        agentSessionService.reuseOrCreatePlaceholderForDelivery({
+        agentSessionService.reuseOrCreatePlaceholderWithImpact({
           agentId: 'agent-session-test',
           workspace: { type: 'user', workspaceId: userWorkspace.id }
         })
       ).toMatchObject({ session: { id: 'user-updated-later' }, created: false, deletedDuplicateSessionIds: [] })
       expect(
-        agentSessionService.reuseOrCreatePlaceholderForDelivery({
+        agentSessionService.reuseOrCreatePlaceholderWithImpact({
           agentId: 'agent-session-test',
           workspace: { type: 'system' }
         })
@@ -531,11 +636,11 @@ describe('AgentSessionService', () => {
     it('creates at most one reusable placeholder for repeated exact targets', async () => {
       const userWorkspace = await createWorkspace('create-reusable-user')
 
-      const first = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+      const first = agentSessionService.reuseOrCreatePlaceholderWithImpact({
         agentId: 'agent-session-test',
         workspace: { type: 'user', workspaceId: userWorkspace.id }
       })
-      const second = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+      const second = agentSessionService.reuseOrCreatePlaceholderWithImpact({
         agentId: 'agent-session-test',
         workspace: { type: 'user', workspaceId: userWorkspace.id }
       })
@@ -561,7 +666,7 @@ describe('AgentSessionService', () => {
         updatedAt: oldActivityAt
       })
 
-      const result = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+      const result = agentSessionService.reuseOrCreatePlaceholderWithImpact({
         agentId: 'agent-session-test',
         workspace: { type: 'user', workspaceId: userWorkspace.id }
       })
@@ -588,7 +693,7 @@ describe('AgentSessionService', () => {
       pinService.pin({ entityType: 'session', entityId: duplicate.id })
       notifyDataApiDataChangeMock.mockClear()
 
-      const result = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+      const result = agentSessionService.reuseOrCreatePlaceholderWithImpact({
         agentId: 'agent-session-test',
         workspace: { type: 'system' }
       })
@@ -603,7 +708,8 @@ describe('AgentSessionService', () => {
         { endpoint: '/agent-sessions', kind: 'membership', entityIds: [duplicate.id] },
         { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [duplicate.id] },
         { endpoint: '/agent-sessions/:sessionId', entityIds: [duplicate.id] },
-        { endpoint: '/agent-sessions/latest' }
+        { endpoint: '/agent-sessions/latest' },
+        { endpoint: '/agent-workspaces', kind: 'membership' }
       ])
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
@@ -677,7 +783,8 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' }
+      { endpoint: '/agent-sessions/latest' },
+      { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
     expect(session.workspaceId).toBe(workspace.id)
     expect(session.workspace.path).toBe(workspace.path)
@@ -773,6 +880,31 @@ describe('AgentSessionService', () => {
     expect(traceId).toMatch(/^[0-9a-f]{32}$/)
     expect(agentSessionService.ensureTraceId(session.id)).toBe(traceId)
     expect(agentSessionService.getById(session.id).traceId).toBe(traceId)
+  })
+
+  it('refuses to mutate a trashed session through the write paths that outlive it', async () => {
+    // Delete closes the runtime, but an in-flight turn or a stale order request can
+    // still arrive afterwards; those writes must not land on a trashed row.
+    const session = await createSession('Trashed writer')
+    const sibling = await createSession('Sibling')
+    agentSessionService.delete(session.id)
+
+    expect(
+      captureError(() => dbh.db.transaction((tx) => agentSessionService.advanceLastActivityAtTx(tx, session.id, 999)))
+    ).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(captureError(() => agentSessionService.ensureTraceId(session.id))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    expect(captureError(() => agentSessionService.reorder(session.id, { after: sibling.id }))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+
+    const [row] = await dbh.db
+      .select({ lastActivityAt: agentSessionTable.lastActivityAt, traceId: agentSessionTable.traceId })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, session.id))
+    expect(row.lastActivityAt).not.toBe(999)
+    expect(row.traceId).toBeNull()
   })
 
   it('updates a session and returns the updated entity', async () => {
@@ -1062,7 +1194,8 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' }
+      { endpoint: '/agent-sessions/latest' },
+      { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
     expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
@@ -1091,7 +1224,8 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-tasks', kind: 'projection', entityIds: [task.id] },
       { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [task.id] },
       { endpoint: '/agent-tasks/:taskId', entityIds: [task.id] },
-      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [task.id] }
+      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [task.id] },
+      { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
   })
 
@@ -1130,7 +1264,68 @@ describe('AgentSessionService', () => {
         })
       )
     ).toBe(false)
-    expect(agentSessionService.getById(session.id)).not.toHaveProperty('taskScheduleId')
+    expect(agentSessionService.getById(session.id)).not.toHaveProperty('taskId')
+  })
+
+  it('retains every owned session when the reuse target changes', async () => {
+    const task = createTaskSchedule()
+    const first = await createSession('First task run')
+    const second = agentSessionService.create(
+      { agentId: 'agent-session-test', name: 'Second task run', workspace: { type: 'system' } },
+      'conversation',
+      task.id
+    )
+    bindTaskSession(first.id, task.id)
+    expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual([first.id, second.id].sort())
+
+    dbh.db.transaction((tx) => agentSessionService.clearTaskScheduleTx(tx, task.id))
+    expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
+    expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual([first.id, second.id].sort())
+    expect(agentSessionService.listByCursor().items).toEqual([])
+
+    bindTaskSession(second.id, task.id)
+    expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(second.id)
+    expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual([first.id, second.id].sort())
+  })
+
+  it('rejects a reuse target owned by another task', async () => {
+    const owner = createTaskSchedule()
+    const other = createTaskSchedule()
+    const session = agentSessionService.create(
+      { agentId: 'agent-session-test', name: 'Owned run', workspace: { type: 'system' } },
+      'conversation',
+      owner.id
+    )
+    expect(
+      dbh.db.transaction((tx) =>
+        agentSessionService.bindTaskScheduleTx(tx, {
+          sessionId: session.id,
+          taskScheduleId: other.id,
+          expectedAgentId: 'agent-session-test'
+        })
+      )
+    ).toBe(false)
+    expect(agentSessionService.listTaskSessionIds(owner.id)).toEqual([session.id])
+    expect(agentSessionService.getByTaskScheduleId(other.id)).toBeNull()
+  })
+
+  it('enforces one reuse target per task and requires a task owner in SQLite', async () => {
+    const task = createTaskSchedule()
+    const first = await createSession('Selected run')
+    const second = await createSession('Other run')
+    bindTaskSession(first.id, task.id)
+    expect(() =>
+      dbh.db
+        .update(agentSessionTable)
+        .set({ taskId: task.id, isTaskReuseTarget: true })
+        .where(eq(agentSessionTable.id, second.id))
+        .run()
+    ).toThrow()
+    expect(() =>
+      dbh.db.update(agentSessionTable).set({ isTaskReuseTarget: true }).where(eq(agentSessionTable.id, second.id)).run()
+    ).toThrow()
+    expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(first.id)
+    expect(agentSessionService.listTaskSessionIds(task.id)).toEqual([first.id])
   })
 
   it('clears the task relation atomically when a session is reassigned', async () => {
@@ -1155,6 +1350,49 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' }
     ])
+  })
+
+  it('does not clear a task relation when updating a trashed session fails', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-reassigned',
+      type: 'claude-code',
+      name: 'Reassigned Agent',
+      instructions: '',
+      orderKey: 'z0'
+    })
+    const task = createTaskSchedule()
+    const session = await createSession('Trashed bound session')
+    bindTaskSession(session.id, task.id)
+    await dbh.db.update(agentSessionTable).set({ deletedAt: Date.now() }).where(eq(agentSessionTable.id, session.id))
+    notifyDataApiDataChangeMock.mockClear()
+
+    expect(
+      captureError(() => agentSessionService.update(session.id, { agentId: 'agent-session-reassigned' }))
+    ).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+    const [row] = await dbh.db
+      .select({ isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, session.id))
+    expect(row.isTaskReuseTarget).toBe(true)
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects reassignment to a trashed agent', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-trashed-target',
+      type: 'claude-code',
+      name: 'Trashed target',
+      instructions: '',
+      orderKey: 'z0',
+      deletedAt: 100
+    })
+    const session = await createSession('Active session')
+
+    expect(
+      captureError(() => agentSessionService.update(session.id, { agentId: 'agent-session-trashed-target' }))
+    ).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(agentSessionService.getById(session.id).agentId).toBe('agent-session-test')
   })
 
   it('keeps a binding and emits nothing when an outer transaction rolls back session deletion', async () => {
@@ -1201,7 +1439,18 @@ describe('AgentSessionService', () => {
     const session = await createSession('Task deletion FK')
     bindTaskSession(session.id, task.id)
 
-    jobScheduleService.delete(task.id)
+    expect(() => jobScheduleService.delete(task.id)).toThrow()
+    expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
+    expect(() =>
+      dbh.db.transaction((tx) => {
+        agentTaskService.deleteScheduleTx(tx, task.id)
+        throw new Error('rollback task deletion')
+      })
+    ).toThrow('rollback task deletion')
+    expect(jobScheduleService.getById(task.id)?.id).toBe(task.id)
+    expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
+
+    dbh.db.transaction((tx) => agentTaskService.deleteScheduleTx(tx, task.id))
 
     expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
     expect(agentSessionService.getById(session.id)).toMatchObject({ id: session.id })
@@ -1225,6 +1474,116 @@ describe('AgentSessionService', () => {
     })
   })
 
+  it('moves to the Recycle Bin by default, keeping messages and the workspace so restore is lossless', async () => {
+    const session = await createSession('Move me to the Recycle Bin')
+    await insertSessionMessage(session.id, 'msg-trash-1')
+    await insertSessionMessage(session.id, 'msg-trash-2')
+
+    agentSessionService.delete(session.id)
+
+    expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect((await dbh.db.select().from(agentSessionMessageTable)).filter((row) => row.role !== 'root')).toHaveLength(2)
+
+    const restored = agentSessionService.restore(session.id)
+
+    expect(restored).toMatchObject({ id: session.id, workspaceId: session.workspaceId })
+    expect(
+      (await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, session.id)))
+        .filter((row) => row.role !== 'root')
+        .map((row) => row.id)
+        .sort()
+    ).toEqual(['msg-trash-1', 'msg-trash-2'])
+  })
+
+  it('lists only active Session ids for an Agent in stable id order', async () => {
+    const first = await createSession('Active B')
+    const second = await createSession('Active A')
+    const trashed = await createSession('Trashed')
+    agentSessionService.delete(trashed.id)
+
+    expect(agentSessionService.listActiveIdsByAgent('agent-session-test')).toEqual([first.id, second.id].sort())
+  })
+
+  it('restores a session independently while its owner remains in the Recycle Bin', async () => {
+    const workspace = await createWorkspace('independent-session-restore')
+    await dbh.db.update(agentTable).set({ deletedAt: 500 }).where(eq(agentTable.id, 'agent-session-test'))
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-independent-restore',
+      agentId: 'agent-session-test',
+      name: 'Restore independently',
+      workspaceId: workspace.id,
+      orderKey: 'a0',
+      lastActivityAt: 600,
+      deletedAt: 500
+    })
+    await insertSessionMessage('session-independent-restore', 'message-independent-restore')
+
+    const restored = agentSessionService.restore('session-independent-restore')
+
+    expect(restored).toMatchObject({
+      id: 'session-independent-restore',
+      agentId: 'agent-session-test',
+      workspaceId: workspace.id,
+      deletedAt: undefined
+    })
+    expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-independent-restore')
+    expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual([
+      'session-independent-restore'
+    ])
+    expect(await dbh.db.select().from(agentSessionMessageTable)).toHaveLength(1)
+  })
+
+  it('rejects permanent deletion of an active session and keeps it active', async () => {
+    const session = await createSession('Active permanent delete')
+
+    expect(captureError(() => agentSessionService.delete(session.id, { permanent: true }))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+
+    const [row] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
+    expect(row).toMatchObject({ id: session.id, deletedAt: null })
+  })
+
+  it('rejects a stale permanent delete after the session has been restored', async () => {
+    const session = await createSession('Restored permanent delete')
+    agentSessionService.delete(session.id)
+    agentSessionService.restore(session.id)
+
+    expect(captureError(() => agentSessionService.delete(session.id, { permanent: true }))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+
+    const [row] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
+    expect(row).toMatchObject({ id: session.id, deletedAt: null })
+  })
+
+  it('rechecks expiration before purging a selected Session', async () => {
+    const session = await createSession('Restore during retention purge')
+    await dbh.db.update(agentSessionTable).set({ deletedAt: 100 }).where(eq(agentSessionTable.id, session.id))
+
+    expect(agentSessionService.listExpiredTrashIds(200, 10)).toEqual([session.id])
+    expect(agentSessionService.isExpiredTrash(session.id, 200)).toBe(true)
+    agentSessionService.restore(session.id)
+
+    expect(agentSessionService.isExpiredTrash(session.id, 200)).toBe(false)
+    expect(dbh.db.transaction((tx) => agentSessionService.purgeExpiredByIdsTx(tx, [session.id], 200))).toEqual([])
+    expect(agentSessionService.getById(session.id)).toMatchObject({ id: session.id, deletedAt: undefined })
+  })
+
+  it('detaches a bound task schedule when a session moves to the Recycle Bin', async () => {
+    const session = await createSession('Scheduled')
+    const task = createTaskSchedule()
+    bindTaskSession(session.id, task.id)
+
+    agentSessionService.delete(session.id)
+
+    const [row] = await dbh.db
+      .select({ isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, session.id))
+    expect(row.isTaskReuseTarget).toBe(false)
+  })
+
   it('deletes the system workspace row when deleting a no-project session', async () => {
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
@@ -1233,6 +1592,7 @@ describe('AgentSessionService', () => {
     })
 
     agentSessionService.delete(session.id)
+    agentSessionService.delete(session.id, { permanent: true })
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
     expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(0)
@@ -1264,7 +1624,9 @@ describe('AgentSessionService', () => {
       updatedAt: 1
     })
 
-    const result = agentSessionService.deleteByAgentId('agent-session-test')
+    agentSessionService.deleteByAgentId('agent-session-test')
+
+    const result = agentSessionService.deleteByAgentId('agent-session-test', { permanent: true })
 
     expect(result).toEqual({ deletedIds: expect.arrayContaining([first.id, second.id]) })
     expect(captureError(() => agentSessionService.getById(first.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
@@ -1356,8 +1718,9 @@ describe('AgentSessionService', () => {
       workspace: { type: 'system' }
     })
     const normalSession = await createSession('Normal session')
+    agentSessionService.delete(systemSession.id)
 
-    const result = agentSessionService.deleteByIds([systemSession.id])
+    const result = agentSessionService.deleteByIds([systemSession.id], { permanent: true })
 
     expect(result).toEqual({ deletedIds: [systemSession.id] })
     expect(captureError(() => agentSessionService.getById(systemSession.id))).toMatchObject({
@@ -1367,6 +1730,126 @@ describe('AgentSessionService', () => {
     expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(1)
   })
 
+  it('returns purged system workspace paths for post-commit cleanup', async () => {
+    const systemSession = agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'System workspace cleanup target',
+      workspace: { type: 'system' }
+    })
+    const userSession = await createSession('User workspace retained')
+    agentSessionService.deleteByIds([systemSession.id, userSession.id])
+
+    const result = agentSessionService.deleteByIdsWithImpact([systemSession.id, userSession.id], {
+      permanent: true
+    })
+
+    expect(result.deletedIds).toEqual(expect.arrayContaining([systemSession.id, userSession.id]))
+    expect(result.purgedSystemWorkspacePaths).toEqual([systemSession.workspace.path])
+  })
+
+  it('permanently deletes only trashed sessions from a mixed batch', async () => {
+    const trashed = await createSession('Trashed batch session')
+    const active = await createSession('Active batch session')
+    agentSessionService.delete(trashed.id)
+
+    const result = agentSessionService.deleteByIds([trashed.id, active.id], { permanent: true })
+
+    expect(result).toEqual({ deletedIds: [trashed.id] })
+    expect(await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, trashed.id))).toEqual([])
+    const [activeRow] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, active.id))
+    expect(activeRow).toMatchObject({ id: active.id, deletedAt: null })
+  })
+
+  describe('beyond the SQLite bound-parameter limit', () => {
+    const SESSION_COUNT = 33_000
+
+    async function seedTaskSessions(): Promise<{ taskId: string; ids: string[] }> {
+      const task = createTaskSchedule()
+      const workspace = await createWorkspace('high-frequency-task')
+      const ids = Array.from({ length: SESSION_COUNT }, (_, i) => `task-run-${i}`)
+      dbh.db.transaction((tx) => {
+        for (let i = 0; i < ids.length; i += 500) {
+          tx.insert(agentSessionTable)
+            .values(
+              ids.slice(i, i + 500).map((id, offset) => ({
+                id,
+                agentId: 'agent-session-test',
+                name: id,
+                workspaceId: workspace.id,
+                taskId: task.id,
+                orderKey: `a${String(i + offset).padStart(6, '0')}`
+              }))
+            )
+            .run()
+        }
+      })
+      pinService.pin({ entityType: 'session', entityId: ids[SESSION_COUNT - 1] })
+      return { taskId: task.id, ids }
+    }
+
+    it('trashes and then permanently deletes every session of a task', async () => {
+      const { taskId, ids } = await seedTaskSessions()
+
+      const trashed = dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, ids))
+
+      expect(trashed.trashedIds).toHaveLength(SESSION_COUNT)
+      const deletedAts = new Set(
+        (await dbh.db.select({ deletedAt: agentSessionTable.deletedAt }).from(agentSessionTable)).map(
+          (row) => row.deletedAt
+        )
+      )
+      expect(deletedAts.size).toBe(1)
+      expect([...deletedAts][0]).not.toBeNull()
+      expect(await dbh.db.select().from(pinTable)).toEqual([])
+
+      const purged = agentSessionService.deleteByIdsWithImpact(agentSessionService.listTaskSessionIds(taskId), {
+        permanent: true
+      })
+
+      expect(purged.deletedIds).toHaveLength(SESSION_COUNT)
+      expect(await dbh.db.select().from(agentSessionTable)).toEqual([])
+    })
+
+    it('resolves pre-deletion lookups for every session of a task', async () => {
+      const { ids } = await seedTaskSessions()
+      const systemSession = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'System workspace run',
+        workspace: { type: 'system' }
+      })
+      const lookupIds = [...ids, systemSession.id]
+      const lastTaskSessionId = ids[SESSION_COUNT - 1]
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values({
+          id: crypto.randomUUID(),
+          sessionId: lastTaskSessionId,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'Last run' }] },
+          runtimeResumeToken: 'native-last-run'
+        })
+        .run()
+
+      expect(agentSessionService.listSystemWorkspaceSessions(lookupIds).map((row) => row.id)).toEqual([
+        systemSession.id
+      ])
+      expect(agentSessionMessageService.listRuntimeResumeTokensBySession(lookupIds)).toEqual(
+        new Map([[lastTaskSessionId, new Set(['native-last-run'])]])
+      )
+    })
+
+    it('purges every expired trashed session of a task', async () => {
+      const { ids } = await seedTaskSessions()
+      dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, ids, { deletedAt: 100 }))
+
+      const purgedIds = dbh.db.transaction((tx) => agentSessionService.purgeExpiredByIdsTx(tx, ids, 200))
+
+      expect(purgedIds).toHaveLength(SESSION_COUNT)
+      expect(await dbh.db.select().from(agentSessionTable)).toEqual([])
+    })
+  })
+
   it('deletes system workspace rows when deleting agent sessions', async () => {
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
@@ -1374,7 +1857,9 @@ describe('AgentSessionService', () => {
       workspace: { type: 'system' }
     })
 
-    const result = agentSessionService.deleteByAgentId('agent-session-test')
+    agentSessionService.deleteByAgentId('agent-session-test')
+
+    const result = agentSessionService.deleteByAgentId('agent-session-test', { permanent: true })
 
     expect(result).toEqual({ deletedIds: [session.id] })
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
@@ -1410,6 +1895,25 @@ describe('AgentSessionService', () => {
     const page2 = agentSessionService.listByCursor({ limit: 2, cursor: page1.nextCursor })
     expect(page2.items.map((item) => item.id)).toEqual([first.id])
     expect(page2.nextCursor).toBeUndefined()
+  })
+
+  it('filters exact ids across pinned and unpinned sections', async () => {
+    const pinned = await createSession('Pinned')
+    const unpinned = await createSession('Unpinned')
+    await createSession('Other')
+    await dbh.db.insert(pinTable).values({
+      id: 'pin-exact-session',
+      entityType: 'session',
+      entityId: pinned.id,
+      orderKey: 'a0',
+      createdAt: 1,
+      updatedAt: 1
+    })
+
+    const result = agentSessionService.listByCursor({ ids: [pinned.id, unpinned.id], limit: 2 })
+
+    expect(result.items.map((session) => session.id)).toEqual([pinned.id, unpinned.id])
+    expect(result.nextCursor).toBeUndefined()
   })
 
   it('returns pinned sessions first ordered by pin.orderKey, then unpinned by orderKey', async () => {
@@ -1538,8 +2042,68 @@ describe('AgentSessionService', () => {
     })
 
     agentSessionService.delete(session.id)
+    agentSessionService.delete(session.id, { permanent: true })
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(0)
+  })
+})
+
+describe('task session ownership migration', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0035_agent_session_task_ownership' })
+
+  it('backfills sticky, metadata and legacy output links without changing ordinary sessions', () => {
+    dbh.sqlite.exec(`
+      INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
+      VALUES ('agent', 'claude-code', 'Agent', '', 'a0', 1, 1);
+      INSERT INTO agent_workspace (id, name, path, order_key, created_at, updated_at)
+      VALUES ('workspace', 'Workspace', '/task-migration', 'a0', 1, 1);
+      INSERT INTO job_schedule (id, type, name, trigger, job_input_template, catch_up_policy, created_at, updated_at)
+      VALUES ('task', 'agent.task', 'Task', '{}', '{}', '{}', 1, 1);
+    `)
+    for (const id of ['sticky', 'metadata', 'output', 'ordinary']) {
+      dbh.sqlite
+        .prepare(`INSERT INTO agent_session
+        (id, name, agent_id, workspace_id, order_key, last_activity_at, created_at, updated_at, task_schedule_id)
+        VALUES (?, ?, 'agent', 'workspace', ?, 1, 1, 1, ?)`)
+        .run(id, id, id, id === 'sticky' ? 'task' : null)
+    }
+    for (const field of ['metadata', 'output']) {
+      dbh.sqlite
+        .prepare(`INSERT INTO job
+        (id, type, status, queue, schedule_id, scheduled_at, input, created_at, updated_at, ${field})
+        VALUES (?, 'agent.task', 'completed', 'agent', 'task', 1, '{}', 1, 1, ?)`)
+        .run(field, JSON.stringify({ sessionId: field }))
+    }
+    dbh.sqlite.exec(`
+      UPDATE agent_session SET owner_session_id = 'sticky' WHERE id = 'metadata';
+      INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at)
+      VALUES ('message', 'sticky', 'user', '{"parts":[{"type":"text","text":"preserved"}]}', 'success', 1, 1);
+    `)
+    applyMigrations(dbh.db, resolveMigrationsPath())
+    expect(
+      dbh.sqlite.prepare('SELECT session_id, data FROM agent_session_message WHERE id = ?').get('message')
+    ).toEqual({ session_id: 'sticky', data: '{"parts":[{"type":"text","text":"preserved"}]}' })
+    expect(dbh.sqlite.prepare('SELECT owner_session_id FROM agent_session WHERE id = ?').get('metadata')).toEqual({
+      owner_session_id: 'sticky'
+    })
+    expect(dbh.sqlite.prepare('SELECT task_id, is_task_reuse_target FROM agent_session ORDER BY id').all()).toEqual([
+      { task_id: 'task', is_task_reuse_target: 0 },
+      { task_id: null, is_task_reuse_target: 0 },
+      { task_id: 'task', is_task_reuse_target: 0 },
+      { task_id: 'task', is_task_reuse_target: 1 }
+    ])
+    expect(
+      dbh.sqlite.prepare('SELECT DISTINCT created_at, updated_at, last_activity_at FROM agent_session').all()
+    ).toEqual([{ created_at: 1, updated_at: 1, last_activity_at: 1 }])
+    dbh.db.delete(jobTable).run()
+    expect(agentSessionService.listTaskSessionIds('task').sort()).toEqual(['metadata', 'output', 'sticky'])
+    expect(agentSessionService.listByCursor().items.map((s) => s.id)).toEqual(['ordinary'])
+    expect(agentSessionService.getByTaskScheduleId('task')?.id).toBe('sticky')
+    dbh.db.transaction((tx) => agentTaskService.deleteScheduleTx(tx, 'task'))
+    expect(agentSessionService.listTaskSessionIds('task')).toEqual([])
+    expect(dbh.sqlite.prepare('SELECT count(*) AS count FROM agent_session').get()).toEqual({ count: 4 })
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(dbh.sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
   })
 })

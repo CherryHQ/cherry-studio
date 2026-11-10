@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Scrollbar } from '@cherrystudio/ui'
+import { Button, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 
@@ -48,7 +48,7 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
           variant="ghost"
           size="icon-sm"
           aria-label={t('common.back')}
-          className="text-foreground-muted size-5 min-h-5 min-w-5 rounded p-0 shadow-none transition-colors hover:bg-accent hover:text-foreground"
+          className="size-5 min-h-5 min-w-5 rounded p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-foreground"
           onClick={onBack}>
           <ArrowLeft className="size-3.5" />
         </Button>
@@ -67,7 +67,7 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
         </div>
       </div>
 
-      <Scrollbar className="min-h-0 flex-1 px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <ScrollArea viewportProps={{ className: 'px-4 py-3' }} type="auto" className="min-h-0 flex-1">
         {isLoading ? <KnowledgeItemNoteContentState>{t('common.loading')}</KnowledgeItemNoteContentState> : null}
         {!isLoading && error ? <KnowledgeItemNoteContentState>{error.message}</KnowledgeItemNoteContentState> : null}
         {!isLoading && !error ? (
@@ -75,7 +75,7 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
             {content}
           </pre>
         ) : null}
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }

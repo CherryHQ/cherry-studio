@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import type { BinaryRemoveRequest, BinaryRemoveResult } from '@shared/types/binary'
 import { CodeCli, TerminalApp } from '@shared/types/codeCli'
@@ -127,6 +128,7 @@ vi.mock('semver', () => ({
 
 vi.mock('node:fs', () => ({
   default: {
+    promises: { access: vi.fn().mockResolvedValue(undefined) },
     existsSync: vi.fn().mockReturnValue(false),
     readFileSync: vi.fn().mockReturnValue(''),
     writeFileSync: vi.fn(),
@@ -205,7 +207,7 @@ describe('CodeCliService', () => {
     expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
 
     await codeCliService._doAllReady()
-    expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(13)
+    expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(CODE_CLI_TOOL_PRESETS.length)
     expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
       'code-mate-codex',
       path.join('/mock/binary-data', 'code-mate-codex'),
@@ -370,9 +372,9 @@ describe('CodeCliService', () => {
     await expect(codeCliService.checkClaudeLogin()).resolves.toBe(true)
   })
 
-  it('checkClaudeLogin returns false when the macOS keychain lookup fails', async () => {
+  it('checkClaudeLogin returns false only when the keychain item is absent', async () => {
     const { codeCliService } = await loadModules()
-    childProcessMock.execAsync.mockRejectedValueOnce(new Error('not found'))
+    childProcessMock.execFileAsync.mockRejectedValueOnce(Object.assign(new Error('not found'), { code: 44 }))
     await expect(codeCliService.checkClaudeLogin()).resolves.toBe(false)
   })
 
@@ -383,27 +385,66 @@ describe('CodeCliService', () => {
     platformMock.isMac = false
     shellEnvMock.getShellEnv.mockResolvedValue({ CLAUDE_CONFIG_DIR: '/home/me/.claude' })
     const fs = (await import('node:fs')).default
-    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(fs.promises.access).mockResolvedValue(undefined)
 
     const { codeCliService } = await loadModules()
 
     const path = (await import('node:path')).default
 
     await expect(codeCliService.checkClaudeLogin()).resolves.toBe(true)
-    expect(fs.existsSync).toHaveBeenCalledWith(path.join('/home/me/.claude', '.credentials.json'))
+    expect(fs.promises.access).toHaveBeenCalledWith(path.join('/home/me/.claude', '.credentials.json'))
   })
 
-  // A broken rc file makes the shell env probe throw. That is NOT "not signed
-  // in" — it must be logged, not silently swallowed, or a signed-in user is
-  // stuck on a "not signed in" card with no diagnostic trail.
-  it('checkClaudeLogin (non-mac) logs a warning and returns false when the shell env probe throws', async () => {
+  it('checkClaudeLogin distinguishes shell query failure from being signed out', async () => {
     platformMock.isMac = false
     shellEnvMock.getShellEnv.mockRejectedValue(new Error('broken rc file'))
 
     const { codeCliService } = await loadModules()
 
-    await expect(codeCliService.checkClaudeLogin()).resolves.toBe(false)
-    expect(loggerMock.warn).toHaveBeenCalled()
+    await expect(codeCliService.checkClaudeLogin()).rejects.toThrow('broken rc file')
+  })
+
+  it('checkClaudeLogin distinguishes a locked keychain from a missing credential', async () => {
+    const { codeCliService } = await loadModules()
+    childProcessMock.execFileAsync.mockRejectedValueOnce(Object.assign(new Error('keychain locked'), { code: 36 }))
+    await expect(codeCliService.checkClaudeLogin()).rejects.toThrow('keychain locked')
+  })
+
+  it('coalesces login queries without letting one canceled consumer abort another', async () => {
+    const { codeCliService } = await loadModules()
+    let finish!: () => void
+    let probeSignal!: AbortSignal
+    childProcessMock.execFileAsync.mockImplementation((_file, _args, options) => {
+      probeSignal = options.signal
+      return new Promise((resolve) => {
+        finish = () => resolve({ stdout: '' })
+      })
+    })
+    const controller = new AbortController()
+    const first = codeCliService.checkClaudeLogin(controller.signal)
+    const second = codeCliService.checkClaudeLogin()
+    controller.abort()
+    await expect(first).rejects.toThrow()
+    expect(probeSignal.aborted).toBe(false)
+    finish()
+    await expect(second).resolves.toBe(true)
+    expect(childProcessMock.execFileAsync).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts the owned login subprocess when its last consumer cancels', async () => {
+    const { codeCliService } = await loadModules()
+    let probeSignal!: AbortSignal
+    childProcessMock.execFileAsync.mockImplementation((_file, _args, options) => {
+      probeSignal = options.signal
+      return new Promise((_resolve, reject) =>
+        probeSignal.addEventListener('abort', () => reject(probeSignal.reason), { once: true })
+      )
+    })
+    const controller = new AbortController()
+    const pending = codeCliService.checkClaudeLogin(controller.signal)
+    controller.abort()
+    await expect(pending).rejects.toThrow()
+    expect(probeSignal.aborted).toBe(true)
   })
 
   // OpenCode's model selection lives entirely in opencode.json (top-level `model` field

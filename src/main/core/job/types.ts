@@ -90,6 +90,12 @@ export interface JobHandler<TPayload = unknown> {
   cancelTimeoutMs?: number
   /** Execute one job attempt. Throw to fail; reject with AbortError to cancel. */
   execute(ctx: JobContext<TPayload>): Promise<unknown>
+  /**
+   * Optional synchronous observer of a newly committed row, before dispatch.
+   * enqueueTx defers this until after commit; rollback and idempotency hits skip it.
+   * Errors are caught and logged without preventing dispatch.
+   */
+  onEnqueued?(snapshot: Readonly<JobSnapshot>): void
   /** Optional. Called when a schedule fire was missed. */
   onMissed?(event: JobMissEvent): void | Promise<void>
   /**
@@ -149,6 +155,11 @@ export interface EnqueueOptions {
   timeoutMs?: number
   maxAttempts?: number
   metadata?: Record<string, unknown>
+  /**
+   * Startup recovery for this job, overriding its handler's `recovery`. `singleton` is a per-type
+   * rule, so it cannot be set per job.
+   */
+  recovery?: Exclude<RecoveryStrategy, 'singleton'>
 }
 
 export interface JobScheduleRegistrationInput<K extends JobType = JobType> {

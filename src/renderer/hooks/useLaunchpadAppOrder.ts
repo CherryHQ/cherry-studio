@@ -12,7 +12,7 @@ import { getOrderedLaunchpadApps, reorderLaunchpadApps } from '@renderer/utils/s
  * `orderedAppIds` is the normalized app order (stored order first, any missing app
  * appended in canonical order); `reorderApps` persists a new order. Mini app tiles
  * are ordered separately by their global `orderKey`, so the launchpad never touches
- * `ui.sidebar.favorites`.
+ * `ui.sidebar_shortcut`.
  */
 export function useLaunchpadAppOrder() {
   const { t } = useTranslation()

@@ -1,4 +1,4 @@
-import type { NormalizedMessage } from '@larksuiteoapi/node-sdk'
+import type { NormalizedMessage, RejectEvent, RejectReason } from '@larksuiteoapi/node-sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const registrationMocks = vi.hoisted(() => ({ begin: vi.fn(), poll: vi.fn() }))
@@ -9,8 +9,6 @@ vi.mock('@logger', () => ({
     withContext: () => loggerMocks
   }
 }))
-
-vi.mock('../../ChannelManager', () => ({ registerAdapterFactory: vi.fn() }))
 
 vi.mock('electron', () => ({
   app: { getPath: () => '/mock/userData' },
@@ -65,14 +63,7 @@ vi.mock('@larksuiteoapi/node-sdk', () => ({
   LoggerLevel: { info: 3 }
 }))
 
-import '../feishu/FeishuAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
-
-function getFactory() {
-  const call = vi.mocked(registerAdapterFactory).mock.calls.find(([type]) => type === 'feishu')
-  if (!call) throw new Error('registerAdapterFactory was not called for feishu')
-  return call[1] as (channel: any, agentId: string) => any
-}
+import { createFeishuAdapter } from '../feishu/FeishuAdapter'
 
 function incomingMessage(overrides: Partial<NormalizedMessage> = {}): NormalizedMessage {
   return {
@@ -114,23 +105,21 @@ describe('FeishuAdapter', () => {
 
   afterEach(() => vi.useRealTimers())
 
-  function createAdapter(overrides: Record<string, unknown> = {}) {
-    return getFactory()(
-      {
-        id: (overrides.channelId as string) ?? 'ch-1',
-        type: 'feishu',
-        enabled: true,
-        config: {
-          app_id: (overrides.app_id as string) ?? 'test-app-id',
-          app_secret: (overrides.app_secret as string) ?? 'test-app-secret',
-          encrypt_key: (overrides.encrypt_key as string) ?? '',
-          verification_token: (overrides.verification_token as string) ?? '',
-          allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? ['oc_123'],
-          domain: (overrides.domain as string) ?? 'feishu'
-        }
-      },
-      (overrides.agentId as string) ?? 'agent-1'
-    )
+  function createAdapter(overrides: Record<string, unknown> = {}): any {
+    return createFeishuAdapter({
+      channelId: (overrides.channelId as string) ?? 'ch-1',
+      channelType: 'feishu',
+      agentId: (overrides.agentId as string) ?? 'agent-1',
+      channelConfig: {
+        app_id: (overrides.app_id as string) ?? 'test-app-id',
+        app_secret: (overrides.app_secret as string) ?? 'test-app-secret',
+        encrypt_key: (overrides.encrypt_key as string) ?? '',
+        verification_token: (overrides.verification_token as string) ?? '',
+        allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? ['oc_123'],
+        domain: (overrides.domain as 'feishu' | 'lark') ?? 'feishu',
+        ...(Object.hasOwn(overrides, 'mention_only') ? { mention_only: overrides.mention_only as boolean } : {})
+      }
+    })
   }
 
   it('reports connected only after the official channel handshake completes', async () => {
@@ -161,6 +150,22 @@ describe('FeishuAdapter', () => {
       outbound: { textChunkLimit: 4000 },
       wsConfig: { pingTimeout: 10 }
     })
+  })
+
+  it('honors explicit Feishu mention_only=false', async () => {
+    const adapter = createAdapter({ mention_only: false })
+    await adapter.connect()
+
+    expect(channelOptions?.policy.requireMention).toBe(false)
+    expect(channelOptions?.policy.dmMode).toBe('open')
+    expect(channelOptions?.policy.respondToMentionAll).toBe(false)
+  })
+
+  it('honors explicit Feishu mention_only=true', async () => {
+    const adapter = createAdapter({ mention_only: true })
+    await adapter.connect()
+
+    expect(channelOptions?.policy.requireMention).toBe(true)
   })
 
   it('forwards configured event security to the WebSocket dispatcher', async () => {
@@ -381,7 +386,7 @@ describe('FeishuAdapter', () => {
     await adapter.onTextUpdate('oc_123', 'partial response')
     mockSetContent.mockRejectedValueOnce(new Error('card update failed'))
 
-    await expect(adapter.onStreamError('oc_123', 'generation failed')).resolves.toBeUndefined()
+    await expect(adapter.onStreamError('oc_123', 'generation failed')).resolves.toBe(true)
   })
 
   it('ignores late card updates after disconnecting an active stream', async () => {
@@ -646,30 +651,198 @@ describe('FeishuAdapter', () => {
     vi.useRealTimers()
   })
 
-  it('notifies on Feishu policy rejections and throttles duplicates', async () => {
+  it.each(['no_mention', 'mention_all_blocked'] satisfies RejectReason[])(
+    'silently ignores %s rejections before and after the notification cooldown while retaining warns',
+    async (reason) => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2025-01-01T00:00:00Z'))
+      const adapter = createAdapter()
+      await adapter.connect()
+      mockSend.mockClear()
+      loggerMocks.warn.mockClear()
+      loggerMocks.debug.mockClear()
+
+      const times = ['2025-01-01T00:00:00Z', '2025-01-01T00:00:01Z', '2025-01-01T00:06:00Z']
+      for (const [index, time] of times.entries()) {
+        vi.setSystemTime(new Date(time))
+        channelHandlers.reject({
+          messageId: `msg-reject-${index}`,
+          chatId: 'oc_123',
+          senderId: 'ou_user1',
+          reason
+        } satisfies RejectEvent)
+        await Promise.resolve()
+
+        expect(mockSend).toHaveBeenCalledTimes(0)
+        expect(loggerMocks.warn).toHaveBeenNthCalledWith(
+          index + 1,
+          'Feishu message rejected',
+          expect.objectContaining({ chatId: 'oc_123', reason })
+        )
+      }
+      expect(loggerMocks.warn).toHaveBeenCalledTimes(3)
+      expect(loggerMocks.debug).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['group_not_allowed', 'sender_not_allowed', 'dm_disabled'] satisfies RejectReason[])(
+    'preserves drop notifications for %s rejections',
+    async (reason) => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2025-01-01T00:00:00Z'))
+      const adapter = createAdapter()
+      await adapter.connect()
+      mockSend.mockClear()
+      loggerMocks.warn.mockClear()
+
+      channelHandlers.reject({
+        messageId: 'msg-reject-1',
+        chatId: 'oc_123',
+        senderId: 'ou_user1',
+        reason
+      } satisfies RejectEvent)
+      await Promise.resolve()
+
+      expect(mockSend).toHaveBeenCalledTimes(1)
+      expect(mockSend).toHaveBeenCalledWith('oc_123', { markdown: 'common.channel_message_dropped' }, undefined)
+      expect(loggerMocks.warn).toHaveBeenCalledExactlyOnceWith(
+        'Feishu message rejected',
+        expect.objectContaining({ chatId: 'oc_123', reason })
+      )
+    }
+  )
+
+  it('throttles group_not_allowed notifications until the five-minute boundary', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2025-01-01T00:00:00Z'))
     const adapter = createAdapter()
     await adapter.connect()
     mockSend.mockClear()
     loggerMocks.warn.mockClear()
+    loggerMocks.debug.mockClear()
 
-    channelHandlers.reject({ chatId: 'oc_123', reason: 'require_mention' })
-    await Promise.resolve()
+    const attempts = [
+      { time: '2025-01-01T00:00:00Z', sends: 1 },
+      { time: '2025-01-01T00:00:01Z', sends: 1 },
+      { time: '2025-01-01T00:05:00Z', sends: 2 }
+    ]
+    for (const [index, { time, sends }] of attempts.entries()) {
+      vi.setSystemTime(new Date(time))
+      channelHandlers.reject({
+        messageId: `msg-reject-${index}`,
+        chatId: 'oc_123',
+        senderId: 'ou_user1',
+        reason: 'group_not_allowed'
+      } satisfies RejectEvent)
+      await Promise.resolve()
 
-    expect(loggerMocks.warn).toHaveBeenCalledWith(
-      'Feishu message rejected',
-      expect.objectContaining({ chatId: 'oc_123', reason: 'require_mention' })
-    )
-    expect(mockSend).toHaveBeenCalledWith('oc_123', { markdown: 'common.channel_message_dropped' }, undefined)
-
-    mockSend.mockClear()
-    channelHandlers.reject({ chatId: 'oc_123', reason: 'require_mention' })
-    await Promise.resolve()
-    expect(mockSend).not.toHaveBeenCalled()
-
-    vi.useRealTimers()
+      expect(mockSend).toHaveBeenCalledTimes(sends)
+      expect(loggerMocks.warn).toHaveBeenNthCalledWith(
+        index + 1,
+        'Feishu message rejected',
+        expect.objectContaining({ chatId: 'oc_123', reason: 'group_not_allowed' })
+      )
+      if (index === 1) {
+        expect(loggerMocks.debug).toHaveBeenCalledExactlyOnceWith(
+          'Suppressing duplicate drop notification',
+          expect.objectContaining({ chatId: 'oc_123' })
+        )
+      }
+    }
+    expect(loggerMocks.warn).toHaveBeenCalledTimes(3)
+    expect(mockSend).toHaveBeenNthCalledWith(1, 'oc_123', { markdown: 'common.channel_message_dropped' }, undefined)
+    expect(mockSend).toHaveBeenNthCalledWith(2, 'oc_123', { markdown: 'common.channel_message_dropped' }, undefined)
   })
+
+  it.each(['no_mention', 'mention_all_blocked'] satisfies RejectReason[])(
+    'does not refresh an existing notification cooldown for %s',
+    async (reason) => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2025-01-01T00:00:00Z'))
+      const adapter = createAdapter()
+      await adapter.connect()
+      mockSend.mockClear()
+      loggerMocks.warn.mockClear()
+      loggerMocks.debug.mockClear()
+
+      channelHandlers.reject({
+        messageId: 'msg-reject-1',
+        chatId: 'oc_123',
+        senderId: 'ou_user1',
+        reason: 'group_not_allowed'
+      } satisfies RejectEvent)
+      await Promise.resolve()
+      expect(mockSend).toHaveBeenCalledTimes(1)
+
+      vi.setSystemTime(new Date('2025-01-01T00:04:00Z'))
+      channelHandlers.reject({
+        messageId: 'msg-reject-2',
+        chatId: 'oc_123',
+        senderId: 'ou_user1',
+        reason
+      } satisfies RejectEvent)
+      await Promise.resolve()
+      expect(mockSend).toHaveBeenCalledTimes(1)
+      expect(loggerMocks.debug).not.toHaveBeenCalled()
+
+      vi.setSystemTime(new Date('2025-01-01T00:05:00Z'))
+      channelHandlers.reject({
+        messageId: 'msg-reject-3',
+        chatId: 'oc_123',
+        senderId: 'ou_user1',
+        reason: 'group_not_allowed'
+      } satisfies RejectEvent)
+      await Promise.resolve()
+      expect(mockSend).toHaveBeenCalledTimes(2)
+      expect(mockSend).toHaveBeenNthCalledWith(2, 'oc_123', { markdown: 'common.channel_message_dropped' }, undefined)
+      expect(loggerMocks.warn).toHaveBeenCalledTimes(3)
+      expect(loggerMocks.warn).toHaveBeenNthCalledWith(
+        2,
+        'Feishu message rejected',
+        expect.objectContaining({ chatId: 'oc_123', reason })
+      )
+    }
+  )
+
+  it.each(['no_mention', 'mention_all_blocked'] satisfies RejectReason[])(
+    'does not consume the unauthorized-chat notification cooldown for %s',
+    async (reason) => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2025-01-01T00:00:00Z'))
+      const adapter = createAdapter({ allowed_chat_ids: ['oc_allowed'] })
+      await adapter.connect()
+      mockSend.mockClear()
+      loggerMocks.warn.mockClear()
+      loggerMocks.debug.mockClear()
+
+      channelHandlers.reject({
+        messageId: 'msg-reject-1',
+        chatId: 'oc_blocked',
+        senderId: 'ou_user1',
+        reason
+      } satisfies RejectEvent)
+      await Promise.resolve()
+      expect(mockSend).toHaveBeenCalledTimes(0)
+
+      await channelHandlers.message(
+        incomingMessage({ chatId: 'oc_blocked', messageId: 'msg-in-2', chatType: 'group', mentionedBot: true })
+      )
+      expect(mockSend).toHaveBeenCalledTimes(1)
+      expect(mockSend).toHaveBeenCalledWith('oc_blocked', { markdown: 'common.channel_message_dropped' }, undefined)
+      expect(loggerMocks.warn).toHaveBeenCalledTimes(2)
+      expect(loggerMocks.warn).toHaveBeenNthCalledWith(
+        1,
+        'Feishu message rejected',
+        expect.objectContaining({ chatId: 'oc_blocked', reason })
+      )
+      expect(loggerMocks.warn).toHaveBeenNthCalledWith(
+        2,
+        'Dropping message from unauthorized chat',
+        expect.objectContaining({ chatId: 'oc_blocked' })
+      )
+      expect(loggerMocks.debug).not.toHaveBeenCalled()
+    }
+  )
 
   it('logs at debug level when drop notification delivery fails', async () => {
     const adapter = createAdapter({ allowed_chat_ids: ['oc_allowed'] })

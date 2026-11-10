@@ -12,8 +12,8 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 
 const logger = loggerService.withContext('SiyuanSettings')
 
@@ -23,7 +23,7 @@ const SiyuanSettings: FC = () => {
   const [siyuanBoxId, setSiyuanBoxId] = usePreference('data.integration.siyuan.box_id')
   const [siyuanRootPath, setSiyuanRootPath] = usePreference('data.integration.siyuan.root_path')
 
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { theme } = useTheme()
 
   const handleApiUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,7 +43,11 @@ const SiyuanSettings: FC = () => {
   }
 
   const handleSiyuanHelpClick = () => {
-    void ipcApi.request('system.shell.open_website', 'https://docs.cherry-ai.com/advanced-basic/siyuan')
+    void openExternalWebsite(
+      i18n.language.startsWith('zh')
+        ? 'https://cherryai.com.cn/docs/zh-cn/pre-basic/data-settings/siyuan/'
+        : 'https://cherryai.com/docs/en/pre-basic/data-settings/'
+    )
   }
 
   const handleCheckConnection = async () => {

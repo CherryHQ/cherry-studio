@@ -38,6 +38,8 @@ export interface IconMeta {
   colorPrimary: string
   /** Whether the source SVG is monochrome or colorful. Monochrome icons use currentColor in color.tsx. */
   colorScheme?: 'mono' | 'color'
+  /** Full-canvas artwork must not receive the inset-mark enlargement. */
+  artworkKind?: 'tile'
 }
 
 /** Icon component props */

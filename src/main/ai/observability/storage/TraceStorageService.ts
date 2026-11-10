@@ -103,6 +103,23 @@ function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity
   return Array.from(byId.values())
 }
 
+/**
+ * Map a `topicId`/`traceId` to a single safe filesystem segment. `:` (as in agent-session
+ * topicIds) and the other Windows-illegal characters would make `fs.mkdir` fail with ENOENT on
+ * NTFS, so percent-encode `%` plus `<>:"/\|?*` and C0 controls. Safe ids pass through unchanged.
+ * Histories written before this encoding stay readable via the legacy-path fallback in the
+ * readers and are carried forward into the encoded file on the next flush.
+ */
+function encodeTraceSegment(value: string): string {
+  const escaped = value
+    .replace(/%/g, '%25')
+    .replace(/[<>:"/\\|?*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)
+  return Array.from(escaped, (char) => {
+    const code = char.charCodeAt(0)
+    return code < 0x20 || code === 0x7f ? `%${code.toString(16).toUpperCase().padStart(2, '0')}` : char
+  }).join('')
+}
+
 @Injectable('TraceStorageService')
 @ServicePhase(Phase.WhenReady)
 export class TraceStorageService extends BaseService implements TraceStore, Activatable {
@@ -516,6 +533,9 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
         .filter((span) => span.topicId === topicId && span.traceId === traceId)
         .map((span) => [span.id, span] as const)
     )
+    // Pre-encoding history was written to the raw path; carry it forward so the upgrade keeps it.
+    const legacyPath = this.legacyTraceFilePath(topicId, traceId)
+    const legacyExists = legacyPath !== null && (await this.fileExists(legacyPath).catch(() => false))
     const historySize = await this.historyFileSize(filePath)
     // Only measure for trimming when the file is already over budget — the common case pays nothing.
     const dropped =
@@ -532,25 +552,32 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     let output: FileHandle | undefined
     try {
       output = await fs.open(tmpPath, 'w', 0o600)
-      if (historySize !== null) {
-        const handle = output
-        const seenIds = new Set<string>()
-        await this.forEachSpanLine(filePath, async (existing, line) => {
-          if (existing.topicId !== topicId || existing.traceId !== traceId || seenIds.has(existing.id)) return
-          seenIds.add(existing.id)
-          const replacement = replacements.get(existing.id)
-          // A span this flush re-writes is current data, so retention never trims it.
-          if (seenIds.size <= dropped && !replacement) return
-          await this.writeSpanLine(handle, replacement ?? line)
-          replacements.delete(existing.id)
-        })
+      const handle = output
+      const seenIds = new Set<string>()
+      const carryOver = async (existing: SpanEntity, line: string) => {
+        if (existing.topicId !== topicId || existing.traceId !== traceId || seenIds.has(existing.id)) return
+        seenIds.add(existing.id)
+        const replacement = replacements.get(existing.id)
+        // A span this flush re-writes is current data, so retention never trims it.
+        if (seenIds.size <= dropped && !replacement) return
+        await this.writeSpanLine(handle, replacement ?? line)
+        replacements.delete(existing.id)
       }
+      if (historySize !== null) await this.forEachSpanLine(filePath, carryOver)
+      // Encoded file first so it wins on duplicate ids; the legacy tail converges away below.
+      if (legacyPath && legacyExists) await this.forEachSpanLine(legacyPath, carryOver)
       for (const span of replacements.values()) {
         await this.writeSpanLine(output, span)
       }
       await output.close()
       output = undefined
       await fs.rename(tmpPath, filePath)
+      // Converge on the encoded path. Best-effort so a stale legacy file never fails a flush;
+      // rmdir only succeeds once the last legacy trace file of the topic is gone.
+      if (legacyPath && legacyExists) {
+        await fs.unlink(legacyPath).catch(() => {})
+        await fs.rmdir(path.dirname(legacyPath)).catch(() => {})
+      }
     } catch (error) {
       // Don't leave the partial temp file behind if write/rename fails.
       await output?.close().catch(() => {})
@@ -596,7 +623,16 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private async getHistoryData(topicId: string, traceId: string) {
     const filePath = this.traceFilePath(topicId, traceId)
+    const history = await this.readHistoryFile(filePath, topicId, traceId)
+    const legacyPath = this.legacyTraceFilePath(topicId, traceId)
+    if (!legacyPath) return history
+    // Pre-encoding histories live at the raw path on POSIX. Windows never wrote them (mkdir
+    // failed), so anything unreadable there is treated as absent, never fatal to the viewer.
+    const legacy = await this.readHistoryFile(legacyPath, topicId, traceId).catch(() => [])
+    return mergeSpansById(legacy, history)
+  }
 
+  private async readHistoryFile(filePath: string, topicId: string, traceId: string) {
     if (!(await this.fileExists(filePath))) {
       return []
     }
@@ -649,13 +685,24 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private async getHistoryVersion(topicId: string, traceId: string): Promise<string | null> {
     const filePath = this.traceFilePath(topicId, traceId)
+    let version: string | null = null
     try {
       const stats = await fs.stat(filePath, { bigint: true })
-      return `${stats.mtimeNs}:${stats.size}`
+      version = `${stats.mtimeNs}:${stats.size}`
     } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return null
-      throw error
+      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error
     }
+    // Include the legacy file so the viewer resyncs when pre-encoding history appears or migrates
+    // away. Unreadable there (e.g. `:` on Windows) just means no legacy history.
+    const legacyPath = this.legacyTraceFilePath(topicId, traceId)
+    const legacyVersion = legacyPath
+      ? await fs.stat(legacyPath, { bigint: true }).then(
+          (stats) => `${stats.mtimeNs}:${stats.size}`,
+          () => null as string | null
+        )
+      : null
+    if (version === null) return legacyVersion
+    return legacyVersion === null ? version : `${version}|${legacyVersion}`
   }
 
   private traceRootDir(): string {
@@ -682,12 +729,19 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private traceTopicDir(topicId: string): string {
     this.assertSafeSegment(topicId, 'topicId')
-    return path.join(this.traceRootDir(), topicId)
+    return path.join(this.traceRootDir(), encodeTraceSegment(topicId))
   }
 
   private traceFilePath(topicId: string, traceId: string): string {
     this.assertSafeSegment(traceId, 'traceId')
-    return path.join(this.traceTopicDir(topicId), traceId)
+    return path.join(this.traceTopicDir(topicId), encodeTraceSegment(traceId))
+  }
+
+  // Raw-path location used before Windows-safe encoding. Null when encoding leaves the path
+  // unchanged, so safe ids pay for one string comparison and no extra filesystem access.
+  private legacyTraceFilePath(topicId: string, traceId: string): string | null {
+    const legacy = path.join(this.traceRootDir(), topicId, traceId)
+    return legacy === this.traceFilePath(topicId, traceId) ? null : legacy
   }
 
   /** Size in bytes of an existing trace file, or null when it has not been written yet. */

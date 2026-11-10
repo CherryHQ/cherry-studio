@@ -38,7 +38,10 @@ vi.mock('@tanstack/react-virtual', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, string>) =>
+      key === 'files.select_file_with_path' ? `Select ${values?.name} (${values?.path})` : key
+  })
 }))
 
 const file: FileItem = {
@@ -55,10 +58,11 @@ const file: FileItem = {
 }
 
 const menuActions: FileContextMenuActions = {
+  isSidebarPinned: vi.fn(() => false),
   onRename: vi.fn(),
   onDelete: vi.fn(),
-  onRestore: vi.fn(),
-  onShowInFolder: vi.fn()
+  onShowInFolder: vi.fn(),
+  onToggleSidebar: vi.fn()
 }
 
 function fileListProps(renamingId: string | null): ComponentProps<typeof FileList> {
@@ -68,10 +72,8 @@ function fileListProps(renamingId: string | null): ComponentProps<typeof FileLis
     onSelect: vi.fn(),
     onOpen: vi.fn(),
     onDelete: vi.fn(),
-    onRestore: vi.fn(),
     onRename: vi.fn(),
     onShowInFolder: vi.fn(),
-    isTrash: false,
     menuActions,
     scrollRef: { current: document.createElement('div') },
     renamingId,
@@ -109,6 +111,22 @@ describe('fileDisplay helpers', () => {
 })
 
 describe('FileList', () => {
+  it('disables row and context-menu deletion while a delete request is pending', async () => {
+    const onDelete = vi.fn()
+    const actions = { ...menuActions, onDelete }
+    render(<FileList {...fileListProps(null)} onDelete={onDelete} menuActions={actions} deleteDisabled />)
+
+    const rowDelete = screen.getByRole('button', { name: 'files.delete.label' })
+    expect(rowDelete).toBeDisabled()
+    fireEvent.contextMenu(screen.getByText('report.md'))
+    const contextDelete = await screen.findByRole('menuitem', { name: 'files.delete.label' })
+    expect(contextDelete).toHaveAttribute('data-disabled')
+
+    fireEvent.click(rowDelete)
+    fireEvent.click(contextDelete)
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
   it('virtualizes accumulated files with stable file identity keys', () => {
     const files = Array.from({ length: 100 }, (_, index) => ({
       ...file,
@@ -253,5 +271,52 @@ describe('FileList', () => {
     expect(screen.queryByRole('button', { name: 'files.rename' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'files.show_in_folder' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
+  })
+
+  it('exposes distinct source paths for same-name files', () => {
+    virtualizerMocks.useVirtualizer.mockImplementation((options: VirtualizerOptionsMock) => ({
+      getTotalSize: () => options.count * options.estimateSize(),
+      getVirtualItems: () =>
+        Array.from({ length: options.count }, (_, index) => ({
+          index,
+          key: options.getItemKey?.(index) ?? index,
+          size: options.estimateSize(),
+          start: index * options.estimateSize()
+        })),
+      measureElement: vi.fn(),
+      scrollToIndex: virtualizerMocks.scrollToIndex
+    }))
+
+    const first: FileItem = {
+      ...file,
+      id: 'file-migrated-a',
+      name: 'migrated-image.png',
+      format: 'png',
+      type: 'image',
+      sourcePath: '/Users/a/Pictures/migrated-image.png'
+    }
+    const second: FileItem = {
+      ...first,
+      id: 'file-migrated-b',
+      sourcePath: '/Users/b/Downloads/migrated-image.png'
+    }
+
+    render(<FileList {...fileListProps(null)} files={[first, second]} />)
+
+    const names = screen.getAllByText('migrated-image.png')
+    expect(names).toHaveLength(2)
+    expect(names[0]).toHaveAttribute('title', '/Users/a/Pictures/migrated-image.png')
+    expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-image.png')
+    expect(
+      screen.getByRole('checkbox', {
+        name: 'Select migrated-image.png (/Users/a/Pictures/migrated-image.png)'
+      })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('checkbox', {
+        name: 'Select migrated-image.png (/Users/b/Downloads/migrated-image.png)'
+      })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'files.select_file' })).not.toBeInTheDocument()
   })
 })

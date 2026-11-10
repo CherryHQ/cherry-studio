@@ -22,6 +22,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   CodeEditor: mocks.CodeEditor
 }))
 
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: mocks.CodeEditor
+}))
+
 vi.mock('@renderer/components/CodeViewer', () => ({
   default: mocks.CodeViewer
 }))

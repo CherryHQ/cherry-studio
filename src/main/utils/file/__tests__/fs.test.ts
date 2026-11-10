@@ -34,6 +34,7 @@ import {
   isSameFile,
   mkdir as fsMkdir,
   move as fsMove,
+  openReadableFileSnapshot,
   PathStaleVersionError,
   prepareAtomicWrite,
   probeReadable,
@@ -133,17 +134,28 @@ describe('probeReadable', () => {
 describe('shouldSilenceFsyncDirError', () => {
   // Pin the silent-vs-warn boundary that atomicWriteFile / createAtomicWriteStream
   // rely on for post-rename durability observability. The list shifted in
-  // c9127b7c3 (EPERM/EACCES moved from silent → warn); a future maintainer
-  // re-adding either would silence a real ACL-drift regression on user machines.
+  // c9127b7c3 (EPERM/EACCES moved from silent → warn); on non-Windows a future
+  // maintainer re-adding either would silence a real ACL-drift regression on
+  // user machines. On Windows dir-fsync always fails with EPERM
+  // (FlushFileBuffers → ERROR_ACCESS_DENIED), so EPERM/EACCES are expected
+  // noise there and must stay silent — otherwise every atomic write warn-logs.
   it('silences EINVAL / EISDIR / ENOTSUP (filesystems that semantically reject dir fsync)', () => {
     expect(shouldSilenceFsyncDirError('EINVAL')).toBe(true)
     expect(shouldSilenceFsyncDirError('EISDIR')).toBe(true)
     expect(shouldSilenceFsyncDirError('ENOTSUP')).toBe(true)
   })
 
-  it('does NOT silence permission errnos (EPERM / EACCES) — real ACL/sandbox regressions', () => {
-    expect(shouldSilenceFsyncDirError('EPERM')).toBe(false)
-    expect(shouldSilenceFsyncDirError('EACCES')).toBe(false)
+  it('does NOT silence permission errnos (EPERM / EACCES) off Windows — real ACL/sandbox regressions', () => {
+    expect(shouldSilenceFsyncDirError('EPERM', 'linux')).toBe(false)
+    expect(shouldSilenceFsyncDirError('EACCES', 'linux')).toBe(false)
+    expect(shouldSilenceFsyncDirError('EPERM', 'darwin')).toBe(false)
+    expect(shouldSilenceFsyncDirError('EACCES', 'darwin')).toBe(false)
+  })
+
+  it('silences EPERM / EACCES on Windows (dir-fsync is always EPERM there)', () => {
+    expect(shouldSilenceFsyncDirError('EPERM', 'win32')).toBe(true)
+    expect(shouldSilenceFsyncDirError('EACCES', 'win32')).toBe(true)
+    expect(shouldSilenceFsyncDirError('EINVAL', 'win32')).toBe(true)
   })
 
   it('does NOT silence real IO errnos (EIO / ENOSPC / others)', () => {
@@ -602,6 +614,21 @@ describe('atomicWriteIfUnchanged', () => {
     expect(await readFile(target, 'utf-8')).toBe('second')
     expect(next.size).toBe(6)
     expect(next.mtime).toBeGreaterThanOrEqual(expected.mtime)
+  })
+
+  it('accepts an unchanged snapshot version after a sub-millisecond timestamp read', async () => {
+    const target = path.join(tmp, 'snapshot.txt') as AbsoluteFilePath
+    await writeFile(target, 'first')
+    const modifiedAtSeconds = 1_700_000_000 + 0.1239999
+    await utimes(target, modifiedAtSeconds, modifiedAtSeconds)
+    const snapshot = await openReadableFileSnapshot(target)
+    const version = { mtime: snapshot.modifiedAt, size: snapshot.size }
+    await snapshot.close()
+
+    const saved = await atomicWriteIfUnchanged(target, 'second', version)
+
+    expect(await readFile(target, 'utf8')).toBe('second')
+    expect(saved.size).toBe(6)
   })
 
   it('throws PathStaleVersionError when size differs', async () => {

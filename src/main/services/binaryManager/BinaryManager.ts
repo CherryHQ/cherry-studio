@@ -18,11 +18,11 @@ import {
   dedupePathSegments,
   getBinaryIsolatedHomeEnv,
   getBinaryShimsDir,
-  isPathWithin,
   mergeBinaryExecutionEnv
 } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
+import { isOutsidePath } from '@main/utils/file'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
@@ -42,11 +42,16 @@ import type {
   BinaryOperations,
   BinaryRemoveRequest,
   BinaryRemoveResult,
+  BinaryToolInstalledSizes,
   BinaryToolSnapshot
 } from '@shared/types/binary'
+import { Semaphore } from '@shared/utils/async'
 
+import { claudeNpmRegistries, resolveClaudeNpmPackage } from './claudeNpm'
 import { sanitizedCommandError } from './commandError'
+import { installToolDependencies } from './pipDependencies'
 import { provideManagedPython } from './pythonRuntime'
+import { measureToolInstalledSize } from './toolInstalledSize'
 
 const logger = loggerService.withContext('BinaryManager')
 
@@ -123,6 +128,14 @@ const MISE_REQUIRED_PEERS = new Map(
 // snapshots, so this belongs to CacheService's internal tier rather than its
 // cross-window shared mirror.
 const BINARY_OPERATIONS_CACHE_KEY = 'feature.binary.install_states'
+const INSTALLED_SIZES_CACHE_KEY = 'feature.binary.installed_sizes'
+const INSTALLED_SIZE_TTL_MS = 300_000
+const INSTALLED_SIZE_NULL_TTL_MS = 30_000
+
+type InstalledSizesCache = {
+  revision: number
+  entries: Record<string, { identity: string; sizeBytes: number | null; expiresAt: number }>
+}
 
 function parseInstallUrl(value: string, setting: string): string | undefined {
   const trimmed = value.trim()
@@ -224,8 +237,13 @@ export type ManagedCliInventoryEntry = {
 }
 
 /** A code-owned fixed tool definition. Structural — never a persisted custom entry. */
-type FixedToolDefinition = { name: string; tool: string; npmAllowBuilds?: readonly string[] }
-type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds'>
+type FixedToolDefinition = {
+  name: string
+  tool: string
+  npmAllowBuilds?: readonly string[]
+  pipDependencies?: readonly string[]
+}
+type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies'>
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // One build's env and the facts derived from it, so no caller can pair them
@@ -235,6 +253,10 @@ type IsolatedEnvSnapshot = {
   // Only Cherry's own China default may be retried against other indexes.
   usesDefaultChinaPipIndex: boolean
 }
+
+// The Windows ARM64 Claude install uses mise's HTTP backend, which lists it as
+// `http:claude` while the recipe identity is `claude`.
+const LEGACY_TOOL_IDENTITIES: ReadonlyMap<string, string> = new Map([['http:claude', 'claude']])
 
 // Code-owned catalog of the fixed tools Cherry ships: every Dependencies preset
 // executable and every Code CLI executable mapped to its canonical mise recipe.
@@ -247,8 +269,10 @@ type IsolatedEnvSnapshot = {
 // installed package identity, so every comparison goes through this normalizer.
 // The normalized application fact does not prove bracketed install options such as
 // Hermes's `extras=web`; those options are not observable in the mise listing.
-const normalizeToolIdentity = (tool: string): string =>
-  (tool.startsWith('core:') ? tool.slice('core:'.length) : tool).replace(/\[[^\]]*]/g, '')
+const normalizeToolIdentity = (tool: string): string => {
+  const identity = (tool.startsWith('core:') ? tool.slice('core:'.length) : tool).replace(/\[[^\]]*]/g, '')
+  return LEGACY_TOOL_IDENTITIES.get(identity) ?? identity
+}
 
 function addNpmAllowBuildsOption(tool: string, packages?: readonly string[]): string {
   if (!packages?.length) return tool
@@ -264,7 +288,8 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
     {
       name: preset.name,
       tool: preset.tool,
-      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {})
+      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {}),
+      ...(preset.pipDependencies?.length ? { pipDependencies: preset.pipDependencies } : {})
     }
   ]),
   ...CODE_CLI_TOOL_PRESETS.map((preset): [string, FixedToolDefinition] => [
@@ -311,6 +336,8 @@ export class BinaryManager extends BaseService {
     | { action: 'addCustom'; definition: CustomToolDefinition; promise: Promise<void> }
     | { action: 'remove'; definitionOnly: boolean; promise: Promise<BinaryRemoveResult> }
   >()
+  private readonly installedSizeSemaphore = new Semaphore(2)
+  private readonly installedSizeFlights = new Map<string, Promise<number | null>>()
   private latestVersionsPromise: Promise<Record<string, string>> | null = null
   // Monotonic counter bumped on every mutation that can change backend state or
   // durable definitions (add / install / update / remove / definition-only). A
@@ -376,6 +403,7 @@ export class BinaryManager extends BaseService {
 
   protected override async onStop(): Promise<void> {
     this.isShuttingDown = true
+    this.bumpMutationRevision()
     if (this.normalizationPromise) await this.normalizationPromise
     this.normalizationPromise = null
   }
@@ -404,7 +432,7 @@ export class BinaryManager extends BaseService {
    *
    * Bundled tools (bun, uv, rg) ship inside the app and are extracted at boot.
    * The UI uses this to distinguish "available (bundled)" from "managed"
-   * vs "not installed" — see docs/references/binary-manager/README.md.
+   * vs "not installed" — see docs/dev/references/binary-manager/README.md.
    *
    * Returns a map of tool name → version string (from .{name}-version marker)
    * or null when the marker is missing. Absent keys mean the binary is not
@@ -438,15 +466,15 @@ export class BinaryManager extends BaseService {
         const resolved = isWin
           ? findExecutable(name, { extensions: ['.exe', '.cmd', '.bat'], env: shellEnv })
           : await findCommandInShellEnv(name, shellEnv)
-        if (!resolved || cherryDirs.some((dir) => isPathWithin(dir, resolved))) return null
+        if (!resolved || cherryDirs.some((dir) => !isOutsidePath(path.relative(dir, resolved)))) return null
         return [name, resolved]
       })
     )
     return Object.fromEntries(entries.filter((entry): entry is [string, string] => entry !== null))
   }
 
-  private async listMiseInstalls(): Promise<Record<string, MiseInstallEntry[]>> {
-    const { stdout } = await this.runMise(['ls', '--json'])
+  private async listMiseInstalls(signal?: AbortSignal): Promise<Record<string, MiseInstallEntry[]>> {
+    const { stdout } = await this.runMise(['ls', '--json'], { signal })
     const parsed: unknown = JSON.parse(stdout)
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('mise ls --json returned a non-object shape')
@@ -490,15 +518,15 @@ export class BinaryManager extends BaseService {
     const installed: Record<string, MiseInstallEntry[]> = {}
     // Backend state is derived once and drives the independent application fact:
     // a missing backend is `backend_unavailable`, a failed/malformed query is
-    // `query_failed`. Neither may ever collapse a tool to `absent`.
-    let queryFailed = false
+    // `query_failed` with sanitized details. Neither may ever collapse a tool to `absent`.
+    let queryFailureMessage: string | null = null
     if (this.miseBin) {
       try {
         Object.assign(installed, await this.listMiseInstalls())
       } catch (err) {
-        queryFailed = true
+        queryFailureMessage = this.errorMessage(err)
         logger.warn('Failed to query installed versions via mise ls', {
-          error: err instanceof Error ? err.message : String(err)
+          error: queryFailureMessage
         })
       }
     }
@@ -533,8 +561,8 @@ export class BinaryManager extends BaseService {
     // recipe options, `applied` proves package identity, not optional capabilities.
     const backendUnknown: BinaryApplication | null = !this.miseBin
       ? { status: 'unknown', reason: 'backend_unavailable' }
-      : queryFailed
-        ? { status: 'unknown', reason: 'query_failed' }
+      : queryFailureMessage !== null
+        ? { status: 'unknown', reason: 'query_failed', message: queryFailureMessage }
         : null
 
     type DerivedTool = { application?: BinaryApplication; mise?: { path: string; version?: string } }
@@ -632,24 +660,172 @@ export class BinaryManager extends BaseService {
             ? { source: 'system', path: system[name] }
             : { source: 'none' }
       const operation = operations[name]
-      // A failed install is stale only when the exact recipe is proven absent
-      // and an out-of-band executable now satisfies the tool. Unknown/broken
-      // application still needs the failure row to explain why Retry made no
-      // change, even if system/bundled availability keeps execution possible.
+      // External availability satisfies only untargeted failures; targeted
+      // failures must remain visible so Retry repeats the requested version.
       const staleFailedInstall =
         operation?.status === 'failed' &&
         operation.action === 'install' &&
+        operation.targetVersion === undefined &&
         (!derivedTool.application || derivedTool.application.status === 'absent') &&
         (availability.source === 'system' || availability.source === 'bundled')
+      const staleInFlight = this.isStaleInFlightOperation(name, operation?.status)
       snapshots[name] = {
         name,
         ...(definitionsByName.has(name) ? { definition: definitionsByName.get(name)! } : {}),
         availability,
         ...(derivedTool.application ? { application: derivedTool.application } : {}),
-        ...(operation && !staleFailedInstall ? { operation } : {})
+        ...(operation && !staleFailedInstall && !staleInFlight ? { operation } : {})
       }
     }
     return snapshots
+  }
+
+  public async getToolInstalledSizes(names: string[]): Promise<BinaryToolInstalledSizes> {
+    const requested = [...new Set(names)]
+    const empty = (): BinaryToolInstalledSizes => Object.fromEntries(requested.map((name) => [name, null]))
+    const revision = this.mutationRevision
+    const isCurrent = () =>
+      revision === this.mutationRevision &&
+      !this.isShuttingDown &&
+      !this.mutationMutex.isLocked() &&
+      this.activeMutations.size === 0
+    if (!requested.length || !isCurrent()) return empty()
+
+    let snapshots: Record<string, BinaryToolSnapshot>
+    let installed: Record<string, MiseInstallEntry[]> = {}
+    try {
+      snapshots = await this.getToolSnapshots(requested)
+      if (!isCurrent()) return empty()
+      if (requested.some((name) => snapshots[name]?.availability.source === 'mise' && this.resolveDefinition(name))) {
+        try {
+          installed = await this.listMiseInstalls()
+        } catch {
+          // Leave attribution unproven so each mise candidate gets a negative cache entry.
+        }
+        if (!isCurrent()) return empty()
+      }
+    } catch {
+      if (isCurrent()) {
+        for (const name of requested)
+          logger.warn('Unable to measure installed tool size', { name, reason: 'query_failed' })
+      }
+      return empty()
+    }
+
+    const results = await Promise.all(
+      requested.map(async (name): Promise<[string, number | null]> => {
+        const snapshot = snapshots[name]
+        const definition = this.resolveDefinition(name)
+        const source = snapshot?.availability.source
+        if (
+          !isCurrent() ||
+          (!definition && source !== 'bundled') ||
+          source === 'system' ||
+          source === 'none' ||
+          !source ||
+          (definition && normalizeToolIdentity(definition.tool) === 'rust') ||
+          (source === 'mise' && snapshot.application?.status !== 'applied')
+        )
+          return [name, null]
+
+        let root: string | undefined
+        let reason: string | undefined
+        const entries = Object.entries(installed)
+          .filter(([tool]) => normalizeToolIdentity(tool) === normalizeToolIdentity(definition?.tool ?? name))
+          .flatMap(([, entries]) => entries)
+          .filter((entry) => entry.active)
+        try {
+          if (source === 'bundled') {
+            root = application.getPath('cherry.bin', getBinaryName(name))
+          } else {
+            const installPath = entries.length === 1 ? entries[0].install_path : undefined
+            if (!installPath || !path.isAbsolute(installPath)) throw new Error('unproven_root')
+            const dataRoot = application.getPath('feature.binary.data')
+            if (!this.isInstallationRoot(dataRoot, installPath)) throw new Error('unproven_root')
+            const canonicalData = await fsp.realpath(dataRoot)
+            if (!isCurrent()) return [name, null]
+            const canonicalRoot = await fsp.realpath(installPath)
+            if (!isCurrent()) return [name, null]
+            if (!this.isInstallationRoot(canonicalData, canonicalRoot)) throw new Error('unproven_root')
+            const runnable = await this.resolveRunnableShim(name, definition!.tool)
+            if (!isCurrent()) return [name, null]
+            if (!runnable || isOutsidePath(path.relative(canonicalRoot, runnable.canonical))) {
+              throw new Error('unproven_runnable')
+            }
+            root = canonicalRoot
+          }
+        } catch {
+          reason = 'unproven_root'
+        }
+        if (!isCurrent()) return [name, null]
+        const identity = JSON.stringify([
+          source,
+          definition?.tool,
+          'version' in snapshot.availability ? snapshot.availability.version : null,
+          snapshot.application?.status === 'applied' ? snapshot.application.version : null,
+          entries,
+          root
+        ])
+        const cache = application.get('CacheService')
+        const cached = cache.get<InstalledSizesCache>(INSTALLED_SIZES_CACHE_KEY)
+        const entry =
+          cached?.revision === revision && Object.hasOwn(cached.entries, name) ? cached.entries[name] : undefined
+        if (entry !== undefined && entry.identity === identity && entry.expiresAt > Date.now())
+          return [name, entry.sizeBytes]
+
+        const key = JSON.stringify([revision, name, identity])
+        let flight = this.installedSizeFlights.get(key)
+        if (!flight) {
+          flight = this.installedSizeSemaphore.runExclusive(async () => {
+            if (!isCurrent()) return null
+            const measured = root
+              ? await measureToolInstalledSize(root, source === 'bundled' ? 'file' : 'directory', { isCurrent })
+              : { sizeBytes: null, reason: reason ?? 'unproven_root' }
+            if (!isCurrent()) return null
+            if (measured.sizeBytes === null) {
+              logger.warn('Unable to measure installed tool size', { name, reason: measured.reason })
+            }
+            const current = cache.get<InstalledSizesCache>(INSTALLED_SIZES_CACHE_KEY)
+            cache.set<InstalledSizesCache>(
+              INSTALLED_SIZES_CACHE_KEY,
+              {
+                revision,
+                entries: {
+                  ...(current?.revision === revision ? current.entries : {}),
+                  [name]: {
+                    identity,
+                    sizeBytes: measured.sizeBytes,
+                    expiresAt:
+                      Date.now() + (measured.sizeBytes === null ? INSTALLED_SIZE_NULL_TTL_MS : INSTALLED_SIZE_TTL_MS)
+                  }
+                }
+              },
+              INSTALLED_SIZE_TTL_MS
+            )
+            return measured.sizeBytes
+          })
+          this.installedSizeFlights.set(key, flight)
+          void flight
+            .finally(() => {
+              if (this.installedSizeFlights.get(key) === flight) this.installedSizeFlights.delete(key)
+            })
+            .catch(() => undefined)
+        }
+        return [name, await flight]
+      })
+    )
+    return isCurrent() ? Object.fromEntries(results) : empty()
+  }
+
+  private isInstallationRoot(dataRoot: string, candidate: string): boolean {
+    const relative = path.relative(dataRoot, candidate)
+    const components = relative.split(path.sep)
+    return (
+      !path.isAbsolute(relative) &&
+      components.length === 3 &&
+      components[0] === 'installs' &&
+      components.every((component) => component !== '' && component !== '..')
+    )
   }
 
   /**
@@ -657,7 +833,8 @@ export class BinaryManager extends BaseService {
    * per-tool `mise which` verification. One `mise ls` and one shims listing are
    * sufficient for this read-only managed-tool surface.
    */
-  public async getToolInventory(): Promise<readonly ManagedCliInventoryEntry[]> {
+  public async getToolInventory(signal?: AbortSignal): Promise<readonly ManagedCliInventoryEntry[]> {
+    signal?.throwIfAborted()
     const customDefinitions = this.getCustomDefinitions().filter((definition) => !FIXED_CATALOG.has(definition.name))
     const bundledNames = new Set(BUNDLED_TOOLS.filter((tool) => !tool.internal).flatMap((tool) => tool.binaries))
     const definitions = new Map<string, CustomToolDefinition | FixedToolDefinition>([
@@ -669,8 +846,9 @@ export class BinaryManager extends BaseService {
     let queryFailed = false
     if (this.miseBin) {
       try {
-        Object.assign(installed, await this.listMiseInstalls())
+        Object.assign(installed, await this.listMiseInstalls(signal))
       } catch (err) {
+        signal?.throwIfAborted()
         queryFailed = true
         logger.warn('Failed to query CLI inventory via mise ls', {
           error: err instanceof Error ? err.message : String(err)
@@ -693,9 +871,10 @@ export class BinaryManager extends BaseService {
         if (isWin && !['.exe', '.cmd', '.bat'].includes(path.extname(entry.name).toLowerCase())) continue
         shimNames.set(toShimStem(entry.name), path.join(shimsDir, entry.name))
       }
-    } catch {
-      // A fresh profile has no shims directory until its first managed install.
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
+    signal?.throwIfAborted()
 
     const bundled = this.probeBundled()
     const installedFor = (tool: string): MiseInstallEntry[] | undefined => {
@@ -722,11 +901,17 @@ export class BinaryManager extends BaseService {
         installedFor(tool)?.some((entry) => entry.active) === true
       )
     })
+    const unobservable = new Set<string>()
     const exposedNames = new Set(
       (
         await Promise.all(
           shimlessTools.map(async (name) => {
-            const bins = await this.resolveToolBinNames(definitions.get(name)!.tool)
+            signal?.throwIfAborted()
+            const bins = await this.resolveToolBinNames(definitions.get(name)!.tool, signal)
+            if (bins === null) {
+              unobservable.add(name)
+              return null
+            }
             const shims = bins.flatMap((bin) => {
               const shimPath = shimNames.get(toShimStem(bin))
               return shimPath ? [shimPath] : []
@@ -748,12 +933,14 @@ export class BinaryManager extends BaseService {
       const runnable =
         name in bundled || (active !== undefined && (shimNames.has(toShimStem(name)) || exposedNames.has(name)))
       const operation = operations[name]
+      const staleInFlight = this.isStaleInFlightOperation(name, operation?.status)
       const statusRules: ReadonlyArray<readonly [matches: boolean, status: ManagedCliStatus]> = [
-        [operation?.status === 'installing', 'installing'],
-        [operation?.status === 'removing', 'removing'],
+        [!staleInFlight && operation?.status === 'installing', 'installing'],
+        [!staleInFlight && operation?.status === 'removing', 'removing'],
         [operation?.status === 'failed', 'failed'],
+        [queryFailed || unobservable.has(name), 'unknown'],
         [runnable, 'ready'],
-        [!this.miseBin || queryFailed, 'unknown'],
+        [!this.miseBin, 'unknown'],
         [Boolean(installs?.length), 'failed']
       ]
       const status = statusRules.find(([matches]) => matches)?.[1] ?? 'not_installed'
@@ -766,6 +953,7 @@ export class BinaryManager extends BaseService {
       }
     })
 
+    signal?.throwIfAborted()
     return entries.sort((left, right) => left.name.localeCompare(right.name))
   }
 
@@ -841,7 +1029,12 @@ export class BinaryManager extends BaseService {
     }
 
     if (isWin) {
-      return findMiseExecutable()
+      try {
+        return await findMiseExecutable()
+      } catch (err) {
+        logger.warn('mise lookup failed', { error: this.errorMessage(err) })
+        return null
+      }
     }
 
     try {
@@ -862,7 +1055,7 @@ export class BinaryManager extends BaseService {
   // private registry auth tokens are not passed through.
   // NPM_CONFIG_REGISTRY and PIP_INDEX_URL are passed through and overridden
   // with mirror URLs for China users so that npm/pipx backends work reliably.
-  private async buildIsolatedEnv(): Promise<IsolatedEnvSnapshot> {
+  private async buildIsolatedEnv(signal?: AbortSignal): Promise<IsolatedEnvSnapshot> {
     const env: Record<string, string> = {}
 
     for (const key of MISE_PASSTHROUGH_ENV) {
@@ -912,7 +1105,12 @@ export class BinaryManager extends BaseService {
       env['MISE_AQUA_GITHUB_ATTESTATIONS'] = 'false'
     }
 
-    const inChina = await regionService.isInChina().catch(() => false)
+    const inChina = await regionService.isInChina(signal).catch((error) => {
+      signal?.throwIfAborted()
+      logger.debug('Region lookup unavailable for managed tools', { error })
+      return false
+    })
+    signal?.throwIfAborted()
     let usesDefaultChinaPipIndex = false
     if (inChina) {
       if (!env['NPM_CONFIG_REGISTRY']) {
@@ -961,10 +1159,12 @@ export class BinaryManager extends BaseService {
    * failed build is not cached, so a later call can retry once a transient cause
    * (e.g. mkdir failure) clears.
    */
-  private getIsolatedEnv(): Promise<IsolatedEnvSnapshot> {
+  private getIsolatedEnv(signal?: AbortSignal): Promise<IsolatedEnvSnapshot> {
+    signal?.throwIfAborted()
     if (this.isolatedEnv) {
       return Promise.resolve(this.isolatedEnv)
     }
+    if (signal) return this.buildIsolatedEnv(signal)
     if (!this.isolatedEnvPromise) {
       const building = this.buildIsolatedEnv().then(
         (snapshot) => {
@@ -984,6 +1184,7 @@ export class BinaryManager extends BaseService {
   private async runMise(
     args: string[],
     opts?: {
+      signal?: AbortSignal
       timeoutMs?: number
       includePrerelease?: boolean
       shellOutNpm?: boolean
@@ -1002,7 +1203,8 @@ export class BinaryManager extends BaseService {
       // isolation. getIsolatedEnv() always resolves a fully-built isolated env.
       throw new Error('mise binary not available')
     }
-    const isolatedEnv = (opts?.snapshot ?? (await this.getIsolatedEnv())).env
+    const isolatedEnv = (opts?.snapshot ?? (await this.getIsolatedEnv(opts?.signal))).env
+    opts?.signal?.throwIfAborted()
     let env = isolatedEnv
     if (opts?.includePrerelease || opts?.shellOutNpm || opts?.prependPath || opts?.env) {
       env = { ...isolatedEnv }
@@ -1030,7 +1232,12 @@ export class BinaryManager extends BaseService {
     // cwd is always a throwaway tmp dir so mise never picks up a project-local
     // mise.toml from the main process's working directory.
     try {
-      return await execFileAsync(this.miseBin, args, { cwd: os.tmpdir(), env, timeout: timeoutMs })
+      return await execFileAsync(this.miseBin, args, {
+        cwd: os.tmpdir(),
+        env,
+        timeout: timeoutMs,
+        ...(opts?.signal ? { signal: opts.signal, killSignal: 'SIGKILL' as const } : {})
+      })
     } catch (error) {
       if (error instanceof Error) {
         // A timeout kill leaves stderr at whatever progress line mise printed
@@ -1075,16 +1282,17 @@ export class BinaryManager extends BaseService {
    * `mise which` reports a successful install as unusable. An uninstalled recipe
    * yields none.
    */
-  private async resolveToolBinNames(tool: string): Promise<string[]> {
+  private async resolveToolBinNames(tool: string, signal?: AbortSignal): Promise<string[] | null> {
     try {
-      const { stdout } = await this.runMise(['bin-paths', tool, '--json'])
+      const { stdout } = await this.runMise(['bin-paths', tool, '--json'], { signal })
       const parsed: unknown = JSON.parse(stdout)
-      if (!Array.isArray(parsed)) return []
+      if (!Array.isArray(parsed)) return null
       return parsed.flatMap((entry) =>
         entry && typeof (entry as { name?: unknown }).name === 'string' ? [(entry as { name: string }).name] : []
       )
     } catch {
-      return []
+      signal?.throwIfAborted()
+      return null
     }
   }
 
@@ -1112,7 +1320,7 @@ export class BinaryManager extends BaseService {
       // A fresh profile has no shims directory until its first managed install.
       return null
     }
-    for (const binary of await this.resolveToolBinNames(tool)) {
+    for (const binary of (await this.resolveToolBinNames(tool)) ?? []) {
       const shimPath = shims.get(toShimStem(binary))
       // A shim file that is present but not executable is not a runnable path,
       // exactly as for the tool's own name.
@@ -1129,7 +1337,7 @@ export class BinaryManager extends BaseService {
     // runnable proof stands on its own.
     if (typeof entry.install_path !== 'string') return true
     try {
-      return isPathWithin(await fsp.realpath(entry.install_path), canonical)
+      return !isOutsidePath(path.relative(await fsp.realpath(entry.install_path), canonical))
     } catch {
       return false
     }
@@ -1275,6 +1483,33 @@ export class BinaryManager extends BaseService {
     throw new Error(`No PyPI index could install the tool\n${failures.join('\n')}`)
   }
 
+  private async enforcePipDependencies(
+    definition: InstallableToolDefinition,
+    dependencies: readonly string[]
+  ): Promise<void> {
+    const { stdout } = await this.runMise(['ls', '--json', definition.tool])
+    const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+    const installPath = entries.find((entry) => entry.active)?.install_path
+    if (!installPath) throw new Error(`mise did not report an active install path for ${definition.name}`)
+
+    const snapshot = await this.getIsolatedEnv()
+    if (!snapshot.usesDefaultChinaPipIndex) {
+      await installToolDependencies({ installPath, dependencies, env: snapshot.env })
+      return
+    }
+
+    const failures: string[] = []
+    for (const index of [...CHINA_PIP_INDEXES, OFFICIAL_PIP_INDEX]) {
+      try {
+        await installToolDependencies({ installPath, dependencies, env: { ...snapshot.env, ...pipIndexEnv(index) } })
+        return
+      } catch (error) {
+        failures.push(`${new URL(index).host}: ${this.errorMessage(error)}`)
+      }
+    }
+    throw new Error(`No PyPI index could install the pinned dependencies of ${definition.name}\n${failures.join('\n')}`)
+  }
+
   /**
    * Drop the global Python selection older Cherry versions wrote for the pipx
    * backend. Cherry provisions the interpreter itself now, so its own leftover
@@ -1322,6 +1557,23 @@ export class BinaryManager extends BaseService {
       const runtimeVersion = pinnedRuntime.requestedVersion ?? (await this.getInstalledVersion(runtimeTool))
       runtime = `${runtimeTool}@${runtimeVersion}`
     }
+    if (definition.tool === 'claude' && isWin && process.arch === 'arm64') {
+      const registries = claudeNpmRegistries((await this.getIsolatedEnv()).env.NPM_CONFIG_REGISTRY)
+      for (const [index, source] of registries.entries()) {
+        try {
+          const pkg = await resolveClaudeNpmPackage(source, requested)
+          await this.runMise(['use', '-g', pkg.toolSpec], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+          await this.runMise(['reshim'])
+          return await this.getInstalledVersion(definition.tool, pkg.version)
+        } catch (error) {
+          if (index === registries.length - 1) throw error
+          logger.warn('Claude npm source failed; trying fallback', {
+            registry: source,
+            error: this.errorMessage(error)
+          })
+        }
+      }
+    }
     const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${requested}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
@@ -1345,6 +1597,9 @@ export class BinaryManager extends BaseService {
     if (pythonPath) {
       await this.installPipxTool(useArgs, pythonPath, includePrerelease)
       await this.releaseMisePythonSelection()
+      if (definition.pipDependencies?.length) {
+        await this.enforcePipDependencies(definition, definition.pipDependencies)
+      }
     } else {
       await this.runMise(useArgs, {
         timeoutMs: MISE_INSTALL_TIMEOUT_MS,
@@ -1370,6 +1625,14 @@ export class BinaryManager extends BaseService {
       throw new Error(`mise did not report an installed version for ${tool}${requested ? `@${requested}` : ''}`)
     }
     return matching.version
+  }
+
+  // mise filters `ls`/`uninstall` by the recipe's own backend, so an install listed
+  // under a legacy identity must be addressed by the exact key mise reports.
+  private async listLegacyInstalledSpecs(tool: string): Promise<string[]> {
+    const identity = normalizeToolIdentity(tool)
+    if (![...LEGACY_TOOL_IDENTITIES.values()].includes(identity)) return []
+    return Object.keys(await this.listMiseInstalls()).filter((spec) => LEGACY_TOOL_IDENTITIES.get(spec) === identity)
   }
 
   private async isMiseToolAbsent(tool: string): Promise<boolean> {
@@ -1414,6 +1677,11 @@ export class BinaryManager extends BaseService {
       // Cache is derived session state. A failed invalidation must not turn an
       // already-committed backend/Preference mutation into a false failure.
       logger.warn('Failed to clear binary latest-version cache', { error: this.errorMessage(err) })
+    }
+    try {
+      application.get('CacheService').delete(INSTALLED_SIZES_CACHE_KEY)
+    } catch (err) {
+      logger.warn('Failed to clear binary installed-size cache', { error: this.errorMessage(err) })
     }
   }
 
@@ -1462,6 +1730,11 @@ export class BinaryManager extends BaseService {
     }
     cacheService.set(BINARY_OPERATIONS_CACHE_KEY, operations)
     this.broadcastAvailabilityChanged()
+  }
+
+  // Abandoned markers must not override live availability; queued mutations still count as active.
+  private isStaleInFlightOperation(name: string, status: string | undefined): boolean {
+    return (status === 'installing' || status === 'removing') && !this.activeMutations.has(name)
   }
 
   /** Resolve the code-owned fixed definition for a name, if the app ships one. */
@@ -1563,8 +1836,9 @@ export class BinaryManager extends BaseService {
    * recipe was already persisted by Custom Add). An unknown name, a foreign
    * conflict, or an unreadable backend reject without mutating; an already-applied
    * tool is a no-op (or a one-shot version update when a target is given); an
-   * externally satisfied tool (bundled/system) is a logged no-op so a race
-   * converges. A backend failure records a failed operation and rejects.
+   * external copy is a logged no-op without a target or with an exact bundled
+   * semver match. Unmet/unprovable targets and backend failures record a failed
+   * operation and reject.
    */
   installByName(request: BinaryInstallByNameRequest): Promise<void> {
     const { name, targetVersion } = request
@@ -1611,41 +1885,48 @@ export class BinaryManager extends BaseService {
   private async installByNameImpl(name: string, targetVersion: string | undefined): Promise<void> {
     const outcome = await this.mutationMutex.runExclusive(
       async (): Promise<{ kind: 'done' } | { kind: 'reject' | 'failed'; error: string }> => {
-        const definition = this.resolveDefinition(name)
-        if (!definition) return { kind: 'reject', error: `Unknown tool: ${name}` }
-
-        // The system probe reads the cached login-shell env, which can predate a
-        // CLI the user installed mid-session; deciding from that stale PATH would
-        // lay down a managed shadow copy over a now-present system binary.
-        // Re-capture before deriving the facts this decision runs on (the fetch
-        // falls back to process.env on failure and never rejects).
-        await refreshShellEnv()
-        const snapshot = (await this.getToolSnapshots([name]))[name]
-        const status = snapshot.application?.status
-        const source = snapshot.availability.source
-
-        // conflict/unknown: the exact recipe is not proven absent, and installing
-        // over a foreign shim or an unreadable backend could shadow an existing
-        // tool — reject without mutating.
-        if (status === 'conflict')
-          return { kind: 'failed', error: `Tool ${name} resolves to a conflicting installation` }
-        if (status === 'unknown') {
-          const reason = snapshot.application?.status === 'unknown' ? snapshot.application.reason : 'query_failed'
-          return { kind: 'failed', error: `Cannot determine ${name} state: ${reason}` }
-        }
-        // applied: nothing to do unless a one-shot target update is requested.
-        if (status === 'applied' && !targetVersion) return { kind: 'done' }
-        // absent + an external copy: a race already satisfied it — never lay down a
-        // managed shadow copy over a bundled/system binary.
-        if (status === 'absent' && (source === 'bundled' || source === 'system')) {
-          logger.info('Skipping managed install; tool already available from an external source', { name, source })
-          return { kind: 'done' }
-        }
-
-        // absent+none, broken, or applied+target → apply the exact recipe. The
-        // returned concrete pin is intentionally ignored: name-only installs never
-        // write Preference.
         try {
+          const definition = this.resolveDefinition(name)
+          if (!definition) return { kind: 'reject', error: `Unknown tool: ${name}` }
+
+          // Refresh PATH so a mid-session system install is not shadowed by a managed copy.
+          await refreshShellEnv()
+          const snapshot = (await this.getToolSnapshots([name]))[name]
+          const status = snapshot.application?.status
+          const availability = snapshot.availability
+          const source = availability.source
+
+          // Unproven ownership must not authorize installing over an existing tool.
+          if (status === 'conflict')
+            return { kind: 'failed', error: `Tool ${name} resolves to a conflicting installation` }
+          if (status === 'unknown') {
+            const reason = snapshot.application?.status === 'unknown' ? snapshot.application.reason : 'query_failed'
+            return { kind: 'failed', error: `Cannot determine ${name} state: ${reason}` }
+          }
+          if (status === 'applied' && !targetVersion) return { kind: 'done' }
+          // External copies must satisfy explicit targets without creating a managed shadow.
+          if (status === 'absent' && (source === 'bundled' || source === 'system')) {
+            if (targetVersion) {
+              if (source === 'system') {
+                return {
+                  kind: 'failed',
+                  error: `Cannot satisfy ${name}@${targetVersion}: source=system; installed version cannot be verified. Cherry Studio cannot update or replace this system installation. Manage it outside Cherry Studio, or omit the version target (requestedVersion in cli_install) to use the available executable.`
+                }
+              }
+              const version = availability.version
+              const requested = semverValid(targetVersion)
+              if (requested === null || !version || requested !== semverValid(version)) {
+                return {
+                  kind: 'failed',
+                  error: `Cannot satisfy ${name}@${targetVersion}: source=bundled; bundled version=${version ?? 'unknown (version marker missing or empty)'}. The requested version could not be verified as an exact semantic-version match. Omit the version target (requestedVersion in cli_install) to use the bundled copy, or update/reinstall Cherry Studio; bundled tools cannot be updated independently.`
+                }
+              }
+            }
+            logger.info('Skipping managed install; tool already available from an external source', { name, source })
+            return { kind: 'done' }
+          }
+
+          // Name-only installs never persist the resolved version into Preference.
           const definitions = await this.appliedRuntimeDefinitions(this.getCustomDefinitions())
           // Invalidate before invoking mise: a failed command may still have made a
           // partial backend change, which must also stale any in-flight latest batch.
@@ -1663,9 +1944,8 @@ export class BinaryManager extends BaseService {
       return
     }
     if (outcome.kind === 'failed') {
-      // Retain the update target so a Retry repeats the same targeted install; a
-      // name-only retry of a failed update would hit the applied no-op and falsely
-      // clear the failure without repeating the update.
+      // Retain the target so Retry cannot silently clear an unmet version
+      // through an applied or external name-only no-op.
       this.setOperation(name, {
         status: 'failed',
         action: 'install',
@@ -1926,6 +2206,18 @@ export class BinaryManager extends BaseService {
         const name = applied[cursor++]
         const { tool } = candidates.get(name)!
         try {
+          if (tool === 'claude' && isWin && process.arch === 'arm64') {
+            const registries = claudeNpmRegistries((await this.getIsolatedEnv()).env.NPM_CONFIG_REGISTRY)
+            for (const [index, source] of registries.entries()) {
+              try {
+                result[name] = (await resolveClaudeNpmPackage(source, 'latest')).version
+                break
+              } catch (error) {
+                if (index === registries.length - 1) throw error
+              }
+            }
+            continue
+          }
           const includePrerelease = MISE_PRERELEASE_TOOLS.has(tool)
           const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
           const { stdout } = await this.runMise(['latest', ...releaseAgeArgs, tool], { includePrerelease })
@@ -2066,7 +2358,13 @@ export class BinaryManager extends BaseService {
       // A full remove chooses its cleanup path from the live application fact —
       // never the persisted definition — so it fails closed when the backend cannot
       // be read and never uninstalls over a foreign shim.
-      const snapshot = (await this.getToolSnapshots([name]))[name]
+      let snapshot: BinaryToolSnapshot
+      try {
+        snapshot = (await this.getToolSnapshots([name]))[name]
+      } catch (err) {
+        this.setOperation(name, null)
+        return { status: 'cleanup_blocked', reason: 'query_failed', message: this.errorMessage(err) }
+      }
       const application = snapshot.application
 
       // Backend unreadable / unavailable: nothing removed, definition retained.
@@ -2123,8 +2421,15 @@ export class BinaryManager extends BaseService {
         this.bumpMutationRevision()
         await this.runMise(['unuse', '-g', definition.tool])
         await this.runMise(['uninstall', '--all', definition.tool])
+        const legacySpecs = await this.listLegacyInstalledSpecs(definition.tool)
+        for (const spec of legacySpecs) {
+          await this.runMise(['unuse', '-g', spec])
+          await this.runMise(['uninstall', '--all', spec])
+        }
         await this.runMise(['reshim'])
-        if (!(await this.isMiseToolAbsent(definition.tool))) {
+        const specs = [definition.tool, ...legacySpecs]
+        for (const spec of specs) {
+          if (await this.isMiseToolAbsent(spec)) continue
           this.setOperation(name, null)
           return {
             status: 'cleanup_blocked',

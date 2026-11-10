@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useLayoutEffect, useRef } from 'react'
 
-import { useActiveComposerOverride } from './ComposerContext'
+import { ComposerLayerActiveProvider, useActiveComposerOverride, useComposerLayerActive } from './ComposerContext'
 
 type ComposerCoreProps = {
   fallback: ReactNode
@@ -10,6 +10,7 @@ type ComposerCoreProps = {
 
 export default function ComposerCore({ fallback, className }: ComposerCoreProps) {
   const activeOverride = useActiveComposerOverride()
+  const layerActive = useComposerLayerActive()
   const primaryLayerRef = useRef<HTMLDivElement>(null)
   const previousOverrideIdRef = useRef<string | null>(null)
   const primaryFocusTargetRef = useRef<HTMLElement | null>(null)
@@ -70,7 +71,7 @@ export default function ComposerCore({ fallback, className }: ComposerCoreProps)
             primaryHadFocusRef.current = false
           }
         }}>
-        {fallback}
+        <ComposerLayerActiveProvider value={layerActive && !activeOverride}>{fallback}</ComposerLayerActiveProvider>
       </div>
 
       {activeOverride ? (
@@ -79,7 +80,9 @@ export default function ComposerCore({ fallback, className }: ComposerCoreProps)
           data-composer-override-layer=""
           data-composer-active-layer=""
           className="relative w-full">
-          {activeOverride.render({ className })}
+          <ComposerLayerActiveProvider value={layerActive}>
+            {activeOverride.render({ className })}
+          </ComposerLayerActiveProvider>
         </div>
       ) : null}
     </div>

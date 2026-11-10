@@ -8,14 +8,42 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { popup } from '@renderer/services/popup'
+import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { trashErrorCodes } from '@shared/ipc/errors/trash'
 
 import { AgentResourceList } from '../AgentResourceList'
 import { AssistantResourceList } from '../AssistantResourceList'
 
 const assistantDataMocks = vi.hoisted(() => ({
+  assistants: [
+    {
+      id: 'assistant-1',
+      name: 'Assistant 1',
+      orderKey: 'a',
+      emoji: 'A',
+      modelId: 'openai::gpt-4o',
+      modelName: 'GPT-4o'
+    },
+    {
+      id: 'assistant-2',
+      name: 'Assistant 2',
+      orderKey: 'b',
+      emoji: 'B',
+      modelId: 'openai::gpt-4o',
+      modelName: 'GPT-4o'
+    }
+  ],
   deleteTopicsByAssistantId: vi.fn(),
   deleteAssistant: vi.fn(),
+  pinnedIds: [] as string[],
+  restoreAssistant: vi.fn(),
+  restoreTopic: vi.fn(),
   refreshTopics: vi.fn(),
   refetchAssistants: vi.fn(),
   topics: [
@@ -25,6 +53,9 @@ const assistantDataMocks = vi.hoisted(() => ({
 }))
 
 const agentDataMocks = vi.hoisted(() => ({
+  error: null as Error | null,
+  getActiveResource: vi.fn(),
+  isLoading: false,
   agents: [
     {
       id: 'agent-1',
@@ -40,7 +71,14 @@ const agentDataMocks = vi.hoisted(() => ({
   invalidate: vi.fn(),
   ipcRequest: vi.fn(),
   refetchAgents: vi.fn(),
+  restoreAgent: vi.fn(),
+  restoreSession: vi.fn(),
   toggleAgentPin: vi.fn()
+}))
+
+const recycleBinFeedbackMocks = vi.hoisted(() => ({
+  showRecycleBinBatchUndo: vi.fn(),
+  showRecycleBinUndo: vi.fn()
 }))
 
 const loggerMocks = vi.hoisted(() => ({
@@ -57,11 +95,49 @@ const preferenceMocks = vi.hoisted(() => ({
 }))
 
 const resourceEntityRailMocks = vi.hoisted(() => ({
-  collapsedGroupId: 'resource-entity-rail:section:["group","group-work"]'
+  collapsedGroupId: 'resource-entity-rail:section:["group","group-work"]',
+  permanentDelete: undefined as
+    | {
+        isItemEligible?: (item: ResourceEntityRailItem) => boolean
+        onDelete: (item: ResourceEntityRailItem) => void | Promise<void>
+      }
+    | undefined
 }))
+
+const commandMocks = vi.hoisted(() => ({
+  shortcutLabel: 'Ctrl+Backspace'
+}))
+
+vi.mock('@renderer/hooks/command', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('@renderer/hooks/command')
+  return {
+    ...actual,
+    useResolvedCommand: (command: string) => ({
+      id: command,
+      label: command,
+      enabled: true,
+      shortcutLabel: command === 'resource.delete_permanently' ? commandMocks.shortcutLabel : '',
+      execute: () => undefined
+    })
+  }
+})
 
 const tabsContextMocks = vi.hoisted(() => ({
   closeConversationTabs: vi.fn()
+}))
+
+const archiveSessionsPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
+
+vi.mock('@renderer/components/chat/archiveAgentSessionsPopup', () => ({
+  archiveAgentSessionsPopup: archiveSessionsPopupMocks
+}))
+
+const conversationOwnerPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
+const permanentDeletePopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
+
+vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => ({
+  deleteConversationOwnerPopup: conversationOwnerPopupMocks,
+  permanentDeletePopup: permanentDeletePopupMocks
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -71,6 +147,7 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
+  EmojiIcon: ({ emoji }: { emoji: string }) => <span>{emoji}</span>,
   MenuItem: ({ icon, label, onClick }: { icon?: ReactNode; label: ReactNode; onClick?: () => void }) => (
     <button type="button" onClick={onClick}>
       {icon}
@@ -87,8 +164,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { count?: number }) =>
-      key === 'assistants.clear.success_title' ? `${key}:${options?.count}` : key
+    t: (key: string) => key
   })
 }))
 
@@ -113,7 +189,7 @@ vi.mock('@data/hooks/usePreference', () => ({
       (value: unknown) => {
         preferenceMocks.values.set(key, value)
         preferenceMocks.setPreference(key, value)
-        // Mutations through useSidebarFavorites call `.catch` on the returned
+        // Sidebar shortcut mutations call `.catch` on the returned
         // promise; resolve so those toggle paths do not throw.
         return Promise.resolve()
       }
@@ -121,14 +197,20 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
+vi.mock('@renderer/data/PreferenceService', () => ({
+  preferenceService: {
+    get: vi.fn(async (key: string) => preferenceMocks.values.get(key)),
+    set: vi.fn(async (key: string, value: unknown) => {
+      preferenceMocks.values.set(key, value)
+      preferenceMocks.setPreference(key, value)
+    })
+  }
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => loggerMocks
   }
-}))
-
-vi.mock('@renderer/components/EmojiIcon', () => ({
-  default: ({ emoji }: { emoji: string }) => <span>{emoji}</span>
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
@@ -151,8 +233,11 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     onGroupReorder,
     onReorder,
     onSelect,
+    onSelectedClick,
+    permanentDelete,
     reorderEnabled = true,
     selectedId,
+    selectedClickId,
     selectionSuppressed
   }: {
     collapsedState?: readonly string[]
@@ -165,12 +250,19 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     onGroupReorder?: (groupId: string, anchor: { before: string }) => void | Promise<void>
     onReorder?: unknown
     onSelect: (item: ResourceEntityRailItem) => void | Promise<void>
+    onSelectedClick?: (item: ResourceEntityRailItem) => void | Promise<void>
+    permanentDelete?: {
+      isItemEligible?: (item: ResourceEntityRailItem) => boolean
+      onDelete: (item: ResourceEntityRailItem) => void | Promise<void>
+    }
     reorderEnabled?: boolean
     selectedId?: string | null
+    selectedClickId?: string | null
     selectionSuppressed?: boolean
   }) => {
     const flattenActions = (actions: readonly ResolvedAction[]): readonly ResolvedAction[] =>
       actions.flatMap((action) => [action, ...flattenActions(action.children)])
+    resourceEntityRailMocks.permanentDelete = permanentDelete
 
     return (
       <div
@@ -182,6 +274,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
         data-sortable-container={onReorder || onGroupReorder ? 'enabled' : 'disabled'}
         data-collapsed-state={collapsedState?.join(',') ?? 'uncontrolled'}
         data-selected-id={selectionSuppressed ? '' : (selectedId ?? '')}
+        data-selected-click-id={selectedClickId ?? ''}
         data-selection-suppressed={String(!!selectionSuppressed)}>
         <button
           type="button"
@@ -195,13 +288,22 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
 
           return (
             <section key={item.id} aria-label={item.name} title={item.tooltip}>
+              <button
+                type="button"
+                aria-label={`Select ${item.name}`}
+                onClick={() =>
+                  selectedClickId === item.id && onSelectedClick ? onSelectedClick(item) : onSelect(item)
+                }
+              />
               {item.icon}
-              <button type="button" aria-label={`Select ${item.name}`} onClick={() => void onSelect(item)} />
               <div data-testid={`${item.id}-context-menu`}>
                 {renderedActions.map((action) => (
                   <button
                     key={`context-${action.id}`}
                     type="button"
+                    data-action-id={action.id}
+                    data-danger={action.danger ? 'true' : 'false'}
+                    data-shortcut={action.shortcut ?? ''}
                     disabled={!action.availability.enabled}
                     onClick={() => onContextMenuAction?.(item, action)}>
                     {action.label}
@@ -213,6 +315,9 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
                   <button
                     key={`more-${action.id}`}
                     type="button"
+                    data-action-id={action.id}
+                    data-danger={action.danger ? 'true' : 'false'}
+                    data-shortcut={action.shortcut ?? ''}
                     disabled={!action.availability.enabled}
                     onClick={() => onContextMenuAction?.(item, action)}>
                     {action.label}
@@ -230,27 +335,11 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistantMutations: () => ({
-    deleteAssistant: assistantDataMocks.deleteAssistant
+    deleteAssistant: assistantDataMocks.deleteAssistant,
+    restoreAssistant: assistantDataMocks.restoreAssistant
   }),
   useAssistantsApi: () => ({
-    assistants: [
-      {
-        id: 'assistant-1',
-        name: 'Assistant 1',
-        orderKey: 'a',
-        emoji: 'A',
-        modelId: 'openai::gpt-4o',
-        modelName: 'GPT-4o'
-      },
-      {
-        id: 'assistant-2',
-        name: 'Assistant 2',
-        orderKey: 'b',
-        emoji: 'B',
-        modelId: 'openai::gpt-4o',
-        modelName: 'GPT-4o'
-      }
-    ],
+    assistants: assistantDataMocks.assistants,
     error: null,
     hasLoaded: true,
     isLoading: false,
@@ -258,12 +347,16 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
+vi.mock('@renderer/data/DataApiService', () => ({
+  dataApiService: { get: agentDataMocks.getActiveResource }
+}))
+
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: () => ({
     agents: agentDataMocks.agents,
     deleteAgent: agentDataMocks.deleteAgent,
-    error: null,
-    isLoading: false,
+    error: agentDataMocks.error,
+    isLoading: agentDataMocks.isLoading,
     refetch: agentDataMocks.refetchAgents
   })
 }))
@@ -273,7 +366,7 @@ vi.mock('@renderer/hooks/usePins', () => ({
     isLoading: false,
     isMutating: false,
     isRefreshing: false,
-    pinnedIds: [],
+    pinnedIds: assistantDataMocks.pinnedIds,
     togglePin: agentDataMocks.toggleAgentPin
   })
 }))
@@ -312,6 +405,32 @@ function createAgentSessionsSource(overrides: Partial<AgentSessionsSource> = {})
     total: 1,
     ...overrides
   } as unknown as AgentSessionsSource
+}
+
+function createAgentSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
+  const timestamp = '2026-09-04T00:00:00.000Z'
+
+  return {
+    id: 'session-1',
+    agentId: 'agent-1',
+    name: 'Session 1',
+    isNameManuallyEdited: false,
+    workspaceId: 'workspace-1',
+    workspace: {
+      id: 'workspace-1',
+      name: 'Workspace 1',
+      path: '/tmp/workspace-1',
+      type: 'system',
+      orderKey: 'a',
+      createdAt: timestamp,
+      updatedAt: timestamp
+    },
+    orderKey: 'a',
+    lastActivityAt: timestamp,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    ...overrides
+  }
 }
 
 function createAssistantTopicsSource(overrides: Partial<AssistantTopicsSource> = {}): AssistantTopicsSource {
@@ -358,7 +477,8 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   mapApiTopicToRendererTopic: (topic: unknown) => topic,
   useTopicMutations: () => ({
     deleteTopicsByAssistantId: assistantDataMocks.deleteTopicsByAssistantId,
-    refreshTopics: assistantDataMocks.refreshTopics
+    refreshTopics: assistantDataMocks.refreshTopics,
+    restoreTopic: assistantDataMocks.restoreTopic
   })
 }))
 
@@ -367,8 +487,21 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: () => ({ trigger: vi.fn() })
 }))
 
+vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
+  ...(await importOriginal<typeof RecycleBinFeedback>()),
+  ...recycleBinFeedbackMocks
+}))
+
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: agentDataMocks.ipcRequest, on: vi.fn(() => () => undefined) }
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.agent.restore'
+        ? agentDataMocks.restoreAgent(input)
+        : route === 'ai.agent.session.restore'
+          ? agentDataMocks.restoreSession(input)
+          : agentDataMocks.ipcRequest(route, input),
+    on: vi.fn(() => () => undefined)
+  }
 }))
 
 vi.mock('@renderer/utils/chat/topicsHelpers', () => ({
@@ -376,6 +509,7 @@ vi.mock('@renderer/utils/chat/topicsHelpers', () => ({
 }))
 
 vi.mock('@renderer/utils/chat/sessionListHelpers', () => ({
+  SESSION_UNKNOWN_AGENT_GROUP_ID: 'session:agent:unknown',
   sortSessionsForDisplayGroups: (sessions: unknown[]) => sessions
 }))
 
@@ -384,10 +518,21 @@ vi.mock('@renderer/utils/agent', () => ({
 }))
 
 vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix
+  formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix,
+  getErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
 }))
 
 describe('classic layout entity resource list actions', () => {
+  const sidebarShortcut = (providerId: string, resourceId: string, fallbackLabel?: string) => {
+    const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId, resourceId } }
+    return {
+      type: 'shortcut' as const,
+      id: createSidebarShortcutId(target),
+      target,
+      ...(fallbackLabel ? { fallbackLabel } : {})
+    }
+  }
+
   beforeEach(() => {
     MockUseCacheUtils.resetMocks()
     agentDataMocks.agents = [
@@ -400,10 +545,31 @@ describe('classic layout entity resource list actions', () => {
         modelName: 'Claude Sonnet 4'
       }
     ]
+    agentDataMocks.error = null
+    agentDataMocks.isLoading = false
     preferenceMocks.sortType = 'list'
     preferenceMocks.values.clear()
     preferenceMocks.setPreference.mockClear()
     preferenceMocks.setSortType.mockClear()
+    assistantDataMocks.assistants = [
+      {
+        id: 'assistant-1',
+        name: 'Assistant 1',
+        orderKey: 'a',
+        emoji: 'A',
+        modelId: 'openai::gpt-4o',
+        modelName: 'GPT-4o'
+      },
+      {
+        id: 'assistant-2',
+        name: 'Assistant 2',
+        orderKey: 'b',
+        emoji: 'B',
+        modelId: 'openai::gpt-4o',
+        modelName: 'GPT-4o'
+      }
+    ]
+    assistantDataMocks.pinnedIds = []
     assistantDataMocks.topics = [
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
       { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }
@@ -412,6 +578,10 @@ describe('classic layout entity resource list actions', () => {
     assistantDataMocks.deleteTopicsByAssistantId.mockClear()
     assistantDataMocks.deleteAssistant.mockResolvedValue({ deleted: true, deletedTopicIds: [] })
     assistantDataMocks.deleteAssistant.mockClear()
+    assistantDataMocks.restoreAssistant.mockResolvedValue(undefined)
+    assistantDataMocks.restoreAssistant.mockClear()
+    assistantDataMocks.restoreTopic.mockResolvedValue(undefined)
+    assistantDataMocks.restoreTopic.mockClear()
     assistantDataMocks.refreshTopics.mockResolvedValue(undefined)
     assistantDataMocks.refreshTopics.mockClear()
     assistantDataMocks.refetchAssistants.mockResolvedValue(undefined)
@@ -433,44 +603,619 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.ipcRequest.mockClear()
     agentDataMocks.refetchAgents.mockResolvedValue(undefined)
     agentDataMocks.refetchAgents.mockClear()
+    agentDataMocks.restoreAgent.mockResolvedValue(undefined)
+    agentDataMocks.restoreAgent.mockClear()
+    agentDataMocks.restoreSession.mockResolvedValue(undefined)
+    agentDataMocks.restoreSession.mockClear()
+    agentDataMocks.getActiveResource.mockResolvedValue({ id: 'active-resource' })
+    agentDataMocks.getActiveResource.mockClear()
     agentDataMocks.toggleAgentPin.mockResolvedValue(undefined)
     agentDataMocks.toggleAgentPin.mockClear()
     tabsContextMocks.closeConversationTabs.mockClear()
     loggerMocks.error.mockClear()
     loggerMocks.info.mockClear()
     loggerMocks.warn.mockClear()
+    vi.mocked(toast.error).mockClear()
+    vi.mocked(toast.info).mockClear()
+    vi.mocked(toast.success).mockClear()
+    recycleBinFeedbackMocks.showRecycleBinBatchUndo.mockClear()
+    recycleBinFeedbackMocks.showRecycleBinUndo.mockClear()
+    conversationOwnerPopupMocks.show.mockClear()
+    archiveSessionsPopupMocks.show.mockReset()
+    archiveSessionsPopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+    conversationOwnerPopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
+        await action(false)
+        return true
+      }
+    )
+    permanentDeletePopupMocks.show.mockReset()
+    permanentDeletePopupMocks.show.mockResolvedValue(false)
   })
 
-  it('uses delete-assistant actions for the classic layout assistant context and more menus', async () => {
+  it('uses archive-assistant actions for the classic layout assistant context and more menus', async () => {
     const onCreateTopic = vi.fn()
     const onActiveAssistantDeleted = vi.fn()
 
     render(
       <TestAssistantResourceList
         activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
         onSelectTopic={vi.fn()}
         onCreateTopic={onCreateTopic}
         onActiveAssistantDeleted={onActiveAssistantDeleted}
       />
     )
 
-    expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.delete.title')
-    expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('assistants.delete.title')
+    const assistantRow = screen.getByRole('region', { name: 'Assistant 1' })
+    expect(within(assistantRow).getByTestId('assistant-1-context-menu')).toHaveTextContent('common.archive')
+    expect(within(assistantRow).getByTestId('assistant-1-context-menu')).toHaveTextContent('common.delete_permanently')
+    expect(within(assistantRow).getByTestId('assistant-1-more-menu')).toHaveTextContent('common.archive')
+    expect(within(assistantRow).getByTestId('assistant-1-more-menu')).toHaveTextContent('common.delete_permanently')
+    expect(
+      within(assistantRow)
+        .getByTestId('assistant-1-context-menu')
+        .querySelector('[data-action-id="assistant-entity.archive"]')
+    ).toHaveAttribute('data-danger', 'false')
+    expect(
+      within(assistantRow)
+        .getByTestId('assistant-1-context-menu')
+        .querySelector('[data-action-id="assistant-entity.delete-permanently"]')
+    ).toHaveAttribute('data-danger', 'true')
+    expect(
+      within(assistantRow)
+        .getByTestId('assistant-1-more-menu')
+        .querySelector('[data-action-id="assistant-entity.delete-permanently"]')
+    ).toHaveAttribute('data-danger', 'true')
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.clear.menu_title')
     expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('assistants.clear.menu_title')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
 
     await waitFor(() =>
-      expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'assistants.delete.title' }))
+      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
+        deleteTopics: false
+      })
     )
-    await waitFor(() =>
-      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', { deleteTopics: true })
-    )
-    // Classic layout resets via the dedicated callback (page settles to the latest
-    // remaining topic) and must NOT open the modern layout draft compose.
-    await waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
+    expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
     expect(onCreateTopic).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
+      itemName: 'Assistant 1',
+      onUndo: expect.any(Function)
+    })
+
+    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(assistantDataMocks.restoreAssistant).toHaveBeenCalledWith('assistant-1')
+    expect(assistantDataMocks.refetchAssistants).toHaveBeenCalled()
+    expect(assistantDataMocks.refreshTopics).toHaveBeenCalled()
+  })
+
+  it('cascades an Assistant delete only to returned Topics and reconciles the returned active Topic', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    conversationOwnerPopupMocks.show.mockImplementationOnce(
+      async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
+        await action(true)
+        return true
+      }
+    )
+    assistantDataMocks.deleteAssistant.mockResolvedValueOnce({
+      deleted: true,
+      deletedTopicIds: ['topic-1', 'topic-not-loaded']
+    })
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
+
+    await waitFor(() =>
+      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
+        deleteTopics: true
+      })
+    )
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1', 'topic-not-loaded'])
+    expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
+
+    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(assistantDataMocks.restoreAssistant).toHaveBeenCalledWith('assistant-1')
+    expect(assistantDataMocks.restoreTopic).toHaveBeenCalledWith('topic-1')
+    expect(assistantDataMocks.restoreTopic).toHaveBeenCalledWith('topic-not-loaded')
+  })
+
+  it('does not permanently delete an assistant before confirm, and a second prompt is ignored', async () => {
+    let confirm: ((deleteChildren: boolean) => Promise<void>) | undefined
+    permanentDeletePopupMocks.show.mockImplementation(
+      ({ action }: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        confirm = action
+        return new Promise(() => undefined)
+      }
+    )
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={vi.fn()}
+      />
+    )
+
+    const assistantRow = screen.getByRole('region', { name: 'Assistant 1' })
+    fireEvent.click(within(assistantRow).getAllByRole('button', { name: 'common.delete_permanently' })[0])
+    fireEvent.click(within(assistantRow).getAllByRole('button', { name: 'common.delete_permanently' })[1])
+
+    await waitFor(() => expect(permanentDeletePopupMocks.show).toHaveBeenCalledOnce())
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledWith({
+      kind: 'owner',
+      type: 'assistant',
+      name: 'Assistant 1',
+      action: expect.any(Function)
+    })
+    expect(assistantDataMocks.deleteAssistant).not.toHaveBeenCalled()
+    expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
+    expect(confirm).toEqual(expect.any(Function))
+  })
+
+  it('permanently deletes an assistant without children by default and does not undo or close tabs', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        await action(false)
+        return true
+      }
+    )
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() =>
+      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
+        deleteTopics: false,
+        permanent: true
+      })
+    )
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
+  })
+
+  it('permanently deletes checked assistant children and closes only the returned topic tabs', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        await action(true)
+        return true
+      }
+    )
+    assistantDataMocks.deleteAssistant.mockResolvedValueOnce({
+      deleted: true,
+      deletedTopicIds: ['topic-1', 'topic-archived']
+    })
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() =>
+      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
+        deleteTopics: true,
+        permanent: true
+      })
+    )
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1', 'topic-archived'])
+    expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('does not reconcile selection when the user switches topics while permanent delete is still pending', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    let resolveDelete: (result: { deleted: boolean; deletedTopicIds: string[] }) => void = () => undefined
+    assistantDataMocks.deleteAssistant.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDelete = resolve
+        })
+    )
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        const pending = action(true)
+        await waitFor(() => expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledOnce())
+        rerender(
+          <TestAssistantResourceList
+            activeAssistantId="assistant-1"
+            activeTopicId="topic-2"
+            onSelectTopic={vi.fn()}
+            onCreateTopic={vi.fn()}
+            onActiveAssistantDeleted={onActiveAssistantDeleted}
+          />
+        )
+        resolveDelete({ deleted: true, deletedTopicIds: ['topic-1'] })
+        await pending
+        return true
+      }
+    )
+
+    const { rerender } = render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() => expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1']))
+    expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('reconciles selection when the active topic closes while permanent delete is still pending', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    let resolveDelete: (result: { deleted: boolean; deletedTopicIds: string[] }) => void = () => undefined
+    assistantDataMocks.deleteAssistant.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDelete = resolve
+        })
+    )
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        const pending = action(false)
+        await waitFor(() => expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledOnce())
+        rerender(
+          <TestAssistantResourceList
+            activeAssistantId="assistant-1"
+            activeTopicId={null}
+            onSelectTopic={vi.fn()}
+            onCreateTopic={vi.fn()}
+            onActiveAssistantDeleted={onActiveAssistantDeleted}
+          />
+        )
+        resolveDelete({ deleted: true, deletedTopicIds: ['topic-1'] })
+        await pending
+        return true
+      }
+    )
+
+    const { rerender } = render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1'])
+    expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
+      deleteTopics: false,
+      permanent: true
+    })
+  })
+
+  it('refreshes a stale permanent assistant delete without closing tabs or reconciling selection', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        await action(true)
+        return true
+      }
+    )
+    assistantDataMocks.deleteAssistant.mockResolvedValueOnce({ deleted: false, deletedTopicIds: ['topic-1'] })
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith('recycle_bin.delete.stale'))
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(assistantDataMocks.refetchAssistants).toHaveBeenCalled()
+    expect(assistantDataMocks.refreshTopics).toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalledWith('recycle_bin.already_moved')
+  })
+
+  it('rechecks assistant eligibility at confirm and skips a removed assistant', async () => {
+    let confirm: ((deleteChildren: boolean) => Promise<void>) | undefined
+    permanentDeletePopupMocks.show.mockImplementation(
+      ({ action }: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        confirm = action
+        return Promise.resolve(true)
+      }
+    )
+
+    const { rerender } = render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+    await waitFor(() => expect(confirm).toEqual(expect.any(Function)))
+
+    assistantDataMocks.assistants = assistantDataMocks.assistants.filter((assistant) => assistant.id !== 'assistant-1')
+    rerender(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+      />
+    )
+    await confirm?.(false)
+
+    expect(assistantDataMocks.deleteAssistant).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenCalledWith('recycle_bin.delete.stale')
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('permanently deletes a pinned assistant owner', async () => {
+    assistantDataMocks.pinnedIds = ['assistant-1']
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        await action(false)
+        return true
+      }
+    )
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+      />
+    )
+
+    const assistantRow = screen.getByRole('region', { name: 'Assistant 1' })
+    expect(resourceEntityRailMocks.permanentDelete?.isItemEligible?.({ id: 'assistant-1', name: 'Assistant 1' })).toBe(
+      true
+    )
+    expect(
+      within(assistantRow)
+        .getByTestId('assistant-1-context-menu')
+        .querySelector('[data-action-id="assistant-entity.delete-permanently"]')
+    ).toHaveAttribute('data-shortcut', 'Ctrl+Backspace')
+    fireEvent.click(within(assistantRow).getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() =>
+      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
+        deleteTopics: false,
+        permanent: true
+      })
+    )
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('keeps keyboard permanent delete off unknown rows and while a prompt is open', async () => {
+    assistantDataMocks.topics = [
+      { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
+      { id: 'topic-missing', assistantId: 'missing-assistant', name: 'Orphan' }
+    ]
+    permanentDeletePopupMocks.show.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+
+    const isEligible = resourceEntityRailMocks.permanentDelete?.isItemEligible
+    expect(isEligible?.({ id: 'assistant-1', name: 'Assistant 1' })).toBe(true)
+    expect(isEligible?.({ id: 'assistant-entity:unlinked', name: 'Unknown' })).toBe(false)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+    await waitFor(() => expect(permanentDeletePopupMocks.show).toHaveBeenCalledOnce())
+    expect(isEligible?.({ id: 'assistant-1', name: 'Assistant 1' })).toBe(false)
+    expect(assistantDataMocks.deleteAssistant).not.toHaveBeenCalled()
+  })
+
+  it('refreshes and rethrows a permanent assistant delete failure so the popup can retry', async () => {
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        await expect(action(false)).rejects.toThrow('permanent failed')
+        return false
+      }
+    )
+    assistantDataMocks.deleteAssistant.mockRejectedValueOnce(new Error('permanent failed'))
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() => expect(permanentDeletePopupMocks.show).toHaveBeenCalledOnce())
+    expect(assistantDataMocks.refetchAssistants).toHaveBeenCalled()
+    expect(assistantDataMocks.refreshTopics).toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalledWith('recycle_bin.already_moved')
+  })
+
+  it('maps a busy permanent assistant delete to the permanent busy notice after refresh', async () => {
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        await expect(action(false)).rejects.toThrow('recycle_bin.delete.busy')
+        return false
+      }
+    )
+    assistantDataMocks.deleteAssistant.mockRejectedValueOnce(new IpcError(trashErrorCodes.TRASH_TOPIC_BUSY, 'busy'))
+
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() => expect(assistantDataMocks.refetchAssistants).toHaveBeenCalled())
+    expect(assistantDataMocks.refreshTopics).toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalledWith('recycle_bin.move.blocked_generation')
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('keeps a successful permanent assistant delete when the follow-up refresh fails', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteChildren: boolean) => Promise<void> }) => {
+        await action(true)
+        return true
+      }
+    )
+    assistantDataMocks.deleteAssistant.mockResolvedValueOnce({ deleted: true, deletedTopicIds: ['topic-1'] })
+    assistantDataMocks.refetchAssistants.mockRejectedValueOnce(new Error('Assistant refresh failed'))
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() => expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1']))
+    expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(loggerMocks.warn).toHaveBeenCalled()
+  })
+
+  it('does not offer permanent delete for the unknown assistant bucket', () => {
+    assistantDataMocks.topics = [
+      { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
+      { id: 'topic-missing', assistantId: 'missing-assistant', name: 'Orphan' }
+    ]
+
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+
+    const unknown = screen.getByRole('region', { name: 'chat.topics.group.unknown_assistant' })
+    expect(within(unknown).queryByRole('button', { name: 'common.delete_permanently' })).not.toBeInTheDocument()
+    expect(within(unknown).queryByRole('button', { name: 'common.archive' })).not.toBeInTheDocument()
+  })
+
+  it.each(['selection reconciliation', 'Assistant refresh', 'Topic refresh'] as const)(
+    'offers Assistant Undo when post-delete %s fails',
+    async (failureStage) => {
+      conversationOwnerPopupMocks.show.mockImplementationOnce(
+        async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
+          await action(true)
+          return true
+        }
+      )
+      assistantDataMocks.deleteAssistant.mockResolvedValueOnce({ deleted: true, deletedTopicIds: ['topic-1'] })
+      const onActiveAssistantDeleted = vi.fn().mockResolvedValue(undefined)
+      if (failureStage === 'selection reconciliation') {
+        onActiveAssistantDeleted.mockRejectedValueOnce(new Error('selection failed'))
+      } else if (failureStage === 'Assistant refresh') {
+        assistantDataMocks.refetchAssistants.mockRejectedValueOnce(new Error('Assistant refresh failed'))
+      } else {
+        assistantDataMocks.refreshTopics.mockRejectedValueOnce(new Error('Topic refresh failed'))
+      }
+
+      render(
+        <TestAssistantResourceList
+          activeAssistantId="assistant-1"
+          activeTopicId="topic-1"
+          onSelectTopic={vi.fn()}
+          onCreateTopic={vi.fn()}
+          onActiveAssistantDeleted={onActiveAssistantDeleted}
+        />
+      )
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
+
+      await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
+      expect(assistantDataMocks.refetchAssistants).toHaveBeenCalled()
+      expect(assistantDataMocks.refreshTopics).toHaveBeenCalled()
+      expect(loggerMocks.warn).toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not fail Assistant Undo when restore succeeds but follow-up refreshes reject', async () => {
+    assistantDataMocks.refetchAssistants
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('restore Assistant refresh failed'))
+    assistantDataMocks.refreshTopics
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('restore Topic refresh failed'))
+
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
+
+    expect(assistantDataMocks.restoreAssistant).toHaveBeenCalledWith('assistant-1')
+    expect(loggerMocks.warn).toHaveBeenCalled()
+  })
+
+  it('treats Assistant restore NOT_FOUND as complete only after refresh confirms the Assistant is active', async () => {
+    assistantDataMocks.restoreAssistant.mockRejectedValueOnce(DataApiErrorFactory.notFound('Assistant', 'assistant-1'))
+
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
+
+    expect(agentDataMocks.getActiveResource).toHaveBeenCalledWith('/assistants/assistant-1')
   })
 
   it('creates a new topic for the hovered assistant row', () => {
@@ -513,6 +1258,29 @@ describe('classic layout entity resource list actions', () => {
     expect(onSelectSession).toHaveBeenCalledExactlyOnceWith('session-created', createdSession)
   })
 
+  it('toggles the selected agent pane while its active session is absent from the loading snapshot', async () => {
+    const user = userEvent.setup()
+    const onSelectedAgentClick = vi.fn()
+    const onCreateSession = vi.fn()
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-not-loaded"
+        agentSessionsSource={createAgentSessionsSource({ isFullyLoaded: false, sessions: [] })}
+        onSelectSession={vi.fn()}
+        onSelectedAgentClick={onSelectedAgentClick}
+        onCreateSession={onCreateSession}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Select Agent 1' }))
+
+    expect(onSelectedAgentClick).toHaveBeenCalledOnce()
+    expect(onCreateSession).not.toHaveBeenCalled()
+  })
+
   it('clears assistant topics from the classic layout assistant context menu', async () => {
     const onSelectTopic = vi.fn()
     const nextTopic = { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }
@@ -535,58 +1303,97 @@ describe('classic layout entity resource list actions', () => {
       })
     )
 
-    await waitFor(() =>
-      expect(popup.confirm).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: 'assistants.clear.content',
-          title: 'assistants.clear.title'
-        })
-      )
-    )
     await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
+    expect(popup.confirm).not.toHaveBeenCalled()
     await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
     expect(onSelectTopic).toHaveBeenCalledWith(nextTopic)
-    expect(toast.success).toHaveBeenCalledWith('assistants.clear.success_title:1')
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 1,
+      onUndo: expect.any(Function)
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+
+    await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
+    expect(assistantDataMocks.restoreTopic).toHaveBeenCalledExactlyOnceWith('topic-1')
   })
 
-  it('does not clear assistant topics when the list empties while the confirm dialog is open', async () => {
-    assistantDataMocks.topics = [
-      { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
-      { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }
-    ]
-    let resolveConfirm!: (value: boolean) => void
-    const confirmPromise = new Promise<boolean>((resolve) => {
-      resolveConfirm = resolve
+  it('offers Topic Undo when post-delete refresh and active reconciliation fail', async () => {
+    assistantDataMocks.refreshTopics.mockRejectedValueOnce(new Error('refresh failed'))
+    const assistantTopicsSource = createAssistantTopicsSource({
+      loadLatestTopic: vi.fn().mockRejectedValue(new Error('selection failed'))
     })
-    vi.mocked(popup.confirm).mockReturnValue(confirmPromise)
 
-    const props = {
-      activeAssistantId: 'assistant-1',
-      onSelectTopic: vi.fn(),
-      onCreateTopic: vi.fn()
-    }
-    const { rerender } = render(<TestAssistantResourceList {...props} />)
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        assistantTopicsSource={assistantTopicsSource}
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+      />
+    )
 
     fireEvent.click(
       within(screen.getByTestId('assistant-1-context-menu')).getByRole('button', {
         name: 'assistants.clear.menu_title'
       })
     )
-    await waitFor(() => expect(popup.confirm).toHaveBeenCalledTimes(1))
 
-    // While the confirm dialog is open the topic list drains (e.g. cleared elsewhere).
-    // Re-render so the rail sees the latest topics before the user confirms.
-    assistantDataMocks.topics = [{ id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }]
-    rerender(<TestAssistantResourceList {...props} />)
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledTimes(1))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
 
-    await act(async () => {
-      resolveConfirm(true)
-      await confirmPromise
-    })
+  it('reports already moved when clearing Assistant Topics changes no rows', async () => {
+    assistantDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({ deletedIds: [], deletedCount: 0 })
 
-    expect(assistantDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
-    expect(assistantDataMocks.refreshTopics).not.toHaveBeenCalled()
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+
+    fireEvent.click(
+      within(screen.getByTestId('assistant-1-context-menu')).getByRole('button', {
+        name: 'assistants.clear.menu_title'
+      })
+    )
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledExactlyOnceWith('recycle_bin.already_moved'))
+    expect(assistantDataMocks.refreshTopics).toHaveBeenCalledOnce()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('keeps Assistant Topics active when one is still generating', async () => {
+    assistantDataMocks.deleteTopicsByAssistantId.mockRejectedValueOnce(
+      new IpcError(trashErrorCodes.TRASH_TOPIC_BUSY, 'Topic is busy', { topicIds: ['topic-1'] })
+    )
+
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+
+    fireEvent.click(
+      within(screen.getByTestId('assistant-1-context-menu')).getByRole('button', {
+        name: 'assistants.clear.menu_title'
+      })
+    )
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledExactlyOnceWith('recycle_bin.move.blocked_generation'))
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+    expect(assistantDataMocks.refreshTopics).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('does not offer the clear action when an assistant has no topics', () => {
+    assistantDataMocks.topics = [{ id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }]
+
+    const props = {
+      activeAssistantId: 'assistant-1',
+      onSelectTopic: vi.fn(),
+      onCreateTopic: vi.fn()
+    }
+    render(<TestAssistantResourceList {...props} />)
+
+    expect(screen.queryByTestId('assistant-1-context-menu')).not.toBeInTheDocument()
+    expect(assistantDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
   })
 
   it('keeps assistant-less topics under a non-actionable unlinked assistant entry in the classic rail', () => {
@@ -611,6 +1418,36 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.getByTestId('assistant-entity:unlinked-context-menu')).toBeEmptyDOMElement()
 
     expect(within(unlinkedAssistantRegion).queryByRole('button', { name: 'chat.conversation.new' })).toBeNull()
+  })
+
+  it('does not create an ownerless Topic when the unlinked Assistant has no retained Topic', async () => {
+    const user = userEvent.setup()
+    assistantDataMocks.topics = [
+      { id: 'topic-unlinked', name: 'Unlinked topic' },
+      { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
+    ]
+    const loadLatestTopic = vi.fn().mockResolvedValue(null)
+    const onCreateTopic = vi.fn().mockResolvedValue(null)
+    const onSelectTopic = vi.fn()
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        assistantTopicsSource={createAssistantTopicsSource({ loadLatestTopic })}
+        onSelectTopic={onSelectTopic}
+        onCreateTopic={onCreateTopic}
+      />
+    )
+
+    await user.click(
+      within(screen.getByRole('region', { name: 'chat.topics.group.unknown_assistant' })).getByRole('button', {
+        name: 'Select chat.topics.group.unknown_assistant'
+      })
+    )
+
+    await waitFor(() => expect(loadLatestTopic).toHaveBeenCalledExactlyOnceWith(null))
+    expect(onCreateTopic).not.toHaveBeenCalled()
+    expect(onSelectTopic).not.toHaveBeenCalled()
   })
 
   it('groups dangling assistant topics under the unlinked assistant entry in the classic rail', () => {
@@ -650,7 +1487,6 @@ describe('classic layout entity resource list actions', () => {
       })
     )
 
-    await waitFor(() => expect(popup.confirm).toHaveBeenCalled())
     await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-2'))
     await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
     expect(onClearActiveTopic).toHaveBeenCalledOnce()
@@ -706,6 +1542,7 @@ describe('classic layout entity resource list actions', () => {
     rerender(
       <AgentResourceList
         activeAgentId="agent-1"
+        activeSessionId="session-1"
         agentSessionsSource={createAgentSessionsSource({ isValidating: true })}
         onSelectSession={vi.fn()}
         onCreateSession={vi.fn()}
@@ -805,6 +1642,98 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
   })
 
+  it('keeps retained sessions accessible under a non-actionable unlinked Agent entry', async () => {
+    const user = userEvent.setup()
+    const latestSession = createAgentSession({
+      id: 'session-latest-unlinked',
+      agentId: null,
+      name: 'Latest unlinked Session'
+    })
+    const loadLatestSession = vi.fn().mockResolvedValueOnce(latestSession).mockResolvedValueOnce(null)
+    const onCreateSession = vi.fn().mockResolvedValue(null)
+    const onSelectSession = vi.fn()
+
+    render(
+      <AgentResourceList
+        activeAgentId="missing-agent"
+        agentSessionsSource={createAgentSessionsSource({
+          loadLatestSession,
+          sessions: [
+            createAgentSession({
+              id: 'session-stale-owner',
+              agentId: 'missing-agent',
+              name: 'Stale owner Session'
+            }),
+            createAgentSession({ id: 'session-null-owner', agentId: null, name: 'Null owner Session' })
+          ]
+        })}
+        onSelectSession={onSelectSession}
+        onCreateSession={onCreateSession}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    const unlinkedAgentRegion = screen.getByRole('region', { name: 'agent.session.group.unknown_agent' })
+
+    expect(unlinkedAgentRegion).toHaveAttribute('title', 'agent.session.group.unknown_agent_tip')
+    expect(within(unlinkedAgentRegion).getByTestId('session:agent:unknown-context-menu')).toBeEmptyDOMElement()
+    expect(within(unlinkedAgentRegion).getByTestId('session:agent:unknown-more-menu')).toBeEmptyDOMElement()
+    expect(within(unlinkedAgentRegion).queryByRole('button', { name: 'agent.session.new' })).toBeNull()
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', 'session:agent:unknown')
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute(
+      'data-selected-click-id',
+      'session:agent:unknown'
+    )
+
+    await user.click(
+      within(unlinkedAgentRegion).getByRole('button', { name: 'Select agent.session.group.unknown_agent' })
+    )
+
+    await waitFor(() => expect(loadLatestSession).toHaveBeenCalledExactlyOnceWith(null))
+    expect(onSelectSession).toHaveBeenCalledExactlyOnceWith(latestSession.id, latestSession)
+
+    await user.click(
+      within(unlinkedAgentRegion).getByRole('button', { name: 'Select agent.session.group.unknown_agent' })
+    )
+
+    await waitFor(() => expect(loadLatestSession).toHaveBeenCalledTimes(2))
+    expect(loadLatestSession).toHaveBeenLastCalledWith(null)
+    expect(onCreateSession).not.toHaveBeenCalled()
+  })
+
+  it('does not classify a non-null Session owner as unlinked before Agent metadata loads successfully', () => {
+    agentDataMocks.isLoading = true
+    const props = {
+      activeAgentId: 'agent-arriving',
+      agentSessionsSource: createAgentSessionsSource({
+        sessions: [
+          createAgentSession({
+            id: 'session-arriving-agent',
+            agentId: 'agent-arriving',
+            name: 'Arriving Agent Session'
+          })
+        ]
+      }),
+      onSelectSession: vi.fn(),
+      onCreateSession: vi.fn(),
+      onShowMissingAgentSelection: vi.fn()
+    }
+    const { rerender } = render(<AgentResourceList {...props} />)
+
+    expect(screen.queryByRole('region', { name: 'agent.session.group.unknown_agent' })).toBeNull()
+
+    agentDataMocks.isLoading = false
+    agentDataMocks.error = new Error('Agent metadata failed')
+    rerender(<AgentResourceList {...props} />)
+
+    expect(screen.queryByRole('region', { name: 'agent.session.group.unknown_agent' })).toBeNull()
+
+    agentDataMocks.error = null
+    rerender(<AgentResourceList {...props} />)
+
+    expect(screen.getByRole('region', { name: 'agent.session.group.unknown_agent' })).toBeInTheDocument()
+  })
+
   it('does not report a pin failure when the post-success agent refresh fails', async () => {
     const user = userEvent.setup()
     const refreshError = new Error('transient refresh failure')
@@ -871,28 +1800,457 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.delete.title')
-    expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('agent.delete.title')
-    expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('agent.session.agent.delete.trigger')
-    expect(screen.getByTestId('agent-1-more-menu')).not.toHaveTextContent('agent.session.agent.delete.trigger')
+    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('common.archive')
+    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('common.delete_permanently')
+    expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('common.archive')
+    expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('common.delete_permanently')
+    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.session.archive.trigger')
+    expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('agent.session.archive.trigger')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
 
     await waitFor(() =>
-      expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'agent.delete.title' }))
+      expect(agentDataMocks.deleteAgent).toHaveBeenCalledWith({
+        params: { agentId: 'agent-1' },
+        query: { deleteSessions: false }
+      })
     )
+    expect(onActiveAgentDeleted).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
+      itemName: 'Agent 1',
+      title: 'common.archived',
+      description: 'agent.archive.related_resources',
+      onUndo: expect.any(Function)
+    })
+
+    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    expect(agentDataMocks.refetchAgents).toHaveBeenCalled()
+  })
+
+  it('cascades an Agent delete only to returned Sessions and reconciles the returned active Session', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    conversationOwnerPopupMocks.show.mockImplementationOnce(
+      async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
+        await action(true)
+        return true
+      }
+    )
+    agentDataMocks.deleteAgent.mockResolvedValueOnce({
+      deleted: true,
+      deletedSessionIds: ['session-1', 'session-not-loaded']
+    })
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+        onActiveAgentDeleted={onActiveAgentDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
+
     await waitFor(() =>
       expect(agentDataMocks.deleteAgent).toHaveBeenCalledWith({
         params: { agentId: 'agent-1' },
         query: { deleteSessions: true }
       })
     )
-    // Classic layout resets via the dedicated callback, never the draft compose.
-    await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
-    expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-not-loaded'])
+    expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')
+
+    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-1' })
+    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-not-loaded' })
   })
 
-  it('deletes only tasks for the built-in Cherry Assistant in the classic layout', async () => {
+  it('offers permanent delete and archive for a classic Agent and does not mutate on cancel', async () => {
+    let confirm: ((deleteSessions: boolean) => Promise<void>) | undefined
+    permanentDeletePopupMocks.show.mockImplementation(
+      ({ action }: { action: (deleteSessions: boolean) => Promise<void> }) => {
+        confirm = action
+        return new Promise(() => undefined)
+      }
+    )
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    const agentRow = screen.getByRole('region', { name: 'Agent 1' })
+    const contextMenu = within(agentRow).getByTestId('agent-1-context-menu')
+    const permanentAction = contextMenu.querySelector('[data-action-id="agent-entity.delete-permanently"]')
+    expect(contextMenu.querySelector('[data-action-id="agent-entity.archive"]')).toBeTruthy()
+    expect(permanentAction).toHaveAttribute('data-danger', 'true')
+    expect(permanentAction).toHaveAttribute('data-shortcut', 'Ctrl+Backspace')
+    expect(within(agentRow).getByTestId('agent-1-more-menu')).toHaveTextContent('common.archive')
+    expect(within(agentRow).getByTestId('agent-1-more-menu')).toHaveTextContent('common.delete_permanently')
+
+    fireEvent.click(within(agentRow).getAllByRole('button', { name: 'common.delete_permanently' })[0])
+    fireEvent.click(within(agentRow).getAllByRole('button', { name: 'common.delete_permanently' })[1])
+
+    await waitFor(() => expect(permanentDeletePopupMocks.show).toHaveBeenCalledOnce())
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledWith({
+      kind: 'owner',
+      type: 'agent',
+      name: 'Agent 1',
+      action: expect.any(Function)
+    })
+    expect(confirm).toEqual(expect.any(Function))
+    expect(resourceEntityRailMocks.permanentDelete?.isItemEligible?.({ id: 'agent-1', name: 'Agent 1' })).toBe(false)
+    expect(agentDataMocks.ipcRequest).not.toHaveBeenCalled()
+    expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+  })
+
+  it('permanently deletes an Agent without sessions by default and does not undo or close tabs', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteSessions: boolean) => Promise<void> }) => {
+        await action(false)
+        return true
+      }
+    )
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+        onActiveAgentDeleted={onActiveAgentDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() =>
+      expect(agentDataMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.delete_permanently', {
+        agentId: 'agent-1',
+        deleteSessions: false
+      })
+    )
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(onActiveAgentDeleted).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
+  })
+
+  it('permanently deletes checked Agent sessions and closes only the returned session tabs', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteSessions: boolean) => Promise<void> }) => {
+        await action(true)
+        return true
+      }
+    )
+    agentDataMocks.deleteAgent.mockResolvedValueOnce({
+      deleted: true,
+      deletedSessionIds: ['session-1', 'session-archived']
+    })
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+        onActiveAgentDeleted={onActiveAgentDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() =>
+      expect(agentDataMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.delete_permanently', {
+        agentId: 'agent-1',
+        deleteSessions: true
+      })
+    )
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-archived'])
+    expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+  })
+
+  it('does not reconcile selection when the user switches sessions while Agent permanent delete is pending', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    let resolveDelete: (result: { deleted: boolean; deletedSessionIds: string[] }) => void = () => undefined
+    agentDataMocks.deleteAgent.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDelete = resolve
+        })
+    )
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteSessions: boolean) => Promise<void> }) => {
+        const pending = action(true)
+        await waitFor(() => expect(agentDataMocks.ipcRequest).toHaveBeenCalledOnce())
+        rerender(
+          <AgentResourceList
+            activeAgentId="agent-1"
+            activeSessionId="session-2"
+            agentSessionsSource={createAgentSessionsSource()}
+            onSelectSession={vi.fn()}
+            onCreateSession={vi.fn()}
+            onShowMissingAgentSelection={vi.fn()}
+            onActiveAgentDeleted={onActiveAgentDeleted}
+          />
+        )
+        resolveDelete({ deleted: true, deletedSessionIds: ['session-1'] })
+        await pending
+        return true
+      }
+    )
+
+    const { rerender } = render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+        onActiveAgentDeleted={onActiveAgentDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() => expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1']))
+    expect(onActiveAgentDeleted).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('excludes permanent delete for a protected builtin Agent and the unknown Agent row', () => {
+    agentDataMocks.agents = [
+      {
+        id: 'agent-1',
+        name: 'Cherry Assistant',
+        orderKey: 'a',
+        configuration: { builtin_role: 'assistant' },
+        model: 'anthropic::claude-sonnet-4',
+        modelName: 'Claude Sonnet 4'
+      }
+    ]
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource({
+          sessions: [
+            createAgentSession(),
+            createAgentSession({ id: 'session-null-owner', agentId: null, name: 'Null owner Session' })
+          ]
+        })}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    const isEligible = resourceEntityRailMocks.permanentDelete?.isItemEligible
+    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.session.archive.trigger')
+    expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('common.delete_permanently')
+    expect(screen.getByTestId('session:agent:unknown-context-menu')).toBeEmptyDOMElement()
+    expect(isEligible?.({ id: 'agent-1', name: 'Cherry Assistant' })).toBe(false)
+    expect(isEligible?.({ id: 'session:agent:unknown', name: 'Unknown' })).toBe(false)
+  })
+
+  it('permanently deletes a pinned Agent owner', async () => {
+    assistantDataMocks.pinnedIds = ['agent-1']
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteSessions: boolean) => Promise<void> }) => {
+        await action(false)
+        return true
+      }
+    )
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    expect(resourceEntityRailMocks.permanentDelete?.isItemEligible?.({ id: 'agent-1', name: 'Agent 1' })).toBe(true)
+    expect(
+      within(screen.getByRole('region', { name: 'Agent 1' }))
+        .getByTestId('agent-1-context-menu')
+        .querySelector('[data-action-id="agent-entity.delete-permanently"]')
+    ).toHaveAttribute('data-shortcut', 'Ctrl+Backspace')
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() =>
+      expect(agentDataMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.delete_permanently', {
+        agentId: 'agent-1',
+        deleteSessions: false
+      })
+    )
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('refreshes a stale or failed Agent permanent delete without a false success', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    const reload = vi.fn()
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteSessions: boolean) => Promise<void> }) => {
+        await expect(action(true)).rejects.toThrow('recycle_bin.delete.stale')
+        return false
+      }
+    )
+    agentDataMocks.deleteAgent.mockResolvedValueOnce({ deleted: false, deletedSessionIds: ['session-1'] })
+
+    const { unmount } = render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-1"
+        agentSessionsSource={createAgentSessionsSource({ reload })}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+        onActiveAgentDeleted={onActiveAgentDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() => expect(agentDataMocks.refetchAgents).toHaveBeenCalled())
+    expect(reload).toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(onActiveAgentDeleted).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalledWith('recycle_bin.already_moved')
+
+    unmount()
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteSessions: boolean) => Promise<void> }) => {
+        await expect(action(false)).rejects.toThrow('permanent failed')
+        return false
+      }
+    )
+    agentDataMocks.deleteAgent.mockRejectedValueOnce(new Error('permanent failed'))
+    const failedReload = vi.fn()
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-1"
+        agentSessionsSource={createAgentSessionsSource({ reload: failedReload })}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+        onActiveAgentDeleted={onActiveAgentDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() => expect(failedReload).toHaveBeenCalled())
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(onActiveAgentDeleted).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('keeps a successful Agent permanent delete when the follow-up refresh fails', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    const reload = vi.fn().mockRejectedValueOnce(new Error('session refresh failed'))
+    permanentDeletePopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteSessions: boolean) => Promise<void> }) => {
+        await action(true)
+        return true
+      }
+    )
+    agentDataMocks.deleteAgent.mockResolvedValueOnce({ deleted: true, deletedSessionIds: ['session-1'] })
+    agentDataMocks.refetchAgents.mockRejectedValueOnce(new Error('Agent refresh failed'))
+    agentDataMocks.invalidate.mockRejectedValueOnce(new Error('cache refresh failed'))
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-1"
+        agentSessionsSource={createAgentSessionsSource({ reload })}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+        onActiveAgentDeleted={onActiveAgentDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+
+    await waitFor(() => expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1']))
+    expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(loggerMocks.warn).toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('does not fail Agent Undo when restore succeeds but follow-up refreshes reject', async () => {
+    const reload = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('session refresh failed'))
+    agentDataMocks.refetchAgents
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Agent refresh failed'))
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource({ reload })}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
+
+    expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    expect(loggerMocks.warn).toHaveBeenCalled()
+  })
+
+  it('treats Agent restore NOT_FOUND as complete only after refresh confirms the Agent is active', async () => {
+    agentDataMocks.restoreAgent.mockRejectedValueOnce(new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, 'Agent missing'))
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
+
+    expect(agentDataMocks.getActiveResource).toHaveBeenCalledWith('/agents/agent-1')
+  })
+
+  it('deletes only sessions for the built-in Cherry Assistant in the classic layout', async () => {
     agentDataMocks.agents = [
       {
         id: 'agent-1',
@@ -909,6 +2267,7 @@ describe('classic layout entity resource list actions', () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
+        activeSessionId="session-1"
         agentSessionsSource={createAgentSessionsSource()}
         onSelectSession={vi.fn()}
         onCreateSession={vi.fn()}
@@ -917,25 +2276,177 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.session.agent.delete.trigger')
-    expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('agent.delete.title')
+    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.session.archive.trigger')
+    expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('common.archive')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.agent.delete.trigger' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.archive.trigger' })[0])
 
-    await waitFor(() =>
-      expect(popup.confirm).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'agent.session.agent.delete.title',
-          content: 'agent.session.agent.delete.content'
-        })
-      )
-    )
     await waitFor(() =>
       expect(agentDataMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+    )
+    expect(popup.confirm).not.toHaveBeenCalled()
+    expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
+    expect(archiveSessionsPopupMocks.show).toHaveBeenCalledWith(
+      expect.objectContaining({ agentName: 'Cherry Assistant', sessionCount: 1 })
     )
     expect(agentDataMocks.deleteAgent).not.toHaveBeenCalled()
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-not-loaded'])
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 2,
+      onUndo: expect.any(Function)
+    })
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
+      restored: ['session-1', 'session-not-loaded'],
+      failed: []
+    })
+    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-1' })
+    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-not-loaded' })
+  })
+
+  it('counts active protected Sessions as restored after restore NOT_FOUND and missing Sessions as failed', async () => {
+    agentDataMocks.agents = [
+      {
+        id: 'agent-1',
+        name: 'Cherry Assistant',
+        orderKey: 'a',
+        configuration: { builtin_role: 'assistant' },
+        model: 'anthropic::claude-sonnet-4',
+        modelName: 'Claude Sonnet 4'
+      }
+    ]
+    agentDataMocks.deleteAgentSessions.mockResolvedValueOnce({ deletedIds: ['session-active', 'session-purged'] })
+    const activeError = new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session active')
+    const purgedError = new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session purged')
+    agentDataMocks.restoreSession.mockRejectedValueOnce(activeError).mockRejectedValueOnce(purgedError)
+    agentDataMocks.getActiveResource.mockImplementation((path: string) =>
+      path === '/agent-sessions/session-active'
+        ? Promise.resolve({ id: 'session-active' })
+        : Promise.reject(DataApiErrorFactory.notFound('Session', 'session-purged'))
+    )
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.archive.trigger' })[0])
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalled())
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
+      restored: ['session-active'],
+      failed: [{ id: 'session-purged', error: purgedError.message }]
+    })
+  })
+
+  it.each(['cancel', 'confirm', 'empty'] as const)(
+    'archives regular Agent conversations after %s in the sidebar',
+    async (outcome) => {
+      archiveSessionsPopupMocks.show.mockResolvedValueOnce(false)
+      render(
+        <AgentResourceList
+          activeAgentId="agent-1"
+          agentSessionsSource={createAgentSessionsSource({
+            pinIdBySessionId: new Map([['session-pinned', 'pin-a']]),
+            sessions: [
+              createAgentSession(),
+              createAgentSession({ id: 'session-pinned' }),
+              createAgentSession({ id: 'session-other', agentId: 'agent-2' })
+            ]
+          })}
+          onSelectSession={vi.fn()}
+          onCreateSession={vi.fn()}
+        />
+      )
+      fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.archive.trigger' })[0])
+      expect(archiveSessionsPopupMocks.show).toHaveBeenCalledWith(
+        expect.objectContaining({ agentName: 'Agent 1', sessionCount: 2 })
+      )
+      expect(agentDataMocks.ipcRequest).not.toHaveBeenCalled()
+      if (outcome === 'cancel') return
+      agentDataMocks.deleteAgentSessions.mockResolvedValueOnce({
+        deletedIds: outcome === 'empty' ? [] : ['session-1', 'session-pinned']
+      })
+
+      await act(async () => {
+        await archiveSessionsPopupMocks.show.mock.calls.at(-1)?.[0].action()
+      })
+      expect(agentDataMocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('ai.agent.sessions.delete', {
+        agentId: 'agent-1'
+      })
+      expect(agentDataMocks.deleteAgent).not.toHaveBeenCalled()
+      for (const key of ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']) {
+        expect(agentDataMocks.invalidate).toHaveBeenCalledWith(key)
+      }
+      if (outcome === 'empty') {
+        expect(toast.info).toHaveBeenCalledWith('recycle_bin.already_moved')
+        expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+        expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+      } else {
+        expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-pinned'])
+        expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+          itemCount: 2,
+          onUndo: expect.any(Function)
+        })
+        await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
+        expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-1' })
+        expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-pinned' })
+      }
+    }
+  )
+
+  it('refreshes a stale Agent delete without closing tabs, reconciling selection, or offering Undo', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    agentDataMocks.deleteAgent.mockResolvedValueOnce({ deleted: false, deletedSessionIds: [] })
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+        onActiveAgentDeleted={onActiveAgentDeleted}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith('recycle_bin.already_moved'))
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(onActiveAgentDeleted).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(agentDataMocks.refetchAgents).toHaveBeenCalled()
+  })
+
+  it('refreshes an already-moved Assistant without closing tabs, reconciling selection, or offering Undo', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    assistantDataMocks.deleteAssistant.mockRejectedValueOnce(
+      new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, 'Assistant already archived')
+    )
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith('recycle_bin.already_moved'))
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(assistantDataMocks.refetchAssistants).toHaveBeenCalled()
+    expect(assistantDataMocks.refreshTopics).toHaveBeenCalled()
   })
 
   it('creates a new session for the hovered agent row', () => {
@@ -1029,7 +2540,7 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.queryByText('agent.session.group.collapse_all')).not.toBeInTheDocument()
   })
 
-  it('offers toggling an agent into the sidebar from the classic rail context menu', () => {
+  it('offers toggling an agent into the sidebar from the classic rail context menu', async () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
@@ -1046,13 +2557,15 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
-      { type: 'agent', id: 'agent-1' }
-    ])
+    await waitFor(() =>
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar_shortcut', [
+        sidebarShortcut('core.agent', 'agent-1', 'Agent 1')
+      ])
+    )
   })
 
-  it('toggles an already-pinned agent out of the sidebar from the classic rail context menu', () => {
-    preferenceMocks.values.set('ui.sidebar.favorites', [{ type: 'agent', id: 'agent-1' }])
+  it('toggles an already-pinned agent out of the sidebar from the classic rail context menu', async () => {
+    preferenceMocks.values.set('ui.sidebar_shortcut', [sidebarShortcut('core.agent', 'agent-1')])
 
     render(
       <AgentResourceList
@@ -1069,10 +2582,10 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [])
+    await waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar_shortcut', []))
   })
 
-  it('offers toggling an assistant into the sidebar from the classic rail context menu', () => {
+  it('offers toggling an assistant into the sidebar from the classic rail context menu', async () => {
     render(
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
     )
@@ -1082,13 +2595,15 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
-      { type: 'assistant', id: 'assistant-1' }
-    ])
+    await waitFor(() =>
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar_shortcut', [
+        sidebarShortcut('core.assistant', 'assistant-1', 'Assistant 1')
+      ])
+    )
   })
 
-  it('toggles an already-pinned assistant out of the sidebar from the classic rail context menu', () => {
-    preferenceMocks.values.set('ui.sidebar.favorites', [{ type: 'assistant', id: 'assistant-1' }])
+  it('toggles an already-pinned assistant out of the sidebar from the classic rail context menu', async () => {
+    preferenceMocks.values.set('ui.sidebar_shortcut', [sidebarShortcut('core.assistant', 'assistant-1')])
 
     render(
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
@@ -1099,6 +2614,6 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [])
+    await waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar_shortcut', []))
   })
 })

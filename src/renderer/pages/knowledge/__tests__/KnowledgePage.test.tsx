@@ -1,8 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import { type MouseEvent as ReactMouseEvent, type ReactNode, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUI from '@cherrystudio/ui'
+import type * as KnowledgeBaseHooks from '@renderer/hooks/useKnowledgeBase'
+import type * as KnowledgeItemHooks from '@renderer/hooks/useKnowledgeItems'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
@@ -16,8 +19,15 @@ import type {
 } from '@shared/data/types/knowledge'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
+import type * as AddDialogModule from '../components/AddKnowledgeItemDialog'
 import KnowledgePage from '../KnowledgePage'
+import type * as DataSourcePanelModule from '../panels/dataSource/DataSourcePanel'
 import type { KnowledgeFilePreviewTarget } from '../types'
+
+function RoutedKnowledgePage() {
+  const [baseId, setBaseId] = useState<string>()
+  return <KnowledgePage baseId={baseId} onBaseIdChange={setBaseId} />
+}
 
 const mockUseKnowledgeBases = vi.fn()
 const mockUseKnowledgeGroups = vi.fn()
@@ -44,7 +54,8 @@ const mockRestoreDialogModuleLoad = vi.fn()
 const mockChunkDetailPanelModuleLoad = vi.fn()
 const mockNoteContentPanelModuleLoad = vi.fn()
 
-vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
+vi.mock('@renderer/hooks/useKnowledgeBase', async (importOriginal) => ({
+  ...(await importOriginal<typeof KnowledgeBaseHooks>()),
   useKnowledgeBases: () => mockUseKnowledgeBases(),
   useCreateKnowledgeBase: () => mockUseCreateKnowledgeBase(),
   useRestoreKnowledgeBase: () => mockUseRestoreKnowledgeBase(),
@@ -52,7 +63,8 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useDeleteKnowledgeBase: () => mockUseDeleteKnowledgeBase()
 }))
 
-vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
+vi.mock('@renderer/hooks/useKnowledgeItems', async (importOriginal) => ({
+  ...(await importOriginal<typeof KnowledgeItemHooks>()),
   useDeleteKnowledgeItem: (baseId: string) => mockUseDeleteKnowledgeItem(baseId),
   useKnowledgeItems: (baseId: string, groupId?: string | null) => mockUseKnowledgeItems(baseId, groupId),
   useReindexKnowledgeItem: (baseId: string) => mockUseReindexKnowledgeItem(baseId)
@@ -567,10 +579,14 @@ vi.mock('../components/KnowledgeBaseNameDialog', () => {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: { language: 'zh-CN' },
     t: (key: string) =>
       (
         ({
           'common.loading': '加载中...',
+          'common.cancel': '取消',
+          'knowledge.data_source.empty.title': '上传第一个数据源',
+          'knowledge.data_source.add_dialog.sources.directory': '目录',
           'common.back': '返回',
           'knowledge.error.failed_to_delete': '知识库删除失败',
           'knowledge.error.failed_to_move': '知识库移动失败',
@@ -585,6 +601,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
+  orderKey: 'a0',
   id: '',
   name: '',
   itemCount: 0,
@@ -733,7 +750,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
@@ -758,7 +775,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('detail-header')).toBeInTheDocument()
@@ -792,7 +809,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
@@ -823,7 +840,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
@@ -861,7 +878,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     }))
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
@@ -872,6 +889,57 @@ describe('KnowledgePage', () => {
     expect(mockDataSourcePanelRender).toHaveBeenLastCalledWith(
       expect.objectContaining({ embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID })
     )
+  })
+
+  it('selects the knowledge base from the route and publishes later selections', async () => {
+    const onBaseIdChange = vi.fn()
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    const { rerender } = render(<KnowledgePage baseId="base-2" onBaseIdChange={onBaseIdChange} />)
+
+    await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2'))
+    expect(onBaseIdChange).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Base 1' }))
+
+    expect(onBaseIdChange).toHaveBeenCalledWith('base-1')
+    expect(onBaseIdChange.mock.calls).toEqual([['base-1']])
+    rerender(<KnowledgePage baseId="base-1" onBaseIdChange={onBaseIdChange} />)
+    await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1'))
+    expect(onBaseIdChange.mock.calls).toEqual([['base-1']])
+  })
+
+  it('retains a deep link through a failed initial fetch and recovers without another navigation', async () => {
+    const onBaseIdChange = vi.fn()
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [],
+      isLoading: false,
+      error: new Error('offline'),
+      refetch: vi.fn()
+    })
+    const { rerender } = render(<KnowledgePage baseId="base-2" onBaseIdChange={onBaseIdChange} />)
+    expect(onBaseIdChange).not.toHaveBeenCalled()
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    rerender(<KnowledgePage baseId="base-2" onBaseIdChange={onBaseIdChange} />)
+    await waitFor(() => expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 2'))
+    expect(onBaseIdChange).not.toHaveBeenCalled()
   })
 
   it('keeps a global search knowledge selection until cold-start bases load', async () => {
@@ -891,7 +959,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     }))
 
-    const { rerender } = render(<KnowledgePage />)
+    const { rerender } = render(<RoutedKnowledgePage />)
 
     await act(async () => {
       await EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, 'base-2')
@@ -901,7 +969,7 @@ describe('KnowledgePage', () => {
       createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
       createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
     ]
-    rerender(<KnowledgePage />)
+    rerender(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 2')
@@ -924,7 +992,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:loading')
@@ -961,7 +1029,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
@@ -997,7 +1065,7 @@ describe('KnowledgePage', () => {
       error: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
@@ -1034,7 +1102,7 @@ describe('KnowledgePage', () => {
       error: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
@@ -1063,7 +1131,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
@@ -1096,7 +1164,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
@@ -1150,7 +1218,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     }))
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'DrillDirectory directory-1' }))
     await waitFor(() => {
@@ -1181,7 +1249,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     }))
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toBeInTheDocument()
@@ -1218,7 +1286,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     }))
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1'))
     const stalePreviewCallback = mockDataSourcePanelRender.mock.lastCall?.[0].onPreviewFile as (
@@ -1261,7 +1329,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'PreviewFile item-1' }))
     expect(screen.getByTestId('file-preview')).toBeInTheDocument()
@@ -1289,7 +1357,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
@@ -1311,7 +1379,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     expect(screen.getByText('加载中...')).toBeInTheDocument()
     expect(screen.queryByTestId('detail-header')).not.toBeInTheDocument()
@@ -1325,7 +1393,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     expect(screen.getByText('暂无知识库')).toBeInTheDocument()
     expect(screen.getByText('与 AI 一起积累知识')).toBeInTheDocument()
@@ -1354,7 +1422,7 @@ describe('KnowledgePage', () => {
       createError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: '新建分组' }))
     expect(await screen.findByTestId('create-group-dialog')).toBeInTheDocument()
@@ -1388,7 +1456,7 @@ describe('KnowledgePage', () => {
       updateError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'CreateGroupForBase Base 1' }))
     // The create-group dialog mounts through React.lazy; await its first resolution
@@ -1421,7 +1489,7 @@ describe('KnowledgePage', () => {
       updateError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     // Open from a base's context menu, cancel, then create a group the plain way:
     // the cancelled pending move must not leak into the second creation.
@@ -1452,7 +1520,7 @@ describe('KnowledgePage', () => {
       updateError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'RenameGroup Research' }))
 
@@ -1482,7 +1550,7 @@ describe('KnowledgePage', () => {
       deleteError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'DeleteGroup Research' }))
 
@@ -1506,7 +1574,7 @@ describe('KnowledgePage', () => {
       deleteError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'DeleteGroup Research' }))
 
@@ -1530,7 +1598,7 @@ describe('KnowledgePage', () => {
       updateError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'RenameBase Base 1' }))
 
@@ -1560,7 +1628,7 @@ describe('KnowledgePage', () => {
       deleteError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete Base 1' }))
 
@@ -1584,7 +1652,7 @@ describe('KnowledgePage', () => {
       updateError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'RenameBase Base 1' }))
     // The rename dialog mounts through React.lazy; await its first resolution
@@ -1608,7 +1676,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     }))
 
-    const { rerender } = render(<KnowledgePage />)
+    const { rerender } = render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Base 2' }))
     await waitFor(() => {
@@ -1616,7 +1684,7 @@ describe('KnowledgePage', () => {
     })
 
     bases = [firstBase]
-    rerender(<KnowledgePage />)
+    rerender(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
@@ -1649,7 +1717,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     }))
 
-    const { rerender } = render(<KnowledgePage />)
+    const { rerender } = render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: '新建知识库' }))
     // The create dialog mounts through React.lazy; await its first resolution
@@ -1662,7 +1730,7 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
 
     bases = [firstBase, secondBase]
-    rerender(<KnowledgePage />)
+    rerender(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 2')
@@ -1689,7 +1757,7 @@ describe('KnowledgePage', () => {
       createError: undefined
     })
 
-    const { rerender } = render(<KnowledgePage />)
+    const { rerender } = render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: '新建知识库' }))
     // The create dialog mounts through React.lazy; await its first resolution
@@ -1698,7 +1766,7 @@ describe('KnowledgePage', () => {
     await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2'))
 
     bases = [firstBase]
-    rerender(<KnowledgePage />)
+    rerender(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
@@ -1721,7 +1789,7 @@ describe('KnowledgePage', () => {
       createError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'CreateBaseInGroup Archive' }))
 
@@ -1780,7 +1848,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     }))
 
-    const { rerender } = render(<KnowledgePage />)
+    const { rerender } = render(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Legacy KB')
@@ -1804,7 +1872,7 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('restored-base')
 
     bases = [failedBase, restoredBase]
-    rerender(<KnowledgePage />)
+    rerender(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Legacy KB_副本')
@@ -1847,7 +1915,7 @@ describe('KnowledgePage', () => {
       restoreError: undefined
     })
 
-    const { rerender } = render(<KnowledgePage />)
+    const { rerender } = render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenRagConfig' }))
     fireEvent.click(screen.getByRole('button', { name: 'RagRestore Legacy KB' }))
@@ -1856,7 +1924,7 @@ describe('KnowledgePage', () => {
     await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('restored-base'))
 
     bases = [failedBase]
-    rerender(<KnowledgePage />)
+    rerender(<RoutedKnowledgePage />)
 
     await waitFor(() => {
       expect(screen.getByTestId('selected-base-id')).toHaveTextContent('failed-base')
@@ -1878,7 +1946,7 @@ describe('KnowledgePage', () => {
       createError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'CreateBaseInGroup Archive' }))
     expect(screen.getByTestId('create-dialog-initial-group-id')).toHaveTextContent('group-2')
@@ -1919,7 +1987,7 @@ describe('KnowledgePage', () => {
       deleteError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Move Base 1' }))
     fireEvent.click(screen.getByRole('button', { name: 'Delete Base 2' }))
@@ -1938,7 +2006,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     const resizeButton = screen.getByTestId('navigator-resize-start')
     const content = resizeButton.parentElement?.parentElement?.parentElement
@@ -1974,7 +2042,7 @@ describe('KnowledgePage', () => {
       refetch: vi.fn()
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     await screen.findByTestId('detail-header')
     mockDetailHeaderRender.mockClear()
@@ -2019,7 +2087,7 @@ describe('KnowledgePage', () => {
       updateError: undefined
     })
 
-    render(<KnowledgePage />)
+    render(<RoutedKnowledgePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Move Base 1' }))
 
@@ -2027,4 +2095,104 @@ describe('KnowledgePage', () => {
       expect(toast.error).toHaveBeenCalledWith('知识库移动失败: move failed')
     })
   })
+
+  it.each(['success', 'conflict cancel'])(
+    'provider drops the new argument or replays stale input after %s: Folder imports only the new selection',
+    async (outcome) => {
+      const user = userEvent.setup()
+      const ui = await import('@cherrystudio/ui')
+      const realUi = await vi.importActual<typeof CherryUI>('@cherrystudio/ui')
+      vi.spyOn(ui, 'Dialog').mockImplementation((props) => <realUi.Dialog {...props} />)
+      vi.spyOn(ui, 'DialogContent').mockImplementation((props) => <realUi.DialogContent {...props} />)
+      vi.spyOn(ui, 'DialogTitle').mockImplementation((props) => <realUi.DialogTitle {...props} />)
+      const realPanel = await vi.importActual<typeof DataSourcePanelModule>('../panels/dataSource/DataSourcePanel')
+      const realDialog = await vi.importActual<typeof AddDialogModule>('../components/AddKnowledgeItemDialog')
+      const panelModule = await import('../panels/dataSource/DataSourcePanel')
+      const dialogModule = await import('../components/AddKnowledgeItemDialog')
+      vi.spyOn(panelModule, 'default').mockImplementation(realPanel.default)
+      vi.spyOn(dialogModule, 'default').mockImplementation(realDialog.default)
+      mockUseKnowledgeBases.mockReturnValue({
+        bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+        isLoading: false,
+        error: undefined,
+        refetch: vi.fn()
+      })
+      const directory = new File(['folder'], 'FolderDropFixture')
+      const plain = new File(['text'], 'plain.md')
+      const select = vi.fn()
+      const selectFolder = vi.fn().mockResolvedValue('/picked/NewFolder')
+      Object.assign(window.api.file, {
+        select,
+        selectFolder,
+        getPathForFile: (file: File) => `/host/${file.name}`
+      })
+      let firstAdd = true
+      const request = vi.mocked(window.api.ipcApi.request)
+      request.mockImplementation(async (route) => {
+        if (route === 'file.get_metadata') {
+          return {
+            ok: true,
+            data: { kind: 'file', type: 'text', mime: 'text/markdown', size: 4, createdAt: 0, modifiedAt: 0 }
+          }
+        }
+        if (route === 'knowledge.add_items') {
+          const conflicts = firstAdd && outcome === 'conflict cancel'
+          firstAdd = false
+          return {
+            ok: true,
+            data: conflicts
+              ? { status: 'conflicts', conflicts: [{ type: 'directory', title: 'FolderDropFixture' }] }
+              : { status: 'added' }
+          }
+        }
+        return { ok: true, data: undefined }
+      })
+      render(<RoutedKnowledgePage />)
+
+      fireEvent.drop(await screen.findByText('上传第一个数据源'), {
+        dataTransfer: {
+          files: [directory, plain],
+          items: [
+            { kind: 'file', getAsFile: () => directory, webkitGetAsEntry: () => ({ isDirectory: true }) },
+            { kind: 'file', getAsFile: () => plain, webkitGetAsEntry: () => ({ isDirectory: false }) }
+          ]
+        }
+      })
+
+      const droppedItems = [
+        { type: 'file', data: { source: '/host/plain.md', path: '/host/plain.md' } },
+        { type: 'directory', data: { source: '/host/FolderDropFixture' } }
+      ]
+      await waitFor(() =>
+        expect(request).toHaveBeenCalledWith('knowledge.add_items', {
+          baseId: 'base-1',
+          items: droppedItems,
+          conflictStrategy: 'detect'
+        })
+      )
+      expect(select).not.toHaveBeenCalled()
+      expect(selectFolder).not.toHaveBeenCalled()
+      if (outcome === 'conflict cancel') {
+        await user.click(await screen.findByRole('button', { name: '取消' }))
+      }
+
+      await user.click(screen.getByRole('button', { name: '目录' }))
+
+      await waitFor(() =>
+        expect(request.mock.calls.filter(([route]) => route === 'knowledge.add_items')).toEqual([
+          ['knowledge.add_items', { baseId: 'base-1', items: droppedItems, conflictStrategy: 'detect' }],
+          [
+            'knowledge.add_items',
+            {
+              baseId: 'base-1',
+              items: [{ type: 'directory', data: { source: '/picked/NewFolder' } }],
+              conflictStrategy: 'detect'
+            }
+          ]
+        ])
+      )
+      expect(select).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    }
+  )
 })

@@ -2,11 +2,45 @@ import { describe, expect, it } from 'vitest'
 
 import {
   convertAcceleratorToHotkey,
+  formatShortcutDisplay,
+  getShortcutBindingFromKeyboardEvent,
   isValidShortcut,
   normalizeShortcutBinding,
   normalizeShortcutToken,
   type ShortcutBinding
 } from '../shortcut'
+
+describe('getShortcutBindingFromKeyboardEvent', () => {
+  it.each([
+    [{ key: 'c', code: 'KeyI', metaKey: true }, ['CommandOrControl', 'C']],
+    [{ key: 'i', code: 'KeyG', metaKey: true }, ['CommandOrControl', 'I']],
+    [{ key: '1', code: 'Digit2' }, ['1']],
+    [{ key: ';', code: 'KeyZ' }, [';']],
+    [{ key: 'i', code: 'KeyI', metaKey: true }, ['CommandOrControl', 'I']],
+    [{ key: 'c' }, ['C']],
+    [{ key: 'Process', code: 'KeyI', metaKey: true }, ['CommandOrControl', 'I']],
+    [{ key: 'Dead', code: 'KeyI' }, ['I']],
+    [{ key: 'Unidentified', code: 'KeyI' }, ['I']],
+    [{ key: 'Unidentified' }, []],
+    [{ key: 'ç', code: 'KeyC', altKey: true }, ['Alt', 'C']],
+    [{ key: 'Enter', code: 'NumpadEnter' }, ['numenter']],
+    [{ key: '+', code: 'NumpadAdd' }, ['numadd']],
+    [{ key: '-', code: 'NumpadSubtract', metaKey: true }, ['CommandOrControl', 'numsub']],
+    [{ key: 'End', code: 'Numpad1' }, ['1']],
+    [{ key: '+', code: 'Equal', shiftKey: true }, ['Shift', '=']],
+    [{ key: '_', code: 'Minus', shiftKey: true }, ['Shift', '-']],
+    [{ key: '!', code: 'Digit1', shiftKey: true }, ['Shift', '1']],
+    [{ key: ' ', code: 'Space' }, ['Space']],
+    [{ key: ' ', code: '' }, []],
+    [{ key: 'Enter', code: 'Enter' }, ['Enter']],
+    [{ key: 'Escape', code: 'Escape' }, ['Escape']],
+    [{ key: 'F1', code: 'F1' }, ['F1']],
+    [{ key: 'F24', code: 'F24' }, ['F24']],
+    [{ key: 'F25', code: 'F25' }, []]
+  ])('resolves %j to %j on darwin', (event, expected) => {
+    expect(getShortcutBindingFromKeyboardEvent(event, 'darwin')).toEqual(expected)
+  })
+})
 
 describe('normalizeShortcutToken', () => {
   it('returns canonical tokens unchanged', () => {
@@ -51,7 +85,8 @@ describe('normalizeShortcutToken', () => {
   })
 
   it('maps DOM codes that are not plain aliases', () => {
-    expect(normalizeShortcutToken('NumpadEnter')).toBe('Enter')
+    expect(normalizeShortcutToken('NumpadEnter')).toBe('numenter')
+    expect(normalizeShortcutToken('NumpadAdd')).toBe('numadd')
   })
 
   it('extracts the letter from KeyX DOM codes', () => {
@@ -173,5 +208,31 @@ describe('convertAcceleratorToHotkey', () => {
 
   it('returns an empty string for an empty accelerator', () => {
     expect(convertAcceleratorToHotkey([])).toBe('')
+  })
+})
+
+describe('formatShortcutDisplay', () => {
+  it('labels Enter as Return on macOS and Enter elsewhere', () => {
+    expect(formatShortcutDisplay(['Enter'], true)).toBe('Return')
+    expect(formatShortcutDisplay(['Enter'], false)).toBe('Enter')
+  })
+
+  it('keeps platform modifier glyphs around the Return label on macOS', () => {
+    expect(formatShortcutDisplay(['Shift', 'Enter'], true)).toBe('⇧Return')
+    expect(formatShortcutDisplay(['CommandOrControl', 'Enter'], true)).toBe('⌘Return')
+    expect(formatShortcutDisplay(['CommandOrControl', 'Enter'], false)).toBe('Ctrl+Enter')
+  })
+
+  it('labels the keypad Enter token Enter on every platform', () => {
+    expect(formatShortcutDisplay(['numenter'], true)).toBe('Enter')
+    expect(formatShortcutDisplay(['numenter'], false)).toBe('Enter')
+    expect(formatShortcutDisplay(['CommandOrControl', 'numenter'], true)).toBe('⌘Enter')
+  })
+})
+
+describe('NumpadEnter token preservation', () => {
+  it('keeps a keypad-Enter binding valid through normalization', () => {
+    expect(isValidShortcut(['CommandOrControl', 'numenter'])).toBe(true)
+    expect(normalizeShortcutBinding(['CommandOrControl', 'numenter'])).toEqual(['CommandOrControl', 'numenter'])
   })
 })

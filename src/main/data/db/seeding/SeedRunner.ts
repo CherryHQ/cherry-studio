@@ -40,6 +40,7 @@ export class SeedRunner {
 
       seeder.run(this.db)
 
+      // eslint-disable-next-line no-restricted-syntax -- the onConflictDoUpdate here upserts the internal journal key (`seed:<name>`), not user state
       this.db
         .insert(appStateTable)
         .values({

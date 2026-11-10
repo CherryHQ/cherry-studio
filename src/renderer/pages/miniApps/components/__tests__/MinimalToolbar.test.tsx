@@ -1,16 +1,20 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { InputHTMLAttributes, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherrystudioUI from '@cherrystudio/ui'
+import type * as Platform from '@renderer/utils/platform'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherrystudioUI>()),
   Button: ({ children, ...props }: { children?: ReactNode }) => (
     <button type="button" {...props}>
       {children}
     </button>
   ),
+  Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 vi.mock('@renderer/hooks/useMiniApps', () => ({
@@ -18,19 +22,23 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
-vi.mock('@renderer/utils/platform', () => ({ isDev: true }))
+vi.mock('@renderer/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof Platform>()),
+  isDev: true
+}))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
 }))
 // The panel has its own suite; here it only needs to show which app it was opened for.
 vi.mock('@renderer/components/MiniApp/MiniAppDetailPanel', () => ({
-  default: ({ appId, onClose }: { appId: string; onClose?: () => void }) => (
-    <div role="dialog" aria-label="mini-app-detail" data-app-id={appId}>
-      <button type="button" onClick={onClose}>
-        close-detail
-      </button>
-    </div>
-  )
+  default: ({ appId, open, onClose }: { appId: string; open: boolean; onClose?: () => void }) =>
+    open ? (
+      <div role="dialog" aria-label="mini-app-detail" data-app-id={appId}>
+        <button type="button" onClick={onClose}>
+          close-detail
+        </button>
+      </div>
+    ) : null
 }))
 
 import MinimalToolbar from '../MinimalToolbar'
@@ -48,8 +56,11 @@ const renderToolbar = (app: MiniAppType) =>
     <MinimalToolbar
       app={app}
       webviewRef={{ current: null }}
+      webviewRevision={0}
       currentUrl={null}
+      isWebviewReady
       onReload={vi.fn()}
+      onRestart={vi.fn()}
       onOpenDevTools={vi.fn()}
       splitMode="open"
       onSplit={vi.fn()}
@@ -59,6 +70,16 @@ const renderToolbar = (app: MiniAppType) =>
 afterEach(cleanup)
 
 describe('MinimalToolbar', () => {
+  it('does not schedule attachment polling while no concrete webview exists', () => {
+    vi.useFakeTimers()
+    try {
+      renderToolbar(site)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('opens the same detail panel the launcher tile offers, for a local app only', () => {
     renderToolbar(localApp)
     fireEvent.click(screen.getByRole('button', { name: /view details|查看详情/i }))
@@ -81,6 +102,15 @@ describe('MinimalToolbar', () => {
     cleanup()
     renderToolbar(site)
     expect(screen.getByRole('button', { name: /open links|打开链接/i })).toBeInTheDocument()
+  })
+
+  it('offers navigation to site guests only', () => {
+    renderToolbar(localApp)
+    expect(screen.queryByRole('textbox')).toBeNull()
+
+    cleanup()
+    renderToolbar(site)
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
   })
 
   it('shows DevTools for local apps and sites alike', () => {

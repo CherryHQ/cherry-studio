@@ -26,6 +26,7 @@ import {
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 
@@ -53,7 +54,10 @@ const ApiGatewaySettings: FC = () => {
     setApiGatewayConfig
   } = useApiGateway()
 
-  const serverHost = apiGatewayConfig.host || API_SERVER_DEFAULTS.HOST
+  // 0.0.0.0 is a bind address, not a reachable one — render the loopback URL instead
+  // (LAN URLs live in Device Connections settings).
+  const configuredHost = apiGatewayConfig.host || API_SERVER_DEFAULTS.HOST
+  const serverHost = configuredHost === '0.0.0.0' ? API_SERVER_DEFAULTS.HOST : configuredHost
   const serverPort = apiGatewayConfig.port || API_SERVER_DEFAULTS.PORT
   const serverUrl = gatewayClientOrigin(serverHost, serverPort)
   const apiKey = apiGatewayConfig.apiKey || ''
@@ -100,7 +104,7 @@ const ApiGatewaySettings: FC = () => {
     if (apiGatewayRunning) {
       // The ElysiaJS `@elysia/openapi` plugin serves the docs UI at `/openapi`
       // (the Express `/api-docs` path was removed in the gateway migration).
-      window.open(`${serverUrl}/openapi`, '_blank')
+      void openExternalWebsite(`${serverUrl}/openapi`)
     }
   }
 

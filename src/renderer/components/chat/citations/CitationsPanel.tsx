@@ -1,8 +1,9 @@
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { PageSidePanel, Scrollbar } from '@cherrystudio/ui'
+import { PageSidePanel, ScrollArea } from '@cherrystudio/ui'
 import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
+import { ipcApi } from '@renderer/ipc'
 import type { Citation } from '@renderer/types/message'
 
 import type { CitationPanelActions } from './common'
@@ -11,6 +12,7 @@ import { KnowledgeCitationCard } from './KnowledgeCitation'
 import { WebCitationCard } from './WebCitation'
 
 interface Props {
+  openBrowserUrl?: CitationPanelActions['openBrowserUrl']
   open: boolean
   onClose: () => void
   citations: Citation[]
@@ -25,7 +27,7 @@ export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ ci
   const previewSession = useCitationPreviewSession()
 
   return (
-    <Scrollbar className="min-h-0 flex-1">
+    <ScrollArea className="min-h-0 flex-1">
       {citations.map((citation) => (
         <div
           key={`${citation.number}-${citation.url || citation.title}`}
@@ -42,16 +44,13 @@ export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ ci
           )}
         </div>
       ))}
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 
-const CitationsPanel = ({ open, onClose, citations }: Props) => {
+const CitationsPanel = ({ open, onClose, citations, openBrowserUrl }: Props) => {
   const { t } = useTranslation()
-  const openPath = useCallback((path: string) => window.api.file.openPath(path), [])
-  const openExternalUrl = useCallback((url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer')
-  }, [])
+  const openPath = useCallback((path: string) => ipcApi.request('system.shell.open_path', path), [])
   const { copyText, notifyError } = useMessagePlatformActions()
 
   return (
@@ -61,7 +60,7 @@ const CitationsPanel = ({ open, onClose, citations }: Props) => {
       header={<span className="text-sm font-medium">{t('message.citations')}</span>}
       closeLabel={t('common.close')}
       bodyClassName="flex min-h-0 flex-col space-y-0 overflow-hidden p-0 pb-2">
-      <CitationsPanelContent citations={citations} actions={{ openPath, openExternalUrl, copyText, notifyError }} />
+      <CitationsPanelContent citations={citations} actions={{ openPath, openBrowserUrl, copyText, notifyError }} />
     </PageSidePanel>
   )
 }

@@ -43,7 +43,14 @@ export type LaunchCommand = {
   args: string[]
   /** Registry env the resolved package manager reads; merge into the transport env. */
   env: Record<string, string>
+  resolution: 'system' | 'bundled' | 'unresolved'
+  unavailableReason?: string
+  /** Original lookup error when resolution falls back to the configured command. */
+  lookupError?: unknown
 }
+
+type CommandResolution = Pick<LaunchCommand, 'command' | 'resolution' | 'unavailableReason' | 'lookupError'>
+export type LaunchResolutionCache = Map<string, Promise<CommandResolution>>
 
 /**
  * Resolves what a stdio server is actually started with: the user's own `npx` / `uvx` / `uv`
@@ -55,15 +62,20 @@ export async function resolveLaunchCommand({
   args,
   registryUrl,
   loginShellEnv,
-  logger
+  logger,
+  signal,
+  resolutionCache
 }: {
   command: string
   args: string[]
   registryUrl?: string
   loginShellEnv: Record<string, string>
   logger: LoggerService
+  signal?: AbortSignal
+  resolutionCache?: LaunchResolutionCache
 }): Promise<LaunchCommand> {
   const normalizedCommand = command.trim()
+  signal?.throwIfAborted()
   if (!normalizedCommand) {
     throw new Error('MCP stdio command cannot be empty')
   }
@@ -71,36 +83,53 @@ export async function resolveLaunchCommand({
   const runner = RUNNERS[normalizedCommand]
   const env = runner?.registryEnv && registryUrl ? runner.registryEnv(registryUrl) : {}
 
-  if (!runner) {
-    const resolved = await findCommandInShellEnv(normalizedCommand, loginShellEnv)
-    if (!resolved) {
-      logger.warn(
-        `Could not resolve command '${normalizedCommand}' to a full path. ` +
-          `If the server fails to start, try providing the full path in the command field.`
-      )
-      return { command: normalizedCommand, args, env }
+  const resolve = async (): Promise<CommandResolution> => {
+    const systemPath = runner
+      ? await findExecutableInEnv(normalizedCommand, { env: loginShellEnv, signal })
+      : await findCommandInShellEnv(normalizedCommand, loginShellEnv, signal)
+    signal?.throwIfAborted()
+    if (systemPath) return { command: systemPath, resolution: 'system' }
+    if (!runner) return { command: normalizedCommand, resolution: 'unresolved' }
+    const bundled = runner.bundled ?? normalizedCommand
+    if (!(await isBinaryExists(bundled))) {
+      return {
+        command: normalizedCommand,
+        resolution: 'unresolved',
+        unavailableReason: runner.notFound(normalizedCommand)
+      }
     }
-    logger.debug(`Resolved command to full path`, { command: resolved })
-    return { command: resolved, args, env }
+    const command = await getBinaryPath(bundled)
+    signal?.throwIfAborted()
+    return { command, resolution: 'bundled' }
   }
-
-  const systemPath = await findExecutableInEnv(normalizedCommand)
-  if (systemPath) {
-    logger.debug(`Using system ${normalizedCommand}`, { command: systemPath })
-    return { command: systemPath, args, env }
+  const key = JSON.stringify([normalizedCommand, Object.entries(loginShellEnv).sort(([a], [b]) => a.localeCompare(b))])
+  let pending = resolutionCache?.get(key)
+  if (!pending) {
+    pending = resolve()
+    resolutionCache?.set(key, pending)
   }
-
-  const bundled = runner.bundled ?? normalizedCommand
-  logger.debug(`System ${normalizedCommand} not found, checking for bundled ${bundled}`)
-  if (!(await isBinaryExists(bundled))) {
-    throw new Error(runner.notFound(normalizedCommand))
+  let resolution: CommandResolution
+  try {
+    resolution = await pending
+  } catch (error) {
+    if (runner) throw error
+    signal?.throwIfAborted()
+    if (resolutionCache?.get(key) === pending) {
+      resolutionCache.delete(key)
+    }
+    logger.warn('Failed to resolve stdio command; attempting the configured command', {
+      command: normalizedCommand,
+      error
+    })
+    resolution = { command: normalizedCommand, resolution: 'unresolved', lookupError: error }
   }
-
-  const bundledPath = await getBinaryPath(bundled)
-  logger.info(`Using bundled ${bundled} as fallback (${normalizedCommand} not found in PATH)`, {
-    command: bundledPath
-  })
-  return { command: bundledPath, args: runner.transformArgs?.(args) ?? args, env }
+  signal?.throwIfAborted()
+  logger.debug('Resolved stdio launch command', { resolution: resolution.resolution })
+  return {
+    ...resolution,
+    args: resolution.resolution === 'bundled' ? (runner?.transformArgs?.(args) ?? args) : args,
+    env
+  }
 }
 
 export function buildStdioEnvironment(

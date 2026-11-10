@@ -13,6 +13,7 @@ export function usePaintings(query?: ListPaintingsQueryParams) {
   const { trigger: createTrigger } = useMutation('POST', '/paintings', { refresh: ['/paintings'] })
   const { trigger: updateTrigger } = useMutation('PATCH', '/paintings/:id', { refresh: ['/paintings'] })
   const { trigger: deleteTrigger } = useMutation('DELETE', '/paintings/:id', { refresh: ['/paintings'] })
+  const { trigger: restoreTrigger } = useMutation('POST', '/paintings/:id/restore', { refresh: ['/paintings'] })
   const { applyReorderedList } = useReorder('/paintings')
 
   const createPainting = useCallback(
@@ -36,6 +37,13 @@ export function usePaintings(query?: ListPaintingsQueryParams) {
     [deleteTrigger]
   )
 
+  const restorePainting = useCallback(
+    (id: string) => {
+      return restoreTrigger({ params: { id } })
+    },
+    [restoreTrigger]
+  )
+
   const reorderPaintings = useCallback(
     (paintings: Painting[]) => {
       return applyReorderedList(paintings)
@@ -51,6 +59,7 @@ export function usePaintings(query?: ListPaintingsQueryParams) {
     createPainting,
     updatePainting,
     deletePainting,
+    restorePainting,
     reorderPaintings
   }
 }

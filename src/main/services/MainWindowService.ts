@@ -1,22 +1,37 @@
+import { randomUUID } from 'node:crypto'
 import path from 'path'
 
 import { optimizer } from '@electron-toolkit/utils'
 import type { BrowserWindow } from 'electron'
-import { app, nativeImage, nativeTheme, session, shell } from 'electron'
+import { app, dialog, nativeImage, nativeTheme, session, shell } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isLinux, isMac, isWin } from '@main/core/platform'
+import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
+import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
-import { resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
+import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
+import { t } from '@main/i18n'
+import { openRequestPath } from '@main/services/file'
+import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
+import {
+  AgentDevPreviewRequestPolicy,
+  AgentHtmlArtifactRequestPolicy,
+  isAllowedAgentDevPreviewEntryUrl,
+  isAllowedAgentHtmlArtifactEntryUrl
+} from '@main/utils/agentWebviewRequest'
+import { getAppEdition } from '@main/utils/appEdition'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
+import { normalizeBrowserEntryUrl, normalizeBrowserUrl } from '@shared/utils/browserUrl'
+import { resolveSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
+import { getWebviewPartition, getWebviewSecurityProfile, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 
 import iconPath from '../../../build/icon.png?asset'
@@ -27,6 +42,8 @@ const logger = loggerService.withContext('MainWindowService')
 
 // Create nativeImage for Linux window icon (required for Wayland)
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
+// Matches the renderer's main tab bar height (AppShellTabBar `h-11`).
+const MAIN_TITLE_BAR_HEIGHT = 44
 
 @Injectable('MainWindowService')
 @ServicePhase(Phase.WhenReady)
@@ -34,22 +51,27 @@ export class MainWindowService extends BaseService {
   private readonly _onMainWindowCreated: Emitter<BrowserWindow>
   public readonly onMainWindowCreated: Event<BrowserWindow>
 
+  private readonly externalWebsiteCleanups = new Set<() => void>()
+
   // Direct BrowserWindow reference, kept in sync with WindowManager's lifecycle
   // events (onWindowCreatedByType / onWindowDestroyedByType). External callers
   // should NOT touch this field — use WindowManager.broadcastToType() / showMainWindow()
   // / getWindowsByType().
   private mainWindow: BrowserWindow | null = null
   private lastRendererProcessCrashTime: number = 0
+  private readonly agentDevPreviewRequestPolicy = new AgentDevPreviewRequestPolicy()
+  private readonly agentHtmlArtifactRequestPolicy = new AgentHtmlArtifactRequestPolicy()
   /**
    * Armed only between onReady and the initial window's ready-to-show:
    * launch-to-tray suppresses exactly one show — the process's first Main
    * window. Runtime rebuilds (showMainWindow with init data) always show.
    */
   private suppressInitialLaunchShow = false
+  private architectureWarningShown = false
 
   constructor() {
     super()
-    this._onMainWindowCreated = this.registerDisposable(new Emitter<BrowserWindow>())
+    this._onMainWindowCreated = new Emitter<BrowserWindow>()
     this.onMainWindowCreated = (listener) => {
       const disposable = this._onMainWindowCreated.event(listener)
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -67,7 +89,17 @@ export class MainWindowService extends BaseService {
   protected async onInit() {
     const windowManager = application.get('WindowManager')
     this.setupHtmlArtifactPreviewSession()
+    this.setupAgentWebviewSessions()
     this.setupSpellCheck()
+
+    this.registerDisposable(() => {
+      for (const cleanup of this.externalWebsiteCleanups) cleanup()
+    })
+    this.registerDisposable(
+      windowManager.onWindowCreated(({ type, window }) => {
+        if (type !== WindowType.Main) this.setupExternalWebsiteHandlers(window)
+      })
+    )
 
     // Wire business listeners onto fresh main windows. Reuse paths (singleton reopen)
     // do not fire onWindowCreatedByType — by design, since listeners are already attached.
@@ -79,7 +111,9 @@ export class MainWindowService extends BaseService {
         // Tab attach delivery is only valid while the renderer's listener is
         // mounted; a reload or crash tears it down. Mirrors ProtocolService's
         // readiness reset wiring.
-        window.webContents.on('did-start-loading', resetMainRendererTabAttachDelivery)
+        window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+          if (isMainFrame && !isInPlace) resetMainRendererTabAttachDelivery()
+        })
         window.webContents.on('render-process-gone', resetMainRendererTabAttachDelivery)
       })
     )
@@ -141,6 +175,10 @@ export class MainWindowService extends BaseService {
     void installDevtoolsExtensions()
 
     this.openMainWindow()
+  }
+
+  protected async onDestroy() {
+    this._onMainWindowCreated.dispose()
   }
 
   private requireMainWindow(): BrowserWindow {
@@ -229,9 +267,10 @@ export class MainWindowService extends BaseService {
       initData,
       options: {
         darkTheme: nativeTheme.shouldUseDarkColors,
-        ...(isLinux && {
-          frame: preferenceService.get('app.use_system_title_bar'),
-          icon: linuxIcon
+        ...(isLinux && { icon: linuxIcon }),
+        ...(this.usesTitleBarOverlay() && {
+          titleBarStyle: 'hidden',
+          titleBarOverlay: getTitleBarOverlay(MAIN_TITLE_BAR_HEIGHT)
         }),
         ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
         ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
@@ -242,14 +281,21 @@ export class MainWindowService extends BaseService {
     })
   }
 
+  /** Windows uses WCO; Linux can opt into the system title bar instead. */
+  private usesTitleBarOverlay(): boolean {
+    return isWin || (isLinux && !application.get('PreferenceService').get('app.use_system_title_bar'))
+  }
+
   private setupMainWindow(mainWindow: BrowserWindow) {
     // Position/size are restored declaratively by WindowManager (rememberBounds);
     // re-apply the saved maximized state here, on our own show schedule (tray
     // launch defers it to first show — see setupMaximize).
     const saved = application.get('WindowManager').peekWindowBounds(WindowType.Main)
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
+    // Runs inside openMainWindow's open() call, so it sees the same preference value.
+    if (this.usesTitleBarOverlay()) syncTitleBarOverlayWithTheme(mainWindow)
 
-    this.setupHtmlArtifactWebviews(mainWindow)
+    this.setupWebviewSecurityProfiles(mainWindow)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
@@ -286,6 +332,9 @@ export class MainWindowService extends BaseService {
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('render-process-gone', (_, details) => {
       logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      // A window being torn down can report its renderer gone after the webContents is
+      // destroyed, where reload() throws and hides the real crash behind a dialog.
+      if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
       const currentTime = Date.now()
       const lastCrashTime = this.lastRendererProcessCrashTime
       this.lastRendererProcessCrashTime = currentTime
@@ -311,41 +360,120 @@ export class MainWindowService extends BaseService {
   }
 
   private setupHtmlArtifactPreviewSession() {
-    const previewSession = session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+    this.setupRestrictedWebviewSession(HTML_ARTIFACT_PREVIEW_PARTITION, ({ url }) => isAllowedHtmlArtifactRequest(url))
+  }
+
+  private setupAgentWebviewSessions() {
+    this.setupRestrictedWebviewSession(
+      getWebviewPartition(WebviewSecurityProfile.AgentBrowser),
+      ({ url, resourceType }) => {
+        if (url === 'about:blank') return true
+        const protocol = new URL(url).protocol
+        if (resourceType !== 'mainFrame' && ['data:', 'blob:', 'ws:', 'wss:'].includes(protocol)) return true
+        normalizeBrowserUrl(url)
+        return true
+      },
+      undefined,
+      true
+    )
+    this.setupRestrictedWebviewSession(
+      getWebviewPartition(WebviewSecurityProfile.AgentDevPreview),
+      (details) => this.agentDevPreviewRequestPolicy.isAllowed(details),
+      () => this.agentDevPreviewRequestPolicy.clear()
+    )
+    this.setupRestrictedWebviewSession(
+      getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact),
+      (details) => this.agentHtmlArtifactRequestPolicy.isAllowed(details),
+      () => this.agentHtmlArtifactRequestPolicy.clear()
+    )
+  }
+
+  private setupRestrictedWebviewSession(
+    partition: string,
+    isAllowed: (details: Electron.OnBeforeRequestListenerDetails) => boolean | Promise<boolean>,
+    clearPolicy?: () => void,
+    allowDownloads = false
+  ) {
+    const restrictedSession = session.fromPartition(partition)
     const handleWillDownload = (event: Electron.Event) => event.preventDefault()
-    const userAgent = previewSession
+    const userAgent = restrictedSession
       .getUserAgent()
       .replace(/CherryStudio\/\S+\s/, '')
       .replace(/Electron\/\S+\s/, '')
 
-    previewSession.setUserAgent(userAgent)
-    previewSession.setPermissionCheckHandler(() => false)
-    previewSession.setPermissionRequestHandler((_, __, callback) => callback(false))
-    previewSession.on('will-download', handleWillDownload)
-    previewSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
-      callback({ cancel: !isAllowedHtmlArtifactRequest(details.url) })
+    restrictedSession.setUserAgent(userAgent)
+    restrictedSession.setPermissionCheckHandler(() => false)
+    restrictedSession.setPermissionRequestHandler((_, __, callback) => callback(false))
+    if (!allowDownloads) restrictedSession.on('will-download', handleWillDownload)
+    restrictedSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
+      try {
+        const result = isAllowed(details)
+        if (typeof result === 'boolean') {
+          callback({ cancel: !result })
+          return
+        }
+        void result.then(
+          (allowed) => callback({ cancel: !allowed }),
+          () => callback({ cancel: true })
+        )
+      } catch {
+        callback({ cancel: true })
+      }
     })
 
     this.registerDisposable(() => {
-      previewSession.setPermissionCheckHandler(null)
-      previewSession.setPermissionRequestHandler(null)
-      previewSession.removeListener('will-download', handleWillDownload)
-      previewSession.webRequest.onBeforeRequest(null)
+      restrictedSession.setPermissionCheckHandler(null)
+      restrictedSession.setPermissionRequestHandler(null)
+      restrictedSession.removeListener('will-download', handleWillDownload)
+      restrictedSession.webRequest.onBeforeRequest(null)
+      clearPolicy?.()
     })
   }
 
-  private setupHtmlArtifactWebviews(mainWindow: BrowserWindow) {
+  private isBrowserEntryUrl(url: string): boolean {
+    try {
+      normalizeBrowserUrl(url)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private setupWebviewSecurityProfiles(mainWindow: BrowserWindow) {
     const previewSession = session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+    const agentBrowserSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+    const agentDevSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentDevPreview))
+    const agentArtifactSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
 
     mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
-      if (params.partition !== HTML_ARTIFACT_PREVIEW_PARTITION) return
+      const securityProfile = getWebviewSecurityProfile(params.partition ?? '')
+      // Mini app partitions carry their own gate (installMiniAppWebviewHost) and the
+      // shared `persist:webview` lockdown lives in WebviewService.attachWebviewPreload.
+      if (!securityProfile) {
+        if (!isMiniAppPartition(params.partition)) event.preventDefault()
+        return
+      }
+      if (securityProfile === WebviewSecurityProfile.MiniApp) return
 
-      if (!params.src.startsWith(HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX)) {
+      if (
+        (securityProfile === WebviewSecurityProfile.AgentBrowser &&
+          params.src !== 'about:blank' &&
+          !this.isBrowserEntryUrl(params.src)) ||
+        (securityProfile === WebviewSecurityProfile.HtmlArtifactPreview &&
+          !params.src.startsWith(HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX)) ||
+        (securityProfile === WebviewSecurityProfile.AgentDevPreview && !isAllowedAgentDevPreviewEntryUrl(params.src)) ||
+        (securityProfile === WebviewSecurityProfile.AgentHtmlArtifact &&
+          !isAllowedAgentHtmlArtifactEntryUrl(params.src))
+      ) {
         event.preventDefault()
         return
       }
 
-      delete webPreferences.preload
+      if (securityProfile === WebviewSecurityProfile.HtmlArtifactPreview) {
+        delete webPreferences.preload
+      } else {
+        webPreferences.preload = application.getPath('feature.webview.preload_file')
+      }
       webPreferences.nodeIntegration = false
       webPreferences.nodeIntegrationInSubFrames = false
       webPreferences.contextIsolation = true
@@ -353,9 +481,21 @@ export class MainWindowService extends BaseService {
       webPreferences.webSecurity = true
       webPreferences.allowRunningInsecureContent = false
       webPreferences.safeDialogs = true
+      if (securityProfile === WebviewSecurityProfile.AgentBrowser) webPreferences.enableBlinkFeatures = 'WebMCP'
     })
 
     mainWindow.webContents.on('did-attach-webview', (_, webContents) => {
+      if (
+        webContents.session === agentBrowserSession ||
+        webContents.session === agentDevSession ||
+        webContents.session === agentArtifactSession
+      ) {
+        webContents.on('destroyed', () => {
+          this.agentDevPreviewRequestPolicy.forget(webContents.id)
+          this.agentHtmlArtifactRequestPolicy.forget(webContents.id)
+        })
+        return
+      }
       if (webContents.session !== previewSession) return
 
       webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -367,7 +507,33 @@ export class MainWindowService extends BaseService {
     })
   }
 
+  private async showArchitectureWarning(mainWindow: BrowserWindow) {
+    if (!isMac || !app.runningUnderARM64Translation || this.architectureWarningShown) return
+    this.architectureWarningShown = true
+
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      message: t('dialog.architecture_mismatch.title'),
+      detail: t('dialog.architecture_mismatch.detail'),
+      buttons: [t('dialog.architecture_mismatch.download'), t('dialog.architecture_mismatch.later')],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true
+    })
+    if (response === 0) {
+      await shell.openExternal(
+        getAppEdition() === 'cn' ? 'https://cherryai.com.cn/download' : 'https://cherryai.com/download'
+      )
+    }
+  }
+
   private setupWindowEvents(mainWindow: BrowserWindow) {
+    mainWindow.once('show', () => {
+      void this.showArchitectureWarning(mainWindow).catch((error) => {
+        logger.error('Failed to show architecture warning or open download page', error)
+      })
+    })
+
     mainWindow.once('ready-to-show', () => {
       const preferenceService = application.get('PreferenceService')
       mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
@@ -377,11 +543,7 @@ export class MainWindowService extends BaseService {
       // onReady, consumed once); runtime rebuilds must always become visible.
       const suppressShow = this.suppressInitialLaunchShow
       this.suppressInitialLaunchShow = false
-      if (!suppressShow) {
-        //[mac]hacky-fix: quickAssistant set visibleOnFullScreen:true will cause dock icon disappeared
-        void app.dock?.show()
-        mainWindow.show()
-      }
+      if (!suppressShow) mainWindow.show()
     })
 
     // Workaround for electron#10572: zoom factor resets to the cached value when
@@ -396,7 +558,7 @@ export class MainWindowService extends BaseService {
       mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
-    // Windows: opacity is zeroed by minimize-to-tray; restore on show/restore for taskbar/Alt-Tab paths bypassing showMainWindow.
+    // Repair Windows tray appearance on show/restore paths that bypass showMainWindow.
     if (isWin) {
       const restoreOpacity = () => {
         if (!mainWindow.isDestroyed()) {
@@ -417,6 +579,74 @@ export class MainWindowService extends BaseService {
     }
   }
 
+  async openWebsite(url: string, external = false, options?: Electron.OpenExternalOptions): Promise<void> {
+    const resolved = resolveSafeExternalUrl(url)
+    if (!resolved) {
+      logger.warn('Blocked website URL with an unsupported scheme')
+      return
+    }
+    const { url: destination, protocol, requiresConfirmation } = resolved
+    if (
+      !external &&
+      ['http:', 'https:'].includes(protocol) &&
+      application.get('PreferenceService').get('app.browser.open_links_in_browser')
+    ) {
+      this.openBrowserTab(url)
+      return
+    }
+    if (requiresConfirmation) {
+      const { response } = await dialog.showMessageBox({
+        type: 'warning',
+        message: t('dialog.external_link.message'),
+        detail: destination,
+        buttons: [t('dialog.screen_capture_permission.cancel'), t('dialog.external_link.open')],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      })
+      if (response !== 1) {
+        logger.warn('External URL opening cancelled', { protocol })
+        return
+      }
+    }
+    await shell.openExternal(destination, options)
+  }
+
+  openBrowserTab(url: string): void {
+    const normalized = normalizeBrowserEntryUrl(url)
+    openTabInMainWindow({
+      id: randomUUID(),
+      type: 'route',
+      url: `/app/browser?${new URLSearchParams({ url: normalized })}`,
+      title: new URL(normalized).hostname
+    })
+  }
+
+  private setupExternalWebsiteHandlers(window: BrowserWindow) {
+    const contents = window.webContents
+    const openWebsite = (url: string) => {
+      void this.openWebsite(url).catch((error) => logger.warn('Failed to open website', { error }))
+    }
+    contents.setWindowOpenHandler(({ url }) => {
+      if (resolveSafeExternalUrl(url)) openWebsite(url)
+      return { action: 'deny' }
+    })
+    const navigate = (_event: Electron.Event, url: string) => {
+      if (!url.startsWith('http:') && !url.startsWith('https:')) return
+      const currentUrl = contents.getURL()
+      if (currentUrl && new URL(url).origin !== new URL(currentUrl).origin) openWebsite(url)
+    }
+    contents.on('will-navigate', navigate)
+    const dispose = () => {
+      this.externalWebsiteCleanups.delete(dispose)
+      window.removeListener('closed', dispose)
+      contents.removeListener('will-navigate', navigate)
+      if (!contents.isDestroyed()) contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    }
+    this.externalWebsiteCleanups.add(dispose)
+    window.once('closed', dispose)
+  }
+
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
     // Fix for Electron bug where zoom resets during in-page navigation (route changes)
     // This complements the resize-based workaround by catching navigation events
@@ -432,7 +662,7 @@ export class MainWindowService extends BaseService {
 
       event.preventDefault()
       if (isSafeExternalUrl(url)) {
-        void shell.openExternal(url)
+        void this.openWebsite(url).catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
       }
@@ -443,28 +673,39 @@ export class MainWindowService extends BaseService {
 
       const oauthProviderUrls = [
         'https://account.siliconflow.cn/oauth',
-        'https://cloud.siliconflow.cn/bills',
-        'https://cloud.siliconflow.cn/expensebill',
         'https://console.inferera.com/token',
-        'https://console.inferera.com/topup',
-        'https://console.inferera.com/statistics',
         'https://dash.302.ai/sso/login',
-        'https://dash.302.ai/charge',
         'https://maas.aiionly.com/login'
       ]
+      const billingUrls = [
+        'https://cloud.siliconflow.cn/bills',
+        'https://cloud.siliconflow.cn/expensebill',
+        'https://console.inferera.com/topup',
+        'https://console.inferera.com/statistics',
+        'https://dash.302.ai/charge'
+      ]
+      const matchesEntry = (entry: string) =>
+        url === entry || ['/', '?', '#'].some((separator) => url.startsWith(entry + separator))
+      const isOAuthPopup = oauthProviderUrls.some(matchesEntry)
 
-      if (oauthProviderUrls.some((link) => url.startsWith(link))) {
+      if (isOAuthPopup || billingUrls.some(matchesEntry)) {
         return {
           action: 'allow',
           overrideBrowserWindowOptions: {
             webPreferences: {
-              partition: 'persist:webview'
+              partition: getWebviewPartition(WebviewSecurityProfile.MiniApp),
+              // Electron 45 needs the opener's sandbox mode to preserve postMessage callbacks.
+              sandbox: !isOAuthPopup,
+              nodeIntegration: false,
+              contextIsolation: true,
+              preload: undefined,
+              webviewTag: false
             }
           }
         }
       }
 
-      if (url.includes('http://file/')) {
+      if (/^https?:/i.test(url) && url.includes('http://file/')) {
         const fileName = url.replace('http://file/', '')
         if (!fileName) {
           logger.warn('Blocked empty file name in http://file/ URL')
@@ -476,10 +717,10 @@ export class MainWindowService extends BaseService {
         if (!filePath.startsWith(path.resolve(storageDir) + path.sep)) {
           logger.warn(`Blocked path traversal attempt: ${fileName}`)
         } else {
-          shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
+          openRequestPath(filePath).catch((err) => logger.error('Failed to open file:', err))
         }
       } else if (isSafeExternalUrl(details.url)) {
-        void shell.openExternal(details.url)
+        void this.openWebsite(details.url).catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${details.url}`)
       }
@@ -500,12 +741,13 @@ export class MainWindowService extends BaseService {
       const isShowTray = preferenceService.get('app.tray.enabled')
       const isTrayOnClose = preferenceService.get('app.tray.on_close')
 
-      // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
-      if (!isShowTray || (isShowTray && !isTrayOnClose)) {
-        // 如果是Windows或Linux，直接退出
-        // mac按照系统默认行为，不退出
-        if (isWin || isLinux) {
-          return application.quit()
+      // Windows或Linux未开启托盘、设置了直接关闭或托盘不可用时，直接退出
+      if (isWin || isLinux) {
+        if (!isShowTray || (isShowTray && !isTrayOnClose) || application.get('TrayService').isActivated !== true) {
+          event.preventDefault()
+          // Let Electron finish cancelling this close before starting a new quit attempt.
+          setImmediate(() => application.quit())
+          return
         }
       }
 
@@ -529,9 +771,8 @@ export class MainWindowService extends BaseService {
         application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
       }
 
-      // Windows: minimize() refocuses previous window unlike hide(); opacity 0 suppresses animation.
       if (isWin) {
-        this.minimizeToTrayOnWindows(mainWindow)
+        this.hideToTrayOnWindows(mainWindow)
         return
       }
 
@@ -548,14 +789,16 @@ export class MainWindowService extends BaseService {
 
     const mainWindow = this.mainWindow
     if (mainWindow && !mainWindow.isDestroyed()) {
+      // Repair tray appearance before exposing the window; listeners cover out-of-band restores.
+      if (isWin) {
+        mainWindow.setOpacity(1)
+        mainWindow.setSkipTaskbar(false)
+      }
       if (mainWindow.isMinimized()) {
-        // Windows: restore opacity before restore() to avoid flash; listeners cover out-of-band restores.
-        if (isWin) {
-          mainWindow.setOpacity(1)
-          mainWindow.setSkipTaskbar(false)
-        }
         mainWindow.restore()
+        if (isWin) mainWindow.show()
         mainWindow.focus()
+        if (isMac) app.focus({ steal: true })
         this.pushMainWindowInitData(initData)
         return
       }
@@ -565,8 +808,10 @@ export class MainWindowService extends BaseService {
        * When the window is visible but covered by other windows, simply calling show() and focus()
        * is not enough to bring it to the front. We need to hide it first, then show it again.
        * This mimics the "close to tray and reopen" behavior which works correctly.
+       * X11 only: on Wayland hide() destroys the xdg_toplevel and the re-created one is
+       * denied activation, so the window ends up buried; plain show()+focus() works there.
        */
-      if (isLinux && mainWindow.isVisible() && !mainWindow.isFocused()) {
+      if (isLinux && !isLinuxWayland && mainWindow.isVisible() && !mainWindow.isFocused()) {
         mainWindow.hide()
         setImmediate(() => {
           // Re-check through the field — the window may have been destroyed
@@ -581,18 +826,9 @@ export class MainWindowService extends BaseService {
         return
       }
 
-      /**
-       * About setVisibleOnAllWorkspaces
-       *
-       * [macOS] Known Issue
-       *  setVisibleOnAllWorkspaces true/false will NOT bring window to current desktop in Mac (works fine with Windows)
-       *  AppleScript may be a solution, but it's not worth
-       *
-       * [Linux] Known Issue
-       *  setVisibleOnAllWorkspaces 在 Linux 环境下（特别是 KDE Wayland）会导致窗口进入"假弹出"状态
-       *  因此在 Linux 环境下不执行这两行代码
-       */
-      if (!isLinux) {
+      // Windows uses this toggle to raise covered windows. On macOS it briefly hides the window
+      // and Dock while transforming the process type; Linux compositors also handle it poorly.
+      if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(true)
       }
 
@@ -609,7 +845,8 @@ export class MainWindowService extends BaseService {
 
       mainWindow.show()
       mainWindow.focus()
-      if (!isLinux) {
+      if (isMac) app.focus({ steal: true })
+      if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(false)
       }
       this.pushMainWindowInitData(initData)
@@ -644,9 +881,8 @@ export class MainWindowService extends BaseService {
           application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
         }
 
-        // Windows: minimize() refocuses previous window; opacity 0 suppresses animation.
         if (isWin) {
-          this.minimizeToTrayOnWindows(mainWindow)
+          this.hideToTrayOnWindows(mainWindow)
         } else {
           mainWindow.hide()
         }
@@ -659,18 +895,21 @@ export class MainWindowService extends BaseService {
     this.showMainWindow()
   }
 
-  private minimizeToTrayOnWindows(win: BrowserWindow) {
+  private hideToTrayOnWindows(win: BrowserWindow) {
+    // Retain the minimize step used for Windows focus handoff (#14370).
+    // Hide afterward to remove native window visibility in tray mode.
     win.setOpacity(0)
     win.setSkipTaskbar(true)
     win.minimize()
+    win.hide()
   }
 
   /**
-   * 引用文本到发起窗口（子窗口）或主窗口
-   * @param text 原始文本（未格式化）
-   * @param sourceWebContents 发起引用的 webContents（IPC 调用方）。当它属于一个
-   *   detached SubWindow（独立标签窗口）时，引用插入该子窗口自己的输入框，避免
-   *   内容总是落到主窗口；其余情况（主窗口、selection toolbar 等）保持发往主窗口。
+   * Quote text into the window that asked for it, or into the main window.
+   * @param text Raw, unformatted text
+   * @param sourceWebContents The IPC caller. When it belongs to a window with its own composer
+   *   (a detached SubWindow or a selection agent window), the quote lands in that composer;
+   *   every other caller (main window, selection toolbar, …) quotes into the main window.
    */
   public quoteToMainWindow(text: string, sourceWebContents?: Electron.WebContents): void {
     // Track the intended landing spot so a failure log names the right window:
@@ -680,9 +919,9 @@ export class MainWindowService extends BaseService {
     try {
       const sourceWindow = this.resolveQuoteSourceWindow(sourceWebContents)
       if (sourceWindow) {
-        quoteTarget = `sub window ${sourceWindow.id}`
-        // SubWindow already has a composer mounted with the same App_QuoteToMain
-        // listener, so sending here inserts the quote into the detached window.
+        quoteTarget = `source window ${sourceWindow.id}`
+        // The source window already has a composer mounted with the same App_QuoteToMain
+        // listener, so sending here inserts the quote into that window.
         // Deliberately no Dock-visibility side effects: quoting into a detached
         // window must not undo the user's close-to-tray choice (macOS keeps the
         // Dock icon hidden while Main stays hidden; the tray still shows the app).
@@ -709,16 +948,17 @@ export class MainWindowService extends BaseService {
   }
 
   /**
-   * Resolve the BrowserWindow that hosts a quote IPC sender, when it is a detached
-   * SubWindow. Returns null otherwise — including when that window is already
-   * destroyed — so callers need no further liveness check on the result.
+   * Resolve the BrowserWindow that hosts a quote IPC sender, when it is a window with its own
+   * composer. Returns null otherwise — including when that window is already destroyed — so
+   * callers need no further liveness check on the result.
    */
   private resolveQuoteSourceWindow(sourceWebContents?: Electron.WebContents): BrowserWindow | null {
     if (!sourceWebContents) return null
     const windowManager = application.get('WindowManager')
     const sourceWindowId = windowManager.getWindowIdByWebContents(sourceWebContents)
     if (!sourceWindowId) return null
-    if (windowManager.getWindowType(sourceWindowId) !== WindowType.SubWindow) return null
+    const sourceWindowType = windowManager.getWindowType(sourceWindowId)
+    if (sourceWindowType !== WindowType.SubWindow && sourceWindowType !== WindowType.SelectionAgent) return null
     const sourceWindow = windowManager.getWindow(sourceWindowId)
     return sourceWindow && !sourceWindow.isDestroyed() ? sourceWindow : null
   }

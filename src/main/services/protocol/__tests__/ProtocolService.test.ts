@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,14 +11,20 @@ const {
   mainWindowServiceMock,
   mcpServerServiceMock,
   openSettingsInMainWindowMock,
-  oauthRuntimeServiceMock,
+  profileMock,
+  protocolHandlers,
   platformMock,
   windowManagerMock
 } = vi.hoisted(() => {
+  const protocolHandlers = new Map<string, { executable?: string; args?: string[] }>()
+  const profileMock = { root: undefined as string | undefined }
   const appMock = {
     on: vi.fn(),
     removeListener: vi.fn(),
-    setAsDefaultProtocolClient: vi.fn()
+    setAsDefaultProtocolClient: vi.fn((scheme: string, executable?: string, args?: string[]) => {
+      protocolHandlers.set(scheme, { executable, args })
+      return true
+    })
   }
   const loggerMock = {
     debug: vi.fn(),
@@ -39,9 +46,6 @@ const {
     createMany: vi.fn()
   }
   const openSettingsInMainWindowMock = vi.fn()
-  const oauthRuntimeServiceMock = {
-    handleDeepLinkCallback: vi.fn()
-  }
   const platformMock = {
     isLinux: false,
     isPortable: false,
@@ -60,7 +64,8 @@ const {
     mainWindowServiceMock,
     mcpServerServiceMock,
     openSettingsInMainWindowMock,
-    oauthRuntimeServiceMock,
+    profileMock,
+    protocolHandlers,
     platformMock,
     windowManagerMock
   }
@@ -83,7 +88,6 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'IpcApiService') return ipcApiServiceMock
       if (name === 'MainWindowService') return mainWindowServiceMock
-      if (name === 'OAuthRuntimeService') return oauthRuntimeServiceMock
       if (name === 'WindowManager') return windowManagerMock
       throw new Error(`unexpected service: ${name}`)
     },
@@ -110,6 +114,12 @@ vi.mock('@main/services/mainWindowNavigation', () => ({
 }))
 
 vi.mock('@main/core/platform', () => platformMock)
+
+vi.mock('@main/core/paths/constants', () => ({
+  get DEV_PROFILE_ROOT() {
+    return profileMock.root
+  }
+}))
 
 vi.mock('../handlers/mcpInstall', () => ({
   parseMcpInstallProtocolUrl: handlersMock.parseMcpInstallProtocolUrl
@@ -147,10 +157,11 @@ describe('ProtocolService', () => {
     originalArgv = process.argv
     originalDefaultApp = (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp
     vi.clearAllMocks()
+    profileMock.root = undefined
+    protocolHandlers.clear()
     platformMock.isLinux = false
     platformMock.isPortable = false
     platformMock.isWin = false
-    oauthRuntimeServiceMock.handleDeepLinkCallback.mockResolvedValue(undefined)
     service = new ProtocolService()
   })
 
@@ -174,8 +185,7 @@ describe('ProtocolService', () => {
 
     await (service as any).onInit()
 
-    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledTimes(1)
-    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledWith('cherrystudio')
+    expect(protocolHandlers.get('cherrystudio')).toEqual({ executable: undefined, args: undefined })
   })
 
   it('registers the stable launcher for packaged Windows portable builds', async () => {
@@ -186,12 +196,10 @@ describe('ProtocolService', () => {
 
     await (service as any).onInit()
 
-    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledTimes(1)
-    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledWith(
-      'cherrystudio',
-      'D:\\Apps\\Cherry Studio Portable.exe',
-      []
-    )
+    expect(protocolHandlers.get('cherrystudio')).toEqual({
+      executable: 'D:\\Apps\\Cherry Studio Portable.exe',
+      args: []
+    })
   })
 
   it('registers the dev protocol handler with an absolute app entry', async () => {
@@ -200,11 +208,30 @@ describe('ProtocolService', () => {
 
     await (service as any).onInit()
 
-    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledTimes(1)
-    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledWith('cherrystudio', process.execPath, [
-      path.resolve(process.cwd(), '.')
-    ])
+    expect(protocolHandlers.get('cherrystudio')).toEqual({
+      executable: process.execPath,
+      args: [path.resolve(process.cwd(), '.')]
+    })
   })
+
+  it.each([false, true])(
+    'preserves the installed protocol handler in an isolated profile (defaultApp=%s)',
+    async (defaultApp) => {
+      setDefaultApp(defaultApp)
+      process.argv = ['electron', '.', 'cherrystudio://navigate/agents']
+      profileMock.root = '/private/tmp/isolated-cherry-profile'
+      const installedHandler = { executable: '/Applications/Cherry Studio.app', args: [] }
+      protocolHandlers.set('cherrystudio', installedHandler)
+      const navigations: string[] = []
+      handlersMock.handleNavigateProtocolUrl.mockImplementation((url: URL) => navigations.push(url.href))
+
+      await (service as any).onInit()
+      await markProtocolHandlingReady()
+
+      expect(protocolHandlers.get('cherrystudio')).toBe(installedHandler)
+      expect(navigations).toEqual(['cherrystudio://navigate/agents'])
+    }
+  )
 
   it('logs asynchronous providers handler failures', async () => {
     const error = new Error('failed')
@@ -329,27 +356,36 @@ describe('ProtocolService', () => {
 
     it('queues URLs again while the main renderer reloads or recovers from a crash', async () => {
       await (service as any).onInit()
-      const listeners = new Map<string, () => void>()
+      const listeners = new EventEmitter()
       const onWindowCreated = windowManagerMock.onWindowCreatedByType.mock.calls[0][1] as (managed: {
         window: { webContents: { on: (event: string, listener: () => void) => void } }
       }) => void
       onWindowCreated({
         window: {
           webContents: {
-            on: (event: string, listener: () => void) => listeners.set(event, listener)
+            on: (event: string, listener: () => void) => listeners.on(event, listener)
           }
         }
       })
       await markProtocolHandlingReady()
 
-      listeners.get('did-start-loading')?.()
+      listeners.emit('did-start-loading')
+      listeners.emit('did-start-navigation', {}, 'https://child.test/', false, false)
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledOnce()
+      handlersMock.handleNavigateProtocolUrl.mockClear()
+      listeners.emit('did-start-navigation', {}, 'http://localhost:5173/#route', true, true)
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledOnce()
+      handlersMock.handleNavigateProtocolUrl.mockClear()
+      listeners.emit('did-start-navigation', {}, 'http://localhost:5173/', false, true)
       ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
       expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
 
       service.onMainRendererReady('main-1')
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
 
-      listeners.get('render-process-gone')?.()
+      listeners.emit('render-process-gone')
       ;(service as any).handleProtocolUrl('cherrystudio://navigate/knowledge')
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
 
@@ -413,13 +449,22 @@ describe('ProtocolService', () => {
       await markProtocolHandlingReady()
       const handler = getSecondInstanceHandler()
 
-      handler({}, ['/path/to/electron', '.', 'cherrystudio://oauth/callback?code=abc'])
+      handler({}, ['/path/to/electron', '.', 'cherrystudio://navigate/agents'])
 
       expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
-      expect(oauthRuntimeServiceMock.handleDeepLinkCallback).toHaveBeenCalledTimes(1)
-      const url = oauthRuntimeServiceMock.handleDeepLinkCallback.mock.calls[0][0] as URL
-      expect(url.href).toBe('cherrystudio://oauth/callback?code=abc')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledWith(new URL('cherrystudio://navigate/agents'))
       expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+    })
+
+    it('discards retired OAuth callbacks without broadcasting their authorization codes', async () => {
+      await (service as any).onInit()
+      await markProtocolHandlingReady()
+      const handler = getSecondInstanceHandler()
+
+      handler({}, ['/path/to/electron', '.', 'cherrystudio://oauth/callback?code=private-code&state=old-state'])
+
+      expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+      expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
     })
 
     it('surfaces the main window when argv has no protocol URL', async () => {

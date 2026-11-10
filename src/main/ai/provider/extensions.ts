@@ -22,6 +22,7 @@ import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { AihubmixProviderSettings } from './custom/aihubmix/aihubmixProvider'
+import type { ComfyuiProvider, ComfyuiProviderSettings } from './custom/comfyui/comfyuiProvider'
 import type { DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
 import type { DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
 import type { LocalEmbeddingProviderSettings } from './custom/localEmbedding/localEmbeddingProvider'
@@ -204,6 +205,20 @@ export const OllamaExtension = ProviderExtension.create({
     (await import('./custom/ollama/ollamaProvider')).createOllamaWithImageModel(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
 
+/**
+ * ComfyUI — a local node-graph image server. Its "models" are the user's saved
+ * workflows (listed by `listWorkflows` in the discovery client), and generation is a
+ * submit → poll `/history` → `/view` download loop, so the whole surface is served by
+ * the bespoke provider rather than any OpenAI adapter. Image-only: `languageModel`
+ * and `embeddingModel` throw by design.
+ */
+export const ComfyuiExtension = ProviderExtension.create({
+  name: 'comfyui',
+  supportsImageGeneration: true,
+  create: async (settings?: ComfyuiProviderSettings) =>
+    (await import('./custom/comfyui/comfyuiProvider')).createComfyuiProvider(settings)
+} as const satisfies ProviderExtensionConfig<ComfyuiProviderSettings, ComfyuiProvider, 'comfyui'>)
+
 export const MinimaxExtension = ProviderExtension.create({
   name: 'minimax',
   aliases: ['minimax-global'] as const,
@@ -218,6 +233,7 @@ export const MinimaxExtension = ProviderExtension.create({
  */
 export const MoonshotExtension = ProviderExtension.create({
   name: 'moonshot',
+  aliases: ['moonshot-global'] as const,
   supportsImageGeneration: false,
   create: async (settings) => {
     const module = await import('./custom/moonshotProvider')
@@ -347,9 +363,8 @@ export const ModelscopeExtension = ProviderExtension.create({
 /**
  * DashScope (Bailian) Extension - OpenAI-compatible chat + embedding,
  * native DashScope async submit/poll image generation against
- * `/api/v1/services/aigc/*`. Image baseURL is derived per-call from the
- * user's chat baseURL by `buildDashScopeConfig`, so cn/intl/proxy hosts
- * track the user's provider config without hardcoded region URLs.
+ * `/api/v1/services/aigc/*`. Image requests use the transport's default
+ * mainland origin unless `imageBaseURL` is supplied.
  */
 export const DashScopeExtension = ProviderExtension.create({
   name: 'dashscope',
@@ -357,6 +372,17 @@ export const DashScopeExtension = ProviderExtension.create({
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/dashscope/dashscopeProvider')).createDashScopeProvider(settings)
 } as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'dashscope'>)
+
+/**
+ * QwenCloud (international) Extension — same wire family as DashScope (AIGC
+ * image endpoints under the chat host), so it reuses the DashScope provider
+ * factory; the intl origin travels via the config builder's `imageBaseURL`.
+ */
+export const QwencloudExtension = ProviderExtension.create({
+  name: 'qwencloud',
+  supportsImageGeneration: true,
+  create: async (settings) => (await import('./custom/dashscope/dashscopeProvider')).createDashScopeProvider(settings)
+} as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'qwencloud'>)
 
 /**
  * TokenHub (Tencent) Extension - OpenAI-compatible chat + embedding, image via the
@@ -406,6 +432,7 @@ export const extensions = [
   GatewayExtension,
   CerebrasExtension,
   OllamaExtension,
+  ComfyuiExtension,
   MinimaxExtension,
   MoonshotExtension,
   AiHubMixExtension,
@@ -418,6 +445,7 @@ export const extensions = [
   OvmsExtension,
   ModelscopeExtension,
   DashScopeExtension,
+  QwencloudExtension,
   TokenhubExtension,
   VoyageExtension,
   TogetherAIExtension,

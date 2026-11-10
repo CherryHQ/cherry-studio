@@ -14,6 +14,7 @@ import {
 } from '../definitions'
 import {
   findKeybindingConflicts,
+  getCommandAccelerator,
   getCommandDefaultShortcutPreference,
   resolveCommandByKeybinding,
   resolveCommandKeybinding,
@@ -50,6 +51,22 @@ describe('command definitions', () => {
       expect(rule.scope).toBe(command?.scope)
       expect(rule.preferenceKey).toBe(`shortcut.${rule.command}`)
     }
+  })
+
+  it('binds permanent delete to CommandOrControl+Backspace', () => {
+    expect(findCommandDefinition('resource.delete_permanently')).toMatchObject({
+      id: 'resource.delete_permanently',
+      scope: 'renderer',
+      titleKey: 'settings.shortcuts.delete_current_list_item'
+    })
+    expect(getCommandDefaultShortcutPreference('resource.delete_permanently')).toEqual({
+      binding: ['CommandOrControl', 'Backspace'],
+      enabled: true
+    })
+    expect(DefaultPreferences.default['shortcut.resource.delete_permanently']).toEqual({
+      binding: ['CommandOrControl', 'Backspace'],
+      enabled: true
+    })
   })
 
   // Registration reads the preference default, never the rule: an empty binding there means
@@ -487,6 +504,35 @@ describe('findKeybindingConflicts', () => {
     ])
   })
 
+  it('registers keypad-Enter bindings under the canonical Electron accelerator', () => {
+    expect(getCommandAccelerator(['CommandOrControl', 'numenter'])).toBe('CommandOrControl+Enter')
+  })
+
+  it('treats keypad Enter and main Return as one trigger when matching', () => {
+    expect(
+      findKeybindingConflicts({
+        command: 'topic.create',
+        preference: { binding: ['CommandOrControl', 'numenter'], enabled: true },
+        preferences: { 'app.search': { binding: ['CommandOrControl', 'Enter'], enabled: true } },
+        rules: [testRule('topic.create'), testRule('app.search')]
+      })
+    ).toEqual([
+      expect.objectContaining({
+        command: 'topic.create',
+        conflictingCommand: 'app.search'
+      })
+    ])
+
+    expect(
+      findKeybindingConflicts({
+        command: 'topic.create',
+        preference: { binding: ['CommandOrControl', 'N'], enabled: true },
+        preferences: { 'app.search': { binding: ['CommandOrControl', 'numenter'], enabled: true } },
+        rules: [testRule('topic.create'), testRule('app.search')]
+      })
+    ).toEqual([])
+  })
+
   it('reports main-process shortcuts that shadow a renderer binding', () => {
     expect(
       findKeybindingConflicts({
@@ -527,6 +573,31 @@ describe('findKeybindingConflicts', () => {
           testRule('topic.create', { supportedPlatforms: ['darwin'] }),
           testRule('app.search', { supportedPlatforms: ['win32'] })
         ]
+      })
+    ).toEqual([])
+  })
+
+  it('treats the fixed window-close accelerator as taken on darwin only', () => {
+    // The native close role consumes the keys before the renderer sees them, so
+    // remapping a command onto it must warn where the app menu exists.
+    expect(
+      findKeybindingConflicts({
+        command: 'topic.create',
+        preference: { binding: ['CommandOrControl', 'Shift', 'W'], enabled: true },
+        platform: 'darwin'
+      })
+    ).toEqual([
+      expect.objectContaining({
+        command: 'topic.create',
+        conflictingCommand: 'app.window.close'
+      })
+    ])
+
+    expect(
+      findKeybindingConflicts({
+        command: 'topic.create',
+        preference: { binding: ['CommandOrControl', 'Shift', 'W'], enabled: true },
+        platform: 'win32'
       })
     ).toEqual([])
   })

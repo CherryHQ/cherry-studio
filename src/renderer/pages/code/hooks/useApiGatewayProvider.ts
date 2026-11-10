@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { preferenceService } from '@data/PreferenceService'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'
@@ -56,7 +55,7 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
   }, [apiGatewayRunning, startApiGateway])
 
   const getApiKey = useCallback(async (): Promise<string> => {
-    const key = await preferenceService.get('feature.api_gateway.api_key')
+    const key = await window.api.preference.get('feature.api_gateway.api_key')
     if (!key) {
       throw new Error('API gateway did not provide a key')
     }
