@@ -14,10 +14,7 @@ import type {
   SerializedError
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
-import {
-  getSafeProviderErrorMessage,
-  serializeNestedProviderError
-} from '@shared/ai/providerError'
+import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import { extractSseErrorFrame } from '@shared/ai/sseErrorFrame'
 import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
