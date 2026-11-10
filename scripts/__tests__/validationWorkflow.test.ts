@@ -9,9 +9,9 @@ import { parse } from 'yaml'
 import { createPlan } from '../validation/plan.mjs'
 
 const workflow = parse(readFileSync('.github/workflows/ci.yml', 'utf8'))
-const verify = (gate: string, jobs: unknown) =>
+const verify = (gate: string, jobs: unknown, steps?: unknown) =>
   spawnSync(process.execPath, ['scripts/validation/verify.mjs', gate], {
-    env: { ...process.env, VALIDATION_JOBS: JSON.stringify(jobs) }
+    env: { ...process.env, VALIDATION_JOBS: JSON.stringify(jobs), VALIDATION_STEPS: JSON.stringify(steps) }
   }).status
 const directories: string[] = []
 afterEach(() => {
@@ -144,5 +144,40 @@ describe('CI concurrency', () => {
       evaluate(workflow.concurrency.group, { ...context, run_id: 2 })
     )
     expect(evaluate(workflow.concurrency['cancel-in-progress'], context)).toBe('true')
+  })
+})
+
+// Sharing an installation must not hide an omitted or unsuccessful planned group.
+describe('combined repository and type gate', () => {
+  it.each([
+    [['format'], ['repository-result']],
+    [['types-node'], ['type-checks']],
+    [
+      ['format', 'types-node'],
+      ['repository-result', 'type-checks']
+    ]
+  ])('requires every selected outcome for %j', (tasks, required) => {
+    const jobs = { changes: { result: 'success', outputs: { plan: JSON.stringify({ tasks, projects: [] }) } } }
+    const steps: Record<string, { outcome?: string }> = {
+      'repository-result': { outcome: 'skipped' },
+      'type-checks': { outcome: 'skipped' }
+    }
+    for (const id of required) steps[id].outcome = 'success'
+    expect(verify('repository', jobs, steps)).toBe(0)
+    for (const id of required) {
+      for (const outcome of ['failure', 'cancelled', 'skipped', undefined]) {
+        steps[id].outcome = outcome
+        expect(verify('repository', jobs, steps)).not.toBe(0)
+      }
+      steps[id].outcome = 'success'
+    }
+  })
+  it.each([
+    ['true', 'false', true],
+    ['false', 'true', true],
+    ['false', 'false', false]
+  ])('selects the combined runner for repository=%s and types=%s', (repository, types, expected) => {
+    const selected = new Function('needs', `return (${workflow.jobs['repository-checks'].if})`)
+    expect(selected({ changes: { outputs: { repository, types } } })).toBe(expected)
   })
 })

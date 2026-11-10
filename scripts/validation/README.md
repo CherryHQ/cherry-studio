@@ -64,18 +64,20 @@ reopens or another PR on that head remains open. Pushes, schedules, completed ru
 reruns started after closure, and manual runs on the default or `release/v*`
 branches remain untouched.
 
-Repository, typecheck, lint and i18n groups run independently on Ubuntu.
+Repository and type checks share one Ubuntu installation and verify each planned
+step outcome. Lint and i18n run independently on Ubuntu.
 The required `basic-checks` gate verifies all selected group jobs, including failures
 and unexpected skips. Each runner uses setup-node's pnpm store cache.
 Main/preload retain
-three Linux shards; renderer uses eight. Selected package tests run once in their
-own job. Windows uses two shards; macOS uses one runner. Both retain the platform-gated test inventory (including
+three Linux shards; renderer uses five. Selected package tests run once in their
+own job. Windows and macOS each use one runner. Both retain the platform-gated test inventory (including
 system speech); platform selection is deliberately conservative whenever main is selected.
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.
 Their verifier requires classification to succeed, checks every planned job, and
 accepts a skipped dependency only when the plan explicitly excludes it. The basic
-gate checks all four group job results, rejecting missing or unexpectedly skipped work. Schema drift,
+gate checks the combined repository/type job and independent lint/i18n jobs; the
+combined job rejects missing or unexpectedly skipped planned steps. Schema drift,
 provider generation, changeset policy, and catalog edit guards remain CI checks.
 
 ## Performance observations

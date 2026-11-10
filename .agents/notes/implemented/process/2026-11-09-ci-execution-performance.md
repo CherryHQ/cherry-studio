@@ -10,7 +10,7 @@ Serial repository, type, lint and locale checks extend CI latency. Dependency in
 
 ## Decision
 
-Run the four check groups independently on Ubuntu and retain the required basic gate as a fail-closed aggregator. Preserve every existing check and test project. Use eight renderer shards and retain three main shards, with two Windows shards and one macOS runner. Use setup-node's pnpm cache without adding build-output caches.
+Share one Ubuntu installation between repository and type checks, verifying both planned step outcomes. Keep lint and locale checks independent, and retain the required basic gate as a fail-closed aggregator. Preserve every existing check and test project. Use five renderer shards and three main shards, with one Windows runner and one macOS runner. This selects 14 heavy jobs for a full plan instead of the initial 19. Use setup-node's pnpm cache without adding build-output caches.
 
 Only PRs share a cancellable concurrency group. Push, scheduled and manual runs use unique run IDs and full validation. Documentation-only PRs retain documentation checks and stable required gates without unrelated tests; runtime Markdown remains covered.
 
@@ -24,7 +24,7 @@ Workflow-level documentation exclusions leave required checks pending. Skipping 
 
 ## Consequences
 
-Additional Ubuntu runners trade aggregate runner time for shorter execution paths. Cold setup-node keys require a new dependency cache population; cold and warm measurements must be separated. Concurrent benchmark runs can distort queue time, so report queue, setup and execution separately.
+The organization reports the Free plan. During 2026-11-10 03:26:30–03:32:30 UTC, the visible job timeline has 20 active hosted jobs for 304 of 360 seconds and 19 for the remaining 56 seconds: 18 CI jobs and two E2E jobs at sampled full-capacity points. Long-waiting PR jobs start 1–3 seconds after another job completes. This identifies shared concurrency saturation as the dominant queue cause, rather than slow allocation after a slot becomes available. Reducing fan-out removes five repeated installations and leaves more capacity for other runs; it does not reserve slots or guarantee queue-free execution. Cold setup-node keys require a new dependency cache population; cold and warm measurements must be separated. Concurrent benchmark runs can distort queue time, so report queue, setup and execution separately.
 
 ## Verification
 
