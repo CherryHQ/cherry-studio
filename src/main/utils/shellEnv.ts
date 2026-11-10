@@ -286,14 +286,14 @@ let inflight: Promise<Record<string, string>> | null = null
 
 async function fetchShellEnv(): Promise<Record<string, string>> {
   try {
-    return await getLoginShellEnvironment()
+    return stripNullBytes(await getLoginShellEnvironment())
   } catch (error) {
     logger.error('Failed to get shell environment, falling back to process.env', { error })
     const fallbackEnv: Record<string, string> = {}
     for (const key in process.env) {
       fallbackEnv[key] = process.env[key] || ''
     }
-    return fallbackEnv
+    return stripNullBytes(fallbackEnv)
   }
 }
 
@@ -329,9 +329,22 @@ function loadShellEnv(): Promise<Record<string, string>> {
  * `removeEnvProxy`, merging per-spawn overrides), and handing out the cached
  * object itself would let one such mutation silently poison every later reader.
  */
+/** Strip NUL bytes from every string env value. Windows registry or user shell
+ * profiles can embed `\u0000` in PATH (or other vars), and Node's child_process
+ * throws TypeError when such a value reaches options.env — silently killing
+ * every spawned child process. Strip defensively before env leaves this boundary. */
+function stripNullBytes(env: Record<string, string>): Record<string, string> {
+  const cleaned: Record<string, string> = {}
+  for (const key of Object.keys(env)) {
+    const value = env[key]
+    cleaned[key] = typeof value === 'string' ? value.replace(/\u0000/g, '') : value
+  }
+  return cleaned
+}
+
 export async function getRawShellEnv(): Promise<Record<string, string>> {
   const env = cachedEnv ?? (await loadShellEnv())
-  return { ...env }
+  return stripNullBytes({ ...env })
 }
 
 export async function getShellEnv(): Promise<Record<string, string>> {
