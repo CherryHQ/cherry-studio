@@ -165,6 +165,20 @@ mac:
 dmg:
   format: ULFO
   writeUpdateInfo: false
+  # PNGs are rendered from build/dmg-background.svg; Finder's title bar hides the bottom 32px.
+  background: build/dmg-background.png
+  window:
+    width: 600
+    height: 380
+  iconSize: 128
+  contents:
+    - x: 150
+      y: 154
+      type: file
+    - x: 450
+      y: 154
+      type: link
+      path: /Applications
 toolsets:
   appimage: "1.0.3"
 linux:
