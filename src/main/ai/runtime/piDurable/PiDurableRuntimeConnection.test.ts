@@ -32,6 +32,7 @@ import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProj
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
+import { getShellEnv } from '@main/utils/shellEnv'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 import type { SpanEntity } from '@shared/data/types/trace'
@@ -86,7 +87,10 @@ vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
   buildAgentMcpServers: () => ({})
 }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathFromEnvironment: () => undefined }))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: vi.fn(async (): Promise<Record<string, string>> => ({})),
+  getPathFromEnvironment: () => undefined
+}))
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 describe('desktop Pi Durable connection', () => {
@@ -100,6 +104,7 @@ describe('desktop Pi Durable connection', () => {
 
   beforeEach(() => {
     driver = new PiDurableRuntimeDriver()
+    vi.mocked(getShellEnv).mockReset()
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     mocks.delegated.mockClear()
     mocks.prime.mockReset()
@@ -846,8 +851,15 @@ describe('desktop Pi Durable connection', () => {
   })
 
   it.runIf(process.platform === 'win32')(
-    'runs PowerShell file commands with Unicode and space-containing paths',
+    'runs PowerShell file commands with Unicode paths and preserves the configured PATH',
     async () => {
+      const binDirectory = join(directory, 'test bin')
+      mkdirSync(binDirectory)
+      writeFileSync(join(binDirectory, 'cherry-path-probe.cmd'), '@echo off\r\necho PATH probe succeeded\r\n')
+      const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'Path'
+      vi.mocked(getShellEnv).mockResolvedValue({
+        [pathKey]: `${binDirectory};${process.env[pathKey] ?? ''}`
+      })
       setScript([
         assistantReply(
           [
@@ -857,7 +869,7 @@ describe('desktop Pi Durable connection', () => {
               name: 'powershell',
               arguments: {
                 command:
-                  "Set-Content -LiteralPath './报告 with spaces.txt' -Value 'PowerShell 正常' -Encoding utf8; Get-Content -LiteralPath './报告 with spaces.txt'"
+                  "Set-Content -LiteralPath './报告 with spaces.txt' -Value 'PowerShell 正常' -Encoding utf8; Get-Content -LiteralPath './报告 with spaces.txt'; & cherry-path-probe.cmd"
               }
             }
           ],
@@ -876,8 +888,9 @@ describe('desktop Pi Durable connection', () => {
       const output = projected(events)
         .flatMap((entry) => entry.parts)
         .find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'powershell-file')
-      expect(output).toMatchObject({ state: 'output-available' })
+      expect(JSON.stringify(output)).toContain('PATH probe succeeded')
       expect(JSON.stringify(output)).toContain('PowerShell 正常')
+      expect(output).toMatchObject({ state: 'output-available' })
     }
   )
 

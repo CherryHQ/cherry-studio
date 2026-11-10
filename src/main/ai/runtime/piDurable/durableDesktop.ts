@@ -130,10 +130,7 @@ export async function prepareDurableDesktop(
     const registry = native.createRegistry()
     const coding = tools.createCodingTools({ images: await images.createNodePhotonImages() })
     const bash = tools.createBashTool({
-      commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env)),
-      prepare(execution) {
-        execution.env = mergePiShellExecutionEnv(execution.env)
-      }
+      commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env))
     })
     registry.install(
       native.defineExtension({
@@ -141,15 +138,7 @@ export async function prepareDurableDesktop(
         tools: [
           ...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'),
           bash,
-          ...(process.platform === 'win32'
-            ? [
-                tools.createPowerShellTool({
-                  prepare(execution) {
-                    execution.env = mergePiShellExecutionEnv(execution.env)
-                  }
-                })
-              ]
-            : [])
+          ...(process.platform === 'win32' ? [tools.createPowerShellTool()] : [])
         ]
       })
     )
@@ -194,6 +183,7 @@ export async function prepareDurableDesktop(
     const environment = new NodeExecutionEnv({
       cwd,
       shellPath: resolvePiShellPath(),
+      // Per-call PATH overrides the SDK's inherited environment. Merge the complete PATH here.
       shellEnv: mergePiShellExecutionEnv(env)
     })
     const agentConfig: AgentChange = {
