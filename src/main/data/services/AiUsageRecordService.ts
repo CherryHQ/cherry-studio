@@ -25,6 +25,7 @@ import { type AiUsageRecordRow, aiUsageRecordTable, type InsertAiUsageRecordRow 
 import { messageTable } from '@data/db/schemas/message'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 import type {
   AiUsageRecordGroupBy,
   AiUsageRecordGroupIdentity,
@@ -60,6 +61,7 @@ import type {
   MessageStats
 } from '@shared/data/types/message'
 import type { Currency } from '@shared/data/types/model'
+import { computeLanguageCost } from '@shared/utils/usagePricing'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
@@ -166,85 +168,6 @@ export type MessageUsageProjection = Pick<
   | 'costs'
   | 'providerPerformance'
 >
-
-const PER_MILLION = 1_000_000
-
-interface LanguageCostUsage {
-  inputTokens?: number
-  outputTokens?: number
-  inputTokenDetails?: {
-    noCacheTokens?: number
-    cacheReadTokens?: number
-    cacheWriteTokens?: number
-  }
-}
-
-interface LanguageCostResult {
-  cost: number
-  breakdown: AiUsageCostBreakdown
-}
-
-/**
- * Compute the usage-record domain's cache-aware language cost from the all-in
- * input count and any provider breakdown. Partial cache details are subtracted
- * from the total so no token can be priced as both regular input and cached
- * input. A cost is returned only when every non-zero usage bucket has a known
- * rate.
- */
-function computeLanguageCost(
-  usage: LanguageCostUsage,
-  pricing: AiUsagePricingSnapshot
-): LanguageCostResult | undefined {
-  const details = usage.inputTokenDetails
-  const inputTokens =
-    usage.inputTokens ??
-    (details?.noCacheTokens !== undefined
-      ? details.noCacheTokens + (details.cacheReadTokens ?? 0) + (details.cacheWriteTokens ?? 0)
-      : undefined)
-  let rates: Pick<
-    AiUsagePricingSnapshot,
-    'inputPerMillionTokens' | 'outputPerMillionTokens' | 'cacheReadPerMillionTokens' | 'cacheWritePerMillionTokens'
-  > = pricing
-  if (pricing.inputTokenTiers?.length) {
-    if (inputTokens === undefined) return undefined
-    for (const tier of pricing.inputTokenTiers) {
-      if (inputTokens < tier.minInputTokens) break
-      rates = tier
-    }
-  }
-
-  const cacheReadTokens = details?.cacheReadTokens
-  const cacheWriteTokens = details?.cacheWriteTokens
-  const hasCacheDetails = cacheReadTokens !== undefined || cacheWriteTokens !== undefined
-  const nonCacheInput =
-    details?.noCacheTokens ??
-    (inputTokens !== undefined
-      ? hasCacheDetails
-        ? Math.max(0, inputTokens - (cacheReadTokens ?? 0) - (cacheWriteTokens ?? 0))
-        : inputTokens
-      : undefined)
-
-  const buckets = [
-    ['input', nonCacheInput, rates.inputPerMillionTokens],
-    ['cacheRead', cacheReadTokens, rates.cacheReadPerMillionTokens ?? rates.inputPerMillionTokens],
-    ['cacheWrite', cacheWriteTokens, rates.cacheWritePerMillionTokens ?? rates.inputPerMillionTokens],
-    ['output', usage.outputTokens, rates.outputPerMillionTokens]
-  ] as const
-
-  if (!buckets.some(([, tokens]) => tokens !== undefined)) return undefined
-  if (buckets.some(([, tokens, rate]) => tokens !== undefined && tokens > 0 && rate === undefined)) return undefined
-
-  const breakdown: AiUsageCostBreakdown = {}
-  let cost = 0
-  for (const [key, tokens, rate] of buckets) {
-    if (tokens === undefined || rate === undefined) continue
-    const value = (tokens * rate) / PER_MILLION
-    breakdown[key] = value
-    cost += value
-  }
-
-  return Number.isFinite(cost) && cost >= 0 ? { cost, breakdown } : undefined
-}
 
 const cursorLogger = loggerService.withContext('DataApi:AiUsageRecordCursor')
 
@@ -1455,6 +1378,35 @@ function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataA
 }
 
 export class AiUsageRecordService {
+  private readonly invocationsRecorded = new Emitter<void>()
+  readonly onInvocationsRecorded = this.invocationsRecorded.event
+
+  associateInvocation(requestId: string, messageId: string): void {
+    try {
+      const result = application.get('DbService').withWriteTx((tx) => {
+        const row = tx.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, requestId)).get()
+        if (!row) return
+        if (row.messageId) {
+          if (row.messageKind !== 'agent-session' || row.messageId !== messageId)
+            throw new Error('Provider invocation already belongs to another message')
+          return
+        }
+        tx.update(aiUsageRecordTable)
+          .set({ messageKind: 'agent-session', messageId })
+          .where(eq(aiUsageRecordTable.id, row.id))
+          .run()
+        return { target: rebuildMessageUsageProjectionTx(tx, { kind: 'agent-session', id: messageId })?.target }
+      })
+      if (!result) return
+      notifyDataApiDataChange([
+        ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
+        ...messageReadModelEffects(result.target ? [result.target] : [])
+      ])
+    } catch (error) {
+      logger.error('associateInvocation failed', error as Error, { requestId, messageId })
+    }
+  }
+
   recordInvocation(input: RecordAiInvocationInput): void {
     this.recordInvocations([input])
   }
@@ -1470,6 +1422,7 @@ export class AiUsageRecordService {
         ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
         ...messageReadModelEffects(result.affectedMessages)
       ])
+      this.invocationsRecorded.fire()
     } catch (err) {
       logger.error('recordInvocations failed', err as Error, { requestIds: inputs.map((input) => input.requestId) })
     }

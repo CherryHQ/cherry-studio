@@ -63,6 +63,10 @@ vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/VertexAiSett
   default: ({ providerId }: any) => <div>{`vertexai-settings-${providerId}`}</div>
 }))
 
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/DoubaoSetupGuide', () => ({
+  default: ({ providerId }: any) => <div>{`doubao-setup-guide-${providerId}`}</div>
+}))
+
 describe('ProviderSpecificSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -107,6 +111,12 @@ describe('ProviderSpecificSettings', () => {
       placement: 'beforeAuth' as const,
       meta: { isCherryIN: false, isDmxapi: true },
       expectedText: 'dmxapi-settings-dmxapi'
+    },
+    {
+      providerId: 'doubao',
+      placement: 'beforeAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'doubao-setup-guide-doubao'
     },
     {
       providerId: 'ovms',

@@ -4,8 +4,6 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { build } from 'tsdown'
-
 import { REGISTRY_SCHEMA_VERSION } from '../src/registry-loader'
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -21,6 +19,7 @@ async function createCompatibilityBaseline(): Promise<void> {
 
   const outputDirectory = mkdtempSync(path.join(tmpdir(), 'provider-registry-baseline-'))
   try {
+    const { build } = await import('tsdown')
     await build({
       config: false,
       entry: {

@@ -22,7 +22,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Scrollbar,
+  ScrollArea,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -30,11 +30,13 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { CoalescingTask } from '@shared/utils/async'
 
 import { AddCatalogPopover, type CatalogItem } from './CatalogPicker'
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './DialogFormFields'
@@ -136,9 +138,8 @@ export function setFormValues<TValues extends FieldValues>(form: UseFormReturn<T
  * save is in flight, a single follow-up pass is queued and runs (with the latest
  * `onSave`) once the current save settles — so the last edit is never dropped.
  *
- * Returns a `flush()` that runs/awaits the serialized save immediately; callers
- * (e.g. the close path) await it to persist pending edits before proceeding,
- * reusing the same queue instead of racing a second concurrent save.
+ * Returns `flush()` to save immediately and `getPendingSave()` to await the
+ * current drain before checking whether the form still needs to be saved.
  */
 export function useDebouncedAutoSave({
   enabled,
@@ -150,15 +151,13 @@ export function useDebouncedAutoSave({
   changeKey: string | null
   onSave: () => void | Promise<void>
   delay?: number
-}): () => Promise<void> {
+}): { flush: () => Promise<void>; getPendingSave: () => Promise<void> | undefined } {
   const onSaveRef = useRef(onSave)
   const changeKeyRef = useRef(changeKey)
-  const savingRef = useRef(false)
+  const saveTaskRef = useRef(new CoalescingTask())
   // `changeKey` captured when the in-flight save started; a follow-up pass is
   // only queued when the state has moved past it.
   const savedKeyRef = useRef<string | null>(null)
-  const pendingRef = useRef(false)
-  const inFlightRef = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
     onSaveRef.current = onSave
@@ -166,25 +165,12 @@ export function useDebouncedAutoSave({
   })
 
   const flush = useCallback((): Promise<void> => {
-    if (savingRef.current) {
-      // A save is already running; queue one more pass only if the latest state
-      // differs from what that save captured (otherwise it already covers it).
-      if (changeKeyRef.current !== savedKeyRef.current) pendingRef.current = true
-      return inFlightRef.current
-    }
-    savingRef.current = true
-    inFlightRef.current = (async () => {
-      try {
-        do {
-          pendingRef.current = false
-          savedKeyRef.current = changeKeyRef.current
-          await onSaveRef.current()
-        } while (pendingRef.current)
-      } finally {
-        savingRef.current = false
-      }
-    })()
-    return inFlightRef.current
+    const task = saveTaskRef.current
+    if (task.promise && changeKeyRef.current === savedKeyRef.current) return task.promise
+    return task.run(() => {
+      savedKeyRef.current = changeKeyRef.current
+      return onSaveRef.current()
+    })
   }, [])
 
   useEffect(() => {
@@ -193,7 +179,9 @@ export function useDebouncedAutoSave({
     return () => clearTimeout(handle)
   }, [enabled, changeKey, delay, flush])
 
-  return flush
+  const getPendingSave = useCallback(() => saveTaskRef.current.promise, [])
+
+  return { flush, getPendingSave }
 }
 
 const HelpIconButton = ({
@@ -554,9 +542,12 @@ export function EditDialogShell<TValues extends FieldValues>({
               </div>
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <Scrollbar ref={scrollContainerRef} className="min-h-0 min-w-0 flex-1 px-6 pt-5 pb-3">
+                <ScrollArea
+                  viewportProps={{ ref: scrollContainerRef, className: 'px-6 pt-5 pb-3' }}
+                  contentProps={{ className: activeTab === 'prompt' || activeTab === 'memory' ? 'h-full' : undefined }}
+                  className="min-h-0 min-w-0 flex-1">
                   {children}
-                </Scrollbar>
+                </ScrollArea>
                 {/* Always-present bottom band: insets scrolling lists from the dialog's
                     rounded-3xl corners so content never clips into them mid-scroll, and
                     surfaces the save error inline when present. */}
@@ -685,6 +676,7 @@ export function CompactModelField({
   label,
   labelClassName,
   description,
+  help,
   allowClear = false,
   emptyLabel,
   filter,
@@ -703,6 +695,8 @@ export function CompactModelField({
   label: string
   labelClassName?: string
   description?: string
+  /** Shown in a help tooltip beside the label. `description` stays inline below the field. */
+  help?: ReactNode
   allowClear?: boolean
   /** Trigger text when no model is picked (defaults to the generic "pick a model"). */
   emptyLabel?: string
@@ -741,9 +735,24 @@ export function CompactModelField({
       name={name}
       render={({ field }) => (
         <FormItem className={layout === 'row' ? editDialogFormRowClassName : undefined}>
-          <FormLabel className={cn(layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal', labelClassName)}>
-            {label}
-          </FormLabel>
+          {help ? (
+            <FieldLabelWithHelp
+              label={label}
+              help={help}
+              // In row layout FormItem is a grid, so `justify-self-end` has to sit on the wrapper
+              // div that FieldLabelWithHelp renders around the label.
+              className={layout === 'row' ? 'justify-self-end' : undefined}
+              labelClassName={cn(
+                layout === 'row' ? 'font-normal text-muted-foreground text-[13px]' : 'font-normal',
+                labelClassName
+              )}
+            />
+          ) : (
+            <FormLabel
+              className={cn(layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal', labelClassName)}>
+              {label}
+            </FormLabel>
+          )}
           <DialogModelFrame>
             <div className="group/model-field relative flex w-full min-w-0 items-center">
               <ModelSelector

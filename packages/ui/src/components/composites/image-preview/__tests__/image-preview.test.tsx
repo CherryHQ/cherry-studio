@@ -197,17 +197,20 @@ describe('ImagePreviewDialog', () => {
     ])
   })
 
-  it('uses a plain close icon and disables preview motion', () => {
+  it('fades the full-screen preview and overlay without moving the image', () => {
     render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
 
-    const closeButton = screen.getByRole('button', { name: LABELS.close })
-    expect(closeButton).toHaveClass('rounded-none', 'bg-transparent', 'shadow-none', 'transition-none')
-    expect(closeButton).not.toHaveClass('rounded-full')
-    expect(screen.getByTestId('image-preview-dialog')).toHaveClass('data-[state=open]:animate-none')
-    expect(document.querySelector('[data-slot="dialog-overlay"]')).toHaveClass(
-      'data-[state=closed]:animate-none',
-      'data-[state=open]:animate-none'
+    // Full-screen previews share the Dialog fade contract without directional translation.
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveClass('data-[state=open]:fade-in-0', 'data-[state=closed]:fade-out-0')
+    expect(dialog).not.toHaveClass('data-[state=open]:animate-none', 'data-[state=closed]:animate-none')
+    expect(dialog).not.toHaveClass(
+      'data-[state=open]:slide-in-from-bottom-4',
+      'data-[state=closed]:slide-out-to-bottom-4'
     )
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    expect(overlay).toHaveClass('data-[state=open]:fade-in-0', 'data-[state=closed]:fade-out-0')
+    expect(overlay).not.toHaveClass('data-[state=open]:animate-none', 'data-[state=closed]:animate-none')
     expect(screen.getByAltText('One')).not.toHaveClass('transition-transform')
   })
 
@@ -292,6 +295,35 @@ describe('ImagePreviewDialog', () => {
     expect(image).toHaveStyle({
       transform: 'translate3d(0px, 0px, 0) rotate(0deg) scale(1) scaleX(1) scaleY(1)'
     })
+  })
+
+  it('pinch-zooms with two touch points instead of panning', () => {
+    // jsdom has no PointerEvent, so fired pointer events would carry neither pointerId nor pointerType.
+    class TestPointerEvent extends MouseEvent {
+      readonly pointerId: number
+      readonly pointerType: string
+      constructor(type: string, init: MouseEventInit & { pointerId?: number; pointerType?: string } = {}) {
+        super(type, init)
+        this.pointerId = init.pointerId ?? 1
+        this.pointerType = init.pointerType ?? 'mouse'
+      }
+    }
+    vi.stubGlobal('PointerEvent', TestPointerEvent)
+    render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
+
+    const viewport = screen.getByTestId('image-preview-viewport')
+    const image = screen.getByAltText('One')
+    const touch = (pointerId: number, clientX: number) => ({ pointerId, pointerType: 'touch', clientX, clientY: 0 })
+    fireEvent.pointerDown(viewport, touch(1, -50))
+    fireEvent.pointerDown(viewport, touch(2, 50))
+    fireEvent.pointerMove(viewport, touch(2, 150))
+
+    expect(image.style.transform).toContain('scale(2)')
+
+    fireEvent.pointerUp(viewport, touch(2, 150))
+    fireEvent.pointerMove(viewport, touch(1, 300))
+    expect(image.style.transform).toContain('scale(2)')
+    vi.unstubAllGlobals()
   })
 
   it('stops navigation at the first and last image', () => {

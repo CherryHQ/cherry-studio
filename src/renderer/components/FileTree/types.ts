@@ -55,9 +55,16 @@ export interface FileTreeProps {
 
   /** Optional trailing slot per row - e.g. ContextMenu trigger, action buttons, badges. */
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode
+  /** Optional block rendered below a row, outside its click target - e.g. search match lines. */
+  renderRowDetail?: (node: FileTreeNode) => React.ReactNode
   /** Optional command-system context menu items for the whole row (Cherry/Native presentation). */
   getMenuItems?: (node: FileTreeNode) => MaybePromise<readonly CommandContextMenuExtraItem[]>
 
+  /**
+   * When false, folders show only the chevron and file icons take the chevron column,
+   * so sibling folder and file names align. Default: true.
+   */
+  showFolderIcons?: boolean
   /** Override default folder/file icons. */
   fileIcon?: (node: FileTreeNode) => React.ReactNode
   folderIcon?: (node: FileTreeNode, expanded: boolean) => React.ReactNode
@@ -75,8 +82,6 @@ export interface FileTreeProps {
   onSearchKeywordChange?: (keyword: string) => void
   /** Placeholder for the search input. */
   searchPlaceholder?: string
-  /** Optional trailing toolbar rendered on the search row. */
-  searchToolbar?: React.ReactNode
   /** Accessible label for the search clear button. */
   searchClearLabel?: string
 

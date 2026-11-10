@@ -1,8 +1,9 @@
+import { ExternalLink } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Checkbox, DialogFooter, Scrollbar, Textarea } from '@cherrystudio/ui'
+import { Alert, Button, Checkbox, DescriptionSwitch, DialogFooter, ScrollArea, Textarea } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -16,6 +17,8 @@ import {
   diagnosticDescriptionByteLength
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
+
+import { DIAGNOSTIC_STATUS_TRANSLATION_KEYS } from './diagnosticStatusLabels'
 
 const logger = loggerService.withContext('DiagnosticUploadPanel')
 type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'busy' }>
@@ -48,6 +51,9 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   const uploadFormId = useId()
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [acknowledged, setAcknowledged] = useState(true)
+  const [includeChatRecords, setIncludeChatRecords] = useState(true)
+  const [includeLogs, setIncludeLogs] = useState(true)
+  const [includeTraces, setIncludeTraces] = useState(true)
   const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle')
   const [result, setResult] = useState<UploadResult | null>(null)
   const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
@@ -79,7 +85,8 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     diagnosticDescriptionByteLength(normalizedDescription) <= DIAGNOSTIC_DESCRIPTION_MAX_BYTES
   const showDescriptionError = hasAttemptedSubmit && !descriptionValid
   const isBusy = operationStatus !== 'idle'
-  const canAttemptUpload = operationStatus === 'idle' && acknowledged
+  const includesSensitiveSources = includeLogs || includeTraces || includeChatRecords
+  const canAttemptUpload = operationStatus === 'idle' && (!includesSensitiveSources || acknowledged)
 
   useEffect(() => onBusyChange?.(isBusy), [isBusy, onBusyChange])
 
@@ -129,6 +136,16 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     }
   }
 
+  const openReport = async () => {
+    if (result?.status !== 'uploaded') return
+    try {
+      await openExternalWebsite(result.reportUrl)
+    } catch (error) {
+      logger.error('Failed to open diagnostic status page', error as Error)
+      toast.error(t('settings.about.diagnostics.report.open_failed'))
+    }
+  }
+
   const revealBundle = async () => {
     if (!savedUpload) return
     try {
@@ -164,9 +181,9 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     try {
       const uploadResult = await ipcApi.request('diagnostics.bundle.upload', {
         description: normalizedDescription,
-        includeChatRecords: true,
-        includeLogs: true,
-        includeTraces: true,
+        includeChatRecords,
+        includeLogs,
+        includeTraces,
         range: '24h'
       })
       acceptSubmissionResult(uploadResult)
@@ -223,9 +240,14 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
-      <Scrollbar className="min-h-0 px-6 py-2">
+      <ScrollArea viewportProps={{ className: 'px-6 py-2' }} className="min-h-0">
         {result ? (
-          <UploadResultContent result={result} savedUpload={savedUpload} onReveal={revealBundle} />
+          <UploadResultContent
+            result={result}
+            savedUpload={savedUpload}
+            onReveal={revealBundle}
+            onOpenReport={openReport}
+          />
         ) : (
           <form id={uploadFormId} className="space-y-4" onSubmit={handleSubmit}>
             <section className="space-y-2">
@@ -251,18 +273,63 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
               ) : null}
             </section>
 
-            <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-acknowledgement">
-              <Checkbox
-                id="diagnostic-acknowledgement"
-                checked={acknowledged}
-                disabled={isBusy}
-                onCheckedChange={(checked) => setAcknowledged(checked === true)}
-              />
-              <span>{t('settings.about.diagnostics.report.acknowledgement')}</span>
-            </label>
+            <section className="space-y-2">
+              <p className="text-muted-foreground text-sm">
+                {t('settings.about.diagnostics.report.attachments_description')}
+              </p>
+              <div className="divide-y divide-border rounded-xl border border-border">
+                <div className="p-1">
+                  <DescriptionSwitch
+                    label={t('settings.about.diagnostics.sources.system.title')}
+                    description={t('settings.about.diagnostics.report.system_always_included')}
+                    checked
+                    disabled
+                  />
+                </div>
+                <div className="p-1">
+                  <DescriptionSwitch
+                    aria-label={t('settings.about.diagnostics.sources.logs.title')}
+                    label={t('settings.about.diagnostics.sources.logs.title')}
+                    checked={includeLogs}
+                    disabled={isBusy}
+                    onCheckedChange={setIncludeLogs}
+                  />
+                </div>
+                <div className="p-1">
+                  <DescriptionSwitch
+                    aria-label={t('settings.about.diagnostics.sources.traces.title')}
+                    label={t('settings.about.diagnostics.sources.traces.title')}
+                    checked={includeTraces}
+                    disabled={isBusy}
+                    onCheckedChange={setIncludeTraces}
+                  />
+                </div>
+                <div className="p-1">
+                  <DescriptionSwitch
+                    aria-label={t('settings.about.diagnostics.sources.chat_records.title')}
+                    label={t('settings.about.diagnostics.sources.chat_records.title')}
+                    checked={includeChatRecords}
+                    disabled={isBusy}
+                    onCheckedChange={setIncludeChatRecords}
+                  />
+                </div>
+              </div>
+            </section>
+
+            {includesSensitiveSources ? (
+              <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-acknowledgement">
+                <Checkbox
+                  id="diagnostic-acknowledgement"
+                  checked={acknowledged}
+                  disabled={isBusy}
+                  onCheckedChange={(checked) => setAcknowledged(checked === true)}
+                />
+                <span>{t('settings.about.diagnostics.report.acknowledgement')}</span>
+              </label>
+            ) : null}
           </form>
         )}
-      </Scrollbar>
+      </ScrollArea>
 
       <DialogFooter className="mt-4 px-6 py-4">
         {isBusy ? (
@@ -317,11 +384,13 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 function UploadResultContent({
   result,
   savedUpload,
-  onReveal
+  onReveal,
+  onOpenReport
 }: {
   readonly result: UploadResult
   readonly savedUpload: SavedUploadResult | null
   readonly onReveal: () => Promise<void>
+  readonly onOpenReport: () => Promise<void>
 }) {
   const { t } = useTranslation()
   if (result.status === 'uploaded') {
@@ -334,6 +403,22 @@ function UploadResultContent({
             <code className="break-all">{result.reportId}</code>
             <CopyButton textToCopy={result.reportId} aria-label={t('settings.about.diagnostics.report.copy_id')} />
           </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{t('settings.about.diagnostics.report.status_url')}</span>
+            <code className="min-w-0 break-all">{result.reportUrl}</code>
+            <CopyButton textToCopy={result.reportUrl} aria-label={t('settings.about.diagnostics.report.copy_url')} />
+            <Button variant="link" size="sm" className="h-auto px-0" onClick={() => void onOpenReport()}>
+              <ExternalLink className="mr-1 size-3.5" aria-hidden />
+              {t('settings.about.feedback.history.open')}
+            </Button>
+          </div>
+          <div className="text-sm">
+            <span className="text-muted-foreground">{t('settings.about.diagnostics.report.processing_status')}: </span>
+            <strong>{t(DIAGNOSTIC_STATUS_TRANSLATION_KEYS[result.processingStatus ?? 'unavailable'])}</strong>
+          </div>
+          {!result.historySaved ? (
+            <p className="text-warning text-xs">{t('settings.about.diagnostics.report.history_save_failed')}</p>
+          ) : null}
         </div>
       </Alert>
     )

@@ -12,6 +12,7 @@
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 
+import type * as MlxAsrRuntime from '@cherrystudio/mlx-asr'
 import { CPU_LOCAL_INFERENCE_PROFILE } from '@main/ai/localModel/runtime/inferenceAcceleration'
 import type { InferenceInitData, LocalInferenceRuntimeProfile } from '@main/ai/localModel/runtime/protocol'
 import type { UtilityProcessLogger } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
@@ -22,6 +23,8 @@ let appPath: string | undefined
 let runtimeProfile: LocalInferenceRuntimeProfile = CPU_LOCAL_INFERENCE_PROFILE
 let transformers: any = null
 let ppu: any = null
+let sherpa: any = null
+let mlxAsr: typeof MlxAsrRuntime | undefined
 
 /** Cached heavyweight resources, keyed by whatever identifies the model. */
 const cachedResources = new Map<string, Promise<DisposableResource>>()
@@ -57,6 +60,17 @@ export function applyInitData(initData: InferenceInitData): void {
   // both of which transitively require onnxruntime-node — see patches/onnxruntime-node@1.25.1.patch.
   const bindingPath = initData.artifactPaths['onnxruntime-node']
   if (bindingPath) process.env.CHERRY_ONNXRUNTIME_BINDING_PATH = bindingPath
+  const sherpaBindingPath = initData.artifactPaths['sherpa-onnx']
+  if (sherpaBindingPath) process.env.CHERRY_SHERPA_ONNX_BINDING_PATH = sherpaBindingPath
+  const mlxBindingPath = initData.artifactPaths['mlx-node']
+  if (mlxBindingPath) process.env.NAPI_RS_NATIVE_LIBRARY_PATH = mlxBindingPath
+}
+
+export async function getMlxAsr(): Promise<typeof MlxAsrRuntime> {
+  mlxAsr ??= (await import(
+    pathToFileURL(projectRequire().resolve('@cherrystudio/mlx-asr')).href
+  )) as typeof MlxAsrRuntime
+  return mlxAsr
 }
 
 /** Resolves off the app root, matching how the packaged app finds these packages. */
@@ -76,6 +90,19 @@ export async function getPpu(): Promise<any> {
     ppu = await import(pathToFileURL(projectRequire().resolve('ppu-paddle-ocr')).href)
   }
   return ppu
+}
+
+export function getSherpa(): any {
+  if (!sherpa) {
+    try {
+      sherpa = projectRequire()('sherpa-onnx-node')
+    } catch (error) {
+      throw Object.assign(new Error('ASR model initialization failed', { cause: error }), {
+        code: 'ASR_MODEL_LOAD_FAILED'
+      })
+    }
+  }
+  return sherpa
 }
 
 /** Memoizes a loaded model, dropping the entry on failure so a later request can retry. */

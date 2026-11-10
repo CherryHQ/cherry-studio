@@ -1,4 +1,4 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import { getToolName, isToolUIPart } from 'ai'
 
 import { GENERATE_IMAGE_TOOL_NAME, generateImageOutputSchema } from '@shared/ai/builtinTools'
@@ -8,14 +8,19 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { buildToolResponseFromPart } from '../toolResponse'
 
 const CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`
+const PI_MCP_GENERATE_IMAGE_TOOL_NAME = `mcp__cherry_tools__${GENERATE_IMAGE_TOOL_NAME}`
 
 export function isGenerateImageToolName(toolName: string): boolean {
-  return toolName === GENERATE_IMAGE_TOOL_NAME || toolName === CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME
+  return (
+    toolName === GENERATE_IMAGE_TOOL_NAME ||
+    toolName === CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME ||
+    toolName === PI_MCP_GENERATE_IMAGE_TOOL_NAME
+  )
 }
 
 export function parseGeneratedImageOutput(response: unknown) {
   const outputParse = generateImageOutputSchema.safeParse(response)
-  const mcpOutputParse = CallToolResultSchema.safeParse(response)
+  const mcpOutputParse = CallToolResultSchema.safeParse(Array.isArray(response) ? { content: response } : response)
   return {
     items: outputParse.success ? outputParse.data : [],
     inlineUrls:

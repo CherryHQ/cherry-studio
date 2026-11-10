@@ -1,12 +1,13 @@
 import { ChevronDown, Library } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelectorRow } from '@renderer/components/ModelSelector'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '@renderer/components/SelectorShell'
 import { useListboxKeyboardNavigation } from '@renderer/hooks/useListboxKeyboardNavigation'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 
 const KNOWLEDGE_BASE_ROW_HEIGHT = 36
 const KNOWLEDGE_BASE_LIST_PADDING = 8
@@ -45,7 +46,7 @@ export const KnowledgeBaseSelector = ({
   const selectedOption = options.find((option) => option.value === value)
   const filteredOptions = useMemo(() => {
     const query = searchValue.trim().toLowerCase()
-    return query ? options.filter((option) => option.label.toLowerCase().includes(query)) : options
+    return query ? options.filter((option) => matchesSearchText(`${option.label} ${option.value}`, query)) : options
   }, [options, searchValue])
   const listHeight =
     filteredOptions.length > 0
@@ -104,13 +105,16 @@ export const KnowledgeBaseSelector = ({
       contentProps={{ onKeyDown: handleKeyDown }}
       data-testid="knowledge-base-selector-content">
       {({ availableListHeight }) => (
-        <Scrollbar
-          id={listboxId}
-          ref={listRef}
-          role="listbox"
-          aria-label={ariaLabel}
-          tabIndex={-1}
-          className="min-h-0 flex-1 px-1 py-1 outline-none"
+        <ScrollArea
+          viewportProps={{
+            id: listboxId,
+            ref: listRef,
+            role: 'listbox',
+            'aria-label': ariaLabel,
+            tabIndex: -1,
+            className: 'px-1 py-1 outline-none'
+          }}
+          className="min-h-0 flex-1"
           style={{ height: availableListHeight ?? listHeight }}>
           {filteredOptions.length > 0 ? (
             filteredOptions.map((option, index) => {
@@ -147,7 +151,7 @@ export const KnowledgeBaseSelector = ({
               {emptyText}
             </div>
           )}
-        </Scrollbar>
+        </ScrollArea>
       )}
     </SelectorShell>
   )

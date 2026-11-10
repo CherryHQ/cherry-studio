@@ -31,6 +31,9 @@ export function getAgentDescriptionForDisplay(
   if (agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT) {
     return t('agent.builtin.cherry_support.description')
   }
+  if (agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.DOCTOR) {
+    return t('agent.builtin.cherry_doctor.description')
+  }
   return ''
 }
 
@@ -124,5 +127,7 @@ export function getPermissionModeCards(agentType: AgentType | string | undefined
   const modes = new Set<AgentPermissionMode>(AGENT_RUNTIME_CAPABILITIES[agentType as AgentType].permissionModes)
   return permissionModeCards
     .filter((card) => modes.has(card.mode))
-    .map((card) => (agentType === 'pi' ? { ...card, ...PI_CARD_OVERRIDES[card.mode] } : card))
+    .map((card) =>
+      agentType === 'pi' || agentType === 'pi-durable' ? { ...card, ...PI_CARD_OVERRIDES[card.mode] } : card
+    )
 }

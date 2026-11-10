@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import {
   agentTaskService,
@@ -17,14 +18,17 @@ import {
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
-import { clampHeartbeatIntervalMinutes, isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
+import {
+  clampHeartbeatIntervalMinutes,
+  isHeartbeatEnabled,
+  normalizeHeartbeatTimeoutMinutes
+} from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type JobScheduleSnapshot, type Trigger, triggersEqual } from '@shared/data/api/schemas/jobs'
 
 import { agentDataDirectoryPath, assertAgentStoragePath } from './agentDataDirectory'
-import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from './agentTaskDefaults'
 import { ensureHeartbeatFile, HeartbeatFileNotRegularError } from './heartbeat'
 
 const logger = loggerService.withContext('HeartbeatSchedule')
@@ -89,6 +93,26 @@ function findHeartbeatRow(agentId: string, rows: JobScheduleSnapshot[]) {
     rows.find((row) => matchesFallbackIdentity(row, agentId)) ??
     null
   )
+}
+
+export function reclaimHeartbeatWorkspacesTx(tx: DbOrTx, deletedSchedules: JobScheduleSnapshot[]): void {
+  for (const schedule of deletedSchedules) {
+    const input = schedule.jobInputTemplate
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) continue
+    const template = input as Record<string, unknown>
+    if (typeof template.agentId !== 'string' || typeof template.prompt !== 'string') continue
+    const reservedName =
+      schedule.name === `heartbeat_${template.agentId}` || schedule.name?.startsWith(`heartbeat_${template.agentId}__`)
+    if (
+      !isHeartbeatRow(schedule, template.agentId) &&
+      !(reservedName && template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL)
+    )
+      continue
+    const workspace = AgentSessionWorkspaceSourceSchema.safeParse(template.workspace)
+    if (workspace.success && workspace.data.type === AGENT_WORKSPACE_TYPE.USER) {
+      agentWorkspaceService.deleteIfUnreferencedTx(tx, workspace.data.workspaceId)
+    }
+  }
 }
 
 /** True when the error is the (type, name) UNIQUE-conflict from registerJobScheduleTx. */
@@ -174,6 +198,11 @@ function armCommittedScheduleTimer(scheduleId: string): void {
   }
 }
 
+function deleteHeartbeatSchedule(scheduleId: string): void {
+  application.get('DbService').withWriteTx((tx) => agentTaskService.deleteScheduleTx(tx, scheduleId))
+  application.get('JobManager').syncJobScheduleTimerById(scheduleId)
+}
+
 export async function syncHeartbeatSchedule(
   agentId: string,
   signal: AbortSignal,
@@ -192,17 +221,18 @@ export async function syncHeartbeatSchedule(
     const state = agentService.getLifecycleState(agentId)
     if (state === 'active') return outcome
     if (state === 'trashed') {
-      const scheduleIds = application
+      const { scheduleIds } = application
         .get('DbService')
         .withWriteTx((tx) => agentTaskService.setOwnerStateTx(tx, agentId, 'trashed', Date.now()))
       for (const scheduleId of scheduleIds) application.get('JobManager').syncJobScheduleTimerById(scheduleId)
       return 'skipped-missing-agent'
     }
-    const jobManager = application.get('JobManager')
     for (const scheduleId of touchedScheduleIds) {
-      await jobManager.unregisterJobScheduleById(scheduleId).catch((error) => {
+      try {
+        deleteHeartbeatSchedule(scheduleId)
+      } catch (error) {
         logger.warn('Failed to remove heartbeat schedule for an agent deleted mid-sync', { agentId, error })
-      })
+      }
     }
     if (touchedScheduleIds.length > 0) {
       logger.info('Removed heartbeat schedule for an agent deleted mid-sync', {
@@ -305,7 +335,7 @@ export async function syncHeartbeatSchedule(
   const jobInputTemplate: HeartbeatJobInputTemplate = {
     agentId,
     prompt: HEARTBEAT_PROMPT_SENTINEL,
-    timeoutMinutes: DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
+    timeoutMinutes: normalizeHeartbeatTimeoutMinutes(config.heartbeat_timeout_minutes),
     reuseRevision: 0
   }
 
@@ -351,7 +381,7 @@ export async function syncHeartbeatSchedule(
   const removals = await Promise.allSettled(
     duplicates.map(async (row) => {
       try {
-        await jobManager.unregisterJobScheduleById(row.id)
+        deleteHeartbeatSchedule(row.id)
       } catch (error) {
         // A transient unregister failure must not leave the duplicate armed
         // beside the canonical row — pause best-effort, mirroring the sweep.
@@ -459,64 +489,5 @@ export async function repairHeartbeatSchedules(
       paused: counts.get('paused') ?? 0,
       failed: counts.get('failed') ?? 0
     })
-  }
-  signal.throwIfAborted()
-  await reapOrphanedScheduleRows(rows, signal)
-}
-
-function readTemplateAgentId(row: JobScheduleSnapshot): string | null {
-  const template = row.jobInputTemplate as { agentId?: unknown } | null
-  return typeof template?.agentId === 'string' && template.agentId.length > 0 ? template.agentId : null
-}
-
-function dropOrphanWorkspace(scheduleId: string, workspaceId: string): void {
-  try {
-    const removed = application
-      .get('DbService')
-      .withWriteTx((tx) => agentWorkspaceService.deleteIfUnreferencedTx(tx, workspaceId))
-    if (!removed) {
-      logger.info('Kept an orphaned schedule workspace still referenced after reaping', { scheduleId, workspaceId })
-    }
-  } catch (error) {
-    logger.warn('Failed to drop an orphaned schedule workspace', { scheduleId, workspaceId, error })
-  }
-}
-
-/**
- * Startup reaper for agent.task rows whose producer agent is gone — a deletion
- * sweep can fail transiently mid-unregister and leave the row (and its user
- * workspace) behind. Per-row isolation, mirroring the sweep.
- */
-async function reapOrphanedScheduleRows(rows: JobScheduleSnapshot[], signal: AbortSignal): Promise<void> {
-  const orphans = rows.filter((row) => {
-    const producer = readTemplateAgentId(row)
-    return producer !== null && agentService.getLifecycleState(producer) === 'missing'
-  })
-  const reaped: string[] = []
-  for (const row of orphans) {
-    signal.throwIfAborted()
-    try {
-      if (!(await application.get('JobManager').unregisterJobScheduleById(row.id))) continue
-    } catch (error) {
-      logger.warn('Failed to reap an orphaned agent task schedule', { scheduleId: row.id, error })
-      pauseHeartbeatSchedule(readTemplateAgentId(row) ?? '', row.id, 'Failed to pause an orphaned agent task schedule')
-      continue
-    }
-    reaped.push(row.id)
-    const template = row.jobInputTemplate as { workspace?: { type?: unknown; workspaceId?: unknown } | null } | null
-    const workspace = template?.workspace
-    // Mirror the deletion sweep: only a heartbeat's workspace row goes — an
-    // ordinary task's user-picked workspace outlives its producer agent.
-    if (
-      workspace?.type === AGENT_WORKSPACE_TYPE.USER &&
-      typeof workspace.workspaceId === 'string' &&
-      matchesHeartbeatIdentity(row, readTemplateAgentId(row) ?? '')
-    ) {
-      dropOrphanWorkspace(row.id, workspace.workspaceId)
-    }
-  }
-  if (reaped.length > 0) {
-    logger.info('Reaped orphaned agent task schedules at startup', { scheduleIds: reaped })
-    agentTaskService.notifyReadModelChange(reaped)
   }
 }

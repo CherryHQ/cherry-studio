@@ -11,12 +11,14 @@ import {
   createSessionDisplayGroupResolver,
   createSessionWorkdirDisplayMaps,
   createSessionWorkdirLabelMap,
+  deriveSessionListView,
   getPrimarySessionWorkdir,
   moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
   normalizeSessionWorkdirPath,
   SESSION_NO_PROJECT_GROUP_ID,
   SESSION_PINNED_GROUP_ID,
+  type SessionListItem,
   sortSessionsForDisplayGroups
 } from '../sessionListHelpers'
 import { createResourceListGroupReorderPayload, createResourceListItemReorderPayload } from './resourceListFixtures'
@@ -116,13 +118,15 @@ describe('SessionList helpers', () => {
     expect(normalizeSessionDropPayload(crossGroupPayload)).toBe(crossGroupPayload)
   })
 
-  it('allows drag only inside the same non-pinned display group', () => {
+  it('allows drag only inside the same display group, including the pinned group', () => {
     const cases = [
       ['same agent group', 'agent', 'session:agent:agent-a', 'session:agent:agent-a', true],
       ['different agent groups', 'agent', 'session:agent:agent-a', 'session:agent:agent-b', false],
       ['same workdir group', 'workdir', 'session:workspace:ws-a', 'session:workspace:ws-a', true],
       ['different workdir groups', 'workdir', 'session:workspace:ws-a', 'session:workspace:ws-b', false],
-      ['pinned group', 'workdir', 'session:pinned', 'session:pinned', false],
+      ['pinned group', 'workdir', 'session:pinned', 'session:pinned', true],
+      ['pinned to workdir group', 'workdir', 'session:pinned', 'session:workspace:ws-a', false],
+      ['workdir group to pinned', 'workdir', 'session:workspace:ws-a', 'session:pinned', false],
       ['time mode', 'time', 'session:workspace:ws-a', 'session:workspace:ws-a', false]
     ] as const
 
@@ -197,7 +201,7 @@ describe('SessionList helpers', () => {
     expect(allPinned(pinned)).toEqual({ id: SESSION_PINNED_GROUP_ID, label: 'Pinned' })
   })
 
-  it('keeps pinned sessions inside their agent group', () => {
+  it('keeps pinned sessions in their dedicated section in agent mode', () => {
     const groupSession = createSessionDisplayGroupResolver({
       agentById: new Map([['agent-1', { id: 'agent-1', name: 'Alpha agent' }]]),
       labels: SESSION_GROUP_LABELS,
@@ -205,8 +209,8 @@ describe('SessionList helpers', () => {
     })
 
     expect(groupSession(createSession({ agentId: 'agent-1', pinned: true }))).toEqual({
-      id: 'session:agent:agent-1',
-      label: 'Alpha agent'
+      id: SESSION_PINNED_GROUP_ID,
+      label: 'Pinned'
     })
   })
 
@@ -425,7 +429,7 @@ describe('SessionList helpers', () => {
     ).toEqual(['pinned', 'newer', 'older'])
   })
 
-  it('sorts pinned sessions first within each agent group', () => {
+  it('sorts the pinned section before every agent group', () => {
     const sessions = [
       createSession({ id: 'regular-b', agentId: 'agent-b', orderKey: 'b' }),
       createSession({ id: 'regular-a', agentId: 'agent-a', orderKey: 'a' }),
@@ -441,7 +445,7 @@ describe('SessionList helpers', () => {
         ]),
         mode: 'agent'
       }).map((session) => session.id)
-    ).toEqual(['pinned-a', 'regular-a', 'pinned-b', 'regular-b'])
+    ).toEqual(['pinned-b', 'pinned-a', 'regular-a', 'regular-b'])
   })
 
   it('keeps system workspace sessions at the bottom only in workdir mode', () => {
@@ -501,5 +505,70 @@ describe('SessionList helpers', () => {
         workdirDisplay: createSessionWorkdirDisplayMaps(sessions, [makeWorkspace('/Users/jd/project-a')])
       }).map((session) => session.id)
     ).toEqual(['inserted-before-that', 'inserted-before-first', 'first-created'])
+  })
+})
+
+describe('deriveSessionListView', () => {
+  const labels = {
+    pinned: 'Pinned',
+    time: { today: 'Today', yesterday: 'Yesterday', 'this-week': 'This week', earlier: 'Earlier' },
+    agent: { unknown: 'Unknown' },
+    workdir: { none: 'None' }
+  }
+  const options = {
+    agentById: new Map([
+      ['agent-a', { id: 'agent-a', name: 'Alpha' }],
+      ['agent-b', { id: 'agent-b', name: 'Beta' }]
+    ]),
+    agentRankById: new Map([
+      ['agent-b', 0],
+      ['agent-a', 1]
+    ]),
+    labels,
+    mode: 'agent' as const,
+    now: new Date('2026-01-07T12:00:00Z'),
+    visibleAgentId: undefined,
+    workspaces: []
+  }
+  const items = [
+    { id: 'a1', agentId: 'agent-a', orderKey: 'a0', lastActivityAt: '2026-01-07T10:00:00Z' },
+    { id: 'b1', agentId: 'agent-b', orderKey: 'a1', lastActivityAt: '2026-01-07T09:00:00Z' }
+  ] as SessionListItem[]
+
+  it('orders sessions by agent rank and groups them by agent', () => {
+    const view = deriveSessionListView(items, options)
+
+    expect(view.items.map((item) => item.id)).toEqual(['b1', 'a1'])
+    expect(view.groupBy(view.items[0])?.id).toBe('session:agent:agent-b')
+  })
+
+  it('keeps only the chosen agent, and nothing until one is chosen', () => {
+    expect(
+      deriveSessionListView(items, { ...options, visibleAgentId: 'agent-a' }).items.map((item) => item.id)
+    ).toEqual(['a1'])
+    expect(deriveSessionListView(items, { ...options, visibleAgentId: null }).items).toEqual([])
+  })
+
+  it('applies an in-flight drag on top of the sorted order', () => {
+    const view = deriveSessionListView(
+      [
+        { ...items[0], id: 'a2', orderKey: 'a0' },
+        { ...items[0], id: 'a3', orderKey: 'a1' }
+      ],
+      options,
+      {
+        type: 'item',
+        activeId: 'a3',
+        overId: 'a2',
+        overType: 'item',
+        position: 'before',
+        sourceGroupId: 'session:agent:agent-a',
+        targetGroupId: 'session:agent:agent-a',
+        sourceIndex: 1,
+        targetIndex: 0
+      }
+    )
+
+    expect(view.items.map((item) => item.id)).toEqual(['a3', 'a2'])
   })
 })

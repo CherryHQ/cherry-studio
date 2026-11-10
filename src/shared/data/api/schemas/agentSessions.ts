@@ -78,6 +78,7 @@ export type SetAgentSessionWorkspaceDto = AgentSessionWorkspaceSource
 export const ListAgentSessionsQuerySchema = z.strictObject({
   ids: z.array(z.string().min(1)).min(1).max(200).optional(),
   agentId: z.string().optional(),
+  workspaceId: z.string().min(1).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().positive().max(200).optional(),
   /** `true` lists only trashed sessions; omitted/false lists active sessions. */
@@ -85,6 +86,12 @@ export const ListAgentSessionsQuerySchema = z.strictObject({
 })
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
+
+/** Ordinary conversation entry can reject task-owned sessions without restricting task history reads. */
+export const GetAgentSessionQuerySchema = z.strictObject({
+  excludeTaskSessions: z.boolean().optional()
+})
+export type GetAgentSessionQuery = z.infer<typeof GetAgentSessionQuerySchema>
 
 /** Optional owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
 export const LatestAgentSessionQuerySchema = z.strictObject({
@@ -151,6 +158,7 @@ export type AgentSessionSchemas = {
   '/agent-sessions/:sessionId': {
     GET: {
       params: { sessionId: string }
+      query?: GetAgentSessionQuery
       response: AgentSessionEntity
     }
     PATCH: {

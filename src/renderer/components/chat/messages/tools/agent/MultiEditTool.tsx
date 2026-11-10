@@ -1,3 +1,5 @@
+import { getFilePreviewFileName } from '@renderer/utils/filePreview'
+
 import type { MultiEditToolInput, MultiEditToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
@@ -25,7 +27,7 @@ export function MultiEditTool({
   input?: MultiEditToolInput
   output?: MultiEditToolOutput
 }): ToolDisclosureItem {
-  const filename = input?.file_path?.split('/').pop()
+  const filename = input?.file_path ? getFilePreviewFileName(input.file_path) : undefined
 
   return {
     key: AgentToolsType.MultiEdit,

@@ -1,12 +1,19 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import AdmZip from 'adm-zip'
 import StreamZip from 'node-stream-zip'
 
 import { loggerService } from '@logger'
-import { isOutsidePath } from '@main/utils/file'
+import { isOutsidePath, openReadableFileSnapshot } from '@main/utils/file'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
-import { assertZipEntriesWithin } from '@main/utils/zipSafety'
+import {
+  assertNoFoldedPathCollisions as assertNoFoldedPathCollisionsShared,
+  assertZipEntriesWithin
+} from '@main/utils/zipSafety'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
+import { SkillImportError } from './SkillImportError'
 
 /**
  * Handling for an untrusted skill tree on disk, however it arrived — an extracted ZIP or a shallow
@@ -27,25 +34,77 @@ export const MAX_SKILL_FILES = 20_000
 export const MAX_ARCHIVE_SIZE = 1024 * 1024 * 1024 // 1GB
 export const MAX_ARCHIVE_ENTRIES = 50_000
 
+/** Export the complete package without following links outside the installed skill. */
+export async function exportSkillArchive(skillDir: string): Promise<Uint8Array> {
+  const root = await fs.promises.realpath(skillDir)
+  if (!(await findSkillMdPath(root))) throw new Error('Missing SKILL.md')
+  const zip = new AdmZip()
+  let size = 0
+  let count = 0
+  const walk = async (directory: string): Promise<void> => {
+    for (const entry of await fs.promises.readdir(directory, { withFileTypes: true })) {
+      if (++count > MAX_SKILL_FILES) throw new Error('Skill has too many files')
+      const filename = path.join(directory, entry.name)
+      const real = await fs.promises.realpath(filename)
+      if (entry.isSymbolicLink() || isOutsidePath(path.relative(root, real))) {
+        throw new Error('Cannot export a skill containing symbolic links')
+      }
+      if (entry.isDirectory()) {
+        await walk(filename)
+      } else if (entry.isFile()) {
+        const snapshot = await openReadableFileSnapshot(AbsoluteFilePathSchema.parse(real))
+        try {
+          if (size + snapshot.size > MAX_SKILL_SIZE) throw new Error('Skill exceeds the export size limit')
+          const chunks: Buffer[] = []
+          for await (const chunk of snapshot.createReadStream()) {
+            const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+            size += bytes.length
+            if (size > MAX_SKILL_SIZE) throw new Error('Skill exceeds the export size limit')
+            chunks.push(bytes)
+          }
+          zip.addFile(
+            path.relative(root, filename).split(path.sep).join('/'),
+            Buffer.concat(chunks),
+            '',
+            (await fs.promises.stat(real)).mode
+          )
+        } finally {
+          await snapshot.close()
+        }
+      } else {
+        throw new Error('Cannot export a non-regular skill file')
+      }
+    }
+  }
+  await walk(root)
+  return new Promise<Buffer>((resolve, reject) => zip.toBuffer(resolve, reject))
+}
+
 export async function validateZipFile(zipFilePath: string): Promise<void> {
   const stats = await fs.promises.stat(zipFilePath)
   if (!stats.isFile()) {
-    throw new Error(`Not a file: ${zipFilePath}`)
+    throw new SkillImportError('INVALID_ZIP_FILE', `Not a file: ${zipFilePath}`)
   }
   if (!zipFilePath.toLowerCase().endsWith('.zip')) {
-    throw new Error(`Not a ZIP file: ${zipFilePath}`)
+    throw new SkillImportError('INVALID_ZIP_FILE', `Not a ZIP file: ${zipFilePath}`)
   }
 }
+
+/**
+ * Paths differing only in case or Unicode composition land on one file on macOS and Windows, so the
+ * installed content would depend on the platform and on which entry was written last.
+ */
+export const assertNoFoldedPathCollisions = (paths: readonly string[]): void =>
+  assertNoFoldedPathCollisionsShared(paths, 'Skill')
 
 export async function extractZip(zipFilePath: string, destDir: string): Promise<void> {
   const zip = new StreamZip.async({ file: zipFilePath })
 
   try {
     const entries = Object.values(await zip.entries())
-    assertZipEntriesWithin(
-      entries.map((entry) => entry.name),
-      destDir
-    )
+    const entryNames = entries.map((entry) => entry.name)
+    assertZipEntriesWithin(entryNames, destDir)
+    assertNoFoldedPathCollisions(entryNames)
     // Measure the whole archive before rejecting it. Stopping at the entry that crosses a ceiling
     // reports the running counter — always the limit plus one entry — so an archive many times
     // over the limit reads as barely over it, and the user cannot tell why the install failed.
@@ -186,7 +245,7 @@ export async function resolveSkillDirectory(
   const rootSkill = await findSkillMdPath(repoDir)
   if (rootSkill) return validateRepositorySkillDirectory(repoDir, repoDir, rootSkill)
 
-  throw new Error(`No skill directory found in ${repoDir}`)
+  throw new SkillImportError('SKILL_DIRECTORY_NOT_FOUND', `No skill directory found in ${repoDir}`)
 }
 
 export async function validateRepositorySkillDirectory(
@@ -204,7 +263,7 @@ export async function validateRepositorySkillDirectory(
   }
 
   const skillMdPath = knownSkillMdPath ?? (await findSkillMdPath(skillRealPath))
-  if (!skillMdPath) throw new Error(`No SKILL.md found in ${skillDir}`)
+  if (!skillMdPath) throw new SkillImportError('SKILL_DIRECTORY_NOT_FOUND', `No SKILL.md found in ${skillDir}`)
   const skillMdRealPath = await fs.promises.realpath(skillMdPath)
   const relativeDescriptorPath = path.relative(repoRealPath, skillMdRealPath)
   if (isOutsidePath(relativeDescriptorPath)) {

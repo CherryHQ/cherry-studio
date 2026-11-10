@@ -16,7 +16,7 @@ import { type ReactNode, type Ref, useCallback, useEffect, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 import { Virtualizer } from 'virtua'
 
-import { Button, Scrollbar, Tooltip } from '@cherrystudio/ui'
+import { Button, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chatVirtualizerRuntime'
@@ -343,13 +343,21 @@ export function MessageVirtualList<T>({
 
   return (
     <div data-message-virtual-list-root className="relative flex min-h-0" style={style}>
-      <Scrollbar
-        ref={setScrollerRef}
-        data-message-virtual-list-scroller
-        tabIndex={0}
-        role="region"
-        aria-label={t('globalSearch.groups.message')}
-        className={cn('min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none]', className)}>
+      <ScrollArea
+        onPointerDownCapture={(event) => {
+          if (event.button !== 0 || !(event.target instanceof Element)) return
+          const track = event.target.closest('[data-slot="scroll-area-scrollbar"]')
+          if (track?.parentElement === event.currentTarget) beginScrollbarDrag()
+        }}
+        viewportProps={{
+          ref: setScrollerRef,
+          'data-message-virtual-list-scroller': true,
+          tabIndex: 0,
+          role: 'region',
+          'aria-label': t('globalSearch.groups.message'),
+          className: '[overflow-anchor:none]'
+        }}
+        className={cn('min-h-0 flex-1', className)}>
         <div ref={runtime.contentRef}>
           <ScrollOwnershipProvider
             scrollContainerRef={runtime.scrollerRef}
@@ -360,9 +368,7 @@ export function MessageVirtualList<T>({
             {topPadding > 0 && (
               <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
             )}
-            {/* Virtua reads an external scrollRef only when it mounts. Wait for
-                Scrollbar's ref callback so staged layouts cannot leave it
-                permanently unmeasured with data but no rendered items. */}
+            {/* Virtua reads the external scroll ref on mount, so wait for the viewport. */}
             {scrollerElement && (
               <Virtualizer
                 ref={runtime.vlistHandleRef}
@@ -383,7 +389,7 @@ export function MessageVirtualList<T>({
         {/* Outside the content wrapper so runtime-owned freeze slack does not
             inflate the natural content size observed above. */}
         <div ref={runtime.freezeSpacerRef} aria-hidden="true" data-message-virtual-list-freeze-spacer />
-      </Scrollbar>
+      </ScrollArea>
       {shouldShowScrollToBottomButton && (
         <ScrollToBottomButton
           bottomOffset={scrollToBottomButtonBottomOffset}

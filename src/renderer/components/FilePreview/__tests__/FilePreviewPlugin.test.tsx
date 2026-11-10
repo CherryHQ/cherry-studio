@@ -1,13 +1,12 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentPropsWithoutRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { FilePreviewLayout, FilePreviewToolbar } from '@cherrystudio/file-preview/react'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-import { FilePreviewLayout } from '../FilePreviewLayout'
 import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
-import { FilePreviewToolbar } from '../FilePreviewToolbar'
 
 const mocks = vi.hoisted(() => ({
   ipcApiRequest: vi.fn(),
@@ -25,7 +24,7 @@ vi.mock('@cherrystudio/ui', () => ({
       <div>{description}</div>
     </div>
   ),
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('react-i18next', () => ({

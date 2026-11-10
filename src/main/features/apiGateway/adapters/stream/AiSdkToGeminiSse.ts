@@ -11,7 +11,7 @@
  * @see https://ai.google.dev/api/generate-content#method:-models.streamgeneratecontent
  */
 
-import type { FinishReason, UIMessageChunk } from 'ai'
+import type { FinishReason, ProviderMetadata, UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
 
@@ -39,6 +39,7 @@ interface GeminiUsageMetadata {
   candidatesTokenCount: number
   totalTokenCount: number
   thoughtsTokenCount?: number
+  cachedContentTokenCount?: number
 }
 
 interface GeminiCandidate {
@@ -89,13 +90,14 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     logger.silly('AiSdkToGeminiSse - Processing chunk', { type: chunk.type })
     switch (chunk.type) {
       case 'text-delta':
-        this.appendText(chunk.delta || '', false)
+        this.appendText(chunk.delta || '', false, chunk.providerMetadata)
         break
 
       case 'reasoning-delta':
-        this.appendText(chunk.delta || '', true)
+        this.appendText(chunk.delta || '', true, chunk.providerMetadata)
         break
 
+      case 'tool-input-error':
       case 'tool-input-available': {
         // Gemini 3 requires the model's thought signature echoed back on the next
         // function-calling turn; the Google provider surfaces it on the tool call's
@@ -128,15 +130,23 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
   }
 
   /** Accumulate a text/thought delta (merged into the trailing like-kind part) and stream it. */
-  private appendText(text: string, thought: boolean): void {
-    if (!text) return
+  private appendText(text: string, thought: boolean, metadata?: ProviderMetadata): void {
+    const signature = metadata?.google?.thoughtSignature
+    const thoughtSignature = typeof signature === 'string' ? signature : undefined
+    if (!text && thoughtSignature === undefined) return
+    const part: GeminiResponsePart = {
+      text,
+      ...(thought && { thought: true }),
+      ...(thoughtSignature !== undefined && { thoughtSignature })
+    }
     const last = this.accumulatedParts[this.accumulatedParts.length - 1]
     if (last && last.functionCall === undefined && (last.thought ?? false) === thought) {
       last.text = (last.text ?? '') + text
+      if (thoughtSignature !== undefined) last.thoughtSignature = thoughtSignature
     } else {
-      this.accumulatedParts.push(thought ? { text, thought: true } : { text })
+      this.accumulatedParts.push({ ...part })
     }
-    this.emitParts([thought ? { text, thought: true } : { text }])
+    this.emitParts([part])
   }
 
   private appendFunctionCall(name: string, args: unknown, thoughtSignature?: string): void {
@@ -158,17 +168,34 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     if (!metadata) return
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+    if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
+      this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
+    }
     const reasoningTokens = metadata.stats?.outputTokenDetails?.reasoningTokens
     if (reasoningTokens !== undefined) this.thoughtsTokens = reasoningTokens
   }
 
   private buildUsageMetadata(): GeminiUsageMetadata {
+    // AI SDK's `outputTokens` counts all generated tokens including reasoning —
+    // the breakdown lives in `outputTokenDetails` (every major provider maps
+    // total = text + reasoning). Gemini reports candidates separately from
+    // thoughts (total = prompt + candidates + thoughts), so emitting the
+    // reasoning-inclusive total as candidatesTokenCount would double-count
+    // thoughts inside the frame.
+    const candidatesTokenCount = Math.max(0, this.state.outputTokens - this.thoughtsTokens)
     const usage: GeminiUsageMetadata = {
       promptTokenCount: this.state.inputTokens,
-      candidatesTokenCount: this.state.outputTokens,
+      candidatesTokenCount,
       totalTokenCount: this.state.inputTokens + this.state.outputTokens
     }
     if (this.thoughtsTokens > 0) usage.thoughtsTokenCount = this.thoughtsTokens
+    // The projected `inputTokens` is Gemini's cache-inclusive prompt total
+    // (`promptTokenCount`), so cache reads are a subset of it — report them on
+    // their own field without touching the sum, mirroring the thoughtsTokenCount
+    // convention of staying absent when zero.
+    if (this.state.cacheReadTokens !== undefined && this.state.cacheReadTokens > 0) {
+      usage.cachedContentTokenCount = this.state.cacheReadTokens
+    }
     return usage
   }
 
@@ -177,7 +204,8 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     this.emit({
       candidates: [{ content: { role: 'model', parts: [] }, finishReason: this.finishReason, index: 0 }],
       usageMetadata: this.buildUsageMetadata(),
-      modelVersion: this.state.model
+      modelVersion: this.state.model,
+      responseId: this.state.messageId
     })
   }
 
@@ -191,7 +219,8 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
         }
       ],
       usageMetadata: this.buildUsageMetadata(),
-      modelVersion: this.state.model
+      modelVersion: this.state.model,
+      responseId: this.state.messageId
     }
   }
 }

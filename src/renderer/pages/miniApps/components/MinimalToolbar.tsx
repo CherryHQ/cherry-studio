@@ -1,14 +1,37 @@
 import type { WebviewTag } from 'electron'
-import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Code,
+  Columns2,
+  Ellipsis,
+  ExternalLink,
+  Info,
+  LayoutGrid,
+  Link,
+  Power,
+  RotateCw,
+  X
+} from 'lucide-react'
 import type { FC, RefObject } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Input,
+  Tooltip
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { MiniAppDebuggingIndicator } from '@renderer/components/MiniApp/MiniAppDebuggingIndicator'
 import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useWebviewNavigation } from '@renderer/hooks/useWebviewNavigation'
 import { ipcApi } from '@renderer/ipc'
@@ -31,6 +54,7 @@ interface Props {
   currentUrl: string | null
   isWebviewReady: boolean
   onReload: () => void
+  onRestart: () => void
   onOpenDevTools: () => void
   splitMode: SplitMode
   /** Whether the view is currently split, so the control reads as engaged. */
@@ -45,6 +69,7 @@ const MinimalToolbar: FC<Props> = ({
   currentUrl,
   isWebviewReady,
   onReload,
+  onRestart,
   onOpenDevTools,
   splitMode,
   splitActive = false,
@@ -55,6 +80,7 @@ const MinimalToolbar: FC<Props> = ({
   const { pinned, updateAppStatus, allApps } = useMiniApps()
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [detailOpen, setDetailOpen] = useState(false)
+  const detailDialog = useExitPresence(detailOpen ? true : null)
   const {
     canGoBack,
     canGoForward,
@@ -258,6 +284,7 @@ const MinimalToolbar: FC<Props> = ({
         </form>
       )}
 
+      <MiniAppDebuggingIndicator appId={app.appId} />
       <div className="ml-auto flex shrink-0 items-center">
         <div className="flex items-center gap-0.5">
           <Tooltip content={t(splitLabelKey)} placement="bottom">
@@ -356,9 +383,32 @@ const MinimalToolbar: FC<Props> = ({
               </Button>
             </Tooltip>
           )}
+
+          <DropdownMenu>
+            <Tooltip content={t('common.more')} placement="bottom">
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className={toolbarButtonClassName()}
+                  aria-label={t('common.more')}>
+                  <Ellipsis size={14} />
+                </Button>
+              </DropdownMenuTrigger>
+            </Tooltip>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={onRestart}>
+                <Power />
+                {t('miniApp.popup.restart')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
-      {detailOpen && <MiniAppDetailPanel appId={app.appId} onClose={() => setDetailOpen(false)} />}
+      {detailDialog.isPresent && (
+        <MiniAppDetailPanel open={detailOpen} appId={app.appId} onClose={() => setDetailOpen(false)} />
+      )}
     </div>
   )
 }

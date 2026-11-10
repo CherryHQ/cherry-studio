@@ -2,10 +2,14 @@ import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
+import type { MessageProjectionUpdate, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
+  AiToolApprovalRespondResponse,
   AiToolResultRequest,
   AiToolResultResponse,
   StreamChunkPayload,
@@ -24,7 +28,11 @@ import {
   type ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
-import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
+import {
+  AgentSessionWorkspaceSourceSchema,
+  AgentWorkspaceEntitySchema,
+  AgentWorkspaceNameSchema
+} from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -35,7 +43,7 @@ import {
   UniqueModelIdSchema
 } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
-import { FileVersionSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
 
@@ -152,6 +160,16 @@ const aiImagePayloadSchema = z.strictObject({
    * in the renderer's `buildParamsSchema`; this is the value-type gate.
    */
   paramValues: imageParamsSchema,
+  /**
+   * Per-attempt request timeout (ms) for the provider submit call. Omitted
+   * means the transport default; bounded by the image job's 30-minute budget.
+   */
+  requestTimeoutMs: z
+    .number()
+    .int()
+    .min(10_000)
+    .max(30 * 60_000)
+    .optional(),
   /** Attached images / mask are encoded file bytes (data URLs), not form params. */
   inputImages: z.array(z.string()).optional(),
   mask: z.string().optional(),
@@ -182,7 +200,31 @@ const mentionedModelIdsSchema = z
   })
   .optional()
 
+const projectionTargetSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('topic'), topicId: z.string().min(1) }),
+  z.strictObject({ kind: z.literal('child'), sessionId: z.string().min(1), toolCallId: z.string().min(1) })
+]) satisfies z.ZodType<ProjectionTarget>
+
 export const aiRequestSchemas = {
+  'ai.projection.attach': defineRoute({
+    input: z.strictObject({ target: projectionTargetSchema, subscriptionId: z.uuid() }),
+    output: z.custom<MessageProjectionView | null>()
+  }),
+  'ai.projection.detach': defineRoute({
+    input: z.strictObject({ target: projectionTargetSchema, subscriptionId: z.uuid() }),
+    output: z.void()
+  }),
+  'ai.agent.child.message': defineRoute({
+    input: z.strictObject({ sessionId: z.string(), contextId: z.string(), text: z.string().trim().min(1) }),
+    output: z.void()
+  }),
+  'ai.claude_code.binary.status': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
+  'ai.claude_code.binary.ensure': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
+  'ai.claude_code.binary.retry': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
+  'ai.agent.attachment_selections.list': defineRoute({
+    input: z.object({ sessionId: z.string() }),
+    output: z.custom<AgentAttachmentSelection[]>()
+  }),
   // ── One-shot model calls, grouped by output modality (AiService) ──
   'ai.text.generate': defineRoute({
     input: z.strictObject({
@@ -224,7 +266,12 @@ export const aiRequestSchemas = {
       assistantId: z.string().optional(),
       throwOnError: z.boolean().optional()
     }),
-    output: z.array(ModelSchema.partial())
+    // A listing, not a bare array: a provider whose "models" are its own files
+    // (ComfyUI) holds some back, and the caller has to be able to say which.
+    output: z.object({
+      models: z.array(ModelSchema.partial()),
+      skippedModels: z.array(z.string()).optional()
+    })
   }),
   'ai.provider.model.check': defineRoute({
     input: z.strictObject({
@@ -312,7 +359,10 @@ export const aiRequestSchemas = {
       topicId: z.string().optional(),
       anchorId: z.string().optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
-    output: z.object({ ok: z.boolean() })
+    output: z.discriminatedUnion('ok', [
+      z.object({ ok: z.literal(true) }),
+      z.object({ ok: z.literal(false), reason: z.enum(['undelivered', 'rejected']) })
+    ]) satisfies z.ZodType<AiToolApprovalRespondResponse>
   }),
 
   // ── Agent session warm-connection lifecycle ──
@@ -342,6 +392,10 @@ export const aiRequestSchemas = {
   }),
   'ai.agent.support_session.create': defineRoute({
     input: z.void(),
+    output: z.strictObject({ sessionId: z.string().min(1) })
+  }),
+  'ai.agent.assistant_session.create': defineRoute({
+    input: z.strictObject({ workspace: AgentSessionWorkspaceSourceSchema.optional() }),
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
   'ai.agent.skill_session.create': defineRoute({
@@ -401,6 +455,13 @@ export const aiRequestSchemas = {
     input: ReuseOrCreateAgentSessionSchema,
     output: z.custom<ReusableAgentSessionPlaceholdersResponse>()
   }),
+  'ai.agent.workspace.register': defineRoute({
+    input: z.strictObject({
+      path: z.string().trim().pipe(AbsoluteFilePathSchema),
+      name: AgentWorkspaceNameSchema.optional()
+    }),
+    output: AgentWorkspaceEntitySchema
+  }),
   'ai.agent.workspace.delete': defineRoute({
     input: z.strictObject({ workspaceId: z.string().min(1) }),
     output: z.strictObject({ deletedIds: z.array(z.string()) })
@@ -419,6 +480,12 @@ export const aiRequestSchemas = {
   'ai.agent.session.stop_background_task': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1), taskId: z.string().min(1) }),
     output: z.boolean()
+  }),
+  // Opens a path a session's tools reported. `path` may be relative to the session's workspace —
+  // main owns that resolution, so the renderer never joins paths itself.
+  'ai.agent.session.open_path': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), path: z.string().min(1) }),
+    output: z.void()
   }),
 
   // ── Agent scheduled-task commands (AgentJobsService is the sole command owner) ──
@@ -472,6 +539,9 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
+  'ai.projection.changed': { subscriptionId: string; update: MessageProjectionUpdate }
+  'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
+  'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload
   'ai.stream.error': StreamErrorPayload

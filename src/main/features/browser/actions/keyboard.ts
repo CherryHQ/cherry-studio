@@ -1,12 +1,13 @@
 import { isMac } from '@main/core/platform'
 
-import type { BrowserRef, CommandOptions } from '../browserUse'
+import type { BrowserActionOptions } from '../BrowserCursor'
+import type { BrowserRef } from '../browserUse'
 import { BrowserSessionError } from '../session/BrowserSessionError'
 import type { GuestSession } from '../session/GuestSession'
 import { KeyModifier, resolveKeyDefinition, TEXT_SUPPRESSING_MODIFIERS } from './keyDefinitions'
 import { callOnElement, withElement } from './resolveTarget'
 
-export async function pressKey(session: GuestSession, chord: string, options: CommandOptions) {
+export async function pressKey(session: GuestSession, chord: string, options: BrowserActionOptions) {
   const parts = chord.split('+')
   let input = parts.pop()!
   if (!input && parts.at(-1) === '') {
@@ -20,6 +21,7 @@ export async function pressKey(session: GuestSession, chord: string, options: Co
   }
   const definition = resolveKeyDefinition(input, Boolean(modifiers & KeyModifier.Shift))
   if (!definition) throw new BrowserSessionError('not_allowed')
+  await options.focusInput?.(options)
   const { key, code, windowsVirtualKeyCode } = definition
   const text =
     modifiers & TEXT_SUPPRESSING_MODIFIERS
@@ -47,7 +49,7 @@ export async function typeText(
   text: string,
   clear: boolean,
   submit: boolean,
-  options: CommandOptions
+  options: BrowserActionOptions
 ) {
   await withElement(
     session,
@@ -64,6 +66,9 @@ export async function typeText(
         options
       )
       if (!initial.editable) throw new BrowserSessionError('not_found')
+      check()
+      await options.focusInput?.(options)
+      options = { ...options, focusInput: undefined }
       check()
       await session.send('DOM.focus', { backendNodeId }, options)
       const clearField = async () => {

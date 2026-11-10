@@ -129,6 +129,7 @@ const DEFAULT_FORMAT_BY_ENDPOINT: Partial<Record<EndpointType, ReasoningFormatTy
 }
 
 export interface ResolvedReasoningProfile {
+  wireDialect?: ReasoningWireDialect
   format: ReasoningFormatType
   wire: ReasoningWireProfile
   support?: ProtoReasoningSupport
@@ -231,7 +232,12 @@ export function resolveReasoningProfileFromRegistry(input: {
       ? configureOpenAIResponsesSummary(baseWire, input.reasoningSummary)
       : baseWire
 
-  return { format: formatType, support: input.contract?.support, wire }
+  return {
+    format: formatType,
+    support: input.contract?.support,
+    wire,
+    ...(input.wireDialect !== undefined ? { wireDialect: input.wireDialect } : {})
+  }
 }
 
 /**
@@ -690,6 +696,36 @@ export function projectRuntimeReasoning(
   }
 }
 
+/** Narrow official image metadata to the selected Desktop adapter's executable options. */
+function projectImageGenerationSupport(
+  support: ImageGenerationSupport | null,
+  endpointConfigs: Provider['endpointConfigs']
+): ImageGenerationSupport | null {
+  if (!support) return null
+  const modes = { ...support.modes }
+  for (const mode of ['generate', 'edit'] as const) {
+    const endpoint = mode === 'generate' ? 'openai-image-generation' : 'openai-image-edit'
+    const descriptor = modes[mode]
+    if (endpointConfigs?.[endpoint]?.adapterFamily !== 'openai' || !descriptor?.supports) continue
+    const supports = { ...descriptor.supports }
+    if (mode === 'edit') {
+      const format = supports.outputFormat
+      if (format?.type === 'enum') {
+        supports.outputFormat = { ...format, options: format.options.filter((option) => option !== 'gif') }
+      }
+      delete supports.frameCount
+      delete supports.frameDurationMs
+    } else if (supports.frameDurationMs?.type === 'range') {
+      supports.frameDurationMs = {
+        ...supports.frameDurationMs,
+        max: Math.min(supports.frameDurationMs.max ?? 2000, 2000)
+      }
+    }
+    modes[mode] = { ...descriptor, supports }
+  }
+  return { ...support, modes }
+}
+
 /**
  * Bridges the read-only provider registry (JSON) with SQLite user data.
  *
@@ -976,6 +1012,8 @@ class ProviderRegistryService {
     endpointType?: EndpointType
   ): ResolvedReasoningProfile {
     const profileProvider = this.findProfileProvider(provider)
+    if (profileProvider?.modelResolution?.source === 'provider')
+      return resolveReasoningProfileFromRegistry({ endpointType: undefined, format: { type: 'none' } })
     const effectiveEndpoint = endpointType ?? resolveChatEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
     const providerIds = Array.from(
       new Set([provider.id, profileProvider?.id, provider.presetProviderId].filter((value): value is string => !!value))
@@ -1086,6 +1124,7 @@ class ProviderRegistryService {
     providerContext: ReasoningProviderContext,
     modelId: string
   ): {
+    providerModel?: Model
     presetModel: ProtoModelConfig | null
     registryOverride: ProtoProviderModelOverride | null
     reasoningProfile: ResolvedReasoningProfile
@@ -1093,6 +1132,24 @@ class ProviderRegistryService {
   } {
     const loader = this.getLoader()
     const presetProvider = this.resolveProviderPreset(providerContext.id, providerContext.presetProviderId)
+    if (presetProvider?.modelResolution?.source === 'provider') {
+      return {
+        presetModel: null,
+        registryOverride: null,
+        providerModel: {
+          ...presetProvider.modelResolution.defaults,
+          id: createUniqueModelId(providerContext.id, modelId),
+          providerId: providerContext.id,
+          apiModelId: modelId,
+          presetModelId: null,
+          name: modelId.split('/').pop() ?? modelId,
+          ownedBy: presetProvider.id,
+          isEnabled: true,
+          isHidden: false
+        },
+        reasoningProfile: resolveReasoningProfileFromRegistry({ endpointType: undefined, format: { type: 'none' } })
+      }
+    }
     const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
     const presetModel =
       loader.findModel(registryOverride?.modelId ?? modelId) ??
@@ -1134,12 +1191,14 @@ class ProviderRegistryService {
       if (!modelId || seen.has(modelId)) continue
       seen.add(modelId)
 
-      const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = this.resolveModel(
+      const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } = this.resolveModel(
         providerContext,
         modelId
       )
 
-      if (presetModel) {
+      if (providerModel) {
+        results.push(providerModel)
+      } else if (presetModel) {
         const model = mergePresetModel(
           presetModel,
           registryOverride,
@@ -1300,12 +1359,18 @@ class ProviderRegistryService {
    */
   getImageGenerationSupport(providerId: string, modelId: string): ImageGenerationSupport | null {
     getDataService('ProviderService').assertAvailable(providerId)
-    const { presetModel, registryOverride } = this.lookupModel(providerId, modelId)
-    // Override wins — lets vendor-exclusive overrides declare their own
-    // imageGeneration block without polluting the global models.json.
-    if (registryOverride?.imageGeneration) return registryOverride.imageGeneration
-    if (presetModel?.imageGeneration) return presetModel.imageGeneration
-    return null
+    const context = this.getEffectiveProviderContext(providerId)
+    const { providerModel, presetModel, registryOverride } = this.resolveModel(context, modelId)
+    const support = providerModel
+      ? providerModel.imageGeneration
+      : (registryOverride?.imageGeneration ?? presetModel?.imageGeneration)
+    const preset = this.resolveProviderPreset(context.id, context.presetProviderId)
+    return projectImageGenerationSupport(
+      support ?? null,
+      context.endpointConfigs ??
+        (preset ? buildPersistedEndpointConfigs(preset.endpointConfigs) : undefined) ??
+        undefined
+    )
   }
 }
 

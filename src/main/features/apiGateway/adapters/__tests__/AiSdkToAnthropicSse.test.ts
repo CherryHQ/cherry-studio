@@ -28,16 +28,30 @@ interface GatewayUsage {
   inputTokens?: number
   outputTokens?: number
   cachedInputTokens?: number
+  cacheWriteInputTokens?: number
 }
 
 const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: GatewayUsage): UIMessageChunk => {
+  const withCacheBreakdown = usage?.cachedInputTokens !== undefined || usage?.cacheWriteInputTokens !== undefined
   const messageMetadata =
     usage !== undefined
       ? {
           stats: {
             totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
             inputTokens: usage.inputTokens ?? 0,
-            outputTokens: usage.outputTokens ?? 0
+            outputTokens: usage.outputTokens ?? 0,
+            // Mirror the runtime projection: top-level `inputTokens` is the
+            // cache-inclusive total, the split lives in `inputTokenDetails`.
+            ...(withCacheBreakdown
+              ? {
+                  inputTokenDetails: {
+                    ...(usage.cachedInputTokens !== undefined ? { cacheReadTokens: usage.cachedInputTokens } : {}),
+                    ...(usage.cacheWriteInputTokens !== undefined
+                      ? { cacheWriteTokens: usage.cacheWriteInputTokens }
+                      : {})
+                  }
+                }
+              : {})
           }
         }
       : undefined
@@ -92,7 +106,8 @@ describe('AiSdkToAnthropicSse', () => {
         type: 'message_start',
         message: {
           role: 'assistant',
-          model: 'test:model'
+          model: 'test:model',
+          stop_details: null
         }
       })
 
@@ -120,7 +135,7 @@ describe('AiSdkToAnthropicSse', () => {
       // Verify message_delta with stop_reason
       expect(events[5]).toMatchObject({
         type: 'message_delta',
-        delta: { stop_reason: 'end_turn' }
+        delta: { stop_reason: 'end_turn', stop_details: null }
       })
 
       // Verify message_stop
@@ -315,6 +330,42 @@ describe('AiSdkToAnthropicSse', () => {
   })
 
   describe('Reasoning/Thinking Processing', () => {
+    it('preserves redacted ciphertext in streamed and non-streaming blocks for native replay', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+      const redacted = { type: 'redacted_thinking' as const, data: 'opaque-native-ciphertext' }
+      const events = await collectEvents(
+        adapter.transform(
+          createMockStream([
+            {
+              type: 'reasoning-start',
+              id: 'redacted',
+              providerMetadata: { anthropic: { redactedData: redacted.data } }
+            },
+            { type: 'reasoning-end', id: 'redacted' },
+            createTextDelta('answer'),
+            createFinish()
+          ])
+        )
+      )
+
+      expect(events.filter((event) => event.type.startsWith('content_block')).slice(0, 2)).toEqual([
+        { type: 'content_block_start', index: 0, content_block: redacted },
+        { type: 'content_block_stop', index: 0 }
+      ])
+      const response = adapter.buildNonStreamingResponse()
+      expect(response.content[0]).toEqual(redacted)
+      const replay = new AnthropicMessageConverter().toUIMessages({
+        model: 'test:model',
+        max_tokens: 1024,
+        messages: [{ role: 'assistant', content: response.content }]
+      })
+      expect(replay[0].parts[0]).toEqual({
+        type: 'reasoning',
+        text: '',
+        providerMetadata: { anthropic: { redactedData: redacted.data } }
+      })
+    })
+
     it('should emit thinking block for reasoning events', async () => {
       const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
 
@@ -478,13 +529,74 @@ describe('AiSdkToAnthropicSse', () => {
 
       const messageDelta = events.find((e) => e.type === 'message_delta')
       if (messageDelta && messageDelta.type === 'message_delta') {
-        // The UIMessageChunk usage projection carries no cache-token breakdown,
-        // so only prompt/completion tokens are asserted here.
+        // No cache breakdown is projected here, so the cache-inclusive total
+        // stays on `input_tokens` and the cache buckets keep their defaults.
         expect(messageDelta.usage).toMatchObject({
           input_tokens: 100,
-          output_tokens: 50
+          output_tokens: 50,
+          cache_read_input_tokens: null
         })
       }
+    })
+
+    it('should split the projected input total into uncached input and cache buckets', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+
+      // The projection's `inputTokens` is the cache-inclusive total (12 + 200 + 100),
+      // with the split carried on `inputTokenDetails`.
+      const stream = createMockStream([
+        createTextDelta('Hello'),
+        createFinish('stop', {
+          inputTokens: 312,
+          outputTokens: 50,
+          cachedInputTokens: 200,
+          cacheWriteInputTokens: 100
+        })
+      ])
+
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
+
+      const messageDelta = events.find((e) => e.type === 'message_delta')
+      expect(messageDelta && messageDelta.type === 'message_delta').toBe(true)
+      if (messageDelta && messageDelta.type === 'message_delta') {
+        expect(messageDelta.usage).toMatchObject({
+          input_tokens: 12,
+          output_tokens: 50,
+          cache_read_input_tokens: 200,
+          cache_creation_input_tokens: 100
+        })
+      }
+    })
+
+    it('should surface the cache split in the non-streaming usage', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+
+      const stream = createMockStream([
+        createTextDelta('Hello'),
+        createFinish('stop', {
+          inputTokens: 312,
+          outputTokens: 50,
+          cachedInputTokens: 200
+        })
+      ])
+
+      const outputStream = adapter.transform(stream)
+      const reader = outputStream.getReader()
+      while (true) {
+        const { done } = await reader.read()
+        if (done) break
+      }
+      reader.releaseLock()
+
+      const response = adapter.buildNonStreamingResponse()
+
+      expect(response.usage).toMatchObject({
+        input_tokens: 112,
+        output_tokens: 50,
+        cache_read_input_tokens: 200,
+        cache_creation_input_tokens: 0
+      })
     })
   })
 
@@ -518,6 +630,7 @@ describe('AiSdkToAnthropicSse', () => {
         type: 'message',
         role: 'assistant',
         model: 'test:model',
+        stop_details: null,
         stop_reason: 'tool_use'
       })
 
@@ -597,6 +710,7 @@ describe('AiSdkToAnthropicSse', () => {
           content: [],
           model: 'test',
           container: null,
+          stop_details: null,
           stop_reason: null,
           stop_sequence: null,
           usage: {
@@ -664,3 +778,19 @@ describe('AiSdkToAnthropicSse', () => {
     })
   })
 })
+
+it.each([null, undefined, [], true, 42, 'invalid json'])(
+  'rejects non-object tool input without fabricating arguments: %j',
+  (input) => {
+    const adapter = new AiSdkToAnthropicSse({ model: 'test-model' })
+    expect(() =>
+      adapter.transformChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad-input',
+        toolName: 'read_file',
+        input,
+        errorText: 'Invalid tool arguments'
+      })
+    ).toThrow('Invalid tool arguments')
+  }
+)

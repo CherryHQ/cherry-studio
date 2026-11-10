@@ -31,7 +31,8 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('../security/OutputSanitizer', () => ({
-  sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
+  sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false })),
+  sanitizeChannelOutputSilently: vi.fn((text: string) => ({ text, redactedPatterns: [] }))
 }))
 
 // The global mock (tests/main.setup.ts) wires the default service set, which omits
@@ -139,6 +140,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
   adapter.onTextUpdate = vi.fn().mockResolvedValue(undefined)
   adapter.onStreamComplete = vi.fn().mockResolvedValue(false)
+  adapter.discardResponse = vi.fn()
   adapter.onStreamError = vi.fn().mockResolvedValue(undefined)
   adapter.notifyChatIds = []
   return adapter

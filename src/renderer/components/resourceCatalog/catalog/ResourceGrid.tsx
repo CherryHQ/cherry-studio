@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Download,
   FolderSearch,
   Import,
   LayoutGrid,
@@ -38,7 +39,7 @@ import {
   DropdownMenuTrigger,
   EmptyState,
   Input,
-  Scrollbar,
+  ScrollArea,
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -62,6 +63,8 @@ const RESOURCE_CARD_ROW_ESTIMATE_PX = 92
 
 interface Props {
   resources: ResourceItem[]
+  /** True when a catalog-level filter hides otherwise available resources. */
+  hasHiddenResources?: boolean
   isLoading?: boolean
   activeResourceType: ResourceType
   search: string
@@ -72,6 +75,7 @@ interface Props {
   onExport: (r: ResourceItem) => void
   onCreate: (type: ResourceType) => void
   onImportAssistant: () => void
+  onExportAssistants: () => void
   /** Open the community assistant library dialog. When omitted the add menu hides the library item. */
   onOpenAssistantLibrary?: () => void
   onOpenSkillMarketplace: () => void
@@ -131,13 +135,14 @@ function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
 interface AssistantAddActionsProps {
   onNew: () => void
   onImport: () => void
+  onExportAssistants: () => void
   onOpenLibrary?: () => void
 }
 
 /**
  * Assistant creation actions are intentionally flat so each entry point stays visible in the toolbar.
  */
-function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddActionsProps) {
+function AssistantAddActions({ onNew, onImport, onExportAssistants, onOpenLibrary }: AssistantAddActionsProps) {
   const { t } = useTranslation()
 
   return (
@@ -155,6 +160,10 @@ function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddAct
       <Button variant="outline" size="sm" onClick={onImport} className="shrink-0">
         <Import size={12} />
         <span>{t('assistants.presets.import.action')}</span>
+      </Button>
+      <Button variant="outline" size="sm" onClick={onExportAssistants} className="shrink-0">
+        <Download size={12} />
+        <span>{t('assistants.presets.export.action')}</span>
       </Button>
     </>
   )
@@ -212,6 +221,7 @@ function SkillAddActions({
 
 export const ResourceGrid: FC<Props> = ({
   resources,
+  hasHiddenResources = false,
   isLoading = false,
   activeResourceType,
   search,
@@ -222,6 +232,7 @@ export const ResourceGrid: FC<Props> = ({
   onExport,
   onCreate,
   onImportAssistant,
+  onExportAssistants,
   onOpenAssistantLibrary,
   onOpenSkillMarketplace,
   onOpenSystemSkills,
@@ -240,12 +251,14 @@ export const ResourceGrid: FC<Props> = ({
   allowColumnToggle = false
 }) => {
   const { t } = useTranslation()
+  const hasNoMatches = Boolean(search) || hasHiddenResources
   const isSettings = variant === 'settings'
   const { updateGroup, deleteGroup } = useGroupMutations('assistant', {
     refreshOnDelete: ['/assistants', '/assistants/*']
   })
   const scrollRef = useRef<HTMLDivElement>(null)
-  const responsiveColumnCount = useGridColumnCount(scrollRef)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const responsiveColumnCount = useGridColumnCount(isSettings ? contentRef : scrollRef)
   const [preferredColumns, setPreferredColumns] = useState<1 | 2>(1)
   const columnCount = isSettings
     ? Math.min(allowColumnToggle ? preferredColumns : 1, responsiveColumnCount)
@@ -348,6 +361,7 @@ export const ResourceGrid: FC<Props> = ({
       <AssistantAddActions
         onNew={() => onCreate('assistant')}
         onImport={onImportAssistant}
+        onExportAssistants={onExportAssistants}
         onOpenLibrary={onOpenAssistantLibrary}
       />
     ) : activeResourceType === 'skill' ? (
@@ -379,7 +393,11 @@ export const ResourceGrid: FC<Props> = ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-b border-border-subtle')}>
+      <div
+        className={cn(
+          'flex shrink-0 flex-col',
+          isSettings ? 'mx-auto w-[calc(100%-3rem)] max-w-3xl' : 'border-b border-border-subtle'
+        )}>
         {isSettings ? (
           <div className="flex min-w-0 items-center justify-between gap-4">
             <div className="min-w-0">
@@ -414,19 +432,24 @@ export const ResourceGrid: FC<Props> = ({
           </div>
         )}
 
-        {toolbarFooter || (isSettings && allowColumnToggle) ? (
+        {toolbarFooter || (isSettings && (toolbarLeading || allowColumnToggle)) ? (
           <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle">
             {toolbarFooter}
-            {isSettings && allowColumnToggle && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={layoutLabel}
-                title={layoutLabel}
-                disabled={responsiveColumnCount < 2}
-                onClick={() => setPreferredColumns(columnCount === 1 ? 2 : 1)}>
-                {columnCount === 1 ? <Rows2 size={20} aria-hidden /> : <LayoutGrid size={20} aria-hidden />}
-              </Button>
+            {isSettings && (toolbarLeading || allowColumnToggle) && (
+              <div className="ml-auto flex shrink-0 items-center gap-3">
+                {toolbarLeading}
+                {allowColumnToggle && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={layoutLabel}
+                    title={layoutLabel}
+                    disabled={responsiveColumnCount < 2}
+                    onClick={() => setPreferredColumns(columnCount === 1 ? 2 : 1)}>
+                    {columnCount === 1 ? <Rows2 size={20} aria-hidden /> : <LayoutGrid size={20} aria-hidden />}
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         ) : null}
@@ -547,31 +570,37 @@ export const ResourceGrid: FC<Props> = ({
         />
       </div>
 
-      <Scrollbar ref={scrollRef} className={cn('min-h-0 flex-1', isSettings ? 'pt-4 pb-3' : 'px-5 py-4')}>
-        {isLoading ? (
-          <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
-        ) : resources.length === 0 ? (
-          <EmptyState
-            preset={search ? 'no-result' : 'no-resource'}
-            title={search ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
-            description={search ? t('library.empty_state.no_match_description') : t('library.empty_state.description')}
-            className="py-20"
-          />
-        ) : (
-          <VirtualizedResourceGrid
-            scrollRef={scrollRef}
-            columnCount={columnCount}
-            resources={resources}
-            variant={variant}
-            allGroups={allGroups}
-            onDelete={onDelete}
-            onDuplicate={onDuplicate}
-            onEdit={onEdit}
-            onExport={onExport}
-            onLaunchSkill={onLaunchSkill}
-          />
-        )}
-      </Scrollbar>
+      <ScrollArea
+        viewportProps={{ ref: scrollRef }}
+        className={cn('min-h-0 flex-1', isSettings ? 'px-6 pt-4 pb-6' : 'px-5 py-4')}>
+        <div ref={contentRef} className={cn(isSettings && 'mx-auto w-full max-w-3xl')}>
+          {isLoading ? (
+            <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
+          ) : resources.length === 0 ? (
+            <EmptyState
+              preset={hasNoMatches ? 'no-result' : 'no-resource'}
+              title={hasNoMatches ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
+              description={
+                hasNoMatches ? t('library.empty_state.no_match_description') : t('library.empty_state.description')
+              }
+              className="py-20"
+            />
+          ) : (
+            <VirtualizedResourceGrid
+              scrollRef={scrollRef}
+              columnCount={columnCount}
+              resources={resources}
+              variant={variant}
+              allGroups={allGroups}
+              onDelete={onDelete}
+              onDuplicate={onDuplicate}
+              onEdit={onEdit}
+              onExport={onExport}
+              onLaunchSkill={onLaunchSkill}
+            />
+          )}
+        </div>
+      </ScrollArea>
     </div>
   )
 }
