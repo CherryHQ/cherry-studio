@@ -19,6 +19,7 @@ export const COMMAND_DEFINITIONS = [
     keybinding: {
       defaultBinding: ['Escape'],
       editable: false,
+      enableToggle: true,
       // A MiniApp guest owns Escape (closing its own dialogs); the host must not steal it.
       when: '!webview.focused'
     }
@@ -210,6 +211,16 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'agent.workspace.open',
+    titleKey: 'settings.shortcuts.open_workspace',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'O'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
     id: 'chat.input.focus',
     titleKey: 'settings.shortcuts.focus_input',
     categoryKey: 'settings.shortcuts.chat',
@@ -352,6 +363,16 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'resource.delete_permanently',
+    titleKey: 'settings.shortcuts.delete_current_list_item',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Backspace'],
+      when: 'resource.focused && !input.focused'
+    }
+  }),
+  defineCommand({
     id: 'assistant.next',
     titleKey: 'settings.shortcuts.next_assistant',
     categoryKey: 'settings.shortcuts.topic',
@@ -394,6 +415,96 @@ export const COMMAND_DEFINITIONS = [
     scope: 'renderer',
     keybinding: {
       defaultBinding: ['CommandOrControl', 'W']
+    }
+  }),
+  defineCommand({
+    id: 'tab.open_1',
+    titleKey: 'settings.shortcuts.number_keys.tabs',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: { default: ['Alt', '1'], darwin: ['Ctrl', '1'] },
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'tab.open_2',
+    titleKey: 'settings.shortcuts.number_keys.tabs',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: { default: ['Alt', '2'], darwin: ['Ctrl', '2'] },
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'tab.open_3',
+    titleKey: 'settings.shortcuts.number_keys.tabs',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: { default: ['Alt', '3'], darwin: ['Ctrl', '3'] },
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'tab.open_4',
+    titleKey: 'settings.shortcuts.number_keys.tabs',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: { default: ['Alt', '4'], darwin: ['Ctrl', '4'] },
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'tab.open_5',
+    titleKey: 'settings.shortcuts.number_keys.tabs',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: { default: ['Alt', '5'], darwin: ['Ctrl', '5'] },
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'tab.open_6',
+    titleKey: 'settings.shortcuts.number_keys.tabs',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: { default: ['Alt', '6'], darwin: ['Ctrl', '6'] },
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'tab.open_7',
+    titleKey: 'settings.shortcuts.number_keys.tabs',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: { default: ['Alt', '7'], darwin: ['Ctrl', '7'] },
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'tab.open_8',
+    titleKey: 'settings.shortcuts.number_keys.tabs',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: { default: ['Alt', '8'], darwin: ['Ctrl', '8'] },
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'tab.open_9',
+    titleKey: 'settings.shortcuts.number_keys.tabs',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: { default: ['Alt', '9'], darwin: ['Ctrl', '9'] },
+      when: '!webview.focused'
     }
   }),
   defineCommand({

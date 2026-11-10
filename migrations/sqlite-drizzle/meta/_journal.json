@@ -249,8 +249,15 @@
     {
       "idx": 35,
       "version": "6",
-      "when": 1793987773671,
-      "tag": "0035_agent_background_task",
+      "when": 1794176949635,
+      "tag": "0035_agent_session_task_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1794335992239,
+      "tag": "0036_curly_golden_guardian",
       "breakpoints": true
     }
   ],

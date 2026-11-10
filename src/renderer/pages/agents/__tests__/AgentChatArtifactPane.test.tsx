@@ -418,10 +418,10 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 
   return {
     ...MockUseCache,
-    useCache: () => [false],
+    useCache: MockUseCache.useCache,
     useSharedCache: () => [null, vi.fn()],
     useSharedCacheValue: () => undefined,
-    usePersistCache: () => [undefined, vi.fn()]
+    usePersistCache: MockUseCache.usePersistCache
   }
 })
 
@@ -819,7 +819,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-cache-key', 'ui.chat.artifact_pane.width')
     expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.files/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
-    expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.status/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.details/ })).toBeInTheDocument()
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(document.querySelector('[data-shell-tab-shortcut="files"]')).toHaveAttribute('aria-pressed', 'true')
 
@@ -857,7 +857,7 @@ describe('AgentChat artifact pane', () => {
     openFilesPane()
     expect(screen.getByRole('button', { name: 'common.maximize' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
 
     expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
   })
@@ -913,7 +913,7 @@ describe('AgentChat artifact pane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.preview' }))
     const artifactPane = screen.getByTestId('artifact-pane')
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
     expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
 
