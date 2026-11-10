@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 import type * as ForkDataModule from '@data/services/AgentSessionForkService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import type { AgentSessionForkResources } from '@main/ai/agentSession/fork/resources'
+import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime/types'
 import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '@main/ai/streamManager'
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -29,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   getSessionMessage: vi.fn(),
   hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
+  retireAbandonedApproval: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   relocateSystemWorkspaces: vi.fn<() => Promise<Set<string>>>(),
   sharesBranch: vi.fn(),
@@ -114,6 +116,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getSessionMessage: mocks.getSessionMessage,
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
+    retireAbandonedApproval: mocks.retireAbandonedApproval,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
     getNativeSessionId: vi.fn(),
     getPersistedNativeSessionId: vi.fn(),
@@ -497,7 +500,20 @@ describe('AgentSessionForkOperations recovery', () => {
   })
 
   it('rejects a missing checkpoint before creating fork artifacts or rebuilding history', async () => {
+    mocks.getAgent.mockReturnValueOnce({ id: 'fork-agent', type: 'pi' })
+    runtimeDriverRegistry.register({
+      type: 'pi',
+      validateSession() {},
+      isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
+      async connect() {
+        throw new Error('History validation must not connect')
+      },
+      async fork() {
+        throw new Error('Missing checkpoints must not reach native preparation')
+      }
+    })
     forkRecoveryMocks.read.mockReturnValue({
+      agent: { id: 'fork-agent' },
       messages: [{ role: 'assistant', status: 'success', data: {} }]
     })
 
@@ -584,7 +600,20 @@ describe('AgentSessionRuntimeService', () => {
 
   it('blocks edits only on the source session until its fork settles', async () => {
     const service = new AgentSessionRuntimeService()
+    mocks.getAgent.mockReturnValueOnce({ id: 'fork-agent', type: 'pi' })
+    runtimeDriverRegistry.register({
+      type: 'pi',
+      validateSession() {},
+      isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
+      async connect() {
+        throw new Error('History validation must not connect')
+      },
+      async fork() {
+        throw new Error('Missing checkpoints must not reach native preparation')
+      }
+    })
     forkRecoveryMocks.read.mockReturnValueOnce({
+      agent: { id: 'fork-agent' },
       messages: [{ role: 'assistant', status: 'success', data: {} }]
     })
     const fork = service.forkSession('session-1', 'assistant-1')
@@ -707,7 +736,7 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-1', { approved: true })).toBe(true)
+      expect(service.respondToolApproval('approval-1', { approved: true })).toEqual({ ok: true })
       expect(resolve).toHaveBeenCalledWith({ approved: true })
       expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1', true)
     })
@@ -726,9 +755,9 @@ describe('AgentSessionRuntimeService', () => {
       const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
 
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-bg', { approved: true, updatedInput }, 'approval-message-1')).toBe(
-        true
-      )
+      expect(
+        service.respondToolApproval('approval-bg', { approved: true, updatedInput }, 'approval-message-1')
+      ).toEqual({ ok: true })
 
       expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
         approvalId: 'approval-bg',
@@ -753,15 +782,92 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-bg', { approved: true }, 'wrong-message')).toBe(false)
+      expect(service.respondToolApproval('approval-bg', { approved: true }, 'wrong-message')).toEqual({
+        ok: false,
+        reason: 'rejected'
+      })
       expect(resolve).not.toHaveBeenCalled()
       expect(toolApprovalRegistry.peek('approval-bg')).toBeDefined()
     })
 
     it('leaves stream status untouched for an unknown approval', () => {
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('missing', { approved: true })).toBe(false)
+      expect(service.respondToolApproval('missing', { approved: true })).toEqual({ ok: false, reason: 'rejected' })
       expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
+    })
+
+    it('records the user decision on a card the runtime can no longer answer', () => {
+      const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
+      const service = new AgentSessionRuntimeService()
+
+      expect(
+        service.respondToolApproval(
+          'approval-gone',
+          { approved: true, updatedInput },
+          'approval-message-1',
+          'agent-session:session-1'
+        )
+      ).toEqual({ ok: false, reason: 'undelivered' })
+
+      expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
+        approvalId: 'approval-gone',
+        approved: true,
+        updatedInput
+      })
+    })
+    it('does not offer a second replay after another window settled the card', () => {
+      mocks.applyToolApprovalDecision.mockReturnValueOnce(true).mockReturnValueOnce(false)
+      const service = new AgentSessionRuntimeService()
+      const respond = () =>
+        service.respondToolApproval(
+          'approval-gone',
+          { approved: true, updatedInput: { answers: { Choice: 'SQLite' } } },
+          'approval-message-1',
+          'agent-session:session-1'
+        )
+      expect(respond()).toEqual({ ok: false, reason: 'undelivered' })
+      expect(respond()).toEqual({ ok: false, reason: 'rejected' })
+    })
+  })
+
+  describe('aborted approvals', () => {
+    it('retires the persisted card whose live request the runtime aborted', async () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-bg',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-bg',
+        toolName: 'AskUserQuestion',
+        originalInput: { questions: [] },
+        presentation: 'message',
+        resolve
+      })
+      const service = new AgentSessionRuntimeService()
+      await (service as any).onInit()
+
+      toolApprovalRegistry.abort('session-1', 'stream-ended')
+
+      expect(resolve).toHaveBeenCalledWith({ approved: false, reason: 'stream-ended' })
+      expect(mocks.retireAbandonedApproval).toHaveBeenCalledWith('session-1', 'approval-bg', expect.any(String))
+    })
+
+    it('leaves streamed approvals to the turn stream, which owns their card', async () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-stream',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-stream',
+        toolName: 'Bash',
+        originalInput: { command: 'ls' },
+        resolve
+      })
+      const service = new AgentSessionRuntimeService()
+      await (service as any).onInit()
+
+      toolApprovalRegistry.abort('session-1', 'stream-ended')
+
+      expect(resolve).toHaveBeenCalledWith({ approved: false, reason: 'stream-ended' })
+      expect(mocks.retireAbandonedApproval).not.toHaveBeenCalled()
     })
   })
 
@@ -2440,9 +2546,8 @@ describe('AgentSessionRuntimeService', () => {
 
     await (service as any).handleAgentUpdated('agent-1', { instructions: 'be terse' }, { id: 'agent-1' })
 
-    // Safe live patches were already applied inside reconcile; the spawn-frozen part and any
-    // deferred permission-mode update wait for the next fresh turn's pull instead of dropping the
-    // in-flight stream.
+    // Safe live patches were already applied inside reconcile; the spawn-frozen part waits for the
+    // next fresh turn's pull instead of dropping the in-flight stream.
     expect(connection.close).not.toHaveBeenCalled()
     expect(getEntry(service).connection).toBe(connection)
   })
@@ -3042,7 +3147,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
@@ -3283,7 +3388,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       // Chunks stream while the wake turn's stream is not open yet — buffered, not dropped.
       ;(service as any).handleRuntimeEvent(entry, {
@@ -3342,7 +3447,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
@@ -3372,7 +3477,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'chunk',
@@ -3430,7 +3535,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(
         entry,
-        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } },
         connection
       )
       await vi.waitFor(() =>
@@ -3465,7 +3570,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
@@ -3519,7 +3624,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(
         entry,
-        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } },
         connection
       )
       ;(service as any).handleRuntimeEvent(
@@ -3617,7 +3722,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(
         entry,
-        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } },
         connection
       )
       ;(service as any).handleRuntimeEvent(
@@ -3686,7 +3791,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
       const receiveOnlyTurn = entry.currentTurn
@@ -4006,6 +4111,20 @@ describe('AgentSessionRuntimeService', () => {
 
     connectionAttempt.resolve()
     await expect(closing).resolves.toBeUndefined()
+  })
+
+  it('releases the session when a pending connection attempt fails during close', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const connectionAttempt = createDeferred<boolean>()
+    ;(service as any).connectionAttempts.set('session-1', { promise: connectionAttempt.promise })
+
+    const closing = service.closeSession('session-1')
+    connectionAttempt.reject(new Error('spawn failed'))
+
+    await expect(closing).resolves.toBeUndefined()
+    expect(service.isSessionBusy('session-1')).toBe(false)
+    expect(() => service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-2' })).not.toThrow()
   })
 
   it('rejects new input until the closing reply releases its owner', async () => {

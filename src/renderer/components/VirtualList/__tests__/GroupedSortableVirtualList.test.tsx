@@ -29,6 +29,7 @@ const dndMocks = vi.hoisted(() => ({
   droppableDisabled: new Map<string, boolean | undefined>(),
   onDragCancel: undefined as undefined | ((event: any) => void),
   onDragEnd: undefined as undefined | ((event: any) => void),
+  onDragMove: undefined as undefined | ((event: any) => void),
   onDragOver: undefined as undefined | ((event: any) => void),
   onDragStart: undefined as undefined | ((event: any) => void),
   sortableData: new Map<string, unknown>(),
@@ -53,16 +54,19 @@ vi.mock('@dnd-kit/core', () => {
       onDragCancel,
       onDragEnd,
       onDragOver,
+      onDragMove,
       onDragStart
     }: {
       children: ReactNode
       onDragCancel?: any
       onDragEnd?: any
       onDragOver?: any
+      onDragMove?: any
       onDragStart?: any
     }) => {
       dndMocks.onDragCancel = onDragCancel
       dndMocks.onDragEnd = onDragEnd
+      dndMocks.onDragMove = onDragMove
       dndMocks.onDragOver = onDragOver
       dndMocks.onDragStart = onDragStart
       return React.createElement('div', { 'data-testid': 'dnd-context' }, children)
@@ -506,6 +510,28 @@ describe('GroupedSortableVirtualList', () => {
     expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
     expect(indicator).not.toHaveClass('bg-sidebar-primary', 'bg-sidebar-border')
     expect(within(screen.getByTestId('drag-overlay')).getByText('Item Alpha')).toBeInTheDocument()
+  })
+
+  it('updates the insertion side while moving within the same target row', () => {
+    const onDragEnd = renderList()
+    startDragging('item:b')
+    const event = (top: number) => ({
+      active: {
+        data: dataFor('sortable', 'item:b'),
+        id: 'item:b',
+        rect: { current: { initial: null, translated: { top, height: 20 } } }
+      },
+      over: { data: dataFor('sortable', 'item:a'), id: 'item:a', rect: { top: 100, height: 40 } }
+    })
+    act(() => dndMocks.onDragOver?.(event(125)))
+    const targetRow = screen.getByText('Item Alpha').parentElement
+    expect(targetRow?.querySelector('[data-drop-indicator="after"]')).toBeInTheDocument()
+
+    act(() => dndMocks.onDragMove?.(event(100)))
+    expect(targetRow?.querySelector('[data-drop-indicator="before"]')).toBeInTheDocument()
+    expect(targetRow?.querySelector('[data-drop-indicator="after"]')).not.toBeInTheDocument()
+    act(() => dndMocks.onDragEnd?.(event(100)))
+    expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ activeId: 'b', overId: 'a', position: 'before' }))
   })
 
   it('uses the latest insertion line position when the drop rect disagrees', () => {

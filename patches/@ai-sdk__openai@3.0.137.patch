@@ -1,0 +1,1406 @@
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1125,7 +1125,7 @@
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -2077,7 +2077,8 @@
+       created: import_v48.z.number().nullish(),
+       data: import_v48.z.array(
+         import_v48.z.object({
+-          b64_json: import_v48.z.string(),
++          b64_json: import_v48.z.string().nullish(),
++          url: import_v48.z.string().nullish(),
+           revised_prompt: import_v48.z.string().nullish()
+         })
+       ),
+@@ -2315,7 +2316,11 @@
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -2386,7 +2391,11 @@
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -3786,6 +3795,9 @@
+   if (!prefixes) return false;
+   return prefixes.some((prefix) => data.startsWith(prefix));
+ }
++function toResponsesItemId(id, prefix) {
++  return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
++}
+ async function convertToOpenAIResponsesInput({
+   prompt,
+   toolNameMapping,
+@@ -3973,7 +3985,8 @@
+           switch (part.type) {
+             case "text": {
+               const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
+-              const id = providerOpts == null ? void 0 : providerOpts.itemId;
++              const rawId = providerOpts == null ? void 0 : providerOpts.itemId;
++              const id = store || (typeof rawId === "string" && rawId.startsWith("msg_")) ? rawId : void 0;
+               const phase = providerOpts == null ? void 0 : providerOpts.phase;
+               if (hasConversation && id != null) {
+                 break;
+@@ -3984,10 +3997,11 @@
+                 break;
+               }
+               input.push({
+-                ...explicitMessageItemType && { type: "message" },
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id: canUseItemId ? id : void 0,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -4227,7 +4241,7 @@
+                 providerOptions: part.providerOptions,
+                 schema: openaiResponsesReasoningProviderOptionsSchema
+               });
+-              const reasoningId = providerOptions2 == null ? void 0 : providerOptions2.itemId;
++              const reasoningId = toResponsesItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId, "rs");
+               if ((hasConversation || hasPreviousResponseId) && reasoningId != null) {
+                 break;
+               }
+@@ -4242,6 +4256,12 @@
+                       summary: []
+                     };
+                   }
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
+                 } else {
+                   const summaryParts = [];
+                   if (part.text.length > 0) {
+@@ -4284,6 +4304,12 @@
+                     type: "reasoning",
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts
++                  });
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
+                   });
+                 } else {
+                   warnings.push({
+@@ -4569,14 +4595,14 @@
+     }
+   }
+   if (!store && input.some(
+-    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null
++    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null && !("content" in item && item.content != null)
+   )) {
+     warnings.push({
+       type: "other",
+       message: "Reasoning parts without encrypted content are not supported when store is false. Skipping reasoning parts."
+     });
+     input = input.filter(
+-      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null
++      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null || "content" in item && item.content != null
+     );
+   }
+   return { input, warnings };
+@@ -4585,7 +4611,8 @@
+   () => (0, import_provider_utils28.zodSchema)(
+     import_v422.z.object({
+       itemId: import_v422.z.string().nullish(),
+-      reasoningEncryptedContent: import_v422.z.string().nullish()
++      reasoningEncryptedContent: import_v422.z.string().nullish(),
++      rawReasoningContent: import_v422.z.boolean().nullish()
+     })
+   )
+ );
+@@ -4774,10 +4801,10 @@
+       }),
+       import_v423.z.object({
+         type: import_v423.z.literal("response.failed"),
+-        sequence_number: import_v423.z.number(),
++        sequence_number: import_v423.z.number().optional(),
+         response: import_v423.z.object({
+           error: import_v423.z.object({
+-            code: import_v423.z.string().nullish(),
++            code: import_v423.z.union([import_v423.z.string(), import_v423.z.number()]).nullish(),
+             message: import_v423.z.string()
+           }).nullish(),
+           incomplete_details: import_v423.z.object({ reason: import_v423.z.string() }).nullish(),
+@@ -4791,9 +4818,9 @@
+       import_v423.z.object({
+         type: import_v423.z.literal("response.created"),
+         response: import_v423.z.object({
+-          id: import_v423.z.string(),
+-          created_at: import_v423.z.number(),
+-          model: import_v423.z.string(),
++          id: import_v423.z.string().optional(),
++          created_at: import_v423.z.number().optional(),
++          model: import_v423.z.string().optional(),
+           service_tier: import_v423.z.string().nullish()
+         })
+       }),
+@@ -4816,7 +4843,7 @@
+             id: import_v423.z.string(),
+             call_id: import_v423.z.string(),
+             name: import_v423.z.string(),
+-            arguments: import_v423.z.string(),
++            arguments: import_v423.z.string().optional().transform((v) => v ?? ""),
+             async: import_v423.z.boolean().nullish(),
+             namespace: import_v423.z.string().nullish()
+           }),
+@@ -5200,8 +5227,8 @@
+         annotation: import_v423.z.discriminatedUnion("type", [
+           import_v423.z.object({
+             type: import_v423.z.literal("url_citation"),
+-            start_index: import_v423.z.number(),
+-            end_index: import_v423.z.number(),
++            start_index: import_v423.z.number().optional(),
++            end_index: import_v423.z.number().optional(),
+             url: import_v423.z.string(),
+             title: import_v423.z.string()
+           }),
+@@ -5235,6 +5262,11 @@
+         type: import_v423.z.literal("response.reasoning_summary_text.delta"),
+         item_id: import_v423.z.string(),
+         summary_index: import_v423.z.number(),
++        delta: import_v423.z.string()
++      }),
++      import_v423.z.object({
++        type: import_v423.z.literal("response.reasoning_text.delta"),
++        item_id: import_v423.z.string(),
+         delta: import_v423.z.string()
+       }),
+       import_v423.z.object({
+@@ -5306,8 +5338,8 @@
+                   import_v423.z.discriminatedUnion("type", [
+                     import_v423.z.object({
+                       type: import_v423.z.literal("url_citation"),
+-                      start_index: import_v423.z.number(),
+-                      end_index: import_v423.z.number(),
++                      start_index: import_v423.z.number().optional(),
++                      end_index: import_v423.z.number().optional(),
+                       url: import_v423.z.string(),
+                       title: import_v423.z.string()
+                     }),
+@@ -5331,7 +5363,7 @@
+                       index: import_v423.z.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
+@@ -6324,7 +6356,7 @@
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -7727,11 +7759,11 @@
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = (_x = value.response.id) != null ? _x : null;
+               controller.enqueue({
+                 type: "response-metadata",
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1e3),
++                timestamp: typeof value.response.created_at === "number" ? new Date(value.response.created_at * 1e3) : void 0,
+                 modelId: value.response.model
+               });
+             } else if (isTextDeltaChunk(value)) {
+@@ -7778,6 +7810,29 @@
+               controller.enqueue({
+                 type: "reasoning-delta",
+                 id: `${value.item_id}:${value.summary_index}`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id
++                  }
++                }
++              });
++            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: "active" } };
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id
++                    }
++                  }
++                });
++              }
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: `${value.item_id}:0`,
+                 delta: value.delta,
+                 providerMetadata: {
+                   [providerOptionsName]: {
+diff --git a/dist/index.mjs b/dist/index.mjs
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1130,7 +1130,7 @@
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -2119,7 +2119,8 @@
+       created: z8.number().nullish(),
+       data: z8.array(
+         z8.object({
+-          b64_json: z8.string(),
++          b64_json: z8.string().nullish(),
++          url: z8.string().nullish(),
+           revised_prompt: z8.string().nullish()
+         })
+       ),
+@@ -2360,7 +2361,11 @@
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -2431,7 +2436,11 @@
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -3904,6 +3913,9 @@
+   if (!prefixes) return false;
+   return prefixes.some((prefix) => data.startsWith(prefix));
+ }
++function toResponsesItemId(id, prefix) {
++  return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
++}
+ async function convertToOpenAIResponsesInput({
+   prompt,
+   toolNameMapping,
+@@ -4091,7 +4103,8 @@
+           switch (part.type) {
+             case "text": {
+               const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
+-              const id = providerOpts == null ? void 0 : providerOpts.itemId;
++              const rawId = providerOpts == null ? void 0 : providerOpts.itemId;
++              const id = store || (typeof rawId === "string" && rawId.startsWith("msg_")) ? rawId : void 0;
+               const phase = providerOpts == null ? void 0 : providerOpts.phase;
+               if (hasConversation && id != null) {
+                 break;
+@@ -4102,10 +4115,11 @@
+                 break;
+               }
+               input.push({
+-                ...explicitMessageItemType && { type: "message" },
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id: canUseItemId ? id : void 0,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -4345,7 +4359,7 @@
+                 providerOptions: part.providerOptions,
+                 schema: openaiResponsesReasoningProviderOptionsSchema
+               });
+-              const reasoningId = providerOptions2 == null ? void 0 : providerOptions2.itemId;
++              const reasoningId = toResponsesItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId, "rs");
+               if ((hasConversation || hasPreviousResponseId) && reasoningId != null) {
+                 break;
+               }
+@@ -4360,6 +4374,12 @@
+                       summary: []
+                     };
+                   }
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
+                 } else {
+                   const summaryParts = [];
+                   if (part.text.length > 0) {
+@@ -4402,6 +4422,12 @@
+                     type: "reasoning",
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts
++                  });
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
+                   });
+                 } else {
+                   warnings.push({
+@@ -4687,14 +4713,14 @@
+     }
+   }
+   if (!store && input.some(
+-    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null
++    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null && !("content" in item && item.content != null)
+   )) {
+     warnings.push({
+       type: "other",
+       message: "Reasoning parts without encrypted content are not supported when store is false. Skipping reasoning parts."
+     });
+     input = input.filter(
+-      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null
++      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null || "content" in item && item.content != null
+     );
+   }
+   return { input, warnings };
+@@ -4703,7 +4729,8 @@
+   () => zodSchema22(
+     z22.object({
+       itemId: z22.string().nullish(),
+-      reasoningEncryptedContent: z22.string().nullish()
++      reasoningEncryptedContent: z22.string().nullish(),
++      rawReasoningContent: z22.boolean().nullish()
+     })
+   )
+ );
+@@ -4895,10 +4922,10 @@
+       }),
+       z23.object({
+         type: z23.literal("response.failed"),
+-        sequence_number: z23.number(),
++        sequence_number: z23.number().optional(),
+         response: z23.object({
+           error: z23.object({
+-            code: z23.string().nullish(),
++            code: z23.union([z23.string(), z23.number()]).nullish(),
+             message: z23.string()
+           }).nullish(),
+           incomplete_details: z23.object({ reason: z23.string() }).nullish(),
+@@ -4912,9 +4939,9 @@
+       z23.object({
+         type: z23.literal("response.created"),
+         response: z23.object({
+-          id: z23.string(),
+-          created_at: z23.number(),
+-          model: z23.string(),
++          id: z23.string().optional(),
++          created_at: z23.number().optional(),
++          model: z23.string().optional(),
+           service_tier: z23.string().nullish()
+         })
+       }),
+@@ -4937,7 +4964,7 @@
+             id: z23.string(),
+             call_id: z23.string(),
+             name: z23.string(),
+-            arguments: z23.string(),
++            arguments: z23.string().optional().transform((v) => v ?? ""),
+             async: z23.boolean().nullish(),
+             namespace: z23.string().nullish()
+           }),
+@@ -5321,8 +5348,8 @@
+         annotation: z23.discriminatedUnion("type", [
+           z23.object({
+             type: z23.literal("url_citation"),
+-            start_index: z23.number(),
+-            end_index: z23.number(),
++            start_index: z23.number().optional(),
++            end_index: z23.number().optional(),
+             url: z23.string(),
+             title: z23.string()
+           }),
+@@ -5356,6 +5383,11 @@
+         type: z23.literal("response.reasoning_summary_text.delta"),
+         item_id: z23.string(),
+         summary_index: z23.number(),
++        delta: z23.string()
++      }),
++      z23.object({
++        type: z23.literal("response.reasoning_text.delta"),
++        item_id: z23.string(),
+         delta: z23.string()
+       }),
+       z23.object({
+@@ -5427,8 +5459,8 @@
+                   z23.discriminatedUnion("type", [
+                     z23.object({
+                       type: z23.literal("url_citation"),
+-                      start_index: z23.number(),
+-                      end_index: z23.number(),
++                      start_index: z23.number().optional(),
++                      end_index: z23.number().optional(),
+                       url: z23.string(),
+                       title: z23.string()
+                     }),
+@@ -5452,7 +5484,7 @@
+                       index: z23.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
+@@ -6447,7 +6479,7 @@
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -7850,11 +7882,11 @@
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = (_x = value.response.id) != null ? _x : null;
+               controller.enqueue({
+                 type: "response-metadata",
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1e3),
++                timestamp: typeof value.response.created_at === "number" ? new Date(value.response.created_at * 1e3) : void 0,
+                 modelId: value.response.model
+               });
+             } else if (isTextDeltaChunk(value)) {
+@@ -7901,6 +7933,29 @@
+               controller.enqueue({
+                 type: "reasoning-delta",
+                 id: `${value.item_id}:${value.summary_index}`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id
++                  }
++                }
++              });
++            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: "active" } };
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id
++                    }
++                  }
++                });
++              }
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: `${value.item_id}:0`,
+                 delta: value.delta,
+                 providerMetadata: {
+                   [providerOptionsName]: {
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -1165,7 +1165,7 @@
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -2117,7 +2117,8 @@
+       created: import_v48.z.number().nullish(),
+       data: import_v48.z.array(
+         import_v48.z.object({
+-          b64_json: import_v48.z.string(),
++          b64_json: import_v48.z.string().nullish(),
++          url: import_v48.z.string().nullish(),
+           revised_prompt: import_v48.z.string().nullish()
+         })
+       ),
+@@ -2355,7 +2356,11 @@
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -2426,7 +2431,11 @@
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -3808,6 +3817,9 @@
+   if (!prefixes) return false;
+   return prefixes.some((prefix) => data.startsWith(prefix));
+ }
++function toResponsesItemId(id, prefix) {
++  return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
++}
+ async function convertToOpenAIResponsesInput({
+   prompt,
+   toolNameMapping,
+@@ -3995,7 +4007,8 @@
+           switch (part.type) {
+             case "text": {
+               const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
+-              const id = providerOpts == null ? void 0 : providerOpts.itemId;
++              const rawId = providerOpts == null ? void 0 : providerOpts.itemId;
++              const id = store || (typeof rawId === "string" && rawId.startsWith("msg_")) ? rawId : void 0;
+               const phase = providerOpts == null ? void 0 : providerOpts.phase;
+               if (hasConversation && id != null) {
+                 break;
+@@ -4006,10 +4019,11 @@
+                 break;
+               }
+               input.push({
+-                ...explicitMessageItemType && { type: "message" },
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id: canUseItemId ? id : void 0,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -4249,7 +4263,7 @@
+                 providerOptions: part.providerOptions,
+                 schema: openaiResponsesReasoningProviderOptionsSchema
+               });
+-              const reasoningId = providerOptions2 == null ? void 0 : providerOptions2.itemId;
++              const reasoningId = toResponsesItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId, "rs");
+               if ((hasConversation || hasPreviousResponseId) && reasoningId != null) {
+                 break;
+               }
+@@ -4264,6 +4278,12 @@
+                       summary: []
+                     };
+                   }
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
+                 } else {
+                   const summaryParts = [];
+                   if (part.text.length > 0) {
+@@ -4306,6 +4326,12 @@
+                     type: "reasoning",
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts
++                  });
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
+                   });
+                 } else {
+                   warnings.push({
+@@ -4591,14 +4617,14 @@
+     }
+   }
+   if (!store && input.some(
+-    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null
++    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null && !("content" in item && item.content != null)
+   )) {
+     warnings.push({
+       type: "other",
+       message: "Reasoning parts without encrypted content are not supported when store is false. Skipping reasoning parts."
+     });
+     input = input.filter(
+-      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null
++      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null || "content" in item && item.content != null
+     );
+   }
+   return { input, warnings };
+@@ -4607,7 +4633,8 @@
+   () => (0, import_provider_utils27.zodSchema)(
+     import_v419.z.object({
+       itemId: import_v419.z.string().nullish(),
+-      reasoningEncryptedContent: import_v419.z.string().nullish()
++      reasoningEncryptedContent: import_v419.z.string().nullish(),
++      rawReasoningContent: import_v419.z.boolean().nullish()
+     })
+   )
+ );
+@@ -4796,10 +4823,10 @@
+       }),
+       import_v420.z.object({
+         type: import_v420.z.literal("response.failed"),
+-        sequence_number: import_v420.z.number(),
++        sequence_number: import_v420.z.number().optional(),
+         response: import_v420.z.object({
+           error: import_v420.z.object({
+-            code: import_v420.z.string().nullish(),
++            code: import_v420.z.union([import_v420.z.string(), import_v420.z.number()]).nullish(),
+             message: import_v420.z.string()
+           }).nullish(),
+           incomplete_details: import_v420.z.object({ reason: import_v420.z.string() }).nullish(),
+@@ -4813,9 +4840,9 @@
+       import_v420.z.object({
+         type: import_v420.z.literal("response.created"),
+         response: import_v420.z.object({
+-          id: import_v420.z.string(),
+-          created_at: import_v420.z.number(),
+-          model: import_v420.z.string(),
++          id: import_v420.z.string().optional(),
++          created_at: import_v420.z.number().optional(),
++          model: import_v420.z.string().optional(),
+           service_tier: import_v420.z.string().nullish()
+         })
+       }),
+@@ -4838,7 +4865,7 @@
+             id: import_v420.z.string(),
+             call_id: import_v420.z.string(),
+             name: import_v420.z.string(),
+-            arguments: import_v420.z.string(),
++            arguments: import_v420.z.string().optional().transform((v) => v ?? ""),
+             async: import_v420.z.boolean().nullish(),
+             namespace: import_v420.z.string().nullish()
+           }),
+@@ -5222,8 +5249,8 @@
+         annotation: import_v420.z.discriminatedUnion("type", [
+           import_v420.z.object({
+             type: import_v420.z.literal("url_citation"),
+-            start_index: import_v420.z.number(),
+-            end_index: import_v420.z.number(),
++            start_index: import_v420.z.number().optional(),
++            end_index: import_v420.z.number().optional(),
+             url: import_v420.z.string(),
+             title: import_v420.z.string()
+           }),
+@@ -5257,6 +5284,11 @@
+         type: import_v420.z.literal("response.reasoning_summary_text.delta"),
+         item_id: import_v420.z.string(),
+         summary_index: import_v420.z.number(),
++        delta: import_v420.z.string()
++      }),
++      import_v420.z.object({
++        type: import_v420.z.literal("response.reasoning_text.delta"),
++        item_id: import_v420.z.string(),
+         delta: import_v420.z.string()
+       }),
+       import_v420.z.object({
+@@ -5328,8 +5360,8 @@
+                   import_v420.z.discriminatedUnion("type", [
+                     import_v420.z.object({
+                       type: import_v420.z.literal("url_citation"),
+-                      start_index: import_v420.z.number(),
+-                      end_index: import_v420.z.number(),
++                      start_index: import_v420.z.number().optional(),
++                      end_index: import_v420.z.number().optional(),
+                       url: import_v420.z.string(),
+                       title: import_v420.z.string()
+                     }),
+@@ -5353,7 +5385,7 @@
+                       index: import_v420.z.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
+@@ -6615,7 +6647,7 @@
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -8018,11 +8050,11 @@
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = (_x = value.response.id) != null ? _x : null;
+               controller.enqueue({
+                 type: "response-metadata",
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1e3),
++                timestamp: typeof value.response.created_at === "number" ? new Date(value.response.created_at * 1e3) : void 0,
+                 modelId: value.response.model
+               });
+             } else if (isTextDeltaChunk(value)) {
+@@ -8069,6 +8101,29 @@
+               controller.enqueue({
+                 type: "reasoning-delta",
+                 id: `${value.item_id}:${value.summary_index}`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id
++                  }
++                }
++              });
++            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: "active" } };
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id
++                    }
++                  }
++                });
++              }
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: `${value.item_id}:0`,
+                 delta: value.delta,
+                 providerMetadata: {
+                   [providerOptionsName]: {
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -1122,7 +1122,7 @@
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -2111,7 +2111,8 @@
+       created: z8.number().nullish(),
+       data: z8.array(
+         z8.object({
+-          b64_json: z8.string(),
++          b64_json: z8.string().nullish(),
++          url: z8.string().nullish(),
+           revised_prompt: z8.string().nullish()
+         })
+       ),
+@@ -2352,7 +2353,11 @@
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -2423,7 +2428,11 @@
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -3872,6 +3881,9 @@
+   if (!prefixes) return false;
+   return prefixes.some((prefix) => data.startsWith(prefix));
+ }
++function toResponsesItemId(id, prefix) {
++  return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
++}
+ async function convertToOpenAIResponsesInput({
+   prompt,
+   toolNameMapping,
+@@ -4059,7 +4071,8 @@
+           switch (part.type) {
+             case "text": {
+               const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
+-              const id = providerOpts == null ? void 0 : providerOpts.itemId;
++              const rawId = providerOpts == null ? void 0 : providerOpts.itemId;
++              const id = store || (typeof rawId === "string" && rawId.startsWith("msg_")) ? rawId : void 0;
+               const phase = providerOpts == null ? void 0 : providerOpts.phase;
+               if (hasConversation && id != null) {
+                 break;
+@@ -4070,10 +4083,11 @@
+                 break;
+               }
+               input.push({
+-                ...explicitMessageItemType && { type: "message" },
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id: canUseItemId ? id : void 0,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -4313,7 +4327,7 @@
+                 providerOptions: part.providerOptions,
+                 schema: openaiResponsesReasoningProviderOptionsSchema
+               });
+-              const reasoningId = providerOptions2 == null ? void 0 : providerOptions2.itemId;
++              const reasoningId = toResponsesItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId, "rs");
+               if ((hasConversation || hasPreviousResponseId) && reasoningId != null) {
+                 break;
+               }
+@@ -4328,6 +4342,12 @@
+                       summary: []
+                     };
+                   }
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
+                 } else {
+                   const summaryParts = [];
+                   if (part.text.length > 0) {
+@@ -4370,6 +4390,12 @@
+                     type: "reasoning",
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts
++                  });
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
+                   });
+                 } else {
+                   warnings.push({
+@@ -4655,14 +4681,14 @@
+     }
+   }
+   if (!store && input.some(
+-    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null
++    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null && !("content" in item && item.content != null)
+   )) {
+     warnings.push({
+       type: "other",
+       message: "Reasoning parts without encrypted content are not supported when store is false. Skipping reasoning parts."
+     });
+     input = input.filter(
+-      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null
++      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null || "content" in item && item.content != null
+     );
+   }
+   return { input, warnings };
+@@ -4671,7 +4697,8 @@
+   () => zodSchema19(
+     z19.object({
+       itemId: z19.string().nullish(),
+-      reasoningEncryptedContent: z19.string().nullish()
++      reasoningEncryptedContent: z19.string().nullish(),
++      rawReasoningContent: z19.boolean().nullish()
+     })
+   )
+ );
+@@ -4863,10 +4890,10 @@
+       }),
+       z20.object({
+         type: z20.literal("response.failed"),
+-        sequence_number: z20.number(),
++        sequence_number: z20.number().optional(),
+         response: z20.object({
+           error: z20.object({
+-            code: z20.string().nullish(),
++            code: z20.union([z20.string(), z20.number()]).nullish(),
+             message: z20.string()
+           }).nullish(),
+           incomplete_details: z20.object({ reason: z20.string() }).nullish(),
+@@ -4880,9 +4907,9 @@
+       z20.object({
+         type: z20.literal("response.created"),
+         response: z20.object({
+-          id: z20.string(),
+-          created_at: z20.number(),
+-          model: z20.string(),
++          id: z20.string().optional(),
++          created_at: z20.number().optional(),
++          model: z20.string().optional(),
+           service_tier: z20.string().nullish()
+         })
+       }),
+@@ -4905,7 +4932,7 @@
+             id: z20.string(),
+             call_id: z20.string(),
+             name: z20.string(),
+-            arguments: z20.string(),
++            arguments: z20.string().optional().transform((v) => v ?? ""),
+             async: z20.boolean().nullish(),
+             namespace: z20.string().nullish()
+           }),
+@@ -5289,8 +5316,8 @@
+         annotation: z20.discriminatedUnion("type", [
+           z20.object({
+             type: z20.literal("url_citation"),
+-            start_index: z20.number(),
+-            end_index: z20.number(),
++            start_index: z20.number().optional(),
++            end_index: z20.number().optional(),
+             url: z20.string(),
+             title: z20.string()
+           }),
+@@ -5324,6 +5351,11 @@
+         type: z20.literal("response.reasoning_summary_text.delta"),
+         item_id: z20.string(),
+         summary_index: z20.number(),
++        delta: z20.string()
++      }),
++      z20.object({
++        type: z20.literal("response.reasoning_text.delta"),
++        item_id: z20.string(),
+         delta: z20.string()
+       }),
+       z20.object({
+@@ -5395,8 +5427,8 @@
+                   z20.discriminatedUnion("type", [
+                     z20.object({
+                       type: z20.literal("url_citation"),
+-                      start_index: z20.number(),
+-                      end_index: z20.number(),
++                      start_index: z20.number().optional(),
++                      end_index: z20.number().optional(),
+                       url: z20.string(),
+                       title: z20.string()
+                     }),
+@@ -5420,7 +5452,7 @@
+                       index: z20.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
+@@ -6708,7 +6740,7 @@
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -8111,11 +8143,11 @@
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = (_x = value.response.id) != null ? _x : null;
+               controller.enqueue({
+                 type: "response-metadata",
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1e3),
++                timestamp: typeof value.response.created_at === "number" ? new Date(value.response.created_at * 1e3) : void 0,
+                 modelId: value.response.model
+               });
+             } else if (isTextDeltaChunk(value)) {
+@@ -8162,6 +8194,29 @@
+               controller.enqueue({
+                 type: "reasoning-delta",
+                 id: `${value.item_id}:${value.summary_index}`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id
++                  }
++                }
++              });
++            } else if (value.type === "response.reasoning_text.delta") {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: "active" } };
++                controller.enqueue({
++                  type: "reasoning-start",
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id
++                    }
++                  }
++                });
++              }
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: `${value.item_id}:0`,
+                 delta: value.delta,
+                 providerMetadata: {
+                   [providerOptionsName]: {
+diff --git a/src/chat/openai-chat-language-model.ts b/src/chat/openai-chat-language-model.ts
+--- a/src/chat/openai-chat-language-model.ts
++++ b/src/chat/openai-chat-language-model.ts
+@@ -213,7 +213,7 @@
+ 
+     // remove unsupported settings for reasoning models
+     // see https://platform.openai.com/docs/guides/reasoning#limitations
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
+       //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
+       if (
+diff --git a/src/image/openai-image-api.ts b/src/image/openai-image-api.ts
+--- a/src/image/openai-image-api.ts
++++ b/src/image/openai-image-api.ts
+@@ -9,7 +9,8 @@
+       created: z.number().nullish(),
+       data: z.array(
+         z.object({
+-          b64_json: z.string(),
++          b64_json: z.string().nullish(),
++          url: z.string().nullish(),
+           revised_prompt: z.string().nullish(),
+         }),
+       ),
+diff --git a/src/image/openai-image-model.ts b/src/image/openai-image-model.ts
+--- a/src/image/openai-image-model.ts
++++ b/src/image/openai-image-model.ts
+@@ -146,7 +146,11 @@
+       });
+ 
+       return {
+-        images: response.data.map(item => item.b64_json),
++        images: response.data.flatMap(item => {
++        if (typeof item.b64_json === 'string') return [item.b64_json];
++        if (typeof item.url === 'string') return [item.url];
++        return [];
++      }),
+         warnings,
+         usage:
+           response.usage != null
+@@ -225,7 +229,11 @@
+     });
+ 
+     return {
+-      images: response.data.map(item => item.b64_json),
++      images: response.data.flatMap(item => {
++        if (typeof item.b64_json === 'string') return [item.b64_json];
++        if (typeof item.url === 'string') return [item.url];
++        return [];
++      }),
+       warnings,
+       usage:
+         response.usage != null
+diff --git a/src/responses/convert-to-openai-responses-input.ts b/src/responses/convert-to-openai-responses-input.ts
+--- a/src/responses/convert-to-openai-responses-input.ts
++++ b/src/responses/convert-to-openai-responses-input.ts
+@@ -392,6 +392,14 @@
+ function isFileId(data: string, prefixes?: readonly string[]): boolean {
+   if (!prefixes) return false;
+   return prefixes.some(prefix => data.startsWith(prefix));
++}
++
++/** Responses item ids are prefix-tagged (`msg_…`, `rs_…`); UUIDs 400. */
++function toResponsesItemId(
++  id: unknown,
++  prefix: 'msg' | 'rs',
++): string | undefined {
++  return typeof id === 'string' && id.startsWith(prefix) ? id : undefined;
+ }
+ 
+ export async function convertToOpenAIResponsesInput({
+@@ -650,7 +658,11 @@
+           switch (part.type) {
+             case 'text': {
+               const providerOpts = part.providerOptions?.[providerOptionsName];
+-              const id = providerOpts?.itemId as string | undefined;
++              const rawId = providerOpts?.itemId as string | undefined;
++              const id =
++                store || (typeof rawId === 'string' && rawId.startsWith('msg_'))
++                  ? rawId
++                  : undefined;
+               const phase = providerOpts?.phase as
+                 | 'commentary'
+                 | 'final_answer'
+@@ -674,10 +686,11 @@
+               }
+ 
+               input.push({
+-                ...(explicitMessageItemType && { type: 'message' as const }),
++                type: 'message',
+                 role: 'assistant',
+                 content: [{ type: 'output_text', text: part.text }],
+                 id: canUseItemId ? id : undefined,
++                status: 'completed',
+                 ...(phase != null && { phase }),
+               });
+ 
+@@ -1072,7 +1085,7 @@
+                 schema: openaiResponsesReasoningProviderOptionsSchema,
+               });
+ 
+-              const reasoningId = providerOptions?.itemId;
++              const reasoningId = toResponsesItemId(providerOptions?.itemId, 'rs');
+ 
+               if (
+                 (hasConversation || hasPreviousResponseId) &&
+@@ -1097,6 +1110,15 @@
+                       summary: [],
+                     };
+                   }
++                } else if (
++                  providerOptions?.rawReasoningContent &&
++                  part.text.length > 0
++                ) {
++                  input.push({
++                    type: 'reasoning',
++                    summary: [],
++                    content: [{ type: 'reasoning_text', text: part.text }],
++                  });
+                 } else {
+                   const summaryParts: Array<{
+                     type: 'summary_text';
+@@ -1158,6 +1180,17 @@
+                     type: 'reasoning',
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts,
++                  });
++                } else if (
++                  providerOptions?.rawReasoningContent &&
++                  part.text.length > 0
++                ) {
++                  // Thinking dialects (DeepSeek, …) require the reasoning text itself on
++                  // replay; opt-in because OpenAI rejects `content` on reasoning items.
++                  input.push({
++                    type: 'reasoning',
++                    summary: [],
++                    content: [{ type: 'reasoning_text', text: part.text }],
+                   });
+                 } else {
+                   warnings.push({
+@@ -1521,7 +1554,8 @@
+       item =>
+         'type' in item &&
+         item.type === 'reasoning' &&
+-        item.encrypted_content == null,
++        item.encrypted_content == null &&
++        !('content' in item && item.content != null),
+     )
+   ) {
+     warnings.push({
+@@ -1533,7 +1567,8 @@
+       item =>
+         !('type' in item) ||
+         item.type !== 'reasoning' ||
+-        item.encrypted_content != null,
++        item.encrypted_content != null ||
++        ('content' in item && item.content != null),
+     );
+   }
+ 
+@@ -1545,6 +1580,7 @@
+     z.object({
+       itemId: z.string().nullish(),
+       reasoningEncryptedContent: z.string().nullish(),
++      rawReasoningContent: z.boolean().nullish(),
+     }),
+   ),
+ );
+diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
+--- a/src/responses/openai-responses-api.ts
++++ b/src/responses/openai-responses-api.ts
+@@ -771,11 +771,11 @@
+       }),
+       z.object({
+         type: z.literal('response.failed'),
+-        sequence_number: z.number(),
++        sequence_number: z.number().optional(),
+         response: z.object({
+           error: z
+             .object({
+-              code: z.string().nullish(),
++              code: z.union([z.string(), z.number()]).nullish(),
+               message: z.string(),
+             })
+             .nullish(),
+@@ -792,9 +792,9 @@
+       z.object({
+         type: z.literal('response.created'),
+         response: z.object({
+-          id: z.string(),
+-          created_at: z.number(),
+-          model: z.string(),
++          id: z.string().optional(),
++          created_at: z.number().optional(),
++          model: z.string().optional(),
+           service_tier: z.string().nullish(),
+         }),
+       }),
+@@ -817,7 +817,7 @@
+             id: z.string(),
+             call_id: z.string(),
+             name: z.string(),
+-            arguments: z.string(),
++            arguments: z.string().optional().transform((v) => v ?? ''),
+             async: z.boolean().nullish(),
+             namespace: z.string().nullish(),
+           }),
+@@ -1219,8 +1219,8 @@
+         annotation: z.discriminatedUnion('type', [
+           z.object({
+             type: z.literal('url_citation'),
+-            start_index: z.number(),
+-            end_index: z.number(),
++            start_index: z.number().optional(),
++            end_index: z.number().optional(),
+             url: z.string(),
+             title: z.string(),
+           }),
+@@ -1254,6 +1254,11 @@
+         type: z.literal('response.reasoning_summary_text.delta'),
+         item_id: z.string(),
+         summary_index: z.number(),
++        delta: z.string(),
++      }),
++      z.object({
++        type: z.literal('response.reasoning_text.delta'),
++        item_id: z.string(),
+         delta: z.string(),
+       }),
+       z.object({
+@@ -1352,8 +1357,8 @@
+                     z.discriminatedUnion('type', [
+                       z.object({
+                         type: z.literal('url_citation'),
+-                        start_index: z.number(),
+-                        end_index: z.number(),
++                        start_index: z.number().optional(),
++                        end_index: z.number().optional(),
+                         url: z.string(),
+                         title: z.string(),
+                       }),
+@@ -1377,7 +1382,7 @@
+                         index: z.number(),
+                       }),
+                     ]),
+-                  ),
++                  ).nullish().transform((v) => v ?? []),
+                 }),
+               ),
+             }),
+diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
+--- a/src/responses/openai-responses-language-model.ts
++++ b/src/responses/openai-responses-language-model.ts
+@@ -491,7 +491,7 @@
+ 
+     // remove unsupported settings for reasoning models
+     // see https://platform.openai.com/docs/guides/reasoning#limitations
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
+       //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
+       if (
+@@ -2245,11 +2245,14 @@
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = value.response.id ?? null;
+               controller.enqueue({
+                 type: 'response-metadata',
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1000),
++                timestamp:
++                  typeof value.response.created_at === 'number'
++                    ? new Date(value.response.created_at * 1000)
++                    : undefined,
+                 modelId: value.response.model,
+               });
+             } else if (isTextDeltaChunk(value)) {
+@@ -2312,6 +2315,29 @@
+               controller.enqueue({
+                 type: 'reasoning-delta',
+                 id: `${value.item_id}:${value.summary_index}`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id,
++                  } satisfies ResponsesReasoningProviderMetadata,
++                },
++              });
++            } else if (value.type === 'response.reasoning_text.delta') {
++              if (activeReasoning[value.item_id] == null) {
++                activeReasoning[value.item_id] = { summaryParts: { 0: 'active' } };
++                controller.enqueue({
++                  type: 'reasoning-start',
++                  id: `${value.item_id}:0`,
++                  providerMetadata: {
++                    [providerOptionsName]: {
++                      itemId: value.item_id,
++                    },
++                  },
++                });
++              }
++              controller.enqueue({
++                type: 'reasoning-delta',
++                id: `${value.item_id}:0`,
+                 delta: value.delta,
+                 providerMetadata: {
+                   [providerOptionsName]: {

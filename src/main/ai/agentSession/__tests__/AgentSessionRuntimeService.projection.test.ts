@@ -16,6 +16,7 @@ import type { AgentRuntimeEvent, RuntimeMessageProjection } from '@main/ai/runti
 import type { StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManager'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import type { StreamDoneResult } from '@main/ai/streamManager/types'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -329,3 +330,55 @@ it.each(['output-available', 'output-denied'] as const)(
     expect((await f.done).finalMessage?.parts).toEqual([])
   }
 )
+
+// Native terminal messages omit host approvals; replay must not erase the user's decision.
+it.each([false, true])('retains approval=%s through native results, persistence and reconnect', async (approved) => {
+  const f = await fixture()
+  const toolCallId = 'write-result'
+  const approvalId = 'host-write-approval'
+  const input = { path: '/test/result.txt', content: 'owned' }
+  const call = { type: 'dynamic-tool' as const, toolCallId, toolName: 'write', input }
+  await f.project([{ id: 'native-write', role: 'assistant', parts: [{ ...call, state: 'input-available' }] }])
+  await f.emit({ type: 'chunk', chunk: { type: 'tool-input-available', toolCallId, toolName: 'write', input } })
+  await f.emit({ type: 'chunk', chunk: { type: 'tool-approval-request', toolCallId, approvalId } })
+  MockApplicationUtils.setService('AiStreamManager', { resolveToolApproval: () => {} })
+  const decision = Promise.withResolvers<{ approved: boolean }>()
+  toolApprovalRegistry.register({
+    sessionId: 'root',
+    toolCallId,
+    toolName: 'write',
+    originalInput: input,
+    approvalId,
+    resolve: decision.resolve
+  })
+  onTestFinished(() => {
+    toolApprovalRegistry.clear()
+  })
+  expect(f.service.respondToolApproval(approvalId, { approved })).toEqual({ ok: true })
+  expect(await decision.promise).toMatchObject({ approved })
+  const native: CherryUIMessage = {
+    id: 'native-write',
+    role: 'assistant',
+    parts: [{ ...call, state: 'output-error', errorText: approved ? 'Disk full' : 'Tool blocked' }]
+  }
+  await f.project([native])
+  const expected = approved
+    ? { ...call, state: 'output-error', errorText: 'Disk full', approval: { id: approvalId, approved } }
+    : { ...call, state: 'output-denied', approval: { id: approvalId, approved } }
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toEqual([expected]))
+  await f.emit({ type: 'turn-complete' })
+  const result: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  await f.handle.listeners[0].onDone(result)
+  await f.handle.listeners[1].onDone(result)
+  expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual([expected])
+  const restored = new RootMessageProjection(f.context.id)
+  restored.accept({
+    contextId: f.context.id,
+    messages: [native],
+    live: [],
+    refresh: [native.id],
+    replaces: {},
+    removed: []
+  })
+  expect(restored.parts(f.reply.id)).toEqual([expected])
+})

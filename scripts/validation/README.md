@@ -17,7 +17,11 @@ retains full checks. Skill files select the skill gate as well. Unknown inputs,
 root configuration, workflow changes, and the planner itself select all tasks.
 
 Source changes select their project and known consumers. Shared changes select all
-projects. Source changes retain full lint and i18n scans because imports and translation
+projects. Renderer `.ts`, `.tsx`, and `.css` changes, including colocated tests, select
+the existing UI `theme:check` command in the repository group. This runs in `repository-checks`
+without selecting the UI test project or a package-test job. Renderer JSON, test setup,
+and mock files outside `src/renderer/` do not add this check. UI package changes retain
+their existing project and consumer tests. Source changes retain full lint and i18n scans because imports and translation
 references cross file boundaries. Test-only changes omit only scanners that exclude
 those paths: catalog coverage ignores `__tests__` but still reads adjacent main tests;
 hardcoded detection ignores `__tests__` and `.test.ts(x)`, but not adjacent `.spec.ts(x)`.
@@ -33,8 +37,10 @@ prints a machine-readable plan. Test commands are one Vitest invocation with exp
 projects; compilers run serially. Local Vitest defaults to two workers, overridable
 through the direct Vitest command or project wrappers' `--maxWorkers` option.
 
-Required workspace packages are built before typechecks and tests; main tests rebuild
-SQLite for Node. Do not run Electron development and Node tests concurrently in one
+Required workspace packages are built before typechecks and tests. CI setup marks
+its successful installation with `VALIDATION_WORKSPACE_PREPARED=true`, avoiding a
+second postinstall build in that same runner; local validation still prepares exports.
+Main tests rebuild SQLite for Node. Do not run Electron development and Node tests concurrently in one
 worktree. Use isolated worktrees and dependency installations for concurrent agents.
 
 `VALIDATION_PLAN` lets CI execute the exact plan from its classification job.
@@ -45,22 +51,33 @@ cancelled, missing, or unexpectedly skipped jobs selected by the plan.
 ## CI
 
 PRs compare the checked-out merge commit with its first parent, so earlier commits
-remain covered. Pushes compare the event's before/after range. A daily schedule and
-manual dispatch run the full plan. PR concurrency cancels superseded runs; pushes
-are not cancelled. Pull requests targeting a parent stack branch also run CI.
+remain covered. Pushes, scheduled runs and manual dispatch run the full plan.
+New PR runs replace earlier runs for that PR. Other events use a unique run ID
+in their concurrency group, so neither running nor pending commits are replaced.
+Pull requests targeting a parent stack branch also run CI.
 
-Repository, typecheck, lint and i18n groups share one dependency installation in
-`basic-checks`, with separate plan conditions and step outcomes; later groups still
-run after an earlier group fails. Main/preload retain
-three Linux shards; renderer retains five. Selected package tests run once in their
-own job. macOS/Windows retain the platform-gated test inventory (including
+`Cancel closed PR CI` requests cancellation of unfinished PR and feature-branch
+manual CI after a PR closes. It reads current PR state and runs only trusted
+inline API calls, without checking out PR code. Cleanup matches the head repository
+and branch, considers runs created during the PR's lifetime, and stops if the PR
+reopens or another PR on that head remains open. Pushes, schedules, completed runs,
+reruns started after closure, and manual runs on the default or `release/v*`
+branches remain untouched.
+
+Repository and type checks share one Ubuntu installation and verify each planned
+step outcome. Lint and i18n run independently on Ubuntu.
+The required `basic-checks` gate verifies all selected group jobs, including failures
+and unexpected skips. Each runner uses setup-node's pnpm store cache.
+Main/preload retain
+three Linux shards; renderer uses five. Selected package tests run once in their
+own job. Windows and macOS each use one runner. Both retain the platform-gated test inventory (including
 system speech); platform selection is deliberately conservative whenever main is selected.
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.
 Their verifier requires classification to succeed, checks every planned job, and
 accepts a skipped dependency only when the plan explicitly excludes it. The basic
-gate also checks all four group outcomes in the same job, rejecting missing or
-unexpectedly skipped work even if that job reports success. Schema drift,
+gate checks the combined repository/type job and independent lint/i18n jobs; the
+combined job rejects missing or unexpectedly skipped planned steps. Schema drift,
 provider generation, changeset policy, and catalog edit guards remain CI checks.
 
 ## Performance observations

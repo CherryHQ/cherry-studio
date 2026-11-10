@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -18,7 +18,7 @@ import {
 import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 
-import { ensureAgentSessionRootTx, readAgentSessionAncestry } from './agentSessionMessageTree'
+import { ensureAgentSessionRootTx, getAgentSessionHead, readAgentSessionAncestry } from './agentSessionMessageTree'
 import { agentSessionService } from './AgentSessionService'
 
 const locatorSchema = z.discriminatedUnion('kind', [
@@ -52,11 +52,12 @@ class AgentSessionContextService {
       .run()
   }
 
-  removeRootMessageTx(tx: DbOrTx, sessionId: string, messageId: string): void {
+  removeRootMessagesTx(tx: DbOrTx, sessionId: string, messageIds: readonly string[]): void {
+    const removedMessages = new Set(messageIds)
     for (const context of tx.select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()) {
       const root = context.checkpointMapping?.root
       if (!root) continue
-      const deleted = Object.keys(root.sources).filter((id) => root.sources[id].messageId === messageId)
+      const deleted = Object.keys(root.sources).filter((id) => removedMessages.has(root.sources[id].messageId))
       if (!deleted.length) continue
       this.saveRootProjectionTx(tx, sessionId, {
         contextId: context.id,
@@ -64,6 +65,18 @@ class AgentSessionContextService {
       })
     }
   }
+  roots(backendId: string): AgentSessionContextRow[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ context: contexts })
+      .from(contexts)
+      .innerJoin(sessions, eq(sessions.id, contexts.sessionId))
+      .where(and(eq(contexts.backendId, backendId), isNull(contexts.parentContextId), isNull(sessions.deletedAt)))
+      .all()
+      .map((row) => row.context)
+  }
+
   children(parentContextId: string): AgentSessionContextRow[] {
     return application
       .get('DbService')
@@ -148,7 +161,7 @@ class AgentSessionContextService {
   reserveBranchTx(
     tx: DbOrTx,
     binding: Pick<AgentSessionContextRow, 'sessionId' | 'backendId' | 'anchorMessageId'> &
-      Partial<Pick<AgentSessionContextRow, 'nativeThreadId' | 'checkpointMapping'>>
+      Partial<Pick<AgentSessionContextRow, 'id' | 'nativeThreadId' | 'checkpointMapping'>>
   ): AgentSessionContextRow {
     this.backendTx(tx, binding.backendId)
     if (!binding.anchorMessageId) throw new Error('Branch anchor is required')
@@ -301,25 +314,20 @@ class AgentSessionContextService {
   }
 
   publishBranchTx(tx: DbOrTx, sessionId: string, nativeId: string, checkpointMapping: Record<string, unknown>): void {
-    const existing = tx
-      .select()
-      .from(contexts)
-      .where(and(eq(contexts.sessionId, sessionId), eq(contexts.nativeThreadId, nativeId)))
-      .all()
-    for (const row of existing) {
-      const staleResetHandled = row.checkpointMapping?.staleResetHandled
-      tx.update(contexts)
-        .set({
-          nativeThreadId: nativeId,
-          bindingState: 'bound',
-          checkpointMapping: {
-            fork: checkpointMapping,
-            ...(staleResetHandled !== undefined ? { staleResetHandled } : {})
-          }
-        })
-        .where(eq(contexts.id, row.id))
-        .run()
-    }
+    const context = this.branchTx(tx, sessionId, getAgentSessionHead(tx, sessionId)!)
+    if (context?.nativeThreadId !== nativeId) throw new Error('Native edit identity does not match the selected branch')
+    const staleResetHandled = context.checkpointMapping?.staleResetHandled
+    tx.update(contexts)
+      .set({
+        nativeThreadId: nativeId,
+        bindingState: 'bound',
+        checkpointMapping: {
+          fork: checkpointMapping,
+          ...(staleResetHandled !== undefined ? { staleResetHandled } : {})
+        }
+      })
+      .where(eq(contexts.id, context.id))
+      .run()
   }
 
   confirmBranchTx(tx: DbOrTx, contextId: string, sessionId: string, messageId: string, nativeId: string): void {
