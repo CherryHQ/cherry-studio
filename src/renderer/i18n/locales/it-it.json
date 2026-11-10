@@ -5903,6 +5903,7 @@
   "settings.shortcuts.toggle_left_sidebar": "Mostra/nascondi barra laterale sinistra",
   "settings.shortcuts.toggle_new_context": "Cancella contesto",
   "settings.shortcuts.toggle_right_sidebar": "Mostra/nascondi barra laterale destra",
+  "settings.shortcuts.unavailable_on_wayland": "Impossibile registrare questa scorciatoia in questa sessione Wayland. Prova una sessione Xorg.",
   "settings.shortcuts.zoom_in": "Ingrandisci",
   "settings.shortcuts.zoom_out": "Riduci",
   "settings.shortcuts.zoom_reset": "Reimposta zoom",

@@ -5903,6 +5903,7 @@
   "settings.shortcuts.toggle_left_sidebar": "สลับแถบด้านข้างซ้าย",
   "settings.shortcuts.toggle_new_context": "ล้างคอนเท็กซ์",
   "settings.shortcuts.toggle_right_sidebar": "สลับแถบด้านข้างขวา",
+  "settings.shortcuts.unavailable_on_wayland": "ไม่สามารถลงทะเบียนแป้นพิมพ์ลัดนี้ในเซสชัน Wayland นี้ได้ ลองใช้เซสชัน Xorg",
   "settings.shortcuts.zoom_in": "ซูมเข้า",
   "settings.shortcuts.zoom_out": "ซูมออก",
   "settings.shortcuts.zoom_reset": "รีเซ็ตซูม",
