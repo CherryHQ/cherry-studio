@@ -20,6 +20,19 @@ function object(value: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
+export function retainMcpMetadata(blocks: (ProjectedBlock | undefined)[], rawResult: unknown) {
+  const meta = object(object(rawResult)?._meta)
+  if (!meta) return blocks
+  const results = blocks.filter((block) => block && 'result' in block)
+  // SDK metadata is message-scoped; do not assign it to an ambiguous batch.
+  if (results.length !== 1) return blocks
+  return blocks.map((block) =>
+    block && 'result' in block
+      ? { ...block, result: { ...block.result, output: { content: block.result.output, _meta: meta } } }
+      : block
+  )
+}
+
 function textPart(text: string, partial: boolean, citations?: unknown): Part {
   return {
     type: 'text',

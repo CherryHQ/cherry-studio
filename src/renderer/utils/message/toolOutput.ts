@@ -47,7 +47,8 @@ export function extractOutputMetadata(output: unknown): { response: unknown; met
         }
       : undefined
     const response =
-      (normalizedMeta?.type === 'mcp' || typeof output.isError === 'boolean') && isMcpContentArray(output.content)
+      (normalizedMeta?.type === 'mcp' || typeof output.isError === 'boolean' || isRecord(output._meta)) &&
+      isMcpContentArray(output.content)
         ? output
         : output.content
     return { response, metadata: normalizedMeta }

@@ -356,3 +356,37 @@ it.each([true, false])(
     expect(cold[0].parts).toEqual([{ type: 'text', text: rejected ? reason : text, state: 'done' }])
   }
 )
+
+it('keeps target app identity and screenshot content in MCP presentation', async () => {
+  const app = { name: 'Finder', icon: { mimeType: 'image/png', data: 'aWNvbg==' } }
+  const messages = await project({
+    id: 'app-result',
+    role: 'assistant',
+    parts: [
+      {
+        type: 'dynamic-tool',
+        toolName: 'mcp__desktop__snapshot',
+        toolCallId: 'app-call',
+        input: {},
+        state: 'output-available',
+        output: {
+          content: [
+            { type: 'text', text: 'Window' },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'c2hvdA==' } }
+          ],
+          _meta: { 'com.cherrystudio.computer-use/app': app }
+        }
+      }
+    ]
+  })
+  expect(messages[0].parts[0]).toMatchObject({
+    output: {
+      _meta: { 'com.cherrystudio.computer-use/app': app },
+      content: [
+        { type: 'text', text: 'Window' },
+        { type: 'image', mimeType: 'image/png', data: 'c2hvdA==' }
+      ],
+      metadata: { type: 'mcp' }
+    }
+  })
+})
