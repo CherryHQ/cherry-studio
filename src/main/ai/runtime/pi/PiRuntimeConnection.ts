@@ -504,7 +504,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           throw this.observationFailure('closed', event.reason)
       }
       for (const input of batch.outcomes)
-        if (input.outcome !== 'completed')
+        if (input.outcome && input.outcome !== 'completed')
           this.failure ??= this.observationFailure('outcome', input.outcome, input.error?.message ?? input.outcome)
       await this.projection.accept(batch)
       if (batch.backgroundResults) {
