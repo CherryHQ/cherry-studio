@@ -1709,6 +1709,7 @@
   "files.select_all": "Seleziona file visibili",
   "files.select_all_short": "Seleziona tutto",
   "files.select_file": "Seleziona {{name}}",
+  "files.select_file_with_path": "Seleziona {{name}} ({{path}})",
   "files.show_in_folder": "Mostra nella cartella",
   "files.size": "Dimensione",
   "files.text": "Testo",
