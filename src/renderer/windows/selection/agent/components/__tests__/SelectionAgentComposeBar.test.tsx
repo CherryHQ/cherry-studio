@@ -9,6 +9,7 @@ import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspa
 
 const mocks = vi.hoisted(() => ({
   surface: null as ComposerSurfaceProps | null,
+  renderAsMarkdown: false,
   openSettingsTab: vi.fn(),
   agents: [] as Array<{
     id: string
@@ -25,7 +26,9 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, string>) => (options?.app ? `${key}:${options.app}` : key)
   })
 }))
-vi.mock('@data/hooks/usePreference', () => ({ usePreference: () => [undefined] }))
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: (key: string) => [key === 'chat.message.render_as_markdown' ? mocks.renderAsMarkdown : undefined]
+}))
 vi.mock('@renderer/utils/platform', async (importOriginal) => ({ ...(await importOriginal<object>()), isMac: true }))
 // The real surface throws outside a tool provider, so the stand-in requires one too.
 vi.mock('@renderer/components/composer/ComposerSurface', () => ({
@@ -86,12 +89,14 @@ describe('SelectionAgentComposeBar', () => {
     MockUseDataApiUtils.mockQueryData('/agent-workspaces', [])
     mocks.agents = [CHERRY]
     mocks.surface = null
+    mocks.renderAsMarkdown = false
   })
 
-  it('renders Markdown in place', () => {
+  it.each([true, false])('renders Markdown in place only while user messages render as Markdown (%s)', (enabled) => {
+    mocks.renderAsMarkdown = enabled
     renderBar()
 
-    expect(mocks.surface?.markdownLivePreview).toBe(true)
+    expect(mocks.surface?.markdownLivePreview).toBe(enabled)
   })
 
   it('sends the selection as a leading quote ahead of the instruction, adding nothing else', () => {

@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => ({
   exhaustedTargets: new Set<string>(),
   availabilityRevision: 1,
   screenshotEnabled: false,
+  renderAsMarkdown: false,
   screenshotListeners: new Map<string, (payload: any) => void>(),
   draftText: 'hello',
   draftTokens: undefined as ComposerSerializedToken[] | undefined,
@@ -698,6 +699,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
       'agent.input.toolbar.pinned_tools': mocks.pinnedToolIds,
+      'chat.message.render_as_markdown': mocks.renderAsMarkdown,
       'agent.session.display_mode': mocks.sessionLayout === 'classic' ? 'agent' : (mocks.sessionLayout ?? 'workdir')
     }
     return [values[key]]
@@ -874,6 +876,7 @@ describe('AgentComposer', () => {
     mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
     mocks.ipcApiRequest.mockReset()
     mocks.screenshotEnabled = false
+    mocks.renderAsMarkdown = false
     mocks.ipcApiRequest.mockImplementation(
       async (route: string, input: { items?: { key: string }[]; kind?: string; path?: string }) => {
         if (route === 'file.get_metadata') {
@@ -981,7 +984,8 @@ describe('AgentComposer', () => {
     restoreRequestAnimationFrame = undefined
   })
 
-  it('renders Markdown in place', () => {
+  it.each([true, false])('renders Markdown in place only while user messages render as Markdown (%s)', (enabled) => {
+    mocks.renderAsMarkdown = enabled
     render(
       <AgentComposer
         agentId="agent-1"
@@ -992,7 +996,7 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(mocks.surfaceProps?.markdownLivePreview).toBe(true)
+    expect(mocks.surfaceProps?.markdownLivePreview).toBe(enabled)
   })
 
   it('blocks sending and shows the quota notice while the current model is out of quota', () => {
