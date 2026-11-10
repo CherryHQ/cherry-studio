@@ -134,7 +134,9 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
         (callback: () => void) => subscribeShared(key, callback),
         () => readShared(key)
       ),
-    usePersistCache: () => [undefined, vi.fn()]
+    // The real hook always resolves to the persisted object (never undefined), and the merged
+    // AgentChat renders panes that index into it.
+    usePersistCache: () => [{}, vi.fn()]
   }
 })
 
@@ -347,6 +349,8 @@ describe('AgentChat plan-execution handoff gates', () => {
       // is what arms the renderer's handoff at all.
       if (route === 'ai.tool.respond_approval')
         return { ok: true, data: { ok: true, handoff: 'started', executionModelId: PLAN_EXECUTION_MODEL_ID } }
+      // The right pane the merged AgentChat renders asks for the desktop-control snapshot.
+      if (route === 'computer_use.get_controls') return { ok: true, data: [] }
       return { ok: true, data: { ok: true, mode: 'started' } }
     })
     ipcMocks.on.mockClear()
@@ -531,6 +535,7 @@ describe('AgentChat plan-execution handoff gates', () => {
     let resolveApproval: (value: unknown) => void = () => {}
     ipcMocks.request.mockImplementation((route: string) => {
       if (route === 'ai.tool.respond_approval') return new Promise((resolve) => (resolveApproval = resolve))
+      if (route === 'computer_use.get_controls') return Promise.resolve({ ok: true, data: [] })
       return Promise.resolve({ ok: true, data: { ok: true, mode: 'started' } })
     })
     const view = renderAgentChat()

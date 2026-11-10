@@ -102,7 +102,7 @@ const fake = vi.hoisted(() => {
       async prepareBranch() {},
       isSessionBusy: () => false,
       isSessionBusyForArchive: () => false,
-      respondToolApproval: vi.fn(() => ({ dispatched: true, handoff: 'not-requested' })),
+      respondToolApproval: vi.fn(() => ({ ok: true, handoff: 'not-requested' })),
       cancelSessionForks: async () => {},
       closeSession: async () => {},
       recoverSessionForks: async () => {}

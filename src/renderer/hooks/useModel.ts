@@ -38,7 +38,9 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
   const [paintingModelId, setPaintingModelId] = usePreference('feature.paintings.default_model_id')
   const [planExecutionModelId, setPlanExecutionModelId] = usePreference('chat.plan_execution.model_id')
 
-  const { model: defaultModel } = useModelById(enabled ? (defaultModelId as UniqueModelId) : null)
+  const { model: defaultModel, isLoading: isDefaultModelLoading } = useModelById(
+    enabled ? (defaultModelId as UniqueModelId) : null
+  )
   const { model: quickModel } = useModelById(enabled ? ((quickModelId as UniqueModelId) ?? defaultModelId) : null)
   const { model: translateModel } = useModelById(
     enabled ? ((translateModelId as UniqueModelId) ?? defaultModelId) : null
@@ -48,6 +50,9 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
 
   return {
     defaultModel,
+    // True only while the default-model record query is in flight. Undefined data during that
+    // window is not the same as a settled miss.
+    isDefaultModelLoading,
     quickModel,
     translateModel,
     paintingModel,

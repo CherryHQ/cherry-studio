@@ -9,6 +9,7 @@ import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
+  AiToolApprovalRespondResponse,
   AiToolResultRequest,
   AiToolResultResponse,
   StreamChunkPayload,
@@ -360,11 +361,14 @@ export const aiRequestSchemas = {
       anchorId: z.string().optional(),
       executionModelId: UniqueModelIdSchema.optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
-    output: z.object({
-      ok: z.boolean(),
-      executionModelId: z.string().optional(),
-      handoff: z.enum(['not-requested', 'started', 'already-current', 'refused']).optional()
-    })
+    output: z.discriminatedUnion('ok', [
+      z.object({
+        ok: z.literal(true),
+        executionModelId: z.string().optional(),
+        handoff: z.enum(['not-requested', 'started', 'already-current', 'refused']).optional()
+      }),
+      z.object({ ok: z.literal(false), reason: z.enum(['undelivered', 'rejected']) })
+    ]) satisfies z.ZodType<AiToolApprovalRespondResponse>
   }),
 
   // ── Agent session warm-connection lifecycle ──

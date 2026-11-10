@@ -98,6 +98,25 @@ describe('renderer CacheService equality semantics', () => {
   })
 
   describe('setPersist', () => {
+    it('rehydrates remembered browser pages after a renderer reload', async () => {
+      const persisted = localStorage.getItem('cs_cache_persist')
+      const service = await createService()
+      const urls = { 'standalone:persist:agent-browser': 'https://remembered.test/path?q=1#section' }
+      try {
+        service.setPersist('ui.browser.last_urls', urls)
+        service.cleanup()
+        const reloaded = await createService()
+        try {
+          expect(reloaded.getPersist('ui.browser.last_urls')).toEqual(urls)
+        } finally {
+          reloaded.cleanup()
+        }
+      } finally {
+        if (persisted === null) localStorage.removeItem('cs_cache_persist')
+        else localStorage.setItem('cs_cache_persist', persisted)
+      }
+    })
+
     it('retains identity and skips notifications for equal persist ingress', async () => {
       const persisted = localStorage.getItem('cs_cache_persist')
       const service = await createService()

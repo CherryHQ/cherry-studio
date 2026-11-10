@@ -268,21 +268,23 @@ export interface AiToolApprovalRespondRequest extends ApprovalDecision {
   executionModelId?: string
 }
 
-export interface AiToolApprovalRespondResponse {
-  ok: boolean
-  /**
-   * Present when the approval was accepted AND Main performed the model handoff (plan approval
-   * with a different execution model): the turn was stopped, and the renderer should complete the
-   * handoff by switching the model and sending the execution follow-up.
-   */
-  executionModelId?: string
-  /**
-   * What happened to a requested execution model. `refused` on an accepted response means the
-   * approval ran but the handoff did not happen — the caller must say so instead of letting the
-   * user believe the plan switched models.
-   */
-  handoff?: PlanModelHandoffResult
-}
+export type AiToolApprovalRespondResponse =
+  | {
+      ok: true
+      /**
+       * Present when the approval was accepted AND Main performed the model handoff (plan approval
+       * with a different execution model): the turn was stopped, and the renderer should complete the
+       * handoff by switching the model and sending the execution follow-up.
+       */
+      executionModelId?: string
+      /**
+       * What happened to a requested execution model. `refused` on an accepted response means the
+       * approval ran but the handoff did not happen — the caller must say so instead of letting the
+       * user believe the plan switched models.
+       */
+      handoff?: PlanModelHandoffResult
+    }
+  | { ok: false; reason: 'undelivered' | 'rejected' }
 
 /** Subscribe to a topic's stream state. */
 export interface AiStreamAttachRequest {

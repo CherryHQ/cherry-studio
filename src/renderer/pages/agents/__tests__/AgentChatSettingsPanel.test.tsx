@@ -265,6 +265,7 @@ vi.mock('../components/AgentRightPane', () => {
   return {
     AgentRightPane: {
       Scope: MockAgentRightPaneScope,
+      DetailsLayout: ({ children }: PropsWithChildren) => <>{children}</>,
       Shell: ({ children }: PropsWithChildren) => <>{children}</>,
       Viewport: () => <div data-testid="agent-right-pane-viewport" />,
       Shortcuts: () => <button type="button">Shortcuts</button>
@@ -504,6 +505,7 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-agent-id', 'agent-1')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-model-id', 'provider::model-1')
     expect(agentConversationControlsPropsMock.last?.workspaceId).toBe('workspace-1')
+    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(true)
     expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()
     expect(agentComposerPropsMock.last?.onAgentChange).toBeUndefined()
 
@@ -624,6 +626,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(false)
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'edit')
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
@@ -645,6 +648,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(false)
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'edit')
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
@@ -667,6 +671,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(false)
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
 

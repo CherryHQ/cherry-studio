@@ -4,6 +4,7 @@ import type { InputHTMLAttributes, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherrystudioUI from '@cherrystudio/ui'
+import type * as Platform from '@renderer/utils/platform'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
@@ -21,19 +22,23 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
-vi.mock('@renderer/utils/platform', () => ({ isDev: true }))
+vi.mock('@renderer/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof Platform>()),
+  isDev: true
+}))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
 }))
 // The panel has its own suite; here it only needs to show which app it was opened for.
 vi.mock('@renderer/components/MiniApp/MiniAppDetailPanel', () => ({
-  default: ({ appId, onClose }: { appId: string; onClose?: () => void }) => (
-    <div role="dialog" aria-label="mini-app-detail" data-app-id={appId}>
-      <button type="button" onClick={onClose}>
-        close-detail
-      </button>
-    </div>
-  )
+  default: ({ appId, open, onClose }: { appId: string; open: boolean; onClose?: () => void }) =>
+    open ? (
+      <div role="dialog" aria-label="mini-app-detail" data-app-id={appId}>
+        <button type="button" onClick={onClose}>
+          close-detail
+        </button>
+      </div>
+    ) : null
 }))
 
 import MinimalToolbar from '../MinimalToolbar'

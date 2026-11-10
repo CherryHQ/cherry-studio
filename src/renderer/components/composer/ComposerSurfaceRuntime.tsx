@@ -231,6 +231,7 @@ export interface ComposerSurfaceProps {
   isLoading: boolean
   onSendDraft: (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => void | Promise<void>
   onPause: () => void | Promise<void>
+  onShiftTab?: () => void
   supportedExts: string[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
   previewInputFile?: ComposerInputFilePreviewAction
@@ -259,8 +260,6 @@ export interface ComposerSurfaceProps {
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   isInputHistoryActive?: boolean
   onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
-  /** Claims Shift+Tab before prompt-variable navigation; return true when handled. */
-  onShiftTab?: () => boolean
   editingState?: ComposerSurfaceEditingState
   getToolLaunchers?: () => ComposerToolLauncher[]
   toolLaunchersVersion?: number
@@ -577,6 +576,7 @@ export default function ComposerSurfaceRuntime({
   isLoading,
   onSendDraft,
   onPause,
+  onShiftTab,
   supportedExts,
   setFiles,
   previewInputFile,
@@ -598,7 +598,6 @@ export default function ComposerSurfaceRuntime({
   onActionsChange,
   isInputHistoryActive = false,
   onInputHistoryNavigate,
-  onShiftTab,
   editingState,
   getToolLaunchers,
   toolLaunchersVersion,
@@ -659,9 +658,9 @@ export default function ComposerSurfaceRuntime({
   const steerShortcutRef = useRef(steerShortcut)
   const setFilesRef = useRef(setFiles)
   const onSendDraftRef = useRef(onSendDraft)
+  const onShiftTabRef = useRef(onShiftTab)
   const isInputHistoryActiveRef = useRef(isInputHistoryActive)
   const onInputHistoryNavigateRef = useRef(onInputHistoryNavigate)
-  const onShiftTabRef = useRef(onShiftTab)
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
   const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
   const promptVariableSkipTextInputRef = useRef<{ tokenId: string; text: string } | null>(null)
@@ -683,9 +682,9 @@ export default function ComposerSurfaceRuntime({
     steerShortcutRef.current = steerShortcut
     setFilesRef.current = setFiles
     onSendDraftRef.current = onSendDraft
+    onShiftTabRef.current = onShiftTab
     isInputHistoryActiveRef.current = isInputHistoryActive
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
-    onShiftTabRef.current = onShiftTab
   }, [
     filesCount,
     steerShortcut,
@@ -693,8 +692,8 @@ export default function ComposerSurfaceRuntime({
     isInputHistoryActive,
     newlineShortcut,
     onInputHistoryNavigate,
-    onShiftTab,
     onSendDraft,
+    onShiftTab,
     quickPanel,
     sendBlockedReason,
     sendDisabled,
@@ -1636,11 +1635,6 @@ export default function ComposerSurfaceRuntime({
         }
 
         if (event.key === 'Tab' && !event.isComposing && !quickPanelRef.current.isVisible) {
-          if (event.shiftKey && onShiftTabRef.current?.()) {
-            event.preventDefault()
-            event.stopPropagation()
-            return true
-          }
           const targetToken = editorRef.current
             ? selectPromptVariableToken(editorRef.current, event.shiftKey ? -1 : 1)
             : null
@@ -1649,6 +1643,12 @@ export default function ComposerSurfaceRuntime({
             event.preventDefault()
             event.stopPropagation()
             promptVariableEditRef.current = { tokenId: targetToken.id, started: false }
+            return true
+          }
+          if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && onShiftTabRef.current) {
+            if (!event.repeat) onShiftTabRef.current()
+            event.preventDefault()
+            event.stopPropagation()
             return true
           }
         }
@@ -1941,18 +1941,15 @@ export default function ComposerSurfaceRuntime({
     // focus the fallback never held — hand off only after real fallback interaction.
     if (deferredIntent && !deferredIntent.hadFocus) return
 
-    if (initialTextSelection) {
-      editor
-        .chain()
-        .focus()
-        .setTextSelection({
+    const selection = initialTextSelection
+      ? {
           from: getComposerPositionAtTextOffset(editor, initialTextSelection.start),
           to: getComposerPositionAtTextOffset(editor, initialTextSelection.end)
-        })
-        .run()
-      return
-    }
-    editor.commands.focus('end')
+        }
+      : editor.state.doc.content.size
+    editor.chain().setTextSelection(selection).run()
+    editor.view.focus()
+    editor.commands.scrollIntoView()
   }, [deferredIntent, editor, frameRef, initialTextSelection])
 
   useEffect(() => {
@@ -2242,15 +2239,15 @@ export default function ComposerSurfaceRuntime({
   useEffect(() => {
     if (!deferredIntent || !editor) return
     const { transfer, openPanel, insertToken: pendingToken } = deferredIntent
-    delete deferredIntent.transfer
-    delete deferredIntent.openPanel
-    delete deferredIntent.insertToken
     if (!transfer && !openPanel && !pendingToken) return
 
     return setTimeoutTimer(
       'composerDeferredIntent',
       () => {
         if (editor.isDestroyed) return
+        delete deferredIntent.transfer
+        delete deferredIntent.openPanel
+        delete deferredIntent.insertToken
         if (pendingToken) {
           editor.commands.setTextSelection({
             from: getComposerPositionAtTextOffset(editor, pendingToken.selection.start),
@@ -2391,8 +2388,8 @@ export default function ComposerSurfaceRuntime({
             tabIndex={0}
             onMouseDown={startEditorResize}
             onKeyDown={handleResizeKeyDown}
-            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:bg-primary/40 focus-visible:outline-none">
-            <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-primary/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-primary/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
+            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:bg-border-strong focus-visible:outline-none">
+            <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-border opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-border-strong group-data-[resizing=true]/composer-resize-handle:opacity-100" />
           </div>
           {!editingState ? (
             <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">
@@ -2461,7 +2458,7 @@ export default function ComposerSurfaceRuntime({
           <ComposerFocusShortcut focus={focusEditor} editable={editable} />
         </div>
         {isCompact ? (
-          <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1.5">
+          <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1">
             {compactControls}
             {sendAccessoryElement}
             {sendAction}
@@ -2475,7 +2472,7 @@ export default function ComposerSurfaceRuntime({
           data-composer-toolbar=""
           className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
           <div className="flex min-w-0 flex-1 items-center overflow-hidden">{leftControls}</div>
-          <div className="flex flex-row items-center gap-1.5">
+          <div className="flex flex-row items-center gap-1">
             {sendAccessoryElement}
             {sendAction}
           </div>

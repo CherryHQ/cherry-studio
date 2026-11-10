@@ -1,26 +1,28 @@
-import { rm } from 'node:fs/promises'
 import { isAbsolute, parse, relative, sep } from 'node:path'
 
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
 
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
-import { selectVisibleModel } from '../regression/models'
-import { selectSidebarApp } from '../regression/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { selectVisibleModel } from '../regression/helpers/models'
+import { selectSidebarApp } from '../regression/helpers/navigation'
+import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
 
 const test = base.extend<{ isolatedSession: { launch: () => Promise<{ app: ElectronApplication; page: Page }> } }>({
-  isolatedSession: async ({}, use, testInfo) => {
-    const profile = testInfo.outputPath('profile')
+  isolatedSession: async ({}, use) => {
+    const profile = process.env.CS_DEV_PROFILE_ROOT!
+    expect(profile, 'The automatic fixture must initialize the isolated profile').toBeTruthy()
     expect(isAbsolute(profile), 'Profile cleanup must target an absolute test-owned path').toBe(true)
     expect(profile, 'Profile cleanup must never target the filesystem root').not.toBe(parse(profile).root)
     let app: ElectronApplication | undefined
     try {
       await use({
         launch: async () => {
+          const env = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
+          Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
           app = await electron.launch({
             args: ['.'],
-            env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
+            env,
             timeout: 60_000
           })
           const userData = await app.evaluate(({ app }) => app.getPath('userData'))
@@ -35,7 +37,7 @@ const test = base.extend<{ isolatedSession: { launch: () => Promise<{ app: Elect
             .poll(
               async () => {
                 for (const candidate of app!.windows()) {
-                  if ((await candidate.title()) === 'Cherry Studio') {
+                  if (/\/windows\/main\/index\.html(?:[?#]|$)/.test(candidate.url())) {
                     page = candidate
                     return true
                   }
@@ -50,11 +52,7 @@ const test = base.extend<{ isolatedSession: { launch: () => Promise<{ app: Elect
         }
       })
     } finally {
-      try {
-        await app?.close()
-      } finally {
-        await rm(profile, { recursive: true, force: true })
-      }
+      if (app) await closeElectronApp(app)
     }
   }
 })
@@ -171,10 +169,6 @@ test('agent wizard preserves its draft and Knowledge step across Activity re-sho
 
     await addAgent.click()
     await expect(basicStep, 'Agent creation must start at Basic info').toHaveAttribute('aria-current', 'step')
-    await expect(
-      dialog.getByRole('radio', { name: /^Pi\b/ }),
-      'Pi must expose the Skills and Knowledge path'
-    ).toBeChecked()
     await nameInput.fill(name)
     await descriptionInput.fill(description)
     await selectModel()
@@ -182,7 +176,7 @@ test('agent wizard preserves its draft and Knowledge step across Activity re-sho
     await expect(promptStep, 'Next must reach the real system prompt editor').toHaveAttribute('aria-current', 'step')
     await promptEditor.fill(prompt)
     await next.click()
-    await expect(skillsStep, 'Pi creation must include the Skills step before Knowledge').toHaveAttribute(
+    await expect(skillsStep, 'Agent creation must include the Skills step before Knowledge').toHaveAttribute(
       'aria-current',
       'step'
     )

@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 
 const logger = loggerService.withContext('ToolApprovalRegistry')
 
@@ -33,6 +34,13 @@ type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'pres
   presentation?: PendingApproval['presentation']
 }
 
+/** An approval killed without a user decision — see `ToolApprovalRegistry.onAborted`. */
+export type AbortedApproval = ApprovalRegistration & {
+  approvalId: string
+  /** The reason handed to the driver that was waiting on this approval. */
+  reason: string
+}
+
 /**
  * Main-side dispatcher for tool-approval decisions. Holds each pending tool
  * request until the renderer's `ai.tool.respond_approval` request arrives, then
@@ -41,6 +49,13 @@ type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'pres
  */
 class ToolApprovalRegistry {
   private readonly pending = new Map<string, PendingApproval>()
+  private readonly _onAborted = new Emitter<AbortedApproval>()
+
+  /**
+   * Fired once for each pending approval cancelled by its signal or registry cleanup.
+   * Listeners retire any persisted card parked at `approval-requested`.
+   */
+  public readonly onAborted: Event<AbortedApproval> = this._onAborted.event
 
   /**
    * Register a pending approval. Returns `true` when the request is now pending a
@@ -64,7 +79,7 @@ class ToolApprovalRegistry {
 
     const stored: PendingApproval = { ...entry, presentation: entry.presentation ?? 'stream' }
     if (signal) {
-      const abortListener = () => this.dispatch(approvalId, { approved: false, reason: 'aborted' })
+      const abortListener = () => this.cancel([approvalId], 'aborted')
       stored.abortListener = abortListener
       signal.addEventListener('abort', abortListener, { once: true })
     }
@@ -101,16 +116,12 @@ class ToolApprovalRegistry {
   }
 
   abort(sessionId: string, reason = 'session-aborted'): number {
-    let aborted = 0
-    for (const [approvalId, entry] of this.pending) {
-      if (entry.sessionId !== sessionId) continue
-      this.pending.delete(approvalId)
-      this.detachAbort(entry)
-      entry.resolve({ approved: false, reason })
-      aborted++
-    }
-    if (aborted > 0) logger.info('Aborted pending approvals', { sessionId, count: aborted, reason })
-    return aborted
+    const approvalIds = [...this.pending.values()]
+      .filter((entry) => entry.sessionId === sessionId)
+      .map((entry) => entry.approvalId)
+    const count = this.cancel(approvalIds, reason)
+    if (count > 0) logger.info('Aborted pending approvals', { sessionId, count, reason })
+    return count
   }
 
   /**
@@ -119,14 +130,8 @@ class ToolApprovalRegistry {
    * held tool promises don't hang forever) across a service restart.
    */
   clear(reason = 'service-shutdown'): number {
-    const count = this.pending.size
-    if (count === 0) return 0
-    for (const [, entry] of this.pending) {
-      this.detachAbort(entry)
-      entry.resolve({ approved: false, reason })
-    }
-    this.pending.clear()
-    logger.info('Cleared all pending approvals', { count, reason })
+    const count = this.cancel([...this.pending.keys()], reason)
+    if (count > 0) logger.info('Cleared all pending approvals', { count, reason })
     return count
   }
 
@@ -136,6 +141,17 @@ class ToolApprovalRegistry {
 
   hasSession(sessionId: string): boolean {
     return [...this.pending.values()].some((entry) => entry.sessionId === sessionId)
+  }
+
+  private cancel(approvalIds: readonly string[], reason: string): number {
+    const aborted: AbortedApproval[] = []
+    for (const approvalId of approvalIds) {
+      const registration = this.dispatch(approvalId, { approved: false, reason })
+      if (registration) aborted.push({ ...registration, approvalId, reason })
+    }
+    // Notify after the sweep so listeners can register new approvals.
+    for (const entry of aborted) this._onAborted.fire(entry)
+    return aborted.length
   }
 
   private detachAbort(entry: PendingApproval): void {

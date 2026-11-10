@@ -276,10 +276,10 @@ describe('Plan-approval model handoff persistence', () => {
 
     // The user approves the plan on a different execution model: Main resolves the plan as
     // approved and stops the turn so the renderer can restart execution on the chosen model.
-    const result = service.respondToolApproval(APPROVAL_ID, { approved: true }, undefined, {
+    const result = service.respondToolApproval(APPROVAL_ID, { approved: true }, undefined, undefined, {
       executionModelId: MODEL_B
     })
-    expect(result).toEqual({ dispatched: true, handoff: 'started' })
+    expect(result).toEqual({ ok: true, handoff: 'started' })
 
     // The dispatch resolved the runtime's permission continuation, so the plan tool's successful
     // result is on its way to the persistence accumulator as the teardown begins. Content reaches
