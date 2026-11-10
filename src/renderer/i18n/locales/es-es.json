@@ -5126,6 +5126,7 @@
   "settings.mcp.updateSuccess": "Servidor actualizado exitosamente",
   "settings.mcp.url": "URL",
   "settings.menuGroups.automation": "Eficiencia",
+  "settings.menuGroups.builtinTools": "Herramientas integradas",
   "settings.menuGroups.capabilities": "Herramientas",
   "settings.menuGroups.personal": "Preferencias",
   "settings.menuGroups.quickAccess": "Acceso rápido",

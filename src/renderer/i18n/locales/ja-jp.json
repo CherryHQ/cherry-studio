@@ -5126,6 +5126,7 @@
   "settings.mcp.updateSuccess": "サーバーが正常に更新されました",
   "settings.mcp.url": "URL",
   "settings.menuGroups.automation": "効率",
+  "settings.menuGroups.builtinTools": "組み込みツール",
   "settings.menuGroups.capabilities": "ツール",
   "settings.menuGroups.personal": "環境設定",
   "settings.menuGroups.quickAccess": "クイックアクセス",

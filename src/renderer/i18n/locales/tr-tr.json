@@ -5126,6 +5126,7 @@
   "settings.mcp.updateSuccess": "Sunucu başarıyla güncellendi",
   "settings.mcp.url": "URL",
   "settings.menuGroups.automation": "Verimlilik",
+  "settings.menuGroups.builtinTools": "Yerleşik Araçlar",
   "settings.menuGroups.capabilities": "Araçlar",
   "settings.menuGroups.personal": "Tercihler",
   "settings.menuGroups.quickAccess": "Hızlı Erişim",

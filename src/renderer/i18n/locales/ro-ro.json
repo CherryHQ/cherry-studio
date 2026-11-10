@@ -5126,6 +5126,7 @@
   "settings.mcp.updateSuccess": "Server actualizat cu succes",
   "settings.mcp.url": "URL",
   "settings.menuGroups.automation": "Eficiență",
+  "settings.menuGroups.builtinTools": "Instrumente integrate",
   "settings.menuGroups.capabilities": "Instrumente",
   "settings.menuGroups.personal": "Preferințe",
   "settings.menuGroups.quickAccess": "Acces Rapid",

@@ -5126,6 +5126,7 @@
   "settings.mcp.updateSuccess": "服务器更新成功",
   "settings.mcp.url": "URL",
   "settings.menuGroups.automation": "效率",
+  "settings.menuGroups.builtinTools": "内置工具",
   "settings.menuGroups.capabilities": "工具",
   "settings.menuGroups.personal": "偏好",
   "settings.menuGroups.quickAccess": "快捷入口",

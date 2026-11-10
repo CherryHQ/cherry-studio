@@ -82,6 +82,33 @@ test(...caseDefinition('MP-104'), async ({ mainWindow: page }, testInfo) => {
     await expect(displayLanguage).toHaveClass(/\bsearch-hit-highlight\b/)
     await expect(navigation.getByRole('button', { name: '通用', exact: true })).toHaveAttribute('data-active', 'true')
 
+    const builtinTools = settings.getByRole('navigation', { name: '内置工具', exact: true })
+    await navigation.getByRole('button', { name: '内置工具', exact: true }).click()
+    const toolSections = [
+      { name: '提示词', marker: content.getByRole('button', { name: '添加提示词', exact: true }) },
+      { name: '电脑操作', marker: content.getByText('允许智能体控制桌面应用', { exact: true }) },
+      { name: '浏览器', marker: content.getByText('允许 AI 控制浏览器', { exact: true }) },
+      { name: '网络搜索', marker: content.locator('#web-search-searchKeywords-title') },
+      { name: '文档处理', marker: content.getByRole('combobox', { name: '文档处理', exact: true }) },
+      { name: 'OCR', marker: content.getByRole('combobox', { name: 'OCR', exact: true }) }
+    ]
+    await expect(builtinTools.getByRole('button')).toHaveText(toolSections.map(({ name }) => name))
+    for (const section of toolSections) {
+      await expect(navigation.getByRole('button', { name: section.name, exact: true })).toHaveCount(0)
+      await builtinTools.getByRole('button', { name: section.name, exact: true }).click()
+      await expect(section.marker).toBeVisible()
+      await expect(builtinTools.getByRole('button', { name: section.name, exact: true })).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+      await expect(navigation.getByRole('button', { name: '内置工具', exact: true })).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+      await expect(builtinTools.locator('[data-slot="menu-item"][data-active="true"]')).toHaveCount(1)
+    }
+    await attachScreenshot('MP-104 built-in tool secondary navigation')
+
     await navigation.getByRole('button', { name: '搜索设置', exact: true }).click()
     await navigation.getByRole('combobox', { name: '搜索设置', exact: true }).fill('代理')
     const results = content.getByRole('listbox', { name: '设置搜索结果', exact: true })
@@ -111,6 +138,7 @@ test(...caseDefinition('MP-104'), async ({ mainWindow: page }, testInfo) => {
       await navigation.getByRole('button', { name: section.name, exact: true }).click()
       await expect(section.marker).toBeVisible()
       await expect(previous).toBeHidden()
+      await expect(builtinTools).toBeHidden()
       await expect(navigation.getByRole('button', { name: section.name, exact: true })).toHaveAttribute(
         'data-active',
         'true'

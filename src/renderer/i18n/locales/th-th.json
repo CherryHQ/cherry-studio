@@ -5126,6 +5126,7 @@
   "settings.mcp.updateSuccess": "อัปเดตเซิร์ฟเวอร์สำเร็จ",
   "settings.mcp.url": "URL",
   "settings.menuGroups.automation": "ประสิทธิภาพ",
+  "settings.menuGroups.builtinTools": "เครื่องมือในตัว",
   "settings.menuGroups.capabilities": "เครื่องมือ",
   "settings.menuGroups.personal": "การตั้งค่าส่วนตัว",
   "settings.menuGroups.quickAccess": "เข้าถึงด่วน",
