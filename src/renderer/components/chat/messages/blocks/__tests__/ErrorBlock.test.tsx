@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -921,6 +921,30 @@ required service tier.`
 
     expect(await screen.findByText(rawMessage)).toBeInTheDocument()
     expect(screen.queryByText('error.notice.unknown.summarizing')).toBeNull()
+  })
+
+  it('stops waiting for a summarizer that never answers', async () => {
+    vi.useFakeTimers()
+    try {
+      mocks.actions = { diagnoseMessageError: vi.fn(() => new Promise<string>(() => {})) }
+      mocks.translations = new Map(Object.entries(enUS))
+
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{ name: 'Error', message: 'unmapped provider failure', stack: null }}
+          message={message}
+        />
+      )
+      expect(screen.getByText(enUS['error.notice.unknown.summarizing'])).toBeInTheDocument()
+
+      await act(() => vi.advanceTimersByTimeAsync(8000))
+
+      expect(screen.getByText('unmapped provider failure')).toBeInTheDocument()
+      expect(screen.queryByText(enUS['error.notice.unknown.summarizing'])).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('retries a server failure through the regenerate capability', async () => {
