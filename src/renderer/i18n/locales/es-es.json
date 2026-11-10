@@ -5033,6 +5033,7 @@
   "settings.mcp.longRunning": "Modo de ejecución prolongada",
   "settings.mcp.longRunningTooltip": "Una vez habilitado, el servidor admite tareas de larga duración, reinicia el temporizador de tiempo de espera al recibir notificaciones de progreso y amplía el tiempo máximo de espera hasta 10 minutos.",
   "settings.mcp.marketplaces": "Mercados",
+  "settings.mcp.more.allmcps": "Catálogo de servidores MCP de AllMCPs",
   "settings.mcp.more.awesome": "Lista seleccionada de servidores MCP",
   "settings.mcp.more.composio": "Herramienta de desarrollo Composio MCP",
   "settings.mcp.more.glama": "Catálogo de servidores MCP de Glama",

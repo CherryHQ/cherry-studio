@@ -5033,6 +5033,7 @@
   "settings.mcp.longRunning": "Long Running Mode",
   "settings.mcp.longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
   "settings.mcp.marketplaces": "Marketplaces",
+  "settings.mcp.more.allmcps": "AllMCPs MCP Server Directory",
   "settings.mcp.more.awesome": "Curated MCP Server List",
   "settings.mcp.more.composio": "Composio MCP Development Tools",
   "settings.mcp.more.glama": "Glama MCP Server Directory",

@@ -5033,6 +5033,7 @@
   "settings.mcp.longRunning": "Μακροχρόνια λειτουργία",
   "settings.mcp.longRunningTooltip": "Όταν ενεργοποιηθεί, ο διακομιστής υποστηρίζει μακροχρόνιες εργασίες, επαναφέρει το χρονικό όριο μετά από λήψη ειδοποίησης προόδου και επεκτείνει το μέγιστο χρονικό όριο σε 10 λεπτά.",
   "settings.mcp.marketplaces": "Αγορές",
+  "settings.mcp.more.allmcps": "Κατάλογος διακομιστών AllMCPs MCP",
   "settings.mcp.more.awesome": "Επιλεγμένος κατάλογος διακομιστών MCP",
   "settings.mcp.more.composio": "Εργαλείο ανάπτυξης Composio MCP",
   "settings.mcp.more.glama": "Κατάλογος διακομιστών Glama MCP",

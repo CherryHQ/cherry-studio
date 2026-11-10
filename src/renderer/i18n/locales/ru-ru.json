@@ -5033,6 +5033,7 @@
   "settings.mcp.longRunning": "Длительный режим работы",
   "settings.mcp.longRunningTooltip": "Включив эту опцию, сервер будет поддерживать длительные задачи. При получении уведомлений о ходе выполнения будет сброшен тайм-аут и максимальное время выполнения будет увеличено до 10 минут.",
   "settings.mcp.marketplaces": "Торговые площадки",
+  "settings.mcp.more.allmcps": "Каталог серверов AllMCPs MCP",
   "settings.mcp.more.awesome": "Кураторский список серверов MCP",
   "settings.mcp.more.composio": "Инструменты разработки Composio MCP",
   "settings.mcp.more.glama": "Каталог серверов Glama MCP",

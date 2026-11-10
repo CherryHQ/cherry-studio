@@ -5033,6 +5033,7 @@
   "settings.mcp.longRunning": "Modalità di esecuzione prolungata",
   "settings.mcp.longRunningTooltip": "Se attiva, il server supporta attività di lunga durata. Quando riceve notifiche di avanzamento, il tempo di attesa viene azzerato e il tempo massimo di esecuzione viene esteso a 10 minuti.",
   "settings.mcp.marketplaces": "Cataloghi",
+  "settings.mcp.more.allmcps": "Catalogo dei server MCP di AllMCPs",
   "settings.mcp.more.awesome": "Elenco selezionato di server MCP",
   "settings.mcp.more.composio": "Strumenti di sviluppo MCP di Composio",
   "settings.mcp.more.glama": "Catalogo dei server MCP di Glama",

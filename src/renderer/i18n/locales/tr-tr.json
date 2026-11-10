@@ -5033,6 +5033,7 @@
   "settings.mcp.longRunning": "Uzun Süreli Çalışma Modu",
   "settings.mcp.longRunningTooltip": "Etkinleştirildiğinde sunucu uzun süreli görevleri destekler. İlerleme bildirimleri alındığında zaman aşımı sıfırlanır ve azami yürütme süresi 10 dakikaya uzatılır.",
   "settings.mcp.marketplaces": "Pazar Yerleri",
+  "settings.mcp.more.allmcps": "AllMCPs MCP Sunucusu Dizini",
   "settings.mcp.more.awesome": "Seçilmiş MCP Sunucusu Listesi",
   "settings.mcp.more.composio": "Composio MCP Geliştirme Araçları",
   "settings.mcp.more.glama": "Glama MCP Sunucusu Dizini",

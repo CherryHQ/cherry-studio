@@ -5033,6 +5033,7 @@
   "settings.mcp.longRunning": "โหมดทำงานยาวนาน",
   "settings.mcp.longRunningTooltip": "เมื่อเปิดใช้ เซิร์ฟเวอร์รองรับงานที่ใช้เวลานาน เมื่อได้รับการแจ้งเตือนความคืบหน้า การหมดเวลาจะถูกรีเซ็ตและเวลาทำงานสูงสุดจะขยายเป็น 10 นาที",
   "settings.mcp.marketplaces": "ตลาด",
+  "settings.mcp.more.allmcps": "ไดเรกทอรี MCP Server ของ AllMCPs",
   "settings.mcp.more.awesome": "รายการ MCP Server ที่คัดสรรมา",
   "settings.mcp.more.composio": "เครื่องมือพัฒนา MCP ของ Composio",
   "settings.mcp.more.glama": "ไดเรกทอรี MCP Server ของ Glama",

@@ -5033,6 +5033,7 @@
   "settings.mcp.longRunning": "Mod rulare lungă",
   "settings.mcp.longRunningTooltip": "Când este activat, serverul acceptă sarcini de lungă durată. La primirea notificărilor de progres, timpul de expirare va fi resetat, iar timpul maxim de execuție va fi extins la 10 minute.",
   "settings.mcp.marketplaces": "Piețe",
+  "settings.mcp.more.allmcps": "Director servere MCP AllMCPs",
   "settings.mcp.more.awesome": "Listă curatoriată servere MCP",
   "settings.mcp.more.composio": "Instrumente dezvoltare MCP Composio",
   "settings.mcp.more.glama": "Director servere MCP Glama",

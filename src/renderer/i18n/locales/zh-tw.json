@@ -5033,6 +5033,7 @@
   "settings.mcp.longRunning": "長時間運作模式",
   "settings.mcp.longRunningTooltip": "啟用後，伺服器支援長時間任務；收到進度通知時會重設逾時計時器，並將最大逾時時間延長至 10 分鐘",
   "settings.mcp.marketplaces": "市場",
+  "settings.mcp.more.allmcps": "AllMCPs MCP 伺服器目錄",
   "settings.mcp.more.awesome": "精選的 MCP 伺服器清單",
   "settings.mcp.more.composio": "Composio MCP 開發工具",
   "settings.mcp.more.glama": "Glama MCP 伺服器目錄",

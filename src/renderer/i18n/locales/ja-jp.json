@@ -5033,6 +5033,7 @@
   "settings.mcp.longRunning": "長時間運行モード",
   "settings.mcp.longRunningTooltip": "このオプションを有効にすると、サーバーは長時間のタスクをサポートします。進行状況通知を受信すると、タイムアウトがリセットされ、最大実行時間が10分に延長されます。",
   "settings.mcp.marketplaces": "マーケットプレイス",
+  "settings.mcp.more.allmcps": "AllMCPs MCP サーバーディレクトリ",
   "settings.mcp.more.awesome": "厳選された MCP サーバーリスト",
   "settings.mcp.more.composio": "Composio MCP 開発ツール",
   "settings.mcp.more.glama": "Glama MCP サーバーフォルダー",

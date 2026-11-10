@@ -5033,6 +5033,7 @@
   "settings.mcp.longRunning": "Chế độ chạy dài",
   "settings.mcp.longRunningTooltip": "Khi được bật, máy chủ hỗ trợ các tác vụ chạy lâu. Khi nhận được thông báo tiến độ, thời gian chờ sẽ được đặt lại và thời gian thực thi tối đa sẽ được kéo dài thành 10 phút.",
   "settings.mcp.marketplaces": "Thị trường",
+  "settings.mcp.more.allmcps": "Danh mục Máy chủ MCP AllMCPs",
   "settings.mcp.more.awesome": "Danh sách máy chủ MCP được chọn lọc",
   "settings.mcp.more.composio": "Công cụ phát triển MCP Composio",
   "settings.mcp.more.glama": "Danh mục Máy chủ MCP Glama",

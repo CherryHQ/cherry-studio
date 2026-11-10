@@ -5033,6 +5033,7 @@
   "settings.mcp.longRunning": "Lang laufender Modus",
   "settings.mcp.longRunningTooltip": "Nach Aktivierung unterstützt der Server lange Aufgaben. Wenn ein Fortschrittsbenachrichtigung empfangen wird, wird der Timeout-Timer zurückgesetzt und die maximale Timeout-Zeit auf 10 Minuten verlängert",
   "settings.mcp.marketplaces": "Marktplätze",
+  "settings.mcp.more.allmcps": "AllMCPs MCP-Server-Verzeichnis",
   "settings.mcp.more.awesome": "Kuratierte MCP-Serverliste",
   "settings.mcp.more.composio": "Composio MCP-Entwicklungstool",
   "settings.mcp.more.glama": "Glama MCP-Server-Verzeichnis",
