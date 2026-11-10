@@ -49,7 +49,10 @@ async function readMediaAnalysis(entryId: string, offset: number | undefined, si
   const cache = application.get('CacheService')
   const key = `read-file:media:${entryId}`
   const snapshot = offset ? cache.get<unknown>(key) : undefined
-  if (typeof snapshot === 'string') return snapshot
+  if (typeof snapshot === 'string') {
+    signal?.throwIfAborted()
+    return snapshot
+  }
   const text = await application.get('MediaAnalysisService').analyzeToFullText({ kind: 'entry', entryId }, signal)
   cache.set(key, text, MEDIA_READ_SNAPSHOT_TTL_MS)
   return text
