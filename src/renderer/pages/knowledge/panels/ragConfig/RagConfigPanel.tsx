@@ -79,6 +79,9 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
           data-testid="rag-failed-state"
           action={
             <div className="flex items-center gap-2">
+              <Button type="button" size="sm" onClick={() => onRestoreBase(base)}>
+                {t('knowledge.restore.action')}
+              </Button>
               <ErrorDetailAction
                 error={base.error ?? failureReason}
                 message={failureReason}
@@ -86,9 +89,6 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
                 recordId={base.id}
                 source="knowledge"
               />
-              <Button type="button" size="sm" onClick={() => onRestoreBase(base)}>
-                {t('knowledge.restore.action')}
-              </Button>
             </div>
           }
         />
