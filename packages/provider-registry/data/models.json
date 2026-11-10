@@ -11802,11 +11802,11 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "image-recognition"],
       "contextWindow": 1048576,
       "family": "longcat",
       "id": "longcat-2-5-preview",
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image"],
       "maxOutputTokens": 262144,
       "metadata": {},
       "name": "LongCat-2.5-Preview",
@@ -23287,5 +23287,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "c4a50b96cdf161e5"
+  "version": "e22cd84ba17c98e0"
 }

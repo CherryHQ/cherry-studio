@@ -16,8 +16,8 @@ export default defineCreator({
       id: 'longcat-2-5-preview',
       name: 'LongCat-2.5-Preview',
       family: 'longcat',
-      capabilities: ['function-call', 'reasoning'],
-      inputModalities: ['text'],
+      capabilities: ['function-call', 'reasoning', 'image-recognition'],
+      inputModalities: ['text', 'image'],
       outputModalities: ['text'],
       contextWindow: 1048576,
       maxOutputTokens: 262144
