@@ -459,7 +459,11 @@ function PromptRow({
       ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={`${t('common.more')} ${prompt.title}`}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`${t('common.more')} ${prompt.title}`}
+            className="text-muted-foreground">
             <MoreHorizontal size={13} />
           </Button>
         </DropdownMenuTrigger>

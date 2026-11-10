@@ -125,6 +125,10 @@ Ordinary scheduled tasks currently create `conversation` sessions; heartbeat use
 Each execution normally creates a new session, while `reuseSession` uses a bound session.
 The task exposes `reuseSessionId`, run records expose `TaskRunLogEntity.sessionId`, and execution writes `job.metadata.sessionId`.
 
+Store the one-to-many ownership once in `agent_session.taskId`, referencing `job_schedule.id`. `isTaskReuseTarget` selects at most one owned session per task, enforced by a partial unique index; a CHECK rejects reuse targets without an owner. Clearing reuse preserves task ownership and ordinary-topic exclusion. Agent task deletion clears the reuse marker through `AgentTaskService` before deleting the schedule in the same transaction. The generic `JobScheduleService` has no session dependency. Restoring a conversation clears both fields. Two task foreign keys were rejected because they duplicate the owner identity and can disagree; a separate join table is unnecessary for one-to-many ownership.
+
+The unshipped migration `0035_agent_session_task_ownership` converts the previous unique binding into ownership plus the reuse marker and backfills other owned sessions from surviving job metadata/output. Its table rebuild must preserve messages, child sessions, and timestamps. Historical runs whose logs and binding are already gone cannot be attributed by this migration.
+
 Resolve the right pane in this order:
 
 1. An explicitly selected historical run takes priority: verify that it belongs to the selected task, then read its session.

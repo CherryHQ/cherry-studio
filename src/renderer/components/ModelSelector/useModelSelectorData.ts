@@ -1,26 +1,13 @@
-import { isEqual, sortBy, uniqBy } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo } from 'react'
-import useSWR from 'swr'
+import { sortBy } from 'es-toolkit/compat'
+import { useCallback, useMemo } from 'react'
 
-import { usePersistCache } from '@data/hooks/useCache'
-import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
-import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
-import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
+import { getModelDisplayTags } from '@renderer/components/tags/Model'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { ipcApi } from '@renderer/ipc'
 import { getSearchMatchScore } from '@renderer/utils/model'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
-import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import {
-  createUniqueModelId,
-  isUniqueModelId,
-  type Model,
-  MODEL_CAPABILITY,
-  type ModelCapability,
-  parseUniqueModelId
-} from '@shared/data/types/model'
+import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
@@ -29,25 +16,14 @@ import { resolveSelectedModelIds } from './selection'
 import type {
   FlatListItem,
   ModelSelectorModelItem,
+  ModelSelectorActionItem,
+  ModelSelectorNavigableItem,
   UseModelSelectorDataOptions,
   UseModelSelectorDataResult
 } from './types'
 import { getProviderDisplayName } from './utils'
 
 const EMPTY_TAGS: ModelSelectorTag[] = []
-const MODEL_CAPABILITIES = new Set<string>(Object.values(MODEL_CAPABILITY))
-const isModelCapability = (capability: string): capability is ModelCapability => MODEL_CAPABILITIES.has(capability)
-const CHERRYAI_DISPLAY_GROUP = {
-  id: CHERRYAI_PROVIDER_ID,
-  providerIds: [CHERRYAI_PROVIDER_ID, CHERRY_CLOUD_PROVIDER_ID]
-} as const
-
-interface ModelSelectorDisplayGroup {
-  id: string
-  provider: Provider
-  models: Array<{ model: Model; provider: Provider }>
-}
-
 function getModelSearchScore(keywords: string, model: Model, provider: Provider, providerDisplayName: string) {
   return getSearchMatchScore(keywords, [
     { value: model.name, weight: 0, allowAbbreviation: true },
@@ -79,13 +55,9 @@ function getModelIdentifier(model: Model) {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
 }
 
-function getDisplayGroupId(providerId: string) {
-  return CHERRYAI_DISPLAY_GROUP.providerIds.some((id) => id === providerId) ? CHERRYAI_DISPLAY_GROUP.id : providerId
-}
-
 function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: readonly string[]) {
   const providerById = new Map(providers.map((provider) => [provider.id, provider]))
-  const prioritized = [...new Set([...CHERRYAI_DISPLAY_GROUP.providerIds, ...prioritizedProviderIds])]
+  const prioritized = [...new Set(prioritizedProviderIds)]
     .map((providerId) => providerById.get(providerId))
     .filter((provider): provider is Provider => Boolean(provider))
   const prioritizedIds = new Set(prioritized.map((provider) => provider.id))
@@ -104,7 +76,9 @@ export function useModelSelectorData({
   visibilityFilter,
   showTagFilter = true,
   showPinnedModels = true,
-  prioritizedProviderIds = []
+  prioritizedProviderIds = [],
+  composition,
+  actionVisibilityFilter
 }: UseModelSelectorDataOptions): UseModelSelectorDataResult {
   const {
     providers,
@@ -126,51 +100,23 @@ export function useModelSelectorData({
     refetch: refetchPinnedModels,
     togglePin
   } = usePins('model', { enabled })
-  const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
-  const {
-    isAvailabilityReady,
-    availabilityError,
-    isModelHidden,
-    isModelFree,
-    isModelUnavailable,
-    getModelDescription
-  } = useCherryCloudModelAvailability(enabled)
-  const { session, plansQuery, activePaid } = useCherryCloudPlans(enabled)
-  const [cachedPlanModels, setCachedPlanModels] = usePersistCache('ui.cherry_cloud.plan_models')
-  // Like the usage page, ignore purchase_available: the portal decides.
-  const livePlanModels = useMemo(
-    () =>
-      plansQuery.data &&
-      uniqBy(
-        plansQuery.data.available_plans.filter((plan) => !plan.is_free).flatMap((plan) => plan.models ?? []),
-        (planModel) => planModel.id
-      ),
-    [plansQuery.data]
+  const getModelPresentation = useCallback(
+    (model: Model, provider: Provider) =>
+      composition?.getModelPresentation?.(model, provider) ?? {
+        tags: getModelDisplayTags(model, undefined, provider)
+      },
+    [composition]
   )
-  useEffect(() => {
-    if (livePlanModels && !isEqual(cachedPlanModels, livePlanModels)) setCachedPlanModels(livePlanModels)
-  }, [cachedPlanModels, livePlanModels, setCachedPlanModels])
-  // Until the account subscribes, paid plan models it cannot use render as locked rows; there is no
-  // higher plan to sell after that. Signed out, the public catalog offers them, falling back to the
-  // plans last seen while it is unreachable.
-  const isSignedOut = session.status?.phase === 'signed-out'
-  const { data: publicPlans } = useSWR(
-    enabled && isSignedOut ? 'cherry-cloud/public-plans' : null,
-    () => ipcApi.request('cherry_cloud.public_plans.get'),
-    { shouldRetryOnError: false }
+  const getModelTags = useCallback(
+    (model: Model, provider?: Provider) =>
+      provider ? getModelPresentation(model, provider).tags : getModelDisplayTags(model),
+    [getModelPresentation]
   )
-  const publicPlanModels = useMemo(
-    () =>
-      publicPlans &&
-      uniqBy(
-        publicPlans.plans.filter((plan) => !plan.is_free).flatMap((plan) => plan.models),
-        (planModel) => planModel.id
-      ),
-    [publicPlans]
-  )
-  const planModels = useMemo(
-    () => (activePaid ? [] : (livePlanModels ?? (isSignedOut ? (publicPlanModels ?? cachedPlanModels) : []))),
-    [activePaid, cachedPlanModels, isSignedOut, livePlanModels, publicPlanModels]
+  const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter(getModelTags)
+  const getDisplayGroupId = useCallback(
+    (providerId: string) =>
+      composition?.providerGroups?.find((group) => group.providerIds.includes(providerId))?.id ?? providerId,
+    [composition]
   )
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
 
@@ -203,9 +149,6 @@ export function useModelSelectorData({
       if (!includeAgentOnlyModels && agentOnlyProviderIds.has(model.providerId)) {
         continue
       }
-      if (isModelHidden(model, includeAgentOnlyModels)) {
-        continue
-      }
 
       const existingModels = grouped.get(model.providerId)
       if (existingModels) {
@@ -216,21 +159,33 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyModels, isModelHidden, models, sortedProviders])
+  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyModels, models, sortedProviders])
 
   const availableTags = useMemo(() => {
-    if (modelsByProvider.size === 0) {
-      return EMPTY_TAGS
-    }
-
-    return MODEL_SELECTOR_TAGS.filter((tag) =>
-      sortedProviders.some((provider) =>
-        (modelsByProvider.get(provider.id) ?? []).some(
-          (model) => (visibilityFilter?.(model, provider) ?? true) && modelMatchesDisplayTag(model, tag, provider)
+    const providerIds = new Set(sortedProviders.map((provider) => provider.id))
+    const providerByIdHasAction = (action: ModelSelectorActionItem) =>
+      providerIds.has(action.providerId) ||
+      Boolean(
+        action.groupId &&
+        composition?.providerGroups?.some(
+          (group) => group.id === action.groupId && group.providerIds.some((id) => providerIds.has(id))
         )
       )
+    if (modelsByProvider.size === 0 && !composition?.actions?.length) return EMPTY_TAGS
+
+    return MODEL_SELECTOR_TAGS.filter(
+      (tag) =>
+        sortedProviders.some((provider) =>
+          (modelsByProvider.get(provider.id) ?? []).some(
+            (model) => (visibilityFilter?.(model, provider) ?? true) && getModelTags(model, provider).includes(tag)
+          )
+        ) ||
+        (composition?.actions ?? []).some(
+          (action) =>
+            providerByIdHasAction(action) && (actionVisibilityFilter?.(action) ?? true) && action.tags.includes(tag)
+        )
     )
-  }, [modelsByProvider, sortedProviders, visibilityFilter])
+  }, [actionVisibilityFilter, composition, getModelTags, modelsByProvider, sortedProviders, visibilityFilter])
 
   const selectableModelsById = useMemo(() => {
     const entries = [...modelsByProvider.values()].flat().map((model) => [model.id, model] as const)
@@ -300,7 +255,7 @@ export function useModelSelectorData({
     []
   )
 
-  const { listItems, modelItems } = useMemo(() => {
+  const { listItems, modelItems, navigableItems } = useMemo(() => {
     const items: FlatListItem[] = []
     const pinnedIdSet = new Set(pinnedIds)
     const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
@@ -320,13 +275,17 @@ export function useModelSelectorData({
         searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model, provider)))
       ])
     )
-    const displayGroupsById = new Map<string, ModelSelectorDisplayGroup>()
+    const displayGroupsById = new Map<
+      string,
+      {
+        id: string
+        provider: Provider
+        models: Array<{ model: Model; provider: Provider }>
+        actions: ModelSelectorActionItem[]
+      }
+    >()
     for (const provider of sortedProviders) {
       const providerModels = tagFilteredModelsByProvider.get(provider.id) ?? []
-      if (providerModels.length === 0) {
-        continue
-      }
-
       const groupId = getDisplayGroupId(provider.id)
       const group = displayGroupsById.get(groupId)
       const modelsWithProvider = providerModels.map((model) => ({ model, provider }))
@@ -334,50 +293,30 @@ export function useModelSelectorData({
       if (group) {
         group.models.push(...modelsWithProvider)
       } else {
-        displayGroupsById.set(groupId, { id: groupId, provider, models: modelsWithProvider })
+        displayGroupsById.set(groupId, { id: groupId, provider, models: modelsWithProvider, actions: [] })
       }
     }
-    // Locked plan models have no rows; render them from Cloud metadata inside the CherryAI group.
-    const lockedProvider = providerById.get(CHERRY_CLOUD_PROVIDER_ID) ?? providerById.get(CHERRYAI_PROVIDER_ID)
-    const lockedModels = lockedProvider
-      ? planModels.flatMap((planModel) => {
-          const features = new Set(planModel.available_features)
-          const offered = includeAgentOnlyModels
-            ? features.has('agent')
-            : features.has('chat') && features.has('translate')
-          const id = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, planModel.id)
-          if (!offered || selectableModelsById.has(id)) return []
-          const model: Model = {
-            id,
-            providerId: CHERRY_CLOUD_PROVIDER_ID,
-            name: planModel.display_name,
-            group: CHERRY_CLOUD_MODEL_GROUP,
-            capabilities: (planModel.capabilities ?? []).filter(isModelCapability),
-            supportsStreaming: true,
-            isEnabled: true,
-            isHidden: false
-          }
-          const matchesSearch =
-            !searchText.trim() ||
-            getModelSearchScore(searchText, model, lockedProvider, getProviderDisplayName(lockedProvider)) !== null
-          return matchesSearch && finalModelFilter(model) ? [{ model, provider: lockedProvider }] : []
-        })
-      : []
-    if (lockedProvider && lockedModels.length > 0) {
-      const group = displayGroupsById.get(CHERRYAI_DISPLAY_GROUP.id)
-      if (group) group.models.push(...lockedModels)
-      else
-        displayGroupsById.set(CHERRYAI_DISPLAY_GROUP.id, {
-          id: CHERRYAI_DISPLAY_GROUP.id,
-          provider: lockedProvider,
-          models: lockedModels
-        })
+    for (const action of composition?.actions ?? []) {
+      if (!(actionVisibilityFilter?.(action) ?? true)) continue
+      if (showTagFilter && !selectedTags.every((tag) => action.tags.includes(tag))) continue
+      const groupId = action.groupId ?? getDisplayGroupId(action.providerId)
+      const provider = providerById.get(action.providerId) ?? displayGroupsById.get(groupId)?.provider
+      if (!provider) continue
+      if (
+        searchText.trim() &&
+        getSearchMatchScore(searchText, [
+          { value: action.label, weight: 0, allowAbbreviation: true },
+          { value: action.searchId, weight: 1, allowAbbreviation: true },
+          { value: provider.name, weight: 2, allowAbbreviation: false, allowPinyin: true },
+          { value: provider.id, weight: 2, allowAbbreviation: false },
+          { value: provider.presetProviderId, weight: 2, allowAbbreviation: false },
+          { value: getProviderDisplayName(provider), weight: 2, allowAbbreviation: false, allowPinyin: true }
+        ]) === null
+      )
+        continue
+      displayGroupsById.get(groupId)?.actions.push(action)
     }
-    const lockedModelIds = new Set(lockedModels.map(({ model }) => model.id))
-    // CherryAI leads the list, even when only its locked offers create the group.
-    const displayGroups = sortBy([...displayGroupsById.values()], (group) =>
-      group.id === CHERRYAI_DISPLAY_GROUP.id ? 0 : 1
-    )
+    const displayGroups = [...displayGroupsById.values()]
     const duplicateModelNamesByDisplayGroup = new Map(
       displayGroups.map((group) => [group.id, getDuplicateModelNames(group.models.map(({ model }) => model))])
     )
@@ -405,7 +344,6 @@ export function useModelSelectorData({
         items.push({
           key: 'pinned-group',
           type: 'group',
-          title: 'pinned',
           groupKind: 'pinned'
         })
         items.push(...pinnedItems)
@@ -413,55 +351,51 @@ export function useModelSelectorData({
     }
 
     displayGroups.forEach((group) => {
-      const isCherryAiGroup = group.id === CHERRYAI_DISPLAY_GROUP.id
-      // A locked offer never shows in the pinned group, so a pin kept from before sign-out must not hide it.
       const visibleModels = group.models.filter(
-        ({ model }) =>
-          lockedModelIds.has(model.id) || !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id)
+        ({ model }) => !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id)
       )
-      // Free models trail subscription models; a search keeps its relevance order.
-      const filteredModels =
-        isCherryAiGroup && searchText.length === 0
-          ? sortBy(visibleModels, ({ model }) => (isModelFree(model) ? 1 : 0))
-          : visibleModels
-
-      if (filteredModels.length === 0) {
-        return
-      }
-
+      const modelRows = visibleModels.map(({ model, provider }) =>
+        createModelItem(
+          model,
+          provider,
+          'provider',
+          showPinnedModels && pinnedIdSet.has(model.id),
+          duplicateModelNamesByDisplayGroup.get(group.id)?.has(model.name) ?? false
+        )
+      )
+      const rows: ModelSelectorNavigableItem[] = [...modelRows, ...group.actions]
+      if (rows.length === 0) return
       items.push({
         key: `provider-${group.id}`,
         type: 'group',
-        title: getProviderDisplayName(group.provider),
         groupKind: 'provider',
         provider: group.provider,
         canNavigateToSettings: isProviderSettingsListVisibleProvider(group.provider),
-        isCherryAiGroup
+        trailing: composition?.providerGroups?.find((entry) => entry.id === group.id)?.trailing
       })
-
       items.push(
-        ...filteredModels.map(({ model, provider }) =>
-          lockedModelIds.has(model.id)
-            ? { ...createModelItem(model, provider, 'provider', false, false), locked: true }
-            : createModelItem(
-                model,
-                provider,
-                'provider',
-                showPinnedModels && pinnedIdSet.has(model.id),
-                duplicateModelNamesByDisplayGroup.get(group.id)?.has(model.name) ?? false
-              )
-        )
+        ...(searchText.length === 0
+          ? sortBy(rows, (item) =>
+              item.type === 'model' ? (getModelPresentation(item.model, item.provider).priority ?? 0) : 0
+            )
+          : rows)
       )
     })
 
     const selectableModelItems = items.filter((item): item is ModelSelectorModelItem => item.type === 'model')
-    return { listItems: items, modelItems: selectableModelItems }
+    return {
+      listItems: items,
+      modelItems: selectableModelItems,
+      navigableItems: items.filter((item): item is ModelSelectorNavigableItem => item.type !== 'group')
+    }
   }, [
     baseModelFilter,
     createModelItem,
-    includeAgentOnlyModels,
-    planModels,
-    isModelFree,
+    composition,
+    actionVisibilityFilter,
+    selectedTags,
+    getDisplayGroupId,
+    getModelPresentation,
     pinnedIds,
     searchFilter,
     selectableModelsById,
@@ -475,18 +409,14 @@ export function useModelSelectorData({
 
   return {
     availableTags,
-    subscribedPlanName: activePaid?.plan.display_name,
-    getModelDescription,
-    isModelFree,
-    isModelUnavailable,
-    cloudAvailabilityReady: isAvailabilityReady,
-    cloudAvailabilityError: availabilityError,
+    getModelPresentation,
     isLoading: isProvidersLoading || isModelsLoading || isPinsLoading,
     modelsError,
     providersError,
     isPinActionDisabled: isPinsLoading || isPinsRefreshing || isPinsMutating,
     listItems,
     modelItems,
+    navigableItems,
     pinnedIds,
     refetchModels,
     refetchPinnedModels,

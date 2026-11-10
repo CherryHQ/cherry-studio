@@ -10,6 +10,7 @@ import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
 import type { SelectionAgentCapsule } from '@shared/types/selection'
+import type { MarketplaceSkillMember, SkillSubscriptionSnapshot } from '@shared/types/skillMarketplace'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -209,6 +210,7 @@ export type UseCacheSchema = {
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
   'message.ui.${messageId}': {
     foldSelected?: boolean
+    foldSelectedBranchId?: string | null
     multiModelMessageStyle?: string
     useful?: boolean
     disclosures?: Record<string, boolean>
@@ -437,6 +439,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.browser.import_prompt_hidden': boolean
+  'ui.browser.last_urls': Record<string, string>
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
   // restart. Main window only — written from TabsContext, gated on includePinnedTabs.
@@ -470,6 +473,7 @@ export type RendererPersistCacheSchema = {
   'ui.agent.last_used_workspace_id': string | null
   // Kept separate so the assistant and agent surfaces don't bleed into each other.
   'ui.agent.right_pane_open_override': boolean | null
+  'ui.agent.details.open': boolean
   'ui.agent.session.expansion.time': string[]
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
@@ -516,6 +520,7 @@ export type RendererPersistCacheSchema = {
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.browser.import_prompt_hidden': false,
+  'ui.browser.last_urls': {},
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],
   'ui.tab.active_tab_id': '',
@@ -536,6 +541,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
   'ui.agent.right_pane_open_override': null,
+  'ui.agent.details.open': true,
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
@@ -576,6 +582,9 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  'skill.subscription.catalogs': Record<string, SkillSubscriptionSnapshot>
+  // ZIP-derived contents only; installed state still comes from the skill library.
+  'skill.marketplace.members': Record<string, MarketplaceSkillMember[]>
   'browser.favicons': Record<string, string>
   // Last completed automatic-backup attempt (or manual backup) per backend.
   // AutoBackupService owns this restart-safe scheduling baseline.
@@ -593,6 +602,8 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'skill.subscription.catalogs': {},
+  'skill.marketplace.members': {},
   'browser.favicons': {},
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'cherry_cloud.notification_cursors': {},

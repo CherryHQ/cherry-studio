@@ -563,7 +563,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://ppio.com/settings/key-management",
-          "docs": "https://docs.cherry-ai.com/pre-basic/providers/ppio",
+          "docs": "https://cherryai.com/docs/en/pre-basic/providers/",
           "models": "https://ppio.com/model-api/product/llm-api",
           "official": "https://ppio.com/"
         }
@@ -2969,5 +2969,5 @@
       "name": "HopBase"
     }
   ],
-  "version": "ce0fbdd2ef6f06f5"
+  "version": "cb9a3e2e3a8b267a"
 }

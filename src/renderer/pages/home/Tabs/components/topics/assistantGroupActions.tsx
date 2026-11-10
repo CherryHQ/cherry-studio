@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { Archive, BrushCleaning, Edit3, PinIcon, PinOffIcon, Smile, Tags } from 'lucide-react'
+import { Archive, BrushCleaning, Edit3, PinIcon, PinOffIcon, Smile, Tags, Trash2 } from 'lucide-react'
 
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -21,6 +21,8 @@ export interface AssistantGroupActionContext {
   isGroupGrouping: boolean
   onDeleteAssistant: (assistantId: string) => void | Promise<void>
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
+  onPermanentDeleteAssistant?: (assistantId: string) => void | Promise<void>
+  permanentDeleteShortcut?: string
   onEdit: (assistantId: string) => void
   onSetAssistantIconType: (iconType: AssistantIconType) => void | Promise<void>
   onToggleGrouping: () => void | Promise<void>
@@ -75,6 +77,15 @@ assistantGroupActionRegistry.registerCommand({
   id: 'assistant-group.archive-assistant',
   availability: ({ deleteAssistantDisabled }) => ({ enabled: !deleteAssistantDisabled }),
   run: ({ assistantId, onDeleteAssistant }) => onDeleteAssistant(assistantId)
+})
+
+assistantGroupActionRegistry.registerCommand({
+  id: 'assistant-group.delete-assistant-permanently',
+  availability: ({ deleteAssistantDisabled, onPermanentDeleteAssistant }) => ({
+    visible: Boolean(onPermanentDeleteAssistant),
+    enabled: !deleteAssistantDisabled
+  }),
+  run: ({ assistantId, onPermanentDeleteAssistant }) => onPermanentDeleteAssistant?.(assistantId)
 })
 
 assistantGroupActionRegistry.registerAction(
@@ -147,6 +158,20 @@ assistantGroupActionRegistry.registerAction(
     icon: () => <Archive size={14} />,
     group: 'danger',
     order: 40
+  })
+)
+
+assistantGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
+    id: 'assistant-group.delete-assistant-permanently',
+    commandId: 'assistant-group.delete-assistant-permanently',
+    label: ({ t }) => t('common.delete_permanently'),
+    icon: () => <Trash2 size={14} />,
+    group: 'danger',
+    order: 50,
+    danger: true,
+    shortcut: ({ permanentDeleteShortcut }) => permanentDeleteShortcut ?? '',
+    availability: ({ onPermanentDeleteAssistant }) => ({ visible: Boolean(onPermanentDeleteAssistant) })
   })
 )
 

@@ -221,6 +221,11 @@ export class AgentTaskService {
     return true
   }
 
+  deleteScheduleTx(tx: DbOrTx, taskId: string): boolean {
+    agentSessionService.clearTaskScheduleTx(tx, taskId)
+    return jobScheduleService.deleteTx(tx, taskId)
+  }
+
   setOwnerStateTx(
     tx: DbOrTx,
     agentId: string,
@@ -298,7 +303,7 @@ export class AgentTaskService {
     state: 'active' | 'trashed' | 'missing',
     now: number
   ): boolean {
-    if (state === 'missing') return jobScheduleService.deleteTx(tx, schedule.id)
+    if (state === 'missing') return this.deleteScheduleTx(tx, schedule.id)
     if (state === 'trashed') {
       if (!schedule.enabled) return false
       jobScheduleService.updateTx(tx, schedule.id, {
