@@ -61,6 +61,15 @@ Agent catalogs optionally include `emoji` (nonempty Unicode text, at most 64 UTF
 It is display metadata, not a file path or URL. Omission remains compatible with older hosts;
 clients keep their normal fallback. Image transfer is outside this field's contract.
 
+### Approval registrations
+
+Interactions may include `registrationId`. When present, clients echo it as
+`expectedRegistrationId` in `agent.interactions.respond`, alongside the existing revision,
+execution and input digest. The host rejects missing or stale registration identities;
+an old UI must refresh or use Desktop to answer these requests. A native approval ID
+may be reused after recovery, while each registration identifies one live callback.
+Revisions remain decimal and keep their existing ordering contract.
+
 ### Message usage
 
 `AgentMessage.usage` is an optional materialized summary. It carries nonnegative token counts,

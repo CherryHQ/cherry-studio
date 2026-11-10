@@ -41,7 +41,6 @@ const answerSchema = z.object({
 })
 const verdictSchema = z.object({ verdict: z.enum(['met', 'not_met', 'impossible']), reason: z.string() })
 const callSchema = z.object({ thread: z.string(), key: z.string() })
-const approvalId = (call: CallRef) => `behavior:${JSON.stringify(call)}`
 
 /** Desktop services for one root's behavior tree; no tool loop or policy decisions live here. */
 export async function createPiBehaviorHost(options: HostOptions): Promise<{
@@ -180,18 +179,19 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
 }
 
 export async function createPiInteractionPorts(
-  options: Pick<HostOptions, 'input' | 'approval' | 'emit' | 'toolCallId'>
+  options: Pick<HostOptions, 'input' | 'root' | 'approval' | 'emit' | 'toolCallId'>
 ): Promise<Pick<HostPorts, 'approvals' | 'questions'>> {
   const { callKeyOf } = await import('@cherrystudio/agent-behavior')
   const { input, approval } = options
+  const approvalId = (call: CallRef) => `behavior:${JSON.stringify({ ...call, sessionId: input.sessionId })}`
   const outcomes = new Map<string, ApprovalOutcome>()
 
   async function ask(call: CallRef, name: string, args: Record<string, JsonValue>, signal: AbortSignal) {
     signal.throwIfAborted()
+    const interaction = approval.getInteractionState()
     const toolCallId = await options.toolCallId(call)
     signal.throwIfAborted()
-    const presentation = approval.getInteractionState().userResponse
-    if (presentation === 'unavailable') return undefined
+    if (interaction.userResponse === 'unavailable') return undefined
     const id = approvalId(call)
     const decision = await new Promise<DispatchDecision>((resolve) => {
       const pending = toolApprovalRegistry.register({
@@ -200,7 +200,6 @@ export async function createPiInteractionPorts(
         toolCallId,
         toolName: name,
         originalInput: args,
-        presentation,
         signal,
         resolve
       })
@@ -212,7 +211,11 @@ export async function createPiInteractionPorts(
             toolCallId,
             toolName: name,
             input: args,
-            presentation,
+            registrationId: pending,
+            origin:
+              call.thread === options.root
+                ? { kind: 'root', messageId: interaction.replyId }
+                : { kind: 'child', threadId: call.thread },
             providerMetadata: { cherry: { transport: PI_TRANSPORT, toolName: name } }
           }
         })
@@ -250,7 +253,6 @@ export async function createPiInteractionPorts(
           for (const part of message.data.parts ?? []) {
             if (!isToolUIPart(part) || !part.approval?.id.startsWith('behavior:')) continue
             const id = part.approval.id
-            if (persisted.has(id)) continue
             let parsed: unknown
             try {
               parsed = JSON.parse(id.slice('behavior:'.length))
@@ -259,9 +261,12 @@ export async function createPiInteractionPorts(
             }
             const ref = callSchema.safeParse(parsed)
             if (!ref.success || ref.data.thread !== thread) continue
+            const call = { thread, key: callKeyOf(ref.data.key) }
+            const scopedId = approvalId(call)
+            if (persisted.has(scopedId)) continue
             const answered = 'approved' in part.approval ? part.approval : undefined
-            persisted.set(id, {
-              call: { thread, key: callKeyOf(ref.data.key) },
+            persisted.set(scopedId, {
+              call,
               state: answered ? (answered.approved ? 'granted' : 'denied') : 'unavailable',
               feedback: answered?.reason
             })

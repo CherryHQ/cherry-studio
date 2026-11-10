@@ -20,6 +20,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 const logger = loggerService.withContext('ClaudeCodeToolGuards')
 
 export interface ToolGuardInteractionState {
+  readonly replyId?: string
   readonly currentTurn: 'none' | 'interactive' | 'headless'
   readonly userResponse: 'unavailable' | 'stream' | 'message'
 }

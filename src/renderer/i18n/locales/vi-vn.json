@@ -1,6 +1,12 @@
 {
   "agent.add.error.failed": "Không thể thêm Agent",
   "agent.add.title": "Thêm Agent",
+  "agent.approval.approved": "Đã phê duyệt",
+  "agent.approval.cancelled": "Đã hủy",
+  "agent.approval.denied": "Đã từ chối",
+  "agent.approval.expired": "Đã hết hạn",
+  "agent.approval.pending": "Đang chờ xác nhận",
+  "agent.approval.unavailable": "Phê duyệt này không còn khả dụng. Mở yêu cầu hiện tại để tiếp tục.",
   "agent.archive.related_resources": "Các kênh liên kết sẽ ngắt kết nối; tác vụ đã lên lịch đã tạm dừng. Cài đặt, đăng ký và lịch sử thực thi được giữ lại. Các tác vụ bị bỏ lỡ sẽ không tự động chạy sau khi khôi phục Agent.",
   "agent.askUserQuestion.answered": "đã trả lời",
   "agent.askUserQuestion.close": "Đóng",

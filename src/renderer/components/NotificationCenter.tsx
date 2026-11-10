@@ -78,6 +78,7 @@ function NotificationItem({
     cancelled: t('notification.center.result.cancelled'),
     interrupted: t('notification.center.result.interrupted')
   }
+  const approval = record.target?.kind === 'conversation' ? record.target.approval : undefined
   const created = new Date(record.createdAt)
   const timeLabel = created.toLocaleString(i18n.language, {
     ...(created.toDateString() === new Date().toDateString() ? {} : { dateStyle: 'short' as const }),
@@ -121,6 +122,19 @@ function NotificationItem({
             ) : (
               <span className="min-w-0 flex-1 truncate">
                 <NotificationTitle record={record} />
+              </span>
+            )}
+            {approval && (
+              <span className="text-xs text-muted-foreground">
+                {
+                  {
+                    pending: t('agent.approval.pending'),
+                    approved: t('agent.approval.approved'),
+                    denied: t('agent.approval.denied'),
+                    cancelled: t('agent.approval.cancelled'),
+                    expired: t('agent.approval.expired')
+                  }[approval.status]
+                }
               </span>
             )}
             {record.readAt === null && (

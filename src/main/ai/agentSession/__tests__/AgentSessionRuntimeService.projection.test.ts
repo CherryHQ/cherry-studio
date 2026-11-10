@@ -2,11 +2,13 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { ClaudeCodeSessionStateService } from '@main/ai/runtime/claudeCode/ClaudeCodeSessionStateService'
 import { surfaceExitPlanModeInput } from '@main/ai/runtime/claudeCode/hooks'
@@ -16,9 +18,10 @@ import type { AgentRuntimeEvent, RuntimeMessageProjection } from '@main/ai/runti
 import type { StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManager'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import type { StreamDoneResult } from '@main/ai/streamManager/types'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { AGENT_SESSION_APPROVALS_CACHE_KEY } from '@shared/ai/agentSessionApprovals'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { AsyncEventQueue } from '@shared/utils/async'
 
@@ -75,6 +78,7 @@ async function fixture() {
     connect: async () => {
       const activeQueue = queue
       return {
+        contextId: context.id,
         events: {
           async *[Symbol.asyncIterator]() {
             for await (const next of activeQueue) {
@@ -98,6 +102,7 @@ async function fixture() {
     }
   })
   const service = new AgentSessionRuntimeService()
+  const approvalSubscription = toolApprovalRegistry.onAborted((event) => service['retireAbortedApprovalCard'](event))
   const handle = service.beginTurn({
     sessionId: 'root',
     topicId: 'agent-session:root',
@@ -137,6 +142,7 @@ async function fixture() {
   await project([])
   onTestFinished(async () => {
     await service.closeSession('root')
+    approvalSubscription.dispose()
     runtimeDriverRegistry.clearForTest()
     MockApplicationUtils.resetServices()
     vi.restoreAllMocks()
@@ -339,11 +345,10 @@ it.each([false, true])('retains approval=%s through native results, persistence 
   const input = { path: '/test/result.txt', content: 'owned' }
   const call = { type: 'dynamic-tool' as const, toolCallId, toolName: 'write', input }
   await f.project([{ id: 'native-write', role: 'assistant', parts: [{ ...call, state: 'input-available' }] }])
-  await f.emit({ type: 'chunk', chunk: { type: 'tool-input-available', toolCallId, toolName: 'write', input } })
-  await f.emit({ type: 'chunk', chunk: { type: 'tool-approval-request', toolCallId, approvalId } })
+
   MockApplicationUtils.setService('AiStreamManager', { resolveToolApproval: () => {} })
   const decision = Promise.withResolvers<{ approved: boolean }>()
-  toolApprovalRegistry.register({
+  const registrationId = toolApprovalRegistry.register({
     sessionId: 'root',
     toolCallId,
     toolName: 'write',
@@ -354,7 +359,22 @@ it.each([false, true])('retains approval=%s through native results, persistence 
   onTestFinished(() => {
     toolApprovalRegistry.clear()
   })
-  expect(f.service.respondToolApproval(approvalId, { approved })).toEqual({ ok: true })
+  await f.emit({
+    type: 'tool-approval-request',
+    request: {
+      approvalId,
+      registrationId: registrationId!,
+      toolCallId,
+      toolName: 'write',
+      input,
+      origin: { kind: 'root', messageId: f.reply.id }
+    }
+  })
+  expect(
+    f.service.respondToolApproval(approvalId, { approved }, f.reply.id, 'agent-session:root', registrationId)
+  ).toEqual({
+    ok: true
+  })
   expect(await decision.promise).toMatchObject({ approved })
   const native: CherryUIMessage = {
     id: 'native-write',
@@ -363,8 +383,19 @@ it.each([false, true])('retains approval=%s through native results, persistence 
   }
   await f.project([native])
   const expected = approved
-    ? { ...call, state: 'output-error', errorText: 'Disk full', approval: { id: approvalId, approved } }
-    : { ...call, state: 'output-denied', approval: { id: approvalId, approved } }
+    ? {
+        ...call,
+        state: 'output-error',
+        errorText: 'Disk full',
+        approval: { id: approvalId, approved },
+        callProviderMetadata: { cherry: { approvalRegistrationId: registrationId } }
+      }
+    : {
+        ...call,
+        state: 'output-denied',
+        approval: { id: approvalId, approved },
+        callProviderMetadata: { cherry: { approvalRegistrationId: registrationId } }
+      }
   await vi.waitFor(() => expect(f.views.at(-1)?.parts).toEqual([expected]))
   await f.emit({ type: 'turn-complete' })
   const result: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
@@ -381,4 +412,414 @@ it.each([false, true])('retains approval=%s through native results, persistence 
     removed: []
   })
   expect(restored.parts(f.reply.id)).toEqual([expected])
+})
+
+// Catches a child waiting forever because its tool input exists only in the child transcript.
+it('presents child approval independently and dispatches edited input only from its bound card', async () => {
+  const f = await fixture()
+  const result = Promise.withResolvers<DispatchDecision>()
+  const input = { path: '/tmp/child.txt', content: 'original' }
+  const registrationId = toolApprovalRegistry.register({
+    approvalId: 'child',
+    sessionId: 'root',
+    toolCallId: 'child-write',
+    toolName: 'write',
+    originalInput: input,
+    resolve: result.resolve
+  })!
+  const request = {
+    approvalId: 'child',
+    registrationId,
+    toolCallId: 'child-write',
+    toolName: 'write',
+    input,
+    origin: { kind: 'child' as const, threadId: 'native-child' }
+  }
+  await f.emit({ type: 'tool-approval-request', request })
+  await f.emit({ type: 'tool-approval-request', request })
+  const cards = messages.listApprovalMessages('root')
+  expect(cards).toHaveLength(1)
+  expect(cards[0].id).not.toBe(f.reply.id)
+  expect(cards[0].data.parts).toContainEqual(
+    expect.objectContaining({
+      input,
+      state: 'approval-requested',
+      callProviderMetadata: {
+        cherry: {
+          approvalRecord: true,
+          approvalRegistrationId: registrationId,
+          approvalSource: { contextId: f.context.id, threadId: 'native-child' }
+        }
+      }
+    })
+  )
+  expect(
+    f.service.respondToolApproval('child', { approved: true }, f.reply.id, 'agent-session:root', registrationId)
+  ).toEqual({
+    ok: false,
+    reason: 'rejected'
+  })
+  const updatedInput = { ...input, content: 'edited' }
+  expect(
+    f.service.respondToolApproval(
+      'child',
+      { approved: true, updatedInput },
+      cards[0].id,
+      'agent-session:root',
+      registrationId
+    )
+  ).toEqual({ ok: true })
+  await expect(result.promise).resolves.toEqual({ approved: true, updatedInput })
+  expect(
+    f.service.respondToolApproval('child', { approved: true }, cards[0].id, 'agent-session:root', registrationId)
+  ).toEqual({
+    ok: false,
+    reason: 'rejected'
+  })
+  expect(messages.getSessionMessage('root', cards[0].id).data.parts).toContainEqual(
+    expect.objectContaining({ input: updatedInput, state: 'approval-responded' })
+  )
+})
+
+// Catches approval-before-input disappearing, and a late snapshot overwriting the approved edit.
+it('presents early root approval and retains its decision through later native input', async () => {
+  const f = await fixture()
+  const result = Promise.withResolvers<unknown>()
+  const input = { path: '/tmp/root.txt', content: 'original' }
+  const registrationId = toolApprovalRegistry.register({
+    approvalId: 'early',
+    sessionId: 'root',
+    toolCallId: 'early-write',
+    toolName: 'write',
+    originalInput: input,
+    resolve: result.resolve
+  })!
+  await f.emit({
+    type: 'tool-approval-request',
+    request: {
+      approvalId: 'early',
+      registrationId,
+      toolCallId: 'early-write',
+      toolName: 'write',
+      input,
+      origin: { kind: 'root', messageId: f.reply.id }
+    }
+  })
+  expect(messages.getSessionMessage('root', f.reply.id).data.parts).toContainEqual(
+    expect.objectContaining({ input, state: 'approval-requested' })
+  )
+  const updatedInput = { ...input, content: 'edited' }
+  expect(
+    f.service.respondToolApproval(
+      'early',
+      { approved: true, updatedInput },
+      f.reply.id,
+      'agent-session:root',
+      registrationId
+    )
+  ).toEqual({ ok: true })
+  await expect(result.promise).resolves.toEqual({ approved: true, updatedInput })
+  await f.project([
+    {
+      id: 'late',
+      role: 'assistant',
+      parts: [{ type: 'dynamic-tool', toolName: 'write', toolCallId: 'early-write', input, state: 'input-available' }]
+    }
+  ])
+  await vi.waitFor(() =>
+    expect(f.views.at(-1)?.parts).toEqual([
+      expect.objectContaining({ input: updatedInput, state: 'approval-responded' })
+    ])
+  )
+})
+
+// Catches old Durable message anchors answering a newly registered callback with the same approval ID.
+it('retires cancellation and rejects the old card after the native approval ID is reused', async () => {
+  const f = await fixture()
+  const register = async (signal: AbortSignal) => {
+    const result = Promise.withResolvers<unknown>()
+    const registrationId = toolApprovalRegistry.register({
+      approvalId: 'recovered',
+      sessionId: 'root',
+      toolCallId: 'write',
+      toolName: 'write',
+      originalInput: {},
+      signal,
+      resolve: result.resolve
+    })!
+    await f.emit({
+      type: 'tool-approval-request',
+      request: {
+        approvalId: 'recovered',
+        registrationId,
+        toolCallId: 'write',
+        toolName: 'write',
+        input: {},
+        origin: { kind: 'child', threadId: 'child' }
+      }
+    })
+    return { result, registrationId, anchor: toolApprovalRegistry.peek('recovered')!.anchor! }
+  }
+  const stopped = new AbortController()
+  const old = await register(stopped.signal)
+  stopped.abort()
+  await expect(old.result.promise).resolves.toMatchObject({ approved: false })
+  expect(messages.getSessionMessage('root', old.anchor.messageId).data.parts).toContainEqual(
+    expect.objectContaining({ state: 'output-error' })
+  )
+  const retiredParts = messages.getSessionMessage('root', old.anchor.messageId).data.parts
+  for (const registrationId of [old.registrationId, undefined]) {
+    expect(
+      f.service.respondToolApproval(
+        'recovered',
+        { approved: true },
+        old.anchor.messageId,
+        'agent-session:root',
+        registrationId
+      )
+    ).toEqual({ ok: false, reason: 'rejected' })
+    expect(messages.getSessionMessage('root', old.anchor.messageId).data.parts).toEqual(retiredParts)
+  }
+  const active = await register(new AbortController().signal)
+  expect(active.anchor.messageId).not.toBe(old.anchor.messageId)
+  expect(
+    f.service.respondToolApproval(
+      'recovered',
+      { approved: true },
+      old.anchor.messageId,
+      'agent-session:root',
+      old.registrationId
+    )
+  ).toEqual({ ok: false, reason: 'rejected' })
+  expect(
+    f.service.respondToolApproval(
+      'recovered',
+      { approved: true },
+      active.anchor.messageId,
+      'agent-session:root',
+      active.registrationId
+    )
+  ).toEqual({ ok: true })
+  await expect(active.result.promise).resolves.toEqual({ approved: true })
+})
+
+// Catches an inaccessible card leaving the native tool waiting forever.
+it.each(['write-failed', 'cancel-during-write', 'response-failed'] as const)(
+  'settles safely when %s',
+  async (failure) => {
+    const f = await fixture()
+    const controller = new AbortController()
+    const result = Promise.withResolvers<unknown>()
+    const registrationId = toolApprovalRegistry.register({
+      approvalId: 'failure',
+      sessionId: 'root',
+      toolCallId: 'write',
+      toolName: 'write',
+      originalInput: {},
+      signal: controller.signal,
+      resolve: result.resolve
+    })!
+    const save = messages.saveMessage.bind(messages)
+    if (failure !== 'response-failed')
+      vi.spyOn(messages, 'saveMessage').mockImplementationOnce((...args) => {
+        if (failure === 'write-failed') throw new Error('disk full')
+        controller.abort()
+        return save(...args)
+      })
+    await f.emit({
+      type: 'tool-approval-request',
+      request: {
+        approvalId: 'failure',
+        registrationId,
+        toolCallId: 'write',
+        toolName: 'write',
+        input: {},
+        origin: { kind: 'child', threadId: 'child' }
+      }
+    })
+    if (failure === 'response-failed') {
+      const anchor = toolApprovalRegistry.peek('failure')!.anchor!
+      vi.spyOn(messages, 'applyToolApprovalDecision').mockImplementationOnce(() => {
+        throw new Error('disk full')
+      })
+      expect(
+        f.service.respondToolApproval(
+          'failure',
+          { approved: true },
+          anchor.messageId,
+          'agent-session:root',
+          registrationId
+        )
+      ).toEqual({ ok: false, reason: 'rejected' })
+      expect(toolApprovalRegistry.peek('failure')?.registrationId).toBe(registrationId)
+      expect(
+        f.service.respondToolApproval(
+          'failure',
+          { approved: false },
+          anchor.messageId,
+          'agent-session:root',
+          registrationId
+        )
+      ).toEqual({ ok: true })
+    }
+    await expect(result.promise).resolves.toMatchObject({ approved: false })
+    expect(toolApprovalRegistry.peek('failure')).toBeUndefined()
+    expect(
+      messages
+        .listApprovalMessages('root')
+        .flatMap((row) => row.data.parts ?? [])
+        .some((part) => 'state' in part && part.state === 'approval-requested')
+    ).toBe(false)
+  }
+)
+
+// A late child mapping must move only the display, preserving both the canonical anchor and accepted edit.
+it('projects a late nested child onto its parent task and retires both entry points', async () => {
+  const f = await fixture()
+  const result = Promise.withResolvers<DispatchDecision>()
+  const registrationId = toolApprovalRegistry.register({
+    approvalId: 'nested',
+    sessionId: 'root',
+    toolCallId: 'write',
+    toolName: 'write',
+    originalInput: { content: 'old' },
+    resolve: result.resolve
+  })!
+  await f.project([
+    {
+      id: 'parent-native',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'dynamic-tool',
+          toolName: 'Agent',
+          toolCallId: 'spawn',
+          state: 'input-available',
+          input: { prompt: 'work' }
+        }
+      ]
+    }
+  ])
+  await f.emit({
+    type: 'tool-approval-request',
+    request: {
+      approvalId: 'nested',
+      registrationId,
+      toolCallId: 'write',
+      toolName: 'write',
+      input: { content: 'old' },
+      origin: { kind: 'child', threadId: 'nested-native' }
+    }
+  })
+  const read = () => application.get('CacheService').getShared(AGENT_SESSION_APPROVALS_CACHE_KEY('root'))!
+  const anchor = read()[0].messageId
+  expect(read()[0]).toMatchObject({ status: 'pending', taskPath: [] })
+  const child = contexts.child(f.context.id, 'child-native', 'spawn', 'Child')
+  const nested = contexts.child(child.id, 'nested-native', 'nested-spawn', 'Nested')
+  f.service['refreshApprovalViews']('root')
+  expect(read()[0]).toMatchObject({
+    messageId: anchor,
+    registrationId,
+    parentMessageId: f.reply.id,
+    taskPath: [
+      { contextId: child.id, toolCallId: 'spawn' },
+      { contextId: nested.id, toolCallId: 'nested-spawn' }
+    ]
+  })
+  expect(
+    f.service.respondToolApproval(
+      'nested',
+      { approved: true, updatedInput: { content: 'edited' } },
+      anchor,
+      'agent-session:root',
+      registrationId
+    )
+  ).toEqual({ ok: true })
+  await expect(result.promise).resolves.toMatchObject({ approved: true, updatedInput: { content: 'edited' } })
+  expect(read()[0]).toMatchObject({ messageId: anchor, status: 'approved', part: { input: { content: 'edited' } } })
+  expect(
+    f.service.respondToolApproval('nested', { approved: false }, anchor, 'agent-session:root', registrationId)
+  ).toEqual({ ok: false, reason: 'rejected' })
+})
+
+// A recovered request can reuse an inline reply and native approval ID; the old registration must still fail.
+it('rejects an old registration even when an inline approval reuses its message anchor', async () => {
+  const f = await fixture()
+  const register = async () => {
+    const controller = new AbortController()
+    const result = Promise.withResolvers<DispatchDecision>()
+    const id = toolApprovalRegistry.register({
+      approvalId: 'repeat',
+      sessionId: 'root',
+      toolCallId: 'write',
+      toolName: 'write',
+      originalInput: {},
+      signal: controller.signal,
+      resolve: result.resolve
+    })!
+    await f.emit({
+      type: 'tool-approval-request',
+      request: {
+        approvalId: 'repeat',
+        registrationId: id,
+        toolCallId: 'write',
+        toolName: 'write',
+        input: {},
+        origin: { kind: 'root', messageId: f.reply.id }
+      }
+    })
+    return { id, controller, result }
+  }
+  const old = await register()
+  old.controller.abort()
+  const current = await register()
+  expect(f.service.respondToolApproval('repeat', { approved: true }, f.reply.id, 'agent-session:root', old.id)).toEqual(
+    { ok: false, reason: 'rejected' }
+  )
+  expect(toolApprovalRegistry.peek('repeat')?.registrationId).toBe(current.id)
+  expect(
+    f.service.respondToolApproval('repeat', { approved: false }, f.reply.id, 'agent-session:root', current.id)
+  ).toEqual({ ok: true })
+  await expect(current.result.promise).resolves.toMatchObject({ approved: false })
+})
+
+// Cancellation after the decision write but before native settlement must not leave an approved actionable card.
+it('reconciles cancellation during response publication before releasing the native callback', async () => {
+  const f = await fixture()
+  const controller = new AbortController()
+  const result = Promise.withResolvers<DispatchDecision>()
+  const registrationId = toolApprovalRegistry.register({
+    approvalId: 'race',
+    sessionId: 'root',
+    toolCallId: 'write',
+    toolName: 'write',
+    originalInput: {},
+    signal: controller.signal,
+    resolve: result.resolve
+  })!
+  await f.emit({
+    type: 'tool-approval-request',
+    request: {
+      approvalId: 'race',
+      registrationId,
+      toolCallId: 'write',
+      toolName: 'write',
+      input: {},
+      origin: { kind: 'child', threadId: 'child' }
+    }
+  })
+  const anchor = toolApprovalRegistry.peek('race')!.anchor!
+  const apply = messages.applyToolApprovalDecision.bind(messages)
+  vi.spyOn(messages, 'applyToolApprovalDecision').mockImplementationOnce((...args) => {
+    const accepted = apply(...args)
+    controller.abort()
+    return accepted
+  })
+  expect(
+    f.service.respondToolApproval('race', { approved: true }, anchor.messageId, 'agent-session:root', registrationId)
+  ).toEqual({ ok: false, reason: 'rejected' })
+  await expect(result.promise).resolves.toMatchObject({ approved: false })
+  expect(application.get('CacheService').getShared(AGENT_SESSION_APPROVALS_CACHE_KEY('root'))).toContainEqual(
+    expect.objectContaining({ registrationId, status: 'cancelled' })
+  )
 })

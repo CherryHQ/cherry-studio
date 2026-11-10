@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 
@@ -17,22 +19,27 @@ export type DispatchDecision = {
   updatedInput?: Record<string, unknown>
 }
 
+export type ApprovalAnchor = {
+  kind: 'reply' | 'message'
+  messageId: string
+  contextId: string
+}
+
 type PendingApproval = {
+  registrationId: string
   approvalId: string
   sessionId: string
   toolCallId: string
   toolName: string
   originalInput: Record<string, unknown>
-  presentation: 'stream' | 'message'
+  anchor?: ApprovalAnchor
   resolve: (decision: DispatchDecision) => void
   signal?: AbortSignal
   abortListener?: () => void
 }
 
-type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'toolCallId' | 'presentation'>
-type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'presentation'> & {
-  presentation?: PendingApproval['presentation']
-}
+type ApprovalRegistration = Pick<PendingApproval, 'registrationId' | 'sessionId' | 'toolCallId' | 'anchor'>
+type PendingApprovalRegistration = Omit<PendingApproval, 'registrationId' | 'abortListener' | 'anchor'>
 
 /** An approval killed without a user decision — see `ToolApprovalRegistry.onAborted`. */
 export type AbortedApproval = ApprovalRegistration & {
@@ -58,26 +65,26 @@ class ToolApprovalRegistry {
   public readonly onAborted: Event<AbortedApproval> = this._onAborted.event
 
   /**
-   * Register a pending approval. Returns `true` when the request is now pending a
-   * renderer decision, `false` when it was resolved synchronously (duplicate id, or
+   * Register a pending approval. Returns its registration ID when pending a
+   * renderer decision, `undefined` when it was resolved synchronously (duplicate id, or
    * an already-aborted signal). Callers must only surface the approval UI (emit a
-   * `tool-approval-request`) when this returns `true` — otherwise the request has no
+   * `tool-approval-request`) when this returns an ID — otherwise the request has no
    * pending entry to answer, so the card can never be dispatched.
    */
-  register(entry: PendingApprovalRegistration): boolean {
+  register(entry: PendingApprovalRegistration): string | undefined {
     const { approvalId, signal } = entry
     if (this.pending.has(approvalId)) {
       logger.warn('Duplicate approval registration — rejecting', { approvalId })
       entry.resolve({ approved: false, reason: 'Duplicate approval registration' })
-      return false
+      return undefined
     }
 
     if (signal?.aborted) {
       entry.resolve({ approved: false, reason: 'Tool request was cancelled before approval' })
-      return false
+      return undefined
     }
 
-    const stored: PendingApproval = { ...entry, presentation: entry.presentation ?? 'stream' }
+    const stored: PendingApproval = { ...entry, registrationId: randomUUID() }
     if (signal) {
       const abortListener = () => this.cancel([approvalId], 'aborted')
       stored.abortListener = abortListener
@@ -85,7 +92,18 @@ class ToolApprovalRegistry {
     }
 
     this.pending.set(approvalId, stored)
+    return stored.registrationId
+  }
+
+  bind(approvalId: string, registrationId: string, anchor: ApprovalAnchor): boolean {
+    const entry = this.pending.get(approvalId)
+    if (!entry || entry.registrationId !== registrationId || entry.anchor) return false
+    entry.anchor = anchor
     return true
+  }
+
+  cancelRequest(approvalId: string, registrationId: string, reason: string): void {
+    if (this.pending.get(approvalId)?.registrationId === registrationId) this.cancel([approvalId], reason)
   }
 
   /** Returns `undefined` for unknown ids (already dispatched / session expired). */
@@ -95,7 +113,8 @@ class ToolApprovalRegistry {
     return {
       sessionId: entry.sessionId,
       toolCallId: entry.toolCallId,
-      presentation: entry.presentation
+      registrationId: entry.registrationId,
+      anchor: entry.anchor
     }
   }
 
@@ -109,7 +128,8 @@ class ToolApprovalRegistry {
     return {
       sessionId: entry.sessionId,
       toolCallId: entry.toolCallId,
-      presentation: entry.presentation
+      registrationId: entry.registrationId,
+      anchor: entry.anchor
     }
   }
 

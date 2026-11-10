@@ -1,8 +1,9 @@
+import { isToolUIPart } from 'ai'
 import { ArrowRight, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Checkbox, Textarea } from '@cherrystudio/ui'
+import { Badge, Button, Checkbox, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
@@ -20,6 +21,7 @@ type AskUserQuestionComposerProps = {
   request: AskUserQuestionComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   className?: string
+  embedded?: boolean
 }
 
 type AskUserQuestionComposerOverrideOptions = {
@@ -40,7 +42,12 @@ export function createAskUserQuestionComposerOverride({
   }
 }
 
-export default function AskUserQuestionComposer({ request, onRespond, className }: AskUserQuestionComposerProps) {
+export default function AskUserQuestionComposer({
+  request,
+  onRespond,
+  className,
+  embedded = false
+}: AskUserQuestionComposerProps) {
   const { t } = useTranslation()
   const questions = request.input.questions
   // Answers are restored from the cache so a remount (switching conversations and
@@ -241,7 +248,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   return (
     <div
       ref={rootRef}
-      data-composer-viewport-inset-target=""
+      data-composer-viewport-inset-target={embedded ? undefined : ''}
       // pointer-events-auto: the composer dock stack is click-through; override
       // composers re-enable interaction on their own root.
       className={cn('pointer-events-auto relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
@@ -252,6 +259,9 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           maxHeight: panelMaxHeight ?? undefined
         }}>
         <div className="flex shrink-0 items-center justify-between gap-3 px-1">
+          {isToolUIPart(request.match.part) && request.match.part.callProviderMetadata?.cherry?.approvalSource && (
+            <Badge variant="secondary">{t('agent.right_pane.info.subagents')}</Badge>
+          )}
           <h2 className="max-h-36 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words font-semibold text-foreground text-sm leading-5">
             {currentQuestion.question}
           </h2>

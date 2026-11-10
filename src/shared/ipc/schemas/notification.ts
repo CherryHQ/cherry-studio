@@ -31,6 +31,7 @@ export type NotificationEventSchemas = {
   'notification.clicked': Notification
   'notification.conversation': ConversationNotification
   'notification.present': NotificationRecord
+  'notification.retired': { id: string }
   'notification.completion_sound': { id: string }
   'notification.open': { id: string }
 }

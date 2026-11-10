@@ -2551,12 +2551,26 @@ export class AgentSessionMessageService {
    * after this returns true, so a displayed question cannot resume its agent while remaining stuck
    * as `approval-requested` in history.
    */
-  applyToolApprovalDecision(sessionId: string, messageId: string, decision: ApprovalDecision): boolean {
+  applyToolApprovalDecision(
+    sessionId: string,
+    messageId: string,
+    decision: ApprovalDecision,
+    registrationId?: string
+  ): boolean {
     const applied = application.get('DbService').withWriteTx((tx) => {
       const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existingRow) return false
 
       const existing = this.rowToEntity(existingRow)
+      if (
+        !(existing.data.parts ?? []).some(
+          (part) =>
+            isToolUIPart(part) &&
+            part.approval?.id === decision.approvalId &&
+            part.callProviderMetadata?.cherry?.approvalRegistrationId === registrationId
+        )
+      )
+        return false
       const parts = (existing.data.parts ?? []).map((part): CherryMessagePart => {
         if (
           !isToolUIPart(part) ||
@@ -2604,7 +2618,13 @@ export class AgentSessionMessageService {
    *
    * Returns `false` when nothing is parked on that approval: already answered, or already retired.
    */
-  retireAbandonedApproval(sessionId: string, approvalId: string, errorText: string): boolean {
+  retireAbandonedApproval(
+    sessionId: string,
+    approvalId: string,
+    errorText: string,
+    messageId?: string,
+    registrationId?: string
+  ): boolean {
     const retired = application.get('DbService').withWriteTx((tx) => {
       const [parkedRow] = tx
         .select()
@@ -2612,9 +2632,13 @@ export class AgentSessionMessageService {
         .where(
           and(
             eq(sessionMessagesTable.sessionId, sessionId),
+            messageId ? eq(sessionMessagesTable.id, messageId) : undefined,
             sql<boolean>`exists (
               select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
-              where json_extract(part.value, '$.state') = 'approval-requested'
+              where (json_extract(part.value, '$.state') = 'approval-requested'
+                or (${registrationId ?? null} is not null
+                  and json_extract(part.value, '$.callProviderMetadata.cherry.approvalRegistrationId') = ${registrationId ?? null}
+                  and json_extract(part.value, '$.state') in ('approval-responded', 'output-denied')))
                 and json_extract(part.value, '$.approval.id') = ${approvalId}
             )`
           )
@@ -2628,10 +2652,24 @@ export class AgentSessionMessageService {
       // The part keeps every field it was parked with; only its state leaves the approval machine.
       const parts = (parked.data.parts ?? []).map((part): CherryMessagePart => {
         const parkedApprovalId = (part as { approval?: { id?: string } }).approval?.id
-        if (!isToolUIPart(part) || part.state !== 'approval-requested' || parkedApprovalId !== approvalId) {
+        if (
+          !isToolUIPart(part) ||
+          parkedApprovalId !== approvalId ||
+          (part.state !== 'approval-requested' &&
+            !(
+              registrationId &&
+              part.callProviderMetadata?.cherry?.approvalRegistrationId === registrationId &&
+              (part.state === 'approval-responded' || part.state === 'output-denied')
+            ))
+        ) {
           return part
         }
-        return { ...part, state: 'output-error', errorText } as unknown as CherryMessagePart
+        return {
+          ...part,
+          approval: { id: approvalId },
+          state: 'output-error',
+          errorText
+        } as unknown as CherryMessagePart
       })
       tx.update(sessionMessagesTable)
         .set({ data: { ...parked.data, parts }, updatedAt })

@@ -1,6 +1,12 @@
 {
   "agent.add.error.failed": "Αποτυχία προσθήκης πράκτορα",
   "agent.add.title": "Προσθήκη Agent",
+  "agent.approval.approved": "Εγκρίθηκε",
+  "agent.approval.cancelled": "Ακυρώθηκε",
+  "agent.approval.denied": "Απορρίφθηκε",
+  "agent.approval.expired": "Έληξε",
+  "agent.approval.pending": "Αναμονή επιβεβαίωσης",
+  "agent.approval.unavailable": "Αυτή η έγκριση δεν είναι πλέον διαθέσιμη. Ανοίξτε το τρέχον αίτημα για να συνεχίσετε.",
   "agent.archive.related_resources": "Τα συνδεδεμένα κανάλια θα αποσυνδεθούν και οι προγραμματισμένες εργασίες έχουν τεθεί σε παύση. Οι ρυθμίσεις, οι συνδρομές και το ιστορικό εκτέλεσης διατηρούνται. Οι εργασίες που χάθηκαν δεν θα εκτελεστούν αυτόματα μετά την επαναφορά του πράκτορα.",
   "agent.askUserQuestion.answered": "απαντήθηκε",
   "agent.askUserQuestion.close": "Κλείσιμο",

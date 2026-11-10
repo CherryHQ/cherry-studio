@@ -9,7 +9,8 @@ import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { notificationRecordService } from '@data/services/NotificationRecordService'
 import { agentTaskJobHandler } from '@main/ai/agents/agentTaskJobHandler'
 import { AiStreamManager, type ConversationCompletedEvent } from '@main/ai/streamManager'
-import type { ApprovalRequestedEvent } from '@main/ai/types'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import type { ApprovalRequestedEvent, ApprovalSettledEvent } from '@main/ai/types'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
@@ -39,6 +40,7 @@ const NOTIFICATION_PREF_KEYS = [
 
 const mocks = vi.hoisted(() => ({
   agentSessionGetById: vi.fn(),
+  agentApprovalSettledListener: undefined as ((event: ApprovalSettledEvent) => void) | undefined,
   agentApprovalListener: undefined as ((event: ApprovalRequestedEvent) => void) | undefined,
   applicationGet: vi.fn(),
   broadcastToType: vi.fn(),
@@ -246,6 +248,10 @@ describe('NotificationService', () => {
       }
       if (name === 'AgentSessionRuntimeService') {
         return {
+          onApprovalSettled: (listener: (event: ApprovalSettledEvent) => void) => {
+            mocks.agentApprovalSettledListener = listener
+            return { dispose: vi.fn() }
+          },
           onApprovalRequested: (listener: (event: ApprovalRequestedEvent) => void) => {
             mocks.agentApprovalListener = listener
             return { dispose: vi.fn() }
@@ -255,7 +261,8 @@ describe('NotificationService', () => {
       if (name === 'ConversationNavigationService')
         return { focusOrOpen: mocks.focusOrOpen, isActiveInFocusedWindow: mocks.isActiveInFocusedWindow }
       if (name === 'WindowManager') return { getWindowInfosByType: mocks.getWindowInfosByType }
-      if (name === 'IpcApiService') return { send: mocks.send, broadcastToType: mocks.broadcastToType }
+      if (name === 'IpcApiService')
+        return { send: mocks.send, broadcast: mocks.broadcastToType, broadcastToType: mocks.broadcastToType }
       if (name === 'MainWindowService') return { showMainWindow: mocks.showMainWindow }
       if (name === 'PreferenceService') {
         return { get: mocks.preferenceGet, subscribeMultipleChanges: mocks.subscribeMultipleChanges }
@@ -1593,6 +1600,54 @@ describe('NotificationService', () => {
       })
     )
     expect(mocks.electronNotifications).toHaveLength(0)
+  })
+
+  // A read reminder must remain pending; settlement and restart retire it without accepting a decision.
+  it('persists approval lifecycle independently of read state and native ID reuse', async () => {
+    const request = () => {
+      const registrationId = toolApprovalRegistry.register({
+        approvalId: 'reused',
+        sessionId: 'session-1',
+        toolCallId: 'write',
+        toolName: 'write',
+        originalInput: {},
+        resolve: () => {}
+      })!
+      emitApproval(
+        {
+          topicId: 'agent-session:session-1',
+          approvalId: 'reused',
+          requestedAt: Date.now(),
+          registration: { id: registrationId, messageId: 'approval-message', taskToolCallId: 'spawn' }
+        },
+        'agent'
+      )
+      return registrationId
+    }
+    const old = request()
+    const record = notificationRecordService.list().items[0]
+    expect(record.target).toMatchObject({
+      approval: { registrationId: old, status: 'pending', taskToolCallId: 'spawn' }
+    })
+    notificationRecordService.markRead(record.id)
+    expect(notificationRecordService.getById(record.id)?.target).toMatchObject({ approval: { status: 'pending' } })
+    mocks.agentApprovalSettledListener?.({ registrationId: old, status: 'approved' })
+    expect(notificationRecordService.getById(record.id)).toMatchObject({
+      readAt: expect.any(Number),
+      target: { approval: { status: 'approved' } }
+    })
+    toolApprovalRegistry.clear()
+    const current = request()
+    expect(current).not.toBe(old)
+    expect(notificationRecordService.list().items).toHaveLength(2)
+    toolApprovalRegistry.clear()
+    await initService()
+    expect(
+      notificationRecordService
+        .list()
+        .items.map((item) => item.target?.kind === 'conversation' && item.target.approval?.status)
+        .sort()
+    ).toEqual(['approved', 'expired'])
   })
 
   it('sends a presentation-ready approval event to the focused full-chrome window', () => {

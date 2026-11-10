@@ -1,6 +1,12 @@
 {
   "agent.add.error.failed": "添加智能体失败",
   "agent.add.title": "添加智能体",
+  "agent.approval.approved": "已批准",
+  "agent.approval.cancelled": "已取消",
+  "agent.approval.denied": "已拒绝",
+  "agent.approval.expired": "已失效",
+  "agent.approval.pending": "等待你确认",
+  "agent.approval.unavailable": "此审批已失效，请打开当前请求继续。",
   "agent.archive.related_resources": "关联频道将断开连接，定时任务已暂停。配置、订阅和执行记录保留；恢复智能体后不会自动补跑错过的任务。",
   "agent.askUserQuestion.answered": "已回答",
   "agent.askUserQuestion.close": "关闭",

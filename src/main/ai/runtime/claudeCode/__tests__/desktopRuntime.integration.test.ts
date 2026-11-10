@@ -41,6 +41,7 @@ import { ClaudeCodeRuntimeDriver } from '../ClaudeCodeRuntimeDriver'
 import type { ClaudeCodeProcessDiagnostics } from '../processExitDiagnostics'
 import { createClaudeCodeQueryOptions } from '../queryOptions'
 import type * as SettingsBuilder from '../settingsBuilder'
+import type { ToolApprovalEmitterHolder } from '../types'
 
 vi.mock(
   '@cherrystudio/agent-runtime-claude-code',
@@ -169,6 +170,40 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
   }
   return { ...test, sessionId, input, connect, events, wait, nativeInputs }
 }
+
+// SDK agent IDs must resolve to the same native thread identity as the persisted child context.
+it('maps child approval origin to its native session-scoped thread', async () => {
+  const test = await desktop()
+  const built = await ports.build()
+  const emitter: ToolApprovalEmitterHolder = {}
+  built.settings.approvalEmitter = emitter
+  const connection = await test.connect()
+  await connection.send(test.input('Child approval source'))
+  const root = await test.request()
+  root.reply.block(spawnChild('toolu_approval_child'))
+  root.reply.finish('tool_use')
+  const child = await test.request()
+  await expect.poll(() => contexts.findChild(test.sessionId, 'toolu_approval_child')).toBeDefined()
+  const context = contexts.findChild(test.sessionId, 'toolu_approval_child')!
+  const childId = decodeURIComponent(context.nativeThreadId!.split('/')[1])
+  emitter.emit!({
+    approvalId: 'approval',
+    registrationId: 'registration',
+    origin: { kind: 'child', threadId: childId },
+    toolCallId: 'write',
+    toolName: 'Write',
+    input: { file_path: '/tmp/check' }
+  })
+  const event = await test.wait('tool-approval-request')
+  expect(event.request.origin).toEqual({ kind: 'child', threadId: context.nativeThreadId })
+  expect(event.request.registrationId).toBe('registration')
+  child.reply.block({ type: 'text', text: 'Child completed' })
+  child.reply.finish()
+  const parent = await test.request()
+  parent.reply.block({ type: 'text', text: 'Parent completed' })
+  parent.reply.finish()
+  await test.wait('turn-complete')
+}, 30000)
 
 it('keeps both real SDK background notifications in one persisted Main reply until the final summary', async () => {
   const test = await desktop()

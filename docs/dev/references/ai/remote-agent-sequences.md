@@ -396,15 +396,15 @@ sequenceDiagram
     participant D as D5 回执
     E-->>M: interaction.updated(I1, revision 3)（经 D3）
     M->>G: interactions.get(I1)，读取完整输入
-    G-->>M: revision 3、execution E1、inputDigest
+    G-->>M: revision 3、registration R1、execution E1、inputDigest
     M->>M: 展示完整输入；持久化决策 commandId
     opt 桌面先决策或输入发生变化
         U->>E: 决策 I1 / 更改待批准输入
         E->>E: 串行推进交互 revision / 状态
     end
-    M->>G: interactions.respond(C1, I1, expectedRevision 3, E1, digest)
+    M->>G: interactions.respond(C1, I1, expectedRevision 3, expectedRegistrationId R1, E1, digest)
     G->>G: 检查当前设备 Agent 访问已启用
-    G->>E: 串行校验 pending、revision、执行及 digest
+    G->>E: 串行校验 pending、revision、活跃 registration、执行及 digest
     alt 仍匹配且待处理
         E->>D: 持久化命令准入并记录决策结果
         E-->>M: 决策回执与后续事件（经 D1/D3）

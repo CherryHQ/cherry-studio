@@ -1591,7 +1591,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   messageParts,
   priorCitationParts
 }: MessagePartsRendererContentProps) {
-  const { subagentListTitle, userMessageDefaultExpanded } = useMessageRenderConfig()
+  const { subagentListTitle, userMessageDefaultExpanded, pendingToolApprovals } = useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
   const hoistNonImageFiles = !!hoistAttachments && !!(previewInputFile || previewFile || openFile)
   const { t } = useTranslation()
@@ -1867,6 +1867,18 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
               />
               <span className="flex min-w-0 items-center gap-2">
                 <span>{subagentListTitle ?? t('agent.right_pane.flow.subtasks')}</span>
+                {subagentEntries.some(
+                  ({ part }) => isToolUIPart(part) && pendingToolApprovals?.[message.id]?.[part.toolCallId]
+                ) && (
+                  <span className="text-warning">
+                    {t('agent.approval.pending')} ·{' '}
+                    {subagentEntries.reduce(
+                      (count, { part }) =>
+                        count + (isToolUIPart(part) ? (pendingToolApprovals?.[message.id]?.[part.toolCallId] ?? 0) : 0),
+                      0
+                    )}
+                  </span>
+                )}
                 <span>
                   {allSubagentsCompleted ? (
                     <>· {t('agent.right_pane.status.tasks_completed', { count: completedSubagents })}</>

@@ -89,6 +89,17 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
+  // Catches child provenance being read from text metadata instead of tool-call metadata.
+  it('labels an approval requested by a child', () => {
+    const request = makeRequest()
+    request.match.part = {
+      ...request.match.part,
+      callProviderMetadata: { cherry: { approvalSource: { contextId: 'root', threadId: 'child' } } }
+    } as CherryMessagePart
+    render(<PermissionRequestComposer request={request} onRespond={vi.fn()} />)
+    expect(screen.getByText('agent.right_pane.info.subagents')).toBeInTheDocument()
+  })
+
   it('marks the root panel as a composer viewport inset target', () => {
     const { container } = render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 

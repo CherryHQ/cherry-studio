@@ -379,7 +379,7 @@ separate checks; neither negotiates per-feature or per-action capability lists.
 | `Execution` | `executionId`, status, related command/message IDs, safe error if present; ID is unique across attempts and restarts |
 | `Message` | `messageId`, `revision`, role, ordered stable `partId` values; no array-index addressing |
 | `Part` | `partId`, `revision`, kind, kind-specific content/state, `executionId?`, `toolCallId?`; text/reasoning/tool input/output/file/data are explicit variants |
-| `Interaction` | `interactionId`, `revision`, `executionId`, `toolCallId`, status, action summary, complete input inline or `ContentRef`, `inputDigest`, `expiresAt?` |
+| `Interaction` | `interactionId`, `registrationId?`, `revision`, `executionId`, `toolCallId`, status, action summary, complete input inline or `ContentRef`, `inputDigest`, `expiresAt?` |
 
 Part content is inline or an explicit revision-pinned `ContentRef`; it is never
 silently shortened and presented as complete. Large tool output, files, or existing
@@ -410,8 +410,13 @@ including concurrency preconditions, is part of its idempotency identity.
 | `agent.executions.cancel` | `{ commandId, sessionId, expectedExecutionId }` | `CommandReceipt` |
 | `agent.interactions.list` | `{ sessionId, ...PageParams }` | `Page<Interaction>` |
 | `agent.interactions.get` | `{ sessionId, interactionId }` | `{ interaction: Interaction }` |
-| `agent.interactions.respond` | `{ commandId, sessionId, interactionId, expectedRevision, expectedExecutionId, inputDigest, response }`; legacy `decision` also accepted | `CommandReceipt` |
+| `agent.interactions.respond` | `{ commandId, sessionId, interactionId, expectedRegistrationId?, expectedRevision, expectedExecutionId, inputDigest, response }`; legacy `decision` also accepted | `CommandReceipt` |
 | `agent.commands.get` | `{ commandId }` | `CommandReceipt` |
+
+When an interaction carries `registrationId`, its response must echo that value as
+`expectedRegistrationId`. Native approval IDs can recur after recovery; only the current
+registration may authorize execution. Missing or stale registrations are rejected. Legacy
+interactions without the field retain the existing request shape.
 
 The optional `agentMessageSummariesVersion: 1` hello capability permits
 `partsMode: 'paged'`. This mode returns metadata-only messages marked

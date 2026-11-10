@@ -1,6 +1,12 @@
 {
   "agent.add.error.failed": "Ajan eklenemedi",
   "agent.add.title": "Ajan Ekle",
+  "agent.approval.approved": "Onaylandı",
+  "agent.approval.cancelled": "İptal edildi",
+  "agent.approval.denied": "Reddedildi",
+  "agent.approval.expired": "Süresi doldu",
+  "agent.approval.pending": "Onay bekleniyor",
+  "agent.approval.unavailable": "Bu onay artık kullanılamıyor. Devam etmek için mevcut isteği açın.",
   "agent.archive.related_resources": "Bağlı kanalların bağlantısı kesilecek; zamanlanmış görevler duraklatıldı. Ayarlar, abonelikler ve çalıştırma geçmişi korunur. Ajanı geri yükledikten sonra kaçırılan görevler otomatik olarak çalıştırılmaz.",
   "agent.askUserQuestion.answered": "yanıtlandı",
   "agent.askUserQuestion.close": "Kapat",

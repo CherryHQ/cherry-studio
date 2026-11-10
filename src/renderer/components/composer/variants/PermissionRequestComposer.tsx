@@ -1,10 +1,10 @@
+import { isToolUIPart } from 'ai'
 import { Loader2, TriangleAlert } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
-import { ScrollArea } from '@cherrystudio/ui'
-import { Button, Kbd, Textarea } from '@cherrystudio/ui'
+import { Badge, Button, Kbd, ScrollArea, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
 import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
@@ -34,6 +34,7 @@ type PermissionRequestComposerProps = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   className?: string
+  embedded?: boolean
 }
 
 type PermissionRequestComposerOverrideOptions = {
@@ -196,7 +197,12 @@ function PermissionRiskSummary({ toolName, args }: { toolName: string; args: unk
   )
 }
 
-export default function PermissionRequestComposer({ request, onRespond, className }: PermissionRequestComposerProps) {
+export default function PermissionRequestComposer({
+  request,
+  onRespond,
+  className,
+  embedded = false
+}: PermissionRequestComposerProps) {
   const { t } = useTranslation()
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
   const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
@@ -253,21 +259,29 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   useHotkeys(
     'enter',
     () => void (hasRejectionReason ? deny() : approve()),
-    { preventDefault: true, ignoreEventWhen: isHandledElsewhere },
+    { enabled: !embedded, preventDefault: true, ignoreEventWhen: isHandledElsewhere },
     [approve, deny, hasRejectionReason]
   )
-  useHotkeys('esc', () => void deny(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [deny])
+  useHotkeys(
+    'esc',
+    () => void deny(),
+    { enabled: !embedded, preventDefault: true, ignoreEventWhen: isHandledElsewhere },
+    [deny]
+  )
 
   return (
     <div
-      data-composer-viewport-inset-target=""
+      data-composer-viewport-inset-target={embedded ? undefined : ''}
       // pointer-events-auto: the composer dock stack is click-through; override
       // composers re-enable interaction on their own root.
       className={cn('pointer-events-auto relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
       <div
         className="rounded-[17px] border-[0.5px] border-border p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]"
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
-        <div className="flex min-w-0 items-center gap-2 px-1">
+        <div className={cn('flex min-w-0 items-center gap-2 px-1', embedded && 'flex-wrap')}>
+          {isToolUIPart(request.match.part) && request.match.part.callProviderMetadata?.cherry?.approvalSource && (
+            <Badge variant="secondary">{t('agent.right_pane.info.subagents')}</Badge>
+          )}
           <h2 className="flex shrink-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
             <span className="inline-flex shrink-0 text-muted-foreground">
               <ToolIcon aria-hidden="true" className="size-4" />
@@ -275,7 +289,13 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
             {toolTitle}
           </h2>
           {subtitle ? (
-            <span className="min-w-0 flex-1 break-words text-muted-foreground text-xs">{subtitle}</span>
+            <span
+              className={cn(
+                'min-w-0 flex-1 break-words text-muted-foreground text-xs',
+                embedded && 'order-last basis-full'
+              )}>
+              {subtitle}
+            </span>
           ) : null}
           {/* Live region stays mounted while idle so injecting the processing pill is announced */}
           <div role="status" aria-live="polite" className="ml-auto shrink-0">
@@ -315,13 +335,15 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
         <div className="mt-2.5 flex justify-end gap-2 px-1 pb-0.5">
           <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
             {t('agent.toolPermission.button.deny')}
-            <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
-              {hasRejectionReason ? 'Enter' : 'Esc'}
-            </Kbd>
+            {!embedded && (
+              <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
+                {hasRejectionReason ? 'Enter' : 'Esc'}
+              </Kbd>
+            )}
           </Button>
           <Button type="button" variant="emphasis" disabled={isSubmitting} onClick={() => void approve()}>
             {t('agent.toolPermission.button.allow')}
-            {!hasRejectionReason && (
+            {!embedded && !hasRejectionReason && (
               <Kbd aria-hidden="true" className="bg-current/10 text-current">
                 Enter
               </Kbd>

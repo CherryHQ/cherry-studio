@@ -6,6 +6,7 @@ import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
 
 import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
+import type { AgentSessionApproval } from '../../ai/agentSessionApprovals'
 import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
@@ -243,3 +244,5 @@ export type CacheMiniAppAttention = {
 export type CacheDoctorState = DoctorState
 /** Doctor Agent analysis state; see `@shared/types/doctorAgent`. */
 export type CacheDoctorAgentState = DoctorAgentState
+
+export type CacheAgentSessionApprovals = AgentSessionApproval[]

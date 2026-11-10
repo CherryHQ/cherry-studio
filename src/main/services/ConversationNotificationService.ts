@@ -1,6 +1,8 @@
 import { application } from '@application'
+import { notificationRecordService } from '@data/services/NotificationRecordService'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import type { ConversationCompletedEvent, ConversationUnsuccessfulEvent } from '@main/ai/streamManager'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { stripCitationMarkers } from '@main/ai/utils/citationIds'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -17,6 +19,16 @@ const sentenceSegmenter = new Intl.Segmenter(undefined, { granularity: 'sentence
 @ServicePhase(Phase.WhenReady)
 export class ConversationNotificationService extends BaseService {
   protected onInit(): void {
+    for (const record of notificationRecordService.pendingApprovals()) {
+      const approval = record.target?.kind === 'conversation' ? record.target.approval : undefined
+      if (approval && toolApprovalRegistry.peek(approval.approvalId)?.registrationId !== approval.registrationId)
+        application.get('NotificationService').settleApproval(approval.registrationId, 'expired')
+    }
+    this.registerDisposable(
+      application.get('AgentSessionRuntimeService').onApprovalSettled((event) => {
+        application.get('NotificationService').settleApproval(event.registrationId, event.status)
+      })
+    )
     this.registerDisposable(
       application.get('AiStreamManager').onConversationCompleted((event) => this.handleConversationCompleted(event))
     )
@@ -81,13 +93,40 @@ export class ConversationNotificationService extends BaseService {
     )
   }
 
-  private handleApprovalRequested({ topicId, approvalId, requestedAt }: ApprovalRequestedEvent): void {
+  private handleApprovalRequested({ topicId, approvalId, requestedAt, registration }: ApprovalRequestedEvent): void {
     const target = this.resolveConversationTarget(topicId)
     const title =
       target.conversationType === 'agent'
         ? t('notification.action_required.agent')
         : t('notification.action_required.assistant')
     const conversationName = resolveNotificationConversationName(target)
+    if (registration) {
+      if (toolApprovalRegistry.peek(approvalId)?.registrationId !== registration.id) return
+      void application.get('NotificationService').publish(
+        {
+          eventKey: `approval-request:${registration.id}`,
+          category: 'system',
+          kind: 'approval-request',
+          title,
+          message: conversationName,
+          createdAt: requestedAt,
+          target: {
+            kind: 'conversation',
+            ...target,
+            messageId: registration.messageId,
+            approval: {
+              registrationId: registration.id,
+              approvalId,
+              messageId: registration.messageId,
+              taskToolCallId: registration.taskToolCallId,
+              status: 'pending'
+            }
+          }
+        },
+        { source: 'assistant' }
+      )
+      return
+    }
     application.get('NotificationService').deliverConversationNotification({
       id: `approval-request:${approvalId}`,
       kind: 'approval-request',

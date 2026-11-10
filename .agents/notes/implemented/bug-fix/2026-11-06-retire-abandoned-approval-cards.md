@@ -18,6 +18,8 @@ A click can still arrive for a card that outlived its request — one persisted 
 
 The renderer turns an undelivered answer into the session's next user message — each answered question, the chosen option, and any note typed beside it — instead of dropping it; a dismissal has nothing to re-deliver and simply refreshes. The conversation is then the only channel left once the asker is gone, and the answer reaches whoever continues the session. Main reports `reason: 'undelivered'` only when its transaction records the first decision on a pending or retired, unanswered card; stale or duplicate responses are rejected and never replayed. If sending the replacement message fails or admission is blocked, the renderer hands its text to the session's normal composer, appending to any existing draft for an explicit retry.
 
+The proposed [unified approval presentation](../../proposed/architecture/2026-11-10-unified-agent-approval-presentation.md) extends this cleanup contract to host-bound response anchors for all three runtimes. Its proposed replacement of presentation-specific cleanup is not shipped; this note retains the current behavior and undelivered-answer rationale.
+
 ## Alternatives considered
 
 - Only settle lazily when the click arrives, without retiring on abort: rejected because the card keeps looking answerable while nothing can reach its asker, and an ordinary permission card would still offer an approval whose tool can never run.

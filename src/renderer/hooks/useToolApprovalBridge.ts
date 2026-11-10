@@ -1,8 +1,10 @@
+import { isToolUIPart } from 'ai'
 import { useCallback } from 'react'
 
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { ipcApi } from '@renderer/ipc'
+import { CherryToolMetaSchema } from '@shared/data/types/uiParts'
 
 const logger = loggerService.withContext('useToolApprovalBridge')
 
@@ -30,6 +32,9 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
           reason,
           updatedInput,
           topicId,
+          registrationId: isToolUIPart(match.part)
+            ? CherryToolMetaSchema.safeParse(match.part.callProviderMetadata?.cherry).data?.approvalRegistrationId
+            : undefined,
           anchorId: match.messageId
         })
         // Main signals failure via a resolved `{ ok: false }` (e.g. anchor deleted). Surface it as

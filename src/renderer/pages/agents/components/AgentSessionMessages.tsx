@@ -21,8 +21,13 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
-import { type NavigateToForkSource, useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
+import {
+  registerAgentApprovalLocator,
+  type NavigateToForkSource,
+  useAgentMessageListProviderValue
+} from '../messages/agentMessageListAdapter'
 import { AgentPendingAttachments } from '../messages/AgentPendingAttachments'
+import { isAgentApprovalRecord, useAgentSessionApprovals } from '../messages/AgentSessionApprovals'
 import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
 
 const logger = loggerService.withContext('AgentSessionMessages')
@@ -57,6 +62,7 @@ type Props = {
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
   editBusy?: boolean
+  selectToolApproval?: (messageId: string) => void
   respondToolApproval?: MessageListActions['respondToolApproval']
   navigateToForkSource?: NavigateToForkSource
 }
@@ -89,6 +95,7 @@ const AgentSessionMessages = ({
   startEditing,
   editBusy,
   respondToolApproval,
+  selectToolApproval,
   navigateToForkSource
 }: Props) => {
   const { session } = useSession(sessionId)
@@ -110,15 +117,16 @@ const AgentSessionMessages = ({
         : undefined,
     [activeAgent]
   )
+  const conversationMessages = useMemo(() => messages.filter((message) => !isAgentApprovalRecord(message)), [messages])
   const backgroundTaskAnchorMessageId = useMemo(() => {
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      const message = messages[index]
+    for (let index = conversationMessages.length - 1; index >= 0; index -= 1) {
+      const message = conversationMessages[index]
       if (message?.role !== 'assistant') continue
       const parts = partsByMessageId[message.id] ?? message.parts ?? []
       if (parts.length > 0) return message.id
     }
     return undefined
-  }, [messages, partsByMessageId])
+  }, [conversationMessages, partsByMessageId])
   const messageTail = useMemo(
     () =>
       backgroundTaskAnchorMessageId
@@ -150,9 +158,31 @@ const AgentSessionMessages = ({
     () => <AgentPendingAttachments key={sessionId} sessionId={sessionId} messageIds={messageIds} />,
     [messageIds, sessionId]
   )
+  const approvals = useAgentSessionApprovals(sessionId)
+  const pendingToolApprovals = useMemo(() => {
+    const result: Record<string, Record<string, number>> = {}
+    for (const approval of approvals) {
+      const task = approval.taskPath[0]
+      if (approval.status !== 'pending' || !approval.parentMessageId || !task) continue
+      const tasks = (result[approval.parentMessageId] ??= {})
+      tasks[task.toolCallId] = (tasks[task.toolCallId] ?? 0) + 1
+    }
+    return result
+  }, [approvals])
+  useEffect(() => {
+    if (!approvals.length) return
+    return registerAgentApprovalLocator(sessionTopicId, (messageId) => {
+      const approval = approvals.find((item) => item.messageId === messageId)
+      if (approval) selectToolApproval?.(approval.messageId)
+      const task = approval?.taskPath.at(-1)
+      if (task && openAgentToolFlow) openAgentToolFlow({ toolCallId: task.toolCallId, title: sessionName })
+      return approval?.parentMessageId ?? messageId
+    })
+  }, [approvals, openAgentToolFlow, selectToolApproval, sessionName, sessionTopicId])
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
-    messages,
+    messages: conversationMessages,
+    pendingToolApprovals,
     historyActions,
     partsByMessageId,
     streamingLayers,

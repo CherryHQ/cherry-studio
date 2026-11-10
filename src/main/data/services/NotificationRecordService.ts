@@ -5,6 +5,7 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { appStateTable } from '@data/db/schemas/appState'
 import { notificationRecordTable as table } from '@data/db/schemas/notificationRecord'
 import type { DbOrTx } from '@data/db/types'
+import type { AgentApprovalStatus } from '@shared/ai/agentSessionApprovals'
 import {
   ListNotificationsQuerySchema,
   type ListNotificationsQuery,
@@ -76,6 +77,35 @@ class NotificationRecordService {
         : insert.onConflictDoNothing({ target: table.eventKey })
     const record = write.returning().get()
     return record ?? null
+  }
+
+  settleApproval(registrationId: string, status: Exclude<AgentApprovalStatus, 'pending'>): string[] {
+    const rows = this.db
+      .update(table)
+      .set({
+        target: sql`json_set(${table.target}, '$.approval.status', ${status})`
+      })
+      .where(
+        and(
+          eq(table.kind, 'approval-request'),
+          sql`json_extract(${table.target}, '$.approval.registrationId') = ${registrationId}`,
+          sql`json_extract(${table.target}, '$.approval.status') = 'pending'`
+        )
+      )
+      .returning({ id: table.id })
+      .all()
+    if (rows.length) notifyChanged()
+    return rows.map((row) => row.id)
+  }
+
+  pendingApprovals(): NotificationRecord[] {
+    return this.db
+      .select()
+      .from(table)
+      .where(
+        and(eq(table.kind, 'approval-request'), sql`json_extract(${table.target}, '$.approval.status') = 'pending'`)
+      )
+      .all()
   }
 
   getById(id: string): NotificationRecord | null {

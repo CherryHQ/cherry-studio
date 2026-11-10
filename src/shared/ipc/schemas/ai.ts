@@ -357,7 +357,8 @@ export const aiRequestSchemas = {
       reason: z.string().optional(),
       updatedInput: z.record(z.string(), z.unknown()).optional(),
       topicId: z.string().optional(),
-      anchorId: z.string().optional()
+      anchorId: z.string().optional(),
+      registrationId: z.string().optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
     output: z.discriminatedUnion('ok', [
       z.object({ ok: z.literal(true) }),

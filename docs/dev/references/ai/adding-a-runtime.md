@@ -166,6 +166,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    then publishes replacement-aware product views. Keep lifecycle/approval controls separate;
    do not produce the same text and tools through both sources. Import the transport
    constant from the descriptor rather than re-declaring its string.
+   Approval requests must include complete input, the callback registration ID and
+   trusted root/child origin. Main chooses and freezes the message anchor; adapters
+   must not select inline versus independent presentation. See [Tool Approval](./tool-approval.md).
 
 5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
    (called from `AgentSessionRuntimeService.onInit`). Do **not** create a

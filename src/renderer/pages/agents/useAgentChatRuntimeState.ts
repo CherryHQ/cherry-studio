@@ -1,5 +1,5 @@
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -48,9 +48,11 @@ import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared
 import type { AgentType } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { CherryToolMetaSchema } from '@shared/data/types/uiParts'
 import { aiErrorCodes, agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
+import { AgentApprovalComposer, useAgentSessionApprovals } from './messages/AgentSessionApprovals'
 import { agentSessionForkReasonLabel } from './messages/agentSessionFork'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
@@ -161,6 +163,7 @@ export interface AgentChatRuntimeState {
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
+  selectToolApproval: (messageId: string) => void
   composerContext: ComposerContextValue
   editing?: AgentSessionEditDraft
   editBusy: boolean
@@ -435,6 +438,9 @@ export function useAgentChatRuntimeState({
           reason,
           updatedInput,
           topicId: sessionTopicId,
+          registrationId: isToolUIPart(match.part)
+            ? CherryToolMetaSchema.safeParse(match.part.callProviderMetadata?.cherry).data?.approvalRegistrationId
+            : undefined,
           anchorId: match.messageId
         })
       } catch (error) {
@@ -444,7 +450,11 @@ export function useAgentChatRuntimeState({
 
       if (!result.ok) {
         if (optimisticToolCallId) removeOptimisticAskUserQuestionInput(optimisticToolCallId)
-        if (result.reason !== 'undelivered') throw new Error('Tool approval response was not accepted')
+        if (
+          result.reason !== 'undelivered' ||
+          (isToolUIPart(match.part) && match.part.callProviderMetadata?.cherry?.approvalRegistrationId)
+        )
+          throw new Error('Tool approval response was not accepted')
         const answerText = isAskUserQuestionApprovalResponse(input)
           ? formatAskUserQuestionAnswerMessage(input.updatedInput)
           : undefined
@@ -463,15 +473,32 @@ export function useAgentChatRuntimeState({
     },
     [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionId, sessionTopicId]
   )
+  const approvals = useAgentSessionApprovals(sessionId)
+  const [selectedApprovalMessageId, selectToolApproval] = useState<string>()
+  const hasPendingApproval = approvals.some((approval) => approval.status === 'pending')
+  const rootApprovalParts = useMemo(() => {
+    const filter = (records: Record<string, CherryMessagePart[]>) =>
+      Object.fromEntries(
+        Object.entries(records).map(([id, parts]) => [
+          id,
+          parts.filter((part) => !isToolUIPart(part) || !part.callProviderMetadata?.cherry?.approvalRegistrationId)
+        ])
+      )
+    return {
+      parts: filter(partsByMessageId),
+      layers: { ...streamingLayers, historyPartsByMessageId: filter(streamingLayers.historyPartsByMessageId) }
+    }
+  }, [partsByMessageId, streamingLayers])
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
-    partsByMessageId,
+    partsByMessageId: rootApprovalParts.parts,
     persistedPartsByMessageId,
-    streamingLayers,
+    streamingLayers: rootApprovalParts.layers,
     onRespond: respondToolApproval
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)
   const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true
-  const editBusy = isPending || sessionClosing || editPending || toolApprovalComposerOverrides.length > 0
+  const editBusy =
+    isPending || sessionClosing || editPending || hasPendingApproval || toolApprovalComposerOverrides.length > 0
   const cancelEditing = useCallback(() => {
     if (!editRequestRef.current) setEditDraft(undefined)
   }, [])
@@ -533,9 +560,26 @@ export function useAgentChatRuntimeState({
 
   const composerContext = useMemo<ComposerContextValue>(
     () => ({
-      overrides: toolApprovalComposerOverrides
+      overrides: [
+        ...toolApprovalComposerOverrides,
+        ...(hasPendingApproval
+          ? [
+              {
+                id: 'agent-approvals',
+                priority: 110,
+                render: () =>
+                  createElement(AgentApprovalComposer, {
+                    sessionId,
+                    approvals,
+                    selectedMessageId: selectedApprovalMessageId,
+                    onSelect: selectToolApproval
+                  })
+              }
+            ]
+          : [])
+      ]
     }),
-    [toolApprovalComposerOverrides]
+    [approvals, hasPendingApproval, selectedApprovalMessageId, sessionId, toolApprovalComposerOverrides]
   )
 
   const errorToasts = useConversationErrorToasts(sessionTopicId, {
@@ -570,6 +614,7 @@ export function useAgentChatRuntimeState({
     deleteMessage,
     respondToolApproval,
     composerContext,
+    selectToolApproval,
     editing,
     editBusy,
     startEditing,

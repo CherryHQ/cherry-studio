@@ -1940,6 +1940,37 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByText('Private child output')).toBeNull()
     })
 
+    // Pending child interactions remain discoverable even when the native task list is collapsed.
+    it('keeps pending approval counts visible and scopes interactions to the owning message', () => {
+      const parts: CherryMessagePart[] = [
+        {
+          type: 'dynamic-tool',
+          toolName: 'Agent',
+          toolCallId: 'reviewer',
+          state: 'output-available',
+          input: {},
+          output: {}
+        }
+      ]
+      renderParts(
+        parts,
+        msg(),
+        { openAgentToolFlow: vi.fn() },
+        {
+          ...defaultMessageRenderConfig,
+          pendingToolApprovals: {
+            'msg-1': { reviewer: 2 },
+            'another-message': { reviewer: 9 }
+          }
+        }
+      )
+      expect(screen.getByText(/agent.approval.pending.*2/)).toBeVisible()
+      expect(screen.queryByRole('button', { name: 'Answer child' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { expanded: false }))
+      expect(screen.queryByRole('button', { name: 'Answer child' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Wrong child' })).toBeNull()
+    })
+
     it('collapses successful subtasks only after the parent turn finishes and preserves manual expansion', () => {
       const parts = [toolPart('reviewer', 'output-available', 'Agent')] as CherryMessagePart[]
       const actions = { openAgentToolFlow: vi.fn() }

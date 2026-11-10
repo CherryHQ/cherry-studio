@@ -1,6 +1,12 @@
 {
   "agent.add.error.failed": "Agent hinzufügen fehlgeschlagen",
   "agent.add.title": "Agent hinzufügen",
+  "agent.approval.approved": "Genehmigt",
+  "agent.approval.cancelled": "Abgebrochen",
+  "agent.approval.denied": "Abgelehnt",
+  "agent.approval.expired": "Abgelaufen",
+  "agent.approval.pending": "Bestätigung ausstehend",
+  "agent.approval.unavailable": "Diese Genehmigung ist nicht mehr verfügbar. Öffnen Sie die aktuelle Anfrage, um fortzufahren.",
   "agent.archive.related_resources": "Verknüpfte Kanäle werden getrennt; geplante Aufgaben sind pausiert. Einstellungen, Abonnements und Ausführungsverlauf bleiben erhalten. Verpasste Aufgaben werden nach dem Wiederherstellen des Agenten nicht automatisch nachgeholt.",
   "agent.askUserQuestion.answered": "beantwortet",
   "agent.askUserQuestion.close": "Schließen",
