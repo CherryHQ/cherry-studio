@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 
-const { getLocale, isReady, openExternal, showMessageBox, whenReady, writeText } = vi.hoisted(() => ({
+const { getAppEdition, getLocale, isReady, openExternal, showMessageBox, whenReady, writeText } = vi.hoisted(() => ({
+  getAppEdition: vi.fn(),
   getLocale: vi.fn(() => 'en-US'),
   isReady: vi.fn(() => true),
   openExternal: vi.fn(),
@@ -10,6 +11,8 @@ const { getLocale, isReady, openExternal, showMessageBox, whenReady, writeText }
   whenReady: vi.fn(() => Promise.resolve()),
   writeText: vi.fn()
 }))
+
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition }))
 
 vi.mock('electron', () => ({
   app: { getLocale, isReady, whenReady },
@@ -35,6 +38,7 @@ describe('showSupportedMessageBox', () => {
     showMessageBox.mockReset()
     writeText.mockReset()
     openExternal.mockReset().mockResolvedValue(undefined)
+    getAppEdition.mockReset().mockReturnValue('global')
     isReady.mockReset().mockReturnValue(true)
     whenReady.mockReset().mockResolvedValue(undefined)
     getLocale.mockReset().mockReturnValue('en-US')
@@ -88,9 +92,34 @@ describe('showSupportedMessageBox', () => {
 
     expect(response).toBe(1)
     expect(writeText).toHaveBeenCalledWith('SQLITE_READONLY')
-    expect(showMessageBox.mock.calls[1][0].detail).toContain('That action failed.')
-    expect(showMessageBox.mock.calls[1][0].detail).not.toContain('no handler')
+    const detail = showMessageBox.mock.calls[1][0].detail
+    expect(detail).toContain('The error was copied')
+    expect(detail).toContain('support@cherry-ai.com')
+    expect(detail).not.toContain('no handler')
     expect(showMessageBox).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['cn', 'https://cherryai.com.cn/download'],
+    ['global', 'https://cherryai.com/download']
+  ] as const)('opens the %s edition download page', async (edition, url) => {
+    getAppEdition.mockReturnValue(edition)
+    showMessageBox.mockResolvedValueOnce({ response: 3 }).mockResolvedValueOnce({ response: 1 })
+
+    await showSupportedMessageBox({ box })
+
+    expect(openExternal).toHaveBeenCalledWith(url)
+  })
+
+  it('falls back to the global download page when the edition cannot be resolved yet', async () => {
+    getAppEdition.mockImplementation(() => {
+      throw new Error('app root not readable')
+    })
+    showMessageBox.mockResolvedValueOnce({ response: 3 }).mockResolvedValueOnce({ response: 1 })
+
+    await showSupportedMessageBox({ box })
+
+    expect(openExternal).toHaveBeenCalledWith('https://cherryai.com/download')
   })
 
   it('places the caller action right after the primary buttons and stays within four buttons', async () => {

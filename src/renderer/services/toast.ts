@@ -1,7 +1,7 @@
 import { getToastUtilities, type ToastLabels } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
-import { isAbortError } from '@renderer/utils/error'
+import { isAbortError, providerErrorText } from '@renderer/utils/error'
 import { classifyError, type ErrorCategory } from '@renderer/utils/errorClassifier'
 import {
   type ErrorToastAction,
@@ -70,24 +70,28 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const diagnosisKey = `error.diagnosis.${category}`
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
-  // Provider wording never becomes the title; it stays reachable through `cause` in the detail modal.
-  const title = planQuota ? i18n.t('models.detail.quota_insufficient_for_request') : i18n.t(diagnosisKey)
+  // An unclassified error's own text is often app-localized recovery copy, so it stays the title.
+  const title = planQuota
+    ? i18n.t('models.detail.quota_insufficient_for_request')
+    : category === 'unknown'
+      ? providerErrorText(serialized) || i18n.t('error.unknown')
+      : i18n.t(diagnosisKey)
   let running = false
   const key = notifications[presentation.type]({
     key: context.key,
     title,
-    description:
-      [
-        context.mcpServer?.name ?? provider?.name,
-        context.modelName,
-        category === 'rate_limit' && context.retryAfterSeconds !== undefined
-          ? i18n.t('toast.error.retry_after', { seconds: context.retryAfterSeconds })
-          : undefined
-      ]
-        .filter(Boolean)
-        .join(' · ') || undefined,
-    // Cherry's own quota message carries the server's retry estimate, so it stays visible.
-    details: planQuota ? cloudPresentation.text : undefined,
+    // Plan-quota text is Cherry's own localized wording (plan name, when it resets), not provider text.
+    description: planQuota
+      ? cloudPresentation.text || undefined
+      : [
+          context.mcpServer?.name ?? provider?.name,
+          context.modelName,
+          category === 'rate_limit' && context.retryAfterSeconds !== undefined
+            ? i18n.t('toast.error.retry_after', { seconds: context.retryAfterSeconds })
+            : undefined
+        ]
+          .filter(Boolean)
+          .join(' · ') || undefined,
     cause: error,
     data: {
       source: context.mcpServer ? 'mcp' : provider ? 'provider' : 'toast',

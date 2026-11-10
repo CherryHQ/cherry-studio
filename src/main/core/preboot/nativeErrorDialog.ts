@@ -5,8 +5,22 @@ import { resolveSystemLanguage, t } from '@main/i18n'
 
 const logger = loggerService.withContext('nativeErrorDialog')
 
-export const OFFICIAL_RELEASES_URL = 'https://github.com/CherryHQ/cherry-studio/releases'
-const FEEDBACK_URL = 'mailto:support@cherry-ai.com?subject=Cherry%20Studio%20Feedback'
+const SUPPORT_EMAIL = 'support@cherry-ai.com'
+const FEEDBACK_URL = `mailto:${SUPPORT_EMAIL}?subject=Cherry%20Studio%20Feedback`
+const DOWNLOAD_URLS = { global: 'https://cherryai.com/download', cn: 'https://cherryai.com.cn/download' } as const
+
+/** A support failure whose message is already the localized line to show. */
+class SupportActionFailure extends Error {}
+
+/** Loaded lazily: preboot dialogs can open before the app root that names the edition is readable. */
+async function officialDownloadUrl(): Promise<string> {
+  try {
+    const { getAppEdition } = await import('@main/utils/appEdition')
+    return DOWNLOAD_URLS[getAppEdition()]
+  } catch {
+    return DOWNLOAD_URLS.global
+  }
+}
 
 type DialogLanguage = ReturnType<typeof resolveSystemLanguage>
 
@@ -43,14 +57,20 @@ function supportActions(
       } catch (error) {
         copyError = error
       }
-      await shell.openExternal(FEEDBACK_URL)
+      try {
+        await shell.openExternal(FEEDBACK_URL)
+      } catch (error) {
+        if (copyError) throw error
+        // The error is on the clipboard; say so and name where to send it.
+        throw new SupportActionFailure(t('dialog.support.copied_feedback_failed', { email: SUPPORT_EMAIL }, language))
+      }
       if (copyError) throw copyError
     }
   }
   const releases: SupportedDialogAction = {
     label: t('dialog.support.releases', undefined, language),
     run: async () => {
-      await shell.openExternal(OFFICIAL_RELEASES_URL)
+      await shell.openExternal(await officialDownloadUrl())
     }
   }
   const actions = input.action ? [input.action, copyAndFeedback, releases] : [copyAndFeedback, releases]
@@ -96,7 +116,7 @@ export async function showSupportedMessageBox(input: SupportedDialogInput): Prom
       failure = ''
     } catch (error) {
       logger.warn('Support action failed', error as Error)
-      failure = failureLine(language)
+      failure = error instanceof SupportActionFailure ? error.message : failureLine(language)
     }
   }
 }

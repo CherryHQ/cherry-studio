@@ -1,9 +1,10 @@
-import { AlertCircle, ChevronRight, X } from 'lucide-react'
+import { AlertCircle, X } from 'lucide-react'
 import type { MouseEvent, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { ErrorDetailLink } from '@renderer/components/ErrorDetailLink'
 
 export interface ErrorNoticeAction {
   readonly label: string
@@ -24,6 +25,8 @@ export interface ErrorNoticeProps {
   /** Quiet extra links placed just before the detail entry. */
   readonly extra?: ReactNode
   readonly onDismiss?: () => void
+  /** Defaults to `alert`; persistent surfaces such as chat history pass a non-live role. */
+  readonly role?: string
   readonly className?: string
 }
 
@@ -39,22 +42,19 @@ export function ErrorNotice({
   detail,
   extra,
   onDismiss,
+  role,
   className
 }: ErrorNoticeProps) {
   const { t } = useTranslation()
   const stop = (event: MouseEvent) => event.stopPropagation()
 
   const detailEntry = onOpenDetail ? (
-    <button
-      type="button"
-      className="inline-flex cursor-pointer items-center gap-0.5 text-foreground-tertiary text-xs transition-colors duration-150 group-hover:text-foreground"
+    <ErrorDetailLink
       onClick={(event) => {
         stop(event)
         onOpenDetail()
-      }}>
-      {t('common.detail')}
-      <ChevronRight size={14} />
-    </button>
+      }}
+    />
   ) : (
     detail
   )
@@ -83,6 +83,7 @@ export function ErrorNotice({
   return (
     <Alert
       type="error"
+      role={role}
       showIcon
       icon={<AlertCircle size={14} className="lucide-custom mt-px text-error" />}
       className={cn(
@@ -121,7 +122,7 @@ export function ErrorNotice({
           ) : null}
         </>
       ) : (
-        <div className="flex min-w-0 items-start gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{title}</span>
           {actionButton || trailing ? (
             <div className="flex shrink-0 items-center gap-3">
