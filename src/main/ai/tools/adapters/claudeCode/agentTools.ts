@@ -154,10 +154,7 @@ export interface ClaudeAgentToolPolicySnapshot {
   isDisabled(runtimeName: string): boolean
   getPermissionMode(): AgentPermissionMode | undefined
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
-  /** Freeze the mode against later `update()` calls — a turn's replay must not adopt a mid-backoff edit. */
-  pinPermissionMode(permissionMode: AgentPermissionMode | undefined): void
-  clearPermissionModePin(): void
-  update(agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>): Promise<void>
+  update(agent: Pick<AgentEntity, 'mcps' | 'disabledTools'>): Promise<void>
 }
 
 export async function createClaudeAgentToolPolicySnapshot(
@@ -172,16 +169,11 @@ export async function createClaudeAgentToolPolicySnapshot(
   } = {}
 ): Promise<ClaudeAgentToolPolicySnapshot> {
   let descriptors: ClaudeToolDescriptor[] = []
-  let policy: ClaudeToolPolicy = {}
+  let policy = buildClaudeToolPolicy(agent)
   let disallowed = new Set<string>()
   let rebuildSequence = 0
-  // Set while a turn is live: the mode that turn was admitted under. `update()` keeps serving it
-  // instead of the freshly read agent, so a save landing mid-backoff cannot widen the gate the
-  // running turn is being decided against.
-  let pinnedPermissionMode: AgentPermissionMode | undefined
-  let hasPinnedPermissionMode = false
 
-  const rebuild = async (nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>) => {
+  const rebuild = async (nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools'>) => {
     // `update()` is fire-and-forget and unserialized, so two rebuilds can overlap. Guard with a
     // sequence so an older slow rebuild that resolves AFTER a newer one can't clobber the newer
     // policy's `disallowed`/`descriptors` (which would re-enable a just-disabled tool).
@@ -202,8 +194,6 @@ export async function createClaudeAgentToolPolicySnapshot(
       }
     }
     descriptors = nextDescriptors
-    policy = buildClaudeToolPolicy(nextAgent)
-    if (hasPinnedPermissionMode) policy = { ...policy, permissionMode: pinnedPermissionMode }
     // Same derivation as the build-time SDK `disallowedTools`, recomputed on every live update so a
     // mid-session disable is honored by `canUseTool` on the warm connection (registry exposure +
     // user opt-out + dependency cascade).
@@ -239,17 +229,6 @@ export async function createClaudeAgentToolPolicySnapshot(
 
     setPermissionMode(permissionMode) {
       policy = { ...policy, permissionMode }
-    },
-
-    pinPermissionMode(permissionMode) {
-      pinnedPermissionMode = permissionMode
-      hasPinnedPermissionMode = true
-      policy = { ...policy, permissionMode }
-    },
-
-    clearPermissionModePin() {
-      hasPinnedPermissionMode = false
-      pinnedPermissionMode = undefined
     },
 
     update(agent) {

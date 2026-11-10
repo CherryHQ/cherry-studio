@@ -219,6 +219,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
           throw new ModelResolutionError(modelId, this.providerId)
         }
         resolvedModel = resolved
+        context.model = resolvedModel
       }
 
       if (!resolvedModel) {
@@ -327,6 +328,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
           throw new ModelResolutionError(modelId, this.providerId)
         }
         resolvedModel = resolved
+        context.model = resolvedModel
       }
 
       if (!resolvedModel) {

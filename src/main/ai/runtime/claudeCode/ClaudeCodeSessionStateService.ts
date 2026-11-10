@@ -4,7 +4,7 @@
  * A warm-pooled query bakes its `canUseTool` + hooks at prewarm time, and the warm pool strips
  * closures from its signature — so those callbacks must resolve the CURRENT session state by id at
  * fire-time, never capture a per-build instance. This service owns that state: the approval-emitter
- * and steer holders a live connection binds, the shared tool-policy snapshot a mid-session agent
+ * holder a live connection binds, the shared tool-policy snapshot a mid-session agent
  * update refreshes in place, and the MCP catalog subscription that keeps snapshot + tool-card
  * metadata in sync with a live `tools/list_changed`.
  *
@@ -31,7 +31,7 @@ import {
   normalizeBashCommand
 } from './bashNoProgress'
 import { buildMcpToolMetadata } from './mcpCatalog'
-import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
+import type { McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSessionStateService')
 
@@ -49,7 +49,6 @@ interface McpSessionCatalogState {
 @ServicePhase(Phase.WhenReady)
 export class ClaudeCodeSessionStateService extends BaseService {
   private readonly toolApprovalEmitters = new Map<string, ToolApprovalEmitterHolder>()
-  private readonly steerHolders = new Map<string, SteerHolder>()
   private readonly toolPolicySnapshots = new Map<string, ToolPolicySnapshot>()
   private readonly mcpSessionCatalogStates = new Map<string, McpSessionCatalogState>()
   private readonly bashOutcomes = new Map<string, BashOutcome[]>()
@@ -83,22 +82,6 @@ export class ClaudeCodeSessionStateService extends BaseService {
    */
   peekToolApprovalEmitter(sessionId: string): ToolApprovalEmitterHolder | undefined {
     return this.toolApprovalEmitters.get(sessionId)
-  }
-
-  getSteerHolder(sessionId: string): SteerHolder {
-    let holder = this.steerHolders.get(sessionId)
-    if (!holder) {
-      const nextHolder: SteerHolder = {
-        pending: [],
-        dispose: () => {
-          nextHolder.pending = []
-          if (this.steerHolders.get(sessionId) === nextHolder) this.steerHolders.delete(sessionId)
-        }
-      }
-      holder = nextHolder
-      this.steerHolders.set(sessionId, holder)
-    }
-    return holder
   }
 
   async ensureToolPolicySnapshot(
@@ -195,7 +178,6 @@ export class ClaudeCodeSessionStateService extends BaseService {
    */
   disposeSessionHolders(sessionId: string): void {
     this.toolApprovalEmitters.get(sessionId)?.dispose?.()
-    this.steerHolders.get(sessionId)?.dispose()
   }
 
   disposeToolPolicySnapshot(sessionId: string): void {
@@ -277,8 +259,6 @@ export class ClaudeCodeSessionStateService extends BaseService {
   private disposeAllSessionState(): void {
     for (const holder of [...this.toolApprovalEmitters.values()]) holder.dispose?.()
     this.toolApprovalEmitters.clear()
-    for (const holder of [...this.steerHolders.values()]) holder.dispose()
-    this.steerHolders.clear()
     this.toolPolicySnapshots.clear()
     this.bashOutcomes.clear()
     this.bashRewriteOrigins.clear()

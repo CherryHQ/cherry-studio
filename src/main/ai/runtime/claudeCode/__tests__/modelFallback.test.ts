@@ -4,8 +4,8 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import type { RetryPolicy } from '../../aiSdk'
 import { selectFallbackModelId } from '../../modelFallback'
+import { ClaudeCodeResultError } from '../ClaudeRuntimeState'
 import { classifyFallbackEligibleError, resolveAgentSessionFallback } from '../modelFallback'
-import { ClaudeCodeResultError } from '../streamAdapter'
 
 const getByProviderId = vi.hoisted(() => vi.fn())
 const getByKey = vi.hoisted(() => vi.fn())
@@ -36,40 +36,54 @@ function policy(overrides: Partial<RetryPolicy> = {}): RetryPolicy {
 describe('classifyFallbackEligibleError', () => {
   it('admits result errors carrying a retryable api_error_status', () => {
     for (const status of [429, 500, 502, 503, 529]) {
-      const error = new ClaudeCodeResultError('API Error', 'success', ['API Error'], 'api_error', status)
+      const error = new ClaudeCodeResultError({
+        message: 'API Error',
+        subtype: 'success',
+        errors: ['API Error'],
+        terminalReason: 'api_error',
+        statusCode: status
+      })
       expect(classifyFallbackEligibleError(error)).toBe(`http ${status}`)
     }
   })
 
   it('rejects non-retryable api_error_status values such as auth failures', () => {
-    const error = new ClaudeCodeResultError('API Error', 'success', ['API Error'], 'api_error', 401)
+    const error = new ClaudeCodeResultError({
+      message: 'API Error',
+      subtype: 'success',
+      errors: ['API Error'],
+      terminalReason: 'api_error',
+      statusCode: 401
+    })
     expect(classifyFallbackEligibleError(error)).toBeUndefined()
   })
 
   it('admits api_error terminal reasons whose diagnostic text carries a retryable status', () => {
-    const error = new ClaudeCodeResultError(
-      'API Error: 429 {"type":"rate_limit_error"}',
-      'error_during_execution',
-      ['API Error: 429 {"type":"rate_limit_error"}'],
-      'api_error'
-    )
+    const error = new ClaudeCodeResultError({
+      message: 'API Error: 429 {"type":"rate_limit_error"}',
+      subtype: 'error_during_execution',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}'],
+      terminalReason: 'api_error'
+    })
     expect(classifyFallbackEligibleError(error)).toBe('http 429')
   })
 
   it('admits api_error terminal reasons whose text names the limit without a status code', () => {
-    const error = new ClaudeCodeResultError(
-      'API Error: You have exceeded your quota.',
-      'error_during_execution',
-      ['API Error: You have exceeded your quota.'],
-      'api_error'
-    )
+    const error = new ClaudeCodeResultError({
+      message: 'API Error: You have exceeded your quota.',
+      subtype: 'error_during_execution',
+      errors: ['API Error: You have exceeded your quota.'],
+      terminalReason: 'api_error'
+    })
     expect(classifyFallbackEligibleError(error)).toBe('API Error: You have exceeded your quota.')
   })
 
   it('rejects execution failures that are not provider errors', () => {
-    const error = new ClaudeCodeResultError('No conversation found with session ID: stale', 'error_during_execution', [
-      'No conversation found with session ID: stale'
-    ])
+    const error = new ClaudeCodeResultError({
+      message: 'No conversation found with session ID: stale',
+      subtype: 'error_during_execution',
+      errors: ['No conversation found with session ID: stale']
+    })
     expect(classifyFallbackEligibleError(error)).toBeUndefined()
   })
 
@@ -190,28 +204,36 @@ describe('selectFallbackModelId', () => {
 
 describe('resolveAgentSessionFallback', () => {
   it('restarts on the first valid fallback when a retryable error hit a turn with no activity', () => {
-    const error = new ClaudeCodeResultError(
-      'API Error: 529 overloaded',
-      'error_during_execution',
-      ['API Error: 529 overloaded'],
-      'api_error'
-    )
+    const error = new ClaudeCodeResultError({
+      message: 'API Error: 529 overloaded',
+      subtype: 'error_during_execution',
+      errors: ['API Error: 529 overloaded'],
+      terminalReason: 'api_error'
+    })
     expect(
       resolveAgentSessionFallback({ error, currentModelId: CURRENT_MODEL, hasTurnActivity: false, policy: policy() })
     ).toEqual({ fallbackModelId: 'other-provider::haiku', reason: 'http 529' })
   })
 
   it('keeps the model when the turn already produced content', () => {
-    const error = new ClaudeCodeResultError('API Error', 'success', ['API Error'], 'api_error', 429)
+    const error = new ClaudeCodeResultError({
+      message: 'API Error',
+      subtype: 'success',
+      errors: ['API Error'],
+      terminalReason: 'api_error',
+      statusCode: 429
+    })
     expect(
       resolveAgentSessionFallback({ error, currentModelId: CURRENT_MODEL, hasTurnActivity: true, policy: policy() })
     ).toBeUndefined()
   })
 
   it('keeps the model when the failure is not fallback-worthy or nothing is configured', () => {
-    const exhausted = new ClaudeCodeResultError('Reached the maximum number of turns.', 'error_max_turns', [
-      'Reached the maximum number of turns.'
-    ])
+    const exhausted = new ClaudeCodeResultError({
+      message: 'Reached the maximum number of turns.',
+      subtype: 'error_max_turns',
+      errors: ['Reached the maximum number of turns.']
+    })
     expect(
       resolveAgentSessionFallback({
         error: exhausted,
@@ -221,7 +243,13 @@ describe('resolveAgentSessionFallback', () => {
       })
     ).toBeUndefined()
 
-    const rateLimited = new ClaudeCodeResultError('API Error', 'success', ['API Error'], 'api_error', 429)
+    const rateLimited = new ClaudeCodeResultError({
+      message: 'API Error',
+      subtype: 'success',
+      errors: ['API Error'],
+      terminalReason: 'api_error',
+      statusCode: 429
+    })
     expect(
       resolveAgentSessionFallback({
         error: rateLimited,

@@ -2,7 +2,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { RetryPolicy } from '../aiSdk'
 import { selectFallbackModelId } from '../modelFallback'
-import { ClaudeCodeResultError } from './streamAdapter'
+import { ClaudeCodeResultError } from './ClaudeRuntimeState'
 
 const FALLBACK_STATUS_CODES = new Set([429, 500, 502, 503, 529])
 const STATUS_ERROR_PATTERN = /\b(429|500|502|503|529)\b/

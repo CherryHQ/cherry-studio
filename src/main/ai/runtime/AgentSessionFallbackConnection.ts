@@ -10,11 +10,10 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
-  AgentRuntimePermissionPolicy,
+  AgentRuntimeCommand,
   AgentRuntimePromptPolicy,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
-  AgentRuntimeUserInput,
   AgentSessionRuntimeDriver
 } from './types'
 
@@ -164,7 +163,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   readonly events = this.queue
   private current: AgentRuntimeConnection
   private currentModelId: UniqueModelId
-  private lastInput?: AgentRuntimeUserInput
+  private lastInput?: AgentRuntimeCommand
   private resumeToken?: string
   private hasActivity = false
   private backgroundTasksRunning = false
@@ -214,8 +213,6 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   private replacementReconcileChain: Promise<unknown> = Promise.resolve()
   /** The prompt the live turn was admitted with; a replay re-materializes it, never a later save. */
   private turnPrompt?: AgentRuntimePromptPolicy
-  /** The mode the live turn was admitted under: a later save must not re-admit its replay. */
-  private turnPermissionMode?: AgentRuntimePermissionPolicy['permissionMode']
   /**
    * The turn's disabled tools, monotonic: what it was admitted with plus every restriction a save
    * applied. A re-enable may not erase either inside the same host turn — the replay would run the
@@ -243,12 +240,11 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     return this.current.retainWhileIdle
   }
 
-  async send(input: AgentRuntimeUserInput): Promise<void> {
+  async send(input: AgentRuntimeCommand): Promise<void> {
     this.lastInput = input
     // Captured at admission: a later save must reach the NEXT fresh turn, not this turn's replay.
     this.turnPrompt = this.current.getPromptPolicy?.()
     const admittedPolicy = this.current.getPermissionPolicy?.()
-    this.turnPermissionMode = admittedPolicy?.permissionMode
     this.turnDisabledTools.clear()
     for (const tool of admittedPolicy?.disabledTools ?? []) this.turnDisabledTools.add(tool)
     this.hasActivity = false
@@ -261,7 +257,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     }
   }
 
-  redirect(input: AgentRuntimeUserInput): boolean {
+  redirect(input: AgentRuntimeCommand): boolean {
     const stashed = this.current.redirect?.(input) ?? false
     // A stashed steer moves the live turn onto the steered continuation, so the stored prompt is no
     // longer replayable: a fallback would resend the turn without the steer the host already folded in.
@@ -320,7 +316,17 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   }
 
   getContextUsage() {
-    return this.current.getContextUsage?.() ?? Promise.resolve(null)
+    return (
+      this.current.getContextUsage?.() ??
+      Promise.resolve({
+        status: 'unsupported' as const,
+        error: {
+          operation: 'contextUsage',
+          code: 'wrapped-connection-unsupported',
+          message: 'The wrapped runtime cannot report context usage'
+        }
+      })
+    )
   }
 
   getSupportedCommands() {
@@ -345,9 +351,26 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     return this.current.stopTask?.(taskId) ?? Promise.resolve(false)
   }
 
-  abortTurn() {
-    const current = this.current as AgentRuntimeConnection & { abortTurn?: () => Promise<boolean> }
-    return current.abortTurn?.() ?? Promise.resolve(false)
+  lookupInput(contextId: string, inputId: string) {
+    return (
+      this.current.lookupInput?.(contextId, inputId) ??
+      Promise.resolve({
+        status: 'unsupported' as const,
+        error: {
+          operation: 'lookupInput',
+          code: 'wrapped-connection-unsupported',
+          message: 'The wrapped runtime cannot look native inputs up'
+        }
+      })
+    )
+  }
+
+  interrupt() {
+    return this.current.interrupt?.() ?? Promise.resolve()
+  }
+
+  closeForEdit() {
+    return this.current.closeForEdit?.() ?? Promise.resolve()
   }
 
   async close(): Promise<void> {
@@ -452,10 +475,10 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       if (this.closed) return false
       // Now inside the window: fold what those saves left applied into the carried union.
       if (pendingSaves.length > 0) this.rememberAppliedRestrictions()
-      // The replay keeps the mode the turn was admitted under: a save during the backoff (e.g.
-      // switching to bypassPermissions) would otherwise re-admit it under what mid-turn
-      // reconciliation defers. Disabled tools still come from the live policy, which carries
-      // every restriction applied so far. An unreadable policy cannot be preserved — decline.
+      // The replay carries the restrictions the live turn accumulated: a save during the backoff
+      // tightened it, and the replacement re-derives only the row. The mode is NOT carried — the
+      // replacement reads the row's mode, because a mode change applies from the turn's next tool
+      // call anyway. An unreadable policy cannot be preserved — decline.
       const livePolicy = this.current.getPermissionPolicy?.()
       if (!livePolicy) {
         logger.warn('Declining the fallback replay: the live turn policy cannot be read', {
@@ -467,7 +490,6 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       this.rememberTurnRestrictions()
       const turnPolicy = {
         ...livePolicy,
-        permissionMode: this.turnPermissionMode ?? livePolicy.permissionMode,
         disabledTools: [...new Set([...this.turnDisabledTools, ...this.retainedDisabledTools])].sort()
       }
       await this.current.close()

@@ -265,7 +265,10 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
-  it('replays the turn under its admission-time permission mode, not a mid-backoff save', async () => {
+  // A mid-turn permission-mode save is NOT pinned into the replay: the runtimes apply a mode change
+  // from the turn's next tool call, so the replacement reads the row exactly like the live turn
+  // already did. Only the turn's restrictions are carried.
+  it('follows a mid-turn permission-mode save instead of pinning the admission-time mode', async () => {
     const primary = fakeConnection()
     primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
     const fallback = fakeConnection()
@@ -296,10 +299,8 @@ describe('Pi/DSH connection fallback', () => {
     await save
 
     await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
-    // The replayed turn keeps the approval requirement it was admitted under; the later save
-    // reaches the next fresh turn instead of widening this one into approval-free Bash.
     expect(driver.connect).toHaveBeenCalledWith(
-      expect.objectContaining({ permissionPolicy: { permissionMode: 'default', disabledTools: [] } })
+      expect.objectContaining({ permissionPolicy: { permissionMode: 'bypassPermissions', disabledTools: [] } })
     )
     await wrapper.close()
   })
