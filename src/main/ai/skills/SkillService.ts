@@ -11,6 +11,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { runPathMutationExclusive } from '@main/services/file'
 import { isPathInside } from '@main/utils/file'
+import { copyDirectoryRecursive } from '@main/utils/fileOperations'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -566,7 +567,11 @@ export class SkillService {
    */
   private resyncSystemSkill(skillId: string, canonicalPath: string, namespace: string | null): Promise<InstalledSkill> {
     // Serialized like every other library mutation so reconcile can't observe a half-copied state.
-    return this.mutationLock.runExclusive(() => this.resyncSystemSkillLocked(skillId, canonicalPath, namespace))
+    // The file mutation also runs under the path lock so editor writes fail stale instead of being
+    // lost inside the replacement, matching `applyRemoteUpdate`.
+    return this.mutationLock.runExclusive(() =>
+      runPathMutationExclusive(() => this.resyncSystemSkillLocked(skillId, canonicalPath, namespace))
+    )
   }
 
   private async resyncSystemSkillLocked(
@@ -595,29 +600,86 @@ export class SkillService {
     }
     await this.assertLocalUpdateSourceInBounds(canonicalPath)
 
-    const metadata = await parseSkillMetadata(canonicalPath, path.basename(canonicalPath), 'skills')
-    const contentHash = await this.installer.computeContentHash(canonicalPath)
-    const destPath = this.getSkillStoragePath(skill.folderName)
-    await this.installer.install(canonicalPath, destPath)
+    // Snapshot the live source so metadata, the install baseline and the published files all come
+    // from one immutable copy. Reading the live directory directly would let a concurrent external
+    // sync change it between the hash and the install.
+    const snapshot = await this.snapshotLocalSkillSource(canonicalPath)
+    try {
+      const metadata = await parseSkillMetadata(snapshot.snapshotDir, path.basename(canonicalPath), 'skills')
+      const contentHash = await this.installer.computeContentHash(snapshot.snapshotDir)
+      const destPath = this.getSkillStoragePath(skill.folderName)
+      const prepared = await this.installer.prepareInstall(snapshot.snapshotDir, destPath)
+      let databaseUpdated = false
+      try {
+        await this.linkMirror(skill.folderName, { throwOnError: true })
+        const sourceUrl = pathToFileURL(canonicalPath).href
+        application.get('DbService').withWriteTx((tx) => {
+          agentGlobalSkillService.updateTx(tx, skillId, {
+            name: metadata.name,
+            description: metadata.description ?? null,
+            author: metadata.author ?? null,
+            version: metadata.version ?? null,
+            tags: metadata.tags ?? [],
+            contentHash,
+            sourceUrl,
+            namespace: namespace ?? skill.namespace
+          })
+        })
+        databaseUpdated = true
+        const updated = agentGlobalSkillService.getById(skillId)
+        if (!updated) throw new Error(`Skill disappeared after re-sync: ${skillId}`)
+        await prepared.commit()
+        agentGlobalSkillService.notifySkillProjectionChange(skillId)
+        return updated
+      } catch (error) {
+        const recoveryErrors: unknown[] = []
+        await prepared.rollback().catch((recoveryError) => recoveryErrors.push(recoveryError))
+        if (databaseUpdated) {
+          try {
+            application.get('DbService').withWriteTx((tx) => {
+              agentGlobalSkillService.updateTx(tx, skillId, {
+                name: skill.name,
+                description: skill.description,
+                author: skill.author,
+                version: skill.version,
+                tags: skill.sourceTags,
+                contentHash: skill.contentHash,
+                sourceUrl: skill.sourceUrl,
+                namespace: skill.namespace
+              })
+            })
+          } catch (recoveryError) {
+            recoveryErrors.push(recoveryError)
+          }
+        }
+        await this.linkMirror(skill.folderName, { throwOnError: true }).catch((recoveryError) =>
+          recoveryErrors.push(recoveryError)
+        )
+        if (recoveryErrors.length > 0) {
+          throw new AggregateError([error, ...recoveryErrors], `Failed to apply and restore system re-sync: ${skillId}`)
+        }
+        throw error
+      }
+    } finally {
+      await safeRemoveDirectory(snapshot.tempDir)
+    }
+  }
 
-    const sourceUrl = pathToFileURL(canonicalPath).href
-    application.get('DbService').withWriteTx((tx) => {
-      agentGlobalSkillService.updateTx(tx, skillId, {
-        name: metadata.name,
-        description: metadata.description ?? null,
-        author: metadata.author ?? null,
-        version: metadata.version ?? null,
-        tags: metadata.tags ?? [],
-        contentHash,
-        sourceUrl,
-        namespace: namespace ?? skill.namespace
-      })
-    })
-    await this.linkMirror(skill.folderName, { throwOnError: true })
-    const updated = agentGlobalSkillService.getById(skillId)
-    if (!updated) throw new Error(`Skill disappeared after re-sync: ${skillId}`)
-    agentGlobalSkillService.notifySkillProjectionChange(skillId)
-    return updated
+  /**
+   * Copy a live `file:` source into a caller-owned temp directory. Every hash, metadata read and
+   * install then shares one immutable snapshot instead of re-reading a directory an external sync
+   * may mutate mid-update.
+   */
+  private async snapshotLocalSkillSource(canonicalPath: string): Promise<{ snapshotDir: string; tempDir: string }> {
+    const tempDir = await createTempDir('skill-local-update-')
+    try {
+      const snapshotDir = path.join(tempDir, 'source')
+      await copyDirectoryRecursive(canonicalPath, snapshotDir)
+      return { snapshotDir, tempDir }
+    } catch (error) {
+      await safeRemoveDirectory(tempDir)
+      throw error
+    }
   }
 
   /** A local `file:` update source must be a real directory outside the managed roots. */
@@ -1290,10 +1352,11 @@ export class SkillService {
   }
 
   /**
-   * Re-read a system skill's `file:` origin without cloning or downloading. The returned directory
-   * is the canonical source path itself (never a temp copy), so callers must not remove it.
+   * Snapshot a system skill's `file:` origin into a caller-owned temp directory. Hashing,
+   * metadata and installation all read that immutable copy, so a concurrent external sync cannot
+   * change the source between the check and the publish. Callers remove `tempDir` when done.
    */
-  private async fetchLocalSkill(sourceUrl: string): Promise<{ skillDir: string; tempDir: null; sourceUrl: string }> {
+  private async fetchLocalSkill(sourceUrl: string): Promise<{ skillDir: string; tempDir: string; sourceUrl: string }> {
     let sourcePath: string
     try {
       sourcePath = fileURLToPath(sourceUrl)
@@ -1307,7 +1370,8 @@ export class SkillService {
       throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'System skill source is unavailable')
     }
     await this.assertLocalUpdateSourceInBounds(canonicalPath)
-    return { skillDir: canonicalPath, tempDir: null, sourceUrl: pathToFileURL(canonicalPath).href }
+    const snapshot = await this.snapshotLocalSkillSource(canonicalPath)
+    return { skillDir: snapshot.snapshotDir, tempDir: snapshot.tempDir, sourceUrl: pathToFileURL(canonicalPath).href }
   }
 
   private fetchRemote(sourceUrl: string) {
