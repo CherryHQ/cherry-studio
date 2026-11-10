@@ -6,16 +6,20 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
-import { createPlan, selectedGroups } from '../validation/plan.mjs'
+import { createPlan } from '../validation/plan.mjs'
 
 const workflow = parse(readFileSync('.github/workflows/ci.yml', 'utf8'))
+const verify = (gate: string, jobs: unknown, steps?: unknown) =>
+  spawnSync(process.execPath, ['scripts/validation/verify.mjs', gate], {
+    env: { ...process.env, VALIDATION_JOBS: JSON.stringify(jobs), VALIDATION_STEPS: JSON.stringify(steps) }
+  }).status
 const directories: string[] = []
 afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
 describe('CI validation planning', () => {
-  it('uses the whole PR and push range even when the last commit only changes docs', () => {
+  it('covers the whole PR and fully validates every push, including docs-only pushes', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-plan-'))
     directories.push(cwd)
     const git = (...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -53,50 +57,127 @@ describe('CI validation planning', () => {
           .slice(5)
       )
     }
-    for (const event of ['pull_request', 'push']) {
+    for (const event of ['pull_request']) {
       const plan = run(event)
       expect(plan.projects).toContain('renderer')
       expect(plan.projects).not.toContain('main')
     }
-    for (const event of ['schedule', 'workflow_dispatch']) expect(run(event).projects).toContain('main')
+    for (const event of ['push', 'schedule', 'workflow_dispatch']) expect(run(event).projects).toContain('main')
     expect(run('push', '0000000000000000000000000000000000000000').projects).toContain('main')
     git('checkout', '-qb', 'docs-only', base)
     writeFileSync(join(cwd, 'README.md'), 'docs only')
     commit('docs only')
-    expect(run('push').projects).toEqual([])
+    expect(run('push').projects).toContain('main')
+    expect(run('pull_request').projects).toEqual([])
   })
 
-  it('fails required gates on missing classification and failed or skipped dependencies', () => {
-    const plan = createPlan(['package.json'])
-    const expected = selectedGroups(plan)
-    for (const name of ['basic-checks', 'general-test', 'render-test']) {
+  it('fails test gates on missing classification and failed, cancelled, skipped or missing dependencies', () => {
+    for (const [name, gate] of [
+      ['basic-checks', 'basic'],
+      ['general-test', 'general'],
+      ['render-test', 'renderer']
+    ]) {
       const job = workflow.jobs[name]
-      const gate = job.steps
-        .find((step: { run?: string }) => step.run?.includes('verify.mjs'))
-        .run.split(' ')
-        .at(-1)
       const jobs = Object.fromEntries(job.needs.map((dependency: string) => [dependency, { result: 'success' }]))
-      jobs.changes = { result: 'success', outputs: { plan: JSON.stringify(plan) } }
-      const run = () =>
-        spawnSync(process.execPath, ['scripts/validation/verify.mjs', gate], {
-          env: { ...process.env, VALIDATION_JOBS: JSON.stringify(jobs) }
-        }).status
-      expect(run()).toBe(0)
+      jobs.changes = { result: 'success', outputs: { plan: JSON.stringify(createPlan(['package.json'])) } }
+      expect(verify(gate, jobs)).toBe(0)
       for (const dependency of job.needs) {
-        for (const result of ['failure', 'cancelled', 'skipped']) {
+        for (const result of ['failure', 'cancelled', 'skipped', undefined]) {
           jobs[dependency].result = result
-          expect(run()).not.toBe(0)
+          expect(verify(gate, jobs)).not.toBe(0)
         }
         jobs[dependency].result = 'success'
       }
       jobs.changes.outputs.plan = JSON.stringify(createPlan(['README.md']))
-      for (const dependency of job.needs.filter((value: string) => value !== 'changes')) {
-        const condition = workflow.jobs[dependency].if
-        const group = /outputs\.(\w+)/.exec(condition)?.[1]
-        expect(group && Object.hasOwn(expected, group)).toBe(true)
-        jobs[dependency].result = group === 'repository' ? 'success' : 'skipped'
-      }
-      expect(run()).toBe(0)
+      for (const dependency of job.needs.filter((id: string) => !['changes', 'repository-checks'].includes(id)))
+        jobs[dependency].result = 'skipped'
+      expect(verify(gate, jobs)).toBe(0)
     }
+  })
+})
+
+// A failed dependency must still reach its gate; a cancelled workflow must not allocate another runner.
+describe('required gate scheduling', () => {
+  it.each([
+    ['successful dependencies', 'success', 'pull_request', false, false, true],
+    ['failed dependencies', 'failure', 'pull_request', false, false, true],
+    ['skipped dependencies', 'skipped', 'pull_request', false, false, true],
+    ['workflow cancellation', 'success', 'pull_request', false, true, false],
+    ['draft pull request', 'success', 'pull_request', true, false, false],
+    ['manual validation', 'success', 'workflow_dispatch', false, false, true]
+  ])('handles %s with the upstream cancellation condition', (_name, dependency, event, draft, cancelled, expected) => {
+    for (const name of ['basic-checks', 'general-test', 'render-test']) {
+      const condition = workflow.jobs[name].if.replace(/^\$\{\{\s*|\s*\}\}$/g, '')
+      expect(condition).toContain('!cancelled()')
+      const selected = new Function('github', 'cancelled', 'success', `return (${condition})`)(
+        { event_name: event, event: { pull_request: { draft } } },
+        () => cancelled,
+        () => dependency === 'success'
+      )
+      expect(selected).toBe(expected)
+    }
+  })
+})
+
+// Bursts of main pushes must not replace pending runs; only superseded PRs may cancel.
+describe('CI concurrency', () => {
+  const evaluate = (template: string, github: unknown) =>
+    template.replace(/\$\{\{(.*?)\}\}/g, (_match, expression) =>
+      String(new Function('github', `return (${expression})`)(github))
+    )
+  it.each(['push', 'schedule', 'workflow_dispatch'])('keeps every %s run independent', (event) => {
+    const context = {
+      workflow: 'CI',
+      event_name: event,
+      event: { pull_request: {} },
+      ref: 'refs/heads/main',
+      run_id: 1
+    }
+    expect(evaluate(workflow.concurrency.group, context)).not.toBe(
+      evaluate(workflow.concurrency.group, { ...context, run_id: 2 })
+    )
+    expect(evaluate(workflow.concurrency['cancel-in-progress'], context)).toBe('false')
+  })
+  it('groups successive runs of one PR and cancels its older run', () => {
+    const context = { workflow: 'CI', event_name: 'pull_request', event: { pull_request: { number: 123 } }, run_id: 1 }
+    expect(evaluate(workflow.concurrency.group, context)).toBe(
+      evaluate(workflow.concurrency.group, { ...context, run_id: 2 })
+    )
+    expect(evaluate(workflow.concurrency['cancel-in-progress'], context)).toBe('true')
+  })
+})
+
+// Sharing an installation must not hide an omitted or unsuccessful planned group.
+describe('combined repository and type gate', () => {
+  it.each([
+    [['format'], ['repository-result']],
+    [['types-node'], ['type-checks']],
+    [
+      ['format', 'types-node'],
+      ['repository-result', 'type-checks']
+    ]
+  ])('requires every selected outcome for %j', (tasks, required) => {
+    const jobs = { changes: { result: 'success', outputs: { plan: JSON.stringify({ tasks, projects: [] }) } } }
+    const steps: Record<string, { outcome?: string }> = {
+      'repository-result': { outcome: 'skipped' },
+      'type-checks': { outcome: 'skipped' }
+    }
+    for (const id of required) steps[id].outcome = 'success'
+    expect(verify('repository', jobs, steps)).toBe(0)
+    for (const id of required) {
+      for (const outcome of ['failure', 'cancelled', 'skipped', undefined]) {
+        steps[id].outcome = outcome
+        expect(verify('repository', jobs, steps)).not.toBe(0)
+      }
+      steps[id].outcome = 'success'
+    }
+  })
+  it.each([
+    ['true', 'false', true],
+    ['false', 'true', true],
+    ['false', 'false', false]
+  ])('selects the combined runner for repository=%s and types=%s', (repository, types, expected) => {
+    const selected = new Function('needs', `return (${workflow.jobs['repository-checks'].if})`)
+    expect(selected({ changes: { outputs: { repository, types } } })).toBe(expected)
   })
 })

@@ -178,6 +178,10 @@ export const isShortcutModifier = (value: unknown): value is ShortcutModifier =>
 export const isShortcutFunctionKey = (value: unknown): value is ShortcutFunctionKey =>
   typeof value === 'string' && shortcutFunctionKeySet.has(value)
 
+export const isShortcutCharacterToken = (
+  token: ShortcutToken | undefined
+): token is ShortcutLetter | ShortcutDigit | ShortcutSymbol => token !== undefined && token.length === 1
+
 export const normalizeShortcutToken = (value: string): ShortcutToken | undefined => {
   const trimmed = value.trim()
   if (!trimmed) return undefined
@@ -285,9 +289,12 @@ export const convertKeyToAccelerator = (key: string): ShortcutToken | undefined 
   acceleratorKeyMap[key] ?? normalizeShortcutToken(key)
 
 const getEventKeyToken = (event: KeyboardEventLike) => {
-  const fromCode = event.code ? convertKeyToAccelerator(event.code) : undefined
   const fromKey = convertKeyToAccelerator(event.key)
-  const token = fromCode ?? fromKey
+  const fromCode = event.code ? convertKeyToAccelerator(event.code) : undefined
+  // Layouts move characters between physical keys, so a character follows the produced character;
+  // named and keypad keys keep their physical identity (numenter / numadd / numsub).
+  const token =
+    isShortcutCharacterToken(fromKey) && isShortcutCharacterToken(fromCode) ? fromKey : (fromCode ?? fromKey)
 
   return token && !isShortcutModifier(token) ? token : undefined
 }

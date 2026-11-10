@@ -24,7 +24,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Scrollbar,
+  ScrollArea,
   Separator
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -403,6 +403,7 @@ export default function ProviderEditorDrawer({
         defaultChatEndpoint,
         presetProviderId: source.presetProviderId,
         authConfig: emptyAuthConfigFor(source.authType),
+        ...(source.settings?.billing ? { billing: structuredClone(source.settings.billing) } : {}),
         ...logoField
       }
       if (duplicateNeedsBaseUrl(source.authType)) {
@@ -676,9 +677,11 @@ export default function ProviderEditorDrawer({
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="text-base leading-5">{title}</DialogTitle>
         </DialogHeader>
-        <Scrollbar data-testid="provider-editor-scrollbar" className="min-h-0 px-6 py-2">
+        <ScrollArea
+          viewportProps={{ 'data-testid': 'provider-editor-scrollbar', className: 'px-6 py-2' }}
+          className="min-h-0">
           {formContent}
-        </Scrollbar>
+        </ScrollArea>
         <DialogFooter className="mt-4 border-t border-border px-6 py-4">{footerActions}</DialogFooter>
       </DialogContent>
     </Dialog>

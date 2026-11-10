@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto'
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockFileIntakeUtils } from '@test-mocks/main/FileIntakeService'
 import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,6 +36,8 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
+import { fileEntryService } from '@data/services/FileEntryService'
+import { fileRefService } from '@data/services/FileRefService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
@@ -44,10 +50,16 @@ import {
 import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
+import { FileManager, FileIntakeService } from '@main/services/file'
+import type { FileManagerDeps } from '@main/services/file/internal/deps'
+import { createInternal } from '@main/services/file/internal/entry/create'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
 import { COALESCE_WINDOW_MS, RemoteAgentHub } from '../agentJournal'
 import { sha256, sliceContent, toMessageModel } from '../agentQueries'
+import { AttachmentPresenceService } from '../AttachmentPresenceService'
 import { RemoteAccessService } from '../RemoteAccessService'
 import { RemoteConnection } from '../RemoteConnection'
 import { RemotePairing } from '../RemotePairing'
@@ -57,6 +69,13 @@ const fake = vi.hoisted(() => {
   const streams = new Map<string, StreamListener[]>()
   return {
     streams,
+    files: {
+      publishIntake: vi.fn(),
+      getById: vi.fn(),
+      createInternalEntry: vi.fn(),
+      getUrl: vi.fn(),
+      getPhysicalPath: vi.fn()
+    },
     replayBudget: undefined as number | undefined,
     onStarted: undefined as undefined | ((listeners: StreamListener[]) => Promise<void>),
     manager: {
@@ -78,7 +97,9 @@ const fake = vi.hoisted(() => {
     },
     runtime: {
       assertSessionWritable() {},
+      async prepareBranch() {},
       isSessionBusy: () => false,
+      isSessionBusyForArchive: () => false,
       respondToolApproval: vi.fn(() => true),
       cancelSessionForks: async () => {},
       closeSession: async () => {},
@@ -104,6 +125,7 @@ vi.mock('@cherrystudio/remote-protocol', async (importOriginal) => {
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
+    FileManager: fake.files,
     AiStreamManager: fake.manager,
     AgentSessionRuntimeService: fake.runtime,
     AgentSessionDeliveryService: fake.delivery
@@ -189,7 +211,8 @@ describe('remote agent access', () => {
       { jsonrpc: '2.0', id: randomUUID(), method, params },
       undefined
     )) as { result?: unknown; error?: unknown }
-    if (response.error) throw response.error
+    if (response.error)
+      throw Object.assign(new Error(), response.error, { message: `${method}: ${JSON.stringify(response.error)}` })
     return response.result
   }
   it('returns a durable target rejection with the admission reason and never resends it', async () => {
@@ -317,6 +340,130 @@ describe('remote agent access', () => {
     )
     await call('connection.hello', { protocolVersions: [1] })
     await call('connection.authenticate', { deviceId: device.id })
+  })
+
+  it('sends the managed file directly without a second entry and deduplicates after staging is removed', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-attachment-'))
+    const paths = vi
+      .spyOn(application, 'getPath')
+      .mockImplementation((key, filename) => path.join(root, key, filename ?? ''))
+    const intake = new FileIntakeService()
+    MockFileIntakeUtils.setImplementation(intake)
+    const files = new FileManager()
+    Object.assign(application.get('FileManager'), { intakes: files.intakes })
+    fake.files.publishIntake.mockImplementation((input) => files.publishIntake(input))
+    fake.files.getById.mockImplementation((id) => files.getById(id))
+    try {
+      await mkdir(application.getPath('feature.files.data'), { recursive: true })
+      const workspacePath = path.join(root, 'workspace')
+      await mkdir(workspacePath)
+      const workspace = dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspacePath))
+      sessionId = agentSessionService.create({
+        agentId: 'agent-1',
+        name: 'Files',
+        workspace: { type: 'user', workspaceId: workspace.id }
+      }).id
+      fake.files.createInternalEntry.mockImplementation((params) =>
+        createInternal({ fileEntryService } as FileManagerDeps, params)
+      )
+      fake.files.getPhysicalPath.mockImplementation((id) => {
+        const entry = fileEntryService.getById(FileEntryIdSchema.parse(id))
+        return application.getPath('feature.files.data', `${entry.id}${entry.ext ? '.' + entry.ext : ''}`)
+      })
+      fake.files.getUrl.mockImplementation((id) => pathToFileURL(fake.files.getPhysicalPath(id)).href)
+      const bytes = Buffer.from('managed attachment')
+      const uploadId = randomUUID()
+      const presence = new AttachmentPresenceService()
+      for (const name of ['present', 'submitting', 'list'] as const)
+        Object.assign(application.get('AttachmentPresenceService'), { [name]: presence[name].bind(presence) })
+      const selectionId = randomUUID()
+      await call('agent.attachments.present', {
+        selectionId,
+        sessionId,
+        sequence: '1',
+        items: [
+          {
+            attachmentId: uploadId,
+            uploadId,
+            filename: 'report.txt',
+            mediaType: 'text/plain',
+            byteLength: bytes.length
+          }
+        ]
+      })
+      await call('agent.uploads.prepare', {
+        uploadId,
+        filename: 'report.txt',
+        mediaType: 'text/plain',
+        byteLength: bytes.length
+      })
+      await connection.receiveUpload({
+        kind: 'upload',
+        requestId: randomUUID(),
+        uploadId,
+        writerEpoch: '0',
+        offset: '0',
+        bytes
+      })
+      await call('agent.uploads.complete', { uploadId, writerEpoch: '0' })
+      await expect.poll(async () => (await call('agent.uploads.get', { uploadId })).state).toBe('ready')
+      const { session } = await call('agent.sessions.get', { sessionId })
+      const params = {
+        commandId: randomUUID(),
+        sessionId,
+        text: '',
+        expectedIdleRevision: session.idleRevision,
+        attachments: [{ uploadId }],
+        selectionId
+      }
+      const receipt = await call('agent.messages.send', params)
+      expect(receipt.status).toBe('applied')
+      const { session: current } = await call('agent.sessions.get', { sessionId })
+      const history = await call('agent.messages.list', { sessionId, historyRevision: current.historyRevision })
+      const message = history.items.find((item: { role: string }) => item.role === 'user')
+      expect((await presence.list(sessionId))[0].messageId).toBe(message.messageId)
+      const file = (
+        await call('agent.parts.list', { sessionId, messageId: message.messageId, messageRevision: message.revision })
+      ).items[0]
+      expect(file).toMatchObject({ kind: 'file', name: 'report.txt', ref: { sha256: sha256(bytes) } })
+      const submitted = vi.mocked(startAgentSessionRun).mock.calls.at(-1)![0].userParts[0]
+      expect(submitted.type).toBe('file')
+      if (submitted.type !== 'file') throw new Error('Expected file')
+      const working = fileURLToPath(submitted.url)
+      expect(working).toBe(files.getPhysicalPath(FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)))
+      expect(readCherryMeta(submitted)?.workingFileEntryId).toBeUndefined()
+      expect(fileEntryService.findMany().map((entry) => entry.id)).toEqual([readCherryMeta(submitted)?.fileEntryId])
+      expect(await readFile(working)).toEqual(bytes)
+      expect(
+        fileEntryService.getById(FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)).cleanupPolicy
+      ).toBe('delete_when_unreferenced')
+      const entryId = FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)
+      expect(
+        fileRefService
+          .findByEntryId(entryId)
+          .map((ref) => ref.sourceType)
+          .sort()
+      ).toEqual(['agent_session_message'])
+      const read = await call('agent.content.read', {
+        sessionId,
+        contentId: file.ref.contentId,
+        revision: file.ref.revision,
+        offset: '0',
+        maxBytes: 24576
+      })
+      expect(Buffer.from(read.dataBase64, 'base64')).toEqual(bytes)
+      await writeFile(working, 'agent edited the managed file')
+      expect(await readFile(files.getPhysicalPath(entryId), 'utf8')).toBe('agent edited the managed file')
+      await call('agent.uploads.cancel', { uploadId })
+      expect(fileRefService.countByEntryIds([entryId]).get(entryId)).toBe(1)
+      const before = vi.mocked(startAgentSessionRun).mock.calls.length
+      expect(await call('agent.messages.send', params)).toEqual(receipt)
+      expect(vi.mocked(startAgentSessionRun).mock.calls.length).toBe(before)
+    } finally {
+      await intake.drain()
+      paths.mockRestore()
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it.each([false, true])('sends again after a post-turn rename (manual=%s)', async (manual) => {
@@ -498,6 +645,14 @@ describe('remote agent access', () => {
       const message = history.items.find((item: { messageId: string }) => item.messageId === anchor)
       expect(message).toMatchObject({ status: 'error', failure: projection.executions[receipt.executionId].failure })
       expect(message.failure.message).toContain('OpenCode Go subscription')
+      const summaries = await call('agent.messages.list', {
+        sessionId,
+        historyRevision: projection.session.historyRevision,
+        partsMode: 'paged'
+      })
+      const summary = summaries.items.find((item: { messageId: string }) => item.messageId === anchor)
+      expect(summary).toMatchObject({ status: 'error', failure: message.failure, partsMode: 'paged' })
+      expect(summary).not.toHaveProperty('partIds')
       const stored = agentSessionMessageService.getSessionMessage(sessionId, anchor)
       expect(stored.data.parts?.filter((part) => part.type === 'text')).toHaveLength(partial ? 1 : 0)
       expect(await call('agent.commands.get', { commandId })).toMatchObject({ status: 'applied' })
@@ -676,6 +831,17 @@ describe('remote agent access', () => {
       totalTokens: 40,
       outputTokens: 0,
       cacheReadTokens: 12
+    })
+    const summaries = await call('agent.messages.list', {
+      sessionId,
+      historyRevision: projection.session.historyRevision,
+      partsMode: 'paged'
+    })
+    expect(summaries.items.find((message: { messageId: string }) => message.messageId === anchor)).toMatchObject({
+      partsMode: 'paged',
+      status: 'success',
+      usage: { totalTokens: 40, outputTokens: 0, cacheReadTokens: 12 },
+      model: { modelId: 'model', providerId: 'provider', name: 'Historical model' }
     })
   })
 
@@ -875,6 +1041,7 @@ describe('remote agent access', () => {
           await gate
           return run()
         })
+      const capturedParentId = agentSessionMessageService.captureHead(sessionId)
       const validate = vi.spyOn(agentChatContextProvider, 'validateDispatch').mockImplementation(async () => {
         if (phase === 'preparation') {
           entered()
@@ -884,6 +1051,7 @@ describe('remote agent access', () => {
           sessionId,
           topicId: `agent-session:${sessionId}`,
           agentId: 'agent-1',
+          parentMessageId: capturedParentId,
           agentUpdatedAt: new Date().toISOString(),
           agentType: 'claude-code',
           agentName: 'Agent',
@@ -977,6 +1145,7 @@ describe('remote agent access', () => {
         sessionId,
         topicId: `agent-session:${sessionId}`,
         agentId: 'agent-1',
+        parentMessageId: agentSessionMessageService.captureHead(sessionId),
         agentUpdatedAt: new Date().toISOString(),
         agentType: 'claude-code',
         agentName: 'Agent',
@@ -1174,6 +1343,132 @@ describe('remote agent access', () => {
     expect(
       await other.rpc.receive({ jsonrpc: '2.0', id: 3, method: 'agent.sessions.list', params: {} }, undefined)
     ).toMatchObject({ error: { data: { reason: 'FORBIDDEN' } } })
+  })
+
+  it('keeps streaming replacements across the content-reference threshold in the same journal epoch', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const epoch = journal.epoch
+    const answerId = randomUUID()
+    for (const length of [4096, 4097, 5000]) {
+      const text = '界'.repeat(length)
+      for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
+        listener.onMessage?.(
+          { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
+          undefined,
+          'messages'
+        )
+      expect(journal.epoch).toBe(epoch)
+      const part = journal.projection.parts[journal.projection.messages[answerId].partIds[0]]
+      expect(part).toMatchObject({ state: 'streaming', content: { text } })
+      const checkpoint = journal.capture()
+      const installed = installAgentCheckpoint(
+        checkpoint.descriptor,
+        checkpoint.pages,
+        Object.fromEntries(checkpoint.content),
+        integrity
+      )
+      if (!installed.ok) throw new Error(installed.reason)
+      expect(installed.projection.parts[part.partId]).toMatchObject({ content: { text } })
+    }
+    await finish(answerId, [{ type: 'text', text: 'Final', state: 'done' }])
+    expect(journal.epoch).toBe(epoch)
+    expect(Object.values(journal.projection.executions)).toEqual([
+      expect.objectContaining({ status: 'completed', durable: true })
+    ])
+  })
+
+  // An offline client must resolve every retained streaming reference even after the answer commits.
+  it('keeps terminal replay content until the replay window is evicted', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const checkpoint = journal.capture()
+    const baseline = installAgentCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!baseline.ok) throw new Error(baseline.reason)
+    const answerId = randomUUID()
+    const text = '界'.repeat(5000)
+    for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? []) {
+      listener.onMessage?.(
+        { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
+        undefined,
+        'messages'
+      )
+    }
+    await finish(answerId, [{ type: 'text', text: 'Final', state: 'done' }])
+    const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+    const content: Record<string, Uint8Array> = {}
+    for (const event of events) {
+      if (event.kind !== 'part.created' && event.kind !== 'part.replaced') continue
+      const part = event.payload.part
+      if (part.kind === 'file' || !('ref' in part.content)) continue
+      const ref = part.content.ref
+      const read = await call('agent.content.read', {
+        sessionId,
+        contentId: ref.contentId,
+        revision: ref.revision,
+        offset: '0',
+        maxBytes: 24_576
+      })
+      expect(Buffer.from(read.dataBase64, 'base64').toString()).toBe(text)
+      content[`${ref.contentId}:${ref.revision}`] = Buffer.from(read.dataBase64, 'base64')
+    }
+    expect(Object.keys(content)).toHaveLength(1)
+    const applied = applyAgentEvents(
+      baseline.projection,
+      { subscriptionId: 'replay', sessionId, streamEpoch: journal.epoch, events },
+      content,
+      integrity
+    )
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.messages[answerId]).toBeUndefined()
+    expect(Object.values(applied.projection.executions)).toEqual([
+      expect.objectContaining({ status: 'completed', durable: true })
+    ])
+    journal.trimReplay(0)
+    expect(journal.firstRetainedSeq).toBe(Number(journal.cursor.seq) + 1)
+    expect(journal.pins.size).toBe(0)
+    expect(journal.replayBytes).toBe(0)
+  })
+
+  it('projects replacement views in order and replays removals without reviving old content', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const publish = (parts: CherryMessagePart[]) => {
+      for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
+        listener.onMessage?.({ id: 'answer', role: 'assistant', parts }, undefined, 'messages')
+    }
+    publish([
+      { type: 'text', text: 'Withdrawn', state: 'streaming' },
+      { type: 'text', text: 'Tail', state: 'done' }
+    ])
+    const checkpoint = journal.capture()
+    const baseline = installAgentCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!baseline.ok) throw new Error(baseline.reason)
+    publish([
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'call',
+        toolName: 'Bash',
+        state: 'input-available',
+        input: { command: 'pwd' }
+      },
+      { type: 'text', text: 'Tail', state: 'done' }
+    ])
+    publish([{ type: 'text', text: 'Replacement', state: 'done' }])
+    const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+    const batch: AgentEventBatch = { subscriptionId: 'test', sessionId, streamEpoch: journal.epoch, events }
+    const applied = applyAgentEvents(baseline.projection, batch, {}, integrity)
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.messages.answer.partIds).toHaveLength(1)
+    expect(applied.projection.parts[applied.projection.messages.answer.partIds[0]]).toMatchObject({
+      kind: 'text',
+      content: { text: 'Replacement' },
+      state: 'completed'
+    })
+    expect(applyAgentEvents(applied.projection, batch, {}, integrity)).toEqual(applied)
+    const legacy = installLegacyCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!legacy.ok) throw new Error(legacy.reason)
+    expect(applyLegacyEvents(legacy.projection, legacyBatchSchema.parse(batch), {}, integrity).ok).toBe(true)
   })
 
   it('coalesces Unicode deltas within a bounded window and replays them from a checkpoint', async () => {

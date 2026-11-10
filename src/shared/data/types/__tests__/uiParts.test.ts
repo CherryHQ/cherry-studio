@@ -76,11 +76,12 @@ describe('CherryToolMetaSchema', () => {
 })
 
 describe('CherryFileMetaSchema', () => {
-  it('accepts fileEntryId, fileTokenSourceId, and the safe composer file kind', () => {
+  it('accepts fileEntryId, fileTokenSourceId, originalPath, and the safe composer file kind', () => {
     const ok = CherryFileMetaSchema.safeParse({
       fileEntryId: 'entry-1',
       fileTokenSourceId: 'source-1',
-      composerFileKind: 'pasted-text'
+      composerFileKind: 'pasted-text',
+      originalPath: '/Users/alice/report.md'
     })
 
     expect(ok.success).toBe(true)
@@ -96,6 +97,10 @@ describe('CherryFileMetaSchema', () => {
     const bad = CherryFileMetaSchema.safeParse({ composerFileKind: 'local-path' })
 
     expect(bad.success).toBe(false)
+  })
+
+  it('rejects a relative originalPath', () => {
+    expect(CherryFileMetaSchema.safeParse({ originalPath: 'documents/report.md' }).success).toBe(false)
   })
 })
 

@@ -4,7 +4,7 @@ import * as readline from 'readline/promises'
 import { pathToFileURL } from 'url'
 
 import { Command } from 'commander'
-import { type CallExpression, Node, Project, type SourceFile } from 'ts-morph'
+import { type CallExpression, Node, Project, type SourceFile, ts } from 'ts-morph'
 
 import { COMMAND_DEFINITIONS } from '../src/shared/utils/command/definitions'
 import { sortedObjectByKeys } from './sort'
@@ -193,23 +193,23 @@ function collectTemplateExpressionMatches(
 
 function collectCommentReferences(sourceFile: SourceFile, localeKeys: Set<string>, usedKeys: Set<string>): void {
   const fullText = sourceFile.getFullText()
-  const commentRanges = [
-    ...sourceFile.getLeadingCommentRanges(),
-    ...sourceFile.getDescendants().flatMap((node) => node.getLeadingCommentRanges())
-  ]
+  COMMENT_T_CALL_RE.lastIndex = 0
+  if (!COMMENT_T_CALL_RE.test(fullText)) return
   const seenPositions = new Set<number>()
-
-  for (const range of commentRanges) {
-    if (seenPositions.has(range.getPos())) continue
-    seenPositions.add(range.getPos())
-
-    const comment = fullText.slice(range.getPos(), range.getEnd())
-    let match: RegExpExecArray | null
-    COMMENT_T_CALL_RE.lastIndex = 0
-    while ((match = COMMENT_T_CALL_RE.exec(comment)) !== null) {
-      addUsedKey(match[1], localeKeys, usedKeys)
+  const visit = (node: ts.Node) => {
+    for (const range of ts.getLeadingCommentRanges(fullText, node.pos) ?? []) {
+      if (seenPositions.has(range.pos)) continue
+      seenPositions.add(range.pos)
+      const comment = fullText.slice(range.pos, range.end)
+      let match: RegExpExecArray | null
+      COMMENT_T_CALL_RE.lastIndex = 0
+      while ((match = COMMENT_T_CALL_RE.exec(comment)) !== null) {
+        addUsedKey(match[1], localeKeys, usedKeys)
+      }
     }
+    for (const child of node.getChildren(sourceFile.compilerNode)) visit(child)
   }
+  for (const child of sourceFile.compilerNode.getChildren()) visit(child)
 }
 
 function collectExactSourceTextReferences(

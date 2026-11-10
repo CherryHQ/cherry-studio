@@ -30,7 +30,7 @@ import {
 import { DoctorPopup } from '@renderer/components/doctor'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -51,8 +51,7 @@ import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
 import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
-import { ApiGatewayRequiredDialog } from './components/ApiGatewayRequiredDialog'
-import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
+import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
 import type { AgentConversationBootstrap } from './useAgentConversationBootstrap'
@@ -84,10 +83,14 @@ type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' 
 function AgentTopBarControls(props: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
 
-  return <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return (
+    <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} showWorkspace={!!props.onWorkspaceChange} />
+  )
 }
 
 interface AgentChatProps {
+  /** Page-owned toolbar that replaces the standard Agent navbar. */
+  conversationToolbar?: ReactNode
   centerSurface?: ConversationCenterSlot | null
   pane?: ReactNode
   paneOpen?: boolean
@@ -97,6 +100,7 @@ interface AgentChatProps {
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
   locateMessageId?: string
+  locateToEnd?: boolean
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
@@ -152,6 +156,7 @@ interface AgentChatLayoutProps {
 }
 
 const AgentChat = ({
+  conversationToolbar,
   centerSurface,
   pane,
   paneOpen,
@@ -161,6 +166,7 @@ const AgentChat = ({
   sidebarOpen,
   onSidebarToggle,
   locateMessageId,
+  locateToEnd,
   onLocateMessageHandled,
   onPaneCollapse,
   onPaneAutoCollapseChange,
@@ -212,7 +218,6 @@ const AgentChat = ({
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
-  const isModelDisabled = useAgentModelDisabled()
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const citationPanelCitations =
@@ -252,6 +257,8 @@ const AgentChat = ({
   const sessionMessagesEnabled = Boolean(sessionSnapshot)
   const runtime = useAgentChatRuntimeState({
     sessionId: sessionSnapshot?.id ?? '',
+    modelId: activeModel?.id,
+    agentType: activeAgent?.type,
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES
@@ -346,21 +353,15 @@ const AgentChat = ({
   const sessionTopicId = runtimeSessionId ? buildAgentSessionTopicId(runtimeSessionId) : ''
 
   useEffect(() => {
-    if (!runtimeSessionId || !locateMessageId) {
+    if (centerSurface || !runtimeSessionId || (!locateMessageId && !locateToEnd)) {
       locateLoadRequestRef.current = undefined
       return
     }
 
-    if (runtimeUiMessages.some((message) => message.id === locateMessageId)) {
-      locateLoadRequestRef.current = undefined
-      window.requestAnimationFrame(() => {
-        locateAgentMessageInList(sessionTopicId, locateMessageId, true)
-      })
-      onLocateMessageHandled?.()
-      return
-    }
+    const targetLoaded = runtimeUiMessages.some((message) => message.id === locateMessageId)
+    if (runtimeIsLoading) return
 
-    if (runtimeHasOlder && !runtimeIsLoading) {
+    if (!targetLoaded && !locateToEnd && runtimeHasOlder) {
       const requestKey = `${runtimeSessionId}:${locateMessageId}:${runtimeUiMessages.length}`
       if (locateLoadRequestRef.current !== requestKey) {
         locateLoadRequestRef.current = requestKey
@@ -369,12 +370,15 @@ const AgentChat = ({
       return
     }
 
-    if (!runtimeHasOlder && !runtimeIsLoading) {
-      locateLoadRequestRef.current = undefined
-      onLocateMessageHandled?.()
-    }
+    locateLoadRequestRef.current = undefined
+    // Claim scroll ownership before the list's pending initial-restore frame.
+    if (locateToEnd || !targetLoaded) scrollAgentMessageListToEnd(sessionTopicId)
+    else if (locateMessageId) locateAgentMessageInList(sessionTopicId, locateMessageId, true)
+    onLocateMessageHandled?.()
   }, [
+    centerSurface,
     locateMessageId,
+    locateToEnd,
     onLocateMessageHandled,
     runtimeHasOlder,
     runtimeIsLoading,
@@ -463,7 +467,6 @@ const AgentChat = ({
               onModelSelect={handleAgentModelChange}
               onWorkspaceChange={canChangeWorkspace ? handleSessionWorkspaceChange : undefined}
               modelFilter={agentModelFilter}
-              isModelDisabled={isModelDisabled}
               onAgentDialogCloseAutoFocus={handleRestoreComposerFocus}
             />
           ) : undefined
@@ -535,7 +538,7 @@ const AgentChat = ({
     paneManualToggle,
     sessionSnapshot,
     sidePanel,
-    topBar,
+    topBar: conversationToolbar ?? topBar,
     topRightTool: rightPaneTools
   }
 
@@ -658,7 +661,9 @@ const AgentChatSessionCenter = ({
       sessionMessagesEnabled={sessionMessagesEnabled}
       agentId={agentId}
       sessionId={runtime.sessionId}
+      workspacePath={session.workspace?.path}
       messages={runtime.uiMessages}
+      historyActions={runtime.historyActions}
       activeAgent={activeAgent}
       partsByMessageId={runtime.partsByMessageId}
       streamingLayers={runtime.streamingLayers}
@@ -669,6 +674,8 @@ const AgentChatSessionCenter = ({
       selectAllPagination={runtime.selectAllPagination}
       onOpenCitationsPanel={onOpenCitationsPanel}
       openDiagnosticReport={openDiagnosticReport}
+      getMessageSiblings={runtime.getMessageSiblings}
+      setActiveBranch={runtime.setActiveBranch}
       deleteMessage={runtime.deleteMessage}
       startEditing={runtime.startEditing}
       editBusy={runtime.editBusy}
@@ -686,7 +693,6 @@ const AgentChatSessionCenter = ({
         </div>
       )}
       {messageList}
-      <ApiGatewayRequiredDialog sessionId={runtime.sessionId} />
     </div>
   )
 
@@ -730,6 +736,7 @@ function AgentChatLayout({
       isMessageHistoryLoading={isMessageHistoryLoading}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}
+      workspaceName={sessionSnapshot?.workspace?.name}
       workspaceType={sessionSnapshot?.workspace?.type}
       messages={messages}
       partsByMessageId={partsByMessageId}
@@ -743,6 +750,7 @@ function AgentChatLayout({
       traceId={sessionSnapshot?.traceId ?? undefined}
       agentId={sessionSnapshot?.agentId ?? undefined}
       agentName={activeAgent?.name}
+      runtimeType={activeAgent?.type}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
       present={!centerSurface}
       revealRequest={resourcePaneRevealRequest}>
@@ -760,7 +768,9 @@ function AgentChatLayout({
         center={
           // The layout-mode provider links the message column and the composer so
           // both yield the same anchor-rail gutter and stay aligned.
-          <ChatLayoutModeProvider>{center}</ChatLayoutModeProvider>
+          <AgentRightPane.DetailsLayout>
+            <ChatLayoutModeProvider>{center}</ChatLayoutModeProvider>
+          </AgentRightPane.DetailsLayout>
         }
         sidePanel={sidePanel}
         rightPane={<AgentRightPane.Viewport />}

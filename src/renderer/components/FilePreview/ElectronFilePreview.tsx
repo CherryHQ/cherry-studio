@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { PreviewSelection } from '@cherrystudio/file-preview/core'
 import { Preview } from '@cherrystudio/file-preview/react'
-import type { PreviewDiagnostic, PreviewResources } from '@cherrystudio/file-preview/react'
+import type { PreviewDiagnostic, PreviewOptions, PreviewResources } from '@cherrystudio/file-preview/react'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -21,24 +21,44 @@ const resources: PreviewResources = {
     return content
   }
 }
+/**
+ * Word previews fit the pane instead of a fixed page width. A page rendered at actual size is wider
+ * than a docked pane, so the pane has to grow to the paper and the leftover width shows as gutters.
+ */
+const previewOptions: PreviewOptions = { docx: { initialZoom: 'fit-width' } }
 
 export default function ElectronFilePreview({
   filePath,
   fileName,
   metadata,
+  metadataRequest,
   refreshKey,
   onSelectionReference
 }: FilePreviewPluginProps) {
   const { i18n, t } = useTranslation()
+  const sourceMetadata = metadataRequest ?? metadata
   const source = useMemo(
-    () => createElectronPreviewSource(filePath, fileName, metadata),
-    [filePath, fileName, metadata]
+    () => createElectronPreviewSource(filePath, fileName, sourceMetadata),
+    [filePath, fileName, sourceMetadata]
   )
   const onSelection = useCallback(
     (selection: PreviewSelection | null) => {
-      onSelectionReference?.(selection ? createSelectionReference({ filePath, metadata, selection }) : null)
+      if (!selection) {
+        onSelectionReference?.(null)
+      } else if (typeof sourceMetadata === 'function') {
+        const metadataPromise = sourceMetadata()
+        void metadataPromise.then(
+          (loadedMetadata) => {
+            if (sourceMetadata() !== metadataPromise || loadedMetadata?.kind !== 'file') return
+            onSelectionReference?.(createSelectionReference({ filePath, metadata: loadedMetadata, selection }))
+          },
+          () => {}
+        )
+      } else {
+        onSelectionReference?.(createSelectionReference({ filePath, metadata: sourceMetadata, selection }))
+      }
     },
-    [filePath, metadata, onSelectionReference]
+    [filePath, sourceMetadata, onSelectionReference]
   )
   const onDiagnostic = useCallback(
     (diagnostic: PreviewDiagnostic) => {
@@ -63,9 +83,10 @@ export default function ElectronFilePreview({
   return (
     <Preview
       source={source}
-      refreshKey={refreshKey}
+      refreshKey={metadataRequest ? undefined : refreshKey}
       locale={i18n.language}
       resources={resources}
+      options={previewOptions}
       onSelection={onSelectionReference ? onSelection : undefined}
       onDiagnostic={onDiagnostic}
       onRequestOpen={onRequestOpen}

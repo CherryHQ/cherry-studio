@@ -134,7 +134,7 @@ function selectContents(element: HTMLElement): void {
   })
 }
 
-function createHandle(overrides?: Partial<VListHandle>): VListHandle {
+function createHandle(scroller: HTMLElement | null, overrides?: Partial<VListHandle>): VListHandle {
   return {
     get cache() {
       return [[], 40]
@@ -153,7 +153,10 @@ function createHandle(overrides?: Partial<VListHandle>): VListHandle {
     getItemSize: vi.fn(() => 40),
     scrollBy: vi.fn(),
     scrollTo: vi.fn(),
-    scrollToIndex: vi.fn(),
+    scrollToIndex: vi.fn((_index, options) => {
+      if (scroller && options?.align === 'end' && options.offset === undefined)
+        scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight)
+    }),
     ...overrides
   } as VListHandle
 }
@@ -496,7 +499,7 @@ describe('useChatVirtualizerRuntime', () => {
       />
     )
 
-    runtime!.vlistHandleRef.current = createHandle({
+    runtime!.vlistHandleRef.current = createHandle(runtime!.scrollerRef.current, {
       findItemIndex: vi.fn(() => 2)
     })
     runtime!.scrollerRef.current = {
@@ -617,6 +620,73 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it.each(['finish', 'interrupt'] as const)(
+    'lets bottom navigation animate through content growth and %s',
+    (ending) => {
+      const callbacks: ResizeObserverCallback[] = []
+      const restoreResizeObserver = installResizeObserverMock(callbacks)
+      try {
+        let runtime: ChatVirtualizerRuntime<string> | undefined
+        render(<RuntimeDomProbe items={['message-a']} onRuntime={(value) => (runtime = value)} />)
+        const scroller = runtime!.scrollerRef.current!
+        let scrollHeight = 1200
+        setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
+        setElementMetric(scroller, 'clientHeight', () => 400)
+        runtime!.vlistHandleRef.current = createHandle(scroller, {
+          scrollToIndex: (_index, options) => {
+            if (!options?.smooth) scroller.scrollTop = scrollHeight - 400
+          },
+          scrollTo: (offset) => {
+            scroller.scrollTop = offset
+          }
+        })
+        scroller.scrollTop = 100
+        act(() => runtime!.takeUserControl('user-scrolled-up'))
+
+        act(() => runtime!.scrollToBottom())
+        expect(scroller.scrollTop).toBe(100)
+        expect(runtime!.isScrollToBottomButtonVisible).toBe(false)
+
+        act(() => {
+          scroller.scrollTop = 450
+          runtime!.scrollerProps.onScroll(450)
+          scrollHeight = 1500
+          callbacks.forEach((callback) => callback([], {} as ResizeObserver))
+        })
+        expect(scroller.scrollTop).toBe(450)
+
+        if (ending === 'interrupt') {
+          act(() => {
+            runtime!.markUserInput('up')
+            scroller.scrollTop = 350
+            runtime!.scrollerProps.onScroll(350)
+          })
+        } else {
+          act(() => {
+            scroller.scrollTop = 800
+            runtime!.scrollerProps.onScroll(800)
+          })
+        }
+        act(() => runtime!.scrollerProps.onScrollEnd())
+        if (ending === 'finish') {
+          expect(scroller.scrollTop).toBe(800)
+          act(() => {
+            scroller.scrollTop = 1100
+            runtime!.scrollerProps.onScroll(1100)
+            runtime!.scrollerProps.onScrollEnd()
+          })
+        }
+        act(() => {
+          scrollHeight = 1700
+          callbacks.forEach((callback) => callback([], {} as ResizeObserver))
+        })
+        expect(scroller.scrollTop).toBe(ending === 'interrupt' ? 350 : 1300)
+      } finally {
+        restoreResizeObserver()
+      }
+    }
+  )
+
   it('hides the scroll-to-bottom button after programmatic scroll to bottom', () => {
     let runtime: ChatVirtualizerRuntime<string> | undefined
     render(<RuntimeProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
@@ -634,6 +704,8 @@ describe('useChatVirtualizerRuntime', () => {
       }
     })
     runtime!.scrollerRef.current = scroller
+
+    runtime!.vlistHandleRef.current = createHandle(scroller)
 
     act(() => {
       runtime!.scrollerProps.onScroll(0)
@@ -677,7 +749,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 700 })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle({ getItemOffset: vi.fn(() => 300) })
+      runtime!.vlistHandleRef.current = createHandle(scroller, { getItemOffset: vi.fn(() => 300) })
 
       view.rerender(
         <RuntimeDomProbe
@@ -779,12 +851,12 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'clientHeight', () => 400)
       setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
-      runtime!.vlistHandleRef.current = createHandle({
+      runtime!.vlistHandleRef.current = createHandle(scroller, {
         findItemIndex: vi.fn((offset) => (offset >= 800 ? 1 : 0)),
         getItemOffset: vi.fn((index) => index * 800),
         getItemSize: vi.fn(() => 400),
-        scrollToIndex: vi.fn(() => {
-          scrollTop = 0
+        scrollToIndex: vi.fn((_index, options) => {
+          scrollTop = options?.align === 'end' ? scrollHeight - 400 : 0
         })
       })
 
@@ -830,7 +902,7 @@ describe('useChatVirtualizerRuntime', () => {
       />
     )
     const view = render(renderProbe('topic-a'))
-    runtime!.vlistHandleRef.current = createHandle()
+    runtime!.vlistHandleRef.current = createHandle(runtime!.scrollerRef.current)
 
     act(() => handle!.scrollToKey('message-b', 'start'))
     expect(handle!.getNavigationBaseKey()).toBe('message-b')
@@ -857,7 +929,7 @@ describe('useChatVirtualizerRuntime', () => {
       />
     )
     const view = render(renderProbe(['message-a', 'message-b']))
-    runtime!.vlistHandleRef.current = createHandle()
+    runtime!.vlistHandleRef.current = createHandle(runtime!.scrollerRef.current)
 
     act(() => handle!.scrollToKey('message-b', 'start'))
     expect(handle!.getNavigationBaseKey()).toBe('message-b')
@@ -897,7 +969,7 @@ describe('useChatVirtualizerRuntime', () => {
       setElementMetric(scroller, 'scrollHeight', () => 4000)
       // message-b sits 2000px away — beyond 3 viewports (3 * 400), so the
       // animation is skipped and the scroller lands on the target immediately.
-      runtime!.vlistHandleRef.current = createHandle({
+      runtime!.vlistHandleRef.current = createHandle(scroller, {
         getItemOffset: vi.fn((index) => index * 2000),
         getItemSize: vi.fn(() => 400)
       })
@@ -938,7 +1010,7 @@ describe('useChatVirtualizerRuntime', () => {
       setElementMetric(scroller, 'clientHeight', () => 400)
       setElementMetric(scroller, 'scrollHeight', () => 4000)
       // message-b sits 500px away — within 3 viewports, so it animates.
-      runtime!.vlistHandleRef.current = createHandle({
+      runtime!.vlistHandleRef.current = createHandle(scroller, {
         getItemOffset: vi.fn((index) => index * 500),
         getItemSize: vi.fn(() => 400)
       })
@@ -983,7 +1055,7 @@ describe('useChatVirtualizerRuntime', () => {
       // message-b's raw offset (6000px) is far past the reachable bottom
       // (3600px). The raw distance (2600px) exceeds 3 viewports, but the real
       // movement is only 200px — so it must animate, not jump.
-      runtime!.vlistHandleRef.current = createHandle({
+      runtime!.vlistHandleRef.current = createHandle(scroller, {
         getItemOffset: vi.fn((index) => index * 6000),
         getItemSize: vi.fn(() => 400)
       })
@@ -1027,7 +1099,7 @@ describe('useChatVirtualizerRuntime', () => {
       setElementMetric(scroller, 'scrollHeight', () => 4000)
       // message-b's raw offset (6000px) clamps to the reachable bottom
       // (3600px), still more than 3 viewports away — so it jumps instantly.
-      runtime!.vlistHandleRef.current = createHandle({
+      runtime!.vlistHandleRef.current = createHandle(scroller, {
         getItemOffset: vi.fn((index) => index * 6000),
         getItemSize: vi.fn(() => 400)
       })
@@ -1074,7 +1146,7 @@ describe('useChatVirtualizerRuntime', () => {
         configurable: true,
         value: () => ({ top: 0, bottom: 400, left: 0, right: 800, width: 800, height: 400, x: 0, y: 0 })
       })
-      runtime!.vlistHandleRef.current = createHandle({
+      runtime!.vlistHandleRef.current = createHandle(scroller, {
         findItemIndex: vi.fn((offset) => (offset >= 800 ? 1 : 0)),
         getItemOffset: vi.fn((index) => index * 800)
       })
@@ -1171,6 +1243,8 @@ describe('useChatVirtualizerRuntime', () => {
       configurable: true,
       value: getRangeRect
     })
+    runtime!.vlistHandleRef.current = createHandle(scroller)
+
     act(() => handle!.scrollToBottom())
     expect(handle!.isFollowing()).toBe(true)
     expect(handle!.getNavigationBaseKey()).toBe('message-a')
@@ -1208,7 +1282,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'clientHeight', () => 400)
       setElementMetric(scroller, 'scrollHeight', () => 2000)
-      runtime!.vlistHandleRef.current = createHandle({
+      runtime!.vlistHandleRef.current = createHandle(scroller, {
         getItemOffset: vi.fn((index) => index * 400),
         getItemSize: vi.fn(() => 400)
       })
@@ -1261,6 +1335,8 @@ describe('useChatVirtualizerRuntime', () => {
       setElementMetric(scroller, 'scrollHeight', () => 1200)
       setElementMetric(scroller, 'clientHeight', () => 400)
 
+      runtime!.vlistHandleRef.current = createHandle(scroller)
+
       act(() => {
         handle!.scrollToBottom()
       })
@@ -1308,6 +1384,8 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => 1200)
       setElementMetric(scroller, 'clientHeight', () => 400)
+
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       act(() => {
         handle!.scrollToTop('smooth')
@@ -1359,7 +1437,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       // Before the viewport reaches the live bottom, content growth must not
       // establish bottom-follow by itself.
@@ -1426,7 +1504,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -1478,6 +1556,8 @@ describe('useChatVirtualizerRuntime', () => {
     setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
     setElementMetric(scroller, 'clientHeight', () => 400)
 
+    runtime!.vlistHandleRef.current = createHandle(scroller)
+
     act(() => handle!.scrollToBottom())
     expect(scrollTop).toBe(600)
 
@@ -1524,7 +1604,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
       setElementMetric(scroller, 'clientHeight', () => 400)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => handle!.scrollToBottom())
@@ -1579,7 +1659,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
       setElementMetric(scroller, 'clientHeight', () => 400)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))
@@ -1629,7 +1709,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
       setElementMetric(scroller, 'clientHeight', () => 400)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))
@@ -1696,7 +1776,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
       setElementMetric(scroller, 'clientHeight', () => 400)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))
@@ -1751,7 +1831,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
       setElementMetric(scroller, 'clientHeight', () => 400)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))
@@ -1810,7 +1890,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -1883,7 +1963,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -1942,7 +2022,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => {
@@ -2005,7 +2085,7 @@ describe('useChatVirtualizerRuntime', () => {
         const slack = Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')
         return naturalScrollHeight + slack
       })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => runtime!.scrollerProps.onScroll(800))
@@ -2066,7 +2146,7 @@ describe('useChatVirtualizerRuntime', () => {
         const slack = Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')
         return naturalScrollHeight + slack
       })
-      runtime!.vlistHandleRef.current = createHandle({
+      runtime!.vlistHandleRef.current = createHandle(scroller, {
         findItemIndex: vi.fn(() => 1),
         getItemOffset: vi.fn((index) => (index === 1 ? 500 : 0))
       })
@@ -2124,7 +2204,7 @@ describe('useChatVirtualizerRuntime', () => {
         const slack = Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')
         return naturalScrollHeight + slack
       })
-      runtime!.vlistHandleRef.current = createHandle({
+      runtime!.vlistHandleRef.current = createHandle(scroller, {
         findItemIndex: vi.fn(() => 1),
         getItemOffset: vi.fn((index) => (index === 1 ? 500 : 0))
       })
@@ -2170,7 +2250,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 2000 })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       // The user takes control while reading mid-list; the freeze anchors here.
@@ -2210,7 +2290,7 @@ describe('useChatVirtualizerRuntime', () => {
     })
     setElementMetric(scroller, 'clientHeight', () => 400)
     setElementMetric(scroller, 'scrollHeight', () => 1200)
-    runtime!.vlistHandleRef.current = createHandle({
+    runtime!.vlistHandleRef.current = createHandle(scroller, {
       findItemIndex,
       getItemOffset: vi.fn((index) => index * 100)
     })
@@ -2242,7 +2322,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'clientHeight', () => 400)
       setElementMetric(scroller, 'scrollHeight', () => 1600)
-      runtime!.vlistHandleRef.current = createHandle({
+      runtime!.vlistHandleRef.current = createHandle(scroller, {
         findItemIndex: vi.fn((offset) => Math.floor(offset / 100)),
         getItemOffset: vi.fn((index) => itemOffsets[index] ?? 0)
       })
@@ -2286,7 +2366,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'clientHeight', () => 400)
       setElementMetric(scroller, 'scrollHeight', () => 2000)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))
       now = 1_010
@@ -2346,7 +2426,7 @@ describe('useChatVirtualizerRuntime', () => {
         })
         setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
         setElementMetric(scroller, 'clientHeight', () => 400)
-        runtime!.vlistHandleRef.current = createHandle()
+        runtime!.vlistHandleRef.current = createHandle(scroller)
 
         act(() => {
           runtime!.takeUserControl('user-scrolled-up')
@@ -2399,7 +2479,7 @@ describe('useChatVirtualizerRuntime', () => {
         const slack = Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')
         return naturalScrollHeight + slack
       })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       act(() => {
         runtime!.beginScrollbarDrag()
@@ -2459,7 +2539,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'clientHeight', () => 400)
       setElementMetric(scroller, 'scrollHeight', () => 2000)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       const item = document.createElement('div')
       item.dataset.messageKey = 'message-a'
@@ -2513,7 +2593,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'clientHeight', () => 400)
       setElementMetric(scroller, 'scrollHeight', () => 2000)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       const item = document.createElement('div')
       item.dataset.messageKey = 'message-a'
@@ -2560,7 +2640,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'clientHeight', () => 400)
       setElementMetric(scroller, 'scrollHeight', () => 2000)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       const item = document.createElement('div')
       item.dataset.messageKey = 'message-a'
@@ -2619,7 +2699,7 @@ describe('useChatVirtualizerRuntime', () => {
         const slack = Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')
         return naturalScrollHeight + slack
       })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))
 
@@ -2655,7 +2735,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'clientHeight', () => 400)
       setElementMetric(scroller, 'scrollHeight', () => 2000)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))
@@ -2698,7 +2778,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 2000 })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
       scrollTop = 800
 
@@ -2746,7 +2826,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => 2000)
       setElementMetric(scroller, 'clientHeight', () => 400)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       act(() => handle!.scrollToTop('smooth'))
       raf.tick()
@@ -2800,7 +2880,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => 1200)
       setElementMetric(scroller, 'clientHeight', () => clientHeight)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       act(() => runtime!.scrollToBottom())
       act(() => callbacks.at(-1)?.([], {} as ResizeObserver))
@@ -2847,7 +2927,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -2917,7 +2997,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       // Drain the mount's scroll-to-newest rAF first.
       raf.tick(60)
@@ -2980,7 +3060,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       // Held mid-stream after a direct interaction.
@@ -3036,7 +3116,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -3066,6 +3146,93 @@ describe('useChatVirtualizerRuntime', () => {
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       raf.tick(10)
       expect(scrollTop).toBeGreaterThan(jumpOffset)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
+  it.each<{
+    name: string
+    initialWheelDeltaY: number
+    initialOffset: number
+    nextInput: { wheelDeltaY: number } | { direction: 'up' | 'down' | 'none' }
+    nextOffset: number
+    following: boolean
+    offsetAfterGrowth: number
+  }>([
+    {
+      name: 'yields to an upward pointer scroll after wheeling down to the bottom',
+      initialWheelDeltaY: 600,
+      initialOffset: 800,
+      nextInput: { direction: 'none' },
+      nextOffset: 700,
+      following: false,
+      offsetAfterGrowth: 700
+    },
+    {
+      name: 'resumes following on a downward scroll key after wheeling up',
+      initialWheelDeltaY: -300,
+      initialOffset: 500,
+      nextInput: { direction: 'down' },
+      nextOffset: 800,
+      following: true,
+      offsetAfterGrowth: 1000
+    },
+    {
+      name: 'keeps following when a scroll event after an upward wheel has no viewport movement',
+      initialWheelDeltaY: 600,
+      initialOffset: 800,
+      nextInput: { wheelDeltaY: -40 },
+      nextOffset: 800,
+      following: true,
+      offsetAfterGrowth: 1000
+    }
+  ])('$name', ({ initialWheelDeltaY, initialOffset, nextInput, nextOffset, following, offsetAfterGrowth }) => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      let scrollHeight = 1200
+      render(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={(nextHandle) => {
+            handle = nextHandle
+          }}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      runtime!.vlistHandleRef.current = createHandle(scroller)
+      act(() => runtime!.scrollToBottom())
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+
+      act(() => {
+        runtime!.scrollerProps.onWheel(new WheelEvent('wheel', { deltaY: initialWheelDeltaY }))
+        scroller.scrollTop = initialOffset
+        runtime!.scrollerProps.onScroll(initialOffset)
+      })
+      act(() => {
+        if ('wheelDeltaY' in nextInput) {
+          runtime!.scrollerProps.onWheel(new WheelEvent('wheel', { deltaY: nextInput.wheelDeltaY }))
+        } else {
+          runtime!.markUserInput(nextInput.direction)
+        }
+        scroller.scrollTop = nextOffset
+        runtime!.scrollerProps.onScroll(nextOffset)
+      })
+      expect(handle!.isFollowing()).toBe(following)
+
+      scrollHeight = 1400
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      raf.tick(10)
+      expect(scroller.scrollTop).toBe(offsetAfterGrowth)
     } finally {
       restoreResizeObserver()
       raf.restore()
@@ -3102,7 +3269,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))
@@ -3155,7 +3322,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -3221,7 +3388,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
@@ -3271,7 +3438,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => 2000)
       setElementMetric(scroller, 'clientHeight', () => 400)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       act(() => handle!.scrollToTop('smooth'))
       raf.tick()
@@ -3322,7 +3489,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => 2000)
       setElementMetric(scroller, 'clientHeight', () => 400)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       act(() => handle!.scrollToTop('smooth'))
       raf.tick()
@@ -3374,7 +3541,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => 2000)
       setElementMetric(scroller, 'clientHeight', () => 400)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))
       now = 1_010
@@ -3422,7 +3589,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => 2000)
       setElementMetric(scroller, 'clientHeight', () => 400)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
 
       const item = document.createElement('div')
       item.dataset.messageKey = 'message-a'
@@ -3478,7 +3645,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'clientHeight', () => 400)
       setElementMetric(scroller, 'scrollHeight', () => 2000)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       // Establish the offset that the runtime would already know from the
@@ -3544,7 +3711,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'clientHeight', () => 400)
       setElementMetric(scroller, 'scrollHeight', () => 2000)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => {
@@ -3600,7 +3767,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'clientHeight', () => 400)
       setElementMetric(scroller, 'scrollHeight', () => 2000)
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))
@@ -3654,7 +3821,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       // Enter reading mode — the viewport freezes at scrollTop 500.
@@ -3705,7 +3872,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 2000 })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))
@@ -3756,7 +3923,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 2000 })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))
@@ -3805,7 +3972,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
-      runtime!.vlistHandleRef.current = createHandle()
+      runtime!.vlistHandleRef.current = createHandle(scroller)
       raf.tick(60)
 
       act(() => runtime!.takeUserControl('user-scrolled-up'))

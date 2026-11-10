@@ -1,0 +1,9 @@
+{
+  "continueOnFailure": false,
+  "steps": [
+    { "verb": "expectText", "text": "欢迎使用 Cherry Studio" },
+    { "verb": "clickRole", "role": "button", "name": "配置其他服务商" },
+    { "verb": "expectText", "text": "服务商" },
+    { "verb": "screenshot", "name": "provider-setup" }
+  ]
+}

@@ -34,7 +34,9 @@ beforeEach(() => {
     throw new Error(`Unexpected application.get(${name})`)
   }) as typeof application.get)
   mcpServers.list.mockReturnValue({ items: [], total: 0, page: 1 })
-  launch.resolveStdioLaunch.mockResolvedValue({ launch: { command: '/bin/npx', args: [], env: {} } })
+  launch.resolveStdioLaunch.mockResolvedValue({
+    launch: { command: '/bin/npx', args: [], env: {}, resolution: 'system' }
+  })
 })
 
 describe('mcp-servers-connected', () => {
@@ -112,6 +114,124 @@ describe('mcp-launch-commands', () => {
     })
   })
 
+  it.each([
+    ['error', new Error('Access denied'), 'Access denied'],
+    ['undefined', undefined, 'undefined'],
+    ['null', null, 'null'],
+    ['empty string', '', '']
+  ])('reports a recovered lookup failure (%s) as a query error', async (_name, error, message) => {
+    mcpServers.list.mockReturnValue({ items: [server('denied', { command: 'my-server' })] })
+    launch.resolveStdioLaunch.mockResolvedValue({
+      launch: { command: 'my-server', args: [], env: {}, resolution: 'unresolved', lookupError: error }
+    })
+
+    const result = await mcpLaunchCommands.run(ctx)
+
+    expect(result).toEqual({
+      status: 'warn',
+      attribution: 'transient',
+      detail: { variant: 'query_failed', params: { count: 1 } },
+      actions: [{ kind: 'navigate', target: '/settings/mcp' }],
+      devMessage: '0 enabled stdio MCP command(s) could not be resolved',
+      evidence: [
+        {
+          key: 'queryError',
+          value: JSON.stringify({ serverId: 'denied', message }),
+          dataClass: 'consent_required'
+        },
+        { key: 'unresolvedCommands', value: '[]', dataClass: 'local_only' },
+        { key: 'serverCount', value: 0, dataClass: 'public' },
+        { key: 'serverIds', value: '', dataClass: 'local_only' },
+        { key: 'serverNames', value: '', dataClass: 'local_only' }
+      ]
+    })
+  })
+
+  it('keeps a genuinely missing non-runner command user-fixable without query errors', async () => {
+    mcpServers.list.mockReturnValue({ items: [server('missing', { command: 'missing-tool' })] })
+    launch.resolveStdioLaunch.mockResolvedValue({
+      launch: { command: 'missing-tool', args: [], env: {}, resolution: 'unresolved' }
+    })
+
+    const result = await mcpLaunchCommands.run(ctx)
+
+    expect(result).toEqual({
+      status: 'fail',
+      attribution: 'user-fixable',
+      detail: { variant: 'unresolved', params: { count: 1 } },
+      actions: [{ kind: 'navigate', target: '/settings/mcp' }],
+      devMessage: '1 enabled stdio MCP command(s) could not be resolved',
+      evidence: [
+        {
+          key: 'unresolvedCommands',
+          value: '[{"serverId":"missing","command":"missing-tool"}]',
+          dataClass: 'local_only'
+        },
+        { key: 'serverCount', value: 1, dataClass: 'public' },
+        { key: 'serverIds', value: 'missing', dataClass: 'local_only' },
+        { key: 'serverNames', value: 'missing', dataClass: 'local_only' }
+      ]
+    })
+    expect(result.evidence?.some(({ key }) => key === 'queryError')).toBe(false)
+  })
+
+  it.each(['denied-first', 'missing-first'])(
+    'keeps lookup errors ahead of genuine missing-command evidence (%s)',
+    async (order) => {
+      const denied = server('denied', { command: 'my-server' })
+      const missing = server('missing', { command: 'missing-tool' })
+      const error = new Error('Access denied')
+      mcpServers.list.mockReturnValue({ items: order === 'denied-first' ? [denied, missing] : [missing, denied] })
+      launch.resolveStdioLaunch.mockImplementation(async ({ server: candidate }: { server: McpServer }) => ({
+        launch: {
+          command: candidate.command,
+          args: [],
+          env: {},
+          resolution: 'unresolved',
+          ...(candidate.id === 'denied' ? { lookupError: error } : {})
+        }
+      }))
+
+      const result = await mcpLaunchCommands.run(ctx)
+
+      expect(result).toEqual({
+        status: 'warn',
+        attribution: 'transient',
+        detail: { variant: 'query_failed', params: { count: 1 } },
+        actions: [{ kind: 'navigate', target: '/settings/mcp' }],
+        devMessage: '1 enabled stdio MCP command(s) could not be resolved',
+        evidence: [
+          {
+            key: 'queryError',
+            value: '{"serverId":"denied","message":"Access denied"}',
+            dataClass: 'consent_required'
+          },
+          {
+            key: 'unresolvedCommands',
+            value: '[{"serverId":"missing","command":"missing-tool"}]',
+            dataClass: 'local_only'
+          },
+          { key: 'serverCount', value: 1, dataClass: 'public' },
+          { key: 'serverIds', value: 'missing', dataClass: 'local_only' },
+          { key: 'serverNames', value: 'missing', dataClass: 'local_only' }
+        ]
+      })
+    }
+  )
+
+  it('produces byte-identical results for thrown and recovered lookup errors', async () => {
+    const error = new Error('Access denied')
+    mcpServers.list.mockReturnValue({ items: [server('denied', { command: 'my-server' })] })
+    launch.resolveStdioLaunch.mockRejectedValue(error)
+    const thrownResult = await mcpLaunchCommands.run(ctx)
+    launch.resolveStdioLaunch.mockResolvedValue({
+      launch: { command: 'my-server', args: [], env: {}, resolution: 'unresolved', lookupError: error }
+    })
+    const recoveredResult = await mcpLaunchCommands.run(ctx)
+
+    expect(JSON.stringify(recoveredResult)).toBe(JSON.stringify(thrownResult))
+  })
+
   it('propagates cancellation rather than recording a missing command', async () => {
     const controller = new AbortController()
     mcpServers.list.mockReturnValue({ items: [server('first'), server('second')] })
@@ -128,7 +248,9 @@ describe('mcp-launch-commands', () => {
     const remote = server('remote', { type: 'streamableHttp', command: undefined, baseUrl: 'https://mcp.example' })
     mcpServers.list.mockReturnValue({ items: [good, broken, remote], total: 3, page: 1 })
     launch.resolveStdioLaunch.mockImplementation(({ server: candidate }: { server: McpServer }) =>
-      Promise.resolve({ launch: { resolution: candidate.id === 'broken' ? 'unresolved' : 'system' } })
+      Promise.resolve({
+        launch: { command: candidate.command, resolution: candidate.id === 'broken' ? 'unresolved' : 'system' }
+      })
     )
 
     const result = await mcpLaunchCommands.run(ctx)

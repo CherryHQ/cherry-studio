@@ -91,7 +91,7 @@ describe('accessiblePath with un-canonicalizable input (UNC)', () => {
   // UNC is a valid `AbsoluteFilePath` but `canonicalizeFilePath` throws on it.
   // Containment is a predicate and must stay total: an un-canonicalizable path
   // is simply not provably inside anything. See
-  // `docs/references/file/file-manager-architecture.md §1.2 "UNC paths"`.
+  // `docs/dev/references/file/file-manager-architecture.md §1.2 "UNC paths"`.
 
   it('reports a UNC file path as not contained instead of throwing', () => {
     expect(() => isPathWithinAccessiblePath(p('\\\\server\\share\\notes.md'), ps('C:\\workspace'))).not.toThrow()

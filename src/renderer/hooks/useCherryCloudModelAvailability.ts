@@ -1,0 +1,84 @@
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
+
+import { ipcApi } from '@renderer/ipc'
+import { isManagedCherryAiProviderId, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
+import type { Model } from '@shared/data/types/model'
+
+import { useCherryCloudReceipt } from './useCherryCloudReceipt'
+
+export const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
+const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
+
+/**
+ * Cherry Cloud's server-declared model availability, expressed in model-selector terms so no other
+ * module needs to know about Cloud features. Agent pickers (`includeAgentOnlyModels`) follow the
+ * server's `agent` list, every other picker its `general` list.
+ */
+export function useCherryCloudModelAvailability(enabled = true) {
+  const { t } = useTranslation()
+  const { receipt, error: receiptError } = useCherryCloudReceipt(enabled)
+  const scopeId = receipt?.status.scopeId
+  useSWR(
+    enabled && scopeId ? [CHERRY_CLOUD_AVAILABILITY_KEY, scopeId] : null,
+    () => ipcApi.request('cherry_cloud.models.sync'),
+    {
+      dedupingInterval: 5_000,
+      refreshInterval: CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS,
+      revalidateOnReconnect: false,
+      shouldRetryOnError: false
+    }
+  )
+  const fact = receipt?.models
+  const cloudAvailability = fact && fact.freshness !== 'unknown' ? fact.value : undefined
+  const availabilityFreshness = fact?.freshness ?? 'unknown'
+  const availabilityError = useMemo(
+    () => (fact && fact.freshness !== 'fresh' && fact.error ? new Error(fact.error) : receiptError),
+    [fact, receiptError]
+  )
+
+  return useMemo(() => {
+    const freeModelIds = new Set(cloudAvailability?.freeModelIds)
+    const quotaExhaustedModelIds = new Set(cloudAvailability?.quotaExhaustedModelIds)
+    const agentModelIds = new Set(cloudAvailability?.availableModelIds.agent)
+    const generalModelIds = new Set(cloudAvailability?.availableModelIds.general)
+    const settled = availabilityFreshness === 'fresh'
+
+    return {
+      /** False until a server snapshot arrives, including after a status reset. */
+      isAvailabilityReady: settled,
+      availabilityError,
+      availabilityFreshness,
+      scopeId,
+      revision: receipt?.status.revision,
+      /** Hidden until the first snapshot arrives, then hidden wherever the server does not enable it. */
+      isModelHidden: (model: Pick<Model, 'id' | 'providerId'>, includeAgentOnlyModels: boolean) =>
+        isManagedCherryCloudModel(model.providerId) &&
+        !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
+      /** Unusable here per a settled snapshot: signed out, not entitled, or not enabled for this module. */
+      isModelLocked: (model: Pick<Model, 'id' | 'providerId'>, includeAgentOnlyModels: boolean) =>
+        settled &&
+        isManagedCherryCloudModel(model.providerId) &&
+        !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
+      /** The built-in CherryAI models and Cloud models granted only by a free plan. */
+      isModelFree: (model: Pick<Model, 'id' | 'providerId'>) =>
+        isManagedCherryAiProviderId(model.providerId) || freeModelIds.has(model.id),
+      isModelUnavailable: (model: Pick<Model, 'id' | 'providerId'>) =>
+        settled && isManagedCherryCloudModel(model.providerId) && quotaExhaustedModelIds.has(model.id),
+      getModelDescription: (model: Pick<Model, 'id' | 'providerId'>): string | undefined => {
+        if (!isManagedCherryCloudModel(model.providerId)) return undefined
+        const isFree = freeModelIds.has(model.id)
+        if (settled && quotaExhaustedModelIds.has(model.id)) {
+          return t(isFree ? 'models.detail.free_quota_exhausted' : 'models.detail.quota_exhausted')
+        }
+        if (!isFree) return undefined
+        return t(
+          generalModelIds.has(model.id)
+            ? 'models.detail.limited_time_free'
+            : 'models.detail.limited_time_free_agent_only'
+        )
+      }
+    }
+  }, [cloudAvailability, availabilityError, availabilityFreshness, receipt?.status.revision, scopeId, t])
+}

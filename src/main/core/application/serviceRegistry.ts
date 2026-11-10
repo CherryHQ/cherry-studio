@@ -8,6 +8,8 @@ import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionD
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
+import { TtsInferenceService } from '@main/ai/localModel'
+import { AsrInferenceService } from '@main/ai/localModel'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
 import { LocalModelService } from '@main/ai/localModel'
 import { OcrInferenceService } from '@main/ai/localModel'
@@ -16,11 +18,15 @@ import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
 import {
+  ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
+import { SkillSubscriptionService } from '@main/ai/skills/SkillSubscriptionService'
 import { AiStreamManager } from '@main/ai/streamManager'
+import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
+import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
@@ -38,17 +44,20 @@ import { AppMenuService } from '@main/services/AppMenuService'
 import { AppService } from '@main/services/AppService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
+import { AutomationReplService } from '@main/services/automation'
 import { BinaryManager } from '@main/services/binaryManager'
+import { CherryCloudNotificationService } from '@main/services/cherryCloud/CherryCloudNotificationService'
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
+import { ComputerUseService } from '@main/services/ComputerUseService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
+import { ConversationNotificationService } from '@main/services/ConversationNotificationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
-import { DirectoryTreeManager, FileManager } from '@main/services/file'
+import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
-import { LanTransferService } from '@main/services/lanTransfer'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -56,6 +65,7 @@ import { MediaProtocolService } from '@main/services/mediaProtocol'
 import { NetworkService } from '@main/services/network'
 import { NotificationService } from '@main/services/NotificationService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
+import { OfficialAnnouncementService } from '@main/services/OfficialAnnouncementService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PdfTranslationService } from '@main/services/PdfTranslationService'
@@ -64,8 +74,11 @@ import { ProviderRegistryUpdaterService } from '@main/services/ProviderRegistryU
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
-import { RemoteAccessService } from '@main/services/remoteAccess'
+import { AttachmentPresenceService, RemoteAccessService } from '@main/services/remoteAccess'
+import { RuntimeQuitConfirmationService } from '@main/services/RuntimeQuitConfirmationService'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
+import { ScreenshotChatService } from '@main/services/ScreenshotChatService'
+import { SelectionAgentWindowService } from '@main/services/selection/SelectionAgentWindowService'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { SentryLogService } from '@main/services/SentryLogService'
 import { ShortcutService } from '@main/services/ShortcutService'
@@ -74,6 +87,7 @@ import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrashService } from '@main/services/trash'
 import { TrayService } from '@main/services/TrayService'
+import { UsageBudgetNotificationService } from '@main/services/UsageBudgetNotificationService'
 import { WebSearchService } from '@main/services/webSearch'
 import { WebviewService } from '@main/services/webview'
 
@@ -101,6 +115,8 @@ import { WebviewService } from '@main/services/webview'
  * Value = service class constructor
  */
 export const services = {
+  ComputerUseService,
+  AutomationReplService,
   RemoteAccessService,
   MainNetworkDevtoolsService,
   WindowManager,
@@ -116,19 +132,26 @@ export const services = {
   AnalyticsService,
   AppMenuService,
   AppService,
+  SkillSubscriptionService,
   CodeCliService,
   CommandService,
   ConversationNavigationService,
   CitationPreviewService,
   CherryCloudService,
+  CherryCloudNotificationService,
   DeepSeekHarnessService,
   HermesDashboardService,
-  LanTransferService,
   FileManager,
+  FileEditService,
+  AttachmentPresenceService,
+  FileIntakeService,
   DirectoryTreeManager,
   FileProcessingService,
   PowerService,
+  RuntimeActivityService,
+  RuntimeQuitConfirmationService,
   SelectionService,
+  SelectionAgentWindowService,
   ShortcutService,
   ThemeService,
   TraceStorageService,
@@ -138,6 +161,7 @@ export const services = {
   ProtocolService,
   MediaProtocolService,
   ScreenshotOverlayService,
+  ScreenshotChatService,
   ProxyService,
   NetworkService,
   StorageMonitorService,
@@ -152,6 +176,9 @@ export const services = {
   OAuthRuntimeService,
   MainWindowService,
   NotificationService,
+  ConversationNotificationService,
+  UsageBudgetNotificationService,
+  OfficialAnnouncementService,
   QuickAssistantService,
   McpPackageService,
   McpRuntimeService,
@@ -159,6 +186,7 @@ export const services = {
   BinaryManager,
   OpenClawService,
   PdfTranslationService,
+  ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
   AgentSessionDeliveryService,
@@ -166,9 +194,12 @@ export const services = {
   AgentLifecycleService,
   ChannelManager,
   AiService,
+  VoiceSessionService,
   ClaudeCodeWarmQueryManager,
   ClaudeCodeSessionStateService,
   AiStreamManager,
+  AsrInferenceService,
+  TtsInferenceService,
   EmbeddingInferenceService,
   OcrInferenceService,
   LocalModelService,

@@ -2,11 +2,15 @@ import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/da
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
 import type { ChannelStatus } from '@shared/data/types/channel'
+import type { FileProcessingTask } from '@shared/data/types/fileProcessing'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
+import type { CherryCloudPlanModel } from '@shared/ipc/schemas/cherryCloud'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
+import type { SelectionAgentCapsule } from '@shared/types/selection'
+import type { MarketplaceSkillMember, SkillSubscriptionSnapshot } from '@shared/types/skillMarketplace'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -121,7 +125,7 @@ export type ProcessKey<K extends string> = IsTemplateKey<K> extends true ? Expan
 
 export type UseCacheSchema = {
   // App state
-  'app.dist.update_state': CacheValueTypes.CacheAppUpdateState
+  'app.dist.update_state': Pick<CacheValueTypes.CacheAppUpdateState, 'ignore' | 'manualCheck'>
 
   'app.path.resources': string
 
@@ -142,6 +146,14 @@ export type UseCacheSchema = {
   'ui.window.chat.right_pane_open_override': boolean | null
   'ui.window.agent.right_pane_open_override': boolean | null
 
+  // Detached Chat/Agent windows keep list-group expansion within their renderer process. These
+  // values are seeded from the matching persisted preference but never sync back to the main window.
+  'ui.window.chat.topic.expansion.time': string[]
+  'ui.window.chat.topic.expansion.assistant': string[] | null
+  'ui.window.agent.session.expansion.time': string[]
+  'ui.window.agent.session.expansion.agent': string[] | null
+  'ui.window.agent.session.expansion.workdir': string[] | null
+
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
 
@@ -149,15 +161,8 @@ export type UseCacheSchema = {
   'notes.active_file_path': AbsoluteFilePath | undefined
 
   // MiniApp management
-  'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
-  'mini_app.current_id': string
-  /** Whether the mini app view is split into two panes. */
-  'mini_app.split_open': boolean
-  /** Mini app shown in the split pane. Empty while the pane awaits a pick. */
-  'mini_app.split_id': string
-  'mini_app.show': boolean
-  'mini_app.opened_oneoff': CacheValueTypes.CacheMiniAppType | null
   'mini_app.detected_region': MiniAppRegion | null
+  'mini_app.split': { appId: string | null } | null
 
   // Topic management
   'topic.renaming': string[]
@@ -205,6 +210,7 @@ export type UseCacheSchema = {
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
   'message.ui.${messageId}': {
     foldSelected?: boolean
+    foldSelectedBranchId?: string | null
     multiModelMessageStyle?: string
     useful?: boolean
     disclosures?: Record<string, boolean>
@@ -214,12 +220,6 @@ export type UseCacheSchema = {
 export const DefaultUseCache: UseCacheSchema = {
   // App state
   'app.dist.update_state': {
-    info: null,
-    checking: false,
-    downloading: false,
-    downloaded: false,
-    downloadProgress: 0,
-    available: false,
     ignore: false,
     manualCheck: false
   },
@@ -242,17 +242,17 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.chat.resource_pane.width': 275,
   'ui.window.chat.right_pane_open_override': null,
   'ui.window.agent.right_pane_open_override': null,
+  'ui.window.chat.topic.expansion.time': [],
+  'ui.window.chat.topic.expansion.assistant': null,
+  'ui.window.agent.session.expansion.time': [],
+  'ui.window.agent.session.expansion.agent': null,
+  'ui.window.agent.session.expansion.workdir': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
 
   // MiniApp management
-  'mini_app.opened_keep_alive': [],
-  'mini_app.current_id': '',
-  'mini_app.split_open': false,
-  'mini_app.split_id': '',
-  'mini_app.show': false,
-  'mini_app.opened_oneoff': null,
   'mini_app.detected_region': null,
+  'mini_app.split': null,
 
   // Topic management
   'topic.renaming': [],
@@ -303,6 +303,7 @@ export const DefaultUseCache: UseCacheSchema = {
  * Use shared cache schema for renderer hook
  */
 export type SharedCacheSchema = {
+  'app.dist.update_status': Omit<CacheValueTypes.CacheAppUpdateState, 'ignore' | 'manualCheck'>
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
@@ -312,12 +313,12 @@ export type SharedCacheSchema = {
   // Runtime-only opt-out shared across windows; resets when the app exits.
   'agent.model_switch_confirmation.skipped': boolean
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
+  'agent.session.closing.${sessionId}': boolean
   'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
   'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
-  'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
   'agent.session.turn_origin.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionTurnOrigin
   'message.context.compacting.${messageId}': boolean
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
@@ -331,6 +332,8 @@ export type SharedCacheSchema = {
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
   'local_model.statuses': LocalModelStatusSnapshots
+  // Main-owned capsule stack of collapsed selection agent windows on one display, nearest the corner first.
+  'selection.agent_capsules.${displayId}': SelectionAgentCapsule[]
   'feature.binary.latest_versions': Record<string, string>
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
@@ -367,13 +370,25 @@ export type SharedCacheSchema = {
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
-  // File-processing progress for a knowledge item, main -> all windows. The check job
-  // mirrors the linked file-processing job's progress here every poll round so the row can
-  // show a percentage during the 'processing' wait; absence means no progress was reported.
+  // File-processing progress for a knowledge item, main -> all windows. KnowledgeService
+  // mirrors the progress of the task the item waits on here when it changes, so the row can
+  // show a percentage during the 'processing' wait; absence means the conversion has not started.
   'knowledge.item.file_processing_progress.${itemId}': number | null
+  // A file-processing task's latest state, main -> all windows. FileProcessingService rewrites it on
+  // every change and lets only a terminal state expire; after that, ask `file_processing.get_task`.
+  'file_processing.task.${taskId}': FileProcessingTask | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
+  'app.dist.update_status': {
+    lastErrorKey: null,
+    info: null,
+    checking: false,
+    downloading: false,
+    downloaded: false,
+    downloadProgress: 0,
+    available: false
+  },
   'chat.web_search.active_searches': {},
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
@@ -382,12 +397,12 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'network.online': true,
   'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
+  'agent.session.closing.${sessionId}': false,
   'agent.session.api_retry.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,
   'agent.session.background_tasks.${sessionId}': [],
   'agent.session.task_events.${sessionId}': {},
-  'agent.session.flow_parts.${sessionId}.${messageId}': [],
   'agent.session.turn_origin.${sessionId}.${messageId}': null,
   'message.context.compacting.${messageId}': false,
   'topic.stream.statuses.${topicId}': null,
@@ -399,6 +414,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.remote_access.discovery_status': 'inactive',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
+  'selection.agent_capsules.${displayId}': [],
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
@@ -413,7 +429,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
   'backup.auto_sync.state.${type}': null,
   'knowledge.item.directory_copy_progress.${itemId}': null,
-  'knowledge.item.file_processing_progress.${itemId}': null
+  'knowledge.item.file_processing_progress.${itemId}': null,
+  'file_processing.task.${taskId}': null
 }
 
 /**
@@ -422,6 +439,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.browser.import_prompt_hidden': boolean
+  'ui.browser.last_urls': Record<string, string>
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
   // restart. Main window only — written from TabsContext, gated on includePinnedTabs.
@@ -455,11 +473,17 @@ export type RendererPersistCacheSchema = {
   'ui.agent.last_used_workspace_id': string | null
   // Kept separate so the assistant and agent surfaces don't bleed into each other.
   'ui.agent.right_pane_open_override': boolean | null
+  'ui.agent.details.open': boolean
   'ui.agent.session.expansion.time': string[]
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
+  // Workspace paths whose file tree is unpinned in a wide Agent file pane; absent means pinned.
+  'ui.agent.file_pane.unpinned_tree_workspaces': string[]
+  // File tree column width in a wide Agent file pane, in pixels.
+  'ui.agent.file_pane.tree_width': number
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
+  'settings.skills.enabled_only': boolean
   'settings.device_connections.step': 'download' | 'connect' | 'complete'
   // Usage statistics view selections, persisted so leaving and re-entering the page restores
   // them. The heatmap drill-down date stays component-local: a stored past date would reopen
@@ -487,10 +511,16 @@ export type RendererPersistCacheSchema = {
   'ui.screenshot.annotation_color': string
   'ui.screenshot.annotation_stroke_width': number
   'ui.screenshot.annotation_font_size': number
+  // Set once any Subscribe touchpoint is used; hides the account-avatar subscription dot for good.
+  'ui.cherry_cloud.subscribe_prompt_seen': boolean
+  // Paid plan models last seen while signed in; the plans API needs a session, and the model picker
+  // keeps offering them as locked rows after sign-out.
+  'ui.cherry_cloud.plan_models': CherryCloudPlanModel[]
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.browser.import_prompt_hidden': false,
+  'ui.browser.last_urls': {},
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],
   'ui.tab.active_tab_id': '',
@@ -511,11 +541,15 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
   'ui.agent.right_pane_open_override': null,
+  'ui.agent.details.open': true,
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
+  'ui.agent.file_pane.unpinned_tree_workspaces': [],
+  'ui.agent.file_pane.tree_width': 256,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.filter_mode': 'all',
+  'settings.skills.enabled_only': false,
   'settings.device_connections.step': 'download',
   'settings.usage.window': '30d',
   'settings.usage.group_by': 'provider',
@@ -535,7 +569,9 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   // or the overlay opens with no swatch, width or size marked as current.
   'ui.screenshot.annotation_color': '#F54A45',
   'ui.screenshot.annotation_stroke_width': 4,
-  'ui.screenshot.annotation_font_size': 20
+  'ui.screenshot.annotation_font_size': 20,
+  'ui.cherry_cloud.subscribe_prompt_seen': false,
+  'ui.cherry_cloud.plan_models': []
 }
 
 /**
@@ -546,10 +582,15 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  'skill.subscription.catalogs': Record<string, SkillSubscriptionSnapshot>
+  // ZIP-derived contents only; installed state still comes from the skill library.
+  'skill.marketplace.members': Record<string, MarketplaceSkillMember[]>
   'browser.favicons': Record<string, string>
   // Last completed automatic-backup attempt (or manual backup) per backend.
   // AutoBackupService owns this restart-safe scheduling baseline.
   'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
+  // Last processed Cherry Cloud notification position per account id; losing one only rebuilds that baseline.
+  'cherry_cloud.notification_cursors': Record<string, string>
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -561,8 +602,11 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'skill.subscription.catalogs': {},
+  'skill.marketplace.members': {},
   'browser.favicons': {},
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
+  'cherry_cloud.notification_cursors': {},
   'internal.persist_probe': 0,
   'window.bounds': {}
 }

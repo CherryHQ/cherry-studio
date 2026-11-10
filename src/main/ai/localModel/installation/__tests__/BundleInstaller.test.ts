@@ -5,6 +5,7 @@ import path from 'node:path'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+import type * as TarballArtifactModule from '../../acquisition/tarballArtifact'
 import type * as CatalogTypesModule from '../../catalog/types'
 import type { CapabilityHooks, PublishLocalModelStatus } from '../BundleInstaller'
 
@@ -29,7 +30,8 @@ vi.mock('@application', async () => {
 
 // Only the shared-artifact leaf is stubbed: the storage service above it — path resolution and
 // the on-disk scan that decides every status — stays real, against a temp directory.
-vi.mock('../../acquisition/tarballArtifact', () => ({
+vi.mock('../../acquisition/tarballArtifact', async (importOriginal) => ({
+  ...(await importOriginal<typeof TarballArtifactModule>()),
   artifactRegistryOrder: (preference: 'china-first' | 'global-first') =>
     preference === 'china-first' ? ['npmmirror', 'npmjs'] : ['npmjs', 'npmmirror'],
   isArtifactInstalled: artifactInstalled,
@@ -146,13 +148,18 @@ describe('status', () => {
     expect(manager.getStatus()).toBe('ready')
   })
 
-  it('offers a download rather than an error when only the shared runtime is missing', () => {
+  it('identifies a missing shared runtime when model files are present', () => {
     // A ~40MB runtime repair the user can act on — reporting `error` here left the card
     // with a failure it could not clear while a complete ~614MB model sat on disk.
     installComplete()
     artifactInstalled.mockReturnValue(false)
 
-    expect(manager.getStatus()).toBe('not_downloaded')
+    expect(manager.getStatusInfo()).toEqual({ status: 'not_downloaded', hintCode: 'missing_shared_runtime' })
+    expect(manager.getStatusSnapshot()).toEqual({
+      status: 'not_downloaded',
+      percent: 0,
+      hintCode: 'missing_shared_runtime'
+    })
   })
 
   it('reports why a partial install failed via the incomplete_cache code', () => {
