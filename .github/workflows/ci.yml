@@ -13,8 +13,8 @@ on:
     types: [ready_for_review, synchronize, opened, reopened]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CI: true
@@ -44,16 +44,9 @@ jobs:
         id: plan
         env:
           EVENT_NAME: ${{ github.event_name }}
-          BEFORE_SHA: ${{ github.event.before }}
         run: |
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             node scripts/validation/run.mjs --committed --base HEAD^1 --github-output
-          elif [[ "$EVENT_NAME" == "push" && -n "$BEFORE_SHA" && "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
-            if git fetch --no-tags --depth=1 origin "$BEFORE_SHA"; then
-              node scripts/validation/run.mjs --committed --base "$BEFORE_SHA" --github-output
-            else
-              node scripts/validation/run.mjs --all --github-output
-            fi
           else
             node scripts/validation/run.mjs --all --github-output
           fi
@@ -61,10 +54,10 @@ jobs:
       - name: "Validation scope: ${{ steps.plan.outputs.scope }}"
         run: ":"
 
-  basic-checks:
+  repository-checks:
     runs-on: ubuntu-latest
     needs: changes
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    if: needs.changes.outputs.repository == 'true'
     env:
       TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
       VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
@@ -109,8 +102,6 @@ jobs:
       - uses: ./.github/actions/setup-validation
         id: dependencies
         if: "!cancelled() && (needs.changes.outputs.repository == 'true' || needs.changes.outputs.types == 'true' || needs.changes.outputs.lint == 'true' || needs.changes.outputs.i18n == 'true')"
-        with:
-          save-cache: ${{ github.event_name != 'pull_request' }}
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
 
@@ -163,16 +154,50 @@ jobs:
         id: repository-result
         if: needs.changes.outputs.repository == 'true' && steps.repository-checks.outcome == 'success'
         run: ":"
+
+  types-checks:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.types == 'true'
+    env:
+      TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
+      VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-validation
+        id: dependencies
       - name: Type checks
         id: type-checks
         if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.types == 'true'"
         run: pnpm check --group types
 
+  lint-checks:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.lint == 'true'
+    env:
+      TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
+      VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-validation
+        id: dependencies
       - name: Lint checks
         id: lint-checks
         if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.lint == 'true'"
         run: pnpm check --group lint
 
+  i18n-checks:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.i18n == 'true'
+    env:
+      TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
+      VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-validation
+        id: dependencies
       - name: Check locale synchronization
         id: i18n-sync
         if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.i18n == 'true'"
@@ -188,11 +213,15 @@ jobs:
         if: "!cancelled() && steps.i18n-sync.outcome == 'success' && needs.changes.outputs.i18n == 'true'"
         run: pnpm check --group i18n
 
+  basic-checks:
+    runs-on: ubuntu-latest
+    needs: [changes, repository-checks, types-checks, lint-checks, i18n-checks]
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    steps:
+      - uses: actions/checkout@v7
       - name: Verify planned checks
-        if: "!cancelled()"
         env:
           VALIDATION_JOBS: ${{ toJSON(needs) }}
-          VALIDATION_STEPS: ${{ toJSON(steps) }}
         run: node scripts/validation/verify.mjs basic
 
   main-test-shard:
