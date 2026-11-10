@@ -1,8 +1,10 @@
 import type { Page } from '@playwright/test'
-import { test as base } from '@playwright/test'
+import { expect, test as base } from '@playwright/test'
 
 import { getCase, missingCapabilities, supportsPlatform } from '../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../scripts/e2e/regression/config'
+import { setOwnedMainWindowFocus } from '../../../scripts/e2e/regression/debugBridge'
+import { cleanupExternalResources } from '../../../scripts/e2e/regression/externalResources'
 import { getRunPaths } from '../../../scripts/e2e/regression/paths'
 import { captureMaskedScreenshot } from '../../../scripts/e2e/regression/screenshotEvidence'
 import { readRun } from '../../../scripts/e2e/regression/state'
@@ -43,7 +45,7 @@ async function bounded<T>(work: () => Promise<T>, label: string, timeoutMs = TEA
 export const test = base.extend<RegressionFixtures & RegressionOptions>({
   profile: ['authenticated', { option: true }],
 
-  app: async ({}, use, testInfo) => {
+  app: async ({}, provideFixture, testInfo) => {
     const runDirectory = process.env.CHERRY_TEST_RUN_DIR
     if (!runDirectory) throw new Error('CHERRY_TEST_RUN_DIR is required')
     const id = testInfo.annotations.find(({ type }) => type === 'regression-case')?.description
@@ -56,7 +58,7 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
     const watchdog = createApplicationWatchdog(() => app.record)
     watchdog.start()
     try {
-      await use(app)
+      await provideFixture(app)
     } finally {
       watchdog.stop()
       // Wait for a kill that is already in flight so the reported reason is final.
@@ -65,20 +67,32 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
       // A killed application has nothing left to disconnect from, and any CDP call
       // would only wait for a socket that is already gone. When a stall is being
       // reported, the stall is the failure, not the disconnect that followed it.
-      if (!watchdog.killedApplication) {
-        await bounded(() => app.disconnect(), 'disconnect').catch((error: Error) => {
-          if (!stall) throw error
-        })
+      let cleanupError: unknown
+      try {
+        cleanupExternalResources(app.paths)
+      } catch (error) {
+        cleanupError = error
+      } finally {
+        if (!watchdog.killedApplication) {
+          await bounded(() => app.disconnect(), 'disconnect').catch((error: Error) => {
+            if (!stall) throw error
+          })
+        }
       }
       if (stall) throw new Error(stall)
+      if (cleanupError) throw cleanupError
     }
   },
 
-  mainWindow: async ({ app, profile }, use, testInfo) => {
+  mainWindow: async ({ app, profile }, provideFixture, testInfo) => {
     const page = await app.useProfile(profile)
     try {
-      if (app.caseId !== 'S-01') await prepareScenario(page)
-      await use(page)
+      if (app.caseId !== 'S-01') {
+        await setOwnedMainWindowFocus(app.record, true)
+        await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true)
+        await prepareScenario(page)
+      }
+      await provideFixture(page)
     } finally {
       const currentPage = await bounded(() => app.mainWindow().catch(() => page), 'locate main window').catch(
         () => page

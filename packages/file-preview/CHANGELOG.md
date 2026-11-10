@@ -1,5 +1,11 @@
 # @cherrystudio/file-preview
 
+## 0.2.5
+
+### Patch Changes
+
+- [#23122](https://github.com/CherryHQ/cherry-studio/pull/23122) [`11be419`](https://github.com/CherryHQ/cherry-studio/commit/11be419b8bc15f8180501695858a25b486fbd033) Thanks [@angri450](https://github.com/angri450)! - Fit DOCX previews to the pane width, allow them to scale up to 200%, and remove the grey mat around pages.
+
 ## 0.2.4
 
 ### Patch Changes
