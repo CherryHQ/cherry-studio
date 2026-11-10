@@ -1,5 +1,11 @@
 # @cherrystudio/web-search
 
+## 0.6.0
+
+### Minor Changes
+
+- [#24077](https://github.com/CherryHQ/cherry-studio/pull/24077) [`082f62f`](https://github.com/CherryHQ/cherry-studio/commit/082f62f5913841c9f674b61479b8b6fe45b494fc) Thanks [@NatsUIJM](https://github.com/NatsUIJM)! - Add URL fetching to the Exa provider through the Contents API.
+
 ## 0.5.0
 
 ### Minor Changes

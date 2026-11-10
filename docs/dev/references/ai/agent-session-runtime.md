@@ -252,6 +252,8 @@ Background notification generations whose native source calls belong to an unfin
 that reply and keep its assistant message ID. Main records intermediate native success but holds
 product completion while that reply has undrained results. Empty display task lists and connection
 release do not settle it; confirmed result drainage, ordered content and final persistence do.
+Before terminal persistence begins, an error or pause replaces held intermediate success;
+later success cannot erase that failure or pause. Events after settlement cannot reopen the reply.
 The model still chooses foreground/background through the native tool arguments. A resident command
 can retain the connection without holding a reply open. A notification without proven ownership
 cannot reopen a settled reply.
@@ -442,6 +444,10 @@ a reference-only result: Agent Session messages are editable and deletable, Sess
 cascades their messages, and FTS/UI/export read row-local data. A source reference would therefore
 make historical results mutable or missing and require a second cross-Session hydration path.
 
+These product storage operations do not grant UI permissions: in Agent/Work, assistant replies
+offer no Delete action. User-message deletion retains its existing guards, including the native
+input binding lock. Deleting a product record does not rewind native history.
+
 Only safe deliverables are copied: terminal text and managed file references. Reasoning, tool
 calls/results, approval state, hidden prompts, and unmanaged local paths are not result content.
 
@@ -579,6 +585,14 @@ Compaction completion anchors use this same projection/control delivery path, in
 the stream has not opened. A direct stream enqueue would omit the anchor from the final saved
 message and leave a successful compaction looking like an empty response after reload.
 
+Background generation reuses an existing assistant message; it never creates a standalone
+background-continuation row or header badge. A new execution reopens the message's stream while
+retaining its existing body, native projection, author snapshot and billing identity. Running
+commands may remain detached without blocking Send. Once a new user input is admitted, its reply
+owns subsequent generation. Before admission, native call ownership or the last projected reply
+keeps an older notification out of the reserved user's reply. Goal rounds retain their separate
+turns and labels. Background origin metadata remains internal to automatic read-aloud eligibility.
+
 ## Resume token persistence
 
 Drivers may emit:
@@ -618,7 +632,11 @@ identities or replaying their inputs. Rows owned by persisted delivery turns rem
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
 checkpointing / `rewindFiles()` feature, which uses user-message UUIDs
-to restore files.
+to restore files and is not integrated into desktop history actions. Fork and
+edit/resend preserve the current file state. After `/clear`, the driver prepares
+a successor context at the current product head before switching the active
+native handle/context; results from the retired native session cannot overwrite
+the successor checkpoint.
 
 ## Native user-data SQLite guard
 
@@ -712,6 +730,12 @@ The settings builder explicitly passes `permissionMode: 'default'` when the Agen
 has no configured mode, preserving manual approval independently of SDK defaults.
 An explicitly configured mode, including `auto`, takes precedence.
 
+On Linux, the final subprocess environment must contain a non-empty
+`DBUS_SESSION_BUS_ADDRESS`. If it does not, environment construction returns
+actionable setup guidance before the SDK query is created, so no Claude Code
+child is launched. This check does not probe whether a non-empty bus address
+is reachable.
+
 Starting a query (warm or cold) registers the agent's MCP servers and lists
 their tools. That listing is **cache-only** — it never connects to an upstream
 MCP server — so a dead or slow server cannot block startup. See
@@ -772,7 +796,9 @@ renderer.
 
 `reconcile()` carries live agent edits onto the warm connection: a
 `permission-mode` change awaits the SDK `setPermissionMode` before mutating
-the snapshot (short-circuiting an unchanged mode), and a `tool-policy`
+the snapshot (short-circuiting an unchanged mode). It applies during an active
+turn too: the SDK keeps the turn running and governs its next tool call by the
+new mode. A `tool-policy`
 change refreshes the snapshot's disabled set in place. Concurrent push/pull
 reconciles are serialized per connection. A rejected update is failed closed
 by the host (the connection is torn down) rather than left running under the
@@ -840,6 +866,14 @@ Allowed in v1:
   execution environments behind the user's back; an absent one falls back to
   Cherry's own Git Bash discovery.
 
+On Windows, Pi and Pi Durable also expose the native `powershell` tool. Pi searches
+for `pwsh.exe` before Windows PowerShell; Durable tries `pwsh`, then `powershell`
+when the executable cannot start. PowerShell runs independently of Bash discovery.
+The edit dialog shows its enable/disable control only on Windows. Both shell tools
+share Cherry's binary execution environment, approval gate, global-install restriction
+and user-data SQLite guard; only Bash commands use RTK rewriting. A failed command
+is not retried under a different shell.
+
 Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 
 - User-global pi resources under the standalone pi home (`~/.pi/agent`) other
@@ -887,7 +921,7 @@ contract above.
 
 Warm Pi reconciles serialize push and pull calls per connection so a slower
 older snapshot cannot overwrite a newer policy result. `permission_mode` is
-live policy and stays frozen for an active turn. `disabledTools` has two jobs:
+live policy and applies at once, including to the active turn's next tool call. `disabledTools` has two jobs:
 the live gate applies newly disabled tools immediately, while the spawn-time
 `excludeTools` list controls which tools the model can see. It therefore remains
 a rebuild-signature fact; adding or removing a disabled tool returns `rebuild`
@@ -972,8 +1006,7 @@ its archive cannot open as an independent writable root. Public projection code 
 
 ### Pi Durable behavior host
 
-`PiDurableRuntimeConnection` installs the same `agent-behavior` rules and host ports
-through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
+`PiDurableRuntimeDriver` owns one native backend per store and connections borrow root accesses. `DurableBackend` installs the same `agent-behavior` rules and routes host ports by the native conversation ownership tree through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
 question cards and tool rendering. Native SQLite owns execution history and task state;
 the existing backend/context tables bind it to product sessions. Strict identity checks
 prevent a missing store from silently becoming a fresh conversation.
@@ -991,14 +1024,13 @@ from idle activity or an empty product-input map.
 Native submission and assistant metadata carry the consuming run's stable identity.
 Ordinary steer may start a later run after normal completion; it has no run-only constraint.
 Background continuation keeps the child identity. Independent continuation of a completed
-foreground child is rejected because native tool ownership is immutable. Desktop native
-fork/edit checkpoints and `vcc_recall` are not exposed. See the
+foreground child is rejected because native tool ownership is immutable. Successful committed boundaries support ownerless same-storage desktop forks; each root retains its own model options, approvals, extensions and environment. Before shared recovery resumes unfinished roots, their stored request selections and Main projection consumers are restored. Final release closes the backend once and drains observations before product writers stop. Edit and resend retains sibling-message branches, preparing an ownerless native fork at the predecessor or a fresh context for the first input. File rewind and `vcc_recall` remain unavailable. See the
 [driver README](../../../../src/main/ai/runtime/piDurable/README.md) for storage and recovery boundaries.
 
 ### Pi code mode
 
 Pi 1.0 supplies the native `codemode`, `tool_search`, and MCP extensions. Cherry
-injects only its managed Bash definition and mounts the session's complete MCP
+injects its managed Bash definition, adds PowerShell on Windows, and mounts the session's complete MCP
 server set through an in-memory transport. Pi owns discovery, tool definitions,
 structured results, cancellation, and MCP connection teardown. Disk-discovered
 Pi MCP configuration stays disabled; Cherry remains the configuration owner.
@@ -1059,7 +1091,8 @@ The seeder records each affected session in `app_state` and leaves native tokens
 Fork recovery retires already-published retired-runtime journals without deleting their files.
 After fork recovery and crash-message reconciliation, `retiredSessionHistory` imports the
 persisted Cherry transcript through Pi's `SessionManager`, validates the generated file,
-and transactionally replaces resume tokens, fork checkpoints, and edited native identities.
+and transactionally replaces resume tokens, fork checkpoints, and edited native identities
+while binding the imported native context to the product root branch.
 Tools appear as historical text and are never executed during import. Attachments retain
 managed file paths. Native DSH goals and child-process state are not carried over.
 

@@ -261,7 +261,7 @@ icon: message
 
 #### <mark style="color:blue;">**`开启消息长度限制 (MaxToken)`**</mark>
 
-单次回答最大 [Token](https://docs.cherry-ai.com/question-contact/knowledge#shen-me-shi-tokens) 数，在大语言模型中，max token（最大令牌数）是一个关键参数，它直接影响模型生成回答的质量和长度。
+单次回答最大 [Token](https://cherryai.com.cn/docs/zh-cn/question-contact/knowledge/#token-yu-shang-xia-wen-chuang-kou) 数，在大语言模型中，max token（最大令牌数）是一个关键参数，它直接影响模型生成回答的质量和长度。
 
 > 如:在 CherryStudio 当中填写好 key 后测试模型是否连通时，只需要知道模型是否有正确返回消息而不需特定内容,这种情况下设置 MaxToken 为 1 即可。
 
