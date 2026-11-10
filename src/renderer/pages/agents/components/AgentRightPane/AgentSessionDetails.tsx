@@ -118,7 +118,7 @@ export function AgentSessionDetailsToggle({ children }: { children: ReactNode })
   )
   return (
     <>
-      <Tooltip content={label} asChild>
+      <Tooltip content={label} placement="bottom" delay={800} asChild>
         <PopoverTrigger asChild>{button}</PopoverTrigger>
       </Tooltip>
       {state.mode === 'popover' && (
