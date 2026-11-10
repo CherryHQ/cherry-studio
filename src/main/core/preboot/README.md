@@ -129,7 +129,8 @@ preboot/
 │                        offers a platform-specific intermediate-version download.
 │                        Detection lives in data/migration/legacyUpgrade.ts.
 ├── nativeErrorDialog.ts showSupportedMessageBox(): native error dialog with
-│                        Copy / Feedback / Releases support actions; usable
+│                        caller buttons plus Copy-and-feedback / Download page
+│                        support actions (four buttons at most); usable
 │                        before any window or lifecycle service exists
 └── __tests__/           unit tests for each sibling module
 ```
