@@ -305,23 +305,6 @@ export const getMiniAppsStatusLabelKey = (key: string): string => {
   return getLabelKey(miniAppsStatusKeyMap, key)
 }
 
-const httpMessageKeyMap = {
-  '400': 'error.http.400',
-  '401': 'error.http.401',
-  '402': 'error.http.402',
-  '403': 'error.http.403',
-  '404': 'error.http.404',
-  '429': 'error.http.429',
-  '500': 'error.http.500',
-  '502': 'error.http.502',
-  '503': 'error.http.503',
-  '504': 'error.http.504'
-} as const
-
-export const getHttpMessageLabelKey = (key: string): string => {
-  return getLabelKey(httpMessageKeyMap, key)
-}
-
 const fileFieldKeyMap = {
   created_at: 'files.created_at',
   size: 'files.size',

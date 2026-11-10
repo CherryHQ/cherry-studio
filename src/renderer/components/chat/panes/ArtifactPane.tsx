@@ -997,16 +997,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                     : 'agent.preview_pane.edit.save_failed'
                 )}
               </span>
-              <ErrorDetailAction
-                error={fileSession.saveError}
-                message={t(
-                  fileSession.metadataRecoveryPending
-                    ? 'agent.preview_pane.edit.metadata_pending'
-                    : 'agent.preview_pane.edit.save_failed'
-                )}
-                operation="file.save"
-                source="agent.preview"
-              />
               {!fileSession.metadataRecoveryPending && (
                 <Button
                   type="button"
@@ -1025,6 +1015,16 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                 onClick={handleDiscardFailedSave}>
                 {t('agent.preview_pane.edit.discard')}
               </Button>
+              <ErrorDetailAction
+                error={fileSession.saveError}
+                message={t(
+                  fileSession.metadataRecoveryPending
+                    ? 'agent.preview_pane.edit.metadata_pending'
+                    : 'agent.preview_pane.edit.save_failed'
+                )}
+                operation="file.save"
+                source="agent.preview"
+              />
             </div>
           )}
           <div data-file-edit className="relative min-h-0 flex-1 overflow-hidden">

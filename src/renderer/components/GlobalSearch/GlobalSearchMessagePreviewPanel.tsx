@@ -10,6 +10,7 @@ import { MessageContentProvider } from '@renderer/components/chat/messages/Messa
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import { useConversationHistoryQuery } from '@renderer/hooks/useConversationHistoryQuery'
@@ -447,18 +448,20 @@ export function GlobalSearchMessagePreviewPanel({
             header={
               <>
                 {error && (
-                  <div
-                    role="alert"
-                    className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
-                    <span>{t('globalSearch.error')}</span>
-                    <ErrorDetailAction
-                      error={error}
-                      message={t('globalSearch.error')}
-                      operation="globalSearch.messages"
-                      recordId={target.sourceType === 'topic' ? target.topicId : target.sessionId}
-                      source="globalSearch"
-                    />
-                  </div>
+                  <ErrorNotice
+                    variant="inline"
+                    className="mb-4"
+                    title={t('globalSearch.error')}
+                    detail={
+                      <ErrorDetailAction
+                        error={error}
+                        message={t('globalSearch.error')}
+                        operation="globalSearch.messages"
+                        recordId={target.sourceType === 'topic' ? target.topicId : target.sessionId}
+                        source="globalSearch"
+                      />
+                    }
+                  />
                 )}
                 {isLoadingMore && (
                   <div className="py-2 text-center text-muted-foreground text-xs">{t('common.loading')}</div>

@@ -1864,6 +1864,20 @@ describe('MessagePartsRenderer', () => {
       ).toEqual(["Unknown parameter: 'response_format'.", 'Rate limit reached'])
     })
 
+    it('drops reply text that only repeats the error card message', () => {
+      const loginError = 'Not logged in \u00b7 Please run /login'
+      renderParts([
+        { type: 'text', text: 'Partial answer' },
+        { type: 'text', text: `${loginError}\n` },
+        { type: 'data-error', data: { name: 'ClaudeCodeResultError', message: loginError } }
+      ] as unknown as CherryMessagePart[])
+
+      const text = screen.getAllByTestId('mock-markdown').map((node) => node.textContent ?? '')
+      expect(text.join('\n')).toContain('Partial answer')
+      expect(text.join('\n')).not.toContain('Please run /login')
+      expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', loginError)
+    })
+
     it('does not move non-consecutive updates for the same video ahead of intervening content', async () => {
       const { container } = renderParts([
         { type: 'data-video', data: { filePath: '/tmp/same.mp4', url: 'https://v.test/first.mp4' } },

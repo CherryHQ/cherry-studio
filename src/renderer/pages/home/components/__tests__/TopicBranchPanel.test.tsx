@@ -735,7 +735,7 @@ describe('TopicBranchPanel', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('common.error')
     expect(screen.queryByRole('button', { name: 'common.retry' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     const first = detailMocks.open.mock.calls.at(-1)?.[0]
     expect(first.localizedErrorMessage ?? first.message).toBe('common.error')
@@ -746,7 +746,7 @@ describe('TopicBranchPanel', () => {
 
     detailMocks.open.mockClear()
     rerender(<TopicBranchPanel open topicId="topic-a" />)
-    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     const again = detailMocks.open.mock.calls.at(-1)?.[0]
     expect(again.error?.message ?? again.error.message).toBe(cause.message)
@@ -761,7 +761,7 @@ describe('TopicBranchPanel', () => {
     })
     rerender(<TopicBranchPanel open topicId="topic-b" />)
     detailMocks.open.mockClear()
-    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     const next = detailMocks.open.mock.calls.at(-1)?.[0]
     expect(next.context?.recordId ?? next.recordId).toBe('topic-b')
