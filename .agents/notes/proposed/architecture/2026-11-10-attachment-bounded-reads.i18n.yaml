@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-10-attachment-bounded-reads.md
+2026-11-10-attachment-bounded-reads.md: 86cc597cca1d25a97c0f84b7c7d68b5ef563245e
+2026-11-10-attachment-bounded-reads.zh.md: 16a65332a8612ff040ab93805ebebeabdd309189
