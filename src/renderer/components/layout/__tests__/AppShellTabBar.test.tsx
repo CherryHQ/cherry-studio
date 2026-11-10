@@ -196,6 +196,8 @@ afterEach(() => {
   mocks.macTransparentState.value = false
   mocks.platformState.isMac = false
   mocks.platformState.isWin = false
+  Reflect.deleteProperty(navigator, 'windowControlsOverlay')
+  vi.unstubAllGlobals()
 })
 
 describe('AppShellTabBar', () => {
@@ -241,6 +243,45 @@ describe('AppShellTabBar', () => {
 
     return closeTab
   }
+
+  it('keeps the macOS leading inset fixed through native resize and refreshes it for zoom and fullscreen', () => {
+    mocks.platformState.isMac = true
+    vi.stubGlobal('innerWidth', 1226)
+    vi.stubGlobal('devicePixelRatio', 2)
+    let rect = { x: 86, width: 1140, height: 42 }
+    const overlay = Object.assign(document.createElement('div'), { visible: true, getTitlebarAreaRect: () => rect })
+    Object.defineProperty(navigator, 'windowControlsOverlay', { configurable: true, value: overlay })
+    renderTabBar({ isFocusedTab: true })
+    const header = document.querySelector<HTMLElement>('[data-ui~="app.tab-bar"]')!
+    // The native-controls inset must not follow transient x offsets or fractional-zoom width rounding.
+    expect(header.style.paddingLeft).toBe('calc(88px)')
+
+    const changeGeometry = (width: number, next: typeof rect) => {
+      vi.stubGlobal('innerWidth', width)
+      rect = next
+      fireEvent(overlay, new Event('geometrychange'))
+    }
+    changeGeometry(1218, { x: 82, width: 1132, height: 42 })
+    expect(header.style.paddingLeft).toBe('calc(88px)')
+
+    vi.stubGlobal('devicePixelRatio', 2.5)
+    changeGeometry(981, { x: 69, width: 912, height: 34 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+    changeGeometry(974, { x: 66, width: 906, height: 34 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+
+    overlay.visible = false
+    changeGeometry(3440, { x: 0, width: 0, height: 0 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+
+    overlay.visible = true
+    vi.stubGlobal('devicePixelRatio', 2)
+    changeGeometry(3440, { x: 86, width: 1103, height: 42 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+    vi.stubGlobal('innerWidth', 1189)
+    fireEvent(window, new Event('resize'))
+    expect(header.style.paddingLeft).toBe('calc(88px)')
+  })
 
   it('shows supplied hints on pinned and normal tabs without changing their accessible names', () => {
     renderTabBar({

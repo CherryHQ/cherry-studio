@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -17,6 +17,7 @@ import type { ConfigEditPanelProps } from './types'
 import { useConfigDraftController } from './useConfigDraftController'
 
 export function useConfigEditPanelBodyProps({
+  open = true,
   onClose,
   cliTool,
   provider,
@@ -85,6 +86,7 @@ export function useConfigEditPanelBodyProps({
       {unknownCliConfigModelHint}
       {unknownCliConfigModelHint && <div className="h-2" />}
       <ModelSelector
+        showSubscriptionOffers={false}
         multiple={false}
         selectionType="id"
         value={draft.modelId}
@@ -150,7 +152,7 @@ export function useConfigEditPanelBodyProps({
   const hasAdvancedSection = !!advancedFields || draft.files.length > 0
 
   return {
-    open: true,
+    open,
     onClose,
     provider,
     providerName,

@@ -96,6 +96,7 @@ function extractError(error: unknown): {
   type?: string
   name?: string
   code?: string
+  category?: string
 } {
   if (error === null || typeof error !== 'object') return {}
   const e = error as {
@@ -104,6 +105,7 @@ function extractError(error: unknown): {
     status?: unknown
     statusCode?: unknown
     message?: unknown
+    providerErrorCategory?: unknown
     error?: { type?: unknown; message?: unknown }
   }
   // Prefer `status` (HTTP libs / OpenAI APIError), then `statusCode` (AI-SDK APICallError / SerializedError).
@@ -114,7 +116,8 @@ function extractError(error: unknown): {
   const type = typeof e.error?.type === 'string' ? e.error.type : undefined
   const name = typeof e.name === 'string' ? e.name : undefined
   const code = typeof e.code === 'string' ? e.code : undefined
-  return { status, message, type, name, code }
+  const category = typeof e.providerErrorCategory === 'string' ? e.providerErrorCategory : undefined
+  return { status, message, type, name, code, category }
 }
 
 /**
@@ -130,8 +133,13 @@ function safeMessage(status: number | undefined, message: string | undefined): s
   return isDev && message && message.length > 0 ? message : fallback
 }
 
-function normalizeProviderError(error: unknown): { statusCode: number; message: string; type?: string } {
-  const { status, message, type, name, code } = extractError(error)
+function normalizeProviderError(error: unknown): {
+  statusCode: number
+  message: string
+  type?: string
+  category?: string
+} {
+  const { status, message, type, name, code, category } = extractError(error)
   if (status !== undefined) {
     const text = safeMessage(status, message)
     // Name the reasoning setting behind a Bailian/QwenCloud `thinking_budget`
@@ -142,7 +150,8 @@ function normalizeProviderError(error: unknown): { statusCode: number; message: 
     return {
       statusCode: status >= 200 && status < 300 ? 502 : status,
       message: isThinkingBudgetRejection(error) ? appendThinkingBudgetHint(text) : text,
-      type
+      type,
+      category
     }
   }
   if (
@@ -219,8 +228,12 @@ function transformOpenAiError(error: unknown): {
   statusCode: number
   errorResponse: { error: { message: string; type: string; code: string } }
 } {
-  const { statusCode, message } = normalizeProviderError(error)
-  const { type, code } = openaiTypeAndCodeForStatus(statusCode)
+  const { statusCode, message, category } = normalizeProviderError(error)
+  // OpenAI's own quota code: clients such as Pi treat it as final instead of retrying a rate limit.
+  const { type, code } =
+    category === 'quota'
+      ? { type: 'insufficient_quota', code: 'insufficient_quota' }
+      : openaiTypeAndCodeForStatus(statusCode)
   return { statusCode, errorResponse: { error: { message, type, code } } }
 }
 
