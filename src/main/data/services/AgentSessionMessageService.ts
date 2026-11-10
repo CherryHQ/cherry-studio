@@ -1752,6 +1752,7 @@ export class AgentSessionMessageService {
 
   /** Atomically create a Session and persist its first durable delivery. */
   createSessionWithDelivery(input: {
+    delegation?: true
     senderAgentId: string
     senderSessionId: string
     senderMessageId?: string
@@ -1778,7 +1779,8 @@ export class AgentSessionMessageService {
             senderMessageId: input.senderMessageId,
             receiverSessionId: sessionId,
             content,
-            replyPolicy: 'completion'
+            replyPolicy: 'completion',
+            ...(input.delegation ? { delegation: true as const } : {})
           })
         }),
       {
@@ -1801,6 +1803,7 @@ export class AgentSessionMessageService {
   private acceptSessionDeliveryTx(
     tx: DbOrTx,
     input: {
+      delegation?: true
       senderAgentId: string
       senderSessionId: string
       senderMessageId?: string
@@ -1862,6 +1865,7 @@ export class AgentSessionMessageService {
     }
     const delivery: AgentSessionDeliveryEnvelope = {
       version: 1,
+      ...(input.delegation ? { delegation: true } : {}),
       sender: senderIdentity,
       receiver: {
         agentId: receiverSession.agentId,

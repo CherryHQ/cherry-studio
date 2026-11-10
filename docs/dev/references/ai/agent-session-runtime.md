@@ -276,8 +276,9 @@ and exposes the session tools below:
   Missing and trashed Sessions are rejected. The saved name is marked manually
   edited so automatic naming cannot overwrite it; existing read-model notifications
   refresh the Session list and detail views;
-- `agent_list` — discover Agents independently of their Sessions, with public identity, runtime
-  availability, and whether a model is configured;
+- `agent_list` — discover Agents independently of their Sessions, excluding disabled local Agents.
+  Runtime availability means a driver is registered, not that CLI authentication or model access
+  has been verified. Local Agents report unchecked readiness instead of requiring a Cherry model;
 - `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
   Session metadata, returning evidence snippets rather than adding an embedding dependency. Agent
   filters are applied before either search limit. The final limit counts distinct Sessions, each
@@ -285,6 +286,8 @@ and exposes the session tools below:
   hits instead of overloading an empty message-match list;
 - `session_create` — atomically create a Session plus its first completion request, optionally
   choosing another Agent with `target_agent_id`;
+- `agent_delegate` — create a dedicated local Agent Session in the caller's project or an explicit
+  existing user `workspace_id`, with one durable completion request;
 - `session_send` — send one-way or request an asynchronous terminal completion;
 - `session_deliveries` — inspect incoming and outgoing request/result state.
 
@@ -310,9 +313,17 @@ cross-Agent Session continues the target Agent's most recent workspace, falling 
 sender's workspace when that Agent has no Session. The model is not a tool argument because
 Sessions use their owning Agent's model.
 
+`agent_delegate` requires an enabled local target and reuses its Agent Services configuration.
+It never inherits the target's previous project. Without a caller user workspace it creates a fresh
+managed workspace; a missing or non-user explicit workspace is rejected atomically. The receipt
+contains the request ID, target Session ID and resolved workspace. Its persisted request carries
+`delegation: true`; ordinary cross-Session messages do not. Target execution and result delivery
+reuse the existing delivery service. Parent progress, approvals and task-specific controls are
+separate integration work; this entry alone does not replace the bundled Code Mate skills.
+
 ### Deliberate security ceiling
 
-`session_send` and `session_create` follow the calling Session's permission mode: interactive calls
+`session_send`, `session_create` and `agent_delegate` follow the calling Session's permission mode: interactive calls
 are auto-approved in `auto` and `bypassPermissions`, including the first send; other modes require
 per-call approval. Existing Agents in either automatic mode adopt this behavior without migration.
 Claude SDK approval requests, including explicit `permissions.ask` rules, still require a user
@@ -323,7 +334,7 @@ results do not call a model tool and route only to the immutable sender Session 
 accepted request.
 
 This deliberately limits delegation to one hop from an interactive Session. A Session started
-by a delivery cannot initiate another `session_send` or `session_create`; it can only finish its own
+by a delivery cannot initiate another `session_send`, `session_create` or `agent_delegate`; it can only finish its own
 request and let the runtime return the result. The limit prevents unattended A -> B -> A loops and a
 prompt-injected Agent from using a more privileged Agent as a confused deputy without introducing a
 speculative ACL subsystem. Upgrade only when the product requires unattended multi-hop
