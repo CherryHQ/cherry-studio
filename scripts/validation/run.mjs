@@ -91,7 +91,7 @@ function run(args) {
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
 if (tasks.some((task) => task.startsWith('types-')) || projects.length) {
-  if (process.env.VALIDATION_WORKSPACE_PREPARED !== 'true') run(['run', 'postinstall'])
+  run(['run', 'postinstall'])
   if (tasks.some((task) => task.startsWith('types-'))) run(['--filter', '@cherrystudio/ai-sdk-provider', 'build'])
 }
 for (const task of tasks) run(checkTasks[task].args)
