@@ -131,12 +131,6 @@ export function SessionListBody({
             <div className="font-medium text-destructive">{t('agent.session.get.error.failed')}</div>
             <div className="text-muted-foreground">{formatErrorMessage(error)}</div>
             <div className="flex items-center gap-2">
-              <ErrorDetailAction
-                error={error}
-                message={t('agent.session.get.error.failed')}
-                source="agent.session"
-                operation="agent.session.list"
-              />
               <Button
                 size="sm"
                 variant="outline"
@@ -145,6 +139,12 @@ export function SessionListBody({
                 disabled={isValidating}>
                 {t('common.retry')}
               </Button>
+              <ErrorDetailAction
+                error={error}
+                message={t('agent.session.get.error.failed')}
+                source="agent.session"
+                operation="agent.session.list"
+              />
             </div>
           </div>
         </ResourceList.ErrorState>

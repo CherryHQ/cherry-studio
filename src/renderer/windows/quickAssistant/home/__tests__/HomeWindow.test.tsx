@@ -419,7 +419,7 @@ describe('HomeWindow', () => {
         responseBody: 'overloaded'
       })
     })
-    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
 
     await waitFor(() => expect(state.openDetail).toHaveBeenCalled())
     expect(state.openDetail.mock.calls.at(-1)?.[0].context).toMatchObject({
