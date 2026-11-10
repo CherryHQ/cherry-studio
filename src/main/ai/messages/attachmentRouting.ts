@@ -164,13 +164,22 @@ async function resolveAttachmentFileType(
   entryId: string,
   bareExt: string,
   signal?: AbortSignal
-): Promise<{ fileType: FileType; mediaType?: string; unknownProbe?: boolean }> {
+): Promise<{ fileType: FileType; mediaType?: string; unknownProbe?: boolean; probeFailed?: boolean }> {
   if (bareExt.replace(/^\./, '').toLowerCase() !== 'webm') {
     const fileType = getFileTypeByExt(bareExt)
     const mediaType = dispatchAudioMediaType(bareExt)
     return mediaType ? { fileType, mediaType } : { fileType }
   }
-  const probe = await application.get('MediaAnalysisService').probe({ kind: 'entry', entryId }, signal)
+  const probe = await application
+    .get('MediaAnalysisService')
+    .probe({ kind: 'entry', entryId }, signal)
+    .catch((error: unknown) => {
+      if (signal?.aborted || isAbortError(error)) throw error
+      logger.warn('WebM probe failed; keeping the extension type for native delivery', { error, entryId })
+      return null
+    })
+  // The name is the only evidence left, so a native-video model still receives the file.
+  if (!probe) return { fileType: FILE_TYPE.VIDEO, probeFailed: true }
   // A .webm name can still be Matroska or MP4. Kind chooses the capability; probe.mime is dispatched.
   if (probe.kind === 'video') return { fileType: FILE_TYPE.VIDEO, mediaType: probe.mime }
   if (probe.kind === 'audio') return { fileType: FILE_TYPE.AUDIO, mediaType: probe.mime }
@@ -335,6 +344,12 @@ async function prepareChatMessage<T extends UIMessage>(
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
           kept.push(noteOf(handle))
         }
+        continue
+      }
+
+      // Analysis needs the same probe, so an unprobed WebM that is not native stays a note.
+      if (resolved.probeFailed) {
+        kept.push(noteOf(handle))
         continue
       }
 

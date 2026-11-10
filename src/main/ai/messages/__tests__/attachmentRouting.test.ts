@@ -378,6 +378,24 @@ describe('prepareChatMessages — routing', () => {
       expect(mediaAnalysisMock).not.toHaveBeenCalled()
     })
 
+    it('still sends a WebM to a native-video model when the probe fails', async () => {
+      materializerMode.real = true
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockRejectedValueOnce(new Error('ffprobe unavailable'))
+      readMock.mockResolvedValueOnce({ content: 'VklERU8=', mime: 'video/webm' })
+
+      const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], videoNative)
+
+      expect(out.parts).toEqual([
+        expect.objectContaining({
+          type: 'file',
+          filename: 'clip.webm',
+          mediaType: 'video/webm',
+          url: 'data:video/webm;base64,VklERU8='
+        })
+      ])
+    })
+
     it('dispatches a renamed Matroska container as the probed MIME', async () => {
       materializerMode.real = true
       getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
