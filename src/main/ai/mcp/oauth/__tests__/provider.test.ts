@@ -65,15 +65,18 @@ describe('McpOAuthClientProvider authorization redirect', () => {
     expect(openMock).toHaveBeenCalledWith(authorizationUrl.toString())
   })
 
-  it.each(['ipv4', 'legacy', 'localhost', 'new'] as const)(
+  it.each(['ipv4', 'legacy', 'localhost', 'new', 'ipv4-recovery', 'legacy-recovery', 'localhost-recovery'] as const)(
     'keeps the registered redirect through %s client authorization and a restarted callback',
     async (registration) => {
+      const recovery = registration.endsWith('-recovery')
+      const savedRegistration = registration.replace('-recovery', '')
+      let refreshes = 0
       const issuer = 'https://auth.example.com'
       const serverUrl = 'https://resource.example.com/mcp'
       const resourceMetadataUrl = 'https://resource.example.com/metadata'
       const ipv4 = 'http://127.0.0.1:12346/oauth/callback'
       const localhost = 'http://localhost:12346/oauth/callback'
-      let registeredRedirect = registration === 'localhost' || registration === 'new' ? localhost : ipv4
+      let registeredRedirect = savedRegistration === 'localhost' || registration === 'new' ? localhost : ipv4
       let registrations = 0
       const metadata = {
         issuer,
@@ -89,8 +92,11 @@ describe('McpOAuthClientProvider authorization redirect', () => {
       if (registration !== 'new') {
         await seed.saveClientInformation({
           client_id: 'saved-client',
-          ...(registration === 'legacy' ? {} : { redirect_uris: [registeredRedirect] })
+          ...(savedRegistration === 'legacy' ? {} : { redirect_uris: [registeredRedirect] })
         })
+      }
+      if (recovery) {
+        await seed.saveTokens({ access_token: 'expired', refresh_token: 'old-refresh', token_type: 'Bearer' })
       }
       const fetchFn: typeof fetch = async (input, init) => {
         const url = input.toString()
@@ -110,6 +116,12 @@ describe('McpOAuthClientProvider authorization redirect', () => {
           })
         }
         if (url === `${issuer}/token`) {
+          const params = new URLSearchParams(String(init?.body))
+          if (params.get('grant_type') === 'refresh_token') {
+            refreshes++
+            expect(params.get('client_id')).toBe('saved-client')
+            return Response.json({ error: 'invalid_client' }, { status: 400 })
+          }
           expect(new URLSearchParams(String(init?.body)).get('redirect_uri')).toBe(registeredRedirect)
           return Response.json({ access_token: 'renewed-token', token_type: 'Bearer' })
         }
@@ -125,8 +137,9 @@ describe('McpOAuthClientProvider authorization redirect', () => {
       const authorizationUrl = new URL(openMock.mock.calls[0][0])
       expect((await fetchFn(authorizationUrl)).status).toBe(200)
       expect(authorizationUrl.searchParams.get('state')).toBeTruthy()
-      expect(registrations).toBe(registration === 'new' ? 1 : 0)
+      expect(registrations).toBe(registration === 'new' || recovery ? 1 : 0)
 
+      expect(refreshes).toBe(recovery ? 1 : 0)
       // Callback processing can restart with a new provider. The saved client and
       // issuer binding must select the same redirect for the code exchange.
       const callback = new McpOAuthClientProvider({ serverUrlHash: 'redirect-test', configDir })
@@ -136,7 +149,7 @@ describe('McpOAuthClientProvider authorization redirect', () => {
           auth(callback, { serverUrl, authorizationCode: 'code', iss: issuer, fetchFn })
         )
       ).resolves.toBe('AUTHORIZED')
-      expect(registrations).toBe(registration === 'new' ? 1 : 0)
+      expect(registrations).toBe(registration === 'new' || recovery ? 1 : 0)
     }
   )
 
@@ -208,6 +221,32 @@ describe('McpOAuthClientProvider.invalidateCredentials', () => {
   afterEach(async () => {
     await fs.rm(configDir, { recursive: true, force: true })
   })
+
+  it.each(['flow', 'direct'] as const)(
+    'resets only discarded-client redirects in %s use before metadata is read',
+    async (mode) => {
+      for (const scope of ['all', 'client', 'tokens', 'verifier', 'discovery'] as const) {
+        for (const knownIssuer of [true, false]) {
+          const provider = makeProvider()
+          await provider.invalidateCredentials('all')
+          await seedRegisteredClient(knownIssuer ? 'https://auth.example.com' : undefined)
+          provider.reloadCredentials()
+          const check = async () => {
+            await provider.clientInformation()
+            expect(provider.redirectUrl).toContain('http://127.0.0.1:')
+            await provider.invalidateCredentials(scope)
+            const discarded = scope === 'all' || scope === 'client' || (scope === 'tokens' && !knownIssuer)
+            // Read metadata before a lookup, in the same order used by SDK recovery.
+            expect(provider.clientMetadata.redirect_uris).toEqual([
+              `http://${discarded ? 'localhost' : '127.0.0.1'}:12346/oauth/callback`
+            ])
+          }
+          if (mode === 'flow') await provider.withAuthorizationFlow(check)
+          else await check()
+        }
+      }
+    }
+  )
 
   it("scope 'tokens' clears only the tokens when the auth server is known", async () => {
     await seedRegisteredClient('https://auth.example.com')

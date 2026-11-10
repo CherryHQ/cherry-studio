@@ -171,8 +171,15 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
       ? { issuer: discovery.authorizationServerMetadata?.issuer ?? discovery.authorizationServerUrl }
       : undefined
     await this.storage.clear(scope, ctx)
-    if (scope === 'tokens' && !(discovery ?? (await this.storage.getDiscoveryState()))?.authorizationServerUrl) {
-      await this.storage.clear('client', ctx)
+    const clearsLegacyClient =
+      scope === 'tokens' && !(discovery ?? (await this.storage.getDiscoveryState()))?.authorizationServerUrl
+    if (clearsLegacyClient) await this.storage.clear('client', ctx)
+    if (scope === 'all' || scope === 'client' || clearsLegacyClient) {
+      // The SDK snapshots registration metadata before its next client lookup.
+      // Once that client is discarded, select the new-client URI before retrying.
+      const flow = this.authorizationFlow.getStore()
+      if (flow) flow.redirectUrl = undefined
+      else this.registeredRedirectUrl = undefined
     }
   }
 }
