@@ -70,11 +70,31 @@ export function createChatStreamLifecycle(
     },
     onTerminal(stream) {
       const completedAt = broadcast(stream, stream.status)
-      if (stream.status === 'done' && completedAt !== undefined && stream.isPersistentConversation) {
+      if (
+        stream.status === 'done' &&
+        completedAt !== undefined &&
+        stream.isPersistentConversation &&
+        !stream.hasTaskResultOwner &&
+        !stream.completionFailed
+      ) {
+        const responseText = [...stream.executions.values()]
+          .sort((a, b) => (b.timings.completedAt ?? 0) - (a.timings.completedAt ?? 0))
+          .map((execution) =>
+            execution.finalMessage?.parts
+              .filter((part) => part.type === 'text')
+              .map((part) => part.text)
+              .join('\n')
+              .trim()
+          )
+          .find((text) => text)
         onConversationCompleted({
           topicId: stream.topicId,
           turnId: stream.turnId,
-          completedAt
+          ...(stream.completedTaskCount && stream.completedTaskCount > 1
+            ? { completedTaskCount: stream.completedTaskCount }
+            : {}),
+          completedAt,
+          responseText
         })
       }
     },

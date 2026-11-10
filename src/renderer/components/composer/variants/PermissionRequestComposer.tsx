@@ -1,8 +1,9 @@
-import { Loader2 } from 'lucide-react'
+import { Loader2, TriangleAlert } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
@@ -12,13 +13,13 @@ import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/A
 import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/chat/messages/tools/shared/ToolDisclosure'
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
+import { getPermissionRiskEffects, type PermissionRiskEffect } from './permissionRisk'
 
 export type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
 export { findNextPendingPermissionRequest } from './permissionRequestComposerRequest'
@@ -66,9 +67,11 @@ function renderBuiltinPreviewChildren(toolName: string, children: ToolDisclosure
   }
 
   return (
-    <Scrollbar className="max-h-60 overflow-x-hidden" data-testid="permission-builtin-body-scroll">
+    <ScrollArea
+      viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'permission-builtin-body-scroll' }}
+      className="max-h-60">
       {children}
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 
@@ -121,9 +124,11 @@ function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse 
     <div className="px-3 py-2">
       <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
       {args ? (
-        <Scrollbar className="max-h-60 overflow-x-hidden" data-testid="permission-mcp-args-scroll">
+        <ScrollArea
+          viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'permission-mcp-args-scroll' }}
+          className="max-h-60">
           <ToolArgsTable args={args} title={t('message.tools.sections.input')} />
-        </Scrollbar>
+        </ScrollArea>
       ) : (
         <div className="py-2 text-muted-foreground text-xs">{t('message.tools.noData')}</div>
       )}
@@ -154,6 +159,39 @@ function PermissionPreviewHeader({ toolName, description }: { toolName: string; 
       {description ? (
         <div className="mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-4">{description}</div>
       ) : null}
+    </div>
+  )
+}
+
+const RISK_EFFECT_TONE: Record<PermissionRiskEffect, string> = {
+  destructive: 'text-destructive',
+  irreversible: 'text-destructive',
+  network: 'text-warning'
+}
+
+function PermissionRiskSummary({ toolName, args }: { toolName: string; args: unknown }) {
+  const { t } = useTranslation()
+  const effects = getPermissionRiskEffects(toolName, args)
+  if (effects.length === 0) return null
+  const effectLabels: Record<PermissionRiskEffect, string> = {
+    destructive: t('agent.toolPermission.risk.destructive'),
+    irreversible: t('agent.toolPermission.risk.irreversible'),
+    network: t('agent.toolPermission.risk.network')
+  }
+
+  return (
+    <div
+      data-testid="permission-risk-summary"
+      className="mt-2 rounded-[12px] border border-border bg-background px-3 py-2">
+      <div className="font-medium text-muted-foreground text-xs">{t('agent.toolPermission.risk.title')}</div>
+      <ul className="mt-1 space-y-0.5">
+        {effects.map((effect) => (
+          <li key={effect} className={`flex items-start gap-1.5 text-xs leading-4 ${RISK_EFFECT_TONE[effect]}`}>
+            <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+            {effectLabels[effect]}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -201,7 +239,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
 
   const deny = useCallback(async () => {
     if (isSubmitting) return
-    const reason = rejectionReason.trim() || t('agent.toolPermission.defaultDenyMessage')
+    const reason = rejectionReason.trim() || undefined
     await respond(
       {
         match: request.match,
@@ -210,7 +248,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
       },
       'deny'
     )
-  }, [isSubmitting, rejectionReason, request.match, respond, t])
+  }, [isSubmitting, rejectionReason, request.match, respond])
 
   useHotkeys(
     'enter',
@@ -236,7 +274,9 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
             </span>
             {toolTitle}
           </h2>
-          {subtitle ? <span className="min-w-0 truncate text-muted-foreground text-xs">{subtitle}</span> : null}
+          {subtitle ? (
+            <span className="min-w-0 flex-1 break-words text-muted-foreground text-xs">{subtitle}</span>
+          ) : null}
           {/* Live region stays mounted while idle so injecting the processing pill is announced */}
           <div role="status" aria-live="polite" className="ml-auto shrink-0">
             {isSubmitting ? (
@@ -248,6 +288,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           </div>
         </div>
 
+        <PermissionRiskSummary toolName={request.toolResponse.tool.name} args={request.toolResponse.arguments} />
         <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>

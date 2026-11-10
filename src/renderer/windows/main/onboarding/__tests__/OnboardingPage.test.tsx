@@ -31,7 +31,11 @@ const cloudMocks = vi.hoisted(() => ({
   appEdition: 'global' as 'cn' | 'global',
   ipcRequest: vi.fn(),
   statusListener: undefined as
-    | ((status: { phase: 'signed-out' | 'authorizing' | 'signed-in'; displayName: string | null }) => void)
+    | ((status: {
+        phase: 'signed-out' | 'authorizing' | 'signed-in'
+        accountId: string | null
+        displayName: string | null
+      }) => void)
     | undefined
 }))
 const dataApiMocks = vi.hoisted(() => ({
@@ -69,17 +73,38 @@ vi.mock('@renderer/utils/appEdition', () => ({
   getAppEdition: () => cloudMocks.appEdition
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: cloudMocks.ipcRequest },
-  useIpcOn: vi.fn(
-    (
-      event: string,
-      listener: (status: { phase: 'signed-out' | 'authorizing' | 'signed-in'; displayName: string | null }) => void
-    ) => {
-      if (event === 'cherry_cloud.status_changed') cloudMocks.statusListener = listener
+vi.mock('@renderer/ipc', () => {
+  let revision = 0
+  function receipt(status: {
+    phase: 'signed-out' | 'authorizing' | 'signed-in'
+    accountId: string | null
+    displayName: string | null
+  }) {
+    return {
+      status: { ...status, scopeId: status.accountId ?? status.phase, revision: ++revision },
+      reason: 'initial',
+      account: { freshness: 'unknown', error: null },
+      models: { freshness: 'unknown', error: null },
+      plans: { freshness: 'unknown', error: null }
     }
-  )
-}))
+  }
+  return {
+    ipcApi: {
+      request: async (route: string, ...args: unknown[]) => {
+        if (route === 'cherry_cloud.account.get') return receipt(await cloudMocks.ipcRequest('cherry_cloud.status.get'))
+        const result = await cloudMocks.ipcRequest(route, ...args)
+        if (route === 'cherry_cloud.login.start' && result?.phase === 'authorizing') {
+          cloudMocks.statusListener?.(result)
+          return new Promise(() => undefined)
+        }
+        return result
+      }
+    },
+    useIpcOn: vi.fn((event: string, listener: (value: unknown) => void) => {
+      if (event === 'cherry_cloud.account_changed') cloudMocks.statusListener = (status) => listener(receipt(status))
+    })
+  }
+})
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: () => ({
@@ -170,11 +195,16 @@ describe('OnboardingPage', () => {
     cloudMocks.appEdition = 'global'
     cloudMocks.statusListener = undefined
     cloudMocks.ipcRequest.mockImplementation(async (route: string) => {
-      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
-      if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', displayName: null }
-      if (route === 'cherry_cloud.login.cancel') return { phase: 'signed-out', displayName: null }
+      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', accountId: null, displayName: null }
+      if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', accountId: null, displayName: null }
+      if (route === 'cherry_cloud.login.cancel') return { phase: 'signed-out', accountId: null, displayName: null }
       if (route === 'cherry_cloud.models.sync') {
-        return { entitledModelIds: [], quotaExhaustedModelIds: [] }
+        return {
+          entitledModelIds: [],
+          freeModelIds: [],
+          availableModelIds: { agent: [], general: [] },
+          quotaExhaustedModelIds: []
+        }
       }
       throw new Error(`Unexpected IPC route: ${route}`)
     })
@@ -689,14 +719,20 @@ describe('OnboardingPage', () => {
   })
 
   it('selects the first available Cherry Cloud Agent model and completes onboarding', async () => {
+    const chatOnlyCloudModelId = `${CHERRY_CLOUD_PROVIDER_ID}::chat-only-model`
     const firstCloudAgentModelId = `${CHERRY_CLOUD_PROVIDER_ID}::first-agent-model`
     const secondCloudAgentModelId = `${CHERRY_CLOUD_PROVIDER_ID}::second-agent-model`
     cloudMocks.appEdition = 'cn'
     cloudMocks.ipcRequest.mockImplementation(async (route: string) => {
-      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
+      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', accountId: null, displayName: null }
       if (route === 'cherry_cloud.models.sync') {
         return {
-          entitledModelIds: [firstCloudAgentModelId, secondCloudAgentModelId],
+          entitledModelIds: [chatOnlyCloudModelId, firstCloudAgentModelId, secondCloudAgentModelId],
+          freeModelIds: [firstCloudAgentModelId, secondCloudAgentModelId],
+          availableModelIds: {
+            agent: [firstCloudAgentModelId, secondCloudAgentModelId],
+            general: [chatOnlyCloudModelId]
+          },
           quotaExhaustedModelIds: []
         }
       }
@@ -717,7 +753,7 @@ describe('OnboardingPage', () => {
     render(<OnboardingPage enableCherryAccountLogin />)
 
     await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
-    act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
+    act(() => cloudMocks.statusListener?.({ phase: 'signed-in', accountId: 'account-1', displayName: 'Alice' }))
 
     await waitFor(() => {
       expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/assistant-agent', {
@@ -740,7 +776,7 @@ describe('OnboardingPage', () => {
     render(<OnboardingPage enableCherryAccountLogin />)
 
     await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
-    act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
+    act(() => cloudMocks.statusListener?.({ phase: 'signed-in', accountId: 'account-1', displayName: 'Alice' }))
 
     expect(await screen.findByText('onboarding.cloud.no_available_models')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'common.confirm' }))

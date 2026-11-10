@@ -1,0 +1,21 @@
+name: Set up validation dependencies
+description: Install the pinned runtime and dependencies using the pnpm store cache
+outputs:
+  cache-state:
+    description: Exact pnpm store hit, or unknown for misses
+    value: ${{ steps.node.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v5
+    - uses: actions/setup-node@v7
+      id: node
+      with:
+        node-version-file: .node-version
+        cache: pnpm
+        cache-dependency-path: pnpm-lock.yaml
+    - name: Install dependencies
+      shell: bash
+      run: |
+        pnpm install --frozen-lockfile
+        echo "VALIDATION_WORKSPACE_PREPARED=true" >> "$GITHUB_ENV"

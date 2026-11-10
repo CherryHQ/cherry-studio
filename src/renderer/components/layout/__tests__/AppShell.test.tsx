@@ -5,14 +5,18 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUI from '@cherrystudio/ui'
+import type * as CommandHooks from '@renderer/hooks/command'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
+
+vi.mock('@cherrystudio/ui', async () => vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui'))
 
 const mocks = vi.hoisted(() => ({
   closeTab: vi.fn(),
   closeTabs: vi.fn(),
   detachTab: vi.fn(),
   setActiveTab: vi.fn(),
-  commandHandlers: new Map<string, { handler: () => void; options?: { enabled?: boolean } }>(),
+  commandHandlers: new Map<string, { handler: () => void; options?: CommandHooks.CommandHandlerOptions }>(),
   ipcHandlers: new Map<string, (value: unknown) => void>(),
   ipcRequest: vi.fn(() => Promise.resolve(false)),
   activeTabId: 'home',
@@ -36,16 +40,29 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
+  get platform() {
+    return mocks.platformState.isMac ? 'darwin' : 'win32'
+  },
   get isMac() {
     return mocks.platformState.isMac
-  }
+  },
+  isLinux: false
 }))
 
-vi.mock('@renderer/hooks/command', () => ({
-  useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
-    mocks.commandHandlers.set(command, { handler, options })
+vi.mock('@renderer/hooks/command', async (importOriginal) => {
+  const actual = await importOriginal<typeof CommandHooks>()
+  return {
+    ...actual,
+    useCommandHandler: (
+      command: Parameters<typeof actual.useCommandHandler>[0],
+      handler: () => void,
+      options?: Parameters<typeof actual.useCommandHandler>[2]
+    ) => {
+      mocks.commandHandlers.set(command, { handler, options })
+      actual.useCommandHandler(command, handler, options)
+    }
   }
-}))
+})
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
@@ -63,22 +80,26 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   }
 }))
 
-vi.mock('../../../hooks/tab', () => ({
-  useMainWindowNavigation: vi.fn(),
-  useTabs: () => ({
-    activeTabId: mocks.activeTabId,
-    closeTab: mocks.closeTab,
-    closeTabs: mocks.closeTabs,
-    detachTab: mocks.detachTab,
-    openTab: vi.fn(),
-    pinTab: vi.fn(),
-    reorderTabs: vi.fn(),
-    setActiveTab: mocks.setActiveTab,
-    tabs: mocks.tabs,
-    unpinTab: vi.fn(),
-    updateTab: vi.fn()
-  })
-}))
+vi.mock('../../../hooks/tab', async () => {
+  const actual = (await vi.importActual('../../../hooks/tab')) as Record<string, unknown>
+  return {
+    ...(actual as object),
+    useMainWindowNavigation: vi.fn(),
+    useTabs: () => ({
+      activeTabId: mocks.activeTabId,
+      closeTab: mocks.closeTab,
+      closeTabs: mocks.closeTabs,
+      detachTab: mocks.detachTab,
+      openTab: vi.fn(),
+      pinTab: vi.fn(),
+      reorderTabs: vi.fn(),
+      setActiveTab: mocks.setActiveTab,
+      tabs: mocks.tabs,
+      unpinTab: vi.fn(),
+      updateTab: vi.fn()
+    })
+  }
+})
 
 vi.mock('../../app/Sidebar', () => ({
   default: () => <aside data-testid="sidebar" />
@@ -110,7 +131,28 @@ vi.mock('../TabRouter', () => ({
   TabRouter: ({ tab }: { tab: { id: string } }) => <section data-testid="tab-router" data-tab-id={tab.id} />
 }))
 
+import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+
 import { AppShell } from '../AppShell'
+
+function ShellWithCommands() {
+  return (
+    <CommandContextKeyProvider>
+      <CommandProvider>
+        <AppShell />
+        <button type="button">Command target</button>
+      </CommandProvider>
+    </CommandContextKeyProvider>
+  )
+}
+
+function pressShellCommand(key: string, shiftKey = false) {
+  const event = new KeyboardEvent('keydown', { key, ctrlKey: true, shiftKey, bubbles: true, cancelable: true })
+  act(() => {
+    screen.getByRole('button', { name: 'Command target' }).dispatchEvent(event)
+  })
+  return event.defaultPrevented
+}
 
 afterEach(() => {
   cleanup()
@@ -274,8 +316,8 @@ describe('AppShell', () => {
     const detachFocusedTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
     detachFocusedTab?.(settingsTab.id)
 
-    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id)
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('first')
+    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id, 'first')
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
   })
 
   it('restores the most recently accessed workspace tab when Settings is restored active', () => {
@@ -310,8 +352,8 @@ describe('AppShell', () => {
 
     const detachFocusedTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
     detachFocusedTab?.(settingsTab.id)
-    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id)
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('home')
+    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id, 'home')
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
   })
 
   it('blocks and dismisses global search while the Settings tab is focused', () => {
@@ -347,6 +389,8 @@ describe('AppShell', () => {
       throw new Error('Expected AppShell to render a root and content column')
     }
 
+    expect(root.matches('[data-ui~="app.shell"]')).toBe(true)
+    expect(container.querySelectorAll('[data-ui~="app.shell"]')).toHaveLength(1)
     expect(sidebar.parentElement).toBe(root)
     expect(contentColumn.parentElement).toBe(root)
     expect(contentColumn).toContainElement(tabBar)
@@ -378,6 +422,8 @@ describe('AppShell', () => {
       throw new Error('Expected AppShell to render macOS left and content columns')
     }
 
+    expect(root.matches('[data-ui~="app.shell"]')).toBe(true)
+    expect(container.querySelectorAll('[data-ui~="app.shell"]')).toHaveLength(1)
     expect(trafficLightDragRegion.parentElement).toBe(root)
     expect(trafficLightDragRegion).toHaveClass('absolute', 'top-0', 'left-0')
     expect(trafficLightDragRegion).toHaveClass('w-[env(titlebar-area-x)]')
@@ -445,105 +491,6 @@ describe('AppShell', () => {
     expect(mocks.tabBarProps).toHaveProperty('isFullscreen', false)
   })
 
-  it('clears the split state when the last mini-app tab closes', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
-    mocks.tabs = [
-      ...mocks.tabs,
-      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' }
-    ]
-
-    render(<AppShell />)
-    const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
-    closeTab?.('mini-left')
-
-    // A surviving split would reopen the next mini app straight into the stale
-    // pane and keep `right-app` pinned in the keep-alive pool.
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
-    expect(mocks.closeTab).toHaveBeenCalledWith('mini-left')
-  })
-
-  it('keeps the split state while another mini-app tab is still open', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
-    mocks.tabs = [
-      ...mocks.tabs,
-      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' },
-      { id: 'mini-other', isDormant: false, title: 'Other', type: 'route', url: '/app/mini-app/other-app' }
-    ]
-
-    render(<AppShell />)
-    const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
-    closeTab?.('mini-left')
-
-    // The remaining mini-app tab still renders the split, so collapsing it here
-    // would drop the pane out from under the user.
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
-  })
-
-  it('leaves non mini-app tab closes untouched', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
-
-    render(<AppShell />)
-    const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
-    closeTab?.('home')
-
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
-  })
-
-  it('clears the split state when the last mini-app tab detaches', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
-    mocks.tabs = [
-      ...mocks.tabs,
-      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' }
-    ]
-
-    render(<AppShell />)
-    const detachTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
-    detachTab?.('mini-left')
-
-    // Split state does not follow the tab to the new window, so leaving it set
-    // here reopens the next mini app straight into a split nobody asked for.
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
-    expect(mocks.detachTab).toHaveBeenCalledWith('mini-left')
-  })
-
-  it('keeps the split state when detaching leaves another mini-app tab behind', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
-    mocks.tabs = [
-      ...mocks.tabs,
-      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' },
-      { id: 'mini-other', isDormant: false, title: 'Other', type: 'route', url: '/app/mini-app/other-app' }
-    ]
-
-    render(<AppShell />)
-    const detachTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
-    detachTab?.('mini-left')
-
-    // The mini-app tab still in this window keeps rendering the split.
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
-  })
-
-  it('leaves non mini-app tab detaches untouched', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
-
-    render(<AppShell />)
-    const detachTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
-    detachTab?.('home')
-
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
-  })
-
   it('cycles tabs via command handlers', () => {
     mocks.tabs = [
       ...mocks.tabs,
@@ -578,27 +525,25 @@ describe('AppShell', () => {
     expect(mocks.setActiveTab).toHaveBeenCalledWith('tab3')
   })
 
-  it('disables tab cycling commands when there is no reachable next tab', () => {
-    const { rerender } = render(<AppShell />)
-
-    expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: false })
-    expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: false })
+  it('leaves tab cycling keys unconsumed until another tab is reachable', () => {
+    const { rerender } = render(<ShellWithCommands />)
+    expect(pressShellCommand('Tab')).toBe(false)
+    expect(pressShellCommand('Tab', true)).toBe(false)
 
     mocks.tabs = [...mocks.tabs, { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' }]
     mocks.activeTabId = 'missing'
-    rerender(<AppShell />)
-
-    expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: false })
-    expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: false })
+    rerender(<ShellWithCommands />)
+    expect(pressShellCommand('Tab')).toBe(false)
+    expect(pressShellCommand('Tab', true)).toBe(false)
 
     mocks.activeTabId = 'home'
-    rerender(<AppShell />)
-
-    expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: true })
-    expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: true })
+    rerender(<ShellWithCommands />)
+    expect(pressShellCommand('Tab')).toBe(true)
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('tab2')
   })
 
   it('closes the active tab from the tab-close shortcut', () => {
+    mocks.platformState.isMac = true
     mocks.tabs = [...mocks.tabs, { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' }]
     mocks.activeTabId = 'tab2'
 
@@ -606,13 +551,42 @@ describe('AppShell', () => {
     mocks.commandHandlers.get('tab.close')?.handler()
 
     expect(mocks.closeTab).toHaveBeenCalledWith('tab2')
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
   })
 
-  it('disables the tab-close shortcut when no tab is active', () => {
-    mocks.activeTabId = 'missing'
+  it('closes the main window from the shortcut when the last tab is open on macOS', () => {
+    mocks.platformState.isMac = true
 
     render(<AppShell />)
+    mocks.commandHandlers.get('tab.close')?.handler()
 
-    expect(mocks.commandHandlers.get('tab.close')?.options).toEqual({ enabled: false })
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('window.close')
+    expect(mocks.closeTab).not.toHaveBeenCalled()
+  })
+
+  it('keeps the Launchpad fallback when the last tab is closed by the shortcut off macOS', () => {
+    render(<AppShell />)
+    mocks.commandHandlers.get('tab.close')?.handler()
+
+    expect(mocks.closeTab).toHaveBeenCalledWith('home')
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
+  })
+
+  it('keeps the last-tab close via the tab bar on the empty-state fallback on macOS', () => {
+    mocks.platformState.isMac = true
+
+    render(<AppShell />)
+    const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
+    closeTab?.('home')
+
+    expect(mocks.closeTab).toHaveBeenCalledWith('home')
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
+  })
+
+  it('leaves the tab-close key unconsumed when no tab is active', () => {
+    mocks.activeTabId = 'missing'
+    render(<ShellWithCommands />)
+    expect(pressShellCommand('w')).toBe(false)
+    expect(mocks.closeTab).not.toHaveBeenCalled()
   })
 })

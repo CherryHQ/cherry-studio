@@ -9,22 +9,43 @@ export default defineProvider({
   availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
+    'openai-image-generation': { adapterFamily: 'openai' },
+    'openai-image-edit': { adapterFamily: 'openai' },
     'openai-responses': {
       adapterFamily: 'openai',
       baseUrl: 'https://api.openai.com',
       reasoningFormat: { type: 'openai-responses', wire: openaiResponsesSummaryWire }
     }
   },
+  overrides: [
+    {
+      apiModelId: 'gpt-image-2.6-flare',
+      endpointTypes: ['openai-image-generation', 'openai-image-edit'],
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 5 },
+        output: { currency: 'USD', perMillionTokens: 30 }
+      }
+    },
+    {
+      apiModelId: 'gpt-image-2.6-sunburst',
+      endpointTypes: ['openai-image-generation', 'openai-image-edit'],
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 5 },
+        output: { currency: 'USD', perMillionTokens: 30 }
+      }
+    }
+  ],
   serverTools: [
     {
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModels,
-      modelIds: ['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna']
+      modelIds: ['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-1-sol', 'gpt-6-1-terra']
     }
   ],
   metadata: {
     website: {
+      billing: 'https://platform.openai.com/settings/organization/billing/overview',
       apiKey: 'https://platform.openai.com/api-keys',
       docs: 'https://platform.openai.com/docs',
       models: 'https://platform.openai.com/docs/models',

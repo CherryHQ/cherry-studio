@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MessageListItem, MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
+import { toast } from '@renderer/services/toast'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -283,6 +284,191 @@ describe('useMessageSelectionController', () => {
     expect(setCacheValue).not.toHaveBeenCalledWith('chat.selected_message_ids', [])
     expect(cacheValues['chat.multi_select_mode']).toBe(true)
     expect(cacheValues['chat.selected_message_ids']).toEqual(['a'])
+  })
+
+  describe('per-message delete policy', () => {
+    const user = message('user')
+    const otherUser = message('other-user')
+    const assistant: MessageListItem = { ...message('assistant'), role: 'assistant' }
+    const canDeleteMessage = (item: MessageListItem) => item.role !== 'assistant'
+
+    const renderPolicyController = () => {
+      const stored = new Map([user, otherUser, assistant].map((item) => [item.id, item]))
+      const deleteMessage = vi.fn(async (id: string) => {
+        stored.delete(id)
+      })
+      const initialProps: {
+        messages: MessageListItem[]
+        selectAllPagination?: MessageListSelectAllPagination
+      } = { messages: [...stored.values()] }
+      const hook = renderHook(
+        (props: typeof initialProps) =>
+          useMessageSelectionController({
+            topicId: 'topic-1',
+            partsByMessageId: {},
+            deleteMessage,
+            canDeleteMessage,
+            ...props
+          }),
+        { initialProps }
+      )
+      return { ...hook, stored, deleteMessage, initialProps }
+    }
+
+    it.each([
+      ['assistant-only', ['assistant']],
+      ['user then assistant', ['user', 'assistant']],
+      ['assistant then user', ['assistant', 'user']]
+    ])('hides delete for %s selection and restores it for the remaining user', (_name, ids) => {
+      const { result, rerender, initialProps } = renderPolicyController()
+      act(() => {
+        for (const id of ids) result.current.actions.selectMessage?.(id, true)
+      })
+      rerender(initialProps)
+      expect(result.current.actions.deleteSelectedMessages).toBeUndefined()
+      expect(result.current.actions.copySelectedMessages).toBeDefined()
+      act(() => {
+        result.current.actions.selectMessage?.('assistant', false)
+        result.current.actions.selectMessage?.('user', true)
+      })
+      rerender(initialProps)
+      expect(result.current.selection.selectedMessageIds).toEqual(['user'])
+      expect(result.current.actions.deleteSelectedMessages).toBeDefined()
+    })
+
+    it.each([
+      ['user then assistant', ['user', 'assistant']],
+      ['assistant then user', ['assistant', 'user']]
+    ])('rejects an explicit %s plan through a retained user-only callback without any writes', async (_name, ids) => {
+      const { result, rerender, initialProps, stored, deleteMessage } = renderPolicyController()
+      act(() => {
+        result.current.actions.toggleMultiSelectMode?.(true)
+        result.current.actions.selectMessage?.('user', true)
+      })
+      rerender(initialProps)
+      const deleteSelectedMessages = result.current.actions.deleteSelectedMessages!
+      const before = [...stored.entries()]
+      await act(async () => {
+        await deleteSelectedMessages(ids)
+      })
+      expect(deleteMessage).not.toHaveBeenCalled()
+      expect([...stored.entries()]).toEqual(before)
+      expect(popupConfirm).not.toHaveBeenCalled()
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['user'])
+      expect(cacheValues['chat.multi_select_mode']).toBe(true)
+    })
+
+    it('deletes only requested user messages and leaves the assistant untouched', async () => {
+      const { result, stored, deleteMessage } = renderPolicyController()
+      await act(async () => {
+        await result.current.actions.deleteSelectedMessages!(['other-user', 'user'])
+      })
+      expect([...stored.values()]).toEqual([assistant])
+      expect(deleteMessage.mock.calls).toEqual([
+        ['other-user', { selectedMessageIds: ['other-user', 'user'] }],
+        ['user', { selectedMessageIds: ['other-user', 'user'] }]
+      ])
+      expect(popupConfirm).toHaveBeenCalledWith(
+        expect.objectContaining({ content: 'message.delete.confirm.content:2' })
+      )
+      expect(toast.success).toHaveBeenCalledWith('message.delete.success')
+      expect(cacheValues['chat.multi_select_mode']).toBe(false)
+      expect(cacheValues['chat.selected_message_ids']).toEqual([])
+    })
+
+    it('rejects a complete plan containing an unresolved id before deleting a user', async () => {
+      const { result, stored, deleteMessage } = renderPolicyController()
+      await act(async () => {
+        await result.current.actions.deleteSelectedMessages!(['user', 'missing'])
+      })
+      expect(deleteMessage).not.toHaveBeenCalled()
+      expect([...stored.values()]).toEqual([user, otherUser, assistant])
+      expect(popupConfirm).not.toHaveBeenCalled()
+    })
+
+    it('hides delete when a selected user id no longer resolves', () => {
+      const { result, rerender, initialProps } = renderPolicyController()
+      act(() => result.current.actions.selectMessage?.('user', true))
+      rerender({ ...initialProps, messages: [assistant] })
+      expect(result.current.actions.deleteSelectedMessages).toBeUndefined()
+    })
+
+    it.each(['denied', 'missing'])(
+      'revalidates a user that becomes %s while confirmation is pending',
+      async (change) => {
+        const { result, rerender, initialProps, stored, deleteMessage } = renderPolicyController()
+        act(() => {
+          result.current.actions.toggleMultiSelectMode?.(true)
+          result.current.actions.selectMessage?.('user', true)
+        })
+        rerender(initialProps)
+        let confirm!: (value: boolean) => void
+        popupConfirm.mockImplementationOnce(
+          () =>
+            new Promise<boolean>((resolve) => {
+              confirm = resolve
+            })
+        )
+        const ids = ['other-user', 'user']
+        let deleting!: Promise<void>
+        act(() => {
+          deleting = result.current.actions.deleteSelectedMessages!(ids) as Promise<void>
+        })
+        expect(popupConfirm).toHaveBeenCalledTimes(1)
+        rerender({
+          ...initialProps,
+          messages:
+            change === 'missing' ? [otherUser, assistant] : [otherUser, { ...user, role: 'assistant' }, assistant]
+        })
+        await act(async () => {
+          confirm(true)
+          await deleting
+        })
+        expect(deleteMessage).not.toHaveBeenCalled()
+        expect([...stored.values()]).toEqual([user, otherUser, assistant])
+        expect(cacheValues['chat.selected_message_ids']).toEqual(['user'])
+        expect(cacheValues['chat.multi_select_mode']).toBe(true)
+      }
+    )
+
+    it('snapshots the requested user plan before confirmation', async () => {
+      const { result, stored, deleteMessage } = renderPolicyController()
+      let confirm!: (value: boolean) => void
+      popupConfirm.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            confirm = resolve
+          })
+      )
+      const ids = ['user']
+      let deleting!: Promise<void>
+      act(() => {
+        deleting = result.current.actions.deleteSelectedMessages!(ids) as Promise<void>
+      })
+      ids.push('assistant')
+      await act(async () => {
+        confirm(true)
+        await deleting
+      })
+      expect([...stored.values()]).toEqual([otherUser, assistant])
+      expect(deleteMessage.mock.calls).toEqual([['user', { selectedMessageIds: ['user'] }]])
+    })
+
+    it('hides delete after paginated select-all includes an assistant', () => {
+      const { result, rerender } = renderPolicyController()
+      const pagination = { hasOlder: true, isLoading: false, start: vi.fn(), stop: vi.fn() }
+      rerender({ messages: [user], selectAllPagination: pagination })
+      act(() => result.current.actions.selectMessage?.('user', true))
+      rerender({ messages: [user], selectAllPagination: pagination })
+      expect(result.current.actions.deleteSelectedMessages).toBeDefined()
+      act(() => result.current.actions.toggleSelectAllMessages?.(true))
+      rerender({ messages: [user], selectAllPagination: { ...pagination, isLoading: true } })
+      const completed = { messages: [user, assistant], selectAllPagination: { ...pagination, hasOlder: false } }
+      rerender(completed)
+      rerender(completed)
+      expect(result.current.selection.selectedMessageIds).toEqual(['user', 'assistant'])
+      expect(result.current.actions.deleteSelectedMessages).toBeUndefined()
+    })
   })
 
   describe('select all', () => {
@@ -570,6 +756,139 @@ describe('useMessageSelectionController', () => {
 
       rerender({ messages: [message('a')], pagination: { ...handle, hasOlder: false } })
       expect(result.current.selection.selectAllState).toBe(true)
+    })
+  })
+
+  describe('exportSelectedMessages', () => {
+    const exportMessages = vi.fn()
+    const partsByMessageId = {
+      a: [{ type: 'text', text: 'first' }] as CherryMessagePart[],
+      b: [{ type: 'text', text: 'second' }] as CherryMessagePart[]
+    }
+    const renderExportController = () =>
+      renderHook(() =>
+        useMessageSelectionController({
+          topicId: 'topic-1',
+          messages: [message('a'), message('b')],
+          partsByMessageId,
+          exportMessages
+        })
+      )
+
+    it('exports the selected content in conversation order and clears selection only after success', async () => {
+      let finish!: (success: boolean) => void
+      exportMessages.mockImplementation(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve
+          })
+      )
+      const { result } = renderExportController()
+      act(() => {
+        result.current.actions.toggleMultiSelectMode?.(true)
+        result.current.actions.selectMessage?.('b', true)
+        result.current.actions.selectMessage?.('a', true)
+      })
+      let exporting!: Promise<void>
+      act(() => {
+        exporting = result.current.actions.exportSelectedMessages!(['b', 'a'], 'markdown-reason') as Promise<void>
+      })
+      expect(exportMessages).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({ id: 'a', parts: partsByMessageId.a }),
+          expect.objectContaining({ id: 'b', parts: partsByMessageId.b })
+        ],
+        'markdown-reason'
+      )
+      expect(cacheValues['chat.multi_select_mode']).toBe(true)
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['b', 'a'])
+      await act(async () => {
+        finish(true)
+        await exporting
+      })
+      expect(cacheValues['chat.multi_select_mode']).toBe(false)
+      expect(cacheValues['chat.selected_message_ids']).toEqual([])
+    })
+
+    it('preserves a newer selection when a long-running export succeeds later', async () => {
+      let finish!: (success: boolean) => void
+      exportMessages.mockImplementation(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve
+          })
+      )
+      const { result } = renderExportController()
+      act(() => {
+        result.current.actions.toggleMultiSelectMode?.(true)
+        result.current.actions.selectMessage?.('a', true)
+      })
+      let exporting!: Promise<void>
+      act(() => {
+        exporting = result.current.actions.exportSelectedMessages!(['a'], 'markdown') as Promise<void>
+      })
+      act(() => {
+        result.current.actions.selectMessage?.('a', false)
+        result.current.actions.selectMessage?.('b', true)
+      })
+      await act(async () => {
+        finish(true)
+        await exporting
+      })
+      expect(cacheValues['chat.multi_select_mode']).toBe(true)
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['b'])
+    })
+
+    it('ignores a late export success from an unmounted topic controller', async () => {
+      let finish!: (success: boolean) => void
+      exportMessages.mockImplementation(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve
+          })
+      )
+      const first = renderExportController()
+      act(() => {
+        first.result.current.actions.toggleMultiSelectMode?.(true)
+        first.result.current.actions.selectMessage?.('a', true)
+      })
+      let exporting!: Promise<void>
+      act(() => {
+        exporting = first.result.current.actions.exportSelectedMessages!(['a'], 'notion') as Promise<void>
+      })
+      act(() => {
+        first.unmount()
+      })
+      // The next topic mounts with its own selection; the stale export from
+      // the unmounted controller must not clear it on success.
+      act(() => {
+        setCacheValue('chat.multi_select_mode', true)
+        setCacheValue('chat.selected_message_ids', ['b'])
+      })
+      await act(async () => {
+        finish(true)
+        await exporting
+      })
+      expect(cacheValues['chat.multi_select_mode']).toBe(true)
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['b'])
+    })
+
+    it.each(['cancelled', 'failed'] as const)('preserves the selection when export is %s', async (outcome) => {
+      if (outcome === 'failed') exportMessages.mockRejectedValueOnce(new Error('export failed'))
+      else exportMessages.mockResolvedValueOnce(false)
+      const { result } = renderExportController()
+      act(() => {
+        result.current.actions.toggleMultiSelectMode?.(true)
+        result.current.actions.selectMessage?.('a', true)
+      })
+      await act(async () => {
+        await result.current.actions.exportSelectedMessages?.(['a'], 'word')
+      })
+      expect(cacheValues['chat.multi_select_mode']).toBe(true)
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['a'])
+      if (outcome === 'failed')
+        expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('chat.topics.export.failed'))
+      else expect(toast.error).not.toHaveBeenCalled()
     })
   })
 })

@@ -54,7 +54,7 @@ describe('scheduled session visibility', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  async function run(prompt: string, workspace?: AgentSessionWorkspaceSource) {
+  async function run(prompt: string, workspace?: AgentSessionWorkspaceSource, existingScheduleId?: string) {
     const input: AgentTaskInput = {
       agentId: 'agent',
       prompt,
@@ -62,14 +62,16 @@ describe('scheduled session visibility', () => {
       ...(workspace ? { workspace } : {}),
       reuseRevision: 0
     }
-    const schedule = jobScheduleService.create({
-      type: 'agent.task',
-      name: 'scheduled-check',
-      trigger: { kind: 'interval', ms: 60_000 },
-      jobInputTemplate: input,
-      catchUpPolicy: { kind: 'skip-missed' },
-      metadata: { reuse: { enabled: true, revision: 0 } }
-    })
+    const schedule = existingScheduleId
+      ? jobScheduleService.getById(existingScheduleId)!
+      : jobScheduleService.create({
+          type: 'agent.task',
+          name: 'scheduled-check',
+          trigger: { kind: 'interval', ms: 60_000 },
+          jobInputTemplate: input,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: { reuse: { enabled: true, revision: 0 } }
+        })
     const job = jobService.create({
       type: 'agent.task',
       status: 'running',
@@ -140,11 +142,18 @@ describe('scheduled session visibility', () => {
     expect(agentWorkspaceService.list({ includeSystem: true })).toEqual([])
   })
 
-  it('keeps ordinary scheduled task sessions available as conversations', async () => {
+  it('keeps scheduled task sessions addressable but out of ordinary conversations', async () => {
     const sessions = await run('summarize the project')
     expect(sessions).toHaveLength(1)
-    expect(agentSessionService.listByCursor().items.map((row) => row.id)).toEqual([sessions[0].id])
-    expect(agentSessionService.getLatestActive()?.id).toBe(sessions[0].id)
+    expect(agentSessionService.listByCursor().items).toEqual([])
+    expect(agentSessionService.listByCursor({ ids: [sessions[0].id] }).items.map((row) => row.id)).toEqual([
+      sessions[0].id
+    ])
+    expect(sessions[0].taskId).toBeTruthy()
+    const repeated = await run('summarize the project', undefined, sessions[0].taskId!)
+    expect(repeated).toHaveLength(2)
+    expect(repeated.every((row) => row.taskId === sessions[0].taskId && !row.isTaskReuseTarget)).toBe(true)
+    expect(agentSessionService.getLatestActive()).toBeNull()
     expect(agentSessionService.getById(sessions[0].id).workspace.type).toBe('system')
   })
 })

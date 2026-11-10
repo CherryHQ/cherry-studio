@@ -13,6 +13,7 @@ import { isEqual } from 'es-toolkit/compat'
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -147,6 +148,7 @@ function assertProvidersAvailable(providerIds: Iterable<string>): void {
  * Defined explicitly (not via ReturnType) to avoid a circular import.
  */
 type CreateModelRegistryData = ModelLookupResult & {
+  providerModel?: Model
   reasoningProfile: ResolvedReasoningProfile
   serviceTierControl?: ResolvedServiceTierControl
 }
@@ -276,6 +278,12 @@ function deleteModelsSqliteHandlers(identifier: string): SqliteErrorHandlers {
     foreignKey: () =>
       DataApiErrorFactory.invalidOperation(`delete model ${identifier}`, 'model is in use by a knowledge base')
   } satisfies SqliteErrorHandlers
+}
+
+/** Deleted models also drop out of agents through FK `ON DELETE SET NULL`, which no agent write announces. */
+function notifyModelsDeleted(): void {
+  pinService.notifyPurged()
+  notifyDataApiDataChange([{ endpoint: '/agents', kind: 'projection' }, { endpoint: '/agents/:agentId' }])
 }
 
 /**
@@ -484,8 +492,9 @@ function createPresetFallback(
 
 class ModelService {
   private getRegistryBaseline(providerContext: ReasoningProviderContext, modelId: string): Model | null {
-    const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+    const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
       providerRegistryService.resolveModel(providerContext, modelId)
+    if (providerModel) return providerModel
     if (!presetModel) return null
     return mergePresetModel(
       presetModel,
@@ -498,6 +507,9 @@ class ModelService {
   }
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
+    if (registryData?.providerModel) {
+      return dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined })
+    }
     const presetModel = registryData?.presetModel ?? null
     const dtoValues = dtoToNewUserModel(dto)
 
@@ -718,8 +730,11 @@ class ModelService {
       if (!providerContext) return []
       if (row.presetModelId) {
         try {
-          const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+          const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
             providerRegistryService.resolveModel(providerContext, row.modelId)
+          if (providerModel) {
+            return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+          }
           if (!presetModel) {
             return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
           }
@@ -749,8 +764,11 @@ class ModelService {
       const modelId = model.apiModelId
       if (!modelId) return model
       try {
-        const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+        const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
           providerRegistryService.resolveModel(providerContext, modelId)
+        if (providerModel) {
+          return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+        }
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const registryModel = presetModel
           ? mergePresetModel(
@@ -1183,7 +1201,7 @@ class ModelService {
       createModelsSqliteHandlers(values)
     )
 
-    if (deletedIds.length > 0) pinService.notifyPurged()
+    if (deletedIds.length > 0) notifyModelsDeleted()
     return { models: this.enrichRowsFromRegistryTx(dbService.getDb(), rows), deletedIds }
   }
 
@@ -1214,7 +1232,7 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(`${providerId}/${modelId}`)
     )
-    pinService.notifyPurged()
+    notifyModelsDeleted()
 
     logger.info('Deleted model', { providerId, modelId })
   }
@@ -1281,7 +1299,7 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(ids.length === 1 ? ids[0] : `batch(${ids.length} items)`)
     )
-    pinService.notifyPurged()
+    notifyModelsDeleted()
 
     logger.info('Bulk deleted models', {
       count: ids.length,

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.1.2",
+    "version": "2.1.10",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -17,8 +17,16 @@
         "path": "/app/chat"
       },
       {
+        "id": "scheduled_tasks",
+        "path": "/app/scheduled-tasks"
+      },
+      {
         "id": "paintings",
         "path": "/app/paintings"
+      },
+      {
+        "id": "marketplace",
+        "path": "/app/marketplace"
       },
       {
         "id": "translate",
@@ -56,8 +64,10 @@
       "/app/files",
       "/app/knowledge",
       "/app/launchpad",
+      "/app/marketplace",
       "/app/notes",
       "/app/release-notes",
+      "/app/scheduled-tasks",
       "/app/translate",
       "/settings/about",
       "/settings/api-gateway",
@@ -66,6 +76,7 @@
       "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
+      "/settings/computer-use",
       "/settings/data",
       "/settings/dependencies",
       "/settings/device-connections",
@@ -76,6 +87,7 @@
       "/settings/model",
       "/settings/notifications",
       "/settings/ocr",
+      "/settings/profile",
       "/settings/prompts",
       "/settings/provider",
       "/settings/quick-assistant",
@@ -85,8 +97,10 @@
       "/settings/selection-assistant",
       "/settings/shortcut",
       "/settings/skills",
+      "/settings/subscription",
       "/settings/system",
       "/settings/usage",
+      "/settings/voice",
       "/settings/websearch",
       "/app/mini-app/$appId",
       "/app/paintings/$",
@@ -114,6 +128,7 @@
           "Escape"
         ],
         "editable": false,
+        "enableToggle": true,
         "when": "!webview.focused"
       }
     },
@@ -152,6 +167,123 @@
           "CommandOrControl",
           "["
         ]
+      }
+    },
+    {
+      "id": "app.sidebar.open_1",
+      "titleKey": "settings.shortcuts.open_sidebar_item_1",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "1"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "app.sidebar.open_2",
+      "titleKey": "settings.shortcuts.open_sidebar_item_2",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "2"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "app.sidebar.open_3",
+      "titleKey": "settings.shortcuts.open_sidebar_item_3",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "3"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "app.sidebar.open_4",
+      "titleKey": "settings.shortcuts.open_sidebar_item_4",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "4"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "app.sidebar.open_5",
+      "titleKey": "settings.shortcuts.open_sidebar_item_5",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "5"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "app.sidebar.open_6",
+      "titleKey": "settings.shortcuts.open_sidebar_item_6",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "6"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "app.sidebar.open_7",
+      "titleKey": "settings.shortcuts.open_sidebar_item_7",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "7"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "app.sidebar.open_8",
+      "titleKey": "settings.shortcuts.open_sidebar_item_8",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "8"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "app.sidebar.open_9",
+      "titleKey": "settings.shortcuts.open_sidebar_item_9",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "9"
+        ],
+        "when": "!webview.focused"
       }
     },
     {
@@ -248,6 +380,19 @@
           "0"
         ],
         "editable": false
+      }
+    },
+    {
+      "id": "agent.workspace.open",
+      "titleKey": "settings.shortcuts.open_workspace",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "O"
+        ],
+        "when": "!webview.focused"
       }
     },
     {
@@ -445,6 +590,71 @@
       }
     },
     {
+      "id": "resource.delete_permanently",
+      "titleKey": "settings.shortcuts.delete_current_list_item",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Backspace"
+        ],
+        "when": "resource.focused && !input.focused"
+      }
+    },
+    {
+      "id": "assistant.next",
+      "titleKey": "settings.shortcuts.next_assistant",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Alt",
+          "Right"
+        ]
+      }
+    },
+    {
+      "id": "assistant.prev",
+      "titleKey": "settings.shortcuts.prev_assistant",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Alt",
+          "Left"
+        ]
+      }
+    },
+    {
+      "id": "topic.next",
+      "titleKey": "settings.shortcuts.next_topic",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Alt",
+          "Down"
+        ]
+      }
+    },
+    {
+      "id": "topic.prev",
+      "titleKey": "settings.shortcuts.prev_topic",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Alt",
+          "Up"
+        ]
+      }
+    },
+    {
       "id": "tab.close",
       "titleKey": "settings.shortcuts.close_tab",
       "categoryKey": "settings.shortcuts.general",
@@ -454,6 +664,177 @@
           "CommandOrControl",
           "W"
         ]
+      }
+    },
+    {
+      "id": "tab.open_1",
+      "titleKey": "settings.shortcuts.number_keys.tabs",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "Alt",
+            "1"
+          ],
+          "darwin": [
+            "Ctrl",
+            "1"
+          ]
+        },
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "tab.open_2",
+      "titleKey": "settings.shortcuts.number_keys.tabs",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "Alt",
+            "2"
+          ],
+          "darwin": [
+            "Ctrl",
+            "2"
+          ]
+        },
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "tab.open_3",
+      "titleKey": "settings.shortcuts.number_keys.tabs",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "Alt",
+            "3"
+          ],
+          "darwin": [
+            "Ctrl",
+            "3"
+          ]
+        },
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "tab.open_4",
+      "titleKey": "settings.shortcuts.number_keys.tabs",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "Alt",
+            "4"
+          ],
+          "darwin": [
+            "Ctrl",
+            "4"
+          ]
+        },
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "tab.open_5",
+      "titleKey": "settings.shortcuts.number_keys.tabs",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "Alt",
+            "5"
+          ],
+          "darwin": [
+            "Ctrl",
+            "5"
+          ]
+        },
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "tab.open_6",
+      "titleKey": "settings.shortcuts.number_keys.tabs",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "Alt",
+            "6"
+          ],
+          "darwin": [
+            "Ctrl",
+            "6"
+          ]
+        },
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "tab.open_7",
+      "titleKey": "settings.shortcuts.number_keys.tabs",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "Alt",
+            "7"
+          ],
+          "darwin": [
+            "Ctrl",
+            "7"
+          ]
+        },
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "tab.open_8",
+      "titleKey": "settings.shortcuts.number_keys.tabs",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "Alt",
+            "8"
+          ],
+          "darwin": [
+            "Ctrl",
+            "8"
+          ]
+        },
+        "when": "!webview.focused"
+      }
+    },
+    {
+      "id": "tab.open_9",
+      "titleKey": "settings.shortcuts.number_keys.tabs",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "Alt",
+            "9"
+          ],
+          "darwin": [
+            "Ctrl",
+            "9"
+          ]
+        },
+        "when": "!webview.focused"
       }
     },
     {
@@ -496,8 +877,8 @@
     }
   ],
   "providers": {
-    "version": "2707d81b155c6c98",
-    "count": 64,
+    "version": "7b17f7706c07b778",
+    "count": 67,
     "entries": [
       {
         "id": "cherryin",
@@ -592,6 +973,10 @@
         "name": "LM Studio"
       },
       {
+        "id": "litellm",
+        "name": "LiteLLM"
+      },
+      {
         "id": "anthropic",
         "name": "Anthropic"
       },
@@ -649,7 +1034,11 @@
       },
       {
         "id": "dashscope",
-        "name": "Bailian"
+        "name": "Qianwen AI platform - CN"
+      },
+      {
+        "id": "qwencloud",
+        "name": "Qwen Cloud"
       },
       {
         "id": "stepfun",
@@ -657,7 +1046,7 @@
       },
       {
         "id": "doubao",
-        "name": "doubao"
+        "name": "Doubao"
       },
       {
         "id": "minimax",
@@ -744,6 +1133,10 @@
         "name": "Cerebras AI"
       },
       {
+        "id": "comfyui",
+        "name": "ComfyUI"
+      },
+      {
         "id": "mimo",
         "name": "Xiaomi MiMo"
       },
@@ -814,6 +1207,11 @@
       "label": "Română"
     },
     {
+      "value": "th-TH",
+      "flag": "🇹🇭",
+      "label": "ภาษาไทย"
+    },
+    {
       "value": "vi-VN",
       "flag": "🇻🇳",
       "label": "Tiếng Việt"
@@ -822,6 +1220,11 @@
       "value": "tr-TR",
       "flag": "🇹🇷",
       "label": "Türkçe"
+    },
+    {
+      "value": "it-IT",
+      "flag": "🇮🇹",
+      "label": "Italiano"
     }
   ],
   "agents": {
@@ -830,6 +1233,8 @@
       "feishu",
       "qq",
       "wechat",
+      "wecom",
+      "dingtalk",
       "discord",
       "slack"
     ],
@@ -907,6 +1312,10 @@
         ".doc",
         ".pptx",
         ".ppt",
+        ".odt",
+        ".odp",
+        ".ods",
+        ".rtf",
         ".epub",
         ".draftsexport"
       ],

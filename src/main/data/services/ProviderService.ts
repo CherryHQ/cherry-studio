@@ -10,6 +10,7 @@ import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
@@ -43,6 +44,7 @@ import type {
   ProviderSettings
 } from '@shared/data/types/provider'
 import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { ProviderBillingSchema } from '@shared/data/types/providerBilling'
 import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
 
@@ -491,6 +493,7 @@ class ProviderService {
    * Create a new provider
    */
   create(dto: CreateProviderDto): Provider {
+    if (dto.providerSettings?.billing) ProviderBillingSchema.parse(dto.providerSettings.billing)
     if (isRetiredProvider(dto.providerId, dto.presetProviderId)) {
       throw DataApiErrorFactory.invalidOperation(`create provider ${dto.providerId}`, 'provider is retired')
     }
@@ -533,7 +536,8 @@ class ProviderService {
             isEnabled: false
           }
           return insertWithOrderKey(tx, userProviderTable, values, {
-            pkColumn: userProviderTable.providerId
+            pkColumn: userProviderTable.providerId,
+            position: 'first'
           }) as UserProviderRow
         }),
       {
@@ -547,9 +551,8 @@ class ProviderService {
   }
 
   /**
-   * Update an existing provider. A false-to-true enabled transition moves the
-   * provider to the first position in the same transaction; redundant enabled
-   * writes preserve the user's current order.
+   * Update an existing provider. Enabling or disabling does not change
+   * `orderKey`; callers that want a new position must use `move` / `reorder`.
    */
   update(providerId: string, dto: UpdateProviderInput): Provider {
     assertManagedCherryProviderPatchAllowed(providerId, dto)
@@ -569,7 +572,6 @@ class ProviderService {
           providerId: userProviderTable.providerId,
           providerSettings: userProviderTable.providerSettings,
           endpointConfigs: userProviderTable.endpointConfigs,
-          isEnabled: userProviderTable.isEnabled,
           presetProviderId: userProviderTable.presetProviderId
         })
         .from(userProviderTable)
@@ -614,17 +616,9 @@ class ProviderService {
           current.providerSettings,
           dto.providerSettings
         ) as Partial<ProviderSettings>
+        if (updates.providerSettings?.billing) ProviderBillingSchema.parse(updates.providerSettings.billing)
       }
 
-      if (dto.isEnabled === true && !current.isEnabled) {
-        try {
-          applyMoves(tx, userProviderTable, [{ id: providerId, anchor: { position: 'first' } }], {
-            pkColumn: userProviderTable.providerId
-          })
-        } catch (error) {
-          this.rethrowOrderError(error)
-        }
-      }
       if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
 
       const [updated] = tx
@@ -1027,7 +1021,11 @@ class ProviderService {
       return models.length
     })
 
-    if (deletedModelCount > 0) pinService.notifyPurged()
+    if (deletedModelCount > 0) {
+      pinService.notifyPurged()
+      // The cascaded models also drop out of agents through FK `ON DELETE SET NULL`, which no agent write announces.
+      notifyDataApiDataChange([{ endpoint: '/agents', kind: 'projection' }, { endpoint: '/agents/:agentId' }])
+    }
 
     logger.info('Deleted provider', { providerId })
   }

@@ -1,10 +1,16 @@
 import { net } from 'electron'
 import WebSocket from 'ws'
 
+import { t } from '@main/i18n'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  type ChannelStreamErrorOptions,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { splitMessage } from '../../utils'
@@ -82,7 +88,7 @@ class SlackStreamingController {
   }
 
   async onText(text: string): Promise<void> {
-    if (this._completed) return
+    if (this._completed || (!text && !this.messageTs && !this.messageCreationPromise)) return
     this.currentText = text
     await this.ensureMessageCreated()
     if (this.messageTs) {
@@ -180,9 +186,9 @@ class SlackStreamingController {
   }
 
   private async performFlush(): Promise<void> {
-    if (!this.messageTs || !this.currentText) return
+    if (!this.messageTs) return
     try {
-      await this.editMessage(this.currentText)
+      await this.editMessage(this.currentText || t('common.channel_processing'))
     } catch {
       // Swallow flush errors — FlushController will reflush if needed
     }
@@ -593,12 +599,19 @@ class SlackAdapter extends ChannelAdapter {
     }
   }
 
-  override async onStreamError(chatId: string, error: string): Promise<void> {
+  override async onStreamError(
+    chatId: string,
+    error: string,
+    _opts?: SendMessageOptions,
+    options?: ChannelStreamErrorOptions
+  ): Promise<boolean> {
     const controller = this.streamingControllers.get(chatId)
-    if (!controller) return
+    if (!controller) return false
     try {
       await this.removeReaction(chatId)
-      await controller.error(error)
+      if (options?.suppressDelivery) controller.dispose()
+      else await controller.error(error)
+      return true
     } finally {
       this.streamingControllers.delete(chatId)
     }

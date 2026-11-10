@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { SequencerByKey } from '@shared/utils/async'
+
 interface VersionedNamedResource {
   id: string
   name: string
@@ -16,6 +18,17 @@ interface OptimisticNameOverlay {
   settled: boolean
 }
 
+function applyNameOverlays<T extends VersionedNamedResource>(
+  items: readonly T[],
+  overlays: ReadonlyMap<string, OptimisticNameOverlay>
+): readonly T[] {
+  if (overlays.size === 0) return items
+  return items.map((item) => {
+    const overlay = overlays.get(item.id)
+    return overlay === undefined ? item : { ...item, name: overlay.name }
+  })
+}
+
 /**
  * Keeps the latest submitted resource name visible until the versioned source becomes authoritative.
  *
@@ -27,18 +40,15 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
   const [nameOverlays, setNameOverlays] = useState<ReadonlyMap<string, OptimisticNameOverlay>>(() => new Map())
   const sourceItemsRef = useRef(sourceItems)
   const requestIdRef = useRef(0)
-  const queuesRef = useRef(new Map<string, Promise<void>>())
+  const queuesRef = useRef(new SequencerByKey<string>())
+  const nameOverlaysRef = useRef(nameOverlays)
   sourceItemsRef.current = sourceItems
+  nameOverlaysRef.current = nameOverlays
 
-  const items = useMemo(
-    () =>
-      nameOverlays.size === 0
-        ? sourceItems
-        : sourceItems.map((item) => {
-            const overlay = nameOverlays.get(item.id)
-            return overlay === undefined ? item : { ...item, name: overlay.name }
-          }),
-    [nameOverlays, sourceItems]
+  const items = useMemo(() => applyNameOverlays(sourceItems, nameOverlays), [nameOverlays, sourceItems])
+  const withOptimisticNames = useCallback(
+    (source: readonly T[]) => applyNameOverlays(source, nameOverlaysRef.current),
+    []
   )
 
   useEffect(() => {
@@ -81,8 +91,7 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
       return next
     })
 
-    const previousRequest = queuesRef.current.get(item.id) ?? Promise.resolve()
-    const request = previousRequest.then(() => {
+    return queuesRef.current.queue(item.id, async () => {
       const latestItem = sourceItemsRef.current.find((candidate) => candidate.id === item.id)
       setNameOverlays((current) => {
         const overlay = current.get(item.id)
@@ -97,10 +106,8 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
         next.set(item.id, { ...overlay, baseUpdatedAt: latestItem.updatedAt })
         return next
       })
-      return persist()
-    })
-    const settledRequest = request.then(
-      (persisted) => {
+      try {
+        const persisted = await persist()
         setNameOverlays((current) => {
           const overlay = current.get(item.id)
           if (overlay?.requestId !== requestId) return current
@@ -113,8 +120,7 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
           return next
         })
         return persisted
-      },
-      (error) => {
+      } catch (error) {
         setNameOverlays((current) => {
           if (current.get(item.id)?.requestId !== requestId) return current
           const next = new Map(current)
@@ -123,20 +129,8 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
         })
         throw error
       }
-    )
-    const queueTail = settledRequest.then(
-      () => undefined,
-      () => undefined
-    )
-    queuesRef.current.set(item.id, queueTail)
-    void queueTail.finally(() => {
-      if (queuesRef.current.get(item.id) === queueTail) {
-        queuesRef.current.delete(item.id)
-      }
     })
-
-    return settledRequest
   }, [])
 
-  return { items, rename }
+  return { items, rename, withOptimisticNames }
 }

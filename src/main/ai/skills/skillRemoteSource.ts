@@ -7,7 +7,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
-import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { CommandOutputLimitError, executeCommand } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
@@ -15,6 +15,7 @@ import { ClawhubSkillDetailSchema } from '@shared/types/skill'
 import { encodeGithubPath, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 
 import {
+  assertNoFoldedPathCollisions,
   assertSkillDirectoryWithinLimits,
   extractZip,
   MAX_SKILL_FILES,
@@ -187,10 +188,7 @@ async function fetchFromClaudePlugins(
  * name again: a branch that moves in between would otherwise hand over different content than the
  * one whose tree was inspected.
  */
-async function fetchFromGithub(
-  identifier: string,
-  openTempDir: () => Promise<string>
-): Promise<Omit<FetchedSkill, 'tempDir'>> {
+async function resolveGithubSkillTarget(identifier: string) {
   const location = parseGithubSkillUrl(identifier)
   if (!location) {
     throw new Error(`Invalid GitHub skill URL: ${identifier}`)
@@ -200,12 +198,25 @@ async function fetchFromGithub(
   const repoUrl = `https://github.com/${owner}/${repo}`
   const transportRepoUrl = getGithubTransportUrl(repoUrl)
   const { ref, namespace, oid, target } = await resolveGithubCommit(transportRepoUrl, refAndPath, refNamespace)
-  logger.info('Installing from GitHub', { owner, repo, ref, namespace, oid, target })
 
   const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
   const sourceUrl = namespace
     ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
     : `${repoUrl}/blob/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
+
+  return { transportRepoUrl, oid, target, sourceUrl, descriptorFileName }
+}
+
+/** Resolve ambiguous branch/tag URLs with the same rules used by installation. */
+export async function resolveGithubSkillSourceUrl(identifier: string): Promise<string> {
+  return (await resolveGithubSkillTarget(identifier)).sourceUrl
+}
+
+async function fetchFromGithub(
+  identifier: string,
+  openTempDir: () => Promise<string>
+): Promise<Omit<FetchedSkill, 'tempDir'>> {
+  const { transportRepoUrl, oid, target, sourceUrl, descriptorFileName } = await resolveGithubSkillTarget(identifier)
 
   const tempDir = await openTempDir()
   const commit = await fetchGithubCommit(transportRepoUrl, oid, tempDir)
@@ -438,23 +449,34 @@ async function materializeGithubTarget(
   descriptorFileNames: readonly SkillDescriptorFileName[]
 ): Promise<{ contentDir: string; skillDir: string }> {
   const contentDir = path.join(commit.tempDir, 'content')
+  // The check and the checkout read one tree object: a sparse pattern and a pathspec naming the
+  // same path fold case and Unicode differently on macOS and Windows, and select different trees.
+  const treeOid = target.kind === 'root' ? 'FETCH_HEAD^{tree}' : await resolveGithubTargetTree(commit, target.path)
+  if (!treeOid) throw missingDescriptorError(target, descriptorFileNames)
   // Sizes are left to the on-disk check after checkout: `ls-tree -l` fetches every blob one
   // round trip at a time, long enough for a 60-file skill to hit the git timeout.
-  const tree = await commit.git([
-    'ls-tree',
-    '-r',
-    '-z',
-    '--full-tree',
-    'FETCH_HEAD',
-    ...(target.kind === 'root' ? [] : ['--', `:(top,literal)${target.path}`])
-  ])
+  const tree = await commit.git(['ls-tree', '-r', '-z', treeOid])
   assertGithubTargetTree(tree, target, descriptorFileNames)
-  await checkoutSparse(commit, contentDir, [toSparsePattern(target)])
 
-  return {
-    contentDir,
-    skillDir: target.kind === 'root' ? contentDir : path.join(contentDir, target.path)
-  }
+  // The installed folder is named after this directory, so the tree lands at its repository path.
+  const skillDir = target.kind === 'root' ? contentDir : path.join(contentDir, target.path)
+  await fs.promises.mkdir(skillDir, { recursive: true })
+  await fs.promises.rm(path.join(commit.gitDir, 'index'), { force: true })
+  // A user's global `core.sparseCheckout` would otherwise apply the descriptor-only patterns left behind.
+  await commit.git([`--work-tree=${skillDir}`, '-c', 'core.sparseCheckout=false', 'read-tree', '-mu', treeOid])
+  return { contentDir, skillDir }
+}
+
+async function resolveGithubTargetTree(commit: FetchedGithubCommit, targetPath: string): Promise<string | null> {
+  // Without `-r` this lists the entry itself, so a submodule is reported instead of lazily fetched.
+  const records = (
+    await commit.git(['ls-tree', '-z', '--full-tree', 'FETCH_HEAD', '--', `:(top,literal)${targetPath}`])
+  )
+    .split('\0')
+    .filter(Boolean)
+  if (records.length !== 1) return null
+  const [, type, oid] = records[0].slice(0, records[0].indexOf('\t')).split(' ')
+  return type === 'tree' ? oid : null
 }
 
 /**
@@ -476,13 +498,13 @@ async function checkoutSparse(
   await commit.git([`--work-tree=${workTree}`, '-c', 'core.sparseCheckout=true', 'read-tree', '-mu', 'FETCH_HEAD'])
 }
 
-function toSparsePattern(target: GithubSkillTarget): string {
-  if (target.kind === 'root') return '/*'
-  // One pattern per line: a decoded `%0A` in the path would otherwise add patterns of its own.
-  if (/[\r\n]/.test(target.path)) {
-    throw new Error(`Skill directory path contains a line break: ${JSON.stringify(target.path)}`)
-  }
-  return `/${target.path.replace(/[\\*?[\]!# ]/g, '\\$&')}/`
+function missingDescriptorError(
+  target: GithubSkillTarget,
+  descriptorFileNames: readonly SkillDescriptorFileName[]
+): Error {
+  const descriptor = descriptorFileNames.join(' or ')
+  const location = target.kind === 'root' ? descriptor : `${target.path}/${descriptor}`
+  return new Error(`No ${descriptor} found at the selected GitHub location: ${location}`)
 }
 
 function assertGithubTargetTree(
@@ -490,39 +512,19 @@ function assertGithubTargetTree(
   target: GithubSkillTarget,
   descriptorFileNames: readonly SkillDescriptorFileName[]
 ): void {
-  const foldKey = (value: string) => value.normalize('NFC').toLowerCase()
-  const targetParts = target.kind === 'root' ? [] : target.path.split('/')
-
   const entryPaths = tree.split('\0').flatMap((record) => {
     if (!record) return []
     const tab = record.indexOf('\t')
     if (tab === -1) return []
     const [, type] = record.slice(0, tab).trim().split(/\s+/)
     if (type !== 'blob') return []
-    const entryPath = record.slice(tab + 1)
-    return [target.kind === 'root' ? entryPath : entryPath.split('/').slice(targetParts.length).join('/')]
+    return [record.slice(tab + 1)]
   })
 
-  const seenPaths = new Map<string, string>()
-  for (const entryPath of entryPaths) {
-    const parts = entryPath.split('/')
-    for (let length = 1; length <= parts.length; length++) {
-      const prefix = parts.slice(0, length).join('/')
-      const key = parts.slice(0, length).map(foldKey).join('/')
-      const previous = seenPaths.get(key)
-      if (previous && previous !== prefix) {
-        throw new Error(
-          `The commit contains paths that collide once case and Unicode are normalized (${previous}, ${prefix}).`
-        )
-      }
-      seenPaths.set(key, prefix)
-    }
-  }
+  assertNoFoldedPathCollisions(entryPaths)
 
   if (!entryPaths.some((entryPath) => descriptorFileNames.includes(entryPath as SkillDescriptorFileName))) {
-    const descriptor = descriptorFileNames.join(' or ')
-    const location = target.kind === 'root' ? descriptor : `${target.path}/${descriptor}`
-    throw new Error(`No ${descriptor} found at the selected GitHub location: ${location}`)
+    throw missingDescriptorError(target, descriptorFileNames)
   }
   if (entryPaths.length > MAX_SKILL_FILES) {
     throw new Error(`Skill holds ${entryPaths.length} files, over the ${MAX_SKILL_FILES}-file limit`)
@@ -564,4 +566,74 @@ async function resolveGitCommand(): Promise<string> {
 async function reportInstall(owner: string, repo: string, skillName: string): Promise<void> {
   const url = `${CLAUDE_PLUGINS_API}/api/skills/${owner}/${repo}/${skillName}/install`
   await net.fetch(url, { method: 'POST' })
+}
+
+export async function readGithubSkillCatalog(url: string) {
+  const parsed = new URL(url)
+  const [owner, repo, marker, ...tail] = parsed.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+  if (
+    !owner ||
+    !repo ||
+    ![owner, repo].every((part) => /^[a-zA-Z0-9_.-]+$/.test(part) && part !== '.' && part !== '..')
+  ) {
+    throw new Error('Invalid GitHub repository URL')
+  }
+  const repoUrl = 'https://github.com/' + owner + '/' + repo
+  const transport = getGithubTransportUrl(repoUrl)
+  let resolved: Awaited<ReturnType<typeof resolveGithubCommit>>
+  if (!marker) {
+    const refs = await runGit(await resolveGitCommand(), ['ls-remote', '--symref', '--', transport, 'HEAD'])
+    const branch = refs.match(/^ref: refs\/heads\/(.+)\s+HEAD$/m)?.[1]
+    const oid = refs.match(/^([a-f0-9]{40})\s+HEAD$/m)?.[1]
+    if (!branch || !oid) throw new Error('GitHub repository has no default branch')
+    resolved = { ref: branch, namespace: 'heads', oid, target: { kind: 'root' } }
+  } else {
+    if (marker !== 'tree' || !tail.length) throw new Error('Expected a GitHub repository or tree URL')
+    const location = parseGithubSkillUrl(repoUrl + '/blob/' + tail.map(encodeURIComponent).join('/') + '/SKILL.md')
+    if (!location) throw new Error('Invalid GitHub repository path')
+    resolved = await resolveGithubCommit(transport, location.refAndPath, location.refNamespace)
+  }
+  const tempDir = await createTempDir('subscription-github')
+  try {
+    const commit = await fetchGithubCommit(transport, resolved.oid, tempDir)
+    const descriptors = path.join(tempDir, 'descriptors')
+    await checkoutSparse(commit, descriptors, SKILL_DESCRIPTOR_FILE_NAMES)
+    await assertSkillDirectoryWithinLimits(descriptors)
+    const root = resolved.target.kind === 'root' ? descriptors : path.join(descriptors, resolved.target.path)
+    const candidates = await findAllSkillDirectories(root, descriptors)
+    const items: Array<{
+      metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
+      sourceUrl: string
+      content: string
+    }> = []
+    let skipped = 0
+    for (const candidate of candidates) {
+      try {
+        const skillDir = await validateRepositorySkillDirectory(descriptors, candidate.folderPath)
+        const file = await findSkillMdPath(skillDir)
+        if (!file || (await fs.promises.stat(file)).size > 1024 * 1024) throw new Error('Invalid skill descriptor')
+        const metadata = await parseSkillMetadata(skillDir, candidate.sourcePath, 'general', { calculateSize: false })
+        const sourcePath = [resolved.ref, candidate.sourcePath.split(path.sep).join('/'), path.basename(file)]
+          .filter(Boolean)
+          .join('/')
+        const sourceUrl = resolved.namespace
+          ? 'https://raw.githubusercontent.com/' +
+            owner +
+            '/' +
+            repo +
+            '/refs/' +
+            resolved.namespace +
+            '/' +
+            encodeGithubPath(sourcePath)
+          : repoUrl + '/blob/' + encodeGithubPath(sourcePath)
+        items.push({ metadata, sourceUrl, content: await fs.promises.readFile(file, 'utf8') })
+      } catch (error) {
+        skipped++
+        logger.warn('Skipping invalid subscribed skill descriptor', { path: candidate.sourcePath, error })
+      }
+    }
+    return { name: owner + '/' + repo, items, skipped }
+  } finally {
+    await safeRemoveDirectory(tempDir)
+  }
 }

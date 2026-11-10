@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
@@ -16,20 +16,52 @@ import {
   type TreeNode
 } from '@shared/utils/file'
 
-const logger = loggerService.withContext('useDirectoryTree')
+export interface UseDirectoryTreeResult extends DirectoryTreeState {
+  /** O(1) lookup keyed by absolute path. Stable across mutations. */
+  getNode(absPath: string): TreeNode | null
+}
+
+const EMPTY: DirectoryTreeState = { root: null, treeId: null, isLoading: false, error: null, version: 0 }
+const emptySnapshot = () => EMPTY
+const emptySubscribe = () => () => undefined
+const emptyNode = () => null
 
 /**
- * How many `create → subscribe → activate` rounds to try before giving up.
- *
- * Main refuses activation when it has already dropped the consumer — today only
- * when the pending buffer overflowed, which needs this renderer to stall between
- * the two calls while the workspace churns. Retrying takes a fresh snapshot, so
- * it is correct rather than hopeful; the bound is what keeps a persistently
- * stalled renderer from looping.
+ * @param onMutation Receives every revision after the mirror applies it, including activation replay
+ *   and brief Activity suspension. Old-root events are ignored after a root change.
+ *   A visible root change releases the old session immediately; while hidden, release waits
+ *   until the original ten-second idle deadline or visibility resumes, whichever comes first.
  */
+export function useDirectoryTree(
+  rootPath: string | undefined,
+  options?: DirectoryTreeOptions,
+  onMutation?: (event: TreeMutationEvent) => void
+): UseDirectoryTreeResult {
+  const inputs = useRef({ rootPath, options, onMutation })
+  inputs.current = { rootPath, options, onMutation }
+  const session = useMemo(
+    () =>
+      rootPath
+        ? new DirectoryTreeSession(rootPath, inputs.current.options, (event) => {
+            if (inputs.current.rootPath === rootPath) inputs.current.onMutation?.(event)
+          })
+        : undefined,
+    [rootPath]
+  )
+  const previous = useRef(session)
+  useLayoutEffect(() => {
+    if (previous.current !== session) previous.current?.dispose()
+    previous.current = session
+  }, [session])
+  const state = useSyncExternalStore(session?.subscribe ?? emptySubscribe, session?.getSnapshot ?? emptySnapshot)
+  return { ...state, getNode: session?.getNode ?? emptyNode }
+}
+
+const logger = loggerService.withContext('DirectoryTreeSession')
+
 const MAX_ACTIVATION_ATTEMPTS = 3
 
-export interface UseDirectoryTreeResult {
+interface DirectoryTreeState {
   readonly root: TreeDirRoot | null
   readonly isLoading: boolean
   readonly error: Error | null
@@ -42,8 +74,6 @@ export interface UseDirectoryTreeResult {
    * rather than subscribing on this id, see the parameter's docs.
    */
   readonly treeId: string | null
-  /** O(1) lookup keyed by absolute path. Stable across mutations. */
-  getNode(absPath: string): TreeNode | null
 }
 
 interface MirrorState {
@@ -88,11 +118,7 @@ function applyMutation(state: MirrorState, event: TreeMutationEvent): boolean {
     return true
   }
   if (event.type === 'renamed') {
-    // Identity-preserving: the same `TreeNode` instance gets its path
-    // mutated via the setter, which cascades through `adjustChildrenPaths`
-    // and repoints the parent's `_children` map. The reverse-lookup index
-    // (state.nodes) is rekeyed for the node and every descendant whose
-    // path also changed.
+    // Renames preserve node identity; reindex descendants after their paths cascade.
     const node = state.nodes.get(event.oldPath)
     if (!node) return false
     const oldPaths: string[] = [node.path]
@@ -118,59 +144,60 @@ function applyMutation(state: MirrorState, event: TreeMutationEvent): boolean {
   return true
 }
 
-/**
- * @param onMutation Side consumers that need *every* mutation must go through this
- *   callback rather than their own `ipcApi.on`: `activate` flushes the buffered
- *   mutations before it resolves, so a subscriber keyed on the published `treeId`
- *   misses that replay. Invoked after the mirror is updated, already filtered to
- *   this tree. Read from a ref, so its identity may change freely between renders.
- */
-export function useDirectoryTree(
-  rootPath: string | undefined,
-  options?: DirectoryTreeOptions,
-  onMutation?: (event: TreeMutationEvent) => void
-): UseDirectoryTreeResult {
-  const normalizedRootPath = rootPath?.replace(/\\/g, '/')
-  const [root, setRoot] = useState<TreeDirRoot | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
-  const [version, setVersion] = useState(0)
-  const [treeId, setTreeId] = useState<string | null>(null)
-  const mirrorRef = useRef<MirrorState | null>(null)
-  // Hold options in a ref. The ref is refreshed every render so that the
-  // *next* mount (i.e. after a rootPath change) uses the caller's latest
-  // option object — but it is read **only once** per mount, inside the
-  // effect's IIFE below. Stale options between rootPath-equal renders are
-  // therefore intentional, not a bug.
-  const optionsRef = useRef<DirectoryTreeOptions | undefined>(options)
-  optionsRef.current = options
-  const onMutationRef = useRef(onMutation)
-  onMutationRef.current = onMutation
+const IDLE_RELEASE_MS = 10_000
 
-  useEffect(() => {
-    if (!rootPath) {
-      setRoot(null)
-      setError(null)
-      setIsLoading(false)
-      setTreeId(null)
-      mirrorRef.current = null
-      return
+/** A directory mirror whose native subscription can outlive its React subscribers briefly. */
+class DirectoryTreeSession {
+  private mirror: MirrorState | null = null
+  private state: DirectoryTreeState = { root: null, isLoading: false, error: null, version: 0, treeId: null }
+  private readonly listeners = new Set<() => void>()
+  private release?: () => void
+  private idleTimer?: ReturnType<typeof setTimeout>
+
+  constructor(
+    private readonly rootPath: string,
+    private readonly options: DirectoryTreeOptions | undefined,
+    private readonly onMutation: (event: TreeMutationEvent) => void
+  ) {}
+
+  getSnapshot = (): DirectoryTreeState => this.state
+  getNode = (path: string): TreeNode | null => this.mirror?.nodes.get(path) ?? null
+
+  subscribe = (listener: () => void): (() => void) => {
+    clearTimeout(this.idleTimer)
+    this.idleTimer = undefined
+    this.listeners.add(listener)
+    this.release ??= this.start()
+    return () => {
+      this.listeners.delete(listener)
+      if (this.listeners.size === 0) this.idleTimer = setTimeout(() => this.dispose(), IDLE_RELEASE_MS)
     }
+  }
 
+  dispose(): void {
+    clearTimeout(this.idleTimer)
+    this.idleTimer = undefined
+    this.release?.()
+    this.release = undefined
+    this.update({ root: null, treeId: null, isLoading: false })
+  }
+
+  private update(patch: Partial<DirectoryTreeState>): void {
+    this.state = { ...this.state, ...patch }
+    for (const listener of this.listeners) listener()
+  }
+
+  private start(): () => void {
+    const rootPath = this.rootPath
     let cancelled = false
     let released = false
     let unsubscribeMutations: (() => void) | null = null
     let createdTreeId: string | null = null
 
-    setRoot(null)
-    setIsLoading(true)
-    setError(null)
+    this.update({ root: null, treeId: null, isLoading: true, error: null })
 
     const disposeTree = (treeId: string): void => {
-      // Wrap so mocked / synchronous dispose impls that return `undefined`
-      // don't throw before our `.catch`. The IPC contract is async; we
-      // treat the result defensively.
-      Promise.resolve(ipcApi.request('file.tree.dispose', { treeId })).catch((err) => {
+      ipcApi.request('file.tree.dispose', { treeId }).catch((err) => {
         logger.error(`Failed to dispose tree ${treeId}`, err as Error)
       })
     }
@@ -183,7 +210,7 @@ export function useDirectoryTree(
         disposeTree(createdTreeId)
         createdTreeId = null
       }
-      mirrorRef.current = null
+      this.mirror = null
     }
 
     void (async () => {
@@ -191,7 +218,7 @@ export function useDirectoryTree(
         for (let attempt = 1; attempt <= MAX_ACTIVATION_ATTEMPTS; attempt += 1) {
           const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
             rootPath: AbsoluteFilePathSchema.parse(rootPath),
-            options: optionsRef.current
+            options: this.options
           })
           if (cancelled) {
             disposeTree(result.treeId)
@@ -202,11 +229,11 @@ export function useDirectoryTree(
 
           const snapshotRoot = rootFromSerialized(result.snapshot)
           const nodes = indexTree(snapshotRoot)
-          mirrorRef.current = { root: snapshotRoot, nodes, revision: result.revision }
+          this.mirror = { root: snapshotRoot, nodes, revision: result.revision }
 
           unsubscribeMutations = ipcApi.on('file.tree.mutation', (payload) => {
             if (payload.treeId !== result.treeId) return
-            const mirror = mirrorRef.current
+            const mirror = this.mirror
             if (!mirror) return
             if (payload.revision <= mirror.revision) return
             const expectedRevision = mirror.revision + 1
@@ -215,48 +242,28 @@ export function useDirectoryTree(
                 `Directory tree ${result.treeId} mutation gap: expected ${expectedRevision}, received ${payload.revision}`
               )
               logger.error(`Directory tree mutation stream became stale for ${rootPath}`, revisionError)
-              // A gap is unrecoverable without a replay or a fresh snapshot, so this is
-              // terminal: tear the stream down and report once. Staying subscribed would
-              // re-gap on every later push — a new Error each time, which consumers that
-              // toast on `error` (Notes) turn into an endless stream of toasts, while the
-              // dead mirror keeps a watcher and its IPC traffic alive. Terminal here also
-              // means no retry: unlike a refused activation, a fresh snapshot would not
-              // tell us what the mirror missed.
               released = true
               releaseTree()
-              setRoot(null)
-              setTreeId(null)
-              setError(revisionError)
-              setIsLoading(false)
+              this.update({ root: null, treeId: null, error: revisionError, isLoading: false })
               return
             }
             const changed = applyMutation(mirror, payload.event)
             mirror.revision = payload.revision
-            onMutationRef.current?.(payload.event)
-            if (changed) setVersion((v) => v + 1)
+            this.onMutation(payload.event)
+            if (changed) this.update({ version: this.state.version + 1 })
           })
 
           const activated = await ipcApi.request('file.tree.activate', {
             treeId: result.treeId,
             revision: result.revision
           })
-          // `activate` flushes the buffered mutations before it resolves, so the listener
-          // may have hit a revision gap and torn everything down while this await was
-          // pending. Publishing now would resurrect a snapshot with no mirror behind it —
-          // a tree whose `getNode()` returns null for every path it displays.
           if (cancelled || released) return
 
           if (activated) {
-            setRoot(snapshotRoot)
-            setTreeId(result.treeId)
-            setIsLoading(false)
+            this.update({ root: snapshotRoot, treeId: result.treeId, isLoading: false })
             return
           }
 
-          // Main refused the handshake — it dropped this consumer, today because the
-          // pending buffer overflowed while we were between `create` and `activate`.
-          // The snapshot we hold can never be completed, but the condition is transient,
-          // so take a fresh one instead of leaving the caller with a dead tree.
           logger.warn(`Directory tree ${result.treeId} refused activation, retaking the snapshot`, {
             rootPath,
             attempt
@@ -268,39 +275,19 @@ export function useDirectoryTree(
         if (cancelled) return
         releaseTree()
         const normalized = err instanceof Error ? err : new Error(String(err))
-        // Distinguish "the main-side manager stopped while our create was
-        // in flight" from a real failure — it fires during app shutdown or
-        // service restart, where no consumer toast is useful.
         if (normalized instanceof IpcError && normalized.code === fileErrorCodes.DIRECTORY_TREE_STOPPED) {
-          setIsLoading(false)
+          this.update({ isLoading: false })
           return
         }
         logger.error(`Failed to create directory tree for ${rootPath}`, normalized)
-        setError(normalized)
-        setIsLoading(false)
+        this.update({ error: normalized, isLoading: false })
       }
     })()
 
     return () => {
       cancelled = true
       releaseTree()
-      setTreeId(null)
+      this.update({ treeId: null })
     }
-    // Re-create only on rootPath change. The `options` argument is sampled
-    // exactly once per mount (via `optionsRef.current` inside the IIFE
-    // above); subsequent renders update `optionsRef` but do NOT trigger a
-    // rebuild. Pass a new `rootPath` if you need a different scan.
-  }, [rootPath])
-
-  const currentRoot = root?.path === normalizedRootPath ? root : null
-  const getNode = useCallback(
-    (absPath: string): TreeNode | null => {
-      const mirror = mirrorRef.current
-      if (!mirror || mirror.root.path !== normalizedRootPath) return null
-      return mirror.nodes.get(absPath) ?? null
-    },
-    [normalizedRootPath]
-  )
-
-  return { root: currentRoot, isLoading, error, version, treeId: currentRoot ? treeId : null, getNode }
+  }
 }

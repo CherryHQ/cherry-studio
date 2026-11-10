@@ -49,4 +49,10 @@ export interface PaintingData {
    * omitted from the wire — server applies its default.
    */
   params?: Record<string, unknown>
+  /**
+   * Per-draft request timeout for one image-generation attempt, in ms. Omitted
+   * means "use the transport default". A draft concern like `mode` — the
+   * persisted painting record does not carry it.
+   */
+  requestTimeoutMs?: number
 }

@@ -1,14 +1,20 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '@main/ai/runtime/fork'
-import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import { createClaudeCodeRuntimeDriver } from './claudeCode'
-import { DshRuntimeDriver } from './dsh/DshRuntimeDriver'
+import {
+  ClaudeForkCheckpointSchema,
+  claudeWorkspaceRelocation,
+  createClaudeCodeRuntimeDriver,
+  readClaudeTranscriptEvidence
+} from './claudeCode'
 import { listEntries, reclaimStale } from './orphanSessionReclaim'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
+import { PiDurableRuntimeDriver } from './piDurable/PiDurableRuntimeDriver'
 import { runtimeDriverRegistry } from './registry'
 import type {
   AgentRuntimeConnectInput,
@@ -17,18 +23,20 @@ import type {
   OrphanSessionReclaimOptions
 } from './types'
 
+const logger = loggerService.withContext('LazyClaudeCodeRuntimeDriver')
+
 class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly type = 'claude-code'
-  readonly capabilities = ['agent-session'] as const
+
+  isForkCheckpoint(value: unknown): boolean {
+    return ClaudeForkCheckpointSchema.safeParse(value).success
+  }
 
   private implementationPromise: Promise<AgentSessionRuntimeDriver> | undefined
 
   validateSession(session: AgentSessionEntity): Promise<void> {
     return this.loadImplementation().then((driver) => driver.validateSession(session))
-  }
-
-  listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
-    return this.loadImplementation().then((driver) => driver.listAvailableTools(mcpIds))
   }
 
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
@@ -90,6 +98,50 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     return { removed }
   }
 
+  async reclaimPurgedSessions(purgedResumeTokens: ReadonlySet<string>): Promise<{ removed: string[] }> {
+    const projectsRoot = application.getPath('feature.agents.claude.projects')
+    const removed: string[] = []
+
+    for (const projectEntry of await listEntries(projectsRoot)) {
+      if (!projectEntry.isDirectory()) continue
+      const projectDir = path.resolve(projectsRoot, projectEntry.name)
+      let removedFromProject = false
+      for (const entry of await listEntries(projectDir)) {
+        const token = entry.isDirectory()
+          ? entry.name
+          : entry.isFile() && entry.name.endsWith('.jsonl')
+            ? entry.name.slice(0, -'.jsonl'.length)
+            : null
+        if (!token || !purgedResumeTokens.has(token)) continue
+
+        const target = path.resolve(projectDir, entry.name)
+        try {
+          await fs.rm(target, { recursive: true, force: true })
+          removed.push(target)
+          removedFromProject = true
+        } catch (error) {
+          logger.warn('Failed to reclaim purged session artifact — retried next sweep', { target, error })
+        }
+      }
+      if (!removedFromProject) continue
+      try {
+        await fs.rmdir(projectDir)
+        removed.push(projectDir)
+      } catch (error) {
+        if (!['ENOTEMPTY', 'ENOENT'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+          logger.warn('Failed to remove empty Claude project directory', { projectDir, error })
+        }
+      }
+    }
+
+    return { removed }
+  }
+
+  /** Pure filesystem work like the sweep above, so it never loads the implementation either. */
+  readTranscriptEvidence(resumeToken: string, maxEntries: number): Promise<Record<string, unknown>[] | undefined> {
+    return readClaudeTranscriptEvidence(application.getPath('feature.agents.claude.projects'), resumeToken, maxEntries)
+  }
+
   private loadImplementation(): Promise<AgentSessionRuntimeDriver> {
     this.implementationPromise ??= createClaudeCodeRuntimeDriver()
     return this.implementationPromise
@@ -100,5 +152,5 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
 export function registerRuntimeDrivers(): void {
   runtimeDriverRegistry.register(new LazyClaudeCodeRuntimeDriver())
   runtimeDriverRegistry.register(new PiRuntimeDriver())
-  runtimeDriverRegistry.register(new DshRuntimeDriver())
+  runtimeDriverRegistry.register(new PiDurableRuntimeDriver())
 }

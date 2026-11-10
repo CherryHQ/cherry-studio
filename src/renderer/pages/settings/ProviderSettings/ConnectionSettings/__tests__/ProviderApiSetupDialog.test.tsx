@@ -14,7 +14,6 @@ const updateProviderMock = vi.fn()
 const enableProviderMock = vi.fn()
 const createModelsMock = vi.fn()
 const updateModelsMock = vi.fn()
-const fetchProviderCatalogModelsMock = vi.fn()
 const fetchResolvedProviderModelsMock = vi.fn()
 const checkApiMock = vi.fn()
 const getModelHealthCheckSkipReasonMock = vi.fn()
@@ -118,7 +117,6 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('../../utils/modelSync', () => ({
-  fetchProviderCatalogModels: (...args: any[]) => fetchProviderCatalogModelsMock(...args),
   fetchResolvedProviderModels: (...args: any[]) => fetchResolvedProviderModelsMock(...args),
   resolveCreateModelEndpointTypes: () => undefined,
   toCreateModelDto: (providerId: string, model: Model) => ({
@@ -130,7 +128,10 @@ vi.mock('../../utils/modelSync', () => ({
 
 vi.mock('../../utils/healthCheck', () => ({
   checkApi: (...args: any[]) => checkApiMock(...args),
-  getModelHealthCheckSkipReason: (...args: any[]) => getModelHealthCheckSkipReasonMock(...args),
+  getModelHealthCheckSkipReason: (...args: any[]) => getModelHealthCheckSkipReasonMock(...args)
+}))
+
+vi.mock('@renderer/services/modelHealthCheck', () => ({
   healthCheckErrorToDisplayString: (error: { message?: string } | string) =>
     typeof error === 'string' ? error : (error.message ?? '')
 }))
@@ -191,8 +192,7 @@ describe('ProviderApiSetupDialog', () => {
       dtos.map((dto) => ({ ...createModel(dto.modelId), name: dto.name }))
     )
     updateModelsMock.mockResolvedValue([])
-    fetchProviderCatalogModelsMock.mockResolvedValue([])
-    fetchResolvedProviderModelsMock.mockResolvedValue([createModel('alpha'), createModel('beta')])
+    fetchResolvedProviderModelsMock.mockResolvedValue({ models: [createModel('alpha'), createModel('beta')] })
     checkApiMock.mockResolvedValue({ latency: 10 })
     getModelHealthCheckSkipReasonMock.mockReturnValue(null)
   })
@@ -463,7 +463,7 @@ describe('ProviderApiSetupDialog', () => {
   it('reuses the same saved key entry after model loading fails', async () => {
     fetchResolvedProviderModelsMock
       .mockRejectedValueOnce(new Error('401 rejected sk-first'))
-      .mockResolvedValueOnce([createModel('alpha')])
+      .mockResolvedValueOnce({ models: [createModel('alpha')] })
 
     render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
 
@@ -513,7 +513,7 @@ describe('ProviderApiSetupDialog', () => {
     storedApiKeys = [{ id: 'saved-key', key: 'sk-existing', isEnabled: true }]
     fetchResolvedProviderModelsMock
       .mockRejectedValueOnce(new Error('401 rejected sk-existing'))
-      .mockResolvedValueOnce([createModel('alpha')])
+      .mockResolvedValueOnce({ models: [createModel('alpha')] })
 
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
 
@@ -546,18 +546,14 @@ describe('ProviderApiSetupDialog', () => {
     expect(alert).not.toHaveTextContent('Invalid API key')
   })
 
-  it('keeps models from a successful source selectable when another source fails', async () => {
+  it('does not offer undiscovered models after a failed upstream load', async () => {
     storedApiKeys = [{ id: 'saved-key', key: 'sk-existing', isEnabled: true }]
-    fetchProviderCatalogModelsMock.mockResolvedValue([createModel('catalog-model')])
     fetchResolvedProviderModelsMock.mockRejectedValue(new Error('upstream unavailable'))
 
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
 
-    await screen.findAllByText('catalog-model')
-    expect(screen.getByRole('alert')).toHaveTextContent('settings.models.manage.sync_pull_failed')
-    const modelCheckbox = screen.getByLabelText('settings.provider.api_setup.select_model')
-    fireEvent.click(modelCheckbox)
-    expect(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' })).toBeEnabled()
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.models.manage.sync_pull_failed')
+    expect(screen.queryByLabelText('settings.provider.api_setup.select_model')).not.toBeInTheDocument()
   })
 
   it('omits an unsafe raw error summary when stored keys cannot be loaded', async () => {
@@ -675,7 +671,7 @@ describe('ProviderApiSetupDialog', () => {
 
   it('retries only the model batch that did not persist', async () => {
     const models = Array.from({ length: 501 }, (_, index) => createModel(`model-${index}`))
-    fetchResolvedProviderModelsMock.mockResolvedValue(models)
+    fetchResolvedProviderModelsMock.mockResolvedValue({ models })
     createModelsMock
       .mockImplementationOnce(async (dtos: Array<{ modelId: string; name: string }>) =>
         dtos.map((dto) => ({ ...createModel(dto.modelId), name: dto.name }))

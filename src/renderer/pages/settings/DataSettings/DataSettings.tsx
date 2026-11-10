@@ -4,10 +4,9 @@ import type { ReactNode } from 'react'
 import { type FC, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex, ScrollArea } from '@cherrystudio/ui'
 import { NutstoreIcon } from '@renderer/components/icons/NutstoreIcons'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons/SvgIcon'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import {
@@ -91,7 +90,7 @@ const DataSettings: FC = () => {
       <div
         className={`flex flex-col ${settingsSubmenuScrollClassName} [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
         <PageHeader title={t('settings.data.title')} />
-        <Scrollbar className="min-h-0 flex-1">
+        <ScrollArea className="min-h-0 flex-1">
           <MenuList className={settingsSubmenuListClassName}>
             {menuItems.map((item, index) =>
               item.isDivider ? (
@@ -112,7 +111,7 @@ const DataSettings: FC = () => {
               )
             )}
           </MenuList>
-        </Scrollbar>
+        </ScrollArea>
       </div>
       <SettingsContentColumn theme={theme}>
         {menu === 'data' ? (

@@ -53,10 +53,23 @@ function firstHeadingOrLine(markdown: string): string {
 function urlStem(url: string): string {
   try {
     const parsed = new URL(url)
-    const lastSegment = parsed.pathname.split('/').filter(Boolean).pop()
+    // `pathname` is still percent-encoded, and this stem ends up as a file name, so an
+    // undecoded title was written out as `docs.example.com-%E4%BD%BF...` — unrecognisable in
+    // the knowledge base listing and impossible to search for.
+    const lastSegment = decodePathSegment(parsed.pathname.split('/').filter(Boolean).pop())
     return [parsed.hostname, lastSegment].filter(Boolean).join('-')
   } catch {
     return ''
+  }
+}
+
+/** `decodeURIComponent` throws on a malformed escape; keep the raw text rather than the stem. */
+function decodePathSegment(segment: string | undefined): string | undefined {
+  if (!segment) return segment
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
   }
 }
 

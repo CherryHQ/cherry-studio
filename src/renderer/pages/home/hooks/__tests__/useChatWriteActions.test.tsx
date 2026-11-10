@@ -22,6 +22,7 @@ vi.mock('@renderer/services/messageUiStateCache', () => ({
 }))
 
 import type { Topic } from '@renderer/types/topic'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { useChatWriteActions } from '../useChatWriteActions'
 
@@ -65,24 +66,28 @@ function renderActions(
   const regenerate = vi.fn<Parameters<typeof useChatWriteActions>[0]['regenerate']>(async () => {})
   const setMessages = vi.fn()
   const seedReservedMessages = vi.fn(async () => {})
-  const { result } = renderHook(() =>
-    useChatWriteActions({
-      topic: { id: 't1' } as Topic,
-      uiMessages,
-      activeNodeId,
-      regenerate,
-      setMessages,
-      stop,
-      refresh: vi.fn(async () => []),
-      cache,
-      seedReservedMessages,
-      scrollToBottom,
-      startNewContextBlocked
-    })
+  const { result, rerender } = renderHook(
+    ({ composerModelId }) =>
+      useChatWriteActions({
+        topic: { id: 't1' } as Topic,
+        uiMessages,
+        activeNodeId,
+        regenerate,
+        setMessages,
+        stop,
+        refresh: vi.fn(async () => []),
+        cache,
+        seedReservedMessages,
+        scrollToBottom,
+        startNewContextBlocked,
+        composerModelId
+      }),
+    { initialProps: { composerModelId: undefined as UniqueModelId | undefined } }
   )
   return {
     actions: result.current.actions,
     result,
+    rerender,
     cache,
     scrollToBottom,
     regenerate,
@@ -453,19 +458,24 @@ describe('useChatWriteActions — edit message', () => {
 describe('useChatWriteActions — regenerate', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('waits for regeneration to finish', async () => {
+  it('keeps regeneration pending until the request finishes', async () => {
     const assistantMessage = uiMsg('a1', 'assistant', 'u1')
     assistantMessage.parts = [{ type: 'text', text: 'answer' }]
     const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
     let finishRegenerate: (() => void) | undefined
     regenerate.mockImplementationOnce(() => new Promise<void>((resolve) => (finishRegenerate = resolve)))
 
-    const request = actions.regenerate('a1')
+    let finished = false
+    const request = actions.regenerate('a1').then(() => {
+      finished = true
+    })
 
-    expect(regenerate).toHaveBeenCalledOnce()
+    await Promise.resolve()
+    expect(finished).toBe(false)
 
     finishRegenerate?.()
     await request
+    expect(finished).toBe(true)
   })
 
   it('inherits the persisted turn options when retrying an assistant message', async () => {
@@ -485,6 +495,23 @@ describe('useChatWriteActions — regenerate', () => {
         fastMode: true
       })
     })
+  })
+
+  it('uses the selected composer model when regenerating from a user message', async () => {
+    const { result, rerender, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot')])
+    rerender({ composerModelId: 'provider::model-b' })
+
+    await result.current.actions.regenerate('u1')
+
+    expect(regenerate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageId: 'u1',
+        body: expect.objectContaining({
+          parentAnchorId: 'u1',
+          mentionedModels: ['provider::model-b']
+        })
+      })
+    )
   })
 
   it('retries a failed assistant in place through Main and seeds the fresh attempt identity', async () => {
@@ -526,25 +553,110 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
-  it('lets Main resolve the current model when regenerating a successful assistant response', async () => {
-    const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, 'success')
-    nonTextAssistant.metadata.modelId = 'provider::model-a'
-    nonTextAssistant.parts = [{ type: 'data-code', data: { content: 'const ok = true', language: 'ts' } }]
-    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), nonTextAssistant])
+  it('uses an explicit model override when retrying a failed assistant with a different provider', async () => {
+    const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failedAssistant.metadata.modelId = 'provider::model-a'
+    failedAssistant.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { result, rerender, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
+    rerender({ composerModelId: 'provider::model-c' })
 
-    await actions.regenerate('a1')
+    await result.current.actions.regenerate('a1', { modelId: 'provider::model-b' })
 
-    expect(streamOpen).not.toHaveBeenCalled()
-    expect(regenerate).toHaveBeenCalledWith({
-      messageId: 'a1',
-      body: expect.objectContaining({ parentAnchorId: 'u1' })
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      appendToLiveGroupMessageId: 'a1',
+      mentionedModelIds: ['provider::model-b']
     })
-    expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
+    expect(streamOpen.mock.calls[0][0]).not.toHaveProperty('retryMessageId')
+  })
+
+  it.each([
+    ['error', 'provider-a::model-x', 'default'],
+    ['error', 'provider-a::model-x', 'explicit'],
+    ['error', 'provider-a::model-x', undefined],
+    ['paused', 'provider-a::model-x', 'explicit'],
+    ['success', 'provider-a::model-x', undefined],
+    ['error', undefined, undefined]
+  ])(
+    'uses the latest composer selection for a %s reply with model %s and source %s',
+    async (status, modelId, modelSelection) => {
+      const assistantMessage = uiMsg('a1', 'assistant', 'u1', false, status)
+      assistantMessage.metadata.modelId = modelId
+      assistantMessage.metadata.modelSelection = modelSelection
+      if (status !== 'success') assistantMessage.parts = [{ type: 'text', text: 'partial answer' }]
+      streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+      const { result, rerender } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
+      rerender({ composerModelId: 'provider-a::model-x' })
+      rerender({ composerModelId: 'provider-b::model-x' })
+
+      await result.current.actions.regenerate('a1')
+
+      expect(streamOpen).toHaveBeenCalledWith({
+        trigger: 'regenerate-message',
+        topicId: 't1',
+        parentAnchorId: 'u1',
+        appendToLiveGroupMessageId: 'a1',
+        mentionedModelIds: ['provider-b::model-x']
+      })
+    }
+  )
+
+  it('retries in place when the composer still selects the failed model', async () => {
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    assistantMessage.metadata.modelId = 'provider-a::model-x'
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { result, rerender } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
+    rerender({ composerModelId: 'provider-a::model-x' })
+
+    await result.current.actions.regenerate('a1')
+
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      retryMessageId: 'a1',
+      mentionedModelIds: ['provider-a::model-x']
+    })
+  })
+
+  it.each(['success', 'pending'])('regenerates a non-text %s reply with the appropriate model', async (status) => {
+    if (status === 'success') streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, status)
+    nonTextAssistant.metadata.modelId = 'provider::model-a'
+    nonTextAssistant.parts =
+      status === 'pending' ? [] : [{ type: 'data-code', data: { content: 'const ok = true', language: 'ts' } }]
+    const { result, rerender, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), nonTextAssistant])
+    rerender({ composerModelId: 'provider::model-b' })
+
+    await result.current.actions.regenerate('a1')
+
+    if (status === 'pending') {
+      expect(streamOpen).not.toHaveBeenCalled()
+      expect(regenerate).toHaveBeenCalledWith({
+        messageId: 'a1',
+        body: expect.objectContaining({ parentAnchorId: 'u1' })
+      })
+      expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
+    } else {
+      expect(regenerate).not.toHaveBeenCalled()
+      expect(streamOpen).toHaveBeenCalledWith({
+        trigger: 'regenerate-message',
+        topicId: 't1',
+        parentAnchorId: 'u1',
+        appendToLiveGroupMessageId: 'a1',
+        mentionedModelIds: ['provider::model-b']
+      })
+    }
   })
 
   it('routes an explicit @ model through Main so a live reply group can append without moving the branch', async () => {
     const assistantMessage = uiMsg('a1', 'assistant', 'u1')
     assistantMessage.metadata.modelId = 'provider::model-a'
+    assistantMessage.metadata.modelSelection = 'explicit'
     assistantMessage.parts = [{ type: 'text', text: 'answer in progress' }]
     const reservedMessage = {
       ...uiMsg('a2', 'assistant', 'u1', false, 'pending'),
@@ -582,6 +694,81 @@ describe('useChatWriteActions — regenerate', () => {
     expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
       activeExecutions: [activeExecution],
       preserveActiveNode: true
+    })
+  })
+
+  it.each(['default', undefined] as const)(
+    'uses the current model for %s replies with different-model siblings',
+    async (modelSelection) => {
+      const replyA = uiMsg('a1', 'assistant', 'u1', false, 'success')
+      replyA.metadata.modelId = 'provider::model-a'
+      replyA.metadata.modelSelection = modelSelection
+      replyA.parts = [{ type: 'text', text: 'original answer' }]
+      const replyB = uiMsg('a2', 'assistant', 'u1', false, 'success')
+      replyB.metadata.modelId = 'provider::model-b'
+      replyB.metadata.modelSelection = modelSelection
+      replyB.parts = [{ type: 'text', text: 'regenerated after switching models' }]
+      const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), replyA, replyB])
+
+      await actions.regenerate('a2')
+
+      expect(streamOpen).not.toHaveBeenCalled()
+      expect(regenerate).toHaveBeenCalledWith({
+        messageId: 'a2',
+        body: expect.objectContaining({ parentAnchorId: 'u1' })
+      })
+      expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
+    }
+  )
+
+  it.each([true, false])('uses the current model for explicit replies: %s', async (hasSibling) => {
+    const replyA = uiMsg('a1', 'assistant', 'u1', false, 'success')
+    replyA.metadata.modelId = 'provider::model-a'
+    replyA.metadata.modelSelection = 'explicit'
+    replyA.parts = [{ type: 'text', text: 'answer a' }]
+    const replyB = uiMsg('a2', 'assistant', 'u1', false, 'success')
+    replyB.metadata.modelId = 'provider::model-b'
+    replyB.parts = [{ type: 'text', text: 'answer b' }]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { result, rerender, regenerate } = renderActions([
+      uiMsg('u1', 'user', 'vroot'),
+      replyA,
+      ...(hasSibling ? [replyB] : [])
+    ])
+    rerender({ composerModelId: 'provider::model-c' })
+
+    await result.current.actions.regenerate('a1')
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      appendToLiveGroupMessageId: 'a1',
+      mentionedModelIds: ['provider::model-c']
+    })
+  })
+
+  it('still retries a failed multi-model group reply in place with its original model', async () => {
+    const failedReplyA = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failedReplyA.metadata.modelId = 'provider::model-a'
+    failedReplyA.metadata.modelSelection = 'explicit'
+    failedReplyA.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    const replyB = uiMsg('a2', 'assistant', 'u1', false, 'success')
+    replyB.metadata.modelId = 'provider::model-b'
+    replyB.parts = [{ type: 'text', text: 'answer b' }]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), failedReplyA, replyB])
+
+    await actions.regenerate('a1')
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      retryMessageId: 'a1',
+      mentionedModelIds: ['provider::model-a']
     })
   })
 
@@ -678,5 +865,133 @@ describe('useChatWriteActions — fork and resend', () => {
     const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
 
     await expect(actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)).rejects.toThrow('blocked')
+  })
+})
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+describe.each([
+  { handler: 'resend', firstSeeds: 0 },
+  { handler: 'forkAndResend', firstSeeds: 1 }
+] as const)('useChatWriteActions — $handler bottom-follow acceptance', ({ handler, firstSeeds }) => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    streamOpen.mockReset()
+  })
+
+  function setup() {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce({
+      id: 'forked-user',
+      parentId: 'vroot',
+      siblingsGroupId: 1,
+      status: 'success',
+      createdAt: '2026-01-01T00:00:00.000Z'
+    } as never)
+    const harness = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
+    const invoke = () =>
+      handler === 'resend'
+        ? harness.actions.resend('u1')
+        : harness.actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }])
+    return { ...harness, invoke }
+  }
+
+  it.each([
+    { mode: 'started', reservations: 'nonempty' },
+    { mode: 'started', reservations: 'empty' },
+    { mode: 'started', reservations: 'absent' },
+    { mode: 'injected', reservations: 'nonempty' },
+    { mode: 'injected', reservations: 'empty' },
+    { mode: 'injected', reservations: 'absent' }
+  ] as const)(
+    'hands off once after $mode open and final seed resolve with $reservations reservations',
+    async ({ mode, reservations }) => {
+      const { invoke, seedReservedMessages, scrollToBottom } = setup()
+      const reservedMessages = reservations === 'nonempty' ? [uiMsg('a2', 'assistant', 'u1', false, 'pending')] : []
+      const ack = {
+        mode,
+        ...(reservations !== 'absent' && { reservedMessages }),
+        activeExecutions: [{ executionId: 'provider::model-a', attemptId: 2, anchorMessageId: 'a2' }],
+        preserveActiveNode: true
+      }
+      const open = deferred<typeof ack>()
+      const finalSeed = deferred<void>()
+      streamOpen.mockImplementationOnce(() => open.promise)
+      if (firstSeeds) seedReservedMessages.mockResolvedValueOnce()
+      seedReservedMessages.mockImplementationOnce(() => finalSeed.promise)
+
+      const request = invoke()
+      await vi.waitFor(() => expect(streamOpen).toHaveBeenCalledOnce())
+      expect(seedReservedMessages).toHaveBeenCalledTimes(firstSeeds)
+      expect(scrollToBottom).not.toHaveBeenCalled()
+
+      open.resolve(ack)
+      await vi.waitFor(() => expect(seedReservedMessages).toHaveBeenCalledTimes(firstSeeds + 1))
+      expect(seedReservedMessages).toHaveBeenLastCalledWith(reservedMessages, {
+        activeExecutions: ack.activeExecutions,
+        preserveActiveNode: true
+      })
+      expect(scrollToBottom).not.toHaveBeenCalled()
+
+      finalSeed.resolve()
+      await request
+      expect(scrollToBottom).toHaveBeenCalledExactlyOnceWith()
+    }
+  )
+
+  it('rejects a blocked open without final seeding or handing off', async () => {
+    const { invoke, seedReservedMessages, scrollToBottom } = setup()
+    const open = deferred<{ mode: 'blocked'; message: string }>()
+    streamOpen.mockImplementationOnce(() => open.promise)
+    const request = invoke()
+    const rejection = expect(request).rejects.toThrow('blocked')
+    await vi.waitFor(() => expect(streamOpen).toHaveBeenCalledOnce())
+    expect(scrollToBottom).not.toHaveBeenCalled()
+
+    open.resolve({ mode: 'blocked', message: 'blocked' })
+    await rejection
+    expect(seedReservedMessages).toHaveBeenCalledTimes(firstSeeds)
+    expect(scrollToBottom).not.toHaveBeenCalled()
+  })
+
+  it('propagates an open rejection without handing off', async () => {
+    const { invoke, seedReservedMessages, scrollToBottom } = setup()
+    const error = new Error('open failed')
+    const open = deferred<never>()
+    streamOpen.mockImplementationOnce(() => open.promise)
+    const request = invoke()
+    const rejection = expect(request).rejects.toBe(error)
+    await vi.waitFor(() => expect(streamOpen).toHaveBeenCalledOnce())
+    expect(scrollToBottom).not.toHaveBeenCalled()
+
+    open.reject(error)
+    await rejection
+    expect(seedReservedMessages).toHaveBeenCalledTimes(firstSeeds)
+    expect(scrollToBottom).not.toHaveBeenCalled()
+  })
+
+  it('propagates a final seed rejection without handing off after acceptance', async () => {
+    const { invoke, seedReservedMessages, scrollToBottom } = setup()
+    const error = new Error('seed failed')
+    const finalSeed = deferred<void>()
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    if (firstSeeds) seedReservedMessages.mockResolvedValueOnce()
+    seedReservedMessages.mockImplementationOnce(() => finalSeed.promise)
+    const request = invoke()
+    const rejection = expect(request).rejects.toBe(error)
+    await vi.waitFor(() => expect(seedReservedMessages).toHaveBeenCalledTimes(firstSeeds + 1))
+    expect(scrollToBottom).not.toHaveBeenCalled()
+
+    finalSeed.reject(error)
+    await rejection
+    expect(scrollToBottom).not.toHaveBeenCalled()
   })
 })

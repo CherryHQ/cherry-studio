@@ -160,6 +160,7 @@ export function useCache<K extends UseCacheKey>(
 ): [InferUseCacheValue<K>, (value: CacheSetStateAction<InferUseCacheValue<K>>) => void] {
   // Get the default value for this key (works with both fixed and template keys)
   const defaultValue = getUseCacheDefaultValue(key)
+  const fallbackValue = initValue !== undefined ? initValue : defaultValue!
 
   /**
    * Subscribe to cache changes using React's useSyncExternalStore
@@ -212,23 +213,24 @@ export function useCache<K extends UseCacheKey>(
    * Memoized setter function for updating the cache value.
    * Accepts a concrete value or a functional updater `(prev) => next`. The
    * updater is resolved against the latest stored value via the same default
-   * fallback chain as the hook return (`get ?? initValue ?? schema default`),
-   * so it stays correct across an `await`.
+   * fallback chain as the hook return, treating only undefined as absent,
+   * so it preserves explicit null values and stays correct across an `await`.
    * @param newValue - New value, or an updater computing it from the latest value
    */
   const setValue = useCallback(
     (newValue: CacheSetStateAction<InferUseCacheValue<K>>) => {
       if (typeof newValue === 'function') {
-        const prev = (cacheService.get(key) ?? initValue ?? defaultValue) as ReadonlyValue<InferUseCacheValue<K>>
+        const storedValue = cacheService.get(key)
+        const prev = (storedValue !== undefined ? storedValue : fallbackValue) as ReadonlyValue<InferUseCacheValue<K>>
         cacheService.set(key, newValue(prev))
       } else {
         cacheService.set(key, newValue)
       }
     },
-    [key, initValue, defaultValue]
+    [key, fallbackValue]
   )
 
-  return [value ?? initValue ?? defaultValue!, setValue]
+  return [value !== undefined ? value : fallbackValue, setValue]
 }
 
 /**
@@ -588,6 +590,19 @@ export function useSharedCacheSelector<const Keys extends readonly SharedCacheKe
   isEqual: (a: Selection, b: Selection) => boolean = shallowEqual
 ): Selection {
   return useCacheKeysSelector(keys, subscribeSharedKey, readSharedKey, selector, isEqual)
+}
+
+/**
+ * Latest persisted value reader: a stable getter for the stored value, for call sites that
+ * must compare against the store at effect time instead of the render snapshot.
+ *
+ * @param key - Cache key from the predefined schema
+ * @returns A stable getter for the latest persisted value
+ *
+ * @example useEffect(() => { reconcile(readPinnedTabs()) }, [readPinnedTabs])
+ */
+export function usePersistCacheReader<K extends RendererPersistCacheKey>(key: K): () => RendererPersistCacheSchema[K] {
+  return useCallback(() => cacheService.getPersist(key), [key])
 }
 
 /**

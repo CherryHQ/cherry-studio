@@ -14,6 +14,7 @@ import {
   EmptyState,
   Input,
   Label,
+  ScrollArea,
   Select,
   SelectContent,
   SelectItem,
@@ -26,7 +27,6 @@ import {
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
-import Scrollbar from '@renderer/components/Scrollbar'
 import {
   SettingDivider,
   SettingGroup,
@@ -43,7 +43,7 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelStatus } from '@shared/data/types/channel'
 
 import { getFormForType } from './ChannelForms'
-import type { AvailableChannel, ChannelData } from './channelTypes'
+import type { AvailableChannel, ChannelData, ChannelUpdates } from './channelTypes'
 
 const logger = loggerService.withContext('ChannelDetail')
 
@@ -89,6 +89,12 @@ function getChannelSummary(channel: ChannelData): string {
       if (slackChannelIds.length > 0) parts.push(`${slackChannelIds.length} channel IDs`)
       break
     }
+    case 'dingtalk':
+      if (cfg.client_id) parts.push(truncateId(cfg.client_id as string))
+      break
+    case 'wecom':
+      if (cfg.bot_id) parts.push(truncateId(cfg.bot_id as string))
+      break
     case 'wechat':
       break
   }
@@ -187,7 +193,7 @@ type EditModalProps = {
   channel: ChannelData | null
   agents: Array<{ id: string; name: string }>
   onClose: () => void
-  onSave: (id: string, updates: Partial<ChannelData>) => void
+  onSave: (id: string, updates: ChannelUpdates) => void
   onDelete: (id: string) => void
 }
 
@@ -252,7 +258,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
     : (workspaces?.find((w) => w.id === workspaceId)?.name ?? workspaceId)
 
   const handleUpdate = useCallback(
-    (updates: Partial<ChannelData>) => {
+    (updates: ChannelUpdates) => {
       if (channel) onSave(channel.id, updates)
     },
     [channel, onSave]
@@ -262,13 +268,16 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent closeOnOverlayClick={false} className="max-w-125" closeLabel={t('common.close')}>
+      <DialogContent
+        closeOnOverlayClick={false}
+        className="flex max-h-[calc(100dvh-2rem)] max-w-125 flex-col overflow-hidden"
+        closeLabel={t('common.close')}>
         {renderedChannel && (
           <>
-            <DialogHeader>
+            <DialogHeader className="shrink-0">
               <DialogTitle>{renderedChannel.name}</DialogTitle>
             </DialogHeader>
-            <div className="flex flex-col gap-4">
+            <ScrollArea contentProps={{ className: 'flex flex-col gap-4' }} className="min-h-0">
               <div>
                 <Label className="mb-1 block text-xs">{t('common.name')}</Label>
                 <Input
@@ -318,7 +327,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                   onRemove={() => channel && onDelete(channel.id)}
                 />
               )}
-            </div>
+            </ScrollArea>
           </>
         )}
       </DialogContent>
@@ -381,12 +390,22 @@ const ChannelInstanceRow: FC<{
         </div>
       </div>
       <Tooltip title={t('agent.channels.logs')}>
-        <Button variant="ghost" size="icon-sm" aria-label={t('agent.channels.logs')} onClick={onShowLogs}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('agent.channels.logs')}
+          onClick={onShowLogs}
+          className="text-muted-foreground">
           <FileText className="size-4" />
         </Button>
       </Tooltip>
       <Tooltip title={t('common.edit')}>
-        <Button variant="ghost" size="icon-sm" aria-label={t('common.edit')} onClick={onEdit}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('common.edit')}
+          onClick={onEdit}
+          className="text-muted-foreground">
           <Pencil className="size-4" />
         </Button>
       </Tooltip>
@@ -394,7 +413,7 @@ const ChannelInstanceRow: FC<{
         <Button
           variant="ghost"
           size="icon-sm"
-          className="hover:text-destructive!"
+          className="text-muted-foreground hover:text-destructive! focus-visible:text-destructive!"
           aria-label={t('common.delete')}
           onClick={() => setDeleteConfirmOpen(true)}>
           <Trash2 className="size-4" />
@@ -502,13 +521,14 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   }, [channels?.length, createChannel, channelDef, openEditModal])
 
   const handleSave = useCallback(
-    async (channelId: string, updates: Partial<ChannelData>) => {
+    async (channelId: string, updates: ChannelUpdates) => {
       if (!channelList.some((ch) => ch.id === channelId)) return
 
       const apiUpdates: Record<string, unknown> = {}
       if (updates.name !== undefined) apiUpdates.name = updates.name
       if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
       if (updates.workspace !== undefined) apiUpdates.workspace = updates.workspace
+      if (updates.configPatch !== undefined) apiUpdates.configPatch = updates.configPatch
       if (updates.config !== undefined) apiUpdates.config = updates.config
       if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
       if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode
@@ -537,18 +557,24 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   if (isLoading) {
     return (
-      <Scrollbar className="flex flex-1 flex-col" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
+      <ScrollArea
+        contentProps={{ className: 'flex flex-col' }}
+        className="flex-1"
+        style={{ height: 'calc(100vh - var(--navbar-height))' }}>
         <SettingsContentBody className="flex-1 items-center justify-center">
           <Spinner text={t('common.loading')} />
         </SettingsContentBody>
-      </Scrollbar>
+      </ScrollArea>
     )
   }
 
   const icon = getChannelTypeIcon(channelDef.type)
 
   return (
-    <Scrollbar className="flex flex-1 flex-col" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
+    <ScrollArea
+      contentProps={{ className: 'flex flex-col' }}
+      className="flex-1"
+      style={{ height: 'calc(100vh - var(--navbar-height))' }}>
       <SettingsContentBody>
         <SettingGroup>
           <div className="flex items-center justify-between gap-4 pb-1">
@@ -607,7 +633,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         channelName={logChannel?.name ?? ''}
         onClose={() => setLogChannel(null)}
       />
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 

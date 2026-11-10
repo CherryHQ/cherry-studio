@@ -220,7 +220,7 @@ describe('provider TLS Electron network fixture', () => {
     const tlsEnv = process.env.NODE_TLS_REJECT_UNAUTHORIZED
     const provider = providerFor('fixture-opted', true)
 
-    const models = await listModels(provider, undefined, { throwOnError: true })
+    const { models } = await listModels(provider, undefined, { throwOnError: true })
     const chatFetch = await chatFetchFor(provider)
     const chat = await chatFetch(`${API_ROOT}/chat/completions`, {
       method: 'POST',

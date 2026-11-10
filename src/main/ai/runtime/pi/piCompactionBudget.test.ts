@@ -1,3 +1,4 @@
+import { normalizeContext } from '@earendil-works/pi-ai'
 import type { AssistantMessage, Context, Model, Usage } from '@earendil-works/pi-ai'
 import { describe, expect, it } from 'vitest'
 
@@ -40,7 +41,7 @@ const model: Model<'openai-responses'> = {
 
 async function outputBudget(context: Context) {
   const { buildBaseOptions } = await import('@earendil-works/pi-ai/api/simple-options')
-  return buildBaseOptions(model, context).maxTokens
+  return buildBaseOptions(model, normalizeContext(context)).maxTokens
 }
 
 describe('pi-ai compaction output budget', () => {
@@ -54,7 +55,11 @@ describe('pi-ai compaction output budget', () => {
       ]
     }
 
-    expect(await outputBudget(context)).toBe(4_899)
+    const budget = await outputBudget(context)
+    context.messages[1] = createAssistant(100, 1)
+
+    expect(await outputBudget(context)).toBe(budget)
+    expect(budget).toBeGreaterThan(1_000)
   })
 
   it('uses assistant usage again after a post-compaction response', async () => {
@@ -68,6 +73,9 @@ describe('pi-ai compaction output budget', () => {
       ]
     }
 
-    expect(await outputBudget(context)).toBe(3_903)
+    const budget = await outputBudget(context)
+    context.messages[3] = createAssistant(400, 3_000)
+
+    expect(await outputBudget(context)).toBe(budget! - 1_000)
   })
 })

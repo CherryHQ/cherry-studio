@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import { app } from 'electron'
 
 /**
- * Reader for the legacy v1 home config file (typically ~/.cherrystudio/config/config.json).
+ * Reader for the legacy v1 config at `{cherryHome}/config/config.json`.
  *
  * The file path is injected via the constructor rather than computed internally,
  * so callers control where the config file is located.

@@ -181,14 +181,17 @@ describe('MiniAppIcon', () => {
     expect(container.querySelector('[data-testid="compound-logo"]')).not.toHaveStyle({ overflow: 'hidden' })
   })
 
-  it.each(['felo', 'abacus', 'ling'])('constrains the configured %s icon in plain mode', (logo) => {
-    const { container } = render(<MiniAppIcon app={{ ...baseApp, logo }} appearance="plain" size={56} />)
+  it.each(['felo', 'abacus', 'ling', 'coze-cn', 'minimax-agent-cn', 'canva', 'gamma', 'napkin'])(
+    'constrains the configured %s icon in plain mode',
+    (logo) => {
+      const { container } = render(<MiniAppIcon app={{ ...baseApp, logo }} appearance="plain" size={56} />)
 
-    expect(container.querySelector('[data-testid="compound-logo"]')).toHaveStyle({
-      width: '40px',
-      height: '40px',
-      borderRadius: '10px',
-      overflow: 'hidden'
-    })
-  })
+      expect(container.querySelector('[data-testid="compound-logo"]')).toHaveStyle({
+        width: '40px',
+        height: '40px',
+        borderRadius: '10px',
+        overflow: 'hidden'
+      })
+    }
+  )
 })

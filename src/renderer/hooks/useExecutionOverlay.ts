@@ -1,14 +1,5 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
-/**
- * React binding for {@link executionStreamOverlayService}, which owns the
- * per-execution streaming overlay (readers, snapshots, rAF batching) keyed by
- * `topicId`. This hook only acquires/releases a refcounted view, feeds the
- * service the consumer-visible execution set + DB seed rows, and reads the
- * retained view via `useSyncExternalStore` — so unmounting (route/tab/conversation
- * switch) no longer tears the stream down, and remounting restores the live
- * overlay synchronously. Reader/seed semantics live in the service.
- */
 import { executionStreamOverlayService } from '@renderer/services/aiTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -17,6 +8,8 @@ export type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 
 export interface UseExecutionOverlayOptions {
+  onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
+  onLeave?: () => void
   onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
 }
 
@@ -28,7 +21,7 @@ export interface ExecutionOverlayApi {
   liveAssistants: CherryUIMessage[]
   /** Drop one overlay/snapshot entry by its message id (post-persist handoff). */
   disposeOverlay: (messageId: string) => void
-  /** Drop settled overlay/snapshot entries (terminal handoff); live readers survive. */
+  /** Drop settled overlay/snapshot entries (terminal handoff); active attempts survive. */
   reset: () => void
   /** Destructively drop every overlay/snapshot entry (quick-assistant clear()). */
   clear: () => void
@@ -37,37 +30,40 @@ export interface ExecutionOverlayApi {
 export function useExecutionOverlay(
   topicId: string,
   activeExecutions: readonly ActiveExecution[],
-  uiMessages: CherryUIMessage[],
   options: UseExecutionOverlayOptions = {}
 ): ExecutionOverlayApi {
   // Identity of this consumer inside the service's refcount/contribution maps.
   const consumer = useRef({}).current
 
-  const uiMessagesRef = useRef(uiMessages)
-  uiMessagesRef.current = uiMessages
   const onFinishRef = useRef(options.onFinish)
   onFinishRef.current = options.onFinish
+  const optionsRef = useRef(options)
+  optionsRef.current = options
   const topicIdRef = useRef(topicId)
   topicIdRef.current = topicId
 
-  // Declared before the sync effect so acquisition (entry creation) always
-  // precedes reader convergence for a new topicId.
+  // Register callbacks before acquiring an already-published terminal view.
   useEffect(() => {
-    executionStreamOverlayService.acquire(topicId)
+    const onLeave = optionsRef.current.onLeave
+    const offUpdate = executionStreamOverlayService.onUpdate(topicId, (executionId, event) =>
+      optionsRef.current.onUpdate?.(executionId, event)
+    )
     const offFinish = executionStreamOverlayService.onFinish(topicId, (executionId, event) =>
       onFinishRef.current?.(executionId, event)
     )
+    executionStreamOverlayService.acquire(topicId)
     return () => {
+      offUpdate()
       offFinish()
+      onLeave?.()
       executionStreamOverlayService.release(topicId, consumer)
     }
   }, [consumer, topicId])
 
-  const getSeedMessages = useCallback(() => uiMessagesRef.current, [])
-  // No cleanup: departure must not cancel readers (release() handles removal).
+  // Releasing a view never stops its native execution.
   useEffect(() => {
-    executionStreamOverlayService.syncExecutions(topicId, consumer, activeExecutions, getSeedMessages)
-  }, [activeExecutions, consumer, getSeedMessages, topicId])
+    executionStreamOverlayService.syncExecutions(topicId, consumer, activeExecutions)
+  }, [activeExecutions, consumer, topicId])
 
   const subscribe = useCallback(
     (listener: () => void) => executionStreamOverlayService.subscribe(topicId, listener),

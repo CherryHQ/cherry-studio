@@ -70,6 +70,7 @@ interface Props {
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
   locateMessageId?: string
+  locateToEnd?: boolean
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
@@ -110,6 +111,12 @@ const Chat: FC<Props> = (props) => {
     useState<ChatConversationControlsSnapshot | null>(null)
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
+  const composerModels = activeConversationControlsSnapshot
+    ? activeConversationControlsSnapshot.lockedMentionedModels.length > 1
+      ? activeConversationControlsSnapshot.lockedMentionedModels
+      : activeConversationControlsSnapshot.mentionedModelSelectorValue
+    : EMPTY_MODELS
+  const composerModelId = composerModels.length === 1 ? composerModels[0].id : undefined
   // Provider metadata supplies the user-facing name for both the single-model trigger and
   // selected-model details. Model entities only carry the provider id.
   const shouldLoadProviders = Boolean(
@@ -121,6 +128,7 @@ const Chat: FC<Props> = (props) => {
           activeConversationControlsSnapshot.lockedMentionedModels.length > 0)))
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
+  const locateToEnd = props.locateToEnd
   const locateMessageIdProp = props.locateMessageId
   const onLocateMessageHandledProp = props.onLocateMessageHandled
 
@@ -216,13 +224,13 @@ const Chat: FC<Props> = (props) => {
     },
     [activeTopicId, setTopicBranchLiveState]
   )
-  const locateMessageId = locateMessageIdProp ?? branchLocateMessageId
+  const locateMessageId = locateToEnd ? undefined : (locateMessageIdProp ?? branchLocateMessageId)
   const handleLocateMessageHandled = useCallback(() => {
     setBranchLocateMessageId(undefined)
-    if (locateMessageIdProp) {
+    if (locateMessageIdProp || locateToEnd) {
       onLocateMessageHandledProp?.()
     }
-  }, [locateMessageIdProp, onLocateMessageHandledProp])
+  }, [locateMessageIdProp, locateToEnd, onLocateMessageHandledProp])
   const centerContent =
     centerSurface?.content ??
     (activeTopic ? (
@@ -233,11 +241,13 @@ const Chat: FC<Props> = (props) => {
         onNewTopic={props.onNewTopic}
         onCreateEmptyTopic={props.onCreateEmptyTopic}
         locateMessageId={locateMessageId}
+        locateToEnd={locateToEnd}
         onLocateMessageHandled={handleLocateMessageHandled}
         onBranchLiveStateChange={handleBranchLiveStateChange}
         assistantContext={assistantContext}
         providers={providers}
         onConversationControlsChange={setConversationControlsSnapshot}
+        composerModelId={composerModelId}
       />
     ) : (
       // Nothing left to resolve and still no topic: the library is genuinely empty, so settle on
