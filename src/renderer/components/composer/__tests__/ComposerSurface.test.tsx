@@ -1027,6 +1027,33 @@ describe('ComposerSurface', () => {
       expect(serializeComposerDocument(editor)).toEqual({ text: `\`\`\`\n${pasted}\n\`\`\``, tokens: [] })
     })
 
+    it('restores markers when a pasted fence follows existing prose', async () => {
+      await renderDraft('intro ', markerProps)
+      editor.commands.setTextSelection(7)
+
+      paste('```\n/pdf/ #docs#\n```')
+
+      expect(serializeComposerDocument(editor).tokens.map((token) => token.id)).toEqual(['skill:pdf', 'knowledge:docs'])
+    })
+
+    it('classifies pasted markers after removing the selected fence', async () => {
+      await renderDraft('```\n```', markerProps)
+      editor.commands.selectAll()
+
+      paste('/pdf/ #docs#')
+
+      expect(serializeComposerDocument(editor).tokens.map((token) => token.id)).toEqual(['skill:pdf', 'knowledge:docs'])
+    })
+
+    it('keeps markers literal when the prefix completes a pasted opening fence', async () => {
+      await renderDraft('``', markerProps)
+      editor.commands.setTextSelection(3)
+
+      paste('`\n/pdf/ #docs#\n```')
+
+      expect(serializeComposerDocument(editor).tokens).toEqual([])
+    })
+
     it('still turns a URL into a link token outside the block', async () => {
       await renderDraft('plain\n```\n\n```')
       caretOnLine(0)

@@ -61,7 +61,6 @@ import {
   updateComposerToken
 } from './composerInputAdapter'
 import {
-  createComposerPlainTextPasteContent,
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
   PASTED_TEXT_FILE_EXTENSION
@@ -1826,6 +1825,15 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
+      const pasteOptions = {
+        inlineLongText: !shouldDelegateLongTextPaste,
+        literalFencedCode: editor ? hasMarkdownLivePreview(editor.state) : false,
+        insertionState: editor?.state,
+        promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
+        resolveSkillMarker,
+        resolveKnowledgeBaseMarker
+      }
+
       if (
         editor &&
         pastedText &&
@@ -1833,16 +1841,11 @@ export default function ComposerSurfaceRuntime({
         isMarkdownFencedCodePosition(editor.state, editor.state.selection.from)
       ) {
         event.preventDefault()
-        insertComposerPastedContent(editor, createComposerPlainTextPasteContent(pastedText))
+        insertComposerPastedContent(editor, getComposerPlainTextPasteOverride(pastedText, pasteOptions) ?? [])
         return true
       }
 
       if (editor) {
-        const pasteOptions = {
-          promptVariableStartIndex: getNextPromptVariableIndex(editor),
-          resolveSkillMarker,
-          resolveKnowledgeBaseMarker
-        }
         const clipboardPasteOverride =
           getComposerClipboardPasteOverride(
             readComposerClipboardFragmentFromDataTransfer(event.clipboardData),
@@ -1866,13 +1869,7 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
-      const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, {
-        inlineLongText: !shouldDelegateLongTextPaste,
-        literalFencedCode: editor ? hasMarkdownLivePreview(editor.state) : false,
-        promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
-        resolveSkillMarker,
-        resolveKnowledgeBaseMarker
-      })
+      const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, pasteOptions)
 
       if (plainTextOverride !== null && editor) {
         event.preventDefault()

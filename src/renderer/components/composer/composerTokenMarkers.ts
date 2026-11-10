@@ -100,16 +100,17 @@ function appendMarkedLineContent(
 export function createComposerTokenMarkerInlineContent(
   text: string,
   rules: readonly ComposerTokenMarkerRule[],
-  options: { literalFencedCode?: boolean } = {}
+  options: { literalFencedCode?: boolean; fencedLines?: ReadonlySet<number> } = {}
 ): { content: JSONContent[]; hasToken: boolean } {
   if (!rules.length) return { content: createComposerPlainTextContent(text), hasToken: false }
 
   const lines = text.split(LINE_BREAK_PATTERN)
   // Callers rebuild this on every render, so the whole-draft parse only runs for a draft with a marker.
   const fencedLines =
-    options.literalFencedCode && lines.some((line) => rules.some((rule) => line.search(rule.pattern) !== -1))
+    options.fencedLines ??
+    (options.literalFencedCode && lines.some((line) => rules.some((rule) => line.search(rule.pattern) !== -1))
       ? findFencedCodeLines(lines)
-      : undefined
+      : undefined)
   let hasToken = false
   const content = lines.flatMap<JSONContent>((line, index) => {
     const nodes: JSONContent[] = []

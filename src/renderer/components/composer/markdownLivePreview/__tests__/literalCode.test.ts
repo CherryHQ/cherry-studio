@@ -190,7 +190,7 @@ describe('editing a live-preview draft', () => {
 })
 
 describe.each(['/', '@'])('QuickPanel trigger %s', (char) => {
-  async function typeTriggerOnLine(text: string, line: number) {
+  async function typeTriggerOnLine(text: string, line: number, replaceAll = false) {
     const onActiveChange = vi.fn()
     const editor = new Editor({
       element: document.createElement('div'),
@@ -209,11 +209,17 @@ describe.each(['/', '@'])('QuickPanel trigger %s', (char) => {
       if (index === line) position = offset + 1
     })
     editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, position)))
+    if (replaceAll) editor.commands.selectAll()
     editor.view.dispatch(editor.state.tr.insertText(char))
     await Promise.resolve()
     await Promise.resolve()
     return onActiveChange
   }
+
+  it.each(['```\n```', '```'])('opens immediately when replacing %j with the trigger', async (text) => {
+    const onActiveChange = await typeTriggerOnLine(text, 0, true)
+    expect(onActiveChange).toHaveBeenCalledWith(expect.objectContaining({ text: char, query: '' }))
+  })
 
   it.each([
     ['a closed block', '```\ncode\n```', 1],
