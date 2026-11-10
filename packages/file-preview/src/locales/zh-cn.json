@@ -12,6 +12,8 @@
   "file_preview.pdf.page_number": "页码",
   "file_preview.pdf.too_large.description": "该 PDF 部分内容过大，无法安全地在应用内预览。",
   "file_preview.pdf.too_large.title": "无法预览此 PDF",
+  "file_preview.powerpoint.zip_limit.description": "此 PowerPoint 文件超出了应用的安全预览限制。",
+  "file_preview.powerpoint.zip_limit.title": "无法预览此 PowerPoint 文件",
   "file_preview.too_large.action": "用默认应用打开",
   "file_preview.too_large.description": "文件大小 {{size}} 超过 {{limit}} 的预览大小限制。",
   "file_preview.too_large.title": "文件过大，无法预览",

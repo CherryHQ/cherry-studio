@@ -69,6 +69,23 @@ describe('AgentSessionMessages', () => {
     )
   })
 
+  it('uses the active session workspace path for message actions', () => {
+    render(
+      <AgentSessionMessages
+        agentId="agent-1"
+        sessionId="session-1"
+        workspacePath="/Users/alice/Data/Agents/agent-1/session-1"
+        messages={[]}
+        partsByMessageId={{}}
+        isLoading={false}
+      />
+    )
+
+    expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ workspacePath: '/Users/alice/Data/Agents/agent-1/session-1' })
+    )
+  })
+
   it('acquires the session warm lease on mount and releases it only on unmount', () => {
     const view = render(
       <AgentSessionMessages

@@ -291,12 +291,21 @@ export class PrintService {
     }
   }
 
-  async exportToPdf(payload: PrintableDocumentPayload): Promise<boolean> {
-    const { canceled, filePath } = await dialog.showSaveDialog({
+  async exportToPdf(payload: PrintableDocumentPayload, senderId?: string | null): Promise<boolean> {
+    const dialogOptions = {
       title: t('dialog.save_as_pdf'),
       defaultPath: getDefaultPdfPath(payload.title),
       filters: [{ name: t('dialog.pdf_files'), extensions: ['pdf'] }]
-    })
+    }
+    // Parented dialog avoids the unparented-save crash with Unicode names.
+    // Missing or destroyed caller window falls back to the unparented overload.
+    const candidate: BrowserWindow | undefined = senderId
+      ? application.get('WindowManager').getWindow(senderId)
+      : undefined
+    const parent = candidate && !candidate.isDestroyed() ? candidate : undefined
+    const { canceled, filePath } = parent
+      ? await dialog.showSaveDialog(parent, dialogOptions)
+      : await dialog.showSaveDialog(dialogOptions)
 
     if (canceled || !filePath) {
       return false

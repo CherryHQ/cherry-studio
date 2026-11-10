@@ -24,6 +24,15 @@ diff --git a/dist/docx-preview.js b/dist/docx-preview.js
  /*
   * @license
   * docx-preview <https://github.com/VolodymyrBaydalka/docxjs>
+@@ -462,7 +481,7 @@
+             before: xml.lengthAttr(elem, "before"),
+             after: xml.lengthAttr(elem, "after"),
+             line: xml.intAttr(elem, "line"),
+-            lineRule: xml.attr(elem, "lineRule")
++            lineRule: xml.attr(elem, "lineRule") ?? "auto"
+         };
+     }
+ 
 @@ -794,7 +813,7 @@
          }
          parseXml(root) {
@@ -100,6 +109,15 @@ diff --git a/dist/docx-preview.js b/dist/docx-preview.js
              for (let el of globalXmlParser.elements(node)) {
                  switch (el.localName) {
                      case "pPr":
+@@ -2550,7 +2584,7 @@
+             var before = globalXmlParser.lengthAttr(node, "before");
+             var after = globalXmlParser.lengthAttr(node, "after");
+             var line = globalXmlParser.intAttr(node, "line", null);
+-            var lineRule = globalXmlParser.attr(node, "lineRule");
++            var lineRule = globalXmlParser.attr(node, "lineRule") ?? "auto";
+             if (before)
+                 style["margin-top"] = before;
+             if (after)
 @@ -3266,10 +3300,23 @@
                          });
                      }
@@ -166,6 +184,15 @@ diff --git a/dist/docx-preview.mjs b/dist/docx-preview.mjs
  /*
   * @license
   * docx-preview <https://github.com/VolodymyrBaydalka/docxjs>
+@@ -458,7 +477,7 @@
+         before: xml.lengthAttr(elem, "before"),
+         after: xml.lengthAttr(elem, "after"),
+         line: xml.intAttr(elem, "line"),
+-        lineRule: xml.attr(elem, "lineRule")
++        lineRule: xml.attr(elem, "lineRule") ?? "auto"
+     };
+ }
+ 
 @@ -790,7 +809,7 @@
      }
      parseXml(root) {
@@ -242,6 +269,15 @@ diff --git a/dist/docx-preview.mjs b/dist/docx-preview.mjs
          for (let el of globalXmlParser.elements(node)) {
              switch (el.localName) {
                  case "pPr":
+@@ -2546,7 +2580,7 @@
+         var before = globalXmlParser.lengthAttr(node, "before");
+         var after = globalXmlParser.lengthAttr(node, "after");
+         var line = globalXmlParser.intAttr(node, "line", null);
+-        var lineRule = globalXmlParser.attr(node, "lineRule");
++        var lineRule = globalXmlParser.attr(node, "lineRule") ?? "auto";
+         if (before)
+             style["margin-top"] = before;
+         if (after)
 @@ -3262,10 +3296,23 @@
                      });
                  }

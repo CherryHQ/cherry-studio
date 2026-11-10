@@ -16,8 +16,8 @@ export interface DiagnosticTimeRange {
 }
 
 export interface SourceIdentity {
-  readonly dev: number
-  readonly ino: number
+  readonly dev: bigint
+  readonly ino: bigint
   readonly modifiedAt: number
   readonly size: number
 }

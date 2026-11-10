@@ -1,14 +1,16 @@
-import { FilePlus, FileText, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, FilePlus, FileText, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
+import HighlightText from '@renderer/components/HighlightText'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
+import type { SearchMatch } from '@renderer/services/NotesSearchService'
 import { findNode } from '@renderer/services/NotesTreeService'
-import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import type { NotesSortType, NotesTreeNode, RenameNote } from '@renderer/types/note'
 
 import { useFullTextSearch } from './hooks/useFullTextSearch'
 import { useNotesEditing } from './hooks/useNotesEditing'
@@ -20,12 +22,13 @@ interface NotesSidebarProps {
   onCreateNote: (name: string, targetFolderId?: string) => void
   onSelectNode: (node: NotesTreeNode) => void
   onDeleteNode: (nodeId: string) => void
-  onRenameNode: (nodeId: string, newName: string) => void
+  onRenameNode: RenameNote
   onToggleExpanded: (nodeId: string) => void
   onToggleStar: (nodeId: string) => void
   onMoveNode: (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => void
   onSortNodes: (sortType: NotesSortType) => void
   onUploadFiles: (files: File[]) => void
+  onLocateNoteLine: (noteId: string, match: SearchMatch) => void
   notesTree: NotesTreeNode[]
   activeFilePath?: string
   sortType: NotesSortType
@@ -33,6 +36,8 @@ interface NotesSidebarProps {
 }
 
 const renderNoteFileIcon = () => <FileText size={16} className="shrink-0" />
+
+const COLLAPSED_MATCH_COUNT = 3
 
 const collectExpandedIds = (nodes: NotesTreeNode[], result: Set<string>): Set<string> => {
   for (const node of nodes) {
@@ -82,6 +87,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   onMoveNode,
   onSortNodes,
   onUploadFiles,
+  onLocateNoteLine,
   notesTree,
   activeFilePath,
   sortType,
@@ -93,6 +99,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [isShowSearch, setIsShowSearch] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [isDragOverSidebar, setIsDragOverSidebar] = useState(false)
+  const [expandedMatchIds, setExpandedMatchIds] = useState<ReadonlySet<string>>(new Set())
 
   const notesTreeRef = useRef<NotesTreeNode[]>(notesTree)
   const trimmedSearchKeyword = useMemo(() => searchKeyword.trim(), [searchKeyword])
@@ -273,6 +280,52 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [isShowSearch, searchResults, t]
   )
 
+  const toggleMatchesExpanded = useCallback((nodeId: string) => {
+    setExpandedMatchIds((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(nodeId)) next.add(nodeId)
+      return next
+    })
+  }, [])
+
+  const renderRowDetail = useCallback(
+    (node: FileTreeNode) => {
+      if (!isShowSearch) return null
+      const matches = searchResults.find((r) => r.id === node.id)?.matches
+      if (!matches?.length) return null
+      const isExpanded = expandedMatchIds.has(node.id)
+      const visibleMatches = isExpanded ? matches : matches.slice(0, COLLAPSED_MATCH_COUNT)
+      return (
+        <div className="mb-1 ml-6 flex flex-col border-border border-l pl-1">
+          {visibleMatches.map((match, index) => (
+            <button
+              key={`${match.lineNumber}:${index}`}
+              type="button"
+              onClick={() => onLocateNoteLine(node.id, match)}
+              className="flex min-w-0 gap-2 rounded-sm px-1.5 py-1 text-left text-muted-foreground text-xs outline-none hover:bg-resource-list-row-hover hover:text-foreground focus-visible:bg-resource-list-row-hover">
+              <span className="w-7 shrink-0 text-foreground-tertiary tabular-nums">{match.lineNumber}</span>
+              <span className="min-w-0 flex-1 truncate">
+                <HighlightText text={match.context} keyword={trimmedSearchKeyword} />
+              </span>
+            </button>
+          ))}
+          {matches.length > COLLAPSED_MATCH_COUNT && (
+            <button
+              type="button"
+              onClick={() => toggleMatchesExpanded(node.id)}
+              className="flex items-center gap-1 rounded-sm px-1.5 py-1 text-left text-muted-foreground text-xs outline-none hover:bg-resource-list-row-hover hover:text-foreground focus-visible:bg-resource-list-row-hover">
+              {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              {isExpanded
+                ? t('notes.search.show_less')
+                : t('notes.search.more_matches', { count: matches.length - COLLAPSED_MATCH_COUNT })}
+            </button>
+          )}
+        </div>
+      )
+    },
+    [isShowSearch, searchResults, expandedMatchIds, trimmedSearchKeyword, onLocateNoteLine, toggleMatchesExpanded, t]
+  )
+
   const getTreeNodeMenuItems = useCallback(
     (node: FileTreeNode): readonly CommandContextMenuExtraItem[] => {
       const treeNode = findNode(notesTreeRef.current, node.id)
@@ -389,6 +442,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 renameSlot={renameSlot}
                 animationSlot={animationSlot}
                 renderRowExtras={renderRowExtras}
+                renderRowDetail={renderRowDetail}
                 getMenuItems={getTreeNodeMenuItems}
               />
             </div>

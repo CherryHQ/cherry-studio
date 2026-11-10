@@ -297,6 +297,7 @@ function createInfiniteQueryKeyGetter(
  * @property reset - Reset to page 1
  */
 export interface UsePaginatedQueryResult<T> {
+  goToPage: (page: number) => void
   items: readonly T[]
   total: number
   page: number
@@ -728,6 +729,7 @@ export function prefetch<TPath extends ApiPath>(
  * where re-rendering on cache change is explicitly undesirable (e.g.
  * {@link useMutation} callbacks, drag-and-drop optimistic writes). For
  * reactive access, use {@link useQuery} instead.
+ * Pass `infinite: { limit }` as the third reader argument to read aggregate pages.
  *
  * This hook is the ONLY sanctioned place in the codebase to reach for SWR's
  * internal key serialization (`unstable_serialize`) and raw cache API — any
@@ -749,10 +751,15 @@ export function useReadCache() {
   return useCallback(
     <TResponse = unknown>(
       path: ConcreteApiPaths | TemplateApiPaths,
-      query?: Record<string, unknown>
+      query?: Record<string, unknown>,
+      infinite?: { limit: number }
     ): TResponse | undefined => {
       const hasQuery = query !== undefined && Object.keys(query).length > 0
-      const serialized = hasQuery ? unstable_serialize([path, query]) : unstable_serialize([path])
+      const serialized = infinite
+        ? unstable_serialize_infinite(createInfiniteQueryKeyGetter(path, query, infinite.limit))
+        : hasQuery
+          ? unstable_serialize([path, query])
+          : unstable_serialize([path])
       const entry = cache.get(serialized)
       return entry?.data as TResponse | undefined
     },
@@ -1205,6 +1212,10 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     setCurrentPage(1)
   }, [])
 
+  const goToPage = useCallback((page: number) => {
+    if (Number.isInteger(page) && page > 0) setCurrentPage(page)
+  }, [])
+
   return {
     items,
     total,
@@ -1217,7 +1228,8 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     prevPage,
     nextPage,
     refresh: refetch,
-    reset
+    reset,
+    goToPage
   }
 }
 

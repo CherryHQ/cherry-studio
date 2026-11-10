@@ -78,6 +78,7 @@ export type OverlayPhase = 'idle' | 'selecting' | 'selected' | 'moving' | 'resiz
 export type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
 
 export interface OverlayState {
+  resultMessage: string
   phase: OverlayPhase
   /** Current selection rect, null while idle. */
   selection: SelectionRect | null
@@ -96,6 +97,7 @@ export interface OverlayState {
  * All x/y are canvas-relative logical pixels.
  */
 export type OverlayAction =
+  | { type: 'SET_RESULT_MESSAGE'; text: string }
   | { type: 'POINTER_DOWN_BACKGROUND'; x: number; y: number }
   | { type: 'POINTER_DOWN_SELECTION'; x: number; y: number }
   | { type: 'POINTER_DOWN_HANDLE'; x: number; y: number; handle: ResizeHandle }

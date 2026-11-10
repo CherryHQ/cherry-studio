@@ -1,7 +1,7 @@
 # Electron Instance Management
 
-Use this as the single runtime procedure for both `cherry-electron-dev` and
-`cherry-pr-test`.
+Use this as the single runtime procedure for development and PR testing in
+`cherry-electron-dev`.
 
 ## Contents
 

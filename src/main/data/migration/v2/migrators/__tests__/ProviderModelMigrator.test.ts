@@ -168,23 +168,26 @@ describe('ProviderModelMigrator', () => {
       expect(result.warnings?.some((w) => w.includes('managed CherryAI'))).toBe(true)
     })
 
-    it.each(['github', 'yi'])('skips retired %s providers and preset-derived copies', async (providerId) => {
-      const migrationContext = createContext(dbh.db, {
-        llm: {
-          providers: [
-            makeProvider(providerId, [{ id: 'legacy-model' }]),
-            { ...makeProvider(`${providerId}-copy`), presetProviderId: providerId },
-            makeProvider('openai')
-          ]
-        }
-      })
+    it.each(['github', 'yi', 'hunyuan', 'tencent-cloud-ti'])(
+      'skips retired %s providers and preset-derived copies',
+      async (providerId) => {
+        const migrationContext = createContext(dbh.db, {
+          llm: {
+            providers: [
+              makeProvider(providerId, [{ id: 'legacy-model' }]),
+              { ...makeProvider(`${providerId}-copy`), presetProviderId: providerId },
+              makeProvider('openai')
+            ]
+          }
+        })
 
-      const result = await migrator.prepare(migrationContext)
+        const result = await migrator.prepare(migrationContext)
 
-      expect(result.success).toBe(true)
-      expect(result.itemCount).toBe(1)
-      expect(result.warnings).toContain('Skipped 2 retired provider(s)')
-    })
+        expect(result.success).toBe(true)
+        expect(result.itemCount).toBe(1)
+        expect(result.warnings).toContain('Skipped 2 retired provider(s)')
+      }
+    )
 
     it('returns an error ID when preparation fails', async () => {
       const cause = new Error('redux state unreadable')
@@ -528,6 +531,34 @@ describe('ProviderModelMigrator', () => {
       expect(runtime.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
 
+    it('preserves explicit legacy official endpoints and custom proxies during v1 import', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider('custom-cn', [{ id: 'saved-model' }]),
+              apiKey: 'saved-key',
+              apiHost: 'https://dashscope.aliyuncs.com:443/compatible-mode/v1/'
+            },
+            { ...makeProvider('custom-global'), apiHost: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/' },
+            { ...makeProvider('custom-proxy'), apiHost: 'https://proxy.example/compatible-mode/v1/' }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      expect((await migrator.execute(migrationContext)).success).toBe(true)
+      const rows = dbh.db.select().from(userProviderTable).all()
+      const endpointOf = (id: string) =>
+        rows.find((row) => row.providerId === id)?.endpointConfigs?.['openai-chat-completions']?.baseUrl
+      expect(endpointOf('custom-cn')).toBe('https://dashscope.aliyuncs.com:443/compatible-mode/v1/')
+      expect(endpointOf('custom-global')).toBe('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/')
+      expect(endpointOf('custom-proxy')).toBe('https://proxy.example/compatible-mode/v1/')
+      expect(rows.find((row) => row.providerId === 'custom-cn')?.apiKeys?.[0].key).toBe('saved-key')
+      expect(dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'custom-cn')).all()).toEqual([
+        expect.objectContaining({ id: 'custom-cn::saved-model', providerId: 'custom-cn' })
+      ])
+    })
+
     it('stores only a changed endpoint dialect from a post-migration v1 provider snapshot', async () => {
       registryFixtures.providers = [
         {
@@ -782,9 +813,9 @@ describe('ProviderModelMigrator', () => {
 
       expect(result.success).toBe(true)
       expect(registryFixtures.loaderPaths.at(-1)).toEqual({
-        models: '/mock/feature.provider_registry.data/models.json',
-        providers: '/mock/feature.provider_registry.data/providers.json',
-        providerModels: '/mock/feature.provider_registry.data/provider-models.json'
+        models: path.resolve('/mock/feature.provider_registry.data/models.json'),
+        providers: path.resolve('/mock/feature.provider_registry.data/providers.json'),
+        providerModels: path.resolve('/mock/feature.provider_registry.data/provider-models.json')
       })
       // The legacy baseUrl equals the registry default → nothing user-owned
       // remains, so the row stores no endpoint config at all...
