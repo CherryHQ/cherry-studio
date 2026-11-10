@@ -686,6 +686,13 @@ tombstones in the same database transaction. Cached checkpoints cannot overwrite
 tombstones; live projections and reconnect recovery exclude deleted owners, including
 older dangling checkpoints, so replay cannot attach deleted content to a later reply.
 Main adds Cherry display metadata before publishing `CherryUIMessage`.
+`RootMessageProjection` also keeps a stable part ID beside each part: tool parts by `toolCallId`,
+data parts by their own ID, and other native parts by their position in the native source message.
+While the reply row is `pending`, each part that reaches its own completion (finished text or
+reasoning, a final tool result, a non-transient data part) is saved alone by part ID; streaming
+deltas write nothing. Terminal persistence reuses those IDs, so it adds the remaining parts and
+container status/statistics without rewriting parts already saved. A settled or deleted reply
+rejects late part saves.
 All Agent drivers use the `messages` source for the entire execution. `RootMessageProjection`
 owns host approval and data-part display; `pipeMessageStream` forwards its body with
 execution metadata and never accumulates a second text/tool body. Publishing, listeners and persistence receive the same

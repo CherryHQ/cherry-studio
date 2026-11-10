@@ -87,10 +87,12 @@ import {
   hydrateAgentSessionMessageRowsTx,
   orderAgentSessionPath,
   readAgentSessionAncestry,
+  readAgentSessionMessagePartIdsTx,
   readAgentSessionPath,
   replaceAgentSessionMessagePartsTx,
   splitAgentSessionMessageData,
-  validateAgentSessionParent
+  validateAgentSessionParent,
+  writeAgentSessionMessagePartsTx
 } from './agentSessionMessageTree'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
@@ -229,6 +231,8 @@ type SaveAgentSessionMessageParams = {
   runtimeStats?: MessageRuntimeStatsInput
   unchangedToolCallIds?: ReadonlySet<string>
   nativeContextId?: string
+  /** Stored part identities parallel to `message.data.parts`; unchanged parts are not rewritten. */
+  partIds?: readonly string[]
   message: CreateAgentSessionMessageDto & {
     delivery?: AgentSessionDeliveryEnvelope
     deliveryStatus?: AgentSessionDeliveryStatus
@@ -1277,6 +1281,15 @@ export class AgentSessionMessageService {
     return this.rowToEntity(hydrateAgentSessionMessageRowsTx(database, [row])[0])
   }
 
+  /** Hydrated message parts with their stored IDs, for the runtime projection that keeps part identity. */
+  getSessionMessageBody(sessionId: string, messageId: string): { parts: CherryMessagePart[]; ids: string[] } {
+    const database = application.get('DbService').getDb()
+    return {
+      parts: this.getSessionMessage(sessionId, messageId).data.parts ?? [],
+      ids: readAgentSessionMessagePartIdsTx(database, messageId)
+    }
+  }
+
   getSessionToolOutputRange(
     sessionId: string,
     messageId: string,
@@ -1778,6 +1791,7 @@ export class AgentSessionMessageService {
         sessionId,
         messageId: existingRow.id,
         parts: stored.parts,
+        partIds: params.partIds,
         timestampMs: updatedAtMs
       })
       syncMessageToolOutputsTx(
@@ -1843,7 +1857,13 @@ export class AgentSessionMessageService {
     }
 
     const [saved] = db.insert(sessionMessagesTable).values(insertData).returning().all()
-    replaceAgentSessionMessagePartsTx(db, { sessionId, messageId: saved.id, parts: stored.parts, timestampMs })
+    replaceAgentSessionMessagePartsTx(db, {
+      sessionId,
+      messageId: saved.id,
+      parts: stored.parts,
+      partIds: params.partIds,
+      timestampMs
+    })
     syncMessageToolOutputsTx(db, sessionId, saved.id, offloaded, retainedToolCallIds, undefined, timestampMs)
     replaceAgentSessionMessageFileRefsTx(db, saved.id, message.data)
     advanceAgentSessionHeadTx(db, sessionId, parentId, saved.id)
@@ -2819,26 +2839,28 @@ export class AgentSessionMessageService {
     sessionId: string,
     messageId: string,
     parts: AgentSessionMessageEntity['data']['parts'],
-    projection?: RootProjectionCheckpoint
+    projection?: RootProjectionCheckpoint,
+    partIds?: readonly string[]
   ): AgentSessionMessageEntity {
     const saved = application.get('DbService').withWriteTx((tx) => {
       const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existingRow) throw DataApiErrorFactory.notFound('Message', messageId)
 
       const updatedAt = Date.now()
+      const storedIds = partIds && readAgentSessionMessagePartIdsTx(tx, messageId)
+      const retained = projection
+        ? (existingRow.data.parts ?? []).flatMap((part, index) =>
+            isDataUIPart(part) &&
+            !parts?.some((native) => isDataUIPart(native) && native.type === part.type && native.id === part.id)
+              ? [{ part, id: storedIds?.[index] }]
+              : []
+          )
+        : []
       const data = {
         ...existingRow.data,
-        parts: projection
-          ? [
-              ...(parts ?? []),
-              ...(existingRow.data.parts ?? []).filter(
-                (part) =>
-                  isDataUIPart(part) &&
-                  !parts?.some((native) => isDataUIPart(native) && native.type === part.type && native.id === part.id)
-              )
-            ]
-          : parts
+        parts: projection ? [...(parts ?? []), ...retained.map((item) => item.part)] : parts
       }
+      const nextPartIds = partIds && [...partIds, ...retained.map((item) => item.id!)]
       const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = this.extractMessageToolOutputs(
         sessionId,
         messageId,
@@ -2851,7 +2873,13 @@ export class AgentSessionMessageService {
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .returning()
         .all()
-      replaceAgentSessionMessagePartsTx(tx, { sessionId, messageId, parts: stored.parts, timestampMs: updatedAt })
+      replaceAgentSessionMessagePartsTx(tx, {
+        sessionId,
+        messageId,
+        parts: stored.parts,
+        partIds: nextPartIds,
+        timestampMs: updatedAt
+      })
       syncMessageToolOutputsTx(tx, sessionId, messageId, offloaded, retainedToolCallIds, existingRow.data, updatedAt)
       replaceAgentSessionMessageFileRefsTx(tx, messageId, data)
       if (projection) agentSessionContextService.saveRootProjectionTx(tx, sessionId, projection)
@@ -2871,6 +2899,42 @@ export class AgentSessionMessageService {
       }
     ])
     return saved
+  }
+
+  /**
+   * Saves parts that completed while their reply is still pending. `order` is the reply's current
+   * part order; only `parts` are written, so other completed parts and results are not rewritten.
+   * Returns false when the reply no longer accepts part saves (deleted or already settled).
+   */
+  saveCompletedMessageParts(
+    sessionId: string,
+    messageId: string,
+    input: { order: readonly string[]; parts: ReadonlyMap<string, CherryMessagePart> }
+  ): boolean {
+    return application.get('DbService').withWriteTx((tx) => {
+      const row = tx
+        .select({ status: sessionMessagesTable.status })
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .get()
+      if (row?.status !== 'pending') return false
+      const ids = [...input.parts.keys()]
+      const { storedData, offloaded, retainedToolCallIds } = this.extractMessageToolOutputs(sessionId, messageId, {
+        parts: [...input.parts.values()]
+      })
+      const timestampMs = Date.now()
+      writeAgentSessionMessagePartsTx(tx, {
+        sessionId,
+        messageId,
+        order: input.order,
+        parts: new Map(ids.map((id, index) => [id, storedData.parts[index]])),
+        timestampMs
+      })
+      syncMessageToolOutputsTx(tx, sessionId, messageId, offloaded, retainedToolCallIds, undefined, timestampMs)
+      if (ids.some((id) => input.parts.get(id)!.type === 'file'))
+        replaceAgentSessionMessageFileRefsTx(tx, messageId, this.findExistingMessageRow(tx, sessionId, messageId)!.data)
+      return true
+    })
   }
 
   /**
@@ -2899,7 +2963,13 @@ export class AgentSessionMessageService {
         .set({ updatedAt })
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .run()
-      replaceAgentSessionMessagePartsTx(tx, { sessionId, messageId, parts: nextParts, timestampMs: updatedAt })
+      replaceAgentSessionMessagePartsTx(tx, {
+        sessionId,
+        messageId,
+        parts: nextParts,
+        partIds: readAgentSessionMessagePartIdsTx(tx, messageId),
+        timestampMs: updatedAt
+      })
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       agentSessionService.advanceLastActivityAtTx(tx, sessionId, updatedAt)
       return true

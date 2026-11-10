@@ -1,9 +1,11 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { eq } from 'drizzle-orm'
 import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessagePartTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -152,6 +154,76 @@ const text = (id: string, value: string): CherryUIMessage => ({
   id,
   role: 'assistant',
   parts: [{ type: 'text', text: value, state: 'done' }]
+})
+
+const reply = (parts: CherryUIMessage['parts']): CherryUIMessage => ({ id: 'native', role: 'assistant', parts })
+const storedParts = (messageId: string) =>
+  dbh.db
+    .select({ id: agentSessionMessagePartTable.id, updatedAt: agentSessionMessagePartTable.updatedAt })
+    .from(agentSessionMessagePartTable)
+    .where(eq(agentSessionMessagePartTable.messageId, messageId))
+    .orderBy(agentSessionMessagePartTable.seq)
+    .all()
+
+it('saves each completed part before the reply completes and writes nothing for deltas', async () => {
+  const f = await fixture()
+  const answer = { type: 'text' as const, text: 'Answer', state: 'done' as const }
+  const call = { type: 'dynamic-tool' as const, toolCallId: 'call', toolName: 'bash', input: { command: 'ls' } }
+  await f.project([reply([{ type: 'text', text: 'Ans', state: 'streaming' }])])
+  await f.project([reply([{ type: 'text', text: 'Answe', state: 'streaming' }])])
+  expect(storedParts(f.reply.id)).toEqual([])
+
+  await f.project([reply([answer, { ...call, state: 'input-available' }])])
+  const [saved] = storedParts(f.reply.id)
+  // Marks the committed row so any later rewrite of it is observable.
+  dbh.db
+    .update(agentSessionMessagePartTable)
+    .set({ updatedAt: 1 })
+    .where(eq(agentSessionMessagePartTable.id, saved.id))
+    .run()
+  await f.project([reply([answer, { ...call, state: 'output-available', output: 'listing' }])])
+  expect(messages.getSessionMessage('root', f.reply.id)).toMatchObject({
+    status: 'pending',
+    data: { parts: [answer, { ...call, state: 'output-available', output: 'listing' }] }
+  })
+
+  await f.project([
+    reply([
+      answer,
+      { ...call, state: 'output-available', output: 'listing' },
+      { type: 'text', text: 'Tail', state: 'done' }
+    ])
+  ])
+  await f.emit({ type: 'turn-complete' })
+  const completed: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  await f.handle.listeners[0].onDone(completed)
+  expect(messages.getSessionMessage('root', f.reply.id).status).toBe('success')
+  const settled = storedParts(f.reply.id)
+  expect(settled).toHaveLength(3)
+  expect(settled[0]).toEqual({ id: saved.id, updatedAt: 1 })
+})
+
+it('saves the unfinished part with its received content when the reply is stopped', async () => {
+  const f = await fixture()
+  await f.project([reply([{ type: 'text', text: 'Partial', state: 'streaming' }])])
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toHaveLength(1))
+  expect(storedParts(f.reply.id)).toEqual([])
+  f.handle.abortController.abort()
+  const stopped = await f.done
+  await f.handle.listeners[0].onPaused({ status: 'paused', finalMessage: stopped.finalMessage })
+  expect(messages.getSessionMessage('root', f.reply.id)).toMatchObject({
+    status: 'paused',
+    data: { parts: [{ type: 'text', text: 'Partial', state: 'done' }] }
+  })
+})
+
+it('does not recreate a deleted reply from a late completed part', async () => {
+  const f = await fixture()
+  await f.project([reply([{ type: 'text', text: 'Draft', state: 'streaming' }])])
+  messages.deleteSessionMessage('root', f.reply.id)
+  await f.project([reply([{ type: 'text', text: 'Draft done', state: 'done' }])])
+  expect(messages.hasSessionMessage('root', f.reply.id)).toBe(false)
+  expect(storedParts(f.reply.id)).toEqual([])
 })
 
 it('continues a session after deleting a completed projected reply and reconnecting', async () => {
