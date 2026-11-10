@@ -1525,7 +1525,7 @@
   "error.claude_code_session_bus_missing": "Claude Code 需要可用的 Linux 会话总线。",
   "error.claude_code_session_bus_missing_detail": "请在启动 Cherry Studio 的桌面环境中设置 DBUS_SESSION_BUS_ADDRESS，然后重启应用。Claude Code 尚未启动。",
   "error.claude_code_spawn_failed": "Claude Code 运行时无法启动。",
-  "error.claude_code_spawn_failed_detail": "已找到可执行文件，但进程启动失败。请检查杀毒软件隔离与文件权限，然后使用输入框上的“重试”重新准备运行时并再次发送。Claude Code 尚未启动。",
+  "error.claude_code_spawn_failed_detail": "已找到可执行文件，但进程启动失败。请检查杀毒软件隔离与文件权限，然后再次发送。Claude Code 尚未启动。",
   "error.content": "内容",
   "error.data": "数据",
   "error.detail": "错误详情",

@@ -10,7 +10,7 @@ import { regionService } from '@main/services/RegionService'
 
 import { serializeError } from '../../../utils/serializeError'
 import { claudeCodeBinaryManifest } from '../binaryManifest'
-import { ClaudeCodeBinaryService, ClaudeCodeRuntimeUnavailableError } from '../ClaudeCodeBinaryService'
+import { ClaudeCodeBinaryService, ClaudeCodeRuntimeUnavailableError, isInsideAppAsar } from '../ClaudeCodeBinaryService'
 import {
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
@@ -71,6 +71,13 @@ describe('Claude Code missing-runtime fail-fast (#21898)', () => {
     const stale = new ClaudeCodeBinaryService()
     expect(() => stale.requireExecutable()).toThrowError(ClaudeCodeRuntimeUnavailableError)
     BaseService.resetInstances()
+  })
+
+  it('matches only real app.asar path segments, not sibling directories', () => {
+    expect(isInsideAppAsar(path.join('C:', 'data', 'app.asar', 'file'))).toBe(true)
+    expect(isInsideAppAsar(path.join('C:', 'data', 'app.asar.unpacked', 'file'))).toBe(true)
+    expect(isInsideAppAsar(path.join('C:', 'data', 'app.asar-backups', 'claude'))).toBe(false)
+    expect(isInsideAppAsar(path.join('C:', 'data', 'my-app.asar-files', 'claude'))).toBe(false)
   })
 
   it('maps an unsupported platform to dedicated recovery copy', () => {

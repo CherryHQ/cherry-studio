@@ -15,6 +15,7 @@ import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
+import { serializeError } from '@main/ai/utils/serializeError'
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
@@ -41,6 +42,19 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
     }
     if (error instanceof AiStreamAdmissionError) {
       throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
+    }
+    // Admission-time runtime failures (e.g. `ClaudeCodeRuntimeUnavailableError` from
+    // `validateSession`/`ensureExecutable`) carry renderer-facing recovery copy via
+    // `i18nKey`/`detailI18nKey`. `IpcError.from` would keep only `message`, so wrap them as
+    // `AI_REQUEST_FAILED` with the full `serializeError` payload — the same contract as
+    // `exposeAiError` — while filesystem paths stay in the main-process log only.
+    if (
+      error instanceof Error &&
+      'i18nKey' in error &&
+      typeof (error as unknown as Record<string, unknown>).i18nKey === 'string'
+    ) {
+      const serialized = serializeError(error)
+      throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, serialized.message ?? error.message, serialized)
     }
     throw error
   }

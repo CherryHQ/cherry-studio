@@ -1525,7 +1525,7 @@
   "error.claude_code_session_bus_missing": "Claude Code 需要可用的 Linux 工作階段匯流排。",
   "error.claude_code_session_bus_missing_detail": "請在啟動 Cherry Studio 的桌面環境中設定 DBUS_SESSION_BUS_ADDRESS，然後重新啟動應用程式。Claude Code 尚未啟動。",
   "error.claude_code_spawn_failed": "Claude Code 執行環境無法啟動。",
-  "error.claude_code_spawn_failed_detail": "已找到可執行檔，但處理程序啟動失敗。請檢查防毒軟體隔離與檔案權限，然後使用輸入框上的「重試」重新準備執行環境並再次傳送。Claude Code 尚未啟動。",
+  "error.claude_code_spawn_failed_detail": "已找到可執行檔，但處理程序啟動失敗。請檢查防毒軟體隔離與檔案權限，然後再次傳送。Claude Code 尚未啟動。",
   "error.content": "內容",
   "error.data": "資料",
   "error.detail": "錯誤詳細資訊",

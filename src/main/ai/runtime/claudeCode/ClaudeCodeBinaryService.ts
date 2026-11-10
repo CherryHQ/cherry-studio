@@ -52,6 +52,14 @@ export class ClaudeCodeRuntimeUnavailableError extends Error {
   }
 }
 
+/** True when a filesystem path passes through an Electron `app.asar` application image. */
+export function isInsideAppAsar(filesystemPath: string): boolean {
+  return filesystemPath.split(/[\\/]/).some((segment) => {
+    const normalized = segment.toLowerCase()
+    return normalized === 'app.asar' || normalized === 'app.asar.unpacked'
+  })
+}
+
 export function claudeBinaryTarget(platform: string, arch: string, glibc?: string): string {
   return `${platform}-${arch}${platform === 'linux' && !glibc ? '-musl' : ''}`
 }
@@ -108,10 +116,11 @@ export class ClaudeCodeBinaryService extends BaseService {
 
   requireExecutable(): string {
     const executable = this.executable
-    // Defensive: the runtime must never resolve inside the application image. A path under
-    // `app.asar` (or its unpacked companion) means a stale/temp install image is being reused
-    // — fail fast instead of handing it to the SDK (see #21898).
-    if (executable.includes('app.asar')) {
+    // Defensive: the runtime must never resolve inside the application image. A path with an
+    // `app.asar` (or `app.asar.unpacked`) path segment means a stale/temp install image is
+    // being reused — fail fast instead of handing it to the SDK (see #21898). Segment matching
+    // keeps sibling directories such as `app.asar-backups` usable.
+    if (isInsideAppAsar(executable)) {
       logger.warn('Claude Code runtime resolved inside the application image; refusing to launch', {
         executable,
         target: this.target,

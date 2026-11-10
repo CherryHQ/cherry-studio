@@ -535,6 +535,27 @@ describe('aiHandlers — streaming', () => {
     })
   })
 
+  it('stream_open preserves runtime recovery copy through the admission boundary', async () => {
+    const runtimeError = Object.assign(new Error('Claude Agent is unavailable'), {
+      name: 'ClaudeCodeRuntimeUnavailableError',
+      i18nKey: 'claude_code_runtime_missing',
+      detailI18nKey: 'claude_code_runtime_missing_detail'
+    })
+    aiStreamManager.dispatchCommand.mockRejectedValue(runtimeError)
+
+    const error = await aiHandlers['ai.stream.open'](
+      { trigger: 'submit-message', topicId: 't', userMessageParts: [] } as never,
+      { senderId: 'w1' }
+    ).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.code).toBe(aiErrorCodes.AI_REQUEST_FAILED)
+    expect(error.data).toMatchObject({
+      i18nKey: 'claude_code_runtime_missing',
+      detailI18nKey: 'claude_code_runtime_missing_detail'
+    })
+  })
+
   it('stream_attach delegates to AiStreamManager.attach and returns its response', async () => {
     aiStreamManager.attach.mockReturnValue({ status: 'not-found' })
 
