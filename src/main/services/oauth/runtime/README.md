@@ -7,10 +7,12 @@ or before wiring a new OAuth consumer through it.
 ## Scope & boundary
 
 This runtime drives the PKCE authorization-code flow for providers whose
-credential the app itself holds and refreshes: **Codex, Grok CLI, CherryIN**. It
+credential the app itself holds and refreshes: **Codex, Grok CLI, CherryIN** and
+**Vertex AI "Sign in with Google"**. It
 owns the flow (authorize → callback → token exchange → persist → refresh) plus
 the provider's enablement: a successful sign-in flips the provider `isEnabled`
-on, and logout flips it off (and resets `authConfig` to `api-key`).
+on, and logout flips it off (and resets `authConfig` to `api-key`). Vertex
+logout only drops its session and leaves the provider configured and enabled.
 
 It is **provider-scoped**, not a general OAuth system. The hard coupling is to
 the *provider* row in SQLite: tokens persist into that row's `authConfig`
@@ -41,19 +43,25 @@ Three pieces, all keyed by `providerId`:
 - **`OAuthRuntimeService`** — lifecycle service; the public surface
   (`signIn` / `joinActiveSignIn` / `cancelSignIn` /
   `getValidAccessToken` / `logout` / `hasToken` / `getAccount`). Entity-agnostic except for the token store, which
-  it constructs internally today (`new ProviderAuthConfigOAuthTokenStore()`)
-  rather than taking by injection — the `OAuthTokenStore` interface is the seam
-  a future consumer would inject through (see "Extending").
+  it constructs internally today (`new ProviderAuthConfigOAuthTokenStore()`);
+  a definition may supply its own `tokenStore` instead (Vertex). It finds a
+  provider's definition only through `resolveOAuthProviderDefinition`.
 - **`LoopbackCallbackTransport`** — receives authorization codes through a
-  localhost HTTP server for Codex, Grok and CherryIN.
+  localhost HTTP server for Codex, Grok, CherryIN and Vertex.
 - **`providers/<id>.ts`** — one file per login provider: its client/urls/scope/
   transport plus optional behavior hooks. **`providerDefinitions.ts`** is the
-  registry that wires each definition onto its provider id.
+  registry that wires each definition onto its provider id, plus
+  `resolveOAuthProviderDefinition(providerId)`, which applies the registry and
+  the Vertex rule below.
 
 Token storage sits behind the `OAuthTokenStore` interface
-(`OAuthTokenStore.ts`). Today only `ProviderAuthConfigOAuthTokenStore` exists.
-That interface is the seam that would let a non-provider consumer plug in a
-different backend — see "Extending" below.
+(`OAuthTokenStore.ts`). `ProviderAuthConfigOAuthTokenStore` replaces the
+provider's authConfig with an `oauth` one. `VertexGoogleOAuthTokenStore` keeps
+the session inside Vertex's `iam-gcp` authConfig, because project, location and
+the organisation's OAuth client live there and must survive sign-in and logout.
+The runtime passes each store the client id of the `PkceOAuthClient` that minted
+the tokens; the Vertex store refuses tokens from a client other than the saved one
+(the client was changed during sign-in), since they could never refresh.
 
 ## Adding a provider
 
@@ -61,15 +69,23 @@ Adding the **OAuth flow** is one file in `providers/<id>.ts`, registered in
 `providerDefinitions.ts`. The variation points are covered by the definition's
 fields and hooks:
 
-- declarative: `clientId`, `transport` (loopback hosts, port, path and redirect URI),
-  client urls, `scope`, `clearDisablesProvider`, `extraAuthParams`.
+- declarative: `transport` (loopback hosts, port, path and redirect URI),
+  client urls, `scope`, `clearDisablesProvider`, `extraAuthParams`, `tokenStore`.
 - `createClient(context)` — build the `PkceOAuthClient`. Async when the provider
   needs OIDC discovery first (Grok). Host-pin discovered endpoints.
-- `extractAccountId(accessToken)` — pull an account id out of the token (Codex's
-  JWT claim). Omit if the provider has no account concept.
+- `extractAccountId(accessToken, tokenData)` — pull an account id out of the
+  token response (Codex's JWT claim, Vertex's id_token email). Omit if the
+  provider has no account concept.
+- `revokeToken(refreshToken)` — best-effort revocation on logout (Vertex).
 - `afterPersistTokens(tokenData, context)` — post-exchange side effect, run
   *after* the tokens are persisted so a failure here never discards a valid token
   (CherryIN fetches the user's API keys here). Omit for vanilla providers.
+
+Vertex AI is the exception to one-definition-per-id: the built-in `vertexai` is
+registered, and `resolveOAuthProviderDefinition` gives any available user-created
+provider with an `iam-gcp` authConfig its own `createVertexGoogleOAuthProvider(providerId)`
+definition (cached per id). Its OAuth client is read from the provider's saved
+credentials, not fixed in the definition.
 
 But a provider is more than its OAuth flow. End-to-end, a new login-based
 provider also touches:

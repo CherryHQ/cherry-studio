@@ -1,3 +1,6 @@
+// Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
+import '@data/services/ProviderRegistryService'
+import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -8,10 +11,11 @@ vi.mock('electron', () => ({
 
 import { net } from 'electron'
 
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 
-import { oauthProviderDefinitions } from '../providerDefinitions'
+import { oauthProviderDefinitions, resolveOAuthProviderDefinition } from '../providerDefinitions'
 import { cherryInOAuthProvider } from '../providers/cherryin'
 
 function discoveryResponse(authorizationEndpoint: string, tokenEndpoint: string): Response {
@@ -140,5 +144,34 @@ describe('CherryIN HTTP callback contract', () => {
 
   it('rejects an untrusted authorization host before opening a browser', () => {
     expect(() => cherryInOAuthProvider.createClient({ oauthServer: 'https://evil.example' })).toThrow(/Unauthorized/)
+  })
+})
+
+describe('resolveOAuthProviderDefinition', () => {
+  const dbh = setupTestDatabase()
+
+  function seed(providerId: string, authConfig: typeof userProviderTable.$inferInsert.authConfig) {
+    dbh.db.insert(userProviderTable).values({ providerId, name: providerId, orderKey: providerId, authConfig }).run()
+  }
+
+  it('resolves a registered provider to its definition', () => {
+    expect(resolveOAuthProviderDefinition(OPENAI_CODEX_PROVIDER_ID)).toBe(
+      oauthProviderDefinitions[OPENAI_CODEX_PROVIDER_ID]
+    )
+  })
+
+  it('gives a user-created iam-gcp provider its own Vertex Google sign-in', () => {
+    seed('my-vertex', { type: 'iam-gcp', project: 'p', location: 'global' })
+
+    const definition = resolveOAuthProviderDefinition('my-vertex')
+    expect(definition?.providerId).toBe('my-vertex')
+    expect(definition?.transport.redirectUri).toBe('http://127.0.0.1:29875/vertex/oauth/callback')
+  })
+
+  it('does not resolve a provider without an iam-gcp authConfig or one that does not exist', () => {
+    seed('my-openai', { type: 'api-key' })
+
+    expect(resolveOAuthProviderDefinition('my-openai')).toBeUndefined()
+    expect(resolveOAuthProviderDefinition('missing-vertex')).toBeUndefined()
   })
 })

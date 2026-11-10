@@ -1,4 +1,5 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +15,7 @@ vi.mock('@main/data/services/utils/registryDataPaths', () => ({
 import type * as CustomFetchModule from '@main/ai/utils/customFetch'
 import type * as ProviderRegistryModule from '@main/data/services/ProviderRegistryService'
 import { ENDPOINT_TYPE, type EndpointType, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { VERTEX_AUTHORIZED_USER_TYPE } from '@shared/utils/vertexGoogleCredentials'
 
 import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
 import { makeModel } from '../../__tests__/fixtures/model'
@@ -1658,6 +1660,63 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
 
     expect(models).toEqual([])
     expect(aiSdkGetFromApiMock).not.toHaveBeenCalled()
+  })
+
+  describe('signed in with Google (authorized_user credentials)', () => {
+    const getValidAccessTokenMock = vi.fn()
+
+    beforeEach(() => {
+      // No private_key / client_email: Google sign-in mode must not need a service account.
+      getAuthConfigMock.mockReturnValue({
+        type: 'iam-gcp',
+        project: 'my-project',
+        location: 'us-central1',
+        credentials: { type: VERTEX_AUTHORIZED_USER_TYPE, clientId: 'client-id', clientSecret: 'client-secret' }
+      })
+      getValidAccessTokenMock.mockReset()
+      MockApplicationUtils.setService('OAuthRuntimeService', { getValidAccessToken: getValidAccessTokenMock })
+    })
+
+    afterEach(() => {
+      MockApplicationUtils.resetServices()
+    })
+
+    it('lists models with the OAuth runtime token as the Bearer header instead of service-account signing', async () => {
+      getValidAccessTokenMock.mockResolvedValue({ accessToken: 'google-user-token', accountId: null })
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: { publisherModels: [{ name: 'publishers/google/models/gemini-2.0-flash' }] }
+      })
+
+      const { models } = await listModels(makeVertexProvider(), undefined, { throwOnError: true })
+
+      expect(getValidAccessTokenMock).toHaveBeenCalledWith('vertex')
+      expect(getAuthHeadersMock).not.toHaveBeenCalled()
+      expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(DEFAULT_VERTEX_MODEL_PUBLISHERS.length)
+      for (const [request] of aiSdkGetFromApiMock.mock.calls) {
+        expect((request as { headers: Record<string, string> }).headers.Authorization).toBe('Bearer google-user-token')
+      }
+      expect(models.map((model) => model.apiModelId)).toEqual(['gemini-2.0-flash'])
+    })
+
+    it('fails with a sign-in-again message and sends no request when the runtime has no token', async () => {
+      getValidAccessTokenMock.mockResolvedValue(null)
+
+      await expect(listModels(makeVertexProvider(), undefined, { throwOnError: true })).rejects.toThrow(
+        /sign in with Google again/
+      )
+
+      expect(aiSdkGetFromApiMock).not.toHaveBeenCalled()
+      expect(getAuthHeadersMock).not.toHaveBeenCalled()
+    })
+
+    it('skips listing without sending an unauthenticated request when the runtime has no token', async () => {
+      getValidAccessTokenMock.mockResolvedValue(null)
+
+      const { models } = await listModels(makeVertexProvider())
+
+      expect(models).toEqual([])
+      expect(aiSdkGetFromApiMock).not.toHaveBeenCalled()
+    })
   })
 })
 

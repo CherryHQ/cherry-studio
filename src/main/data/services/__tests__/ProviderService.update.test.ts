@@ -200,4 +200,32 @@ describe('ProviderService.update', () => {
     // Both keys survive — neither PATCH read a stale row and clobbered the other.
     expect(row.providerSettings).toEqual({ timeout: 30, rateLimit: 5 })
   })
+
+  it('keeps a Vertex Google session when a settings save sends back the signed-in view', async () => {
+    const client = { type: 'authorized_user', clientId: 'cid', clientSecret: 'cs' }
+    const session = { refreshToken: 'refresh-1', accessToken: 'access-1', expiresAt: 123, account: 'a@x' }
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'p-vertex',
+      name: 'Vertex',
+      orderKey: 'a0',
+      authConfig: { type: 'iam-gcp', project: 'proj', location: 'us-central1', credentials: { ...client, ...session } }
+    })
+
+    providerService.update('p-vertex', {
+      authConfig: {
+        type: 'iam-gcp',
+        project: 'proj',
+        location: 'europe-west4',
+        credentials: { ...client, account: 'a@x', signedIn: true }
+      }
+    })
+
+    const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'p-vertex'))
+    expect(row.authConfig).toEqual({
+      type: 'iam-gcp',
+      project: 'proj',
+      location: 'europe-west4',
+      credentials: { ...client, ...session }
+    })
+  })
 })

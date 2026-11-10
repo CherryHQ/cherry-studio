@@ -67,6 +67,24 @@ describe('providersImport protocol handler', () => {
     )
   })
 
+  it('routes a Vertex Google setup link to provider settings for confirmation', async () => {
+    const setup = { project: 'my-project', location: 'global', clientId: 'cid', clientSecret: 'cs' }
+
+    await handleProvidersProtocolUrl(
+      new URL(`cherrystudio://providers/vertex-google?v=1&data=${toUrlSafeBase64(setup)}`)
+    )
+
+    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith(
+      `/settings/provider?vertexGoogleSetup=${encodeURIComponent(JSON.stringify(setup))}`
+    )
+  })
+
+  it('does not open settings for an unreadable Vertex Google setup link', async () => {
+    await handleProvidersProtocolUrl(new URL('cherrystudio://providers/vertex-google?v=1&data=not-json'))
+
+    expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
+  })
+
   it('parses wrapped legacy provider import payloads', () => {
     const payload = Buffer.from("({'id':'custom-openai'})", 'utf-8').toString('base64')
 

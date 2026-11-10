@@ -25,6 +25,10 @@ vi.mock('../hooks/useProviderDeepLinkImport', () => ({
   useProviderDeepLinkImport: vi.fn()
 }))
 
+vi.mock('../hooks/useVertexGoogleSetupLink', () => ({
+  useVertexGoogleSetupLink: vi.fn()
+}))
+
 vi.mock('../ProviderList', () => ({
   ProviderList: ({ selectedProviderId, onSelectProvider, onCustomProviderCreated }: any) => (
     <div>

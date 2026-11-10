@@ -1,4 +1,5 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -357,6 +358,68 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
       // Anthropic publisher baseURL suffix is appended by buildVertexConfig.
       expect(settings.baseURL).toBe('https://us-central1-aiplatform.googleapis.com/v1/publishers/anthropic/models')
+    })
+
+    describe('Google sign-in (authorized_user credentials)', () => {
+      const geminiProvider = () =>
+        makeProvider({
+          id: 'vertex',
+          authType: 'iam-gcp',
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+              baseUrl: 'https://us-central1-aiplatform.googleapis.com/v1',
+              adapterFamily: 'google-vertex'
+            }
+          }
+        })
+      const geminiModel = () =>
+        makeModel({
+          id: 'vertex::gemini-2.0-flash',
+          apiModelId: 'gemini-2.0-flash',
+          endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+        })
+
+      const getValidAccessTokenMock = vi.fn()
+
+      beforeEach(() => {
+        MockApplicationUtils.setService('OAuthRuntimeService', { getValidAccessToken: getValidAccessTokenMock })
+        getAuthConfigMock.mockReturnValue({
+          type: 'iam-gcp',
+          project: 'my-project',
+          location: 'us-central1',
+          credentials: { type: 'authorized_user', clientId: 'cid', clientSecret: 'cs', refreshToken: 'rt' }
+        })
+      })
+
+      afterEach(() => {
+        MockApplicationUtils.resetServices()
+      })
+
+      it('authenticates with the OAuth runtime token instead of service-account credentials', async () => {
+        getValidAccessTokenMock
+          .mockResolvedValueOnce({ accessToken: 'token-1' })
+          .mockResolvedValueOnce({ accessToken: 'token-2' })
+
+        const config = await providerToAiSdkConfig(geminiProvider(), geminiModel())
+        const settings = config.providerSettings as {
+          googleCredentials?: unknown
+          googleAuthOptions?: { authClient?: { getAccessToken(): Promise<{ token: string }> } }
+        }
+
+        expect(settings.googleCredentials).toBeUndefined()
+        // Each SDK request asks the runtime again, so a refreshed token is picked up.
+        await expect(settings.googleAuthOptions?.authClient?.getAccessToken()).resolves.toEqual({ token: 'token-2' })
+        expect(getValidAccessTokenMock).toHaveBeenCalledWith('vertex')
+      })
+
+      it('asks the person to sign in with Google again when the runtime has no session', async () => {
+        getValidAccessTokenMock.mockResolvedValue(null)
+
+        await expect(providerToAiSdkConfig(geminiProvider(), geminiModel())).rejects.toThrow(
+          /sign in with Google again/
+        )
+      })
     })
 
     it('routes a normal google-vertex endpoint to buildVertexConfig with the google publisher baseURL', async () => {

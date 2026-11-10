@@ -287,7 +287,8 @@ export type ProviderSchemas = {
   }
 
   /**
-   * Get full auth config for a provider (includes sensitive credentials).
+   * Get the auth config for a provider, credentials included except session tokens: OAuth tokens and
+   * Vertex "Sign in with Google" tokens are redacted (the latter returns its client and a `signedIn` flag).
    * SECURITY NOTE: Runtime Provider intentionally strips authConfig (only exposes authType).
    * This endpoint is for settings pages only — never call in chat hot path.
    * Acceptable in Electron (same-process IPC, no network exposure).

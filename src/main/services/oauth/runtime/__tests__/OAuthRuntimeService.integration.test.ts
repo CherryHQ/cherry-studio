@@ -6,21 +6,21 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 
 import '@data/services/ProviderRegistryService'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { providerService } from '@data/services/ProviderService'
 import { BaseService } from '@main/core/lifecycle'
 
-import { OAuthSignInCancelledError } from '../../errors'
+import { OAuthServiceError, OAuthSignInCancelledError } from '../../errors'
 import { LoopbackCallbackTransport } from '../LoopbackCallbackTransport'
 import { OAuthRuntimeService } from '../OAuthRuntimeService'
 import type * as ProviderDefinitions from '../providerDefinitions'
 
 vi.mock('../providerDefinitions', async (importOriginal) => {
   const actual = await importOriginal<typeof ProviderDefinitions>()
-  const cherryin = actual.oauthProviderDefinitions.cherryin
   return {
     ...actual,
-    oauthProviderDefinitions: {
-      ...actual.oauthProviderDefinitions,
-      cherryin: { ...cherryin, transport: { ...cherryin.transport, port: 0 } }
+    resolveOAuthProviderDefinition: (providerId: string) => {
+      const definition = actual.resolveOAuthProviderDefinition(providerId)
+      return definition && { ...definition, transport: { ...definition.transport, port: 0 } }
     }
   }
 })
@@ -46,7 +46,7 @@ describe('OAuth login with a real callback server and token store', () => {
       .mockReset()
       .mockImplementation(async (input) => {
         const path = new URL(String(input)).pathname
-        if (path === '/oauth2/token') return Response.json(tokenData)
+        if (path === '/oauth2/token' || path === '/token') return Response.json(tokenData)
         if (path === '/api/v1/oauth/tokens') return Response.json(['private-key'])
         throw new Error(`Unexpected OAuth request: ${path}`)
       })
@@ -58,13 +58,13 @@ describe('OAuth login with a real callback server and token store', () => {
     vi.restoreAllMocks()
   })
 
-  async function authorize(browserCall = 0) {
+  async function authorize(browserCall = 0, callbackPath = '/oauth/callback') {
     await vi.waitFor(() => expect(vi.mocked(shell.openExternal).mock.calls.length).toBeGreaterThan(browserCall))
     const authUrl = new URL(vi.mocked(shell.openExternal).mock.calls[browserCall][0])
     const transport = callbackWait.mock.contexts[browserCall] as { activeServers: Server[] }
     const address = transport.activeServers[0].address()
     if (!address || typeof address === 'string') throw new Error('Callback server is not listening')
-    const callback = new URL(`http://127.0.0.1:${address.port}/oauth/callback`)
+    const callback = new URL(`http://127.0.0.1:${address.port}${callbackPath}`)
     callback.searchParams.set('state', authUrl.searchParams.get('state')!)
     callback.searchParams.set('code', 'test-code')
     const response = await fetch(callback)
@@ -189,5 +189,80 @@ describe('OAuth login with a real callback server and token store', () => {
     void retry.catch(() => {})
     await authorize(1)
     await expect(retry).resolves.toEqual({ accountId: null, apiKeys: 'private-key' })
+  })
+
+  describe('Vertex AI sign in with Google', () => {
+    const client = { type: 'authorized_user', clientId: 'cid', clientSecret: 'cs' }
+    const vertexRow = () =>
+      dbh.db
+        .select()
+        .from(userProviderTable)
+        .all()
+        .find((row) => row.providerId === 'vertexai')
+
+    function seedVertex(credentials: Record<string, unknown>) {
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'vertexai',
+          name: 'Vertex AI',
+          orderKey: 'a1',
+          isEnabled: false,
+          authConfig: { type: 'iam-gcp', project: 'proj', location: 'global', credentials }
+        })
+        .run()
+    }
+
+    it('stores the session under the client that signed in', async () => {
+      seedVertex(client)
+
+      const login = service.signIn('window-a', 'vertexai', 'owner')
+      void login.catch(() => {})
+      await authorize(0, '/vertex/oauth/callback')
+
+      await expect(login).resolves.toEqual({ accountId: null })
+      expect(vertexRow()).toMatchObject({
+        isEnabled: true,
+        authConfig: { credentials: { ...client, accessToken: 'private-token', refreshToken: 'private-refresh' } }
+      })
+    })
+
+    it('refuses a sign-in that completes after the saved OAuth client changed', async () => {
+      seedVertex(client)
+
+      const login = service.signIn('window-a', 'vertexai', 'owner')
+      void login.catch(() => {})
+      await vi.waitFor(() => expect(shell.openExternal).toHaveBeenCalledOnce())
+      providerService.update('vertexai', {
+        authConfig: {
+          type: 'iam-gcp',
+          project: 'proj',
+          location: 'global',
+          credentials: { ...client, clientId: 'cid-b' }
+        }
+      })
+      await authorize(0, '/vertex/oauth/callback')
+
+      const error = await login.catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(OAuthServiceError)
+      expect((error as Error).message).toMatch(/client changed/)
+      expect(vertexRow()).toMatchObject({
+        isEnabled: false,
+        authConfig: { credentials: { ...client, clientId: 'cid-b' } }
+      })
+      expect(vertexRow()?.authConfig).not.toHaveProperty('credentials.refreshToken')
+    })
+
+    it('stores a refreshed token for the saved client', async () => {
+      seedVertex({ ...client, accessToken: 'old', refreshToken: 'refresh-1', expiresAt: Date.now() - 1_000 })
+
+      await expect(service.getValidAccessToken('vertexai')).resolves.toEqual({
+        accessToken: 'private-token',
+        accountId: null
+      })
+      expect(vertexRow()?.authConfig).toMatchObject({
+        credentials: { ...client, accessToken: 'private-token', refreshToken: 'private-refresh' }
+      })
+    })
   })
 })

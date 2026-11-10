@@ -8,6 +8,7 @@
 
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { toVertexAuthorizedUserView } from '@data/services/vertexGoogleSession'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AddProviderApiKeySchema,
@@ -21,6 +22,7 @@ import {
   UpdateProviderSchema
 } from '@shared/data/api/schemas/providers'
 import type { HandlersFor } from '@shared/data/api/types'
+import { isVertexAuthorizedUserCredentials } from '@shared/utils/vertexGoogleCredentials'
 
 export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers': {
@@ -76,10 +78,13 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
       // `oauth.has_token` for the signed-in boolean. Whitelist only the
       // non-secret metadata (deny-by-default, so a future field can't leak a
       // secret by accident), while other auth kinds (iam-gcp/aws) still return
-      // their config for the settings UI that edits them.
+      // their config for the settings UI that edits them — minus a Vertex Google session.
       if (authConfig?.type === 'oauth') {
         const { type, clientId, accountId, expiresAt } = authConfig
         return { type, clientId, accountId, expiresAt }
+      }
+      if (authConfig?.type === 'iam-gcp' && isVertexAuthorizedUserCredentials(authConfig.credentials)) {
+        return { ...authConfig, credentials: toVertexAuthorizedUserView(authConfig.credentials ?? {}) }
       }
       return authConfig
     }
