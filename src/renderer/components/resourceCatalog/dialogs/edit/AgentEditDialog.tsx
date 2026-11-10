@@ -626,7 +626,7 @@ function AgentEditDialogContent({
           </TabsContent>
         ) : null}
         {open && activeTab === 'memory' ? (
-          <TabsContent value="memory" className="m-0">
+          <TabsContent value="memory" className="m-0 flex h-full min-h-0 flex-col">
             <AgentMemoryPanel key={resource.id} ref={memoryPanelRef} agent={resource} />
           </TabsContent>
         ) : null}
