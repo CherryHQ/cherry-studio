@@ -62,16 +62,28 @@ const readBlobBytes = (blob: Blob) =>
     reader.readAsArrayBuffer(blob)
   })
 
-// jsdom never decodes images, so the settle wait would ride its timeout cap;
-// settle each swapped-in src on the next macrotask the way a browser decode would.
+// Model the browser's source-dependent readiness without pretending to decode bytes.
+const controlImageLoad = (img: HTMLImageElement) => {
+  let settledSource = img.src
+  let width = 1
+  Object.defineProperties(img, {
+    complete: { configurable: true, get: () => img.src === settledSource },
+    naturalWidth: { configurable: true, get: () => (img.src === settledSource ? width : 0) }
+  })
+  return (event: 'load' | 'error') => {
+    settledSource = img.src
+    width = event === 'load' ? 1 : 0
+    img.dispatchEvent(new Event(event))
+  }
+}
+
 const armJsdomImageSettle = (root: HTMLElement) => {
   for (const img of root.querySelectorAll('img')) {
-    // The initial page image is loaded; source swaps still emit their own load event.
-    Object.defineProperty(img, 'complete', { value: true, configurable: true })
+    const settle = controlImageLoad(img)
     const observer = new MutationObserver(() => {
       if ((img.getAttribute('src') ?? '').startsWith('data:')) {
         observer.disconnect()
-        setTimeout(() => img.dispatchEvent(new Event('load')), 0)
+        setTimeout(() => settle('load'), 0)
       }
     })
     observer.observe(img, { attributes: true, attributeFilter: ['src'] })
@@ -963,7 +975,58 @@ describe('utils/image', () => {
     })
   })
 
+  describe('capture source replacement readiness', () => {
+    beforeEach(() => vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] }))
+    afterEach(() => {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    })
+
+    it.each(['load', 'error', 'timeout'] as const)(
+      'does not rasterize a replacement source before its %s outcome',
+      async (outcome) => {
+        ipcMocks.request.mockResolvedValue({
+          content: new Uint8Array([1, 2, 3]),
+          mime: 'image/png',
+          version: { mtime: 1, size: 3 }
+        })
+        const root = document.createElement('div')
+        const img = document.createElement('img')
+        img.src = 'file:///tmp/capture.png'
+        root.appendChild(img)
+        const settle = controlImageLoad(img)
+        let swappedAt = 0
+        const observer = new MutationObserver(() => {
+          if (img.src.startsWith('data:')) {
+            observer.disconnect()
+            swappedAt = Date.now()
+          }
+        })
+        observer.observe(img, { attributes: true, attributeFilter: ['src'] })
+        const captured = captureScrollable({ current: root })
+        await vi.waitFor(() => expect(swappedAt).toBeGreaterThan(0), { interval: 1 })
+        expect(img.complete).toBe(false)
+        expect(img.naturalWidth).toBe(0)
+        await vi.advanceTimersByTimeAsync(1999 - (Date.now() - swappedAt))
+        expect(htmlToImage.toCanvas).not.toHaveBeenCalled()
+
+        if (outcome === 'timeout') await vi.advanceTimersByTimeAsync(1)
+        else settle(outcome)
+        const canvas = await captured
+
+        expect(canvas?.toDataURL()).toBe('data:image/png;base64,xxx')
+        expect(img.getAttribute('src')).toBe('file:///tmp/capture.png')
+      }
+    )
+  })
+
   describe('waitForCaptureAssets', () => {
+    beforeEach(() => vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] }))
+    afterEach(() => {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    })
+
     const makeImage = (complete: boolean): HTMLImageElement => {
       const img = document.createElement('img')
       // jsdom never loads resources; drive `complete` explicitly per case.
@@ -981,7 +1044,9 @@ describe('utils/image', () => {
       img.loading = 'lazy'
       root.appendChild(img)
 
-      await waitForCaptureAssets(root)
+      const settled = waitForCaptureAssets(root)
+      await vi.advanceTimersByTimeAsync(250)
+      await settled
 
       expect(img.loading).toBe('eager')
     })
@@ -998,6 +1063,7 @@ describe('utils/image', () => {
         img.dispatchEvent(new Event('load'))
         order.push('load')
       }, 10)
+      await vi.advanceTimersByTimeAsync(260)
       await settled
 
       expect(order).toEqual(['load', 'settled'])
@@ -1015,6 +1081,7 @@ describe('utils/image', () => {
         img.dispatchEvent(new Event('error'))
         order.push('error')
       }, 10)
+      await vi.advanceTimersByTimeAsync(260)
       await settled
 
       expect(order).toEqual(['error', 'settled'])
@@ -1038,6 +1105,7 @@ describe('utils/image', () => {
         lateImage.dispatchEvent(new Event('load'))
         order.push('load')
       }, 700)
+      await vi.advanceTimersByTimeAsync(950)
       await settled
 
       expect(order).toEqual(['mount', 'load', 'settled'])
@@ -1047,16 +1115,15 @@ describe('utils/image', () => {
       const root = document.createElement('div')
       root.appendChild(makeImage(false))
 
-      vi.useFakeTimers()
-      try {
-        const settled = waitForCaptureAssets(root, 1000)
-        const assertion = vi.fn()
-        void settled.then(assertion)
-        await vi.advanceTimersByTimeAsync(1000)
-        expect(assertion).toHaveBeenCalled()
-      } finally {
-        vi.useRealTimers()
-      }
+      let finished = false
+      const settled = waitForCaptureAssets(root, 1000).then(() => {
+        finished = true
+      })
+      await vi.advanceTimersByTimeAsync(999)
+      expect(finished).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      await settled
+      expect(finished).toBe(true)
     })
   })
 
