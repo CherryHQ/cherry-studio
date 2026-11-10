@@ -30,6 +30,8 @@ export function paintingDataToCreateDto(painting: CreatePaintingData): CreatePai
     files: {
       output: getTopLevelFileIds(painting.files),
       input: getTopLevelFileIds(painting.inputFiles)
-    }
+    },
+    batchId: painting.batchId ?? undefined,
+    params: painting.params
   }
 }

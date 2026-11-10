@@ -14,7 +14,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
-import type { PaintingData } from '../model/types/paintingData'
+import type { PaintingTarget } from '../model/paintingBatch'
 import { supportsImageGenerationEndpoint } from '../model/utils/paintingModelOptions'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
@@ -22,48 +22,47 @@ const paintingModelFilter: ModelSelectorFilter = supportsImageGenerationEndpoint
 
 interface PaintingModelSelectorProps {
   className?: string
-  painting: PaintingData
-  onSelect: (selection: { providerId: string; modelId: string }) => void
+  /** Models chosen for this send. The first one is the draft's primary model. */
+  targets: PaintingTarget[]
+  onSelect: (targets: PaintingTarget[]) => void
   /** Drop the "Model" section title — used by the composer's bottom toolbar. */
   hideTitle?: boolean
 }
 
-const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, painting, onSelect, hideTitle }) => {
+const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, targets, onSelect, hideTitle }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { models } = useModels()
   const { providers } = useProviders({ enabled: true })
 
-  const selectedModelId = useMemo(
-    () =>
-      painting.providerId && painting.model ? createUniqueModelId(painting.providerId, painting.model) : undefined,
-    [painting.providerId, painting.model]
+  const primary = targets[0]
+
+  const selectedModelIds = useMemo(
+    () => targets.map((target) => createUniqueModelId(target.providerId, target.modelId)),
+    [targets]
   )
 
   const selectedModel = useMemo(
     () =>
-      painting.model
-        ? models.find((model) => model.providerId === painting.providerId && model.apiModelId === painting.model)
+      primary
+        ? models.find((model) => model.providerId === primary.providerId && model.apiModelId === primary.modelId)
         : undefined,
-    [models, painting.providerId, painting.model]
+    [models, primary]
   )
 
   const selectedProvider = useMemo(
-    () => (painting.providerId ? providers.find((provider) => provider.id === painting.providerId) : undefined),
-    [providers, painting.providerId]
+    () => (primary ? providers.find((provider) => provider.id === primary.providerId) : undefined),
+    [providers, primary]
   )
 
-  const selectedName = selectedModel?.name ?? painting.model
+  const selectedName = selectedModel?.name ?? primary?.modelId
   const selectedProviderName = selectedProvider ? getProviderDisplayName(selectedProvider) : undefined
   const selectedIconRef = useMemo(
     () =>
-      painting.providerId
-        ? getModelLogoRef(
-            selectedModel ?? { id: painting.model ?? '', name: painting.model ?? '' },
-            painting.providerId
-          )
+      primary
+        ? getModelLogoRef(selectedModel ?? { id: primary.modelId, name: primary.modelId }, primary.providerId)
         : undefined,
-    [painting.providerId, painting.model, selectedModel]
+    [primary, selectedModel]
   )
   const selectedIcon = useIcon(selectedIconRef)
 
@@ -78,13 +77,16 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
         showSubscriptionOffers={false}
         open={open}
         onOpenChange={setOpen}
-        multiple={false}
+        multiple
         selectionType="id"
-        value={selectedModelId}
-        onSelect={(uniqueModelId) => {
-          if (!uniqueModelId) return
-          const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-          onSelect({ providerId, modelId })
+        value={selectedModelIds}
+        onSelect={(uniqueModelIds) => {
+          onSelect(
+            uniqueModelIds.map((uniqueModelId) => {
+              const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+              return { providerId, modelId }
+            })
+          )
         }}
         filter={paintingModelFilter}
         showTagFilter={false}
@@ -100,7 +102,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
               className
             )}>
             <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-              {selectedName ? (
+              {targets.length <= 1 && selectedName ? (
                 selectedIcon ? (
                   <selectedIcon.Avatar size={18} className="shrink-0" />
                 ) : (
@@ -110,7 +112,9 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
                 )
               ) : null}
               <span className="min-w-0 truncate text-foreground">
-                {selectedName ? (
+                {targets.length > 1 ? (
+                  t('paintings.batch.selected_count', { count: targets.length })
+                ) : selectedName ? (
                   <>
                     {selectedName}
                     {selectedProviderName && <span className="text-muted-foreground"> | {selectedProviderName}</span>}

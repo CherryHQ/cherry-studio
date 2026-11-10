@@ -156,7 +156,8 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
     onPromptChange,
     onGenerate,
     onCancel: vi.fn(),
-    onModelSelect: vi.fn(),
+    targets: [],
+    onTargetsSelect: vi.fn(),
     onConfigChange: vi.fn(),
     onGenerateRandomSeed: vi.fn(),
     ...props
@@ -498,11 +499,11 @@ describe('PaintingComposer prompt presets', () => {
   it('preserves attached files and model selection when applying a preset', () => {
     const files = [imageAttachment('preset-image')]
     composerState.files = files
-    const onModelSelect = vi.fn()
+    const onTargetsSelect = vi.fn()
     const onConfigChange = vi.fn()
     const { onPromptChange } = renderComposer({
       painting: makePainting({ prompt: 'AB' }),
-      onModelSelect,
+      onTargetsSelect,
       onConfigChange
     })
     fireEvent.click(screen.getByRole('button', { name: 'settings.prompts.title' }))
@@ -512,7 +513,7 @@ describe('PaintingComposer prompt presets', () => {
     expect(composerState.files).toBe(files)
     expect(captured.surfaceProps?.filesCount).toBe(1)
     expect(setFiles).not.toHaveBeenCalled()
-    expect(onModelSelect).not.toHaveBeenCalled()
+    expect(onTargetsSelect).not.toHaveBeenCalled()
     expect(onConfigChange).not.toHaveBeenCalled()
   })
 })
