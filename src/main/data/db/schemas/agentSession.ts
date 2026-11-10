@@ -1,4 +1,5 @@
-import { type AnySQLiteColumn, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
+import { type AnySQLiteColumn, check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
@@ -21,13 +22,9 @@ export const agentSessionTable = sqliteTable(
     workspaceId: text()
       .notNull()
       .references(() => agentWorkspaceTable.id, { onDelete: 'cascade' }),
-    // Internal one-to-one sticky-session relation for agent.task schedules.
-    // It stays out of AgentSessionEntity; task reads project it separately.
-    taskScheduleId: text()
-      .unique()
-      .references(() => jobScheduleTable.id, { onDelete: 'set null' }),
-    // All task runs retain ownership independently of the sticky reuse pointer and job GC.
-    sourceTaskScheduleId: text().references(() => jobScheduleTable.id, { onDelete: 'set null' }),
+    // Task ownership survives reuse changes and execution-log collection.
+    taskId: text().references(() => jobScheduleTable.id, { onDelete: 'set null' }),
+    isTaskReuseTarget: integer({ mode: 'boolean' }).notNull().default(false),
     traceId: text(),
     activeNodeId: text(),
     ...orderKeyColumns,
@@ -38,7 +35,11 @@ export const agentSessionTable = sqliteTable(
   },
   (t) => [
     orderKeyIndex('agent_session')(t),
-    index('agent_session_source_task_idx').on(t.sourceTaskScheduleId),
+    index('agent_session_task_idx').on(t.taskId),
+    uniqueIndex('agent_session_task_reuse_uq')
+      .on(t.taskId)
+      .where(sql`${t.isTaskReuseTarget} = 1`),
+    check('agent_session_task_reuse_owner_check', sql`${t.isTaskReuseTarget} = 0 OR ${t.taskId} IS NOT NULL`),
     index('agent_session_owner_idx').on(t.ownerSessionId),
     index('agent_session_last_activity_at_idx').on(t.lastActivityAt),
     index('agent_session_updated_at_idx').on(t.updatedAt)

@@ -5,7 +5,6 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
-import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -126,7 +125,7 @@ export class AgentLifecycleService extends BaseService {
           const result = application.get('DbService').withWriteTx((tx) => {
             const ids = agentSessionService.listTaskSessionIds(taskId)
             const trashed = agentSessionService.trashByIdsTx(tx, ids)
-            const deleted = jobScheduleService.deleteTx(tx, taskId)
+            const deleted = agentTaskService.deleteScheduleTx(tx, taskId)
             return { ...trashed, deleted }
           })
           this.syncSchedules([taskId])

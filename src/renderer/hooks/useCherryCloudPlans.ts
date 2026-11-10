@@ -1,43 +1,52 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import useSWR from 'swr'
 
 import { usePersistCache } from '@data/hooks/useCache'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
-import { ipcApi } from '@renderer/ipc'
+import { useCherryCloudReceipt } from '@renderer/hooks/useCherryCloudReceipt'
 import { getAppEdition } from '@renderer/utils/appEdition'
 
-/** The signed-in account's plans; the active paid entitlement decides every subscription touchpoint. */
+/** Plans preserve last-known paid display; current entitlement decisions also require isPlansReady. */
 export function useCherryCloudPlans(enabled = true) {
   const session = useCherryAccountSession(enabled)
-  const accountId = session.status?.phase === 'signed-in' ? session.status.accountId : null
-  // Keyed by account: a response for a previous account only ever lands in that account's cache entry.
-  const plansQuery = useSWR(enabled && accountId ? ['cherry-cloud/account-plans', accountId] : null, () =>
-    ipcApi.request('cherry_cloud.account_plans.get')
+  const { receipt, refresh, isRefreshing } = useCherryCloudReceipt(enabled)
+  const scopeId = session.status?.phase === 'signed-in' ? session.status.scopeId : null
+  const initial = useSWR(
+    enabled && scopeId ? ['cherry-cloud/account-initial', scopeId] : null,
+    () => refresh('initial'),
+    { shouldRetryOnError: false, revalidateOnFocus: false, revalidateOnReconnect: false }
   )
+  const fact = receipt?.status.scopeId === scopeId ? receipt.plans : undefined
+  const plansFreshness = fact?.freshness ?? 'unknown'
+  const isPlansReady = plansFreshness === 'fresh'
+  const data = fact && fact.freshness !== 'unknown' ? fact.value : undefined
+  const error = useMemo(
+    () => (fact && fact.freshness !== 'fresh' && fact.error ? new Error(fact.error) : initial.error),
+    [fact, initial.error]
+  )
+  const mutate = useCallback(() => refresh('focus_refresh'), [refresh])
   const activePaid = useMemo(
-    () => plansQuery.data?.entitlements.find((item) => item.state === 'active' && !item.plan.is_free),
-    [plansQuery.data]
+    () => data?.entitlements.find((item) => item.state === 'active' && !item.plan.is_free),
+    [data]
   )
-  // Bought but not started yet: shown and managed like a subscription, though its models stay locked.
   const upcomingPaid = useMemo(
-    () => plansQuery.data?.entitlements.find((item) => item.state === 'upcoming' && !item.plan.is_free),
-    [plansQuery.data]
+    () => data?.entitlements.find((item) => item.state === 'upcoming' && !item.plan.is_free),
+    [data]
   )
-
-  return { session, plansQuery, activePaid, upcomingPaid }
+  const plansQuery = {
+    data,
+    error,
+    isLoading: Boolean(scopeId && !data && !error),
+    isValidating: initial.isValidating || isRefreshing,
+    mutate
+  }
+  return { session, plansQuery, activePaid, upcomingPaid, isPlansReady, plansFreshness }
 }
 
-/**
- * Whether to mark the Subscribe entries with a red dot: China edition only, until any Subscribe
- * touchpoint is used, and never for a paying account.
- */
+/** China-edition Subscribe dot, quiet while current-account plans are unknown. */
 export function useCherryCloudSubscribeReminder(): boolean {
   const [subscribePromptSeen] = usePersistCache('ui.cherry_cloud.subscribe_prompt_seen')
   const remindToSubscribe = getAppEdition() === 'cn' && !subscribePromptSeen
-  const { session, plansQuery, activePaid, upcomingPaid } = useCherryCloudPlans(remindToSubscribe)
-  // Wait for the plans of a signed-in account so a paying user never sees the dot flash.
-  return (
-    remindToSubscribe &&
-    (session.status?.phase === 'signed-out' || (plansQuery.data !== undefined && !activePaid && !upcomingPaid))
-  )
+  const { session, isPlansReady, activePaid, upcomingPaid } = useCherryCloudPlans(remindToSubscribe)
+  return remindToSubscribe && (session.status?.phase === 'signed-out' || (isPlansReady && !activePaid && !upcomingPaid))
 }

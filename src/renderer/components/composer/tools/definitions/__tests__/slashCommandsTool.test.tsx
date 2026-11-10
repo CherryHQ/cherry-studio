@@ -65,6 +65,33 @@ describe('slashCommandsTool', () => {
     expect(t).toHaveBeenCalledWith('chat.input.slash_commands.commands.clear', 'Clear conversation history')
   })
 
+  it('offers Goal independently at the root and preserves its native command', async () => {
+    mockGetBuiltinSlashCommands.mockReturnValue([{ command: '/goal', description: 'Set a goal' }])
+    const english = createInstance()
+    await english.init({ lng: 'en-US', keySeparator: false, resources: { 'en-US': { translation: enUs } } })
+    const launchers = slashCommandsTool.composer?.menuItems?.createItems({
+      actions: { onTextChange: vi.fn() },
+      session: { agentType: 'pi' },
+      t: english.t
+    } as any)
+    const goal = launchers?.find((item) => item.id === 'slash-command:/goal')
+    expect(goal?.label).toBe('Goal Mode')
+    expect(goal?.rootPanelPlacement).toBeUndefined()
+    expect(goal?.sources).toEqual(['popover', 'root-panel'])
+    let text = 'Finish the report'
+    const inputAdapter = {
+      getText: () => text,
+      insertText: (inserted: string, options?: { position?: string }) => {
+        text = options?.position === 'start' ? inserted + text : text + inserted
+      },
+      focus: vi.fn()
+    }
+    goal?.action?.({ inputAdapter } as any)
+    expect(text).toBe('/goal Finish the report')
+    goal?.action?.({ inputAdapter } as any)
+    expect(text).toBe('/goal Finish the report')
+  })
+
   it('prefers the live session slash commands over the builtin fallback', () => {
     mockGetBuiltinSlashCommands.mockReturnValue([{ command: '/clear', description: 'builtin clear' }])
 

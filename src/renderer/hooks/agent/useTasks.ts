@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
@@ -69,11 +69,17 @@ export const useAllTasks = (status?: ListTasksQuery['status']) => {
 }
 
 export const useTask = (taskId: string | null) => {
+  const activated = useRef(false)
   const { data, error, isLoading, refetch } = useQuery('/agent-tasks/:taskId', {
     params: { taskId: taskId! },
     enabled: !!taskId,
     swrOptions: { keepPreviousData: false }
   })
+  useEffect(() => {
+    // Activity hides unsubscribe from changes; refresh when the conversation becomes visible again.
+    if (activated.current && taskId) void refetch()
+    activated.current = true
+  }, [taskId, refetch])
   useDataChange('/agent-tasks/:taskId', (effects) => {
     if (effects.some((effect) => !effect.entityIds || (taskId !== null && effect.entityIds.includes(taskId)))) {
       void refetch()

@@ -25,6 +25,10 @@
         "path": "/app/paintings"
       },
       {
+        "id": "marketplace",
+        "path": "/app/marketplace"
+      },
+      {
         "id": "translate",
         "path": "/app/translate"
       },
@@ -60,6 +64,7 @@
       "/app/files",
       "/app/knowledge",
       "/app/launchpad",
+      "/app/marketplace",
       "/app/notes",
       "/app/release-notes",
       "/app/scheduled-tasks",
@@ -378,6 +383,19 @@
       }
     },
     {
+      "id": "agent.workspace.open",
+      "titleKey": "settings.shortcuts.open_workspace",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "O"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
       "id": "chat.input.focus",
       "titleKey": "settings.shortcuts.focus_input",
       "categoryKey": "settings.shortcuts.chat",
@@ -569,6 +587,19 @@
           "CommandOrControl",
           "]"
         ]
+      }
+    },
+    {
+      "id": "resource.delete_permanently",
+      "titleKey": "settings.shortcuts.delete_current_list_item",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Backspace"
+        ],
+        "when": "resource.focused && !input.focused"
       }
     },
     {
@@ -846,7 +877,7 @@
     }
   ],
   "providers": {
-    "version": "4c51709815c4b53a",
+    "version": "7b17f7706c07b778",
     "count": 67,
     "entries": [
       {
@@ -1281,6 +1312,10 @@
         ".doc",
         ".pptx",
         ".ppt",
+        ".odt",
+        ".odp",
+        ".ods",
+        ".rtf",
         ".epub",
         ".draftsexport"
       ],
