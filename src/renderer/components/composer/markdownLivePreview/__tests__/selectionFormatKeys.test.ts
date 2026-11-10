@@ -177,12 +177,70 @@ describe('selection formatting keys', () => {
     expect(source(editor)).toBe('**one**\n**two**')
   })
 
-  it('does not read the markers of two separate runs as one style', () => {
+  it('bolds a partly bold selection as one span instead of reading two runs as one style', () => {
     const editor = createSelected('**a** and **b**', 0, 15)
 
     press(editor, 'b')
 
-    expect(source(editor)).toContain('**a** and **b**')
+    expect(source(editor)).toBe('**a and b**')
+    expect(selectedText(editor)).toBe('a and b')
+  })
+
+  it.each([
+    ['b', '这是**重点**内容', 0, 2, '**这是重点**内容'],
+    ['b', '**重点**这是', 6, 8, '**重点这是**'],
+    ['b', '**这是重点**内容', 4, 10, '**这是重点内容**'],
+    ['i', 'word*it*', 0, 4, '*wordit*'],
+    ['`', 'word`code`', 0, 4, '`wordcode`']
+  ])('merges %s into a span it touches in %s', (key, text, from, to, expected) => {
+    const editor = createSelected(text, from, to)
+    const selected = selectedText(editor)
+
+    press(editor, key, key === '`' ? {} : primary)
+
+    expect(source(editor)).toBe(expected)
+    // Delimiters the selection crossed are gone; the selection stays on the same text.
+    expect(selectedText(editor)).toBe(selected.replace(/[*`]/g, ''))
+  })
+
+  it.each([
+    ['b', '**这是重点**内容', 2, 4, '这是**重点**内容'],
+    ['b', '**重点这是**', 4, 6, '**重点**这是'],
+    ['b', '**one two three**', 6, 9, '**one** two **three**'],
+    ['i', '*hello world*', 7, 12, '*hello* world'],
+    ['`', '`a b c`', 3, 4, '`a` b `c`']
+  ])('removes %s from just the selected part of %s', (key, text, from, to, expected) => {
+    const editor = createSelected(text, from, to)
+    const selected = selectedText(editor)
+
+    press(editor, key, key === '`' ? {} : primary)
+
+    expect(source(editor)).toBe(expected)
+    expect(selectedText(editor)).toBe(selected)
+  })
+
+  it.each([
+    ['b', 'word**bold**'],
+    ['b', '**bold**word'],
+    ['i', 'word*it*'],
+    ['`', 'word`code`']
+  ])('round trips %s next to a span of the same style in %s', (key, text) => {
+    const editor = createSelected(text, text.indexOf('word'), text.indexOf('word') + 4)
+
+    press(editor, key, key === '`' ? {} : primary)
+    press(editor, key, key === '`' ? {} : primary)
+
+    expect(source(editor)).toBe(text)
+    expect(selectedText(editor)).toBe('word')
+  })
+
+  it('splits bold around a nested italic span', () => {
+    const editor = createSelected('**a *b* c**', 5, 6)
+
+    press(editor, 'b')
+
+    expect(source(editor)).toBe('**a** *b* **c**')
+    expect(selectedText(editor)).toBe('b')
   })
 
   it('keeps token offsets valid when the selection contains a token', () => {
@@ -308,12 +366,12 @@ describe('selection inline code', () => {
     expect(source(editor)).toBe('abc')
   })
 
-  it('does not read the backticks of two separate runs as one style', () => {
+  it('codes a partly coded selection as one span instead of reading two runs as one style', () => {
     const editor = createSelected('`a` and `b`', 0, 11)
 
     pressBacktick(editor)
 
-    expect(source(editor)).toContain('`a` and `b`')
+    expect(source(editor)).toBe('`a and b`')
   })
 
   it('combines with bold around the same text', () => {
