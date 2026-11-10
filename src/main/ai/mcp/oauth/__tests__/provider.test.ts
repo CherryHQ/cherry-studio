@@ -118,7 +118,9 @@ describe('McpOAuthClientProvider authorization redirect', () => {
       const provider = new McpOAuthClientProvider({ serverUrlHash: 'redirect-test', configDir })
       provider.prepareAuthorization = vi.fn()
       await expect(
-        provider.withAuthorizationFlow(() => auth(provider, { serverUrl, resourceMetadataUrl, fetchFn }))
+        provider.withAuthorizationFlow(() =>
+          auth(provider, { serverUrl, resourceMetadataUrl: new URL(resourceMetadataUrl), fetchFn })
+        )
       ).resolves.toBe('REDIRECT')
       const authorizationUrl = new URL(openMock.mock.calls[0][0])
       expect((await fetchFn(authorizationUrl)).status).toBe(200)
