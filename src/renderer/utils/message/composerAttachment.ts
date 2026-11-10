@@ -28,6 +28,8 @@ export interface ComposerAttachment {
    * display-only: it is never re-sent through `createInternalEntry` (the edit
    * flow reuses the original part), and every path-consuming call site skips it.
    */
+  /** In-memory attachment; shared by drafts, undo history and queued sends. */
+  blob?: Blob
   path?: AbsoluteFilePath
   /**
    * Display-only image preview source, set when the attachment has no `path` —

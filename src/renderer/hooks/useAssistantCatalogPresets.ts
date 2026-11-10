@@ -1,3 +1,4 @@
+import { matchesPinyinInitials } from '@renderer/utils/pinyin'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { createUniqueModelId } from '@shared/data/types/model'
 
@@ -111,9 +112,11 @@ export function filterAssistantCatalogPresets(
     if (!getPresetGroups(preset).includes(activeTab)) return false
     if (!keyword) return true
 
-    return [preset.name, preset.description, preset.prompt]
-      .filter(Boolean)
-      .some((text) => text?.toLowerCase().includes(keyword))
+    return (
+      [preset.name, preset.description, preset.prompt]
+        .filter(Boolean)
+        .some((text) => text?.toLowerCase().includes(keyword)) || matchesPinyinInitials(preset.name, keyword)
+    )
   })
 }
 
@@ -147,13 +150,20 @@ async function loadCatalogPresets(resourcesPath: string, language: string) {
 }
 
 export function useAssistantCatalogPresets({ enabled = true }: { enabled?: boolean } = {}) {
-  const { isLoading, items: presets } = useBundledCatalog({
+  const {
+    isLoading,
+    items: presets,
+    error,
+    retry
+  } = useBundledCatalog({
     catalog: 'assistant presets',
     enabled,
     load: loadCatalogPresets
   })
 
   return {
+    error,
+    retry,
     isLoading,
     presets
   }

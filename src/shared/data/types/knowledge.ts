@@ -71,6 +71,9 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  *       +--------------------+-------------+-----------> failed
  *      \---------------------------------------------> deleting
  *
+ * file added through the async copy (before `processing`):
+ *   preparing -> processing -> ...   (preparing -> failed / deleting as above)
+ *
  * directory:
  *   idle -> preparing -> processing -> completed
  *      \        \             \          \
@@ -79,7 +82,9 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  * ```
  *
  * - `idle`: item row exists but indexing has not started.
- * - `preparing`: container expansion is running; only `directory` items may use it.
+ * - `preparing`: the item's source is being acquired into the base — a directory expanding its tree,
+ *   or a file whose bytes are still being copied in (its `raw/` file may not exist yet); only
+ *   `directory` and `file` items may use it.
  * - `processing`: work has been queued or is running before a more specific phase is known.
  * - `reading`: leaf source documents are being read; only `file` / `url` / `note` items may use it.
  * - `embedding`: leaf chunks are being embedded and written to the vector store; only `file` / `url` / `note`.
@@ -166,6 +171,7 @@ export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
  */
 export const KnowledgeBaseEntitySchema = z.strictObject({
   id: KnowledgeBaseIdSchema,
+  orderKey: z.string().min(1),
   name: z.string().trim().min(1),
   groupId: GroupIdSchema.nullable(),
   dimensions: z.number().int().positive().nullable(),
@@ -189,7 +195,7 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
  * schema and the pre-write candidate schema so a rule is defined exactly once.
  */
 function refineKnowledgeBaseInvariants(
-  value: Omit<z.infer<typeof KnowledgeBaseEntitySchema>, 'id' | 'createdAt' | 'updatedAt'>,
+  value: Omit<z.infer<typeof KnowledgeBaseEntitySchema>, 'id' | 'orderKey' | 'createdAt' | 'updatedAt'>,
   ctx: z.RefinementCtx
 ): void {
   if (value.status === 'completed') {
@@ -246,6 +252,7 @@ export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
  * constraints — `id`/`createdAt`/`updatedAt` don't exist yet at write time.
  */
 export const KnowledgeBaseWriteSchema = KnowledgeBaseEntitySchema.omit({
+  orderKey: true,
   id: true,
   createdAt: true,
   updatedAt: true
@@ -381,7 +388,9 @@ const IdleKnowledgeItemLifecycleSchema = {
 } as const
 
 const PreparingKnowledgeItemLifecycleSchema = {
-  status: z.literal('preparing').describe('Container expansion is running; only directory items use it.'),
+  status: z
+    .literal('preparing')
+    .describe('Source acquisition is running: a directory expanding, or a file still being copied in.'),
   error: z.null().describe('No error is stored for non-failed lifecycle states.')
 } as const
 
@@ -496,10 +505,15 @@ const createContainerKnowledgeItemEntitySchemas = <TType extends KnowledgeItemTy
     })
   ] as const
 
-const FileKnowledgeItemSchema = z.discriminatedUnion(
-  'status',
-  createLeafKnowledgeItemEntitySchemas('file', FileItemDataSchema)
-)
+const FileKnowledgeItemSchema = z.discriminatedUnion('status', [
+  ...createLeafKnowledgeItemEntitySchemas('file', FileItemDataSchema),
+  // Only files are copied in after their row exists (knowledge.copy-sources), so only files wait in `preparing`.
+  KnowledgeItemEntityBaseSchema.extend({
+    type: z.literal('file'),
+    data: FileItemDataSchema,
+    ...PreparingKnowledgeItemLifecycleSchema
+  })
+])
 const UrlKnowledgeItemSchema = z.discriminatedUnion(
   'status',
   createLeafKnowledgeItemEntitySchemas('url', UrlItemDataSchema)
@@ -687,7 +701,7 @@ const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
 })
 
 const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({
-  url: z.string().trim().min(1).describe('URL to read and index.'),
+  url: z.string().trim().url().describe('URL to read and index.'),
   // Restore-only: absolute path to a captured snapshot markdown in the source base.
   // When present, Knowledge copies it in and pins the item to it so the first index
   // reads the snapshot offline instead of re-fetching the (possibly changed or dead)
@@ -700,6 +714,21 @@ const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({
 const RuntimeUrlItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
   type: z.literal('url'),
   data: RuntimeUrlItemDataSchema
+})
+
+// Restore-only: persisted URL records predate strict add-time validation and the
+// persisted schema (UrlItemDataSchema) accepts any non-empty string, so a base can
+// legitimately hold a value the add surface now rejects. Restore carries existing
+// records verbatim instead of re-imposing add-time rules on data the user already
+// saved - otherwise one malformed record aborts restoring the whole base, healthy
+// sources included.
+const RestoreRuntimeUrlItemDataSchema = RuntimeUrlItemDataSchema.extend({
+  url: z.string().trim().min(1).describe('URL to read and index.')
+})
+
+export const KnowledgeRestoreUrlItemInputSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('url'),
+  data: RestoreRuntimeUrlItemDataSchema
 })
 
 // Runtime note add carries only the caller-supplied content; `relativePath` is

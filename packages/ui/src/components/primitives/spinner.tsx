@@ -1,4 +1,3 @@
-// Original: src/renderer/components/Spinner.tsx
 import { Search } from 'lucide-react'
 import { motion } from 'motion/react'
 

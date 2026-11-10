@@ -2,8 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { FilePreviewLayout } from '../FilePreviewLayout'
-import { FilePreviewToolbar } from '../FilePreviewToolbar'
+import { FilePreviewLayout, FilePreviewToolbar } from '@cherrystudio/file-preview/react'
 
 afterEach(cleanup)
 
@@ -16,7 +15,9 @@ describe('FilePreview layout composition', () => {
     )
 
     expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
-    expect(screen.getByTestId('file-preview-content').parentElement).toHaveClass('bg-transparent')
+    expect(screen.getByTestId('file-preview-content').closest('[data-ui="file-preview.view"]')).toHaveClass(
+      'bg-transparent'
+    )
     expect(screen.getByTestId('file-preview-content')).toHaveTextContent('Preview content')
   })
 

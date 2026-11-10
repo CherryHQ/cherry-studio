@@ -1,5 +1,8 @@
 import type { CherryMessagePart } from '../data/types/message'
 
+// Stop aborts the stream before async session teardown ends, so stream status alone misses the closing edit gate.
+export const AGENT_SESSION_CLOSING_CACHE_KEY = (sessionId: string) => `agent.session.closing.${sessionId}` as const
+
 export interface AgentSessionEditTarget {
   messageId: string
   version: string

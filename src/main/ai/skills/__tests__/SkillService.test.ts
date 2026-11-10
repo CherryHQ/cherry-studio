@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import AdmZip from 'adm-zip'
+import Database from 'better-sqlite3'
 import { eq } from 'drizzle-orm'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,9 +22,11 @@ import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { skillHandlers } from '@main/ipc/handlers/skill'
-import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import type * as MarkdownParserModule from '@main/utils/markdownParser'
+import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata, PluginError } from '@main/utils/markdownParser'
 import type * as ProcessRunnerModule from '@main/utils/processRunner'
 import { CommandOutputLimitError } from '@main/utils/processRunner'
+import * as remoteFetch from '@main/utils/remoteFetch'
 import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
@@ -33,7 +36,8 @@ const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
-vi.mock('@main/utils/markdownParser', () => ({
+vi.mock('@main/utils/markdownParser', async (importOriginal) => ({
+  ...(await importOriginal<typeof MarkdownParserModule>()),
   parseSkillMetadata: vi.fn(),
   findAllSkillDirectories: vi.fn().mockResolvedValue([]),
   findSkillMdPath: vi.fn()
@@ -75,9 +79,13 @@ vi.mock('../skillArchive', async (importOriginal) => {
   }
 })
 
+import { getMarketplaceSkill, listMarketplaceSkills } from '../cherrySkillMarketplace'
 // Namespaced so the local `createTempDir` test helper cannot shadow the module export.
 import * as skillArchive from '../skillArchive'
+import { SkillImportError } from '../SkillImportError'
+import { SkillInstaller } from '../SkillInstaller'
 import * as skillPaths from '../skillPaths'
+import { resolveGithubSkillSourceUrl } from '../skillRemoteSource'
 import { SkillService } from '../SkillService'
 
 const AGENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -166,6 +174,176 @@ describe('SkillService', () => {
     ])
   }
 
+  describe('exportArchive', () => {
+    afterEach(() => vi.mocked(findSkillMdPath).mockReset())
+
+    it('exports the full installed package with binary assets and portable entry paths', async () => {
+      await seedSkills()
+      const root = await createTempDir('skill-export-')
+      const directory = path.join(root, 'skill-one')
+      await fs.promises.mkdir(path.join(directory, 'assets'), { recursive: true })
+      await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# Skill one')
+      await fs.promises.writeFile(path.join(directory, 'assets', 'image.bin'), Buffer.from([0, 255, 128]))
+      vi.mocked(findSkillMdPath).mockResolvedValue(path.join(directory, 'SKILL.md'))
+      const getPathSpy = vi
+        .spyOn(application, 'getPath')
+        .mockImplementation((_key: string, filename?: string) => (filename ? path.join(root, filename) : root))
+      try {
+        const data = await new SkillService().exportArchive(SKILL_ID_1)
+        const zip = new AdmZip(Buffer.from(data))
+        expect(
+          zip
+            .getEntries()
+            .map((entry) => entry.entryName)
+            .sort()
+        ).toEqual(['SKILL.md', 'assets/image.bin'])
+        expect(zip.readAsText('SKILL.md')).toBe('# Skill one')
+        expect(zip.readFile('assets/image.bin')).toEqual(Buffer.from([0, 255, 128]))
+        await expect(new SkillService().exportArchive('missing')).rejects.toThrow('Skill not found')
+      } finally {
+        getPathSpy.mockRestore()
+      }
+    })
+
+    it('rejects directory junctions and oversize files without exporting outside contents', async () => {
+      const root = await createTempDir('skill-export-boundary-')
+      const directory = path.join(root, 'skill')
+      const outside = path.join(root, 'outside')
+      await fs.promises.mkdir(directory)
+      await fs.promises.mkdir(outside)
+      await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# Skill')
+      vi.mocked(findSkillMdPath).mockResolvedValue(path.join(directory, 'SKILL.md'))
+      await fs.promises.symlink(outside, path.join(directory, 'escape'), 'junction')
+      await expect(skillArchive.exportSkillArchive(directory)).rejects.toThrow('symbolic links')
+      await fs.promises.unlink(path.join(directory, 'escape'))
+      const large = await fs.promises.open(path.join(directory, 'large.bin'), 'w')
+      await large.truncate(skillArchive.MAX_SKILL_SIZE + 1)
+      await large.close()
+      await expect(skillArchive.exportSkillArchive(directory)).rejects.toThrow('size limit')
+    })
+  })
+
+  describe('real local import validation', () => {
+    let root: string
+    let service: SkillService
+
+    beforeEach(async () => {
+      root = await createTempDir('skill-import-contract-')
+      service = new SkillService()
+      const parser = await vi.importActual<typeof MarkdownParserModule>('@main/utils/markdownParser')
+      vi.mocked(findSkillMdPath).mockImplementation(parser.findSkillMdPath)
+      vi.mocked(findAllSkillDirectories).mockImplementation(parser.findAllSkillDirectories)
+      vi.mocked(parseSkillMetadata).mockImplementation(parser.parseSkillMetadata)
+      const archive = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.extractZip).mockImplementation(archive.extractZip)
+      vi.mocked(skillArchive.resolveSkillDirectory).mockImplementation(archive.resolveSkillDirectory)
+      vi.mocked(skillPaths.createTempDir).mockImplementation(async () => {
+        return fs.promises.mkdtemp(path.join(root, 'zip-install-'))
+      })
+      vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = path.join(
+          root,
+          key === 'external.agents.skills' ? 'exports' : key === 'feature.agents.skills' ? 'library' : 'mirror'
+        )
+        return filename ? path.join(base, filename) : base
+      })
+    })
+
+    afterEach(() => {
+      vi.mocked(findSkillMdPath).mockReset()
+      vi.mocked(findAllSkillDirectories).mockReset().mockResolvedValue([])
+      vi.mocked(parseSkillMetadata).mockReset()
+      vi.mocked(application.getPath).mockRestore()
+    })
+
+    it('classifies a real ZIP without SKILL.md and preserves the extraction path without adding rows', async () => {
+      const zipPath = path.join(root, 'no-skill.zip')
+      const zip = new AdmZip()
+      zip.addFile('paper-pilot-main/README.md', Buffer.from('# Readme'))
+      zip.writeZip(zipPath)
+      const error = await service.installFromZip({ zipFilePath: zipPath }).catch((error: unknown) => error)
+      expect(error).toBeInstanceOf(SkillImportError)
+      expect(error).toMatchObject({ code: 'SKILL_DIRECTORY_NOT_FOUND' })
+      const extractionPath = vi.mocked(skillPaths.createTempDir).mock.settledResults[0].value
+      expect((error as Error).message).toBe(`No skill directory found in ${extractionPath}`)
+      expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([])
+    })
+
+    it.each(['root', 'nested'] as const)(
+      'installs a real %s ZIP with its frontmatter name, row and descriptor',
+      async (layout) => {
+        const name = `import-${layout}`
+        const zipPath = path.join(root, `${layout}.zip`)
+        const zip = new AdmZip()
+        zip.addFile(
+          layout === 'root' ? 'SKILL.md' : `${name}/SKILL.md`,
+          Buffer.from(`---\nname: ${name}\ndescription: Import fixture\n---\n# Skill`)
+        )
+        zip.writeZip(zipPath)
+        const installed = await service.installFromZip({ zipFilePath: zipPath })
+        expect(installed.name).toBe(name)
+        expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([
+          expect.objectContaining({ id: installed.id, name })
+        ])
+        expect(fs.existsSync(path.join(service.getInstalledSkillDirectory(installed), 'SKILL.md'))).toBe(true)
+      }
+    )
+
+    it.each(['empty', 'parent-only'])(
+      'rejects a %s directory without recursively discovering a descriptor',
+      async (layout) => {
+        const directoryPath = path.join(root, layout)
+        await fs.promises.mkdir(directoryPath)
+        if (layout === 'parent-only') {
+          await fs.promises.mkdir(path.join(directoryPath, 'child'))
+          await fs.promises.writeFile(path.join(directoryPath, 'child', 'SKILL.md'), '---\nname: child\n---')
+        }
+        const error = await service.installFromDirectory({ directoryPath }).catch((error: unknown) => error)
+        expect(error).toBeInstanceOf(PluginError)
+        expect(error).toMatchObject({ type: 'FILE_NOT_FOUND' })
+        expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([])
+      }
+    )
+
+    it.each(['missing', 'file'])('classifies an unavailable %s directory', async (layout) => {
+      const directoryPath = path.join(root, layout)
+      if (layout === 'file') await fs.promises.writeFile(directoryPath, 'file')
+      const error = await service.installFromDirectory({ directoryPath }).catch((error: unknown) => error)
+      expect(error).toBeInstanceOf(SkillImportError)
+      expect(error).toMatchObject({ code: 'DIRECTORY_NOT_FOUND', message: `Directory not found: ${directoryPath}` })
+    })
+
+    it('installs a directory that directly contains SKILL.md', async () => {
+      const directoryPath = path.join(root, 'valid-dir')
+      await fs.promises.mkdir(directoryPath)
+      await fs.promises.writeFile(
+        path.join(directoryPath, 'SKILL.md'),
+        '---\nname: direct-import\ndescription: Import fixture\n---'
+      )
+      const installed = await service.installFromDirectory({ directoryPath })
+      expect(installed.name).toBe('direct-import')
+      expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([
+        expect.objectContaining({ id: installed.id, name: 'direct-import' })
+      ])
+      expect(fs.existsSync(path.join(service.getInstalledSkillDirectory(installed), 'SKILL.md'))).toBe(true)
+    })
+
+    it.each(['file.txt', 'directory.zip'])('classifies %s as an invalid ZIP input', async (name) => {
+      const zipFilePath = path.join(root, name)
+      if (name === 'file.txt') await fs.promises.writeFile(zipFilePath, 'file')
+      else await fs.promises.mkdir(zipFilePath)
+      const error = await service.installFromZip({ zipFilePath }).catch((error: unknown) => error)
+      expect(error).toBeInstanceOf(SkillImportError)
+      expect(error).toMatchObject({ code: 'INVALID_ZIP_FILE' })
+    })
+
+    it('classifies a missing descriptor during directory hashing', async () => {
+      const error = await new SkillInstaller().computeDirectoryHash(root).catch((error: unknown) => error)
+      expect(error).toBeInstanceOf(SkillImportError)
+      expect(error).toMatchObject({ code: 'SKILL_DIRECTORY_NOT_FOUND', message: `SKILL.md not found in ${root}` })
+    })
+  })
+
   describe('catalog scopes', () => {
     it('uses physical directories for registered skills with no source URL and excludes junction targets outside system roots', async () => {
       await seedSkills()
@@ -200,7 +378,7 @@ describe('SkillService', () => {
         expect(filtered[0]).toMatchObject({ id: SKILL_ID_2, scope: 'local' })
         const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockRejectedValue(new Error('unavailable filesystem'))
         try {
-          expect(await dataSkillHandlers['/skills'].GET({ query: {} } as never)).toHaveLength(3)
+          expect(await dataSkillHandlers['/skills'].GET({ query: {} })).toHaveLength(3)
         } finally {
           realpathSpy.mockRestore()
         }
@@ -641,6 +819,39 @@ describe('SkillService', () => {
       )
     })
 
+    it.each(['builtin', 'copied'])('excludes exported %s skills while preserving user-owned links', async (kind) => {
+      const exportsRoot = path.join(home, '.agents', 'skills')
+      const managedCopy = path.join(mirrorRoot, `${kind}-skill`)
+      const exportedSkill = path.join(exportsRoot, `${kind}-skill`)
+      const userLink = path.join(exportsRoot, 'user-skill')
+      const canonicalSkill = path.join(dataSkillsRoot, 'canonical-skill')
+      const canonicalLink = path.join(exportsRoot, 'canonical-skill')
+      await fs.promises.mkdir(managedCopy, { recursive: true })
+      await fs.promises.mkdir(canonicalSkill, { recursive: true })
+      await fs.promises.mkdir(exportsRoot, { recursive: true })
+      await fs.promises.symlink(managedCopy, exportedSkill, 'junction')
+      await fs.promises.symlink(canonicalSkill, canonicalLink, 'junction')
+      await fs.promises.symlink(sourceSkillDir, userLink, 'junction')
+      vi.mocked(findAllSkillDirectories).mockImplementation(async (directoryPath) =>
+        directoryPath === exportsRoot
+          ? [exportedSkill, canonicalLink, userLink].map((folderPath) => ({
+              folderPath,
+              sourcePath: path.basename(folderPath)
+            }))
+          : []
+      )
+
+      const result = await skillService.discoverSystem()
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          directoryPath: await fs.promises.realpath(sourceSkillDir),
+          status: 'available',
+          placements: [expect.objectContaining({ directoryPath: userLink })]
+        })
+      ])
+    })
+
     it('imports a system skill into the managed library without changing agent associations', async () => {
       const result = await skillService.importSystem({ directoryPath: sourceSkillDir })
 
@@ -913,7 +1124,12 @@ describe('SkillService', () => {
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')
       const mirrorRoot = path.join(root, '.claude', 'skills')
       const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
-        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        const base =
+          key === 'feature.agents.skills'
+            ? dataSkillsRoot
+            : key === 'external.agents.skills'
+              ? path.join(root, '.agents', 'skills')
+              : mirrorRoot
         return filename ? path.join(base, filename) : base
       })
       vi.mocked(parseSkillMetadata).mockResolvedValue({
@@ -1011,18 +1227,21 @@ describe('SkillService', () => {
       )
     })
 
-    it('uses an explicit tag namespace when a branch has the same name', async () => {
+    it.each([true, false])('resolves tag identity consistently with installation (explicit: %s)', async (explicit) => {
       const tagOid = 'b'.repeat(40)
       const { skillService, installSpy, gitCalls } = await setupGithubInstall({
         refs: [
-          { name: 'v1', oid: 'a'.repeat(40) },
+          ...(explicit ? [{ name: 'v1', oid: 'a'.repeat(40) }] : []),
           { name: 'v1', oid: tagOid, namespace: 'tags' }
         ]
       })
 
-      await skillService.install({
-        installSource: 'github:https://github.com/owner/repo/raw/refs/tags/v1/skills/demo/SKILL.md'
-      })
+      const url = explicit
+        ? 'https://github.com/owner/repo/raw/refs/tags/v1/skills/demo/SKILL.md'
+        : 'https://github.com/owner/repo/blob/v1/skills/demo/SKILL.md'
+      const resolvedUrl = await resolveGithubSkillSourceUrl(url)
+      expect(resolvedUrl).toBe('https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md')
+      await skillService.install({ installSource: `github:${resolvedUrl}` })
 
       expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([tagOid]))
       expect(installSpy).toHaveBeenCalledWith(
@@ -1870,6 +2089,7 @@ describe('SkillService', () => {
       vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
       const spy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
         if (key === 'feature.agents.skills') return filename ? path.join(storageRoot, filename) : storageRoot
+        if (key === 'external.agents.skills') return path.join(path.dirname(mirrorRoot), '.agents', 'skills')
         if (key === 'feature.agents.claude.skills') return filename ? path.join(mirrorRoot, filename) : mirrorRoot
         return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
       })
@@ -2061,6 +2281,190 @@ describe('SkillService', () => {
     })
   })
 
+  describe('CherryIN marketplace packages', () => {
+    let root: string
+    let restorePaths: () => void
+    let restoreDownload: () => void
+    const itemId = 'sample skill/collection'
+
+    beforeEach(async () => {
+      application.get('CacheService').setPersist('skill.marketplace.members', {})
+      root = await createTempDir('cherryin-install-')
+      const actual = await vi.importActual<typeof MarkdownParserModule>('@main/utils/markdownParser')
+      vi.mocked(findSkillMdPath).mockImplementation(actual.findSkillMdPath)
+      vi.mocked(findAllSkillDirectories).mockImplementation(actual.findAllSkillDirectories)
+      vi.mocked(parseSkillMetadata).mockImplementation(actual.parseSkillMetadata)
+      const spy = vi
+        .spyOn(application, 'getPath')
+        .mockImplementation((key: string, filename?: string) => path.join(root, key, ...(filename ? [filename] : [])))
+      restorePaths = () => spy.mockRestore()
+      const downloadSpy = vi.spyOn(remoteFetch, 'fetchRemoteFile')
+      restoreDownload = () => downloadSpy.mockRestore()
+    })
+
+    afterEach(() => {
+      restorePaths()
+      restoreDownload()
+      vi.mocked(findSkillMdPath).mockReset()
+      vi.mocked(findAllSkillDirectories).mockReset().mockResolvedValue([])
+      vi.mocked(parseSkillMetadata).mockReset()
+    })
+
+    function servePackage(files: Record<string, string>, collection = true) {
+      const zip = new AdmZip()
+      for (const [name, content] of Object.entries(files)) zip.addFile(name, Buffer.from(content))
+      const item = {
+        id: itemId,
+        name: { en: 'one', zh: null },
+        description: { en: '', zh: null },
+        longDescription: { en: '', zh: null },
+        domain: 'Other',
+        author: 'Cherry',
+        version: '1.0',
+        tags: collection ? ['collection'] : [],
+        githubRepoUrl: null,
+        sourceUrl: null,
+        icon: null,
+        packageSize: null,
+        packageName: 'skills.zip',
+        downloadUrl: `https://skills.cherryin.ai/api/skills/${encodeURIComponent(itemId)}/download`,
+        hasPackage: true,
+        downloads: 1,
+        releaseDate: '2026-09-22'
+      }
+      vi.mocked(net.fetch).mockImplementation(async () => Response.json(item))
+      vi.mocked(remoteFetch.fetchRemoteFile).mockImplementation(async (url, destination) => {
+        expect(url).toBe(item.downloadUrl)
+        await fs.promises.writeFile(destination, zip.toBuffer(), { flag: 'wx' })
+      })
+      return item
+    }
+
+    it('reads public REST pagination and nullable localized text without private fields', async () => {
+      const item = { ...servePackage({}), longDescription: undefined }
+      vi.mocked(net.fetch).mockResolvedValueOnce(
+        Response.json({
+          items: [item],
+          pagination: { offset: 100, limit: 100, total: 101, hasMore: false }
+        })
+      )
+      const page = await listMarketplaceSkills({ offset: 100, limit: 100 })
+      expect(String(vi.mocked(net.fetch).mock.calls.at(-1)?.[0])).toBe(
+        'https://skills.cherryin.ai/api/skills?limit=100&offset=100&sort=popular'
+      )
+      expect(page.pagination).toEqual({ offset: 100, limit: 100, total: 101, hasMore: false })
+      expect(page.items[0]).toMatchObject({
+        id: itemId,
+        name: { en: 'one', zh: null },
+        membersKnown: false,
+        members: []
+      })
+      expect(page.items[0]).not.toHaveProperty('longDescription')
+      const detail = await getMarketplaceSkill(itemId)
+      expect(String(vi.mocked(net.fetch).mock.calls.at(-1)?.[0])).toBe(
+        `https://skills.cherryin.ai/api/skills/${encodeURIComponent(itemId)}`
+      )
+      expect(detail.longDescription).toEqual({ en: '', zh: null })
+    })
+
+    it('reads and caches the member list on detail open without installing skills', async () => {
+      servePackage({ 'one/SKILL.md': '---\nname: one\n---\n# One', 'two/SKILL.md': '---\nname: two\n---\n# Two' })
+      const detail = await getMarketplaceSkill(itemId, true)
+      expect(detail.membersKnown).toBe(true)
+      expect(detail.members).toEqual([
+        { path: 'one', name: 'one' },
+        { path: 'two', name: 'two' }
+      ])
+      expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([])
+      expect(await fs.promises.readdir(path.join(root, 'feature.agents.skills.install.temp'))).toEqual([])
+      expect((await getMarketplaceSkill(itemId, true)).members).toEqual(detail.members)
+      expect(remoteFetch.fetchRemoteFile).toHaveBeenCalledOnce()
+    })
+
+    it.each([404, 429])('surfaces HTTP %s instead of treating an unavailable resource as empty', async (status) => {
+      vi.mocked(net.fetch).mockResolvedValueOnce(Response.json({ error: 'Unavailable' }, { status }))
+      await expect(getMarketplaceSkill(itemId)).rejects.toThrow(`CherryIN HTTP ${status}`)
+    })
+
+    it('installs a root descriptor under its skill name without enabling it for every agent', async () => {
+      await seedAgent()
+      servePackage({ 'SKILL.md': '---\nname: one\ndescription: First skill\n---\n# One' }, false)
+      const result = await new SkillService().installMarketplace(itemId)
+      expect(result.failed).toEqual([])
+      expect(result.members).toEqual([{ path: '', name: 'one' }])
+      expect(remoteFetch.fetchRemoteFile).toHaveBeenCalledWith(
+        `https://skills.cherryin.ai/api/skills/${encodeURIComponent(itemId)}/download`,
+        expect.any(String),
+        { timeoutMs: 60_000, maxBytes: skillArchive.MAX_ARCHIVE_SIZE, maxRedirects: 5 }
+      )
+      expect(result.installed).toMatchObject([{ folderName: 'one', namespace: `cherryin:${itemId}`, isEnabled: false }])
+      expect(dbh.db.select().from(agentSkillTable).all()).toHaveLength(0)
+      expect(await fs.promises.readFile(path.join(root, 'feature.agents.skills', 'one', 'SKILL.md'), 'utf8')).toContain(
+        '# One'
+      )
+    })
+
+    it('rejects an oversized marketplace member within the larger archive limit and cleans up', async () => {
+      servePackage({ 'one/SKILL.md': '---\nname: one\n---\n# One' })
+      const actual = await vi.importActual<typeof skillArchive>('../skillArchive')
+      vi.mocked(skillArchive.extractZip).mockImplementationOnce(async (zipPath, destination) => {
+        await actual.extractZip(zipPath, destination)
+        const file = await fs.promises.open(path.join(destination, 'one', 'large.bin'), 'w')
+        try {
+          await file.truncate(skillArchive.MAX_SKILL_SIZE + 1)
+        } finally {
+          await file.close()
+        }
+      })
+
+      await expect(new SkillService().installMarketplace(itemId)).rejects.toThrow(
+        `over the ${skillArchive.MAX_SKILL_SIZE}-byte limit`
+      )
+      expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([])
+      expect(await fs.promises.readdir(path.join(root, 'feature.agents.skills.install.temp'))).toEqual([])
+    })
+
+    it('preserves successful members and user files on conflict, then retries only missing members', async () => {
+      servePackage({ 'one/SKILL.md': '---\nname: one\n---\n# One', 'two/SKILL.md': '---\nname: two\n---\n# Two' })
+      const userDir = path.join(root, 'feature.agents.skills', 'two')
+      await fs.promises.mkdir(userDir, { recursive: true })
+      await fs.promises.writeFile(path.join(userDir, 'SKILL.md'), '# User file')
+      dbh.db
+        .insert(agentGlobalSkillTable)
+        .values({ id: SKILL_ID_2, name: 'two', folderName: 'two', source: 'local', contentHash: 'user' })
+        .run()
+      const service = new SkillService()
+      const first = service.installMarketplace(itemId)
+      expect(service.installMarketplace(itemId)).toBe(first)
+      const partial = await first
+      expect(partial.installed.map((skill) => skill.folderName)).toEqual(['one'])
+      expect((await getMarketplaceSkill(itemId)).members).toEqual([
+        { path: 'one', name: 'one' },
+        { path: 'two', name: 'two' }
+      ])
+      expect(partial.failed).toMatchObject([{ path: 'two', error: expect.stringContaining('refusing to overwrite') }])
+      expect(await fs.promises.readFile(path.join(userDir, 'SKILL.md'), 'utf8')).toBe('# User file')
+      await service.uninstall(SKILL_ID_2)
+      const firstDir = path.join(root, 'feature.agents.skills', 'one')
+      await fs.promises.writeFile(path.join(firstDir, 'user-note.txt'), 'keep')
+      const retried = await new SkillService().installMarketplace(itemId)
+      expect(retried.failed).toEqual([])
+      expect(retried.installed.map((skill) => skill.folderName)).toEqual(['two'])
+      expect(retried.alreadyInstalled.map((skill) => skill.id)).toEqual([partial.installed[0].id])
+      expect(await fs.promises.readFile(path.join(firstDir, 'user-note.txt'), 'utf8')).toBe('keep')
+    })
+
+    it.each<Record<string, string>>([
+      { 'one/SKILL.md': '# One', 'ONE/extra.md': '# Conflict', 'two/SKILL.md': '# Two' },
+      { 'README.md': '# No skills' }
+    ])('rejects ambiguous or empty packages before changing the library', async (files) => {
+      servePackage(files)
+      await expect(new SkillService().installMarketplace(itemId)).rejects.toThrow(/Conflicting|contains no skills/)
+      expect(dbh.db.select().from(agentGlobalSkillTable).all()).toEqual([])
+      expect(await fs.promises.readdir(path.join(root, 'feature.agents.skills.install.temp'))).toEqual([])
+    })
+  })
+
   describe('skill mirror', () => {
     let skillService: SkillService
     let dataSkillsRoot: string
@@ -2088,6 +2492,7 @@ describe('SkillService', () => {
       })
       const spy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
         if (key === 'feature.agents.skills') return filename ? path.join(dataSkillsRoot, filename) : dataSkillsRoot
+        if (key === 'external.agents.skills') return path.join(path.dirname(mirrorRoot), '.agents', 'skills')
         if (key === 'feature.agents.claude.skills') return filename ? path.join(mirrorRoot, filename) : mirrorRoot
         return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
       })
@@ -2116,6 +2521,56 @@ describe('SkillService', () => {
       await skillService.unlinkMirror('pdf')
       await expect(fs.promises.access(path.join(mirrorRoot, 'pdf'))).rejects.toThrow()
     })
+
+    it.each([
+      { source: 'builtin', globalEnabled: false, agentEnabled: true },
+      { source: 'builtin', globalEnabled: true, agentEnabled: false },
+      { source: 'local', globalEnabled: false, agentEnabled: true },
+      { source: 'local', globalEnabled: true, agentEnabled: false }
+    ])(
+      'keeps exported copies out of home workspace skills: $source, global=$globalEnabled, agent=$agentEnabled',
+      async ({ source, globalEnabled, agentEnabled }) => {
+        await seedAgent()
+        const library = await writeLibrarySkill('managed')
+        const contentHash = await skillService['computeBuiltinDirectoryHash'](library)
+        await dbh.db.insert(agentGlobalSkillTable).values({
+          id: SKILL_ID_1,
+          name: 'managed',
+          folderName: 'managed',
+          source,
+          contentHash,
+          isEnabled: globalEnabled
+        })
+        agentGlobalSkillService.upsertJoin(AGENT_ID, SKILL_ID_1, agentEnabled)
+        await skillService.linkMirror('managed')
+        const internal = path.join(mirrorRoot, 'managed')
+        // Exercise physical mirrors even on POSIX, where authored skills normally use symlinks.
+        await fs.promises.rm(internal, { recursive: true, force: true })
+        await fs.promises.cp(library, internal, { recursive: true })
+        const home = path.dirname(mirrorRoot)
+        const workspaceSkills = path.join(home, '.agents', 'skills')
+        const userSkill = path.join(workspaceSkills, 'user-skill')
+        const linkedSource = await createTempDir('user-workspace-skill-')
+        await fs.promises.mkdir(userSkill, { recursive: true })
+        await fs.promises.writeFile(path.join(userSkill, 'SKILL.md'), '# user')
+        await fs.promises.writeFile(path.join(linkedSource, 'SKILL.md'), '# linked user')
+        await fs.promises.symlink(linkedSource, path.join(workspaceSkills, 'user-link'), 'junction')
+        vi.mocked(parseSkillMetadata).mockImplementation(async (directory) => skillMeta(path.basename(directory)))
+
+        expect((await skillService.list({ agentId: AGENT_ID })).filter((skill) => skill.isEnabled)).toEqual([])
+        expect((await skillService.listLocal(home)).map((skill) => skill.filename).sort()).toEqual([
+          'user-link',
+          'user-skill'
+        ])
+        expect((await skillService.listLocalFolderNames(home)).sort()).toEqual(['user-link', 'user-skill'])
+        expect((await skillService.listLocalSkillPaths(home)).sort()).toEqual(
+          [path.join(workspaceSkills, 'user-link'), userSkill].sort()
+        )
+        await fs.promises.rm(dataSkillsRoot, { recursive: true, force: true })
+        expect((await skillService.listLocalFolderNames(home)).sort()).toEqual(['user-link', 'user-skill'])
+        expect(await skillService.listLocalFolderNames(path.dirname(home))).toEqual([])
+      }
+    )
 
     it('linkMirror replaces a broken mirror symlink', async () => {
       await writeLibrarySkill('pdf')
@@ -2158,15 +2613,302 @@ describe('SkillService', () => {
       }
     })
 
-    it('uninstall removes the mirror entry', async () => {
+    it('setMirrorEnabled controls external export without removing internal Claude discovery', async () => {
+      await writeLibrarySkill('skill-one')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'skill-one',
+        folderName: 'skill-one',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false
+      })
+
+      // default-on: mirror present before the toggle
+      await skillService.linkMirror('skill-one')
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
+      const exported = path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-one')
+      await expect(fs.promises.readFile(path.join(exported, 'SKILL.md'), 'utf-8')).resolves.toBe('# Skill')
+
+      const disabled = await skillService.setMirrorEnabled(SKILL_ID_1, false)
+      expect(disabled?.mirrorEnabled).toBe(false)
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
+      await expect(
+        fs.promises.lstat(path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-one'))
+      ).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(agentGlobalSkillService.getByFolderName('skill-one')?.mirrorEnabled).toBe(false)
+
+      const enabled = await skillService.setMirrorEnabled(SKILL_ID_1, true)
+      expect(enabled?.mirrorEnabled).toBe(true)
+      await expect(fs.promises.readFile(path.join(exported, 'SKILL.md'), 'utf-8')).resolves.toBe('# Skill')
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
+    })
+
+    it.each([true, false])('restores export after a database exception (previously enabled: %s)', async (previous) => {
+      await writeLibrarySkill('skill-one')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'skill-one',
+        folderName: 'skill-one',
+        source: 'marketplace',
+        contentHash: 'a',
+        mirrorEnabled: previous
+      })
+      await skillService.linkMirror('skill-one')
+      const competingConnection = new Database(dbh.sqlite.name)
+      dbh.sqlite.pragma('busy_timeout = 0')
+      competingConnection.exec('BEGIN IMMEDIATE')
+      try {
+        await expect(skillService.setMirrorEnabled(SKILL_ID_1, !previous)).rejects.toThrow('database is locked')
+        const exported = path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-one')
+        if (previous) {
+          await expect(fs.promises.readFile(path.join(exported, 'SKILL.md'), 'utf-8')).resolves.toBe('# Skill')
+        } else {
+          await expect(fs.promises.lstat(exported)).rejects.toMatchObject({ code: 'ENOENT' })
+        }
+        expect(agentGlobalSkillService.getById(SKILL_ID_1)?.mirrorEnabled).toBe(previous)
+        await expect(fs.promises.readFile(path.join(mirrorRoot, 'skill-one', 'SKILL.md'), 'utf-8')).resolves.toBe(
+          '# Skill'
+        )
+      } finally {
+        competingConnection.exec('ROLLBACK')
+        competingConnection.close()
+        dbh.sqlite.pragma('busy_timeout = 5000')
+      }
+    })
+
+    it('preserves user-owned external skill directories on enable, disable and uninstall', async () => {
+      await writeLibrarySkill('skill-one')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'skill-one',
+        folderName: 'skill-one',
+        source: 'marketplace',
+        contentHash: 'a',
+        mirrorEnabled: false
+      })
+      const userSkill = path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-one')
+      await fs.promises.mkdir(userSkill, { recursive: true })
+      await fs.promises.writeFile(path.join(userSkill, 'SKILL.md'), '# User skill')
+      await expect(skillService.setMirrorEnabled(SKILL_ID_1, true)).rejects.toThrow('conflicts')
+      expect(agentGlobalSkillService.getById(SKILL_ID_1)?.mirrorEnabled).toBe(false)
+      await skillService.setMirrorEnabled(SKILL_ID_1, false)
+      await skillService.uninstall(SKILL_ID_1)
+      await expect(fs.promises.readFile(path.join(userSkill, 'SKILL.md'), 'utf-8')).resolves.toBe('# User skill')
+    })
+
+    it.each([false, true])(
+      'compensates a missing database row and reports restoration failures: %s',
+      async (failRestore) => {
+        await writeLibrarySkill('skill-one')
+        await dbh.db.insert(agentGlobalSkillTable).values({
+          id: SKILL_ID_1,
+          name: 'skill-one',
+          folderName: 'skill-one',
+          source: 'marketplace',
+          contentHash: 'a',
+          mirrorEnabled: false
+        })
+        await skillService.linkMirror('skill-one')
+        const writeSpy = vi.spyOn(agentGlobalSkillService, 'updateMirrorEnabled').mockReturnValue(null)
+        const unlinkSpy = failRestore
+          ? vi.spyOn(fs.promises, 'unlink').mockRejectedValue(new Error('restore denied'))
+          : null
+        try {
+          const result = skillService.setMirrorEnabled(SKILL_ID_1, true)
+          if (failRestore) {
+            const error = await result.catch((error: unknown) => error)
+            expect(error).toBeInstanceOf(AggregateError)
+            expect((error as AggregateError).errors.map((cause: Error) => cause.message)).toEqual([
+              'Failed to persist mirror toggle for skill: skill-one',
+              'restore denied'
+            ])
+          } else {
+            await expect(result).rejects.toThrow('Failed to persist')
+            await expect(
+              fs.promises.lstat(path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-one'))
+            ).rejects.toMatchObject({ code: 'ENOENT' })
+          }
+          expect(agentGlobalSkillService.getById(SKILL_ID_1)?.mirrorEnabled).toBe(false)
+        } finally {
+          writeSpy.mockRestore()
+          unlinkSpy?.mockRestore()
+        }
+      }
+    )
+
+    it('setMirrorEnabled leaves the database untouched when the filesystem projection fails', async () => {
+      await writeLibrarySkill('skill-one')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'skill-one',
+        folderName: 'skill-one',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false,
+        mirrorEnabled: false
+      })
+      await fs.promises.rm(path.join(dataSkillsRoot, 'skill-one', 'SKILL.md'))
+
+      await expect(skillService.setMirrorEnabled(SKILL_ID_1, true)).rejects.toThrow()
+
+      expect(agentGlobalSkillService.getByFolderName('skill-one')?.mirrorEnabled).toBe(false)
+    })
+
+    it('reports export conflicts for installs and reinstalls while preserving both skill directories', async () => {
+      const source = await createTempDir('skill-export-conflict-')
+      await fs.promises.writeFile(path.join(source, 'SKILL.md'), '# installed internally')
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('skill-one'))
+      const userSkill = path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-one')
+      await fs.promises.mkdir(userSkill, { recursive: true })
+      await fs.promises.writeFile(path.join(userSkill, 'SKILL.md'), '# user skill')
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await expect(skillService.installFromDirectory({ directoryPath: source })).rejects.toThrow('conflicts')
+        await expect(fs.promises.readFile(path.join(userSkill, 'SKILL.md'), 'utf-8')).resolves.toBe('# user skill')
+        await expect(fs.promises.readFile(path.join(mirrorRoot, 'skill-one', 'SKILL.md'), 'utf-8')).resolves.toBe(
+          '# installed internally'
+        )
+      }
+      const installed = agentGlobalSkillService.getByFolderName('skill-one')!
+      await skillService.setMirrorEnabled(installed.id, false)
+      await expect(skillService.installFromDirectory({ directoryPath: source })).resolves.toMatchObject({
+        mirrorEnabled: false
+      })
+    })
+
+    it('syncBuiltinSkill honors a persisted mirror opt-out', async () => {
+      vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('skill-creator'))
+      const builtinDir = await writeLibrarySkill('skill-creator', '# trusted')
+      const trustedHash = await skillService['computeBuiltinDirectoryHash'](builtinDir)
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_BUILTIN,
+        name: 'skill-creator',
+        folderName: 'skill-creator',
+        source: 'builtin',
+        contentHash: trustedHash,
+        isEnabled: false,
+        mirrorEnabled: false
+      })
+
+      // a mirror left behind by the default-on first install
+      await skillService.linkMirror('skill-creator')
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-creator'))).resolves.toBeUndefined()
+
+      // returns filesUpdated (library copy refreshed), independent of the mirror state
+      expect(await skillService.syncBuiltinSkill('skill-creator', builtinDir, '1.0.0', null)).toBe(true)
+      expect(agentGlobalSkillService.getByFolderName('skill-creator')?.mirrorEnabled).toBe(false)
+      await expect(fs.promises.readFile(path.join(mirrorRoot, 'skill-creator', 'SKILL.md'), 'utf-8')).resolves.toBe(
+        '# trusted'
+      )
+      await expect(
+        fs.promises.lstat(path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-creator'))
+      ).rejects.toMatchObject({ code: 'ENOENT' })
+
+      const exported = path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-creator')
+      await fs.promises.mkdir(path.dirname(exported), { recursive: true })
+      await fs.promises.symlink(path.join(mirrorRoot, 'skill-creator'), exported, isWin ? 'junction' : 'dir')
+      await fs.promises.rm(path.join(mirrorRoot, 'skill-creator'), { recursive: true, force: true })
+      expect(await skillService.syncBuiltinSkill('skill-creator', builtinDir, '1.0.0', null)).toBe(false)
+      await expect(fs.promises.readFile(path.join(mirrorRoot, 'skill-creator', 'SKILL.md'), 'utf-8')).resolves.toBe(
+        '# trusted'
+      )
+      await expect(fs.promises.lstat(exported)).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    it('reconcileSkills preserves internal discovery for skills opted out of external export', async () => {
+      vi.mocked(parseSkillMetadata).mockReset()
+      await writeLibrarySkill('skill-one')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'skill-one',
+        folderName: 'skill-one',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false,
+        mirrorEnabled: false
+      })
+
+      // a mirror left behind by an earlier default-on install flow
+      await skillService.linkMirror('skill-one')
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one'))).resolves.toBeUndefined()
+
+      await skillService.reconcileSkills()
+
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
+      await expect(
+        fs.promises.lstat(path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-one'))
+      ).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    it('uninstall removes the library, internal discovery and owned external export', async () => {
       await seedSkills()
-      vi.spyOn(skillService['installer'], 'uninstall').mockResolvedValue(undefined)
-      const unlinkSpy = vi.spyOn(skillService, 'unlinkMirror')
+      await writeLibrarySkill('skill-one')
+      await skillService.linkMirror('skill-one')
 
       await skillService.uninstall(SKILL_ID_1)
 
-      expect(unlinkSpy).toHaveBeenCalledWith('skill-one')
+      expect(agentGlobalSkillService.getById(SKILL_ID_1)).toBeNull()
+      for (const root of [dataSkillsRoot, mirrorRoot, path.join(path.dirname(mirrorRoot), '.agents', 'skills')]) {
+        await expect(fs.promises.lstat(path.join(root, 'skill-one'))).rejects.toMatchObject({ code: 'ENOENT' })
+      }
     })
+
+    it.each(['internal', 'export'])(
+      'reports partial uninstall and independently removes the other projection when %s cleanup fails',
+      async (stage) => {
+        const library = await writeLibrarySkill('managed')
+        const contentHash = await skillService['computeBuiltinDirectoryHash'](library)
+        await dbh.db.insert(agentGlobalSkillTable).values({
+          id: SKILL_ID_1,
+          name: 'managed',
+          folderName: 'managed',
+          source: 'builtin',
+          contentHash
+        })
+        await skillService.linkMirror('managed')
+        const internal = path.join(mirrorRoot, 'managed')
+        const exported = path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'managed')
+        const actualRm = fs.promises.rm
+        const actualUnlink = fs.promises.unlink
+        const rmSpy = vi.spyOn(fs.promises, 'rm').mockImplementation(async (target, options) => {
+          if (stage === 'internal' && path.resolve(String(target)) === path.resolve(internal)) {
+            throw Object.assign(new Error('internal mirror locked'), { code: 'EPERM' })
+          }
+          return actualRm(target, options)
+        })
+        const unlinkSpy = vi.spyOn(fs.promises, 'unlink').mockImplementation(async (target) => {
+          if (stage === 'export' && path.resolve(String(target)) === path.resolve(exported)) {
+            throw Object.assign(new Error('export locked'), { code: 'EPERM' })
+          }
+          return actualUnlink(target)
+        })
+        try {
+          await expect(skillService.uninstall(SKILL_ID_1)).rejects.toThrow('Failed to remove skill mirrors')
+          expect(agentGlobalSkillService.getById(SKILL_ID_1)).not.toBeNull()
+          await expect(fs.promises.readFile(path.join(library, 'SKILL.md'), 'utf-8')).resolves.toBe('# Skill')
+          if (stage === 'internal') {
+            await expect(fs.promises.lstat(exported)).rejects.toMatchObject({ code: 'ENOENT' })
+            await expect(fs.promises.readFile(path.join(internal, 'SKILL.md'), 'utf-8')).resolves.toBe('# Skill')
+          } else {
+            await expect(fs.promises.lstat(internal)).rejects.toMatchObject({ code: 'ENOENT' })
+            await expect(fs.promises.lstat(exported)).resolves.toBeDefined()
+            await expect(fs.promises.readFile(path.join(exported, 'SKILL.md'), 'utf-8')).rejects.toMatchObject({
+              code: 'ENOENT'
+            })
+          }
+        } finally {
+          rmSpy.mockRestore()
+          unlinkSpy.mockRestore()
+        }
+        await skillService.uninstall(SKILL_ID_1)
+        expect(agentGlobalSkillService.getById(SKILL_ID_1)).toBeNull()
+        await expect(fs.promises.lstat(exported)).rejects.toMatchObject({ code: 'ENOENT' })
+        await expect(fs.promises.lstat(internal)).rejects.toMatchObject({ code: 'ENOENT' })
+        await expect(fs.promises.lstat(library)).rejects.toMatchObject({ code: 'ENOENT' })
+      }
+    )
 
     it('persists and updates the SKILL.md version when reinstalling the same origin', async () => {
       const sourceDir = await createTempDir('versioned-skill-')
@@ -2568,7 +3310,10 @@ describe('SkillService', () => {
         .where(eq(agentGlobalSkillTable.id, SKILL_ID_BUILTIN))
       expect(row?.contentHash).toBe(trustedHash)
       expect(row?.source).toBe('builtin')
-      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-creator'))).rejects.toThrow()
+      await expect(fs.promises.lstat(path.join(mirrorRoot, 'skill-creator'))).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(
+        fs.promises.lstat(path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-creator'))
+      ).rejects.toMatchObject({ code: 'ENOENT' })
     })
 
     it('rejects a case-colliding local install instead of overwriting a builtin', async () => {

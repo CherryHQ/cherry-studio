@@ -85,28 +85,6 @@ describe('useTabSelfVisuals', () => {
     expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 
-  it('preserves the stored title and icon while the bound conversation is loading', async () => {
-    mocks.tabs = [
-      {
-        id: 'tab-1',
-        type: 'route',
-        url: '/app/chat?topicId=topic-1',
-        title: 'Stored topic title',
-        icon: 'icon:stored'
-      }
-    ]
-
-    render(
-      <TabIdProvider tabId="tab-1">
-        <TabVisualsWriter title="Chat" routePrefix="/app/chat" preserveVisuals />
-      </TabIdProvider>
-    )
-
-    await act(async () => {})
-
-    expect(mocks.updateTab).not.toHaveBeenCalled()
-  })
-
   it('skips the update when title and icon already match', async () => {
     mocks.tabs = [
       {

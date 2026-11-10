@@ -28,7 +28,7 @@ vi.mock('@application', () => ({
       if (name === 'AiStreamManager') return { streamPrompt: mockStreamPrompt, abort: vi.fn() }
       if (name === 'ApiGatewayService')
         return {
-          isInternalAgentRequest: vi.fn(() => mockGetAgentSessionId() !== undefined),
+          isInternalRequest: vi.fn(() => mockGetAgentSessionId() !== undefined),
           resolveAgentSessionUsage: vi.fn(() => undefined),
           getAgentSessionId: mockGetAgentSessionId
         }
@@ -57,6 +57,7 @@ vi.mock('../adapters', () => ({
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
+      getMessageId: () => 'test-response',
       transformChunk: () => [],
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ ok: true })

@@ -4,17 +4,13 @@ import type {
   MouseEvent as ReactMouseEvent,
   TransitionEvent as ReactTransitionEvent
 } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import type { useTimer } from '@renderer/hooks/useTimer'
 
+import { useComposerLayerActive } from './ComposerContext'
 import { getCompactComposerEditorMinHeight, getComposerEditorMinHeight } from './composerSizing'
-
-export const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT = 'max(220px, 40vh)'
-export const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT = 'max(220px, 50vh)'
-export const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,40vh)]!'
-export const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,50vh)]!'
 
 const COMPOSER_EDITOR_HEIGHT_TRANSITION_MS = 260
 const COMPOSER_EDITOR_RESIZE_KEYBOARD_STEP = 16
@@ -32,49 +28,28 @@ type ComposerEditorContentStyle = CSSProperties & {
   '--composer-editor-min-height': string
   '--composer-editor-font-size': string
   '--composer-editor-line-height': string
-  '--composer-editor-max-height': string
-  '--composer-editor-overflow-y': 'auto' | 'hidden'
-  '--composer-editor-height': 'auto' | '100%'
-}
-
-const COMPOSER_EDITOR_ELEMENT_STYLE = [
-  'max-height: var(--composer-editor-max-height) !important',
-  'overflow-y: var(--composer-editor-overflow-y)',
-  'height: var(--composer-editor-height)'
-].join('; ')
-
-function getViewportRelativeHeightPx(minHeight: number, viewportRatio: number) {
-  return Math.max(minHeight, Math.round(window.innerHeight * viewportRatio))
-}
-
-function getExpandedEditorFrameHeightPx(editorMinHeight: number) {
-  return Math.max(editorMinHeight, getViewportRelativeHeightPx(220, 0.5))
 }
 
 function clampComposerEditorHeightPx(height: number, minHeight: number, maxHeight: number) {
   return Math.min(maxHeight, Math.max(minHeight, Math.round(height)))
 }
 
-function getCollapsedEditorFrameHeightPx(frame: HTMLDivElement, editorMinHeight: number) {
+function getCollapsedEditorFrameHeightPx(frame: HTMLDivElement, editorMinHeight: number, maxHeight: number) {
   const editorElement = frame.querySelector('.composer-tiptap') as HTMLElement | null
   let contentHeight = frame.scrollHeight || editorMinHeight
-  const maxCollapsedHeight = getViewportRelativeHeightPx(220, 0.4)
 
   if (editorElement) {
     const previousHeight = editorElement.style.height
-    const previousMaxHeight = editorElement.style.maxHeight
 
     try {
-      editorElement.style.height = 'auto'
-      editorElement.style.maxHeight = 'none'
+      editorElement.style.height = 'max-content'
       contentHeight = editorElement.scrollHeight || contentHeight
     } finally {
       editorElement.style.height = previousHeight
-      editorElement.style.maxHeight = previousMaxHeight
     }
   }
 
-  return Math.max(editorMinHeight, Math.min(contentHeight, maxCollapsedHeight))
+  return Math.max(editorMinHeight, Math.min(contentHeight, maxHeight))
 }
 
 function getComposerEditorContentStyle(
@@ -85,14 +60,6 @@ function getComposerEditorContentStyle(
 ): ComposerEditorContentStyle {
   const minHeight = compact ? getCompactComposerEditorMinHeight(fontSize) : getComposerEditorMinHeight(fontSize)
   const hasCustomHeight = isExpanded || manualEditorFrameHeight !== null
-  const isFixedHeight = compact || hasCustomHeight
-  const maxHeight = compact
-    ? `${minHeight}px`
-    : isExpanded
-      ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT
-      : manualEditorFrameHeight !== null
-        ? `${manualEditorFrameHeight}px`
-        : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT
 
   return {
     height: compact ? minHeight : hasCustomHeight ? '100%' : undefined,
@@ -100,10 +67,7 @@ function getComposerEditorContentStyle(
     '--composer-editor-padding': compact ? '3px 0' : '6px 15px 0',
     '--composer-editor-min-height': `${minHeight}px`,
     '--composer-editor-font-size': `${fontSize}px`,
-    '--composer-editor-line-height': '1.4',
-    '--composer-editor-max-height': maxHeight,
-    '--composer-editor-overflow-y': compact ? 'hidden' : 'auto',
-    '--composer-editor-height': isFixedHeight ? '100%' : 'auto'
+    '--composer-editor-line-height': '1.4'
   }
 }
 
@@ -114,15 +78,53 @@ export function useComposerEditorFrameSizing({
   focusEditor,
   setTimeoutTimer
 }: ComposerEditorFrameSizingOptions) {
+  const layerActive = useComposerLayerActive()
   const minHeight = getComposerEditorMinHeight(fontSize)
   const compactMinHeight = getCompactComposerEditorMinHeight(fontSize)
-  const maxHeight = getExpandedEditorFrameHeightPx(minHeight)
+  const [maxHeight, setMaxHeight] = useState(minHeight)
   const frameRef = useRef<HTMLDivElement | null>(null)
   const animationFrameRef = useRef<number | null>(null)
   const pendingExpandedRef = useRef<boolean | null>(null)
   const resizeDragRef = useRef({ startClientY: 0, startHeight: 0, collapseExpanded: false })
   const [animatedHeight, setAnimatedHeight] = useState<string | null>(null)
-  const [manualHeight, setManualHeight] = useState<number | null>(null)
+  const [requestedManualHeight, setManualHeight] = useState<number | null>(null)
+  const manualHeight = requestedManualHeight === null ? null : Math.min(requestedManualHeight, maxHeight)
+
+  useLayoutEffect(() => {
+    const frame = frameRef.current
+    if (!frame || !layerActive) return
+    const stage = frame.closest<HTMLElement>('[data-composer-stage]')
+    const surface =
+      frame.closest<HTMLElement>('[data-composer-dock-surface]') ??
+      frame.closest<HTMLElement>('[data-composer-inputbar]')
+    const tabBar = document.querySelector<HTMLElement>('[data-ui~="app.tab-bar"]')
+
+    const measure = () => {
+      const stageHeight = stage?.clientHeight ?? window.innerHeight - (tabBar?.getBoundingClientRect().bottom ?? 0)
+      if (stageHeight <= 0) return
+      const chromeHeight = (surface?.offsetHeight ?? frame.offsetHeight) - frame.offsetHeight
+      setMaxHeight(Math.max(minHeight, Math.floor(stageHeight - chromeHeight)))
+    }
+    measure()
+    let measurementFrame: number | null = null
+    const observer = new ResizeObserver(() => {
+      if (measurementFrame !== null) return
+      measurementFrame = window.requestAnimationFrame(() => {
+        measurementFrame = null
+        measure()
+      })
+    })
+    observer.observe(frame)
+    if (stage) observer.observe(stage)
+    if (surface) observer.observe(surface)
+    if (tabBar) observer.observe(tabBar)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer.disconnect()
+      if (measurementFrame !== null) window.cancelAnimationFrame(measurementFrame)
+      window.removeEventListener('resize', measure)
+    }
+  }, [layerActive, minHeight])
 
   const hasManualHeight = manualHeight !== null
   const hasCustomHeight = isExpanded || hasManualHeight
@@ -242,9 +244,7 @@ export function useComposerEditorFrameSizing({
     const frame = frameRef.current
     if (!frame || pendingExpandedRef.current !== isExpanded) return
 
-    const targetHeight = isExpanded
-      ? getExpandedEditorFrameHeightPx(minHeight)
-      : getCollapsedEditorFrameHeightPx(frame, minHeight)
+    const targetHeight = isExpanded ? maxHeight : getCollapsedEditorFrameHeightPx(frame, minHeight, maxHeight)
 
     clearAnimationFrame()
     animationFrameRef.current = window.requestAnimationFrame(() => {
@@ -253,7 +253,7 @@ export function useComposerEditorFrameSizing({
     })
 
     clearAnimatedHeightAfterTransition()
-  }, [clearAnimatedHeightAfterTransition, clearAnimationFrame, isExpanded, minHeight])
+  }, [clearAnimatedHeightAfterTransition, clearAnimationFrame, isExpanded, maxHeight, minHeight])
 
   useEffect(() => clearAnimationFrame, [clearAnimationFrame])
 
@@ -278,7 +278,7 @@ export function useComposerEditorFrameSizing({
     }
 
     const startHeight = frame.offsetHeight || getCurrentHeight()
-    const targetHeight = getCollapsedEditorFrameHeightPx(frame, minHeight)
+    const targetHeight = getCollapsedEditorFrameHeightPx(frame, minHeight, maxHeight)
 
     setAnimatedHeight(`${startHeight}px`)
     animationFrameRef.current = window.requestAnimationFrame(() => {
@@ -295,21 +295,32 @@ export function useComposerEditorFrameSizing({
     focusEditor,
     getCurrentHeight,
     minHeight,
+    maxHeight,
     onExpandedChange
   ])
 
+  const fitContentHeight = useCallback(() => {
+    if (!isExpanded && requestedManualHeight !== null) return
+
+    clearAnimationFrame()
+    pendingExpandedRef.current = null
+    setAnimatedHeight(null)
+    setManualHeight(null)
+    if (isExpanded) onExpandedChange(false)
+  }, [clearAnimationFrame, isExpanded, onExpandedChange, requestedManualHeight])
+
   const resolvedFrameHeight =
-    animatedHeight ??
-    (isExpanded ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT : manualHeight !== null ? `${manualHeight}px` : undefined)
+    animatedHeight ?? (isExpanded ? `${maxHeight}px` : manualHeight !== null ? `${manualHeight}px` : undefined)
 
   const frameStyle = useMemo<CSSProperties>(
     () => ({
       height: resolvedFrameHeight,
       minHeight,
+      maxHeight,
       overflow: 'hidden',
       transitionDuration: isResizing ? '0ms' : `${COMPOSER_EDITOR_HEIGHT_TRANSITION_MS}ms`
     }),
-    [isResizing, minHeight, resolvedFrameHeight]
+    [isResizing, minHeight, maxHeight, resolvedFrameHeight]
   )
 
   const editorContentStyle = useMemo<ComposerEditorContentStyle>(
@@ -336,7 +347,6 @@ export function useComposerEditorFrameSizing({
     compactFrameStyle,
     editorContentStyle,
     compactEditorContentStyle,
-    editorElementStyle: COMPOSER_EDITOR_ELEMENT_STYLE,
     minHeight,
     maxHeight,
     resizeHandleValue: isExpanded ? maxHeight : (manualHeight ?? minHeight),
@@ -346,6 +356,7 @@ export function useComposerEditorFrameSizing({
     handleResizeKeyDown,
     handleTransitionEnd,
     toggleExpanded,
-    restoreDefaultHeight
+    restoreDefaultHeight,
+    fitContentHeight
   }
 }

@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Scrollbar } from '@cherrystudio/ui'
+import { ScrollArea } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -21,7 +21,6 @@ import {
   useMessageListActions,
   useMessageListEditingId,
   useMessageListItemActivityState,
-  useMessageListMeta,
   useMessageListSelection,
   useMessageListUiSelectors,
   useMessageRenderConfig
@@ -29,14 +28,14 @@ import {
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 import MessageAttachments from './MessageAttachments'
-import MessageAvatar from './MessageAvatar'
 import MessageContent from './MessageContent'
 import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader, { AgentSessionDeliveryBadge } from './MessageHeader'
 import MessageMenuBar from './MessageMenuBar'
+import { MessageUserLayout } from './MessageUserLayout'
 
 const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
-  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
+  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 has-[[data-slot=dropdown-menu-trigger][data-state=open]]:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
 interface Props {
   message: MessageListItem
@@ -123,7 +122,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
   const assistantFooterVisibilityClass = keepAssistantFooterVisible
     ? 'opacity-100'
-    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
+    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 has-[[data-slot=dropdown-menu-trigger][data-state=open]]:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -208,21 +207,34 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     )
   }
 
+  const messageContentClassName = 'message-content-container mt-0 min-h-0 max-w-full pl-0'
+  const messageContentStyle = {
+    fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+    fontSize
+  }
+  const messageBody = (
+    <MessageErrorBoundary>
+      <MessageContent message={message} />
+    </MessageErrorBoundary>
+  )
   const plainMessageContent = (
     <>
-      <Scrollbar
-        data-ui="part:message-content"
-        className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
-        tabIndex={isHorizontalMultiModelLayout ? 0 : undefined}
-        style={{
-          fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-          fontSize,
-          overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
-        }}>
-        <MessageErrorBoundary>
-          <MessageContent message={message} />
-        </MessageErrorBoundary>
-      </Scrollbar>
+      {isHorizontalMultiModelLayout ? (
+        <ScrollArea
+          data-ui="part:message-content"
+          className={messageContentClassName}
+          style={messageContentStyle}
+          viewportProps={{ tabIndex: 0, style: { overflowY: 'auto' } }}>
+          {messageBody}
+        </ScrollArea>
+      ) : (
+        <div
+          data-ui="part:message-content"
+          className={messageContentClassName}
+          style={{ ...messageContentStyle, overflowY: 'visible' }}>
+          {messageBody}
+        </div>
+      )}
       {isAssistantMessage ? messageTail : undefined}
     </>
   )
@@ -352,56 +364,50 @@ const UserBubbleMessage = ({
   fontSize: number
   isEditing: boolean
 }) => {
-  const actions = useMessageListActions()
-  const meta = useMessageListMeta()
-  const avatar = meta.userProfile?.avatar ?? ''
-  const canOpenUserProfile = !!actions.openUserProfile
-  const openUserProfile = useCallback(() => {
-    void actions.openUserProfile?.()
-  }, [actions])
   const messageParts = useMessageParts(message.id)
-  const attachments = getHoistedAttachments(messageParts, message)
+  const { openFile, previewFile, previewInputFile } = useMessageListActions()
+  const hoistNonImageFiles = !!(previewInputFile || previewFile || openFile)
+  const attachments = getHoistedAttachments(messageParts, message.id, hoistNonImageFiles)
 
   return (
     <div className="flex w-full flex-col items-end">
-      <div className="flex max-w-[calc(100%-2.5rem)] items-start justify-end gap-2.5 has-[.code-block]:w-full">
-        <div className="flex min-w-0 flex-1 flex-col items-end">
-          {message.delivery && (
-            <div className="mb-1 max-w-full">
-              <AgentSessionDeliveryBadge delivery={message.delivery} />
-            </div>
-          )}
-          {(attachments.images.length > 0 || attachments.files.length > 0) && (
-            <div className="flex max-w-full flex-col items-end">
-              {attachments.images.length > 0 && (
-                <MessageImageBlock sources={attachments.images} thumbnail className="mb-2 justify-end" />
-              )}
-              {attachments.files.map((file) => (
-                <MessageAttachments
-                  key={file.key}
-                  handle={file.handle}
-                  name={file.name}
-                  ext={file.ext}
-                  createdAt={message.createdAt}
-                />
-              ))}
-            </div>
-          )}
-          <Scrollbar
-            data-ui="part:message-content"
-            className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
-            style={{
-              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-              fontSize,
-              overflowY: 'visible'
-            }}>
-            <MessageErrorBoundary>
-              <MessageContent message={message} hoistAttachments />
-            </MessageErrorBoundary>
-          </Scrollbar>
+      <MessageUserLayout>
+        {message.delivery && (
+          <div className="mb-1 max-w-full">
+            <AgentSessionDeliveryBadge delivery={message.delivery} />
+          </div>
+        )}
+        {(attachments.images.length > 0 || attachments.files.length > 0) && (
+          <div className="flex max-w-full flex-col items-end">
+            {attachments.images.length > 0 && (
+              <MessageImageBlock sources={attachments.images} thumbnail className="mb-2 justify-end" />
+            )}
+            {attachments.files.map((file) => (
+              <MessageAttachments
+                key={file.key}
+                handle={file.handle}
+                inputFilePreview={file.inputFilePreview}
+                name={file.name}
+                ext={file.ext}
+                createdAt={message.createdAt}
+              />
+            ))}
+          </div>
+        )}
+        <div
+          data-ui="part:message-content"
+
+          className="message-content-container mt-0 max-w-full rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
+          style={{
+            fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+            fontSize,
+            overflowY: 'visible'
+          }}>
+          <MessageErrorBoundary>
+            <MessageContent message={message} hoistAttachments />
+          </MessageErrorBoundary>
         </div>
-        <MessageAvatar avatar={avatar} className="mt-1.5" onClick={canOpenUserProfile ? openUserProfile : undefined} />
-      </div>
+      </MessageUserLayout>
       {!isEditing && (
         <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-xs leading-none text-foreground-tertiary">
           <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>

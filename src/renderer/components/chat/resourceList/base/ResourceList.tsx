@@ -4,7 +4,7 @@ import { createContext, use, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
-import { CommandHint } from '@renderer/components/command'
+import { CommandFocusScope, CommandHint } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 
@@ -38,6 +38,7 @@ import {
 import { ResourceListLeadingSlot, type ResourceListLeadingSlotProps } from './ResourceListLeadingSlot'
 import { ResourceListProvider } from './ResourceListProvider'
 import { VirtualDraggableItems, VirtualItems } from './ResourceListVirtual'
+import { ResourceListPermanentDelete } from './useResourceListPermanentDelete'
 
 export type {
   ResourceListActionMap,
@@ -67,6 +68,7 @@ export type { ResourceListPresentation } from './resourceListLayout'
 
 type FrameProps = ComponentProps<'div'> & {
   presentation?: ResourceListPresentation
+  active?: boolean
   ref?: Ref<HTMLDivElement>
 }
 
@@ -76,24 +78,40 @@ function useResourceListPresentation() {
   return use(ResourceListPresentationContext)
 }
 
-function Frame({ className, presentation = 'left-panel', ref, ...props }: FrameProps) {
+function Frame({ className, presentation = 'left-panel', active = true, ref, ...props }: FrameProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const setRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      rootRef.current = node
+      if (typeof ref === 'function') return ref(node)
+      if (ref) ref.current = node
+    },
+    [ref]
+  )
   const meta = useResourceListMeta()
   const presentationClassNames = RESOURCE_LIST_PRESENTATION_CLASS_NAMES[presentation]
 
   return (
-    <ResourceListPresentationContext value={presentation}>
-      <div
-        ref={ref}
-        data-resource-list-presentation={presentation}
-        data-resource-list-variant={meta.variant}
-        className={cn(
-          'flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-1.5 text-foreground',
-          presentationClassNames.frame,
-          className
-        )}
-        {...props}
-      />
-    </ResourceListPresentationContext>
+    <CommandFocusScope
+      rootRef={rootRef}
+      active={
+        active && !props.hidden && !props.inert && props['aria-hidden'] !== true && props['aria-hidden'] !== 'true'
+      }
+      context={{ 'resource.focused': true }}>
+      <ResourceListPresentationContext value={presentation}>
+        <div
+          ref={setRef}
+          data-resource-list-presentation={presentation}
+          data-resource-list-variant={meta.variant}
+          className={cn(
+            'flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-1.5 text-foreground',
+            presentationClassNames.frame,
+            className
+          )}
+          {...props}
+        />
+      </ResourceListPresentationContext>
+    </CommandFocusScope>
   )
 }
 
@@ -618,6 +636,8 @@ function ItemActions({ active, children, className, pinned, ref, ...props }: Ite
       data-resource-list-item-actions="true"
       className={cn(
         '-ml-1.5 -mr-1 pointer-events-none grid shrink-0 grid-cols-[0fr] opacity-0 transition-[grid-template-columns,opacity] duration-150 group-has-[[data-resource-list-leading-slot=true]]:mr-0 motion-reduce:transition-none',
+        // Keep the title anchor stable when the pointer enters its portaled preview.
+        'group-has-[[data-slot=hover-card-trigger][data-state=open]]:grid-cols-[1fr]',
         'focus-within:pointer-events-auto focus-within:grid-cols-[1fr] focus-within:opacity-100 group-hover:pointer-events-auto group-hover:grid-cols-[1fr] group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:grid-cols-[1fr] data-[active=true]:opacity-100 data-[pinned=true]:pointer-events-auto data-[pinned=true]:grid-cols-[1fr] data-[pinned=true]:opacity-100 no-hover:pointer-events-auto no-hover:grid-cols-[1fr] no-hover:opacity-100',
         className
       )}
@@ -775,9 +795,12 @@ const ResourceList = {
   RenameField,
   EmptyState,
   LoadingState,
-  ErrorState
+  ErrorState,
+  PermanentDelete: ResourceListPermanentDelete
 }
 
+export type { ResourceListPermanentDeleteProps } from './useResourceListPermanentDelete'
+export { useResourceListPermanentDelete } from './useResourceListPermanentDelete'
 export {
   ResourceList,
   useResourceList,

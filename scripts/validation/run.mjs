@@ -70,7 +70,7 @@ const tasks = plan.tasks.filter(
 )
 const projects =
   values.group === 'platform' && plan.projects.includes('main')
-    ? ['main', 'shared', 'dsh-bridge']
+    ? ['main', 'shared', 'system-speech']
     : plan.projects.filter((project) => {
         if (!values.group || values.group === 'tests') return true
         if (values.group === 'main') return ['main', 'preload'].includes(project)
@@ -91,7 +91,7 @@ function run(args) {
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
 if (tasks.some((task) => task.startsWith('types-')) || projects.length) {
-  run(['run', 'postinstall'])
+  if (process.env.VALIDATION_WORKSPACE_PREPARED !== 'true') run(['run', 'postinstall'])
   if (tasks.some((task) => task.startsWith('types-'))) run(['--filter', '@cherrystudio/ai-sdk-provider', 'build'])
 }
 for (const task of tasks) run(checkTasks[task].args)
@@ -99,7 +99,7 @@ if (projects.length) {
   if (projects.includes('main')) run(['rebuild:node'])
   const files =
     values.group === 'platform'
-      ? execFileSync('git', ['ls-files', '-z', '--', 'src/main', 'src/shared', 'packages/dsh-bridge'], {
+      ? execFileSync('git', ['ls-files', '-z', '--', 'src/main', 'src/shared', 'native/system-speech'], {
           cwd: root,
           encoding: 'utf8'
         })

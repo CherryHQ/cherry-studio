@@ -55,10 +55,10 @@ describe('apiGatewayHandlers', () => {
     })
   })
 
-  it('stop reports deferred shutdown and restart reports success', async () => {
-    apiGatewayService.stop.mockResolvedValue('deferred')
+  it('stop and restart report success', async () => {
+    apiGatewayService.stop.mockResolvedValue('stopped')
     apiGatewayService.restart.mockResolvedValue(undefined)
-    expect(await apiGatewayHandlers['api_gateway.stop'](undefined, ctx)).toEqual({ success: true, outcome: 'deferred' })
+    expect(await apiGatewayHandlers['api_gateway.stop'](undefined, ctx)).toEqual({ success: true, outcome: 'stopped' })
     expect(await apiGatewayHandlers['api_gateway.restart'](undefined, ctx)).toEqual({ success: true })
   })
 

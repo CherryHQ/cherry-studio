@@ -18,6 +18,7 @@
     "src/main/services/nutstore/sso/lib/**",
     "src/renderer/ui/**",
     "packages/**/dist",
+    "native/system-speech/dist",
     "eslint.config.mjs",
     "scripts/data-classify/**"
   ],
@@ -46,6 +47,7 @@
         "src/renderer/**/*.{ts,tsx}",
         "packages/aiCore/**",
         "packages/extension-table-plus/**",
+        "packages/file-preview/src/**",
         "packages/ui/**"
       ]
     },

@@ -1,16 +1,21 @@
+import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ModelTags from '@renderer/components/tags/Model'
+import { CommandRuntimeContext, type CommandHandler } from '@renderer/hooks/command'
 import { toast } from '@renderer/services/toast'
+import type * as ModelUtils from '@renderer/utils/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { SelectorShellBottomAction, SelectorShellProps } from '../../SelectorShell'
 import { ModelSelector } from '../ModelSelector'
 import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
+import type * as ModelSelectorData from '../useModelSelectorData'
 
 const mocks = vi.hoisted(() => ({
   bottomActions: [] as SelectorShellBottomAction[],
@@ -18,7 +23,9 @@ const mocks = vi.hoisted(() => ({
   openSettingsTab: vi.fn(),
   shellEvents: [] as string[],
   scrollToIndex: vi.fn(),
-  useModelSelectorData: vi.fn()
+  virtualize: false,
+  useModelSelectorData: vi.fn(),
+  displayTags: [] as string[]
 }))
 
 vi.mock('@logger', () => ({
@@ -52,17 +59,24 @@ vi.mock('@cherrystudio/ui/icons', () => ({
   useIcon: () => undefined
 }))
 
-vi.mock('@renderer/utils/model', () => ({
+vi.mock('@renderer/utils/model', async (importOriginal) => ({
+  ...(await importOriginal<typeof ModelUtils>()),
   getModelLogoRef: () => undefined
 }))
 
-vi.mock('@renderer/components/tags/Model', () => ({
-  getModelDisplayTags: () => [],
-  ModelTag: () => null
+vi.mock('@renderer/components/tags/Model', async (importOriginal) => ({
+  ...(await importOriginal<typeof ModelTags>()),
+  getModelDisplayTags: () => mocks.displayTags,
+  ModelTag: ({ tag }: { tag: string }) => <span data-testid={`model-tag-${tag}`} />
 }))
 
 vi.mock('../ModelSelectorDetailCard', () => ({
-  ModelSelectorDetailCard: ({ children }: { children: ReactNode }) => <>{children}</>
+  ModelSelectorDetailCard: ({ children, description }: { children: ReactNode; description?: ReactNode }) => (
+    <>
+      {children}
+      {description}
+    </>
+  )
 }))
 
 vi.mock('@renderer/components/VirtualList', async () => {
@@ -72,21 +86,27 @@ vi.mock('@renderer/components/VirtualList', async () => {
     DynamicVirtualList: ({
       ref,
       list,
-      children
+      children,
+      keepMountedIndexes = []
     }: {
       ref?: Ref<{ scrollToIndex: typeof mocks.scrollToIndex }>
       list: FlatListItem[]
       children: (item: FlatListItem, index: number) => ReactNode
+      keepMountedIndexes?: readonly number[]
     }) => {
       React.useImperativeHandle(ref, () => ({
         scrollToIndex: mocks.scrollToIndex
       }))
 
+      const renderedIndexes = mocks.virtualize
+        ? new Set([...Array.from({ length: Math.min(6, list.length) }, (_, index) => index), ...keepMountedIndexes])
+        : new Set(list.map((_, index) => index))
+
       return (
         <>
-          {list.map((item, index) => (
-            <React.Fragment key={item.key}>{children(item, index)}</React.Fragment>
-          ))}
+          {list.map((item, index) =>
+            renderedIndexes.has(index) ? <React.Fragment key={item.key}>{children(item, index)}</React.Fragment> : null
+          )}
         </>
       )
     }
@@ -124,8 +144,11 @@ vi.mock('@renderer/components/SelectorShell', () => ({
             {search ? (
               <input
                 aria-label={search.placeholder}
+                aria-activedescendant={search.activeDescendant}
+                aria-controls={search.ariaControls}
                 value={search.value}
                 onChange={(event) => search.onChange(event.target.value)}
+                onKeyDown={search.onKeyDown}
               />
             ) : null}
             {filterContent}
@@ -202,7 +225,7 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     {
       key: 'provider-openai',
       type: 'group',
-      title: 'OpenAI',
+
       groupKind: 'provider',
       provider,
       canNavigateToSettings: true
@@ -211,8 +234,9 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     secondItem
   ]
 
-  return {
+  const data = {
     availableTags: [],
+    getModelPresentation: () => ({ tags: [] }),
     isLoading: false,
     isPinActionDisabled: false,
     listItems,
@@ -232,9 +256,10 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     tagSelection: {} as UseModelSelectorDataResult['tagSelection'],
     togglePin: vi.fn(async () => undefined),
     toggleTag: vi.fn(),
-    visibleSelectedModelIdSet: new Set(),
+    visibleSelectedModelIdSet: new Set<UniqueModelId>(),
     ...overrides
   }
+  return { ...data, navigableItems: overrides.navigableItems ?? data.listItems.filter((item) => item.type !== 'group') }
 }
 
 describe('ModelSelector', () => {
@@ -242,6 +267,7 @@ describe('ModelSelector', () => {
     vi.clearAllMocks()
     mocks.bottomActions = []
     mocks.shellEvents = []
+    mocks.virtualize = false
     mocks.useModelSelectorData.mockReturnValue(makeData())
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
@@ -264,7 +290,7 @@ describe('ModelSelector', () => {
       {
         key: 'provider-openai',
         type: 'group',
-        title: 'OpenAI',
+
         groupKind: 'provider',
         provider,
         canNavigateToSettings: true
@@ -285,6 +311,41 @@ describe('ModelSelector', () => {
 
     expect(screen.getByText('| gpt-4-variant-a')).toBeInTheDocument()
     expect(screen.queryByText(/OpenAI · gpt-4-variant-a/)).not.toBeInTheDocument()
+  })
+
+  it('activates action rows without changing selection or showing pin/checkbox controls', async () => {
+    const onAction = vi.fn()
+    const onSelect = vi.fn()
+    const action = {
+      key: 'upgrade',
+      type: 'action' as const,
+      providerId: 'openai',
+      label: 'Upgrade',
+      identifier: 'upgrade',
+      searchId: 'upgrade',
+      tags: [],
+      onAction
+    }
+    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems: [action], modelItems: [] }))
+    const user = userEvent.setup()
+    render(
+      <ModelSelector
+        multiple
+        open
+        multiSelectMode
+        value={[]}
+        onSelect={onSelect}
+        trigger={<button type="button">Open</button>}
+      />
+    )
+    await user.click(screen.getByRole('option', { name: 'Upgrade' }))
+    expect(onAction).toHaveBeenCalledTimes(1)
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'models.action.pin' })).not.toBeInTheDocument()
+    await user.keyboard('{Enter}')
+    expect(onAction).toHaveBeenCalledTimes(2)
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
   it('keeps the provider in a pinned row without a provider group', () => {
@@ -329,6 +390,56 @@ describe('ModelSelector', () => {
 
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::gpt-4' }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('describes and disables models the availability data marks unavailable', async () => {
+    const user = userEvent.setup()
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        getModelPresentation: (model) => ({
+          tags: [],
+          description: model.name === 'gpt-4' ? 'Available description' : 'Disabled description',
+          disabled: model.name === 'gpt-3.5'
+        })
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    const searchInput = screen.getByRole('textbox', { name: 'models.search.placeholder' })
+    const listbox = screen.getByRole('listbox')
+    const [firstOption, secondOption] = screen.getAllByRole('option')
+
+    await waitFor(() => expect(searchInput).toHaveAttribute('aria-activedescendant', firstOption.id))
+    expect(searchInput).toHaveAttribute('aria-controls', listbox.id)
+    expect(firstOption).toHaveAccessibleDescription('Available description')
+
+    await user.keyboard('{ArrowDown}')
+
+    await waitFor(() => expect(searchInput).toHaveAttribute('aria-activedescendant', secondOption.id))
+    expect(secondOption).toHaveAttribute('aria-disabled', 'true')
+    expect(secondOption).toHaveAccessibleDescription('Disabled description')
+  })
+
+  it('keeps the active descendant mounted after page navigation', async () => {
+    const items = Array.from({ length: 20 }, (_, index) => makeModelItem(`openai::model-${index}`))
+    mocks.virtualize = true
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: items,
+        modelItems: items,
+        selectableModelsById: new Map(items.map((item) => [item.modelId, item.model]))
+      })
+    )
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    const searchInput = screen.getByRole('textbox', { name: 'models.search.placeholder' })
+    fireEvent.keyDown(searchInput, { key: 'PageDown' })
+
+    await waitFor(() =>
+      expect(searchInput.getAttribute('aria-activedescendant')).toContain(encodeURIComponent('openai::model-12'))
+    )
+    expect(document.getElementById(searchInput.getAttribute('aria-activedescendant')!)).not.toBeNull()
   })
 
   it('honors the explicitly supplied disabled state', async () => {
@@ -530,6 +641,52 @@ describe('ModelSelector', () => {
 
     expect(onMultiSelectModeChange).toHaveBeenCalledWith(false)
     expect(onSelect).toHaveBeenCalledWith([firstId])
+  })
+
+  it('preserves selected models from other providers after a recovery selection', async () => {
+    const user = userEvent.setup()
+    const firstModel = makeModel('openai::gpt-4')
+    const replacement = makeModel('openai::gpt-3.5')
+    const otherModel = { ...makeModel('anthropic::claude'), providerId: 'anthropic' }
+    const models = [firstModel, replacement, otherModel]
+    const providers = [provider, { ...provider, id: 'anthropic', name: 'Anthropic' }]
+    mockUseQuery.mockImplementation((path) => ({
+      data: path === '/models' ? models : path === '/providers' ? providers : [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    const { useModelSelectorData } = await vi.importActual<typeof ModelSelectorData>('../useModelSelectorData')
+    mocks.useModelSelectorData.mockImplementation(useModelSelectorData)
+    let openRecovery!: CommandHandler
+    const onSelect = vi.fn()
+    render(
+      <CommandRuntimeContext
+        value={{
+          execute: vi.fn(),
+          hasHandler: () => true,
+          registerHandler: (_command, handler) => {
+            openRecovery = typeof handler === 'function' ? handler : handler.current
+            return () => undefined
+          }
+        }}>
+        <ModelSelector
+          multiple
+          multiSelectMode
+          shortcut="chat.model.select"
+          value={[firstModel, otherModel]}
+          trigger={<button type="button">open</button>}
+          onSelect={onSelect}
+        />
+      </CommandRuntimeContext>
+    )
+
+    act(() => void openRecovery({ providerId: provider.id }))
+    expect(screen.queryByRole('option', { name: /claude$/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: /gpt-3\.5$/ }))
+    expect(onSelect).toHaveBeenLastCalledWith([firstModel, otherModel, replacement])
   })
 
   it('keeps lazy-mounted data active and refreshes it only on later openings', async () => {
