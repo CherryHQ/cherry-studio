@@ -6,10 +6,16 @@ service owns encrypted WebSocket connections, pairing invitations and delivery.
 Agent and configuration capabilities share identity and transport, and are approved
 together during pairing. Each capability has an independent authorization grant.
 
-The remote stream listener coalesces adjacent deltas for the same message and part for
+For chunk sources, the remote stream listener coalesces adjacent deltas for the same message and part for
 up to 50 ms or 2048 UTF-16 units. Part changes and structural/terminal events flush pending
 text first. Appends maintain UTF-8 offsets incrementally; completion still verifies the
 full content digest. Journal disposal cancels pending delivery.
+
+Projection sources use authoritative `onMessage` views and the existing wire
+part create/replace/remove events. Native retractions remove remote parts;
+reappearing positions receive new IDs so tombstoned parts cannot revive. Late
+listeners receive the current view. Content is never reconstructed from the
+projection source's host-control chunks, and no wire schema changes are needed.
 
 Append offsets come from the protocol's `textByteLength`, a memory-only cache keyed by
 immutable part objects; replacements and completion never inherit a prior object's cache. Events and checkpoints add no fields.
@@ -27,9 +33,17 @@ listener flushes pending text while the session still exists.
 | `RemoteConnection.ts` | Per-connection RPC: hello/authenticate/refresh/ping, pairing, configuration export |
 | `RemotePairing.ts` / `RemoteTokens.ts` / `deviceIdentity.ts` | Invitation + claim state, access tokens, Ed25519 identity file |
 | `agentHandlers.ts` | Every `agent.*` method, including durable command receipts |
+| `agentPagination.ts` | Page byte budget: projected DTO sizing, offset prefixes and keyset query retries |
 | `agentQueries.ts` | Persisted sessions/messages/parts/interactions projected onto wire DTOs |
 | `agentJournal.ts` | Shared per-session journal: stream listener → protocol events, checkpoints, epoch |
 | `agentSubscriptions.ts` | Connection-private subscriptions: prepare, activate, ack credit, reset |
+
+Historical message lists support the advertised `partsMode: 'paged'` extension:
+metadata-only summaries avoid an oversized `partIds` array while existing
+`agent.parts.list` pages retain complete content. The default list mode, live
+events and checkpoints keep full message snapshots. Single-item budget failures
+include terminal size details; consuming those details is a client responsibility.
+See [the protocol contract](../../../../packages/remote-protocol/README.md#paged-message-summaries).
 
 Deviations from the design doc, kept deliberately small:
 
@@ -38,10 +52,15 @@ Deviations from the design doc, kept deliberately small:
   reserved messages before runtime activation. A receipt still `accepted` at startup
   becomes `interrupted`, retaining those identities. No external action is automatically replayed.
 - Locally started executions are discovered by a one-second poll of `hasLiveStream`, then
-  attached through `addListener` replay. Remote sends pass the listener at run start.
+  attached through `addListener` replay. Remote sends pass the listener at run start. The poll
+  runs only while LAN ingress is up, or until connections, journals and presented selections drain after it closes.
 - Approval cards persisted after a turn ended are listed and answerable, but not streamed as
   `interaction.updated`; only stream-presented approvals enter the live projection.
-- Files are exposed as `data` parts with metadata only.
+- Legacy files retain metadata-only `data` parts. Remote uploads expose revision-bound file content references.
+
+The desktop identity is sealed with `safeStorage`. Without an OS key store (Linux `basic_text`), it is
+stored unencrypted with mode `0600`. An existing identity is never regenerated: a sealed identity whose
+key store disappears is an error, since replacing it would unpair every device.
 
 SQLite writes stay in their owning data services. Agent execution stays in the
 existing stream manager and runtime. No relay service is provided here.
@@ -106,3 +125,40 @@ Cancellation checks the expected execution inside the stream manager's dispatch 
 An identical pending pairing claim can be retried by the same proven device key; changed
 claim contents or another key still conflict. Settings reads pending claims on entry and
 ignores responses superseded by later pairing events or a stopped LAN listener.
+
+## Attachment ownership
+
+The file module owns checkpoint-based recovery and retention. Selection is disposable presentation; new sends carry
+explicit upload references. Intake/draft tables and their unpublished development migrations were removed.
+
+`FileIntakeService` owns durable staging under `feature.files.intakes`; `RemoteUploads`
+binds its operations to the current device grant.
+File data is synced before the atomically replaced checkpoint is acknowledged. Recovery
+truncates uncommitted tails; a shorter file fails verification. Shutdown drains work and
+retains resumable records. Each upload is serialized independently and fenced by writer epoch.
+
+Upload capability 1 exposes a single `agent.uploads.prepare` without draft membership;
+binary DATA carries at most 1 MiB per record with two outstanding blocks. ACK notifications
+report durable offsets independently of RPC admission. JSON control remains limited to 64 KiB.
+There is no legacy upload format: desktop computes the final hash after receiving authenticated
+Noise data. Mobile uses native bulk crypto; Electron uses Noise's built-in cipher because
+its Node crypto does not expose ChaCha20-Poly1305. The shared transport owns framing and negotiation.
+
+Verified files enter FileManager before Send. Checkpoints retain them while waiting;
+message references retain accepted files after submission. Agent tools use the same managed
+path and file identity; sending does not create a workspace copy or a second entry.
+Command receipts precede staging lookup, so replay survives expiry. Upload-time digests still
+need a separate preview-revision policy when native tools modify the managed bytes.
+
+File pages require session/message/revision identity; callers cannot choose arbitrary paths or
+entry IDs. The phone reads images for thumbnails and ordinary documents on demand.
+
+Large-file verification: set `REMOTE_UPLOAD_TEST_BYTES=1073741824` when running the
+`RemoteUploads.test.ts` streaming test to exercise 1 GiB and a receiver restart midway.
+This filesystem/RPC validation does not replace device, VPN throughput or OS-background tests.
+
+[Upload Integrity](../../../../docs/dev/references/file/upload-integrity.md) describes the optional
+`agentUploadChecksum: sha256` capability. Prepare fixes checksum mode; complete binds the phone's
+expected SHA-256. Intake checkpoints retain verification failures and rehash bytes on restart.
+Legacy absent-mode clients keep their existing behavior. Shared release and native-device
+acceptance are tracked separately in that document.

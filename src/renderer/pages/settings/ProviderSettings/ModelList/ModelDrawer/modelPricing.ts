@@ -236,6 +236,34 @@ function createPrice(perMillionTokens: number, currency: Currency) {
   return { perMillionTokens, currency }
 }
 
+export function getModelImagePriceDraft(pricing: Model['pricing']): string {
+  return pricing?.perImage && pricing.perImage.unit !== 'pixel' ? String(pricing.perImage.price) : ''
+}
+
+export function buildModelImagePricing(
+  currentPricing: Model['pricing'],
+  currencySymbol: ModelPricingCurrencySymbol,
+  imagePrice?: string
+): { error?: ModelPricingDraftError; pricing?: ModelPricing } {
+  const parsed = imagePrice === undefined ? {} : parsePrice(imagePrice, true)
+  if (parsed.error) return { error: parsed.error }
+
+  const pricing: ModelPricing = structuredClone(
+    currentPricing ?? { input: { perMillionTokens: null }, output: { perMillionTokens: null } }
+  )
+  const currency = CURRENCY_SYMBOL_TO_CODE[currencySymbol]
+  for (const rates of [pricing, ...(pricing.inputTokenTiers ?? [])]) {
+    for (const field of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) {
+      if (rates[field]) rates[field].currency = currency
+    }
+  }
+  if (imagePrice !== undefined) {
+    if (parsed.value === undefined) delete pricing.perImage
+    else pricing.perImage = { price: parsed.value, unit: 'image' }
+  }
+  return { pricing }
+}
+
 export function buildModelPricingFromDraft(
   currentPricing: Model['pricing'],
   draft: ModelPricingDraft,

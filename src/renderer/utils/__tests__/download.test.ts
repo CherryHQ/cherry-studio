@@ -190,6 +190,38 @@ describe('download', () => {
         expect(mockClick).toHaveBeenCalled()
       })
 
+      it('parses a quoted Content-Disposition filename without a trailing quote', async () => {
+        const now = Date.now()
+        vi.spyOn(Date, 'now').mockReturnValue(now)
+
+        const headers = new Headers()
+        headers.set('Content-Disposition', 'attachment; filename="server-file.pdf"')
+        mockFetch.mockResolvedValue(createMockResponse({ headers }))
+
+        // URL has no extension, so the Content-Disposition filename is used.
+        void download('https://example.com/files/download')
+        await waitForAsync()
+
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.download).toBe(`${now}_server-file.pdf`)
+      })
+
+      it('parses a quoted filename containing escaped quotes', async () => {
+        const now = Date.now()
+        vi.spyOn(Date, 'now').mockReturnValue(now)
+
+        const headers = new Headers()
+        // A quoted-string filename may contain escaped quotes (\").
+        headers.set('Content-Disposition', 'attachment; filename="Q1.2026 \\"final\\".pdf"')
+        mockFetch.mockResolvedValue(createMockResponse({ headers }))
+
+        void download('https://example.com/files/download')
+        await waitForAsync()
+
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.download).toBe(`${now}_Q1.2026 "final".pdf`)
+      })
+
       it('should add timestamp to network downloaded files', async () => {
         const now = Date.now()
         vi.spyOn(Date, 'now').mockReturnValue(now)
@@ -213,6 +245,37 @@ describe('download', () => {
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.download).toMatch(/\d+_download\.pdf$/)
+      })
+
+      it('rejects an HTTP error instead of saving the error page', async () => {
+        mockFetch.mockResolvedValue(createMockResponse({ ok: false, status: 404, statusText: 'Not Found' }))
+
+        await expect(download('https://example.com/missing.pdf')).rejects.toThrow('HTTP 404')
+        expect(mockClick).not.toHaveBeenCalled()
+      })
+
+      it('keeps the query string out of the file name', async () => {
+        const now = Date.now()
+        vi.spyOn(Date, 'now').mockReturnValue(now)
+        mockFetch.mockResolvedValue(createMockResponse())
+
+        void download('https://example.com/files/report.pdf?token=abc')
+        await waitForAsync()
+
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.download).toBe(`${now}_report.pdf`)
+      })
+
+      it('ignores Content-Type parameters when deriving the extension', async () => {
+        const headers = new Headers()
+        headers.set('Content-Type', 'text/plain; charset=utf-8')
+        mockFetch.mockResolvedValue(createMockResponse({ headers }))
+
+        void download('https://example.com/files/notes')
+        await waitForAsync()
+
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.download).toMatch(/\d+_.*\.txt$/)
       })
     })
 

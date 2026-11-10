@@ -11,9 +11,13 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cacheService } from '@renderer/data/CacheService'
+import { preferenceService } from '@renderer/data/PreferenceService'
 import { useCommandContextKey } from '@renderer/hooks/command'
+import { ipcApi } from '@renderer/ipc'
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
+import { normalizeBrowserUrl, sanitizeBrowserVisitUrl } from '@shared/utils/browserUrl'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { BrowserChrome } from './BrowserChrome'
@@ -24,6 +28,7 @@ import { WebviewImportBanner } from './WebviewImportBanner'
 
 interface Props {
   initialUrl?: string
+  startPageContext?: string
   securityProfile:
     | typeof WebviewSecurityProfile.AgentBrowser
     | typeof WebviewSecurityProfile.AgentDevPreview
@@ -42,6 +47,7 @@ interface Props {
 /** A page-owned browser for standalone tabs and explicitly opened HTML artifacts. */
 export function WebviewBrowser({
   initialUrl: sourceUrl,
+  startPageContext,
   onNavigate,
   onUrlChange,
   onTitleChange,
@@ -61,7 +67,27 @@ export function WebviewBrowser({
   }>()
   const hasNavigation = navigation && navigation.sourceUrl === sourceUrl && navigation.sourceProfile === sourceProfile
   const requestedUrl = hasNavigation ? navigation.url : sourceUrl
-  const initialUrl = requestedUrl ?? 'about:blank'
+  const [startPageUrl] = useState(() => {
+    if (
+      requestedUrl !== undefined ||
+      startPageContext === undefined ||
+      sourceProfile !== WebviewSecurityProfile.AgentBrowser
+    )
+      return 'about:blank'
+    const mode = preferenceService.getCachedValue('app.browser.start_page.mode')
+    let url: unknown
+    if (mode === 'custom') url = preferenceService.getCachedValue('app.browser.start_page.custom_url')
+    else if (mode === 'last') {
+      const urls = cacheService.getPersist('ui.browser.last_urls')
+      if (urls && typeof urls === 'object' && !Array.isArray(urls)) url = urls[startPageContext]
+    }
+    try {
+      return typeof url === 'string' ? normalizeBrowserUrl(url) : 'about:blank'
+    } catch {
+      return 'about:blank'
+    }
+  })
+  const initialUrl = requestedUrl ?? startPageUrl
   const securityProfile = initialUrl.startsWith('file:')
     ? WebviewSecurityProfile.AgentHtmlArtifact
     : hasNavigation
@@ -87,6 +113,22 @@ export function WebviewBrowser({
   }, [isHostActive])
   useCommandContextKey('webview.focused', isHostActive && guestFocused)
   const guestAuthorizationKey = getGuestAuthorizationKey(securityProfile, initialUrl)
+
+  // An <Activity>-hidden tab runs this cleanup too: main freezes a guest left hidden.
+  useEffect(() => {
+    const webview = webviewRef.current
+    if (!isHostActive || !webview) return
+    let webviewId: number
+    try {
+      webviewId = webview.getWebContentsId()
+    } catch {
+      return // A new guest has no contents until dom-ready, which re-runs this effect.
+    }
+    const report = (visible: boolean) =>
+      void ipcApi.request('webview.set_visible', { webviewId, visible }).catch(() => {})
+    report(true)
+    return () => report(false)
+  }, [isHostActive, isReady, webviewRevision])
 
   const handleWebviewChange = useCallback((webview: WebviewTag | null) => {
     webviewRef.current = webview
@@ -125,9 +167,20 @@ export function WebviewBrowser({
   const handleDidNavigate = useCallback(
     (event: DidNavigateEvent | DidNavigateInPageEvent) => {
       if ('isMainFrame' in event && !event.isMainFrame) return
+      if (startPageContext !== undefined && securityProfile === WebviewSecurityProfile.AgentBrowser) {
+        // Blank and artifact destinations must leave remembered HTTP(S) history intact.
+        const url = sanitizeBrowserVisitUrl(event.url)
+        // Remembering powers last mode, so it must not run before the user opts in.
+        if (url !== undefined && preferenceService.getCachedValue('app.browser.start_page.mode') === 'last') {
+          cacheService.setPersist('ui.browser.last_urls', (urls) => ({
+            ...(urls && typeof urls === 'object' && !Array.isArray(urls) ? urls : {}),
+            [startPageContext]: url
+          }))
+        }
+      }
       onUrlChange?.(event.url)
     },
-    [onUrlChange]
+    [onUrlChange, securityProfile, startPageContext]
   )
 
   const handlePageTitleUpdated = useCallback(

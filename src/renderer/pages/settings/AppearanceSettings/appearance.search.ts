@@ -22,31 +22,25 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.theme.title'
   },
   {
-    anchorId: 'display-language',
-    titleKey: 'common.language',
-    groupKey: 'settings.general.common.sections.display_language',
-    aliases: ['language', '语言']
-  },
-  {
     anchorId: 'zoom',
     titleKey: 'settings.zoom.title',
-    groupKey: 'settings.general.common.sections.display_language'
+    groupKey: 'settings.general.common.sections.display'
   },
   {
     anchorId: 'menu-presentation-mode',
     titleKey: 'settings.general.common.menu.presentation_mode.title',
-    groupKey: 'settings.general.common.sections.display_language'
+    groupKey: 'settings.general.common.sections.display'
   },
   {
     anchorId: 'chat-list-position',
     titleKey: 'settings.display.list_position.chat',
-    groupKey: 'settings.general.common.sections.display_language',
+    groupKey: 'settings.general.common.sections.display',
     aliases: ['sidebar', '侧边栏']
   },
   {
     anchorId: 'work-list-position',
     titleKey: 'settings.display.list_position.work',
-    groupKey: 'settings.general.common.sections.display_language'
+    groupKey: 'settings.general.common.sections.display'
   },
   {
     anchorId: 'font-global',
@@ -127,6 +121,12 @@ export const entries: SettingsSearchEntry[] = [
     aliases: ['thinking', '思维链']
   },
   {
+    anchorId: 'user-message-default-expanded',
+    titleKey: 'settings.messages.user_content.default_expanded.label',
+    descriptionKey: 'settings.messages.user_content.default_expanded.hint',
+    groupKey: messagesGroup
+  },
+  {
     anchorId: 'show-message-outline',
     titleKey: 'settings.messages.show_message_outline',
     groupKey: messagesGroup
@@ -160,6 +160,11 @@ export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'code-style',
     titleKey: 'message.message.code_style',
+    groupKey: 'chat.settings.code.title'
+  },
+  {
+    anchorId: 'code-editor-style',
+    titleKey: 'chat.settings.code_editor.title',
     groupKey: 'chat.settings.code.title'
   },
   {

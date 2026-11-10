@@ -6,7 +6,13 @@ import { fetchGenerate } from '@renderer/utils/aiGeneration'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { DiagnosisResult } from '@shared/data/types/uiParts'
-import { isMcpErrorMessage, isProxyErrorMessage, isQuotaErrorMessage } from '@shared/utils/errorCategory'
+import {
+  classifyErrorCategory,
+  isGroqServiceTierPermissionErrorMessage,
+  isMcpErrorMessage,
+  isProxyErrorMessage,
+  isQuotaErrorMessage
+} from '@shared/utils/errorCategory'
 
 const logger = loggerService.withContext('errorDiagnosis')
 
@@ -65,10 +71,18 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     return `## Context\nThe user is calling ${provider} API and got an authentication error. Cherry Studio lets users configure API keys per provider in provider settings.\n`
   }
 
+  const serviceTierPermission =
+    isGroqServiceTierPermissionErrorMessage(msg) &&
+    classifyErrorCategory({ text: msg, status, finishReason }) === 'permission'
+
   // Explicit billing signals win over the HTTP 429 rate-limit default.
-  if (status === 402 || isQuotaErrorMessage(msg)) {
+  if (status === 402 || (!serviceTierPermission && isQuotaErrorMessage(msg))) {
     const provider = errorInfo.provider || context?.providerId || 'the provider'
     return `## Context\nThe user's quota or account balance is exhausted on ${provider}. Suggest checking billing on the provider's website, topping up, or switching to a different provider. DO NOT suggest waiting or retrying - this is not a transient issue.\n`
+  }
+
+  if (serviceTierPermission) {
+    return `## Context\nGroq rejected the selected service tier because it is not available for this organization. Suggest opening Response settings > Service tier in the chat composer and selecting Standard (on_demand), or checking the organization's plan and service-tier access in Groq Billing > Plans. This message does not establish quota or balance exhaustion or an invalid API key. Do not recommend topping up or regenerating the key based on this message. Do not promise that changing tiers will make the request succeed.\n`
   }
 
   // 403 sits below region/quota, matching `classifyError`'s `permission` ordering.
@@ -253,7 +267,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 - No URLs, no links, no restart suggestion, plain text only
 - Distinguish rate_limit (too many requests, transient, retry soon) from quota (billing/balance exhausted, not transient, must top up)
 - Distinguish region (geo-block, fix by proxy/switching provider) from auth (API key issue)
-- Distinguish permission (HTTP 403, request refused - plan/entitlement/resource access) from auth (key itself rejected)
+- Distinguish permission (HTTP 403 or an explicit service-tier entitlement refusal, including HTTP 400) from auth (key itself rejected)
 - For content (safety filter), suggest rephrasing, never billing/auth fixes
 
 ## Examples

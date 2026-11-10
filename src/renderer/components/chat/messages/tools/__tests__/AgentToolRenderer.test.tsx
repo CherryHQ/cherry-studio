@@ -4,7 +4,9 @@ import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUi from '@cherrystudio/ui'
+import { PartsProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
 import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
@@ -38,7 +40,7 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
-    usePartsMap: () => mockPartsMap()
+    useScopedPartsMap: () => mockPartsMap()
   }
 })
 
@@ -349,6 +351,23 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('completed tool rendering', () => {
+    it.each(['Read', 'Write', 'Edit', 'MultiEdit'])('shows the Windows filename in a completed %s card', (name) => {
+      const toolResponse = createToolResponse({
+        tool: { id: name, name, description: 'Access a file', type: 'provider' },
+        status: 'done',
+        arguments: {
+          file_path: String.raw`D:\work space\qa-permission.txt`,
+          content: 'written',
+          old_string: 'before',
+          new_string: 'after',
+          edits: [{ old_string: 'before', new_string: 'after' }]
+        },
+        response: { content: [{ type: 'text', text: 'written' }] }
+      })
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      expect(screen.getByText('qa-permission.txt', { exact: true })).toBeVisible()
+    })
+
     it('does not duplicate an ExitPlanMode plan repeated in the tool result', () => {
       const plan = '# Release plan\n\n1. Run the focused tests'
       const toolResponse = createToolResponse({
@@ -1148,15 +1167,20 @@ describe('AgentToolRenderer', () => {
         arguments: { description: 'Inspect renderer' },
         response: { status: 'async_launched', taskId: 'child' }
       })
-      mockPartsMap.mockReturnValue({
-        reply: [
-          {
-            type: 'data-agent-task-event',
-            data: { event: 'started', taskId: 'child', toolUseId: 'call-123', status: 'in_progress' }
-          }
-        ]
-      })
-      const { rerender } = render(<AgentToolRenderer toolResponse={response} />)
+      const started = {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'child', toolUseId: 'call-123', status: 'in_progress' }
+      } as CherryMessagePart
+      const completed = {
+        type: 'data-agent-task-event',
+        data: { event: 'notification', taskId: 'child', status: 'completed' }
+      } as CherryMessagePart
+      const withParts = (parts: CherryMessagePart[]) => (
+        <PartsProvider value={{ reply: parts }}>
+          <AgentToolRenderer toolResponse={response} />
+        </PartsProvider>
+      )
+      const { rerender } = render(withParts([started]))
       expect(screen.getByText('message.tools.status.running')).toBeVisible()
       await userEvent.setup().click(screen.getByRole('button', { name: /Inspect renderer/ }))
       expect(openAgentToolFlow).toHaveBeenCalledWith({
@@ -1164,26 +1188,17 @@ describe('AgentToolRenderer', () => {
         toolName: 'Agent',
         title: 'Inspect renderer'
       })
-      mockPartsMap.mockReturnValue({
-        reply: [
-          {
-            type: 'data-agent-task-event',
-            data: { event: 'started', taskId: 'child', toolUseId: 'call-123', status: 'in_progress' }
-          },
-          { type: 'data-agent-task-event', data: { event: 'notification', taskId: 'child', status: 'completed' } }
-        ]
-      })
-      rerender(<AgentToolRenderer toolResponse={response} />)
+      rerender(withParts([started, completed]))
       expect(screen.getByText('common.completed')).toBeVisible()
       expect(screen.queryByText('message.tools.status.running')).toBeNull()
       mockMessageListActions.mockReturnValue({
         openAgentToolFlow,
         isAgentToolFlowActive: (id: string) => id === 'call-123'
       })
-      rerender(<AgentToolRenderer toolResponse={response} />)
+      rerender(withParts([started, completed]))
       expect(screen.getByRole('button', { name: /Inspect renderer/ })).toHaveAttribute('aria-pressed', 'true')
       mockMessageListActions.mockReturnValue({ openAgentToolFlow, isAgentToolFlowActive: () => false })
-      rerender(<AgentToolRenderer toolResponse={response} />)
+      rerender(withParts([started, completed]))
       expect(screen.getByRole('button', { name: /Inspect renderer/ })).toHaveAttribute('aria-pressed', 'false')
     })
 

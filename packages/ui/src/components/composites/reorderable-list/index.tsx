@@ -1,6 +1,6 @@
-import { type ComponentProps, type CSSProperties, type ReactNode, useCallback, useMemo } from 'react'
+import { type CSSProperties, type ReactNode, useCallback, useMemo } from 'react'
 
-import { Sortable, type SortableDragHandleProps } from '../sortable'
+import { Sortable, type SortableAccessibility, type SortableDragHandleProps } from '../sortable'
 import { reorderVisibleSubset } from './reorder-visible-subset'
 
 type ReorderableItemId = string | number
@@ -20,6 +20,8 @@ export interface ReorderableListProps<T> {
   layout?: 'list' | 'grid'
   direction?: 'vertical' | 'horizontal'
   disabled?: boolean
+  /** Refuse to drag individual rows; they still accept drops. */
+  isItemDragDisabled?: (item: T) => boolean
   className?: string
   listStyle?: CSSProperties
   itemStyle?: CSSProperties
@@ -28,8 +30,8 @@ export interface ReorderableListProps<T> {
   showGhost?: boolean
   /** Route the drag activator to a handle (via renderItem's `dragHandleProps`). */
   dragHandle?: boolean
-  /** Forwarded to dnd-kit for localized drag announcements / screen-reader instructions. */
-  accessibility?: ComponentProps<typeof Sortable>['accessibility']
+  /** Localized drag announcements / screen-reader instructions. */
+  accessibility?: SortableAccessibility
   restrictions?: {
     windowEdges?: boolean
     scrollableAncestor?: boolean
@@ -47,6 +49,7 @@ export function ReorderableList<T>({
   layout = 'list',
   direction = 'vertical',
   disabled = false,
+  isItemDragDisabled,
   className,
   listStyle,
   itemStyle,
@@ -118,6 +121,7 @@ export function ReorderableList<T>({
       horizontal={direction === 'horizontal'}
       className={className}
       disabled={disabled}
+      isItemDragDisabled={isItemDragDisabled}
       listStyle={listStyle}
       itemStyle={itemStyle}
       gap={gap}

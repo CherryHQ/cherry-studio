@@ -179,6 +179,7 @@ describe('AgentService', () => {
     await dbh.db
       .insert(knowledgeBaseTable)
       .values({
+        orderKey: 'a0',
         id,
         name: id,
         status: 'completed',
@@ -326,6 +327,18 @@ describe('AgentService', () => {
 
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/agents', kind: 'membership', entityIds: [agent.id] }
+      ])
+    })
+
+    it('notifies live agent reads after an update, including main-process writers', () => {
+      const agent = createAgentForTest({ type: 'claude-code', name: 'Before', model: TEST_MODEL_ID })
+      notifyDataApiDataChangeMock.mockClear()
+
+      agentService.updateAgent(agent.id, { name: 'After' })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'projection', entityIds: [agent.id] },
+        { endpoint: '/agents/:agentId', entityIds: [agent.id] }
       ])
     })
 
@@ -1414,7 +1427,7 @@ describe('AgentService', () => {
       expect(session).toEqual({ agentId: id, deletedAt: null })
     })
 
-    it('trashes only active sessions and restores the agent independently', async () => {
+    it('trashes only active sessions and restores them with the agent', async () => {
       const { id } = await insertAgent({ id: 'agent_trash_restore_001' })
       await dbh.db.insert(agentWorkspaceTable).values([
         { id: 'workspace-trash-1', name: 'W1', path: '/tmp/agent-trash-1', orderKey: 'a0' },
@@ -1456,8 +1469,9 @@ describe('AgentService', () => {
       const sessions = await dbh.db
         .select({ id: agentSessionTable.id, deletedAt: agentSessionTable.deletedAt })
         .from(agentSessionTable)
-      expect(sessions.find((s) => s.id === 'session-with-agent')?.deletedAt).not.toBeNull()
-      expect(sessions.find((s) => s.id === 'session-trashed-earlier')?.deletedAt).not.toBeNull()
+      expect(sessions.find((s) => s.id === 'session-with-agent')?.deletedAt).toBeNull()
+      // Trashed on its own before the agent — restoring the agent must not revive it.
+      expect(sessions.find((s) => s.id === 'session-trashed-earlier')?.deletedAt).toBe(100)
     })
 
     it('does not reclaim a related session that was independently restored and reassigned', async () => {
@@ -1642,7 +1656,8 @@ describe('AgentService', () => {
         agentId: id,
         name: '',
         workspaceId: 'workspace-default-detach',
-        taskScheduleId: task.id,
+        taskId: task.id,
+        isTaskReuseTarget: true,
         orderKey: 'a0'
       })
       agentService.deleteAgent(id)
@@ -1651,10 +1666,10 @@ describe('AgentService', () => {
       expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: true })
 
       const [session] = await dbh.db
-        .select({ agentId: agentSessionTable.agentId, taskScheduleId: agentSessionTable.taskScheduleId })
+        .select({ agentId: agentSessionTable.agentId, isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
         .from(agentSessionTable)
         .where(eq(agentSessionTable.id, 'session-default-detach'))
-      expect(session).toEqual({ agentId: null, taskScheduleId: null })
+      expect(session).toEqual({ agentId: null, isTaskReuseTarget: false })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-default-detach'] },
         {
@@ -1865,6 +1880,18 @@ describe('AgentService', () => {
   })
 
   describe('listAgents', () => {
+    it('filters by builtin role, matching Support only on its reserved ID', async () => {
+      await insertAgent({ id: 'plain' })
+      await insertAgent({ id: 'cherry', configuration: { builtin_role: 'assistant' } })
+      await insertAgent({ id: 'legacy-support', configuration: { builtin_role: 'support' } })
+      await insertAgent({ id: CHERRY_SUPPORT_AGENT_ID, configuration: { builtin_role: 'support' } })
+
+      const idsFor = (builtinRole: 'assistant' | 'support') =>
+        agentService.listAgents({ builtinRole }).agents.map((agent) => agent.id)
+      expect(idsFor('assistant')).toEqual(['cherry'])
+      expect(idsFor('support')).toEqual([CHERRY_SUPPORT_AGENT_ID])
+    })
+
     it('respects limit and offset', async () => {
       for (let i = 0; i < 5; i++) {
         await insertAgent({ name: `Agent ${i}` })

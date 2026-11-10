@@ -14,9 +14,13 @@ afterEach(() => {
 
 describe('validation selection', () => {
   it.each([
-    'docs/contrib/development.md',
+    'docs/dev/contrib/development.md',
     'src/main/core/README.md',
     'packages/ui/README.md',
+    'docs/website/content/pre-basic/settings/README.md',
+    'docs/website/content/assets/screenshot.webp',
+    'docs/website/locales.json',
+    '.github/website-docs-sync-plan.json',
     '.agents/notes/proposed/process/plan.zh.md'
   ])('keeps ordinary documentation out of code tests: %s', (file) => {
     const plan = createPlan([file])
@@ -27,26 +31,110 @@ describe('validation selection', () => {
     const runtime = createPlan(['resources/skills/tool/SKILL.md'])
     expect(runtime.projects).toContain('scripts')
     expect(runtime.projects).toContain('main')
-    const mixed = createPlan(['docs/README.md', 'src/renderer/components/Thing.tsx'])
+    const mixed = createPlan(['docs/dev/README.md', 'src/renderer/components/Thing.tsx'])
     expect(mixed.projects).toContain('renderer')
     expect(mixed.tasks).toContain('types-web')
     expect(mixed.projects).not.toContain('main')
   })
   it.each([
+    'src/renderer/pages/translate/components/TranslateOutputPane.tsx',
+    'src/renderer/pages/translate/components/__tests__/TranslateOutputPane.image.test.tsx',
+    'src/renderer/utils/theme.ts',
+    'src/renderer/assets/styles/tailwind.css'
+  ])('runs UI theme contracts when their renderer input changes: %s', (file) => {
+    const plan = createPlan([file])
+    expect(plan.tasks).toContain('theme')
+    expect(plan.projects).toEqual(['renderer'])
+    expect(selectedGroups(plan).packages).toBe(false)
+    expect(selectedGroups(plan).repository).toBe(true)
+  })
+  it.each([
+    'src/renderer/i18n/locales/en-us.json',
+    'tests/renderer.setup.ts',
+    'tests/__mocks__/renderer/api.ts',
+    'src/renderer/pages/translate/README.md'
+  ])('does not add theme checks or UI tests for non-scanner inputs: %s', (file) => {
+    const plan = createPlan([file])
+    expect(plan.tasks).not.toContain('theme')
+    expect(plan.projects).not.toContain('ui')
+    expect(selectedGroups(plan).packages).toBe(false)
+  })
+  it('keeps a complete translation pair out of code tests', () => {
+    const plan = createPlan(['CONTRIBUTING.md', 'CONTRIBUTING.zh.md', 'CONTRIBUTING.i18n.yaml'])
+    expect(plan.tasks).toEqual(['format', 'docs'])
+    expect(plan.projects).toEqual([])
+  })
+  it.each([
+    [
+      'packages/agent-runtime/src/contracts.ts',
+      [
+        'agent-runtime',
+        'agent-behavior',
+        'agent-runtime-pi',
+        'agent-runtime-pi-durable',
+        'agent-runtime-acp',
+        'agent-runtime-claude-code',
+        'main'
+      ]
+    ],
+    ['packages/agent-behavior/src/index.ts', ['agent-behavior', 'agent-runtime-pi', 'main']],
+    ['packages/agent-runtime-pi/src/runtime.ts', ['agent-runtime-pi', 'main']],
+    ['packages/agent-runtime-pi-durable/src/runtime.ts', ['agent-runtime-pi-durable']],
+    ['packages/agent-runtime-claude-code/src/runtime.ts', ['agent-runtime-claude-code']],
     ['packages/ai-sdk-provider/src/model.ts', ['ai-sdk-provider', 'aiCore', 'main', 'renderer']],
-    ['packages/dsh-bridge/src/link.ts', ['dsh-bridge', 'main']],
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],
-    ['packages/ui/src/button.tsx', ['ui', 'renderer']],
+    ['native/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
+    ['packages/ui/src/button.tsx', ['ui', 'file-preview', 'renderer']],
+    ['packages/file-preview/src/Preview.tsx', ['file-preview', 'renderer']],
+    ['packages/web-search/src/providers/tavily.ts', ['web-search', 'shared', 'main', 'preload', 'renderer']],
     ['packages/provider-registry/src/index.ts', ['provider-registry', 'shared', 'main', 'renderer']],
     ['src/preload/types.d.ts', ['preload', 'main', 'renderer']],
     ['src/shared/types/agent.ts', ['main', 'renderer', 'scripts']]
   ])('includes own and consumer tests for %s', (file, projects) => {
     expect(createPlan([file]).projects).toEqual(expect.arrayContaining(projects))
   })
+  // Catches an agent-behavior change that skips its own typecheck or the coding-agent adapter, whose contract test
+  // runs against the package (agent-runtime-pi depends on it, and main bundles agent-runtime-pi).
+  it('checks agent-behavior with its coding-agent adapter', () => {
+    const plan = createPlan(['packages/agent-behavior/src/core/facts.ts'])
+    expect(plan.projects).toEqual(expect.arrayContaining(['main', 'agent-behavior', 'agent-runtime-pi']))
+    expect(plan.tasks).toEqual(expect.arrayContaining(['types-agent-behavior', 'types-agent-runtime-pi']))
+  })
+  it('checks the ACP adapter independently and includes it when common contracts change', () => {
+    const plan = createPlan(['packages/agent-runtime-acp/src/runtime.ts'])
+    expect(plan.projects).toEqual(['agent-runtime-acp'])
+    expect(plan.tasks).toContain('types-agent-runtime-acp')
+    expect(createPlan(['packages/agent-runtime/src/contracts.ts']).tasks).toContain('types-agent-runtime-acp')
+  })
+  it('selects the portable web search typecheck alongside its Desktop consumers', () => {
+    const plan = createPlan(['packages/web-search/src/providers/tavily.ts'])
+    expect(plan.tasks).toEqual(expect.arrayContaining(['types-web-search', 'types-node', 'types-web']))
+    expect(selectedGroups(plan).packages).toBe(true)
+  })
+  it('typechecks system speech and its Main consumers without selecting unrelated Renderer tests', () => {
+    const plan = createPlan(['native/system-speech/src/SystemSpeechNativeClient.ts'])
+    expect(plan.tasks).toContain('types-system-speech')
+    expect(plan.tasks).toContain('types-node')
+    expect(plan.projects).not.toContain('renderer')
+    expect(selectedGroups(plan).platform).toBe(true)
+  })
+  it.each(['pnpm-lock.yaml', 'src/shared/types/voice.ts'])(
+    'keeps system speech tests and typechecks in shared or full validation: %s',
+    (file) => {
+      const plan = createPlan([file])
+      expect(plan.projects).toContain('system-speech')
+      expect(plan.tasks).toContain('types-system-speech')
+    }
+  )
+  it('checks portable previews after their browser setup changes without depending on the desktop setup', () => {
+    expect(createPlan(['tests/file-preview.setup.ts']).projects).toContain('file-preview')
+    expect(createPlan(['tests/renderer.setup.ts']).projects).not.toContain('file-preview')
+  })
   it.each([
     'pnpm-lock.yaml',
     '.node-version',
+    '.github/workflows/release.i18n.yaml',
     'tests/new.setup.ts',
     'packages/new-package/src/index.ts',
     'scripts/validation/plan.mjs'
@@ -54,6 +142,7 @@ describe('validation selection', () => {
     expect(createPlan([file]).projects).toContain('main')
     expect(createPlan([file]).projects).toContain('renderer')
     expect(createPlan([file]).tasks).toContain('types-e2e')
+    expect(createPlan([file]).tasks).toContain('theme')
   })
   it.each([
     'backport-release-fixes',
@@ -61,7 +150,6 @@ describe('validation selection', () => {
     'post-release',
     'prepare-release',
     'preview-release',
-    'publish-release',
     'release'
   ])('runs script contracts for release-workflow-only changes: %s', (name) => {
     expect(createPlan([`.github/workflows/${name}.yml`]).projects).toContain('scripts')
@@ -71,6 +159,49 @@ describe('validation selection', () => {
     expect(createPlan(['src/main/data/db/schemas/messages.ts']).tasks).toContain('migrations')
     expect(createPlan(['migrations/sqlite-drizzle/0001.sql']).projects).toContain('main')
     expect(createPlan(['.agents/skills/example/SKILL.md']).tasks).toContain('skills')
+  })
+  it.each([
+    ['src/main/ai/localModel/runtime/__tests__/inferenceEntryTts.test.ts', ['i18n-unused']],
+    ['src/main/service.test.ts', ['i18n-catalog', 'i18n-unused']],
+    ['src/main/service.spec.ts', ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']],
+    ['src/renderer/pages/Chat.test.tsx', ['i18n-unused']],
+    ['src/renderer/pages/Chat.spec.tsx', ['i18n-unused', 'i18n-hardcoded']],
+    ['packages/file-preview/src/__tests__/fixtures.ts', ['i18n-unused']],
+    ['src/main/__tests__/helpers.ts', ['i18n-unused']],
+    ['src/main/utils/testHelpers.ts', ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']],
+    ['tests/helpers/runtime.ts', ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']]
+  ])('keeps every i18n scanner that can read %s', (file, tasks) => {
+    const plan = createPlan([file])
+    expect(plan.tasks.filter((task: string) => task.startsWith('i18n-'))).toEqual(tasks)
+    expect(plan.tasks).toContain('lint')
+    expect(plan.tasks.some((task: string) => task.startsWith('types-'))).toBe(true)
+    expect(plan.projects.length).toBeGreaterThan(0)
+    expect(() => verifyResults(plan, { i18n: 'skipped' }, ['i18n'])).toThrow('i18n: expected success')
+  })
+  it('keeps explicit full validation complete even when every changed file is a test', () => {
+    expect(createPlan(['src/main/__tests__/service.test.ts'], 'Explicit full validation').tasks).toEqual(
+      expect.arrayContaining(['i18n-catalog', 'i18n-unused', 'i18n-hardcoded'])
+    )
+  })
+  it.each([
+    'src/main/service.ts',
+    'src/renderer/i18n/locales/en-us.json',
+    'src/main/i18n/locales/en-us.json',
+    'packages/file-preview/src/locales/en-us.json',
+    'scripts/i18n-check-unused.ts',
+    'scripts/i18n-check-hardcoded-strings.ts',
+    'scripts/i18n-check-values.ts',
+    'scripts/i18n-main-keys.ts',
+    'scripts/i18n-glossary.json',
+    'i18next.config.ts',
+    'tsconfig.node.json',
+    'scripts/validation/plan.mjs',
+    'tests/new.config.ts'
+  ])('retains full i18n checks for mixed tests and scanner/runtime input %s', (file) => {
+    const plan = createPlan(['src/main/__tests__/service.test.ts', file])
+    expect(plan.tasks).toEqual(expect.arrayContaining(['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']))
+    expect(selectedGroups(plan).i18n).toBe(true)
+    expect(() => verifyResults(plan, { i18n: 'skipped' }, ['i18n'])).toThrow('i18n: expected success')
   })
   it('rejects missing, failed, cancelled or unexpectedly skipped planned jobs', () => {
     const plan = createPlan(['src/main/service.ts'])
@@ -136,6 +267,73 @@ describe('working tree changes', () => {
 
 // A docs-only plan must never start compilers, native rebuilds, lint fixes, or tests.
 describe('validation execution', () => {
+  it.each([0, 7])('runs the theme check in the repository group and propagates exit %s', (exitCode) => {
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-theme-'))
+    directories.push(cwd)
+    const log = join(cwd, 'commands.jsonl')
+    const pnpm = join(cwd, 'pnpm.cjs')
+    writeFileSync(
+      pnpm,
+      `require('node:fs').appendFileSync(process.env.COMMAND_LOG, JSON.stringify(process.argv.slice(2)) + '\\n');
+       if (process.argv.includes('theme:check')) process.exit(Number(process.env.THEME_EXIT))`
+    )
+    const result = spawnSync(process.execPath, ['scripts/validation/run.mjs', '--group', 'repository'], {
+      env: {
+        ...process.env,
+        npm_execpath: pnpm,
+        COMMAND_LOG: log,
+        THEME_EXIT: String(exitCode),
+        VALIDATION_PLAN: JSON.stringify(createPlan(['src/renderer/components/Thing.tsx']))
+      },
+      encoding: 'utf8'
+    })
+    expect(result.status, result.stderr).toBe(exitCode)
+    const commands: string[][] = readFileSync(log, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(commands).toContainEqual(['--filter', '@cherrystudio/ui', 'theme:check'])
+    expect(commands).not.toContainEqual(['run', 'postinstall'])
+    expect(commands.some((command) => command.includes('vitest'))).toBe(false)
+  })
+
+  it.each(['types', 'packages', 'platform'].flatMap((group) => [false, true].map((prepared) => ({ group, prepared }))))(
+    'prepares exports only when needed before $group validation (prepared=$prepared)',
+    ({ group, prepared }) => {
+      const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-speech-'))
+      directories.push(cwd)
+      const log = join(cwd, 'commands.jsonl')
+      const pnpm = join(cwd, 'pnpm.cjs')
+      writeFileSync(
+        pnpm,
+        `require('node:fs').appendFileSync(process.env.COMMAND_LOG, JSON.stringify(process.argv.slice(2)) + '\\n')`
+      )
+      const result = spawnSync(process.execPath, ['scripts/validation/run.mjs', '--group', group], {
+        env: {
+          ...process.env,
+          npm_execpath: pnpm,
+          COMMAND_LOG: log,
+          VALIDATION_WORKSPACE_PREPARED: String(prepared),
+          VALIDATION_PLAN: JSON.stringify(createPlan(['native/system-speech/src/SystemSpeechNativeClient.ts']))
+        },
+        encoding: 'utf8'
+      })
+      expect(result.status, result.stderr).toBe(0)
+      const commands: string[][] = readFileSync(log, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      expect(commands.filter((command) => command.join(' ') === 'run postinstall')).toHaveLength(prepared ? 0 : 1)
+      if (group === 'types') {
+        expect(commands).toContainEqual(['--filter', '@cherrystudio/system-speech', 'typecheck'])
+      } else {
+        const test = commands.find((command) => command[0] === 'exec' && command[1] === 'vitest')!
+        expect(test).toContain('system-speech')
+        if (group === 'platform') expect(test).toContain('native/system-speech/tests/SystemSpeechNativeClient.test.ts')
+      }
+    }
+  )
+
   it('executes only planned read-only tasks and propagates command failures', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-run-'))
     directories.push(cwd)
@@ -149,7 +347,7 @@ describe('validation execution', () => {
       ...process.env,
       npm_execpath: pnpm,
       COMMAND_LOG: log,
-      VALIDATION_PLAN: JSON.stringify(createPlan(['docs/contrib/development.md']))
+      VALIDATION_PLAN: JSON.stringify(createPlan(['docs/dev/contrib/development.md']))
     }
     const invoke = (...args: string[]) =>
       spawnSync(process.execPath, ['scripts/validation/run.mjs', ...args], { env, encoding: 'utf8' })

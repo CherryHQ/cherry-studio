@@ -204,6 +204,9 @@ export abstract class ChannelAdapter extends EventEmitter {
     this.connectAbort = null
   }
 
+  /** Allow adapters to recover transports invalidated while the system was suspended. */
+  handleSystemResume(): void {}
+
   /**
    * Check if the adapter has everything it needs to connect immediately.
    * Return true if credentials/config are available (e.g. cached token exists).
@@ -239,14 +242,12 @@ export abstract class ChannelAdapter extends EventEmitter {
   }
 
   /**
-   * Called on every text update during streaming. The adapter decides
+   * Called with live text updates during streaming. The adapter decides
    * internally when/how to flush to the platform (throttle, mutex, etc.).
+   * Adapters that cannot stream leave it undefined so callers skip preview work.
    * @param fullText - The full cumulative response text so far.
    */
-  // oxlint-disable-next-line no-unused-vars
-  async onTextUpdate(_chatId: string, _fullText: string, _opts?: SendMessageOptions): Promise<void> {
-    // Default no-op — adapters that support streaming should override.
-  }
+  onTextUpdate?(chatId: string, fullText: string, opts?: SendMessageOptions): Promise<void>
 
   /** Release an inbound response superseded by batching without sending a reply. */
   // oxlint-disable-next-line no-unused-vars

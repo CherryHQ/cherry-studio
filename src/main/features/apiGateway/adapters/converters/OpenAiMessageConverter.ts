@@ -7,7 +7,7 @@
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
-import { tool, zodSchema } from 'ai'
+import { jsonSchema, tool } from 'ai'
 
 import type {
   ChatCompletionAssistantMessageParam,
@@ -21,7 +21,6 @@ import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
-import { jsonSchemaToZod } from './jsonSchemaToZod'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
 
 let uiMessageSeq = 0
@@ -64,16 +63,10 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
    * call/result pair coherently.
    */
   toUIMessages(params: ExtendedChatCompletionCreateParams): CherryUIMessage[] {
-    // tool_call_id → name (from assistant tool_calls) and → result output.
-    const toolCallIdToName = new Map<string, string>()
+    // tool_call_id → result output.
     const toolResultOutputs = new Map<string, string>()
     for (const msg of params.messages) {
-      if (msg.role === 'assistant') {
-        const assistantMsg = msg
-        for (const toolCall of assistantMsg.tool_calls ?? []) {
-          if (toolCall.type === 'function') toolCallIdToName.set(toolCall.id, toolCall.function.name)
-        }
-      } else if (msg.role === 'tool') {
+      if (msg.role === 'tool') {
         const toolMsg = msg
         toolResultOutputs.set(
           toolMsg.tool_call_id,
@@ -183,7 +176,7 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
       if (toolCall.type !== 'function') continue
       let input: unknown
       try {
-        input = JSON.parse(toolCall.function.arguments)
+        input = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {}
       } catch {
         input = { raw: toolCall.function.arguments }
       }
@@ -212,11 +205,12 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
       if (toolDef.type !== 'function') continue
 
       const rawSchema = toolDef.function.parameters
-      const schema = rawSchema ? jsonSchemaToZod(rawSchema) : jsonSchemaToZod({ type: 'object' })
+      const schema = rawSchema ?? { type: 'object' as const }
 
       const aiTool = tool({
         description: toolDef.function.description || '',
-        inputSchema: zodSchema(schema)
+        inputSchema: jsonSchema(schema),
+        ...(typeof toolDef.function.strict === 'boolean' ? { strict: toolDef.function.strict } : {})
       })
 
       aiSdkTools[toolDef.function.name] = aiTool
@@ -253,8 +247,10 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
     provider: Provider,
     model: Model,
     params: ExtendedChatCompletionCreateParams,
-    maxOutputTokens?: number
+    maxOutputTokens?: number,
+    overrideReasoning = false
   ): ProviderOptions | undefined {
+    if (overrideReasoning) return undefined
     return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
   }
 }

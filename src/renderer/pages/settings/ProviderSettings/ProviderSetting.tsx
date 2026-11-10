@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useState } from 'react'
 
-import Scrollbar from '@renderer/components/Scrollbar'
+import { ScrollArea } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { cn } from '@renderer/utils/style'
@@ -47,7 +47,9 @@ function ProviderSettingSections({
 
   return (
     <>
-      <Scrollbar ref={setScrollElement} className={providerDetailColumnClasses.scrollStrip}>
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewportProps={{ ref: setScrollElement, className: providerDetailColumnClasses.scrollViewport }}>
         <div className={cn(providerDetailColumnClasses.sectionStack, isLoginBased && 'gap-3')}>
           <AuthenticationSection
             providerId={providerId}
@@ -64,7 +66,7 @@ function ProviderSettingSections({
             />
           </div>
         </div>
-      </Scrollbar>
+      </ScrollArea>
       {apiSetupStep ? (
         <Suspense fallback={null}>
           <ProviderApiSetupDialog providerId={providerId} initialStep={apiSetupStep} onClose={closeApiSetup} />

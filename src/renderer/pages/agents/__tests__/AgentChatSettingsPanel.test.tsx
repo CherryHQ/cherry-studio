@@ -57,7 +57,9 @@ const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.tool.respond_approval' ? toolApprovalRespondMock(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval'
+        ? toolApprovalRespondMock(input)
+        : Promise.resolve(route === 'ai.agent.attachment_selections.list' ? [] : undefined),
     on: () => () => {}
   },
   useIpcOn: vi.fn()
@@ -135,6 +137,7 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
     key === 'agent.model_switch_confirmation.skipped'
       ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
       : [null, vi.fn()],
+  useSharedCacheValue: () => undefined,
   usePersistCache: () => [undefined, vi.fn()]
 }))
 
@@ -261,6 +264,7 @@ vi.mock('../components/AgentRightPane', () => {
   return {
     AgentRightPane: {
       Scope: MockAgentRightPaneScope,
+      DetailsLayout: ({ children }: PropsWithChildren) => <>{children}</>,
       Shell: ({ children }: PropsWithChildren) => <>{children}</>,
       Viewport: () => <div data-testid="agent-right-pane-viewport" />,
       Shortcuts: () => <button type="button">Shortcuts</button>
@@ -269,9 +273,12 @@ vi.mock('../components/AgentRightPane', () => {
     useAgentRightPaneActions: () => ({
       canOpenAgentToolFlow: true,
       canOpenArtifactFile: true,
+      canPreviewInputFileInRightPane: true,
       openAgentToolFlow: agentRightPanePropsMock.openAgentToolFlow,
-      openArtifactFile: agentRightPanePropsMock.openArtifactFile
-    })
+      openArtifactFile: agentRightPanePropsMock.openArtifactFile,
+      previewInputFileInRightPane: vi.fn()
+    }),
+    useOptionalAgentRightPaneActions: () => undefined
   }
 })
 
@@ -497,6 +504,7 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-agent-id', 'agent-1')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-model-id', 'provider::model-1')
     expect(agentConversationControlsPropsMock.last?.workspaceId).toBe('workspace-1')
+    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(true)
     expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()
     expect(agentComposerPropsMock.last?.onAgentChange).toBeUndefined()
 
@@ -617,6 +625,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(false)
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'edit')
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
@@ -638,6 +647,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(false)
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'edit')
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
@@ -660,6 +670,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(false)
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
 

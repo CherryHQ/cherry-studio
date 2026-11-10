@@ -1,3 +1,10 @@
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes } from 'react'
 import type { ReactElement, ReactNode } from 'react'
@@ -298,7 +305,7 @@ describe('ClaudeConfigFields', () => {
 
     expect(onChange).toHaveBeenCalledWith({
       env: {
-        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5 [1M]',
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5[1M]',
         ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-sonnet-4-5'
       }
     })

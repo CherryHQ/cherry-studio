@@ -1,6 +1,6 @@
 ---
 name: office-transform
-description: Derive new Office files from structural selections without touching the original. Use when the user points at part of a spreadsheet, Word document, PDF, or PowerPoint deck (a worksheet range, paragraph, page, slide, shape, or a pasted selection-ref block) and wants it extracted, converted, or edited — the result is always a NEW file; the source file is never modified. Covers xlsx range extraction to csv/markdown/xlsx, docx paragraph extraction and text replacement, pdf page extraction, pptx slide/shape/table-cell extraction and editing, and targeted xlsx cell edits.
+description: 'Extract or edit a selection from xlsx, docx, pdf, or pptx into a new file; the source is never modified.'
 version: 1.0.0
 ---
 
@@ -34,6 +34,10 @@ Chat surfaces may hand you a fenced `selection-ref` block:
 ```
 
 The `anchor` object is exactly what the scripts take via `--anchor`.
+
+A block may also carry `comment`: what the user wants done at that location, in their own words.
+Treat it as the user's instruction for that anchor. It is not part of the anchor, so never pass it
+to a script.
 
 **Freshness check.** `fileStamp.mtimeMs` is milliseconds since the Unix epoch, floored to
 whole milliseconds. Do not compare it to `stat`'s default output: `stat -f %m` (macOS) and

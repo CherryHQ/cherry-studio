@@ -10,7 +10,7 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'LocalModelService') return { isCapabilityReady: isLocalModelReadyMock }
+    if (name === 'LocalModelService') return { isDefaultModelReady: isLocalModelReadyMock }
     return originalGet(name)
   })
   return result
@@ -86,6 +86,28 @@ describe('resolveProcessorConfig', () => {
         langs: ['eng']
       }
     })
+  })
+
+  it('merges Doc2X export options into the main-process capability config', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
+      doc2x: {
+        capabilities: {
+          document_to_markdown: {
+            modelId: 'v3-2026',
+            formulaLevel: 2,
+            mergeCrossPageForms: true
+          }
+        }
+      }
+    })
+
+    expect(getFileProcessorConfigById('doc2x').capabilities[0]).toEqual(
+      expect.objectContaining({
+        modelId: 'v3-2026',
+        formulaLevel: 2,
+        mergeCrossPageForms: true
+      })
+    )
   })
 
   it('getFileProcessorConfigById throws notFound for an unknown processor id', () => {

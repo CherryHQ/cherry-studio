@@ -1,4 +1,9 @@
-import { MockUseDataApiUtils, mockUseInfiniteQuery, mockUseWriteInfiniteCache } from '@test-mocks/renderer/useDataApi'
+import {
+  MockUseDataApiUtils,
+  mockUseInfiniteQuery,
+  mockUseReadCache,
+  mockUseWriteInfiniteCache
+} from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { createElement, type ReactNode, startTransition, Suspense } from 'react'
 import type * as SWRModule from 'swr'
@@ -723,6 +728,29 @@ describe('unified useInfiniteQuery mock parity', () => {
     vi.restoreAllMocks()
   })
 
+  it('reads the same aggregate as production for a resolved route, query and page limit', async () => {
+    const queryOptions = options('session-1', true, 20)
+    const expected = pages('message-1')
+    vi.spyOn(dataApiService, 'get').mockResolvedValue(expected[0])
+    const { Wrapper } = makeWrapper()
+    const real = renderHook(
+      () => {
+        const list = useInfiniteQuery(path, queryOptions)
+        return { list, read: useReadCache() }
+      },
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(real.result.current.list.pages).toEqual(expected))
+
+    MockUseDataApiUtils.seedInfiniteQuery(path, expected, queryOptions)
+    const mocked = renderHook(() => mockUseReadCache())
+    for (const reader of [real.result.current.read, mocked.result.current]) {
+      expect(reader('/agent-sessions/session-1/messages', queryOptions.query, { limit: 20 })).toEqual(expected)
+      expect(reader('/agent-sessions/session-1/messages', queryOptions.query, { limit: 10 })).toBeUndefined()
+      expect(reader('/agent-sessions/session-1/messages', { deferToolOutputs: false }, { limit: 20 })).toBeUndefined()
+    }
+  })
+
   it('isolates the same route by resolved params, query, and effective limit like the real hook', async () => {
     const cases = [
       { id: 'session-1-deferred-10', options: options('session-1', true, 10) },
@@ -1419,6 +1447,22 @@ describe('usePaginatedQuery reset-on-query-change', () => {
   function spyOffsetGet() {
     return vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [], total: 30, page: 1 })
   }
+
+  it('can return directly to a valid page after the consumer observes a smaller total', async () => {
+    const get = spyOffsetGet()
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => usePaginatedQuery('/assistants'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    await act(async () => result.current.goToPage(3))
+    await waitFor(() => expect(result.current.page).toBe(3))
+    await act(async () => result.current.goToPage(2))
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/assistants', expect.objectContaining({ query: { page: 2, limit: 10 } }))
+    )
+    expect(result.current.page).toBe(2)
+    await act(async () => result.current.goToPage(0))
+    expect(result.current.page).toBe(2)
+  })
 
   it('does NOT reset page when query keys reorder but values are unchanged', async () => {
     spyOffsetGet()
