@@ -78,6 +78,11 @@ existing sticky-binding detachment policy.
 
 ## Admission and concurrency
 
+Agent 侧聊沿用 `agent-session:<sessionId>` 来源身份。归档和永久删除前，
+生命周期协调器先阻止该来源新建或发送侧聊，再停止已有侧聊流。
+归档保留快照和临时内存，恢复来源后可继续。永久删除清理保存记录和运行时状态。
+侧聊清理复用原有会话、Agent、工作区和回收站删除路径，不新增独立删除流程。
+
 Archive rejects unsettled generation, including terminal persistence and runtime
 background work. Idle connections and warm preloads can be closed and drained. Agent-only
 archive checks its associated Sessions too; retaining Sessions is not permission

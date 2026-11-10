@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { messageService } from '@data/services/MessageService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -10,7 +12,7 @@ import { PersistenceListener, type PersistAssistantInput, type StreamListener } 
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { withoutDiagnostics } from '@main/core/logger/diagnosticScope'
 import type { CherryUIMessage, Message } from '@shared/data/types/message'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { SideChatConfigSchema, type SideChatConfig, type SideChatSource } from '@shared/data/types/sideChat'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { sideChatErrorCodes } from '@shared/ipc/errors/sideChat'
@@ -31,6 +33,7 @@ interface Session {
 @DependsOn(['WindowManager', 'AiStreamManager'])
 export class SideChatRuntimeService extends BaseService {
   private readonly sessions = new Map<string, Session>()
+  private readonly removingSources = new Set<string>()
   private stopping = false
 
   protected onInit(): void {
@@ -67,7 +70,11 @@ export class SideChatRuntimeService extends BaseService {
     input: Omit<SideChatConfig, 'prompt'> & { prompt?: string }
   ): SideChatView {
     this.assertWindow(windowId)
-    const config = this.validateConfig({ ...input, prompt: input.prompt ?? DEFAULT_PROMPT })
+    this.assertSource(source.topicId)
+    const config = this.validateConfig({
+      modelId: this.currentModel(source.topicId, input.modelId),
+      prompt: input.prompt ?? DEFAULT_PROMPT
+    })
     const saved = application.get('PreferenceService').get('chat.side_chat.save_history')
     const row = saved
       ? sideChatService.create(source, config)
@@ -117,12 +124,12 @@ export class SideChatRuntimeService extends BaseService {
     return this.view(session)
   }
 
-  async submit(windowId: string, topicId: string, text: string): Promise<SideChatView> {
-    return this.run(windowId, topicId, { text })
+  async submit(windowId: string, topicId: string, text: string, modelId?: UniqueModelId): Promise<SideChatView> {
+    return this.run(windowId, topicId, { text }, modelId)
   }
 
-  async retry(windowId: string, topicId: string, questionId: string): Promise<SideChatView> {
-    return this.run(windowId, topicId, { questionId })
+  async retry(windowId: string, topicId: string, questionId: string, modelId?: UniqueModelId): Promise<SideChatView> {
+    return this.run(windowId, topicId, { questionId }, modelId)
   }
 
   async stop(windowId: string, topicId: string): Promise<SideChatView> {
@@ -198,10 +205,35 @@ export class SideChatRuntimeService extends BaseService {
     }
   }
 
+  async withSourceRemoval<T>(sourceIds: readonly string[], operation: () => T | Promise<T>): Promise<T> {
+    for (const id of sourceIds) this.removingSources.add(id)
+    try {
+      await this.beforeSourceRemoval(sourceIds, false)
+      return await operation()
+    } finally {
+      for (const id of sourceIds) this.removingSources.delete(id)
+    }
+  }
+
+  private assertSource(sourceTopicId: string): void {
+    if (this.removingSources.has(sourceTopicId)) throw new IpcError(sideChatErrorCodes.BUSY)
+    sideChatService.assertSource(sourceTopicId)
+  }
+
+  private currentModel(sourceTopicId: string, selected?: UniqueModelId): UniqueModelId {
+    if (sourceTopicId.startsWith('agent-session:')) {
+      const source = agentSessionService.getConversationById(sourceTopicId.slice('agent-session:'.length))
+      selected = source.agentId ? (agentService.getAgent(source.agentId)?.model ?? undefined) : undefined
+    }
+    if (!selected) throw new IpcError(sideChatErrorCodes.MODEL_UNAVAILABLE)
+    return selected
+  }
+
   private async run(
     windowId: string,
     topicId: string,
-    input: { text: string } | { questionId: string }
+    input: { text: string } | { questionId: string },
+    modelId?: UniqueModelId
   ): Promise<SideChatView> {
     const initial = this.requireSession(windowId, topicId)
     const manager = application.get('AiStreamManager')
@@ -212,7 +244,10 @@ export class SideChatRuntimeService extends BaseService {
           if (manager.isWriteQuiesced) throw new IpcError(sideChatErrorCodes.STORAGE_PAUSED)
           if (session.view.generating || manager.hasLiveStream(streamId(topicId)))
             throw new IpcError(sideChatErrorCodes.BUSY)
-          const config = this.validateConfig(session.view.metadata.config)
+          const config = this.validateConfig({
+            ...session.view.metadata.config,
+            modelId: this.currentModel(session.view.sourceTopicId, modelId)
+          })
           let question: Message | undefined
           let history = session.view.messages
           if ('questionId' in input) {
@@ -223,6 +258,8 @@ export class SideChatRuntimeService extends BaseService {
           const text = 'text' in input ? input.text.trim() : this.text(question!)
           if (!text || text.length > 200_000) throw new IpcError(sideChatErrorCodes.INVALID_QUESTION)
           const context = this.buildContext(session, config, history, text)
+          if (session.view.mode === 'saved') sideChatService.updateConfig(topicId, config)
+          session.view.metadata.config = config
           let nextQuestion: Message | undefined
           if (question) {
             const questionIndex = session.view.messages.indexOf(question)
@@ -397,7 +434,7 @@ export class SideChatRuntimeService extends BaseService {
       this.sessions.set(topicId, session)
     }
     if (session.owner !== null && session.owner !== windowId) throw new IpcError(sideChatErrorCodes.NOT_FOUND)
-    topicService.getById(session.view.sourceTopicId)
+    this.assertSource(session.view.sourceTopicId)
     session.readers.add(windowId)
     this.refresh(session)
     return session

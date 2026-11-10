@@ -43,6 +43,7 @@ export class AgentSessionArchiveBusyError extends Error {
   'AgentSessionDeliveryService',
   'AgentSessionRuntimeService',
   'AiStreamManager',
+  'SideChatRuntimeService',
   'ChannelManager'
 ])
 export class AgentLifecycleService extends BaseService {
@@ -357,29 +358,34 @@ export class AgentLifecycleService extends BaseService {
         const expiredSessionIds = sessionIds.filter((sessionId) =>
           agentSessionService.isExpiredTrash(sessionId, cutoffMs)
         )
-        const drains = await Promise.allSettled(
-          expiredSessionIds.map(async (sessionId) => {
-            await application
-              .get('AiStreamManager')
-              .abortAndDrain(buildAgentSessionTopicId(sessionId), 'agent-session-retention-purge')
-            await application.get('AgentSessionDeliveryService').drainSessionQueues([sessionId])
-          })
-        )
-        const failedDrain = drains.find((result): result is PromiseRejectedResult => result.status === 'rejected')
-        if (failedDrain) throw failedDrain.reason
+        return await application
+          .get('SideChatRuntimeService')
+          .withSourceRemoval(expiredSessionIds.map(buildAgentSessionTopicId), async () => {
+            const drains = await Promise.allSettled(
+              expiredSessionIds.map(async (sessionId) => {
+                await application
+                  .get('AiStreamManager')
+                  .abortAndDrain(buildAgentSessionTopicId(sessionId), 'agent-session-retention-purge')
+                await application.get('AgentSessionDeliveryService').drainSessionQueues([sessionId])
+              })
+            )
+            const failedDrain = drains.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+            if (failedDrain) throw failedDrain.reason
 
-        const workspaces = agentSessionService.listSystemWorkspaceSessions(expiredSessionIds)
-        const tokensBySession = agentSessionMessageService.listRuntimeResumeTokensBySession(expiredSessionIds)
-        const purgedIds =
-          expiredSessionIds.length === 0
-            ? []
-            : application
-                .get('DbService')
-                .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, expiredSessionIds, cutoffMs))
-        agentSessionService.notifyPurged(purgedIds)
-        await this.removePurgedSystemWorkspaces(workspaces.filter(({ id }) => purgedIds.includes(id)))
-        await reclaimPurgedRuntimeSessions(resumeTokensForDeletedSessions(purgedIds, tokensBySession))
-        return { purgedIds, hasMore: sessionIds.length === limit }
+            const workspaces = agentSessionService.listSystemWorkspaceSessions(expiredSessionIds)
+            const tokensBySession = agentSessionMessageService.listRuntimeResumeTokensBySession(expiredSessionIds)
+            const purgedIds =
+              expiredSessionIds.length === 0
+                ? []
+                : application
+                    .get('DbService')
+                    .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, expiredSessionIds, cutoffMs))
+            agentSessionService.notifyPurged(purgedIds)
+            application.get('SideChatRuntimeService').discardSources(purgedIds.map(buildAgentSessionTopicId))
+            await this.removePurgedSystemWorkspaces(workspaces.filter(({ id }) => purgedIds.includes(id)))
+            await reclaimPurgedRuntimeSessions(resumeTokensForDeletedSessions(purgedIds, tokensBySession))
+            return { purgedIds, hasMore: sessionIds.length === limit }
+          })
       } finally {
         for (const release of releases.reverse()) release()
       }
@@ -402,6 +408,8 @@ export class AgentLifecycleService extends BaseService {
         permanent,
         ...(targetState === 'active' ? { targetState } : {})
       })
+      if (permanent)
+        application.get('SideChatRuntimeService').discardSources(result.deletedIds.map(buildAgentSessionTopicId))
       await this.finishDeletion(result.deletedIds, result.deliveryResults)
       await this.removePurgedSystemWorkspaces(
         workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
@@ -416,12 +424,16 @@ export class AgentLifecycleService extends BaseService {
         const eligibleIds = ids.filter((id) => agentSessionService.isExpiredTrash(id, Number.MAX_SAFE_INTEGER))
         await this.drainSessions(eligibleIds)
         ids = eligibleIds
-        return deleteSessions()
+        return application
+          .get('SideChatRuntimeService')
+          .withSourceRemoval(ids.map(buildAgentSessionTopicId), deleteSessions)
       })
 
     return this.withSessionLocks(ids, async () => {
       this.assertSessionsSettled(ids)
-      return deleteSessions()
+      return application
+        .get('SideChatRuntimeService')
+        .withSourceRemoval(ids.map(buildAgentSessionTopicId), deleteSessions)
     })
   }
 
@@ -429,6 +441,9 @@ export class AgentLifecycleService extends BaseService {
     input: ReuseOrCreateAgentSessionDto
   ): Promise<ReusableAgentSessionPlaceholdersResponse> {
     const result = agentSessionService.reuseOrCreatePlaceholderWithImpact(input)
+    application
+      .get('SideChatRuntimeService')
+      .discardSources(result.deletedDuplicateSessionIds.map(buildAgentSessionTopicId))
     await this.finishDeletion(result.deletedDuplicateSessionIds, result.deliveryResults)
     return {
       session: result.session,
@@ -459,6 +474,10 @@ export class AgentLifecycleService extends BaseService {
         return { result, scheduleIds }
       })
       agentService.notifyDeleted(agentId, result)
+      if (permanent && deleteSessions)
+        application
+          .get('SideChatRuntimeService')
+          .discardSources((result.deletedSessionIds ?? []).map(buildAgentSessionTopicId))
       this.syncSchedules(scheduleIds)
       application.get('ChannelManager').reconcileAgent(agentId, true)
       const manager = application.get('AiStreamManager')
@@ -537,6 +556,7 @@ export class AgentLifecycleService extends BaseService {
       () => agentSessionService.listIdsByWorkspace(workspaceId),
       async () => {
         const result = agentSessionService.deleteWorkspaceCascadeWithImpact(workspaceId)
+        application.get('SideChatRuntimeService').discardSources(result.deletedIds.map(buildAgentSessionTopicId))
         await this.finishDeletion(result.deletedIds, result.deliveryResults)
         return { deletedIds: result.deletedIds }
       },
@@ -586,7 +606,9 @@ export class AgentLifecycleService extends BaseService {
         const currentSessionIds = readIds()
         if (!this.sameIds(sessionIds, currentSessionIds)) return RETRY_AGENT_SESSION_ARCHIVE
         if (!permanent) this.assertSessionsSettled(sessionIds)
-        return operation()
+        return application
+          .get('SideChatRuntimeService')
+          .withSourceRemoval(sessionIds.map(buildAgentSessionTopicId), operation)
       }
       const result = await (permanent
         ? this.withOperationLocks(sessionIds, apply)

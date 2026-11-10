@@ -26,13 +26,13 @@ export const sideChatHandlers: IpcHandlersFor<typeof sideChatRequestSchemas> = {
     const { service, windowId } = runtime(senderId)
     return service.configure(windowId, topicId, config)
   },
-  'side_chat.submit': async ({ topicId, text }, { senderId }) => {
+  'side_chat.submit': async ({ topicId, text, modelId }, { senderId }) => {
     const { service, windowId } = runtime(senderId)
-    return service.submit(windowId, topicId, text)
+    return service.submit(windowId, topicId, text, modelId)
   },
-  'side_chat.retry': async ({ topicId, questionId }, { senderId }) => {
+  'side_chat.retry': async ({ topicId, questionId, modelId }, { senderId }) => {
     const { service, windowId } = runtime(senderId)
-    return service.retry(windowId, topicId, questionId)
+    return service.retry(windowId, topicId, questionId, modelId)
   },
   'side_chat.delete_question': async ({ topicId, questionId }, { senderId }) => {
     const { service, windowId } = runtime(senderId)

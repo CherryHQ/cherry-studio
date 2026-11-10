@@ -1,12 +1,18 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import type { UIMessageChunk } from 'ai'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { messageTable } from '@data/db/schemas/message'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { AiStreamManager, type StreamListener } from '@main/ai/streamManager'
@@ -110,7 +116,7 @@ describe('side-chat runtime boundaries', () => {
     saved = false
     const temporary = service.create('one', input, { modelId })
     const before = dbh.db.select().from(messageTable).all()
-    await service.submit('one', temporary.topicId, 'temporary secret')
+    await service.submit('one', temporary.topicId, 'temporary secret', modelId)
     await finish(runs[0], 'temporary response')
     expect(dbh.db.select().from(messageTable).all()).toEqual(before)
     expect(service.get('one', durable.topicId).mode).toBe('saved')
@@ -118,6 +124,108 @@ describe('side-chat runtime boundaries', () => {
     expect(service.get('one', temporary.topicId).mode).toBe('temporary')
     expect(runs[0].suppressed).toBe(true)
     expect(runs[0].disableTools).toBe(true)
+  })
+
+  function secondModel() {
+    const id = createUniqueModelId('side-test', 'second')
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id,
+        providerId: 'side-test',
+        modelId: 'second',
+        name: 'Second',
+        capabilities: [],
+        supportsStreaming: true,
+        contextWindow: 32768,
+        orderKey: 'a1'
+      })
+      .run()
+    return id
+  }
+
+  it.each([true, false])(
+    'binds the selected model to each submit and retry without changing a running request (saved=%s)',
+    async (persist) => {
+      saved = persist
+      const second = secondModel()
+      const side = service.create('one', source(), { modelId })
+      const first = await service.submit('one', side.topicId, 'First', modelId)
+      await expect(service.submit('one', side.topicId, 'While busy', second)).rejects.toThrow('side_chat_busy')
+      expect(runs[0].uniqueModelId).toBe(modelId)
+      await finish(runs[0])
+      await service.submit('one', side.topicId, 'Second', second)
+      expect(runs[1].uniqueModelId).toBe(second)
+      await finish(runs[1])
+      await service.retry('one', side.topicId, first.messages[0].id, modelId)
+      expect(runs[2].uniqueModelId).toBe(modelId)
+      await finish(runs[2])
+      const before = service.get('one', side.topicId)
+      await expect(service.retry('one', side.topicId, first.messages[0].id)).rejects.toThrow(
+        'side_chat_model_unavailable'
+      )
+      expect(service.get('one', side.topicId).messages).toEqual(before.messages)
+      expect(runs).toHaveLength(3)
+    }
+  )
+
+  it('resolves the Agent model on admission and blocks creation during source removal', async () => {
+    const second = secondModel()
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent', type: 'claude-code', name: 'Agent', instructions: '', model: modelId, orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'workspace', name: 'Workspace', path: '/test', type: 'user', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'session', agentId: 'agent', name: 'Session', workspaceId: 'workspace', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values([
+        {
+          id: 'user',
+          sessionId: 'session',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'Agent question' }] },
+          status: 'success'
+        },
+        {
+          id: 'answer',
+          sessionId: 'session',
+          parentId: 'user',
+          role: 'assistant',
+          data: { parts: [{ type: 'text', text: 'Agent answer' }] },
+          status: 'success'
+        }
+      ])
+      .run()
+    const input = { topicId: 'agent-session:session', messageId: 'answer', selection: 'answer' }
+    saved = false
+    const side = service.create('one', input, { modelId: second })
+    const first = await service.submit('one', side.topicId, 'Explain', second)
+    expect(runs[0].uniqueModelId).toBe(modelId)
+    dbh.db.update(agentTable).set({ model: second }).where(eq(agentTable.id, 'agent')).run()
+    expect(runs[0].uniqueModelId).toBe(modelId)
+    await finish(runs[0])
+    await service.retry('one', side.topicId, first.messages[0].id, modelId)
+    expect(runs[1].uniqueModelId).toBe(second)
+    await service.withSourceRemoval([input.topicId], () => {
+      expect(() => service.create('one', input, { modelId })).toThrow('side_chat_busy')
+      agentSessionService.delete('session')
+    })
+    expect(live.size).toBe(0)
+    expect(() => service.get('one', side.topicId)).toThrow()
+    agentSessionService.restore('session')
+    expect(service.get('one', side.topicId).questionCount).toBe(1)
+    dbh.db.update(agentTable).set({ model: null }).where(eq(agentTable.id, 'agent')).run()
+    await expect(service.submit('one', side.topicId, 'No model', modelId)).rejects.toThrow(
+      'side_chat_model_unavailable'
+    )
+    expect(runs).toHaveLength(2)
   })
 
   it('isolates immutable source context and per-chat configuration', async () => {
@@ -130,8 +238,8 @@ describe('side-chat runtime boundaries', () => {
       status: 'success',
       setAsActive: true
     })
-    await service.submit('one', other.topicId, 'Other side text')
-    await service.submit('one', first.topicId, 'Explain it')
+    await service.submit('one', other.topicId, 'Other side text', modelId)
+    await service.submit('one', first.topicId, 'Explain it', modelId)
     const wire = JSON.stringify(runs[1].messages)
     expect(wire).toContain('Original question')
     expect(wire).toContain('Original answer excerpt')
@@ -147,16 +255,16 @@ describe('side-chat runtime boundaries', () => {
   it.each([false, true])('keeps question counts through retry, failure and deletion (saved=%s)', async (persist) => {
     saved = persist
     const side = service.create('one', source(), { modelId })
-    let view = await service.submit('one', side.topicId, 'First')
+    let view = await service.submit('one', side.topicId, 'First', modelId)
     const firstId = view.messages[0].id
     await finish(runs[0])
-    view = await service.submit('one', side.topicId, 'Second')
+    view = await service.submit('one', side.topicId, 'Second', modelId)
     const secondId = view.messages.findLast((message) => message.role === 'user')!.id
     await service.stop('one', side.topicId)
-    view = await service.retry('one', side.topicId, secondId)
+    view = await service.retry('one', side.topicId, secondId, modelId)
     expect(view.questionCount).toBe(2)
     await finish(runs[2])
-    view = await service.retry('one', side.topicId, firstId)
+    view = await service.retry('one', side.topicId, firstId, modelId)
     expect(view.questionCount).toBe(2)
     expect(view.messages.filter((message) => message.role === 'user').map((message) => message.id)).toEqual([
       firstId,
@@ -173,8 +281,8 @@ describe('side-chat runtime boundaries', () => {
     const input = source()
     const side = service.create('one', input, { modelId })
     expect(() => service.get('two', side.topicId)).toThrow('side_chat_not_found')
-    await expect(service.submit('two', side.topicId, 'intruder')).rejects.toThrow('side_chat_not_found')
-    await service.submit('one', side.topicId, 'private')
+    await expect(service.submit('two', side.topicId, 'intruder', modelId)).rejects.toThrow('side_chat_not_found')
+    await service.submit('one', side.topicId, 'private', modelId)
     const callbacks = runs[0].listener as StreamListener[]
     const send = vi.mocked(application.get('IpcApiService').send)
     send.mockClear()
@@ -201,9 +309,9 @@ describe('side-chat runtime boundaries', () => {
     const input = source()
     const first = service.create('one', input, { modelId })
     const second = service.create('one', input, { modelId })
-    await service.submit('one', first.topicId, 'First')
-    await service.submit('one', second.topicId, 'Second')
-    await expect(service.submit('one', first.topicId, 'Duplicate')).rejects.toThrow('side_chat_busy')
+    await service.submit('one', first.topicId, 'First', modelId)
+    await service.submit('one', second.topicId, 'Second', modelId)
+    await expect(service.submit('one', first.topicId, 'Duplicate', modelId)).rejects.toThrow('side_chat_busy')
     await service.stop('one', first.topicId)
     expect(service.get('one', first.topicId).generating).toBe(false)
     expect(service.get('one', second.topicId).generating).toBe(true)
@@ -214,7 +322,7 @@ describe('side-chat runtime boundaries', () => {
     saved = false
     const input = source()
     const side = service.create('one', input, { modelId })
-    await service.submit('one', side.topicId, 'Retain on restore')
+    await service.submit('one', side.topicId, 'Retain on restore', modelId)
     await service.beforeSourceRemoval([input.topicId], false)
     topicService.delete(input.topicId)
     expect(() => service.get('one', side.topicId)).toThrow()
@@ -228,14 +336,16 @@ describe('side-chat runtime boundaries', () => {
 
   it('rejects an oversize selection/question without submitting a truncated question', async () => {
     const side = service.create('one', source(), { modelId })
-    await expect(service.submit('one', side.topicId, 'x'.repeat(50_000))).rejects.toThrow('side_chat_context_too_large')
+    await expect(service.submit('one', side.topicId, 'x'.repeat(50_000), modelId)).rejects.toThrow(
+      'side_chat_context_too_large'
+    )
     expect(service.get('one', side.topicId).messages).toEqual([])
     expect(runs).toHaveLength(0)
   })
 
   it('counts provider failures and keeps history when the provider becomes unavailable', async () => {
     const side = service.create('one', source(), { modelId })
-    await service.submit('one', side.topicId, 'Failed question')
+    await service.submit('one', side.topicId, 'Failed question', modelId)
     for (const listener of runs[0].listener as StreamListener[])
       await listener.onError({ status: 'error', error: { name: 'Error', message: 'provider failure', stack: null } })
     live.delete(runs[0].streamId)
@@ -243,7 +353,7 @@ describe('side-chat runtime boundaries', () => {
     expect(failed.questionCount).toBe(1)
     expect(failed.messages.at(-1)?.status).toBe('error')
     dbh.db.update(userProviderTable).set({ isEnabled: false }).run()
-    await expect(service.submit('one', side.topicId, 'Next')).rejects.toThrow('side_chat_model_unavailable')
+    await expect(service.submit('one', side.topicId, 'Next', modelId)).rejects.toThrow('side_chat_model_unavailable')
     expect(service.get('one', side.topicId).messages).toEqual(failed.messages)
   })
 
@@ -253,7 +363,7 @@ describe('side-chat runtime boundaries', () => {
       saved = persist
       const input = source()
       const side = service.create('one', input, { modelId })
-      await service.submit('one', side.topicId, 'Question')
+      await service.submit('one', side.topicId, 'Question', modelId)
       await finish(runs[0])
       const lastRevision = service.get('one', side.topicId).revision
       await service.close('one', side.topicId)
@@ -274,7 +384,7 @@ describe('side-chat runtime boundaries', () => {
   it('does not resurrect a closed temporary chat while its submit waits for admission', async () => {
     saved = false
     const side = service.create('one', source(), { modelId })
-    const submitted = service.submit('one', side.topicId, 'Queued text')
+    const submitted = service.submit('one', side.topicId, 'Queued text', modelId)
     service.closeWindow('one')
     await expect(submitted).rejects.toThrow()
     expect(runs).toHaveLength(0)
@@ -283,10 +393,10 @@ describe('side-chat runtime boundaries', () => {
   it('settles saved replies before shutdown and leaves no temporary topic to restore', async () => {
     const input = source()
     const durable = service.create('one', input, { modelId })
-    await service.submit('one', durable.topicId, 'Saved pending question')
+    await service.submit('one', durable.topicId, 'Saved pending question', modelId)
     saved = false
     const temporary = service.create('one', input, { modelId })
-    await service.submit('one', temporary.topicId, 'Temporary pending question')
+    await service.submit('one', temporary.topicId, 'Temporary pending question', modelId)
     await (service as unknown as { onStop(): Promise<void> }).onStop()
     BaseService.resetInstances()
     const restarted = new SideChatRuntimeService()
@@ -319,7 +429,7 @@ describe('side-chat runtime boundaries', () => {
           }
         }
       })
-      await service.submit('one', side.topicId, 'Shared pipeline question')
+      await service.submit('one', side.topicId, 'Shared pipeline question', modelId)
       controller.enqueue({ type: 'start', messageId: 'provider-answer' })
       controller.enqueue({ type: 'text-start', id: 'text' })
       controller.enqueue({ type: 'text-delta', id: 'text', delta: 'Live answer' })

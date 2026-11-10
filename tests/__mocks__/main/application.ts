@@ -119,6 +119,7 @@ export const defaultServiceInstances = {
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
   SideChatRuntimeService: {
+    withSourceRemoval: vi.fn(async (_ids: readonly string[], operation: () => unknown) => operation()),
     beforeSourceRemoval: vi.fn(async () => {}),
     discardSources: vi.fn()
   },

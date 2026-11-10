@@ -1,7 +1,12 @@
 import * as z from 'zod'
 
 import type { Message } from '../../data/types/message'
-import { SideChatConfigSchema, SideChatSourceSchema, type SavedSideChat } from '../../data/types/sideChat'
+import {
+  SideChatConfigSchema,
+  SideChatSourceSchema,
+  SideChatSourceIdSchema,
+  type SavedSideChat
+} from '../../data/types/sideChat'
 import { defineRoute } from '../define'
 
 export interface SideChatView extends SavedSideChat {
@@ -15,6 +20,8 @@ export interface SideChatView extends SavedSideChat {
 const identity = z.strictObject({ topicId: z.string().min(1) })
 const question = identity.extend({ questionId: z.string().min(1) })
 const view = z.custom<SideChatView>()
+// Home sends its current composer model on every submit/retry. Agent sources resolve their owner model in Main.
+// Omission never reuses the stored side-chat model; it is only valid for Agent sources.
 export const sideChatRequestSchemas = {
   'side_chat.create': defineRoute({
     input: z.strictObject({
@@ -24,13 +31,22 @@ export const sideChatRequestSchemas = {
     output: view
   }),
   'side_chat.get': defineRoute({ input: identity, output: view }),
-  'side_chat.list': defineRoute({ input: z.strictObject({ sourceTopicId: z.uuidv4() }), output: z.array(view) }),
+  'side_chat.list': defineRoute({
+    input: z.strictObject({ sourceTopicId: SideChatSourceIdSchema }),
+    output: z.array(view)
+  }),
   'side_chat.configure': defineRoute({ input: identity.extend({ config: SideChatConfigSchema }), output: view }),
   'side_chat.submit': defineRoute({
-    input: identity.extend({ text: z.string().trim().min(1).max(200_000) }),
+    input: identity.extend({
+      text: z.string().trim().min(1).max(200_000),
+      modelId: SideChatConfigSchema.shape.modelId.optional()
+    }),
     output: view
   }),
-  'side_chat.retry': defineRoute({ input: question, output: view }),
+  'side_chat.retry': defineRoute({
+    input: question.extend({ modelId: SideChatConfigSchema.shape.modelId.optional() }),
+    output: view
+  }),
   'side_chat.delete_question': defineRoute({ input: question, output: view }),
   'side_chat.stop': defineRoute({ input: identity, output: view }),
   'side_chat.close': defineRoute({ input: identity, output: z.void() }),
