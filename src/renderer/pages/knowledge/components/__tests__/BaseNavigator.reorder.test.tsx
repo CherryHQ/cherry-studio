@@ -52,10 +52,12 @@ function renderNavigator() {
       onCreateGroup={vi.fn()}
       onCreateBase={vi.fn()}
       onMoveBase={vi.fn()}
+      onMoveBases={vi.fn()}
       onRenameBase={vi.fn()}
       onRenameGroup={vi.fn()}
       onDeleteGroup={vi.fn()}
       onDeleteBase={vi.fn()}
+      onDeleteBases={vi.fn()}
       onResizeStart={vi.fn()}
     />
   )
