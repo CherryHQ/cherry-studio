@@ -5,10 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { messageService } from '@data/services/MessageService'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
@@ -35,6 +37,85 @@ describe('TemporaryChatService', () => {
   beforeEach(() => {
     service = new TemporaryChatService()
     notifyDataApiDataChangeMock.mockClear()
+  })
+
+  describe('file ownership', () => {
+    function appendImage(topicId: string) {
+      const entry = fileEntryService.create({
+        id: crypto.randomUUID(),
+        origin: 'internal',
+        name: 'generated',
+        ext: 'png',
+        size: 3,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      dbh.db
+        .update(fileEntryTable)
+        .set({ createdAt: Date.now() - 7_200_000 })
+        .where(eq(fileEntryTable.id, entry.id))
+        .run()
+      const message = service.appendMessage(topicId, {
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'image/png',
+              url: `file:///files/${entry.id}.png`,
+              providerMetadata: { cherry: { fileEntryId: entry.id } }
+            }
+          ]
+        }
+      })
+      return { entry, message }
+    }
+
+    it('closes admission before releasing temporary files to cleanup', () => {
+      const topic = service.createTopic({})
+      const { entry } = appendImage(topic.id)
+      const retain = MockMainFileManagerExport.fileManager.retainTemporaryEntry
+      const index = retain.mock.calls.findLastIndex(([id]) => id === entry.id)
+      expect(index).toBeGreaterThanOrEqual(0)
+      const reference = retain.mock.results[index].value
+      reference.dispose.mockImplementation(() => {
+        expect(service.hasTopic(topic.id)).toBe(false)
+        expect(() => service.appendMessage(topic.id, { role: 'user', data: mainText('late') })).toThrow(/not found/i)
+        expect(() => service.persist(topic.id)).toThrow(/not found/i)
+      })
+      service.deleteTopic(topic.id)
+      expect(service.hasTopic(topic.id)).toBe(false)
+      expect(reference.dispose).toHaveBeenCalledTimes(1)
+      expect(fileEntryService.findById(entry.id)).not.toBeNull()
+    })
+
+    it('replaces temporary retention with persistent refs before making images eligible for cleanup', () => {
+      const topic = service.createTopic({})
+      const { entry, message } = appendImage(topic.id)
+      const retain = MockMainFileManagerExport.fileManager.retainTemporaryEntry
+      const reference = retain.mock.results[retain.mock.calls.findLastIndex(([id]) => id === entry.id)].value
+      reference.dispose.mockImplementation(() => {
+        expect(
+          dbh.db.select().from(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, message.id)).all()
+        ).toMatchObject([{ fileEntryId: entry.id, role: 'attachment' }])
+      })
+      service.persist(topic.id)
+      expect(reference.dispose).toHaveBeenCalledTimes(1)
+      expect(fileEntryService.findCleanupCandidates({ graceMs: 0, limit: 100 }).map((file) => file.id)).not.toContain(
+        entry.id
+      )
+    })
+
+    it('keeps images retained after failed promotion so the user can retry', async () => {
+      const topic = service.createTopic({ assistantId: 'missing-assistant' })
+      const { entry } = appendImage(topic.id)
+      const retain = MockMainFileManagerExport.fileManager.retainTemporaryEntry
+      const reference = retain.mock.results[retain.mock.calls.findLastIndex(([id]) => id === entry.id)].value
+      expect(() => service.persist(topic.id)).toThrow()
+      expect(service.hasTopic(topic.id)).toBe(true)
+      expect(reference.dispose).not.toHaveBeenCalled()
+      service.deleteTopic(topic.id)
+      expect(reference.dispose).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('appendMessage — input validation', () => {
@@ -104,7 +185,7 @@ describe('TemporaryChatService', () => {
   })
 
   describe('deleteTopic / listMessages — notFound', () => {
-    it('deleteTopic on unknown id throws notFound', () => {
+    it('deleteTopic on unknown id throws notFound', async () => {
       expect(() => service.deleteTopic('missing')).toThrow(/not found/i)
     })
 
