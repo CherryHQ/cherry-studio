@@ -184,7 +184,9 @@ const translations: Record<string, string> = {
   'settings.doctor.status.warn': 'Warning',
   'chat.artifacts.preview.openExternal.error.content': 'Error opening the external browser.',
   'settings.about.checkUpdate.label': 'Check Update',
-  'settings.about.releases.button': 'Releases',
+  'error.update_banner.failed':
+    "Couldn't check for updates. You can download the latest version from the official website.",
+  'error.update_banner.open_releases': 'Open releases page',
   'settings.about.updateError': 'Update error',
   'settings.about.updateNotAvailable': 'You are using the latest version',
   'settings.about.updateNotPublished': 'No published update is available yet. Please try again later.',
@@ -192,6 +194,8 @@ const translations: Record<string, string> = {
   'settings.doctor.stale.description': 'This diagnostic result is out of date.',
   'settings.doctor.title': 'System diagnostics'
 }
+
+const UPDATE_CHECK_FAILED = translations['error.update_banner.failed']
 
 await i18next.use(initReactI18next).init({
   lng: 'en-US',
@@ -1226,8 +1230,8 @@ describe('ErrorDetailContent diagnostics', () => {
 
     renderErrorDetailContent({ error: providerError })
 
-    expect(screen.queryByText('Update error')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Releases' })).not.toBeInTheDocument()
+    expect(screen.queryByText(UPDATE_CHECK_FAILED)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open releases page' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
   })
 
@@ -1242,7 +1246,7 @@ describe('ErrorDetailContent diagnostics', () => {
     meta.setAttribute('content', 'mainWindow')
     renderErrorDetailContent({ error: providerError })
 
-    expect(screen.queryByRole('button', { name: 'Releases' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open releases page' })).not.toBeInTheDocument()
     expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_external_website', OFFICIAL_RELEASES_URL)
 
     act(() => {
@@ -1250,20 +1254,21 @@ describe('ErrorDetailContent diagnostics', () => {
     })
     const unpublished = screen.getByText('No published update is available yet. Please try again later.')
     expect(unpublished).toHaveAttribute('role', 'alert')
-    expect(screen.getByRole('button', { name: 'Releases' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Open releases page' })).toBeEnabled()
     expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_external_website', OFFICIAL_RELEASES_URL)
 
     act(() => {
       appUpdateCheckService.setUpdateNotice('settings.about.updateError')
     })
-    expect(screen.getByText('Update error')).toHaveAttribute('role', 'alert')
+    expect(screen.getByText(UPDATE_CHECK_FAILED)).toHaveAttribute('role', 'alert')
     expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
 
-    await user.click(screen.getByRole('button', { name: 'Releases' }))
+    await user.click(screen.getByRole('button', { name: 'Open releases page' }))
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', OFFICIAL_RELEASES_URL)
     expect(mocks.request.mock.calls.filter(([channel]) => channel === 'app.updater.check_for_update')).toHaveLength(0)
 
-    await user.click(screen.getByRole('button', { name: 'Check Update' }))
+    const banner = screen.getByText(UPDATE_CHECK_FAILED).parentElement!
+    await user.click(within(banner).getByRole('button', { name: 'Retry' }))
     await waitFor(() => {
       expect(mocks.request.mock.calls.filter(([channel]) => channel === 'app.updater.check_for_update')).toHaveLength(1)
     })
@@ -1271,7 +1276,7 @@ describe('ErrorDetailContent diagnostics', () => {
     act(() => {
       appUpdateCheckService.setUpdateNotice('settings.about.updateNotAvailable')
     })
-    expect(screen.queryByRole('button', { name: 'Releases' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open releases page' })).not.toBeInTheDocument()
     expect(screen.getByText('You are using the latest version')).toHaveAttribute('role', 'status')
   })
 
@@ -1308,20 +1313,20 @@ describe('ErrorDetailContent diagnostics', () => {
         appUpdateCheckService.setUpdateNotice('settings.about.updateError')
       })
 
-      await user.click(screen.getByRole('button', { name: 'Releases' }))
+      await user.click(screen.getByRole('button', { name: 'Open releases page' }))
       expect(await screen.findByText('Error opening the external browser.')).toHaveAttribute('role', 'alert')
-      expect(screen.getByRole('button', { name: 'Releases' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Open releases page' })).toBeEnabled()
       expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
-      expect(screen.getByText('Update error')).toBeInTheDocument()
+      expect(screen.getByText(UPDATE_CHECK_FAILED)).toBeInTheDocument()
       expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
       await waitFor(() => expect(unhandled).toEqual([]))
 
       failOpen = false
-      await user.click(screen.getByRole('button', { name: 'Releases' }))
+      await user.click(screen.getByRole('button', { name: 'Open releases page' }))
       await waitFor(() => {
         expect(screen.queryByText('Error opening the external browser.')).not.toBeInTheDocument()
       })
-      expect(screen.getByRole('button', { name: 'Releases' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Open releases page' })).toBeEnabled()
       expect(unhandled).toEqual([])
 
       await user.click(screen.getByRole('button', { name: 'Check Update' }))
