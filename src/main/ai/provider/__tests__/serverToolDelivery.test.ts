@@ -203,7 +203,7 @@ describe('registry serverTools declarations have a runtime delivery path', () =>
         config.toolFactories?.webSearch || config.variants?.some((variant) => variant.toolFactories?.webSearch)
       )
     }
-    const coreNames = new Set(coreExtensions.map((extension) => extension.config.name))
+    const coreNames = new Set<string>(coreExtensions.map((extension) => extension.config.name))
     const appFamilies = extensions
       .filter((extension) => declaresWebSearch(extension) && !coreNames.has(extension.config.name))
       .map((extension) => extension.config.name)

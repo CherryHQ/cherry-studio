@@ -266,7 +266,7 @@ describe('server-tool model eligibility', () => {
         id: 'my-cherryin',
         serverTools: [],
         endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'cherryin' } }
-      } as unknown as Provider)
+      })
     ).toBe(true)
   })
 

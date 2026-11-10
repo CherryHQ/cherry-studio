@@ -203,7 +203,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('adds server-tool overrides to populated models without changing their settings', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0025_melted_loners'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0036_chunky_revanche'))
     const now = Date.now()
     sqlite
       .prepare(`INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)

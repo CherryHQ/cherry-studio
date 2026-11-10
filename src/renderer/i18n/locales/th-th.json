@@ -5232,6 +5232,7 @@
   "settings.models.add.quick_presets": "ค่าที่ตั้งด่วน",
   "settings.models.add.supported_text_delta.label": "รองรับเอาต์พุตข้อความแบบเพิ่มทีละส่วน",
   "settings.models.add.supported_text_delta.tooltip": "โมเดลส่งคืนข้อความแบบเพิ่มทีละส่วน แทนที่จะส่งทั้งหมดในครั้งเดียว เปิดใช้โดยค่าเริ่มต้น หากโมเดลไม่รองรับ กรุณาปิดตัวเลือกนี้",
+  "settings.models.add.web_search.endpoint_required": "การค้นหาเว็บในตัวต้องใช้ปลายทาง Responses, Anthropic หรือ Gemini สำหรับโมเดลนี้",
   "settings.models.api_key": "API Key",
   "settings.models.base_url": "Base URL",
   "settings.models.bulk_disable": "ปิดทั้งหมด",
