@@ -14,7 +14,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 
 const config = { modelId: createUniqueModelId('provider', 'model'), prompt: 'Explain briefly.' }
 
-function source() {
+function source(answerText = 'An original answer') {
   const topic = topicService.create({ name: 'Main' })
   const user = messageService.create(topic.id, {
     role: 'user',
@@ -25,7 +25,7 @@ function source() {
   const answer = messageService.create(topic.id, {
     role: 'assistant',
     parentId: user.id,
-    data: { parts: [{ type: 'text', text: 'An original answer' }] },
+    data: { parts: [{ type: 'text', text: answerText }] },
     status: 'success',
     setAsActive: true
   })
@@ -181,11 +181,26 @@ describe('saved side-chat source and lifecycle', () => {
     expect(sideChatService.list(input.topicId).map((row) => row.topicId)).toEqual([side.topicId])
   })
 
-  it('rejects mismatched sources, nested side chats, and text absent from the answer', () => {
+  it('preserves rendered quotes without inventing a Markdown source position', () => {
+    const answer = 'An **original** answer\n\n| Name | Value |\n| --- | --- |\n| One | Two |'
+    const input = source(answer)
+    const selection = 'An original answer\n\nName\tValue\nOne\tTwo'
+    const side = sideChatService.create({ ...input, selection }, config)
+    expect(sideChatService.get(side.topicId).metadata.snapshot).toEqual({
+      messageId: input.messageId,
+      selection,
+      answer,
+      question: 'Original question',
+      prefix: '',
+      suffix: ''
+    })
+  })
+
+  it('rejects mismatched sources, nested side chats, and blank selections', () => {
     const input = source()
     const other = topicService.create({ name: 'Other' })
     expect(() => sideChatService.create({ ...input, topicId: other.id }, config)).toThrow()
-    expect(() => sideChatService.create({ ...input, selection: 'forged text' }, config)).toThrow()
+    expect(() => sideChatService.create({ ...input, selection: ' \n ' }, config)).toThrow()
     const side = sideChatService.create(input, config)
     expect(() => sideChatService.create({ ...input, topicId: side.topicId }, config)).toThrow()
     expect(

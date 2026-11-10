@@ -66,14 +66,14 @@ export class SideChatService {
     const answerText = textOf(answer)
     const selection = source.selection ?? answerText
     const offset = answerText.indexOf(selection)
-    if (!selection || offset < 0)
-      throw DataApiErrorFactory.invalidOperation('create side chat', 'Selection does not match the source answer')
+    if (!selection.trim()) throw DataApiErrorFactory.invalidOperation('create side chat', 'Selection must contain text')
     const path = sessionId
       ? readAgentSessionPath(application.get('DbService').getDb(), sessionId, answer.id)
       : messageService.getPathToNode(answer.id)
     const question = path.findLast((message) => message.role === 'user')
     if (!question) throw DataApiErrorFactory.invalidOperation('create side chat', 'Source answer has no user question')
-    const unique = answerText.indexOf(selection, offset + 1) < 0
+    // Rendered quotes may omit Markdown syntax; only exact matches can anchor source highlights.
+    const unique = offset >= 0 && answerText.indexOf(selection, offset + 1) < 0
     return {
       messageId: answer.id,
       selection,
