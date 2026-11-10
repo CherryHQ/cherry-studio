@@ -6,6 +6,7 @@ import { isMac } from '@renderer/utils/platform'
 
 import { createComposerDraftContent, serializeComposerDocument } from '../../composerDraft'
 import { createComposerEditorPreset } from '../../composerPreset'
+import { createMarkdownSession } from '../markdownSession'
 import { handleMarkdownFormatKey } from '../selectionFormatKeys'
 
 const token = { id: 'kb', kind: 'knowledge', label: 'Base', promptText: 'ATTACHED', index: 0, textOffset: 1 } as const
@@ -139,6 +140,16 @@ describe('selection formatting keys', () => {
     expect(source(editor)).toBe('one\n\ntwo')
   })
 
+  it.each(['b', 'i'])('round trips multiline %s with a literal asterisk', (key) => {
+    const editor = createEditor('one\ntwo * three')
+    editor.commands.selectAll()
+
+    press(editor, key)
+    press(editor, key)
+
+    expect(source(editor)).toBe('one\ntwo * three')
+  })
+
   it('styles only the lines that lack the style when lines are mixed', () => {
     const editor = createEditor('**one**\ntwo')
     select(editor, [0, 2], [1, 3])
@@ -254,6 +265,39 @@ describe('selection inline code', () => {
 
     expect(source(editor)).toBe('hello world')
     expect(selectedText(editor)).toBe('world')
+  })
+
+  it.each([
+    ['``hello``', 2, 7],
+    ['``hello``', 0, 9],
+    ['text ```hello```', 8, 13]
+  ])('removes the complete code delimiters in %s', (text, from, to) => {
+    const editor = createSelected(text, from, to)
+
+    pressBacktick(editor)
+
+    expect(source(editor)).toBe(text.startsWith('text ') ? 'text hello' : 'hello')
+    expect(selectedText(editor)).toBe('hello')
+  })
+
+  it.each(['a`b', '`abc', 'abc`', 'a``b'])('wraps all of %j in one code span and round trips', (payload) => {
+    const editor = createSelected(`text ${payload}`, 5, 5 + payload.length)
+
+    pressBacktick(editor)
+
+    const session = createMarkdownSession(editor.state.doc)
+    const spans: string[] = []
+    session.tree.iterate({
+      enter: (node) => {
+        if (node.name === 'InlineCode') spans.push(session.text.slice(node.from, node.to))
+      }
+    })
+    expect(spans).toEqual([source(editor).slice(5)])
+    expect(selectedText(editor)).toBe(payload)
+
+    pressBacktick(editor)
+    expect(source(editor)).toBe(`text ${payload}`)
+    expect(selectedText(editor)).toBe(payload)
   })
 
   it('treats a selection that includes its backticks as styled', () => {

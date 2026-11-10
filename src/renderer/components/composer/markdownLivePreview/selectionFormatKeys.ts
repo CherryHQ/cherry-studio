@@ -4,13 +4,13 @@ import type { EditorView } from '@tiptap/pm/view'
 import { isMac } from '@renderer/utils/platform'
 
 import { isMarkdownFencedCodePosition } from './livePreviewPlugin'
-import { TOKEN_PLACEHOLDER } from './markdownSession'
+import { createMarkdownSession, TOKEN_PLACEHOLDER } from './markdownSession'
 
 /** Marker width per key. An asterisk run reads as a style mask: 1 italic, 2 bold, 3 both. */
 const MARKER_WIDTHS: Record<string, number> = { b: 2, i: 1 }
 const MARKER_RUNS = {
-  '*': { edges: /^(\**)[^*]+(\**)$/, before: /\**$/, after: /^\**/ },
-  '`': { edges: /^(`*)[^`]+(`*)$/, before: /`*$/, after: /^`*/ }
+  '*': /^\*+|\*+$/g,
+  '`': /^`+|`+$/g
 }
 const LINE_PREFIX = /^\s*(?:(?:#{1,6}|>|[-*+]|\d+[.)])\s+)*/
 
@@ -18,6 +18,7 @@ interface Segment {
   from: number
   to: number
   run: number
+  padding: number
 }
 
 const hasStyle = (run: number, width: number) => (run & width) !== 0
@@ -25,8 +26,9 @@ const hasStyle = (run: number, width: number) => (run & width) !== 0
 function readSegments(state: EditorState, character: keyof typeof MARKER_RUNS) {
   const { from, to } = state.selection
   const segments: Segment[] = []
+  const session = createMarkdownSession(state.doc)
 
-  state.doc.nodesBetween(from, to, (node, position) => {
+  state.doc.nodesBetween(from, to, (node, position, _parent, index) => {
     if (!node.isTextblock) return true
     const base = position + 1
     if (isMarkdownFencedCodePosition(state, base)) return false
@@ -38,16 +40,34 @@ function readSegments(state: EditorState, character: keyof typeof MARKER_RUNS) {
     let end = start + selected.trim().length
     if (start >= end) return false
 
-    // Markers at the selection's edges stay outside the text, as on inner lines after a multi-line toggle.
-    const edges = MARKER_RUNS[character].edges.exec(text.slice(start, end))
-    if (edges) {
-      start += edges[1].length
-      end -= edges[2].length
-    }
-
-    const runBefore = MARKER_RUNS[character].before.exec(text.slice(0, start))?.[0].length ?? 0
-    const runAfter = MARKER_RUNS[character].after.exec(text.slice(end))?.[0].length ?? 0
-    segments.push({ from: base + start, to: base + end, run: Math.min(runBefore, runAfter, 3) })
+    let run = 0
+    let padding = 0
+    const offset = session.lines[index].textFrom
+    session.tree.iterate({
+      from: offset + start,
+      to: offset + end,
+      enter: ({ node: syntax }) => {
+        const isStyle =
+          character === '`'
+            ? syntax.name === 'InlineCode'
+            : syntax.name === 'Emphasis' || syntax.name === 'StrongEmphasis'
+        if (!isStyle || run > 0) return
+        const marked = session.text.slice(syntax.from, syntax.to)
+        const edges = marked.match(MARKER_RUNS[character])
+        if (edges?.length !== 2) return
+        const width = Math.min(edges[0].length, edges[1].length, character === '*' ? 3 : Infinity)
+        const inner = marked.slice(width, -width)
+        const pad = character === '`' && inner.startsWith(' ') && inner.endsWith(' ') && inner.trim() ? 1 : 0
+        const contentFrom = syntax.from - offset + width + pad
+        const contentTo = syntax.to - offset - width - pad
+        if (start < syntax.from - offset || start > contentFrom || end < contentTo || end > syntax.to - offset) return
+        start = contentFrom
+        end = contentTo
+        run = width
+        padding = pad
+      }
+    })
+    segments.push({ from: base + start, to: base + end, run, padding })
     return false
   })
 
@@ -60,12 +80,20 @@ function toggleMarker(view: EditorView, character: keyof typeof MARKER_RUNS, wid
   const segments = readSegments(state, character)
   if (segments.length === 0) return false
 
-  const marker = character.repeat(width)
-  const removing = segments.every(({ run }) => hasStyle(run, width))
+  const isStyled = (run: number) => (character === '`' ? run > 0 : hasStyle(run, width))
+  const removing = segments.every(({ run }) => isStyled(run))
   const transaction = state.tr
-  for (const { from, to, run } of [...segments].reverse()) {
-    if (removing) transaction.delete(to, to + width).delete(from - width, from)
-    else if (!hasStyle(run, width)) transaction.insertText(marker, to).insertText(marker, from)
+  for (const { from, to, run, padding } of [...segments].reverse()) {
+    if (removing) {
+      const removeWidth = character === '`' ? run + padding : width
+      transaction.delete(to, to + removeWidth).delete(from - removeWidth, from)
+    } else if (!isStyled(run)) {
+      const text = state.doc.textBetween(from, to, undefined, TOKEN_PLACEHOLDER)
+      const codeWidth = Math.max(0, ...[...text.matchAll(/`+/g)].map(([match]) => match.length)) + 1
+      const marker = character.repeat(character === '`' ? codeWidth : width)
+      const pad = character === '`' && (text.startsWith('`') || text.endsWith('`')) ? ' ' : ''
+      transaction.insertText(pad + marker, to).insertText(marker + pad, from)
+    }
   }
 
   const selectionFrom = transaction.mapping.map(segments[0].from, 1)
