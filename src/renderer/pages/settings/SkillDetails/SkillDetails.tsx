@@ -251,7 +251,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
                 <FolderOpen size={14} />
                 {t('library.skill_detail.open_folder')}
               </DropdownMenuItem>
-              {skill.source === 'marketplace' ? (
+              {skill.source === 'marketplace' || skill.source === 'system' ? (
                 <DropdownMenuItem disabled={checkingRemote || applyingRemote} onSelect={() => void checkRemoteUpdate()}>
                   <RefreshCw className={checkingRemote ? 'animate-spin' : undefined} size={14} />
                   {checkingRemote ? t('settings.skills.remote.checking') : t('settings.skills.remote.check')}

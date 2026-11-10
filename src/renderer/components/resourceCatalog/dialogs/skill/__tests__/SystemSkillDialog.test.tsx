@@ -113,7 +113,8 @@ describe('SystemSkillDialog', () => {
     expect(screen.queryByRole('button', { name: 'common.refresh' })).not.toBeInTheDocument()
   })
 
-  it('shows an imported system skill as imported in skill management', () => {
+  it('offers re-import for an imported system skill in skill management', async () => {
+    const user = userEvent.setup()
     const registeredCandidate = { ...candidate, status: 'registered' as const, registeredSkillId: 'system-skill-id' }
     useSystemSkillsMock.mockReturnValue({
       skills: [registeredCandidate],
@@ -125,7 +126,13 @@ describe('SystemSkillDialog', () => {
 
     render(<SystemSkillDialog mode="manage" open onOpenChange={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: 'library.system_skill.imported' })).toBeDisabled()
+    const button = screen.getByRole('button', { name: 'library.system_skill.import' })
+    expect(button).toBeEnabled()
+
+    await user.click(button)
+
+    expect(importSkillMock).toHaveBeenCalledWith(registeredCandidate)
+    expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.import_success:System Skill')
   })
 
   it('enables an imported skill for a new agent without importing it again', async () => {

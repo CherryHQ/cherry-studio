@@ -140,18 +140,21 @@ function SystemSkillRow({
   const placementNames = Array.from(new Set(skill.placements.map((placement) => placement.sourceName))).join(', ')
   const imported = skill.status === 'registered'
   const enabled = mode === 'agent-create' && selected
-  const disabled = importing || skill.status === 'conflict' || (mode === 'manage' ? imported : enabled)
+  // An already-imported skill can be re-imported in place: the main process replaces the managed
+  // copy while keeping the skill id and agent enablement. Only a folder-name conflict is blocked.
+  const resync = imported && mode === 'manage'
+  const disabled = importing || skill.status === 'conflict' || (!resync && mode === 'agent-create' && enabled)
   const buttonLabel =
     skill.status === 'conflict'
       ? t('library.system_skill.conflict')
-      : skill.status === 'available'
+      : skill.status === 'available' || resync
         ? t('library.system_skill.import')
         : mode === 'manage'
           ? t('library.system_skill.imported')
           : enabled
             ? t('library.system_skill.enabled')
             : t('library.action.enable')
-  const onClick = skill.status === 'available' ? onImport : onEnable
+  const onClick = skill.status === 'available' || resync ? onImport : onEnable
 
   return (
     <div

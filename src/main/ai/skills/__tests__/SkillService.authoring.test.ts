@@ -1,6 +1,7 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -465,6 +466,107 @@ describe('SkillService authoring and remote updates', () => {
     fetchRemoteSkillMock.mockRejectedValue(new Error('offline'))
     await expect(service.checkRemoteUpdate(SKILL_ID)).rejects.toThrow('offline')
     await expect(fs.promises.readFile(path.join(oldSkillDir, 'SKILL.md'), 'utf-8')).resolves.toContain('version: 1.0.0')
+  })
+
+  it('checks and applies a system skill update from its file origin in place', async () => {
+    const originDir = path.join(root, 'origin', 'writer')
+    await writeSkill(originDir, { supportingContent: 'echo baseline\n' })
+    const canonicalOrigin = await fs.promises.realpath(originDir)
+    const installedDir = path.join(skillsRoot, 'writer')
+    await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
+    await seedSkill(SKILL_ID, 'writer', {
+      source: 'system',
+      sourceUrl: pathToFileURL(canonicalOrigin).href,
+      contentHash: await installer.computeContentHash(canonicalOrigin)
+    })
+    await dbh.db.insert(agentTable).values({
+      id: AGENT_ID,
+      type: 'claude-code',
+      name: 'Agent',
+      instructions: '',
+      model: null,
+      orderKey: 'a0'
+    })
+    await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID, isEnabled: true })
+    // Diverge the managed copy, then publish a new version at the source folder.
+    await fs.promises.writeFile(path.join(installedDir, 'scripts', 'run.sh'), 'echo local\n', 'utf-8')
+    await writeSkill(originDir, { version: '2.0.0', supportingContent: 'echo remote\n' })
+    const service = new SkillService()
+
+    const check = await service.checkRemoteUpdate(SKILL_ID)
+    expect(check).toMatchObject({ state: 'available', localChanges: true, remoteVersion: '2.0.0' })
+    if (check.state !== 'available') throw new Error('Expected an available update')
+
+    await expect(
+      service.applyRemoteUpdate({ skillId: SKILL_ID, revision: check.revision, overwriteLocalChanges: false })
+    ).rejects.toMatchObject({ code: skillErrorCodes.REMOTE_LOCAL_CHANGES })
+    await expect(fs.promises.readFile(path.join(installedDir, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo local\n'
+    )
+
+    const updated = await service.applyRemoteUpdate({
+      skillId: SKILL_ID,
+      revision: check.revision,
+      overwriteLocalChanges: true
+    })
+    expect(updated).toMatchObject({ id: SKILL_ID, source: 'system', version: '2.0.0' })
+    // Identity and per-agent enablement survive the update: no row is deleted or re-inserted.
+    expect(dbh.db.select().from(agentSkillTable).get()).toMatchObject({
+      agentId: AGENT_ID,
+      skillId: SKILL_ID,
+      isEnabled: true
+    })
+    await expect(fs.promises.readFile(path.join(installedDir, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo remote\n'
+    )
+    const row = dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, SKILL_ID)).get()
+    expect(row?.contentHash).toBe(await installer.computeContentHash(installedDir))
+    expect(fetchRemoteSkillMock).not.toHaveBeenCalled()
+  })
+
+  it('reports a system skill as up to date when its file origin matches the install baseline', async () => {
+    const originDir = path.join(root, 'origin', 'writer')
+    await writeSkill(originDir)
+    const canonicalOrigin = await fs.promises.realpath(originDir)
+    const installedDir = path.join(skillsRoot, 'writer')
+    await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
+    await seedSkill(SKILL_ID, 'writer', {
+      source: 'system',
+      sourceUrl: pathToFileURL(canonicalOrigin).href,
+      contentHash: await installer.computeContentHash(canonicalOrigin)
+    })
+
+    await expect(new SkillService().checkRemoteUpdate(SKILL_ID)).resolves.toMatchObject({
+      state: 'up_to_date',
+      localChanges: false,
+      remoteVersion: '1.0.0'
+    })
+    expect(fetchRemoteSkillMock).not.toHaveBeenCalled()
+  })
+
+  it('does not offer updates for system skills without file provenance or for local sources', async () => {
+    const skillDir = path.join(skillsRoot, 'writer')
+    await writeSkill(skillDir)
+    await seedSkill(SKILL_ID, 'writer', { source: 'system', sourceUrl: 'https://example.com/skills/writer' })
+    const service = new SkillService()
+
+    await expect(service.checkRemoteUpdate(SKILL_ID)).resolves.toEqual({
+      state: 'unsupported',
+      reason: 'missing_provenance'
+    })
+    await expect(
+      service.applyRemoteUpdate({ skillId: SKILL_ID, revision: 'unused', overwriteLocalChanges: false })
+    ).rejects.toMatchObject({ code: skillErrorCodes.REMOTE_UNSUPPORTED })
+
+    await dbh.db
+      .update(agentGlobalSkillTable)
+      .set({ source: 'local', sourceUrl: null })
+      .where(eq(agentGlobalSkillTable.id, SKILL_ID))
+    await expect(service.checkRemoteUpdate(SKILL_ID)).resolves.toEqual({
+      state: 'unsupported',
+      reason: 'not_remote'
+    })
+    expect(fetchRemoteSkillMock).not.toHaveBeenCalled()
   })
 
   it('does not offer remote updates for Clawhub provenance without a China-capable transport', async () => {

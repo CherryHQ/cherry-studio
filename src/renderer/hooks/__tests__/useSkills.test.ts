@@ -445,14 +445,29 @@ describe('useSystemSkills', () => {
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
-  it('does not re-import an already imported system skill', async () => {
+  it('re-syncs an already imported system skill in place', async () => {
     const registered = { ...candidate, status: 'registered' as const, registeredSkillId: 'system-skill-id' }
     discoverSystemSkillsMock.mockResolvedValue([registered])
     const { result } = renderHook(() => useSystemSkills())
     await waitFor(() => expect(result.current.skills).toEqual([registered]))
 
+    let installed: unknown
     await act(async () => {
-      await expect(result.current.importSkill(registered)).resolves.toBeNull()
+      installed = await result.current.importSkill(registered)
+    })
+
+    expect(importSystemSkillMock).toHaveBeenCalledWith({ directoryPath: registered.directoryPath })
+    expect(installed).toMatchObject({ id: 'system-skill-id' })
+  })
+
+  it('does not import a system skill whose folder name conflicts', async () => {
+    const conflicted = { ...candidate, status: 'conflict' as const }
+    discoverSystemSkillsMock.mockResolvedValue([conflicted])
+    const { result } = renderHook(() => useSystemSkills())
+    await waitFor(() => expect(result.current.skills).toEqual([conflicted]))
+
+    await act(async () => {
+      await expect(result.current.importSkill(conflicted)).resolves.toBeNull()
     })
 
     expect(importSystemSkillMock).not.toHaveBeenCalled()

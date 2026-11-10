@@ -881,16 +881,28 @@ describe('SkillService', () => {
       expect(await dbh.db.select().from(agentSkillTable)).toEqual([])
     })
 
-    it('does not overwrite the editable managed copy when the system skill is already imported', async () => {
+    it('re-syncs an already imported system skill in place without losing its id or agent enablement', async () => {
       const imported = await skillService.importSystem({ directoryPath: sourceSkillDir })
+      await dbh.db.insert(agentTable).values({
+        id: AGENT_ID,
+        type: 'claude-code',
+        name: 'Test Agent',
+        instructions: 'You are a helpful assistant.',
+        model: null,
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: imported.id, isEnabled: true })
       const managedSkillFile = path.join(dataSkillsRoot, 'large-skill', 'SKILL.md')
       await fs.promises.writeFile(managedSkillFile, '# Managed edit')
 
-      await expect(skillService.importSystem({ directoryPath: sourceSkillDir })).rejects.toThrow(
-        'System skill is already imported: large-skill'
-      )
-      await expect(fs.promises.readFile(managedSkillFile, 'utf-8')).resolves.toBe('# Managed edit')
+      const resynced = await skillService.importSystem({ directoryPath: sourceSkillDir })
+
+      expect(resynced.id).toBe(imported.id)
+      await expect(fs.promises.readFile(managedSkillFile, 'utf-8')).resolves.toBe('# Large skill')
       await expect(skillService.getById(imported.id)).resolves.toMatchObject({ id: imported.id })
+      expect(await dbh.db.select().from(agentSkillTable)).toEqual([
+        expect.objectContaining({ agentId: AGENT_ID, skillId: imported.id, isEnabled: true })
+      ])
     })
 
     it('uninstalls the managed copy without deleting the system source directory', async () => {

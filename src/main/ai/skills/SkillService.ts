@@ -30,6 +30,7 @@ import type {
 import type { MarketplaceInstallResult, MarketplaceSkillDetail } from '@shared/types/skillMarketplace'
 import { marketplaceSkillNamespace, marketplaceSkillSource } from '@shared/utils/cherrySkillMarketplace'
 import {
+  hasSkillLocalUpdateProvenance,
   hasSkillRemoteUpdateProvenance,
   isSkillDirectoryContentHash,
   parseSkillSourceUrl
@@ -526,11 +527,23 @@ export class SkillService {
     if (!candidate) {
       throw new Error(`Directory is not a discovered system skill: ${options.directoryPath}`)
     }
-    if (candidate.registeredSkillId) {
-      throw new Error(`System skill is already imported: ${candidate.filename}`)
-    }
     if (candidate.status === 'conflict') {
       throw new Error(`A different skill already uses the folder name: ${candidate.filename}`)
+    }
+    if (candidate.registeredSkillId) {
+      // Re-importing the same origin refreshes the managed copy in place so the skill id and every
+      // `agent_skill` row survive a source-folder change (no uninstall / fresh insert).
+      const resynced = await this.resyncSystemSkill(
+        candidate.registeredSkillId,
+        canonicalPath,
+        candidate.placements[0]?.sourceId ?? null
+      )
+      logger.info('System skill re-synced from local CLI', {
+        skillId: resynced.id,
+        folderName: resynced.folderName,
+        directoryPath: canonicalPath
+      })
+      return resynced
     }
 
     const installed = await this.installSkillDir(canonicalPath, 'system', pathToFileURL(canonicalPath).href, {
@@ -543,6 +556,94 @@ export class SkillService {
       directoryPath: canonicalPath
     })
     return installed
+  }
+
+  /**
+   * Re-read a system skill's source folder and replace the managed copy in place.
+   * The skill id (and therefore every `agent_skill` row) is preserved; only files,
+   * projected metadata and the install baseline change. An explicit user action, so
+   * managed-copy edits are unconditionally replaced by the source folder.
+   */
+  private resyncSystemSkill(skillId: string, canonicalPath: string, namespace: string | null): Promise<InstalledSkill> {
+    // Serialized like every other library mutation so reconcile can't observe a half-copied state.
+    return this.mutationLock.runExclusive(() => this.resyncSystemSkillLocked(skillId, canonicalPath, namespace))
+  }
+
+  private async resyncSystemSkillLocked(
+    skillId: string,
+    canonicalPath: string,
+    namespace: string | null
+  ): Promise<InstalledSkill> {
+    const skill = agentGlobalSkillService.getById(skillId)
+    if (!skill) throw new Error(`Skill not found: ${skillId}`)
+    if (skill.source !== 'system') {
+      throw new Error(`Skill is not a system skill: ${skill.folderName}`)
+    }
+    // The caller resolved this path through `discoverSystem`, which already excluded the managed
+    // library and mirror roots. Re-verify the persisted origin still points at the same directory
+    // so a stale row cannot be hijacked into overwriting an unrelated folder.
+    if (skill.sourceUrl) {
+      try {
+        const persistedPath = await fs.promises.realpath(fileURLToPath(skill.sourceUrl))
+        if (persistedPath !== canonicalPath) {
+          throw new Error(`System skill source changed: ${skill.folderName}`)
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('System skill source changed')) throw error
+        throw new Error(`System skill source is unavailable: ${skill.folderName}`)
+      }
+    }
+    await this.assertLocalUpdateSourceInBounds(canonicalPath)
+
+    const metadata = await parseSkillMetadata(canonicalPath, path.basename(canonicalPath), 'skills')
+    const contentHash = await this.installer.computeContentHash(canonicalPath)
+    const destPath = this.getSkillStoragePath(skill.folderName)
+    await this.installer.install(canonicalPath, destPath)
+
+    const sourceUrl = pathToFileURL(canonicalPath).href
+    application.get('DbService').withWriteTx((tx) => {
+      agentGlobalSkillService.updateTx(tx, skillId, {
+        name: metadata.name,
+        description: metadata.description ?? null,
+        author: metadata.author ?? null,
+        version: metadata.version ?? null,
+        tags: metadata.tags ?? [],
+        contentHash,
+        sourceUrl,
+        namespace: namespace ?? skill.namespace
+      })
+    })
+    await this.linkMirror(skill.folderName, { throwOnError: true })
+    const updated = agentGlobalSkillService.getById(skillId)
+    if (!updated) throw new Error(`Skill disappeared after re-sync: ${skillId}`)
+    agentGlobalSkillService.notifySkillProjectionChange(skillId)
+    return updated
+  }
+
+  /** A local `file:` update source must be a real directory outside the managed roots. */
+  private async assertLocalUpdateSourceInBounds(canonicalPath: string): Promise<void> {
+    const managedRoot = path.resolve(application.getPath('feature.agents.skills'))
+    const mirrorRoot = path.resolve(this.getMirrorRoot())
+    if (
+      canonicalPath === managedRoot ||
+      isPathInside(canonicalPath, managedRoot) ||
+      canonicalPath === mirrorRoot ||
+      isPathInside(canonicalPath, mirrorRoot)
+    ) {
+      throw new SkillRemoteUpdateError(
+        skillErrorCodes.REMOTE_UNSUPPORTED,
+        'System skill source must live outside the managed skill library'
+      )
+    }
+    let stats: fs.Stats
+    try {
+      stats = await fs.promises.stat(canonicalPath)
+    } catch {
+      throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'System skill source is unavailable')
+    }
+    if (!stats.isDirectory()) {
+      throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'System skill source is not a directory')
+    }
   }
 
   /**
@@ -1029,12 +1130,14 @@ export class SkillService {
   async checkRemoteUpdate(skillId: string): Promise<SkillRemoteUpdateCheck> {
     const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) throw new Error(`Skill not found: ${skillId}`)
-    if (skill.source !== 'marketplace') return { state: 'unsupported', reason: 'not_remote' }
-    if (!this.hasSupportedRemoteUpdateProvenance(skill)) {
+    if (skill.source !== 'marketplace' && skill.source !== 'system') {
+      return { state: 'unsupported', reason: 'not_remote' }
+    }
+    if (!this.hasSupportedSkillUpdateProvenance(skill)) {
       return { state: 'unsupported', reason: 'missing_provenance' }
     }
 
-    const fetched = await this.fetchRemote(skill.sourceUrl!)
+    const fetched = await this.fetchUpdateSource(skill)
     try {
       const [currentHash, remoteHash, metadata] = await Promise.all([
         this.installer.computeContentHash(this.getSkillStoragePath(skill.folderName)),
@@ -1058,7 +1161,7 @@ export class SkillService {
         })
       }
     } finally {
-      await safeRemoveDirectory(fetched.tempDir)
+      if (fetched.tempDir) await safeRemoveDirectory(fetched.tempDir)
     }
   }
 
@@ -1069,11 +1172,11 @@ export class SkillService {
   }): Promise<InstalledSkill> {
     const skill = agentGlobalSkillService.getById(options.skillId)
     if (!skill) throw new Error(`Skill not found: ${options.skillId}`)
-    if (!this.hasSupportedRemoteUpdateProvenance(skill)) {
+    if (!this.hasSupportedSkillUpdateProvenance(skill)) {
       throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'Skill has no supported remote source')
     }
 
-    const fetched = await this.fetchRemote(skill.sourceUrl!)
+    const fetched = await this.fetchUpdateSource(skill)
     try {
       const [remoteHash, metadata] = await Promise.all([
         this.installer.computeContentHash(fetched.skillDir),
@@ -1085,7 +1188,7 @@ export class SkillService {
           const currentSkill = agentGlobalSkillService.getById(options.skillId)
           if (
             !currentSkill ||
-            !this.hasSupportedRemoteUpdateProvenance(currentSkill) ||
+            !this.hasSupportedSkillUpdateProvenance(currentSkill) ||
             currentSkill.sourceUrl !== skill.sourceUrl ||
             currentSkill.contentHash !== skill.contentHash
           ) {
@@ -1174,8 +1277,37 @@ export class SkillService {
         })
       )
     } finally {
-      await safeRemoveDirectory(fetched.tempDir)
+      if (fetched.tempDir) await safeRemoveDirectory(fetched.tempDir)
     }
+  }
+
+  /** Resolve the update source for either a marketplace fetch or a local `file:` directory. */
+  private fetchUpdateSource(
+    skill: InstalledSkill
+  ): Promise<{ skillDir: string; tempDir: string | null; sourceUrl: string }> {
+    if (skill.source === 'system') return this.fetchLocalSkill(skill.sourceUrl!)
+    return this.fetchRemote(skill.sourceUrl!)
+  }
+
+  /**
+   * Re-read a system skill's `file:` origin without cloning or downloading. The returned directory
+   * is the canonical source path itself (never a temp copy), so callers must not remove it.
+   */
+  private async fetchLocalSkill(sourceUrl: string): Promise<{ skillDir: string; tempDir: null; sourceUrl: string }> {
+    let sourcePath: string
+    try {
+      sourcePath = fileURLToPath(sourceUrl)
+    } catch {
+      throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'Skill source URL is not installable')
+    }
+    let canonicalPath: string
+    try {
+      canonicalPath = await fs.promises.realpath(sourcePath)
+    } catch {
+      throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'System skill source is unavailable')
+    }
+    await this.assertLocalUpdateSourceInBounds(canonicalPath)
+    return { skillDir: canonicalPath, tempDir: null, sourceUrl: pathToFileURL(canonicalPath).href }
   }
 
   private fetchRemote(sourceUrl: string) {
@@ -1188,9 +1320,14 @@ export class SkillService {
     return fetchRemoteSkill(source, identifier.join(':'))
   }
 
-  private hasSupportedRemoteUpdateProvenance(skill: InstalledSkill): boolean {
+  private hasSupportedSkillUpdateProvenance(skill: InstalledSkill): boolean {
+    if (skill.source === 'system') return hasSkillLocalUpdateProvenance(skill)
     if (!hasSkillRemoteUpdateProvenance(skill)) return false
     return parseSkillSourceUrl(skill.sourceUrl!)?.sourceRegistry !== 'clawhub.ai'
+  }
+
+  private hasSupportedRemoteUpdateProvenance(skill: InstalledSkill): boolean {
+    return this.hasSupportedSkillUpdateProvenance(skill)
   }
 
   private createRemoteRevision(input: {
