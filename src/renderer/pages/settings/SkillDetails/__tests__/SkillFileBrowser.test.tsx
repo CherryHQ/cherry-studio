@@ -225,7 +225,7 @@ describe('SkillFileBrowser', () => {
     renderBrowser()
 
     expect(screen.getByText('library.skill_detail.file_load_failed')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
     expect(screen.queryByText('tree exploded')).not.toBeInTheDocument()
     expect(screen.queryByText('library.skill_detail.no_files')).not.toBeInTheDocument()
   })
@@ -238,7 +238,7 @@ describe('SkillFileBrowser', () => {
     renderBrowser('read_write')
 
     await waitFor(() => expect(screen.getByText('settings.skills.editor.loadFailed')).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
     expect(screen.queryByText('unreadable')).not.toBeInTheDocument()
   })
 
@@ -313,7 +313,7 @@ describe('SkillFileBrowser', () => {
 
       expect(screen.getByRole('textbox', { name: 'code-editor' })).toHaveValue('# Draft stays')
       expect(screen.getByText('settings.skills.editor.saveFailed')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
       expect(screen.queryByText('disk full')).not.toBeInTheDocument()
     } finally {
       vi.useRealTimers()
@@ -391,7 +391,7 @@ describe('SkillFileBrowser', () => {
       })
 
       expect(screen.getByText('settings.skills.editor.syncFailed')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'common.retry' })).toBeInTheDocument()
       expect(screen.queryByText('mirror unavailable')).not.toBeInTheDocument()
       let shouldBlock = false
@@ -439,7 +439,7 @@ describe('SkillFileBrowser', () => {
     })
     expect(screen.getByText('settings.skills.editor.conflict')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.skills.editor.keepDraft' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'settings.skills.editor.keepDraft' }))

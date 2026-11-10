@@ -77,7 +77,7 @@ describe('channel login error details', () => {
     emit('channel.feishu.qr_login', { channelId: 'feishu-1', status: 'error' })
     emit('channel.wechat.qr_login', { channelId: 'wechat-1', status: 'error' })
 
-    const buttons = screen.getAllByRole('button', { name: 'error.details' })
+    const buttons = screen.getAllByRole('button', { name: 'common.detail' })
     expect(screen.getAllByText('agent.channels.error')).toHaveLength(2)
     expect(screen.queryByText('old feishu connection')).not.toBeInTheDocument()
     expect(screen.queryByText('old wechat connection')).not.toBeInTheDocument()
@@ -101,7 +101,7 @@ describe('channel login error details', () => {
 
     detailMocks.open.mockClear()
     emit('channel.feishu.qr_login', { channelId: 'feishu-1', status: 'error' })
-    fireEvent.click(screen.getAllByRole('button', { name: 'error.details' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.detail' })[0])
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     const again = detailMocks.open.mock.calls.at(-1)?.[0]
     expect(again.context?.recordId ?? again.recordId).toBe('feishu-1')
@@ -113,7 +113,7 @@ describe('channel login error details', () => {
   it('does not invent a cause when the QR event has none and skips expired status', async () => {
     render(<FeishuForm channel={channel('feishu-2', 'feishu')} onConfigChange={vi.fn()} />)
     emit('channel.feishu.qr_login', { channelId: 'feishu-2', status: 'error' })
-    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     const opened = detailMocks.open.mock.calls.at(-1)?.[0]
     expect(opened.localizedErrorMessage).toBe('agent.channels.error')
@@ -128,6 +128,6 @@ describe('channel login error details', () => {
     expect(opened.context.stack).toBeUndefined()
 
     emit('channel.feishu.qr_login', { channelId: 'feishu-2', status: 'expired' })
-    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
   })
 })

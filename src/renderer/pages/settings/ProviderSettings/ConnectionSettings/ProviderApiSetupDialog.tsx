@@ -1,14 +1,4 @@
-import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle2,
-  Circle,
-  CircleAlert,
-  CircleX,
-  Eye,
-  EyeOff,
-  LoaderCircle
-} from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Circle, CircleAlert, CircleX, Eye, EyeOff, LoaderCircle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,6 +15,7 @@ import {
 } from '@cherrystudio/ui'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import type { SerializedError } from '@renderer/types/error'
@@ -654,16 +645,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
               )}
 
               {error && !hasBlockingModelError ? (
-                <SetupErrorMessage
-                  diagnostic={error.diagnostic}
-                  message={error.message}
-                  providerId={providerId}
-                  className={
-                    error.kind === 'models'
-                      ? 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
-                      : undefined
-                  }
-                />
+                <SetupErrorMessage diagnostic={error.diagnostic} message={error.message} providerId={providerId} />
               ) : null}
             </div>
           ) : (
@@ -863,32 +845,27 @@ function VerificationProgressRow({
 function SetupErrorMessage({
   diagnostic,
   message,
-  providerId,
-  className
+  providerId
 }: {
   diagnostic?: SerializedError
   message: string
   providerId: string
-  className?: string
 }) {
   return (
-    <div
-      role="alert"
-      className={cn(
-        'flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-destructive text-xs leading-5',
-        className
-      )}>
-      <AlertCircle size={15} className="mt-0.5 shrink-0" />
-      <span className="min-w-0 flex-1 break-words">{message}</span>
-      {diagnostic ? (
-        <ErrorDetailAction
-          error={diagnostic}
-          message={message}
-          operation="provider.setup"
-          providerId={providerId}
-          source="settings.provider"
-        />
-      ) : null}
-    </div>
+    <ErrorNotice
+      variant="inline"
+      title={message}
+      detail={
+        diagnostic ? (
+          <ErrorDetailAction
+            error={diagnostic}
+            message={message}
+            operation="provider.setup"
+            providerId={providerId}
+            source="settings.provider"
+          />
+        ) : undefined
+      }
+    />
   )
 }

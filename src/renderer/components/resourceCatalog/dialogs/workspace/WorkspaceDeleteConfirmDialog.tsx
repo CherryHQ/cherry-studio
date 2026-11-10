@@ -14,6 +14,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
@@ -155,12 +156,11 @@ export function WorkspaceDeleteConfirmDialog({
         </div>
       ) : null}
       {referencesError ? (
-        <div className="flex items-center justify-between gap-3 rounded-lg bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs">
-          <span className="flex min-w-0 items-center gap-2">
-            <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />
-            {t('agent.session.workdir.delete.preview_failed')}
-          </span>
-          <span className="flex shrink-0 items-center gap-1">
+        <ErrorNotice
+          variant="inline"
+          title={t('agent.session.workdir.delete.preview_failed')}
+          action={{ label: t('common.retry'), onClick: () => void refetchReferences() }}
+          detail={
             <ErrorDetailAction
               error={referencesError}
               message={t('agent.session.workdir.delete.preview_failed')}
@@ -168,11 +168,8 @@ export function WorkspaceDeleteConfirmDialog({
               operation="workspace.references"
               recordId={workspace.id}
             />
-            <Button variant="ghost" size="sm" onClick={() => void refetchReferences()}>
-              {t('common.retry')}
-            </Button>
-          </span>
-        </div>
+          }
+        />
       ) : null}
       <ImpactSection
         title={t('agent.session.workdir.delete.sessions_title')}
@@ -215,6 +212,9 @@ export function WorkspaceDeleteConfirmDialog({
         <>
           <TriangleAlert aria-hidden="true" className="size-3.5" />
           <span>{t('agent.session.workdir.delete.preview_failed')}</span>
+          <Button variant="ghost" size="sm" onClick={() => void refetchReferences()}>
+            {t('common.retry')}
+          </Button>
           <ErrorDetailAction
             error={referencesError}
             message={t('agent.session.workdir.delete.preview_failed')}
@@ -222,9 +222,6 @@ export function WorkspaceDeleteConfirmDialog({
             operation="workspace.references"
             recordId={workspace.id}
           />
-          <Button variant="ghost" size="sm" onClick={() => void refetchReferences()}>
-            {t('common.retry')}
-          </Button>
         </>
       ) : (
         <>

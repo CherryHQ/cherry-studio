@@ -160,15 +160,15 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
         {(actionError || historyError) && (
           <div role="alert" className="flex items-center gap-2 text-error text-sm">
             <span>{t('settings.browser.error')}</span>
+            <Button variant="ghost" onClick={() => void run(refetch)}>
+              {t('common.refresh')}
+            </Button>
             <ErrorDetailAction
               error={actionError ?? historyError}
               message={t('settings.browser.error')}
               source="settings.browser"
               operation={actionError ? 'browser.history.action' : 'browser.history.load'}
             />
-            <Button variant="ghost" onClick={() => void run(refetch)}>
-              {t('common.refresh')}
-            </Button>
           </div>
         )}
       </div>
