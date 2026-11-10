@@ -5,11 +5,10 @@ import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
+import { Alert, Button, Flex, Form, ScrollArea, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
@@ -201,6 +200,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       await fetchServerVersion()
     } catch (error) {
       logger.warn('MCP server retry failed', { error })
+      toast.errorFromException(error, { category: 'mcp', mcpServer: server })
     } finally {
       setLoadingServer(null)
     }
@@ -223,7 +223,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       unsubscribe()
       void ipcApi.request('mcp.request.cancel', { requestId }).catch(() => undefined)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Effect events read current values without resubscribing.
   }, [serverId, server.isActive])
 
   useEffect(() => {
@@ -286,11 +285,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          void popup.error({
-            title: t('settings.mcp.updateError'),
-            content: error.message,
-            centered: true
-          })
+          toast.errorFromException(error, { category: 'mcp', mcpServer: server })
         }
       } else {
         await updateMcpServer({ body: { ...mcpServerDto, isActive: false } })
@@ -422,7 +417,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     })
 
     autoEnableProtocolServer()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest server and toggle handler without resubscribing.
   }, [navigate, search.autoEnable, server])
 
   // Handle toggling a tool on/off
@@ -530,14 +524,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   if (server.isActive) {
     tabs.push({
-      key: 'instructions',
-      label: t('settings.mcp.instructions.title'),
-      children:
-        activeTab === 'instructions' ? (
-          <McpInstructions key={server.id} serverId={server.id} connectionState={runtimeStatus.state} />
-        ) : null
-    })
-    tabs.push({
       key: 'tools',
       label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
       children: (
@@ -584,6 +570,15 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         )
       }
     )
+
+    tabs.push({
+      key: 'instructions',
+      label: t('settings.mcp.instructions.title'),
+      children:
+        activeTab === 'instructions' ? (
+          <McpInstructions key={server.id} serverId={server.id} connectionState={runtimeStatus.state} />
+        ) : null
+    })
   }
 
   tabs.push({
@@ -605,7 +600,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           onValueChange={(value) => setActiveTab(value as TabKey)}
           variant="line"
           className="flex min-h-0 flex-1 flex-col bg-transparent">
-          <div className="shrink-0 px-6 pt-2">
+          <div className="shrink-0 px-6 pt-4">
             <div className="mx-auto w-full max-w-3xl">
               <SettingTitle className="min-w-0 flex-wrap gap-2">
                 <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -684,7 +679,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
               </div>
             </div>
           </div>
-          <Scrollbar className="min-h-0 flex-1 px-6 pt-2 pb-6">
+          <ScrollArea viewportProps={{ className: 'px-6 pt-2 pb-6' }} className="min-h-0 flex-1">
             <div className="mx-auto w-full max-w-3xl">
               {tabs.map((tab) => (
                 <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">
@@ -692,7 +687,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
                 </TabsContent>
               ))}
             </div>
-          </Scrollbar>
+          </ScrollArea>
           {activeTabValue === 'settings' && (
             <div className="flex min-h-14 shrink-0 items-center border-border-subtle border-t px-6">
               <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">

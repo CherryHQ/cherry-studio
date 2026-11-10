@@ -10,6 +10,7 @@ import { prepareEntityImageBytes } from '@renderer/utils/image'
 import { uuid } from '@renderer/utils/uuid'
 import type { EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, EndpointConfig, Provider } from '@shared/data/types/provider'
+import type { ProviderBilling } from '@shared/data/types/providerBilling'
 
 const logger = loggerService.withContext('useProviderEditor')
 
@@ -52,6 +53,7 @@ export type SubmitProviderEditorParams =
       presetProviderId?: string
       authConfig?: AuthConfig
       apiKeys?: ApiKeyEntry[]
+      billing?: ProviderBilling
       /** Logo for the new provider (preset key inline; an upload via the command). */
       logo?: ProviderLogoEdit
     }
@@ -147,6 +149,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         ...(params.endpointConfigs ? { endpointConfigs: params.endpointConfigs } : {}),
         ...(params.authConfig ? { authConfig: params.authConfig } : {}),
         ...(params.apiKeys && params.apiKeys.length > 0 ? { apiKeys: params.apiKeys } : {}),
+        ...(params.billing ? { providerSettings: { billing: params.billing } } : {}),
         // Preset-key logo persists atomically with the row; an upload is applied
         // via the command below. A `clear` on create is a no-op (default icon).
         ...(params.logo?.kind === 'key' ? { logo: { kind: 'key', key: params.logo.key } } : {})

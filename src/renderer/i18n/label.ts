@@ -50,6 +50,7 @@ const providerKeyMap = {
   infini: 'provider.infini',
   jina: 'provider.jina',
   lanyun: 'provider.lanyun',
+  litellm: 'provider.litellm',
   lmstudio: 'provider.lmstudio',
   minimax: 'provider.minimax',
   mistral: 'provider.mistral',
@@ -69,6 +70,7 @@ const providerKeyMap = {
   ph8: 'provider.ph8',
   ppio: 'provider.ppio',
   qiniu: 'provider.qiniu',
+  qwencloud: 'provider.qwencloud',
   qwenlm: 'provider.qwenlm',
   'radeon-cloud': 'provider.radeon-cloud',
   silicon: 'provider.silicon',
@@ -197,9 +199,11 @@ export const getThemeModeLabelKey = (key: string): string => {
 }
 
 const sidebarIconKeyMap = {
+  scheduled_tasks: 'settings.scheduledTasks.title',
   assistants: 'title.chat',
   agents: 'title.work',
   paintings: 'title.paintings',
+  marketplace: 'title.marketplace',
   translate: 'translate.title',
   mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',
@@ -216,6 +220,7 @@ export const getSidebarIconLabelKey = (key: string): string => {
 // the old one, but main's `components/app/Sidebar` still calls it. Kept until the
 // chat carve brings feat's Sidebar; remove together with that.
 const sidebarFavoriteKeyMap = {
+  scheduled_tasks: 'settings.scheduledTasks.title',
   assistants: 'assistants.title',
   agents: 'title.work',
   store: 'assistants.presets.title',

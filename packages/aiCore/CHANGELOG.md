@@ -1,5 +1,80 @@
 # @cherrystudio/ai-core
 
+## 2.4.8
+
+### Patch Changes
+
+- [#23678](https://github.com/CherryHQ/cherry-studio/pull/23678) [`b027c45`](https://github.com/CherryHQ/cherry-studio/commit/b027c45369c18d6775b907ea8100c3868a652e73) Thanks [@ousugo](https://github.com/ousugo)! - Require the AI SDK 6-compatible OpenAI adapter with GPT Image 2.6 complexity and animated GIF generation options.
+- Updated dependencies [[`b027c45`](https://github.com/CherryHQ/cherry-studio/commit/b027c45369c18d6775b907ea8100c3868a652e73)]:
+  - @cherrystudio/ai-sdk-provider@0.1.11
+
+## 2.4.7
+
+### Patch Changes
+
+- [#23893](https://github.com/CherryHQ/cherry-studio/pull/23893) [`02f8389`](https://github.com/CherryHQ/cherry-studio/commit/02f8389bd4f94602a5d701dd8eacf9809b160d49) Thanks [@kovsu](https://github.com/kovsu)! - Drop the unused `@ai-sdk/provider-utils` runtime dependency.
+
+## 2.4.6
+
+### Patch Changes
+
+- [#23793](https://github.com/CherryHQ/cherry-studio/pull/23793) [`354ca0c`](https://github.com/CherryHQ/cherry-studio/commit/354ca0cb88fb0e8ed34d64b28568abc7fb73e4ce) Thanks [@404-Page-Found](https://github.com/404-Page-Found)! - Assign the resolved model to `context.model` in the non-streaming text and image paths, so plugins observe the same resolved model there as they do in the streaming path.
+
+## 2.4.5
+
+### Patch Changes
+
+- [#23471](https://github.com/CherryHQ/cherry-studio/pull/23471) [`e19a772`](https://github.com/CherryHQ/cherry-studio/commit/e19a772a0620902507fd844f163b122c93512a48) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Discover OpenRouter reranking models and rerank through the OpenRouter provider: the model list now reads the rerank catalog (`?output_modalities=rerank`) and marks those models as rerank-capable, and the OpenRouter extension now provides a reranking model so the connection check reaches `POST /api/v1/rerank` instead of failing with `No such rerankingModel`.
+
+## 2.4.4
+
+### Patch Changes
+
+- Updated dependencies [[`1ad6b7f`](https://github.com/CherryHQ/cherry-studio/commit/1ad6b7f56a8735111641a05005f234b44d8bfcae)]:
+  - @cherrystudio/ai-sdk-provider@0.1.10
+
+## 2.4.3
+
+### Patch Changes
+
+- [#23014](https://github.com/CherryHQ/cherry-studio/pull/23014) [`da43afa`](https://github.com/CherryHQ/cherry-studio/commit/da43afa57cd2456838c3692bbccc85b69ab85812) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Fix the Azure OpenAI chat-mode extension crashing on native web search: the `customProvider` wrapper returned by `AzureExtension.create` now carries the SDK provider's `tools`, so `toolFactories.webSearch` no longer dereferences `provider.tools.webSearchPreview` on `undefined`.
+
+## 2.4.2
+
+### Patch Changes
+
+- Updated dependencies [[`9fb431d`](https://github.com/CherryHQ/cherry-studio/commit/9fb431de1807b6182b7b6bced728eb634444aa03)]:
+  - @cherrystudio/ai-sdk-provider@0.1.9
+
+## 2.4.1
+
+### Patch Changes
+
+- [#20281](https://github.com/CherryHQ/cherry-studio/pull/20281) [`efa7600`](https://github.com/CherryHQ/cherry-studio/commit/efa760045a932ba7c709112839d7036977d5d227) Thanks [@Dante-dan](https://github.com/Dante-dan)! - Restore tool result names from their originating tool calls when rebuilding saved conversation history.
+
+## 2.4.0
+
+### Minor Changes
+
+- [#20746](https://github.com/CherryHQ/cherry-studio/pull/20746) [`0b625df`](https://github.com/CherryHQ/cherry-studio/commit/0b625dfe8c5a28e6ea75701f110003b3692f206d) Thanks [@AtomsH4](https://github.com/AtomsH4)! - Add one-shot speech generation and transcription operations for resolved V3 models, with explicit cancellation, no implicit provider resolution or retries, WAV speech output, and result metadata limited to audio or transcripts.
+
+## 2.3.0
+
+### Minor Changes
+
+- [#21625](https://github.com/CherryHQ/cherry-studio/pull/21625) [`7a7a424`](https://github.com/CherryHQ/cherry-studio/commit/7a7a4247185a8187e54bb09b77f407bd0c04981c) Thanks [@DeJeune](https://github.com/DeJeune)! - Support Gemini 4 Argon with the updated Google adapter and model catalog. Export context usage helpers that exclude repeated continuation prompts from context occupancy while preserving billed token counts, and allow catalog generation to refresh selected models.
+
+### Patch Changes
+
+- Updated dependencies [[`7a7a424`](https://github.com/CherryHQ/cherry-studio/commit/7a7a4247185a8187e54bb09b77f407bd0c04981c)]:
+  - @cherrystudio/ai-sdk-provider@0.1.8
+
+## 2.2.0
+
+### Minor Changes
+
+- [#21498](https://github.com/CherryHQ/cherry-studio/pull/21498) [`59e7814`](https://github.com/CherryHQ/cherry-studio/commit/59e7814354c96c24aa29ce01de4f624f491d4e95) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Add an optional `onProviderCallStart` callback to capture request-specific context before each image, embedding, or reranking provider invocation, including SDK retries and batches. Preserve unobserved reranking models and isolate observation failures from successful AI results.
+
 ## 2.1.1
 
 ### Patch Changes

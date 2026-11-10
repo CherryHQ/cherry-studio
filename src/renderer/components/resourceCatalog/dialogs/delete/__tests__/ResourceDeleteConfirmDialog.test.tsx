@@ -1,6 +1,8 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
@@ -116,8 +118,12 @@ function createResource(type: ResourceItem['type']): ResourceItem {
 }
 
 describe('ResourceDeleteConfirmDialog', () => {
+  afterEach(() => vi.restoreAllMocks())
+
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('assistant.archive.related_topics', false)
     mocks.deleteAssistant.mockResolvedValue({ deleted: true, deletedTopicIds: ['topic-1'] })
     mocks.getActiveResource.mockResolvedValue({ id: 'active-resource' })
     mocks.deletePrompt.mockResolvedValue(undefined)
@@ -135,6 +141,44 @@ describe('ResourceDeleteConfirmDialog', () => {
 
     expect(container).toBeEmptyDOMElement()
   })
+
+  it.each(['agent', 'skill'] as const)(
+    'does not delete a %s when Enter follows Escape during the exit animation',
+    async (type) => {
+      const user = userEvent.setup()
+      // Supply animation styles because JSDOM does not run the application's CSS.
+      const getComputedStyle = window.getComputedStyle
+      vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+        const styles = getComputedStyle(element)
+        return new Proxy(styles, {
+          get(target, property, receiver) {
+            if (property === 'animationName') return element.getAttribute('data-state') === 'closed' ? 'exit' : 'enter'
+            if (property === 'display') return 'grid'
+            return Reflect.get(target, property, receiver)
+          }
+        })
+      })
+      function Harness() {
+        const [resource, setResource] = useState<ResourceItem | null>(() => createResource(type))
+        return <ResourceDeleteConfirmDialog resource={resource} onClose={() => setResource(null)} />
+      }
+
+      render(<Harness />)
+      const dialog = screen.getByRole('dialog')
+      const confirm = screen.getByRole('button', { name: type === 'agent' ? 'Archive' : 'Uninstall' })
+      await user.tab()
+      if (type === 'agent') await user.tab()
+      expect(confirm).toHaveFocus()
+      await user.keyboard('{Escape}')
+
+      expect(dialog).toBeInTheDocument()
+      expect(dialog).toHaveAttribute('data-state', 'closed')
+      expect(confirm).toHaveFocus()
+      await user.keyboard('{Enter}')
+      expect(mocks.ipcRequest).not.toHaveBeenCalled()
+      expect(mocks.uninstallSkill).not.toHaveBeenCalled()
+    }
+  )
 
   it('moves an Agent without its Sessions by default and offers a refreshing Undo', async () => {
     const user = userEvent.setup()
@@ -215,7 +259,14 @@ describe('ResourceDeleteConfirmDialog', () => {
     const user = userEvent.setup()
     mocks.deleteAssistant.mockResolvedValueOnce({ deleted: true, deletedTopicIds: [] })
 
-    render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
+    const resource = createResource('assistant')
+    const onClose = vi.fn()
+    const { rerender } = render(<ResourceDeleteConfirmDialog resource={resource} onClose={onClose} />)
+    expect(screen.getByLabelText('Also archive related topics')).not.toBeChecked()
+    await user.click(screen.getByLabelText('Also archive related topics'))
+    rerender(<ResourceDeleteConfirmDialog resource={resource} onClose={onClose} />)
+    await user.click(screen.getByLabelText('Also archive related topics'))
+    rerender(<ResourceDeleteConfirmDialog resource={resource} onClose={onClose} />)
     await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: false }))
@@ -235,9 +286,12 @@ describe('ResourceDeleteConfirmDialog', () => {
   it('moves only the returned Assistant Topics when cascade is selected', async () => {
     const user = userEvent.setup()
 
-    render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
+    const resource = createResource('assistant')
+    const onClose = vi.fn()
+    const { rerender } = render(<ResourceDeleteConfirmDialog resource={resource} onClose={onClose} />)
 
     await user.click(screen.getByLabelText('Also archive related topics'))
+    rerender(<ResourceDeleteConfirmDialog resource={resource} onClose={onClose} />)
     await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: true }))

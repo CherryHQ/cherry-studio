@@ -310,6 +310,9 @@
   /* Cherry Studio Product Colors */
   /* ==================== */
   --color-background-subtle: var(--background-subtle);
+  --color-chat-message-well: var(--chat-message-well);
+  --color-chat-message-well-solid: var(--chat-message-well-solid);
+  --color-composer-surface: var(--composer-surface);
   --color-foreground-tertiary: var(--foreground-tertiary);
   --color-foreground-disabled: var(--foreground-disabled);
   --color-border-subtle: var(--border-subtle);

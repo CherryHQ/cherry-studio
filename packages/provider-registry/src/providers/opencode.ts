@@ -2,7 +2,7 @@ import type { ReasoningEffort } from '../schemas/enums'
 import type { ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
-import { defineProvider } from './types'
+import { defineProvider, type ProviderModelTemplate } from './types'
 import { modeWire, openaiResponsesSummaryWire } from './wires'
 
 const fixedSupport: ReasoningSupport = { controls: [] }
@@ -67,6 +67,7 @@ const chatEffortModels: Array<{
   },
   { modelId: 'hy3', values: ['none', 'low', 'high'] },
   { modelId: 'kimi-k3', values: ['max'] },
+  { modelId: 'minimax-m3-1-flash', values: ['low', 'medium', 'high', 'xhigh', 'max'], defaultEffort: 'max' },
   // Stealth model, no creator entry: models.dev routes it through `@ai-sdk/openai-compatible`
   // and prints an effort ladder, so pin chat/completions rather than let it fall back unpinned.
   { modelId: 'ox-alpha', values: ['low', 'high', 'max'] },
@@ -85,7 +86,7 @@ const qwenBudgetModels = [
   { max: 262_144, modelId: 'qwen3-8-max' }
 ]
 
-const endpointOverrides: Partial<ProviderModelOverride>[] = [
+const endpointOverrides: ProviderModelTemplate[] = [
   ...chatFixedModels.map((modelId) => ({
     modelId,
     endpointTypes: ['openai-chat-completions' as const],
@@ -209,5 +210,5 @@ export default defineProvider({
     }
   },
   modelsDevProvider: 'opencode-go',
-  overrides: endpointOverrides
+  modelTemplates: endpointOverrides
 })
