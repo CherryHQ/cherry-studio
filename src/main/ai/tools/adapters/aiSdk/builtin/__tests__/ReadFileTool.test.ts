@@ -145,6 +145,21 @@ describe('readFile — extracted content', () => {
     await expect(readFile(input({ filename: 'clip.mp4' }), attachments)).resolves.toMatchObject({ text: 'complete' })
   })
 
+  it('rejects a cancelled continuation instead of returning the cached first-page text', async () => {
+    const controller = new AbortController()
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' }).mockImplementationOnce(async () => {
+      controller.abort()
+      return { ext: 'mp4' }
+    })
+    mediaAnalysisMock.mockResolvedValueOnce('[00:00] alpha [00:10] beta')
+    const attachments = ctx([att('clip.mp4')])
+    await readFile(input({ filename: 'clip.mp4', limit: 14 }), attachments)
+
+    await expect(
+      readFile(input({ filename: 'clip.mp4', offset: 14 }), attachments, controller.signal)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
   it.each(['mp4', 'webm'])('sanitizes .%s media analysis failures', async (ext) => {
     getByIdMock.mockResolvedValueOnce({ ext })
     mediaAnalysisMock.mockRejectedValueOnce(new Error(`probe failed: /Users/secret/video.${ext}`))
