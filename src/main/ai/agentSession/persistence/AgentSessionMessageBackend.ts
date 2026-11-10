@@ -31,6 +31,8 @@ export interface AgentSessionMessageBackendOptions {
   runtimeResumeToken?: string | (() => string | undefined)
   forkAnchor?: () => RuntimeForkAnchor | undefined
   projection?: () => RootProjectionCheckpoint | undefined
+  /** Stored part identities parallel to the saved reply's parts. */
+  partIds?: (messageId: string) => readonly string[] | undefined
   /** Runs at the synchronous commit boundary, before any terminal observer or post-save work. */
   onPersisted?: () => void
   /** Post-success hook — typically session auto-rename. */
@@ -61,10 +63,12 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     }
     const projection = this.opts.projection?.()
     const parts = finalMessage?.parts ?? []
+    const messageId = finalMessage?.id ?? this.opts.assistantMessageId
+    const partIds = this.opts.partIds?.(messageId)
     const save = (runtimeAnchor?: RuntimeForkAnchor) => {
       const nativeContext =
         runtimeResumeToken && runtimeAnchor?.checkpoint.runtime === 'pi'
-          ? preparePiBranch(this.opts.sessionId, finalMessage?.id ?? this.opts.assistantMessageId, runtimeResumeToken)
+          ? preparePiBranch(this.opts.sessionId, messageId, runtimeResumeToken)
           : undefined
       return agentSessionMessageService.saveMessage(
         {
@@ -73,8 +77,9 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
           ...(runtimeAnchor && nativeContext ? { nativeContextId: nativeContext.id } : {}),
           ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
           ...(runtimeStats ? { runtimeStats } : {}),
+          ...(partIds ? { partIds } : {}),
           message: {
-            id: finalMessage?.id ?? this.opts.assistantMessageId,
+            id: messageId,
             role: 'assistant',
             status,
             data: { parts },

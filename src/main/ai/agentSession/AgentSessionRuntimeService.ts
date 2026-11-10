@@ -2834,7 +2834,8 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.sessionId,
       messageId,
       parts,
-      this.rootCheckpoint(entry, projection, messageId)
+      this.rootCheckpoint(entry, projection, messageId),
+      projection.partIds(messageId)
     )
   }
 
@@ -2852,6 +2853,24 @@ export class AgentSessionRuntimeService extends BaseService {
         turn.activeToolIds.add(part.toolCallId)
     }
     turn.controller.message(parts)
+    this.saveCompletedParts(entry, turn)
+  }
+
+  /** Persists parts that reached their own completion; deltas of unfinished parts write nothing. */
+  private saveCompletedParts(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+    const completed = turn.projection?.completions(turn.assistantMessageId)
+    if (!completed?.parts.size) return
+    try {
+      if (agentSessionMessageService.saveCompletedMessageParts(entry.sessionId, turn.assistantMessageId, completed))
+        turn.projection!.committed(completed.parts)
+    } catch (error) {
+      // Reply completion saves the same parts again; a failed early save only narrows crash recovery.
+      logger.warn('Failed to save completed agent reply parts', {
+        sessionId: entry.sessionId,
+        messageId: turn.assistantMessageId,
+        error
+      })
+    }
   }
 
   private rootCheckpoint(entry: AgentSessionRuntimeEntry, projection: RootMessageProjection, savingMessageId: string) {
@@ -3189,6 +3208,7 @@ export class AgentSessionRuntimeService extends BaseService {
           currentTurn.projection
             ? this.rootCheckpoint(entry, currentTurn.projection, currentTurn.assistantMessageId)
             : undefined,
+        partIds: (messageId) => currentTurn.projection?.partIds(messageId),
         onPersisted: () => {
           ;(entry.persistedMessageIds ??= new Set()).add(assistantMessageId)
           entry.usageAttribution?.flush(assistantMessageId)
@@ -3278,6 +3298,7 @@ export class AgentSessionRuntimeService extends BaseService {
         runtimeResumeToken: () => entry.lastResumeToken,
         projection: () =>
           turn.projection ? this.rootCheckpoint(entry, turn.projection, turn.assistantMessageId) : undefined,
+        partIds: (messageId) => turn.projection?.partIds(messageId),
         onPersisted: () => {
           ;(entry.persistedMessageIds ??= new Set()).add(turn.assistantMessageId)
           entry.usageAttribution?.flush(turn.assistantMessageId)

@@ -138,6 +138,128 @@ describe('AgentSessionMessageService', () => {
     expect(stored.data).toEqual({ runtimeAnchor })
   })
 
+  describe('completed part saves', () => {
+    const [first, tool, tail] = [
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d101',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d102',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d103'
+    ]
+    const toolPart = {
+      type: 'dynamic-tool' as const,
+      toolName: 'bash',
+      toolCallId: 'call-1',
+      state: 'output-available' as const,
+      input: {},
+      output: 'x'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1)
+    }
+    const partRows = () =>
+      dbh.db
+        .select({
+          id: agentSessionMessagePartTable.id,
+          seq: agentSessionMessagePartTable.seq,
+          updatedAt: agentSessionMessagePartTable.updatedAt
+        })
+        .from(agentSessionMessagePartTable)
+        .where(eq(agentSessionMessagePartTable.messageId, ASSISTANT_MESSAGE_ID))
+        .orderBy(agentSessionMessagePartTable.seq)
+        .all()
+    const searchableText = () =>
+      dbh.db
+        .select({ text: agentSessionMessageTable.searchableText })
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+        .get()?.text
+    const pendingReply = () =>
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+
+    it('writes each completed part alone and settles the reply without rewriting them', () => {
+      pendingReply()
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      const order = [first, tool, tail]
+      expect(
+        agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+          order,
+          parts: new Map([[first, { type: 'text', text: 'first needle' }]])
+        })
+      ).toBe(true)
+      now.mockReturnValue(2_000)
+      agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        order,
+        parts: new Map([[tool, toolPart]])
+      })
+
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toMatchObject({
+        status: 'pending',
+        data: { parts: [{ type: 'text', text: 'first needle' }, toolPart] }
+      })
+      expect(partRows()).toEqual([
+        { id: first, seq: 0, updatedAt: 1_000 },
+        { id: tool, seq: 1, updatedAt: 2_000 }
+      ])
+      expect(searchableText()).toBe('first needle')
+      expect(
+        dbh.db
+          .select()
+          .from(agentSessionToolOutputTable)
+          .where(eq(agentSessionToolOutputTable.toolCallId, 'call-1'))
+          .all()
+      ).toHaveLength(1)
+
+      now.mockReturnValue(3_000)
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        partIds: order,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'first needle' }, toolPart, { type: 'text', text: 'tail' }] }
+        }
+      })
+      expect(partRows()).toEqual([
+        { id: first, seq: 0, updatedAt: 1_000 },
+        { id: tool, seq: 1, updatedAt: 2_000 },
+        { id: tail, seq: 2, updatedAt: 3_000 }
+      ])
+      expect(searchableText()).toBe('first needle\ntail')
+    })
+
+    it('moves saved parts to a new order without colliding positions', () => {
+      pendingReply()
+      const parts = new Map([
+        [first, { type: 'text' as const, text: 'one' }],
+        [tail, { type: 'text' as const, text: 'two' }]
+      ])
+      agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        order: [first, tail],
+        parts
+      })
+      agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        order: [tool, tail, first],
+        parts: new Map()
+      })
+
+      expect(partRows().map((row) => row.id)).toEqual([tail, first])
+      expect(searchableText()).toBe('two\none')
+    })
+
+    it('refuses part saves after the reply settles or is deleted', () => {
+      pendingReply()
+      const late = { order: [first], parts: new Map([[first, { type: 'text' as const, text: 'late' }]]) }
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'paused', data: { parts: [] } }
+      })
+      expect(agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, late)).toBe(false)
+      agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+      expect(agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, late)).toBe(false)
+      expect(partRows()).toEqual([])
+    })
+  })
+
   it('reports message existence per session', async () => {
     await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)
