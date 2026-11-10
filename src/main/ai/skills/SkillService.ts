@@ -1326,10 +1326,6 @@ export class SkillService {
     return parseSkillSourceUrl(skill.sourceUrl!)?.sourceRegistry !== 'clawhub.ai'
   }
 
-  private hasSupportedRemoteUpdateProvenance(skill: InstalledSkill): boolean {
-    return this.hasSupportedSkillUpdateProvenance(skill)
-  }
-
   private createRemoteRevision(input: {
     skillId: string
     sourceUrl: string
