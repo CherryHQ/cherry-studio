@@ -1,16 +1,27 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+
+const { i18nMock, translateErrorByAI } = vi.hoisted(() => ({
+  i18nMock: { language: 'en-US', t: (key: string) => key },
+  translateErrorByAI: vi.fn()
+}))
 
 vi.mock('@renderer/services/toast', (importOriginal) => importOriginal())
 vi.mock('@cherrystudio/ui', async () => import('@cherrystudio/ui/components/primitives/toast'))
 
-vi.mock('@renderer/i18n/resolver', () => ({
-  default: { t: (key: string) => enUS[key as keyof typeof enUS] ?? key }
-}))
+i18nMock.t = (key: string) => enUS[key as keyof typeof enUS] ?? key
+vi.mock('@renderer/i18n/resolver', () => ({ default: i18nMock }))
+vi.mock('@renderer/utils/errorDiagnosis', () => ({ translateErrorByAI }))
 
 import { toast } from '../toast'
 
+beforeEach(() => {
+  i18nMock.language = 'en-US'
+  translateErrorByAI.mockReset()
+  MockCacheUtils.resetMocks()
+})
 afterEach(() => toast.closeAll())
 
 describe('provider entitlement toasts', () => {
@@ -79,4 +90,46 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
   expect(shown.action?.label).toBe(enUS['toast.error.retry'])
   await shown.action!.onClick()
   expect(retry).toHaveBeenCalledOnce()
+})
+
+describe('unclassified error toast translation', () => {
+  const findToast = (key: string) => toast.getToastQueue().toasts.find((item) => item.key === key)
+
+  it('retitles the toast with the translation once it arrives', async () => {
+    i18nMock.language = 'zh-CN'
+    let resolve!: (text: string) => void
+    translateErrorByAI.mockReturnValue(new Promise<string>((done) => (resolve = done)))
+    const raw = 'upstream exploded: weird_vendor_code_42'
+
+    const key = toast.errorFromException(new Error(raw), { provider: { id: 'acme', name: 'Acme' } })
+    expect(findToast(key)?.title).toBe(raw)
+
+    resolve('上游服务出错：weird_vendor_code_42')
+    await vi.waitFor(() => expect(findToast(key)?.title).toBe('上游服务出错：weird_vendor_code_42'))
+    expect(findToast(key)?.description).toBe('Acme')
+  })
+
+  it('leaves a toast that replaced the original under the same key untouched', async () => {
+    i18nMock.language = 'zh-CN'
+    let resolve!: (text: string) => void
+    translateErrorByAI.mockReturnValue(new Promise<string>((done) => (resolve = done)))
+
+    const key = toast.errorFromException(new Error('first failure'), { key: 'shared' })
+    toast.success({ key, title: '已恢复' })
+    await vi.waitFor(() => expect(translateErrorByAI).toHaveBeenCalled())
+    resolve('第一次失败')
+    await new Promise((settled) => setTimeout(settled, 0))
+
+    expect(findToast(key)).toMatchObject({ type: 'success', title: '已恢复' })
+  })
+
+  it('keeps text that already reads in the UI language and asks for no translation', () => {
+    i18nMock.language = 'zh-CN'
+    const text = '连接成功，但启用服务商失败，请稍后重试。'
+
+    const key = toast.errorFromException(new Error(text))
+
+    expect(findToast(key)?.title).toBe(text)
+    expect(translateErrorByAI).not.toHaveBeenCalled()
+  })
 })
