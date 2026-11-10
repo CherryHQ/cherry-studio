@@ -803,7 +803,8 @@ describe('useAgentChatRuntimeState', () => {
       await waitFor(() => expect(toast.getToastQueue().toasts).toHaveLength(1))
       const notification = toast.getToastQueue().toasts[0]
       expect(notification).toMatchObject({ key: 'error:agent-session:session-1:assistant-1', type: 'warning' })
-      expect(notification.details).toContain(error.message)
+      // The raw failure stays reachable from the toast's Details entry.
+      expect(notification.cause).toMatchObject({ message: error.message })
       expect(notification.action).toBeDefined()
       if (queued) {
         mocks.streamOpen.mockResolvedValueOnce({ mode: 'blocked', reason: 'paused' })

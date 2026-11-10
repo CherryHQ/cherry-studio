@@ -162,6 +162,7 @@
   "dialog.screenshot_failed.title": "Screenshot Failed",
   "dialog.select_folder": "Select Folder",
   "dialog.support.close": "Close",
+  "dialog.support.copied_feedback_failed": "The error was copied, but no mail app could be opened. Send it to {{email}}.",
   "dialog.support.copy_and_feedback": "Copy error and send feedback…",
   "dialog.support.degraded_message": "Cherry Studio could not show this error in the main window.",
   "dialog.support.degraded_title": "Error",

@@ -162,6 +162,7 @@
   "dialog.screenshot_failed.title": "Chụp ảnh màn hình thất bại",
   "dialog.select_folder": "Chọn thư mục",
   "dialog.support.close": "Đóng",
+  "dialog.support.copied_feedback_failed": "Đã sao chép lỗi nhưng không thể mở ứng dụng email. Hãy gửi đến {{email}}.",
   "dialog.support.copy_and_feedback": "Sao chép lỗi và gửi phản hồi…",
   "dialog.support.degraded_message": "Cherry Studio không thể hiện lỗi này trong cửa sổ chính.",
   "dialog.support.degraded_title": "Lỗi",

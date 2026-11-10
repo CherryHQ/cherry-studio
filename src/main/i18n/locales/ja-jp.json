@@ -162,6 +162,7 @@
   "dialog.screenshot_failed.title": "スクリーンショットに失敗しました",
   "dialog.select_folder": "フォルダーを選択",
   "dialog.support.close": "閉じる",
+  "dialog.support.copied_feedback_failed": "エラーはコピーされましたが、メールアプリを開けませんでした。{{email}} に送信してください。",
   "dialog.support.copy_and_feedback": "エラーをコピーしてフィードバック…",
   "dialog.support.degraded_message": "Cherry Studio はこのエラーをメインウィンドウに表示できませんでした。",
   "dialog.support.degraded_title": "エラー",

@@ -35,7 +35,7 @@ required service tier.`
     })
   })
 
-  it('titles a Cherry AI plan quota rejection with the plan wording and keeps the raw text for the detail modal', () => {
+  it('titles a Cherry AI plan quota rejection and shows the plan wording on the second line', () => {
     const planText = '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 30天8小时后重试。'
     const failure = {
       name: 'Error',
@@ -49,18 +49,22 @@ required service tier.`
     })
 
     const shown = toast.getToastQueue().toasts.find((item) => item.key === key)
-    expect(shown).toMatchObject({ title: enUS['models.detail.quota_exhausted'], action: undefined, cause: failure })
+    expect(shown).toMatchObject({
+      title: enUS['models.detail.quota_exhausted'],
+      description: planText,
+      action: undefined,
+      cause: failure
+    })
     expect(shown?.details).toBeUndefined()
   })
 
-  it('never shows unclassified provider text on the toast surface', () => {
-    const raw = 'upstream exploded: weird_vendor_code_42'
-    const key = toast.errorFromException({ name: 'Error', message: raw }, { provider: { id: 'acme', name: 'Acme' } })
+  it('titles an unclassified error with its own text so app-localized recovery copy stays visible', () => {
+    const text = '连接成功，但启用服务商失败，请稍后重试。'
+    const key = toast.errorFromException(new Error(text), { provider: { id: 'acme', name: 'Acme' } })
 
     const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
-    expect(shown.title).toBe(enUS['error.diagnosis.unknown'])
+    expect(shown.title).toBe(text)
     expect(shown.details).toBeUndefined()
-    expect(JSON.stringify([shown.title, shown.description])).not.toContain('weird_vendor_code_42')
   })
 })
 

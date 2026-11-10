@@ -20,7 +20,7 @@ export function ErrorDetailLink({
       type="button"
       className={cn(
         'inline-flex shrink-0 cursor-pointer items-center gap-0.5 rounded-sm text-xs text-foreground-tertiary outline-none transition-colors',
-        'hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 group-hover:text-foreground',
+        'hover:text-foreground focus-visible:text-foreground focus-visible:underline group-hover:text-foreground',
         className
       )}
       onClick={onClick}>

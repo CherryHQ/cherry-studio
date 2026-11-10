@@ -162,6 +162,7 @@
   "dialog.screenshot_failed.title": "Не удалось сделать снимок экрана",
   "dialog.select_folder": "Выбрать папку",
   "dialog.support.close": "Закрыть",
+  "dialog.support.copied_feedback_failed": "Ошибка скопирована, но не удалось открыть почтовое приложение. Отправьте её на {{email}}.",
   "dialog.support.copy_and_feedback": "Копировать ошибку и отправить отзыв…",
   "dialog.support.degraded_message": "Cherry Studio не удалось показать эту ошибку в главном окне.",
   "dialog.support.degraded_title": "Ошибка",

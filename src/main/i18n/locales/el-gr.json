@@ -162,6 +162,7 @@
   "dialog.screenshot_failed.title": "Η λήψη στιγμιότυπου οθόνης απέτυχε",
   "dialog.select_folder": "Επιλέξτε φάκελο",
   "dialog.support.close": "Κλείσιμο",
+  "dialog.support.copied_feedback_failed": "Το σφάλμα αντιγράφηκε, αλλά δεν ήταν δυνατό να ανοίξει εφαρμογή email. Στείλτε το στο {{email}}.",
   "dialog.support.copy_and_feedback": "Αντιγραφή σφάλματος και αποστολή σχολίων…",
   "dialog.support.degraded_message": "Το Cherry Studio δεν μπόρεσε να εμφανίσει αυτό το σφάλμα στο κύριο παράθυρο.",
   "dialog.support.degraded_title": "Σφάλμα",

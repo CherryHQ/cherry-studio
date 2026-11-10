@@ -162,6 +162,7 @@
   "dialog.screenshot_failed.title": "Échec de la capture d’écran",
   "dialog.select_folder": "Sélectionner un dossier",
   "dialog.support.close": "Fermer",
+  "dialog.support.copied_feedback_failed": "L'erreur a été copiée, mais aucune application de messagerie n'a pu être ouverte. Envoyez-la à {{email}}.",
   "dialog.support.copy_and_feedback": "Copier l’erreur et envoyer un retour…",
   "dialog.support.degraded_message": "Cherry Studio n’a pas pu afficher cette erreur dans la fenêtre principale.",
   "dialog.support.degraded_title": "Erreur",

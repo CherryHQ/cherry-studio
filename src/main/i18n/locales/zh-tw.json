@@ -162,6 +162,7 @@
   "dialog.screenshot_failed.title": "截圖失敗",
   "dialog.select_folder": "選擇資料夾",
   "dialog.support.close": "關閉",
+  "dialog.support.copied_feedback_failed": "錯誤已複製，但無法開啟郵件應用程式。請傳送至 {{email}}。",
   "dialog.support.copy_and_feedback": "複製錯誤並回饋…",
   "dialog.support.degraded_message": "Cherry Studio 無法在主視窗中顯示此錯誤。",
   "dialog.support.degraded_title": "錯誤",

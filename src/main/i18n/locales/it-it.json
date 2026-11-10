@@ -162,6 +162,7 @@
   "dialog.screenshot_failed.title": "Acquisizione della schermata non riuscita",
   "dialog.select_folder": "Seleziona cartella",
   "dialog.support.close": "Chiudi",
+  "dialog.support.copied_feedback_failed": "L'errore è stato copiato, ma non è stato possibile aprire alcuna app di posta. Invialo a {{email}}.",
   "dialog.support.copy_and_feedback": "Copia errore e invia un commento…",
   "dialog.support.degraded_message": "Cherry Studio non è riuscito a mostrare questo errore nella finestra principale.",
   "dialog.support.degraded_title": "Errore",

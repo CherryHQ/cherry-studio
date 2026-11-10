@@ -162,6 +162,7 @@
   "dialog.screenshot_failed.title": "Ekran Görüntüsü Alınamadı",
   "dialog.select_folder": "Klasör Seç",
   "dialog.support.close": "Kapat",
+  "dialog.support.copied_feedback_failed": "Hata kopyalandı ancak hiçbir e-posta uygulaması açılamadı. {{email}} adresine gönderin.",
   "dialog.support.copy_and_feedback": "Hatayı kopyala ve geri bildirim gönder…",
   "dialog.support.degraded_message": "Cherry Studio bu hatayı ana pencerede gösteremedi.",
   "dialog.support.degraded_title": "Hata",

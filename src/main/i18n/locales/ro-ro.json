@@ -162,6 +162,7 @@
   "dialog.screenshot_failed.title": "Captura de ecran a eșuat",
   "dialog.select_folder": "Selectează directorul",
   "dialog.support.close": "Închide",
+  "dialog.support.copied_feedback_failed": "Eroarea a fost copiată, dar nu s-a putut deschide nicio aplicație de e-mail. Trimite-o la {{email}}.",
   "dialog.support.copy_and_feedback": "Copiază eroarea și trimite feedback…",
   "dialog.support.degraded_message": "Cherry Studio nu a putut afișa această eroare în fereastra principală.",
   "dialog.support.degraded_title": "Eroare",

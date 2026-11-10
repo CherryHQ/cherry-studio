@@ -162,6 +162,7 @@
   "dialog.screenshot_failed.title": "Screenshot fehlgeschlagen",
   "dialog.select_folder": "Ordner auswählen",
   "dialog.support.close": "Schließen",
+  "dialog.support.copied_feedback_failed": "Der Fehler wurde kopiert, aber es konnte keine E-Mail-App geöffnet werden. Sende ihn an {{email}}.",
   "dialog.support.copy_and_feedback": "Fehler kopieren und Feedback senden…",
   "dialog.support.degraded_message": "Cherry Studio konnte diesen Fehler nicht im Hauptfenster anzeigen.",
   "dialog.support.degraded_title": "Fehler",
