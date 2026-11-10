@@ -90,9 +90,21 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   const [open, setOpen] = React.useState(false)
   const [activeIndex, setActiveIndex] = React.useState(initialIndex)
 
-  React.useEffect(() => {
-    setActiveIndex(initialIndex)
-  }, [initialIndex])
+  // A late HEIF rendition can insert an earlier gallery entry, so follow the selected item's identity
+  // rather than its index to preserve user navigation.
+  const selection = React.useRef({ index: initialIndex, items })
+
+  React.useLayoutEffect(() => {
+    const previous = selection.current
+    let nextIndex = activeIndex
+    if (previous.items !== items) {
+      const previousItem = previous.items[previous.index]
+      const movedIndex = previousItem ? items.findIndex((item) => item.id === previousItem.id) : -1
+      nextIndex = movedIndex >= 0 ? movedIndex : initialIndex
+    }
+    selection.current = { index: nextIndex, items }
+    if (nextIndex !== activeIndex) setActiveIndex(nextIndex)
+  }, [activeIndex, initialIndex, items])
 
   const labels = React.useMemo<Partial<ImagePreviewLabels>>(
     () => ({

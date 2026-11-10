@@ -9,6 +9,8 @@ import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
 
+import { isHeifImage, resolveHeifImage } from './heif'
+
 const logger = loggerService.withContext('Utils:image')
 const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
 /**
@@ -1020,15 +1022,17 @@ export const imageInputToPreviewUrl = async (input: ImageInput, options: ImagePr
   }
 
   if (input instanceof HTMLImageElement) {
-    return input.src
+    return imageInputToPreviewUrl(input.src, options)
   }
 
   if (typeof input === 'string') {
+    if (isHeifImage({ source: input })) return URL.createObjectURL(await resolveHeifImage(input))
+    if (input.startsWith('blob:')) return URL.createObjectURL(await (await fetch(input)).blob())
     return input
   }
 
   if (input instanceof Blob) {
-    return URL.createObjectURL(input)
+    return URL.createObjectURL(isHeifImage({ source: input }) ? await resolveHeifImage(input) : input)
   }
 
   throw new Error('Unsupported input type')

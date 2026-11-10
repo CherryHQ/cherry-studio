@@ -190,6 +190,10 @@ describe('file preview registry', () => {
   })
 })
 
+it.each(['heic', 'heif', 'HEIC'])('routes %s to the desktop HEIF plugin', (extension) => {
+  expect(resolveExtensionPlugin(`/tmp/photo.${extension}`, filePreviewRegistry)?.id).toBe('heif')
+})
+
 describe('hasRenderedFilePreview', () => {
   it('treats rendered formats as preview-only and plain text as editable', () => {
     for (const path of [

@@ -430,6 +430,11 @@ function expectNodeBefore(node: Element, followingNode: Element): void {
   expect(node.compareDocumentPosition(followingNode) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
 }
 
+function getImageSources(block: HTMLElement): string[] {
+  const images = JSON.parse(block.getAttribute('data-images')!) as Array<string | { id: string; src: string }>
+  return images.map((image) => (typeof image === 'string' ? image : image.src))
+}
+
 function latestMainTextProps(partIndex: number): any {
   const partId = `msg-1-part-${partIndex}`
   return [...mockMainTextRender.mock.calls].reverse().find(([props]) => props.id === partId)?.[0]
@@ -648,6 +653,34 @@ describe('MessagePartsRenderer', () => {
       expect(markdown[1]).toContain('console.log(1)')
     })
 
+    it('propagates HEIF media type through single and grouped image rendering', async () => {
+      const request = vi.spyOn(ipcApi, 'request').mockResolvedValue({ content: new Uint8Array([137, 80, 78, 71]) })
+      const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:parts-png')
+      const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+      try {
+        const single = renderParts([
+          { type: 'file', url: 'file:///tmp/extensionless', mediaType: 'image/heic', filename: 'original.heic' }
+        ] as CherryMessagePart[])
+        await waitFor(() => expect(getImageSources(screen.getByTestId('mock-image-block'))).toEqual(['blob:parts-png']))
+        single.unmount()
+        const group = renderParts([
+          { type: 'file', url: 'file:///tmp/extensionless', mediaType: 'image/heif', filename: 'original.heif' },
+          { type: 'file', url: 'file:///tmp/photo.png', mediaType: 'image/png', filename: 'photo.png' }
+        ] as CherryMessagePart[])
+        await waitFor(() =>
+          expect(getImageSources(screen.getByTestId('mock-image-block'))).toEqual([
+            'blob:parts-png',
+            'file:///tmp/photo.png'
+          ])
+        )
+        group.unmount()
+      } finally {
+        request.mockRestore()
+        createUrl.mockRestore()
+        revokeUrl.mockRestore()
+      }
+    })
+
     it('renders single and grouped images while skipping image parts without a URL', () => {
       const single = renderParts([
         { type: 'file', url: 'https://img.test/single.png', mediaType: 'image/png' }
@@ -663,7 +696,7 @@ describe('MessagePartsRenderer', () => {
 
       const block = screen.getByTestId('mock-image-block')
       expect(block).toHaveAttribute('data-single', 'false')
-      expect(block).toHaveAttribute('data-images', '["https://img.test/a.png","https://img.test/b.jpg"]')
+      expect(getImageSources(block)).toEqual(['https://img.test/a.png', 'https://img.test/b.jpg'])
     })
 
     it('renders a sent user image instead of its composer file token', () => {
@@ -704,7 +737,7 @@ describe('MessagePartsRenderer', () => {
       renderParts(persisted.data.parts as CherryMessagePart[], msg({ role: 'user' }))
 
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
-      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+      expect(getImageSources(screen.getByTestId('mock-image-block'))).toEqual(['file:///tmp/photo.png'])
     })
 
     it('groups sent user images with the same filename by composer file token identity', () => {
@@ -756,10 +789,10 @@ describe('MessagePartsRenderer', () => {
       )
 
       expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(0)
-      expect(screen.getByTestId('mock-image-block')).toHaveAttribute(
-        'data-images',
-        '["file:///tmp/first/photo.png","file:///tmp/second/photo.png"]'
-      )
+      expect(getImageSources(screen.getByTestId('mock-image-block'))).toEqual([
+        'file:///tmp/first/photo.png',
+        'file:///tmp/second/photo.png'
+      ])
       expect(latestMainTextProps(0)?.readOnlyFilePreviews.get('source-image-1')).toEqual({
         url: 'file:///tmp/first/photo.png',
         mediaType: 'image/png'
@@ -791,7 +824,7 @@ describe('MessagePartsRenderer', () => {
       )
 
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
-      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/legacy.png"]')
+      expect(getImageSources(screen.getByTestId('mock-image-block'))).toEqual(['file:///tmp/legacy.png'])
     })
 
     it('keeps the sent image token when its matching file part has no renderable URL', () => {
@@ -899,7 +932,7 @@ describe('MessagePartsRenderer', () => {
         msg({ role: 'user' })
       )
 
-      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+      expect(getImageSources(screen.getByTestId('mock-image-block'))).toEqual(['file:///tmp/photo.png'])
       expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(1)
       expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
@@ -1008,7 +1041,7 @@ describe('MessagePartsRenderer', () => {
 
       expect(document.querySelector('[data-user-message-content-toggle]')).toBeInTheDocument()
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
-      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+      expect(getImageSources(screen.getByTestId('mock-image-block'))).toEqual(['file:///tmp/photo.png'])
     })
 
     it('drops hoisted sent images from the inline flow and keeps their token chips hidden', () => {
@@ -1556,7 +1589,7 @@ describe('MessagePartsRenderer', () => {
         msg({ role: 'user' })
       )
 
-      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+      expect(getImageSources(screen.getByTestId('mock-image-block'))).toEqual(['file:///tmp/photo.png'])
     })
 
     it('renders non-image file attachments', () => {
