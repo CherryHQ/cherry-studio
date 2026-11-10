@@ -232,6 +232,60 @@ required service tier.`
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
+  it('renders actionable Claude Code runtime-missing guidance without AI diagnosis', () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { diagnoseMessageError }
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys.add('error.claude_code_runtime_missing')
+    mocks.i18nKeys.add('error.claude_code_runtime_missing_detail')
+
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeRuntimeUnavailableError',
+          message: 'Claude Agent is not ready.',
+          stack: null,
+          i18nKey: 'claude_code_runtime_missing',
+          detailI18nKey: 'claude_code_runtime_missing_detail'
+        }}
+        message={message}
+      />
+    )
+
+    expect(container).toHaveTextContent(enUS['error.claude_code_runtime_missing'])
+    expect(container).toHaveTextContent(enUS['error.claude_code_runtime_missing_detail'])
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
+  it('prefers the spawn-failed headline while keeping the diagnostic reference', () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { diagnoseMessageError }
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys.add('error.claude_code_spawn_failed')
+    mocks.i18nKeys.add('error.claude_code_spawn_failed_detail')
+
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process failed to start',
+          stack: null,
+          claudeCodeExitCategory: 'unknown',
+          diagnosticReference: 'spawn-ref',
+          i18nKey: 'claude_code_spawn_failed',
+          detailI18nKey: 'claude_code_spawn_failed_detail'
+        }}
+        message={message}
+      />
+    )
+
+    expect(container).toHaveTextContent(enUS['error.claude_code_spawn_failed'])
+    expect(container).toHaveTextContent('spawn-ref')
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
   it('hides mutation and detail affordances when capabilities are unavailable', () => {
     render(
       <ErrorBlock partId="message-1-part-0" error={{ name: 'Error', message: 'boom', stack: null }} message={message} />

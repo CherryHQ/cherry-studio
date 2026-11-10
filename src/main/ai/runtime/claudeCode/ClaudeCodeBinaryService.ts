@@ -22,6 +22,36 @@ import { claudeCodeBinaryManifest as manifest } from './binaryManifest'
 const logger = loggerService.withContext('ClaudeCodeBinaryService')
 const STALL_TIMEOUT_MS = 30_000
 
+export type ClaudeCodeRuntimeUnavailableReason = 'missing' | 'downloading' | 'installing' | 'error' | 'unsupported'
+
+/**
+ * Thrown when the on-demand Claude Code runtime cannot be launched because its
+ * executable is not installed. Carries renderer-facing recovery copy (via
+ * `i18nKey`/`detailI18nKey`, preserved across IPC by `serializeError`) while the
+ * resolved filesystem path stays in the main-process log only — it never crosses
+ * the IPC boundary, so user directories are not exposed to the renderer payload.
+ */
+export class ClaudeCodeRuntimeUnavailableError extends Error {
+  readonly i18nKey: string
+  readonly detailI18nKey: string
+  readonly executable: string
+  readonly reason: ClaudeCodeRuntimeUnavailableReason
+
+  constructor(executable: string, reason: ClaudeCodeRuntimeUnavailableReason) {
+    super(t('agent.session.claude.runtime_unavailable'))
+    this.name = 'ClaudeCodeRuntimeUnavailableError'
+    this.executable = executable
+    this.reason = reason
+    if (reason === 'unsupported') {
+      this.i18nKey = 'claude_code_runtime_unsupported'
+      this.detailI18nKey = 'claude_code_runtime_unsupported_detail'
+    } else {
+      this.i18nKey = 'claude_code_runtime_missing'
+      this.detailI18nKey = 'claude_code_runtime_missing_detail'
+    }
+  }
+}
+
 export function claudeBinaryTarget(platform: string, arch: string, glibc?: string): string {
   return `${platform}-${arch}${platform === 'linux' && !glibc ? '-musl' : ''}`
 }
@@ -71,9 +101,43 @@ export class ClaudeCodeBinaryService extends BaseService {
     }
   }
 
-  requireExecutable(): string {
-    if (!this.isInstalled()) throw new Error(t('agent.session.claude.runtime_unavailable'))
+  /** Filesystem path of the expected runtime executable (stable userData location). */
+  getExecutablePath(): string {
     return this.executable
+  }
+
+  requireExecutable(): string {
+    const executable = this.executable
+    // Defensive: the runtime must never resolve inside the application image. A path under
+    // `app.asar` (or its unpacked companion) means a stale/temp install image is being reused
+    // — fail fast instead of handing it to the SDK (see #21898).
+    if (executable.includes('app.asar')) {
+      logger.warn('Claude Code runtime resolved inside the application image; refusing to launch', {
+        executable,
+        target: this.target,
+        version: manifest.version
+      })
+      throw new ClaudeCodeRuntimeUnavailableError(executable, 'missing')
+    }
+    if (!this.isInstalled()) {
+      const status = this.getStatus()
+      const reason: ClaudeCodeRuntimeUnavailableReason =
+        status.phase === 'error' && status.error === 'unsupported'
+          ? 'unsupported'
+          : status.phase === 'error'
+            ? 'error'
+            : status.phase === 'downloading' || status.phase === 'installing'
+              ? status.phase
+              : 'missing'
+      logger.warn('Claude Code runtime executable is missing; refusing to start the SDK', {
+        executable,
+        target: this.target,
+        version: manifest.version,
+        phase: reason
+      })
+      throw new ClaudeCodeRuntimeUnavailableError(executable, reason)
+    }
+    return executable
   }
 
   async ensureExecutable(): Promise<string> {
