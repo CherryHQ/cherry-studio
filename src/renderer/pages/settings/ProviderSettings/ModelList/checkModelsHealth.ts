@@ -18,6 +18,7 @@ export async function checkModelsHealth(
   const { models, credentials, isConcurrent, timeout, signal } = options
   const results: ModelWithStatus[] = []
   const runStartedAt = performance.now()
+  let outcome: 'completed' | 'cancelled' | 'failed' = 'failed'
 
   try {
     const runModelCheck = async (model: ModelCheckOptions['models'][number], index: number) => {
@@ -72,14 +73,18 @@ export async function checkModelsHealth(
         await runModelCheck(model, index)
       }
     }
+    outcome = 'completed'
+  } catch (error) {
+    outcome = signal?.aborted ? 'cancelled' : 'failed'
+    logger.error('[ProviderSettings checkModelsHealth] Model health check failed:', error as Error)
+    throw error
+  } finally {
     logger.info('Model check run finished', {
       modelCount: models.length,
       isConcurrent,
+      outcome,
       durationMs: Math.round(performance.now() - runStartedAt)
     })
-  } catch (error) {
-    logger.error('[ProviderSettings checkModelsHealth] Model health check failed:', error as Error)
-    throw error
   }
 
   return results
