@@ -19,7 +19,7 @@ afterEach(() => {
 })
 
 describe('CI validation planning', () => {
-  it('uses the whole PR and push range even when the last commit only changes docs', () => {
+  it('covers the whole PR and fully validates every push, including docs-only pushes', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-plan-'))
     directories.push(cwd)
     const git = (...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -57,21 +57,23 @@ describe('CI validation planning', () => {
           .slice(5)
       )
     }
-    for (const event of ['pull_request', 'push']) {
+    for (const event of ['pull_request']) {
       const plan = run(event)
       expect(plan.projects).toContain('renderer')
       expect(plan.projects).not.toContain('main')
     }
-    for (const event of ['schedule', 'workflow_dispatch']) expect(run(event).projects).toContain('main')
+    for (const event of ['push', 'schedule', 'workflow_dispatch']) expect(run(event).projects).toContain('main')
     expect(run('push', '0000000000000000000000000000000000000000').projects).toContain('main')
     git('checkout', '-qb', 'docs-only', base)
     writeFileSync(join(cwd, 'README.md'), 'docs only')
     commit('docs only')
-    expect(run('push').projects).toEqual([])
+    expect(run('push').projects).toContain('main')
+    expect(run('pull_request').projects).toEqual([])
   })
 
   it('fails test gates on missing classification and failed, cancelled, skipped or missing dependencies', () => {
     for (const [name, gate] of [
+      ['basic-checks', 'basic'],
       ['general-test', 'general'],
       ['render-test', 'renderer']
     ]) {
@@ -87,102 +89,9 @@ describe('CI validation planning', () => {
         jobs[dependency].result = 'success'
       }
       jobs.changes.outputs.plan = JSON.stringify(createPlan(['README.md']))
-      for (const dependency of job.needs.filter((id: string) => id !== 'changes')) jobs[dependency].result = 'skipped'
+      for (const dependency of job.needs.filter((id: string) => !['changes', 'repository-checks'].includes(id)))
+        jobs[dependency].result = 'skipped'
       expect(verify(gate, jobs)).toBe(0)
-    }
-  })
-
-  it('uses actual step outcomes to reject every unsuccessful or missing planned basic group', () => {
-    const jobs = {
-      changes: {
-        result: 'success' as string | undefined,
-        outputs: { plan: JSON.stringify(createPlan(['package.json'])) }
-      }
-    }
-    const steps: Record<string, { outcome?: string; conclusion?: string }> = Object.fromEntries(
-      ['repository-result', 'type-checks', 'lint-checks', 'i18n-checks'].map((id) => [id, { outcome: 'success' }])
-    )
-    expect(verify('basic', jobs, steps)).toBe(0)
-    for (const id of Object.keys(steps)) {
-      for (const outcome of ['failure', 'cancelled', 'skipped', undefined]) {
-        steps[id] = { outcome, conclusion: 'success' }
-        expect(verify('basic', jobs, steps)).not.toBe(0)
-      }
-      const saved = steps[id]
-      delete steps[id]
-      expect(verify('basic', jobs, steps)).not.toBe(0)
-      steps[id] = { ...saved, outcome: 'success' }
-    }
-    for (const result of ['failure', 'cancelled', 'skipped', undefined]) {
-      jobs.changes.result = result
-      expect(verify('basic', jobs, steps)).not.toBe(0)
-    }
-    jobs.changes.result = 'success'
-    expect(verify('basic', jobs)).not.toBe(0)
-    expect(verify('basic', {}, steps)).not.toBe(0)
-    jobs.changes.outputs.plan = JSON.stringify(createPlan(['README.md']))
-    for (const id of ['type-checks', 'lint-checks', 'i18n-checks']) steps[id].outcome = 'skipped'
-    expect(verify('basic', jobs, steps)).toBe(0)
-    jobs.changes.outputs.plan = JSON.stringify({ tasks: ['types-node'], projects: [] })
-    steps['repository-result'].outcome = 'skipped'
-    steps['type-checks'].outcome = 'success'
-    expect(verify('basic', jobs, steps)).toBe(0)
-  })
-})
-
-describe('basic checks in one runner', () => {
-  const job = workflow.jobs['basic-checks']
-  it('shares one install and verifies outcomes in the same required job without suppressing failures', () => {
-    expect(job.needs).toBe('changes')
-    expect(
-      job.steps.filter((step: { uses?: string }) => step.uses === './.github/actions/setup-validation')
-    ).toHaveLength(1)
-    expect(job.steps.some((step: Record<string, unknown>) => step['continue-on-error'])).toBe(false)
-    expect(job.steps.find((step: { id?: string }) => step.id === 'repository-result').if).toContain(
-      "steps.repository-checks.outcome == 'success'"
-    )
-    const gate = job.steps.find((step: { run?: string }) => step.run === 'node scripts/validation/verify.mjs basic')
-    expect(gate.env.VALIDATION_STEPS).toBe('${{ toJSON(steps) }}')
-    expect(
-      new Function('cancelled', 'success', `return (${gate.if})`)(
-        () => false,
-        () => false
-      )
-    ).toBe(true)
-    expect(
-      new Function('cancelled', 'success', `return (${gate.if})`)(
-        () => true,
-        () => false
-      )
-    ).toBe(false)
-  })
-
-  it.each([
-    ['types', 'type-checks'],
-    ['lint', 'lint-checks'],
-    ['i18n', 'i18n-sync'],
-    ['i18n', 'i18n-checks'],
-    ['repository', 'repository-checks']
-  ])('preserves %s selection and readiness for %s', (group, id) => {
-    const needs = { changes: { outputs: { [group]: 'true' } } }
-    const step = job.steps.find((step: { id?: string }) => step.id === id)
-    if (id !== 'i18n-sync') expect(step.run).toBe(`pnpm check --group ${group}`)
-    const condition = step.if.replaceAll('steps.i18n-sync', "steps['i18n-sync']")
-    const selected = (outcome: string, cancelled: boolean) =>
-      new Function('needs', 'steps', 'cancelled', 'success', `return (${condition})`)(
-        needs,
-        { dependencies: { outcome }, 'i18n-sync': { outcome } },
-        () => cancelled,
-        () => false
-      )
-    expect(selected('success', false)).toBe(true)
-    needs.changes.outputs[group] = 'false'
-    expect(selected('success', false)).toBe(false)
-    if (group !== 'repository') {
-      needs.changes.outputs[group] = 'true'
-      expect(condition).toContain('!cancelled()')
-      expect(selected('failure', false)).toBe(false)
-      expect(selected('success', true)).toBe(false)
     }
   })
 })
@@ -207,5 +116,68 @@ describe('required gate scheduling', () => {
       )
       expect(selected).toBe(expected)
     }
+  })
+})
+
+// Bursts of main pushes must not replace pending runs; only superseded PRs may cancel.
+describe('CI concurrency', () => {
+  const evaluate = (template: string, github: unknown) =>
+    template.replace(/\$\{\{(.*?)\}\}/g, (_match, expression) =>
+      String(new Function('github', `return (${expression})`)(github))
+    )
+  it.each(['push', 'schedule', 'workflow_dispatch'])('keeps every %s run independent', (event) => {
+    const context = {
+      workflow: 'CI',
+      event_name: event,
+      event: { pull_request: {} },
+      ref: 'refs/heads/main',
+      run_id: 1
+    }
+    expect(evaluate(workflow.concurrency.group, context)).not.toBe(
+      evaluate(workflow.concurrency.group, { ...context, run_id: 2 })
+    )
+    expect(evaluate(workflow.concurrency['cancel-in-progress'], context)).toBe('false')
+  })
+  it('groups successive runs of one PR and cancels its older run', () => {
+    const context = { workflow: 'CI', event_name: 'pull_request', event: { pull_request: { number: 123 } }, run_id: 1 }
+    expect(evaluate(workflow.concurrency.group, context)).toBe(
+      evaluate(workflow.concurrency.group, { ...context, run_id: 2 })
+    )
+    expect(evaluate(workflow.concurrency['cancel-in-progress'], context)).toBe('true')
+  })
+})
+
+// Sharing an installation must not hide an omitted or unsuccessful planned group.
+describe('combined repository and type gate', () => {
+  it.each([
+    [['format'], ['repository-result']],
+    [['types-node'], ['type-checks']],
+    [
+      ['format', 'types-node'],
+      ['repository-result', 'type-checks']
+    ]
+  ])('requires every selected outcome for %j', (tasks, required) => {
+    const jobs = { changes: { result: 'success', outputs: { plan: JSON.stringify({ tasks, projects: [] }) } } }
+    const steps: Record<string, { outcome?: string }> = {
+      'repository-result': { outcome: 'skipped' },
+      'type-checks': { outcome: 'skipped' }
+    }
+    for (const id of required) steps[id].outcome = 'success'
+    expect(verify('repository', jobs, steps)).toBe(0)
+    for (const id of required) {
+      for (const outcome of ['failure', 'cancelled', 'skipped', undefined]) {
+        steps[id].outcome = outcome
+        expect(verify('repository', jobs, steps)).not.toBe(0)
+      }
+      steps[id].outcome = 'success'
+    }
+  })
+  it.each([
+    ['true', 'false', true],
+    ['false', 'true', true],
+    ['false', 'false', false]
+  ])('selects the combined runner for repository=%s and types=%s', (repository, types, expected) => {
+    const selected = new Function('needs', `return (${workflow.jobs['repository-checks'].if})`)
+    expect(selected({ changes: { outputs: { repository, types } } })).toBe(expected)
   })
 })

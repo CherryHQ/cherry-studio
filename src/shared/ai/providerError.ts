@@ -122,6 +122,13 @@ function providerErrorCodes(value: unknown, decodeDepth = 0): string {
     .join('\n')
 }
 
+const CLAUDE_CODE_REJECTION_PREFIX = /^API Error: Request rejected \(\d{3}\) \u00b7 /
+
+/** Drops the `API Error: Request rejected (429) · ` prefix Claude Code puts before a provider's own rejection text. */
+export function stripClaudeCodeRejectionPrefix(text: string): string {
+  return text.replace(CLAUDE_CODE_REJECTION_PREFIX, '')
+}
+
 export function getSafeProviderErrorMessage(source: ProviderErrorSource): string {
   const text = payloadText(source.responseBody) || payloadText(source.data) || providerPayloadText(source.message)
   return text.length > MAX_PROVIDER_ERROR_MESSAGE_LENGTH ? `${text.slice(0, MAX_PROVIDER_ERROR_MESSAGE_LENGTH)}…` : text

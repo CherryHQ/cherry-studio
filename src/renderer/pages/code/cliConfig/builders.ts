@@ -95,6 +95,10 @@ export function buildCodexConfig(
   resolved: { baseUrl: string; providerName: string; model: string },
   options: Record<string, any>
 ): Record<string, any> {
+  const isValidTokenCount = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+  const existingWindow = existingToml.model_context_window
+  const existingCompaction = existingToml.model_auto_compact_token_limit
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${resolved.providerName.replace(/\./g, '-')}`
   const preservedProviders = omitKeysByPrefix(asRecord(existingToml.model_providers), CHERRY_PROVIDER_PREFIX)
   const cleaned: Record<string, any> = {}
@@ -119,6 +123,9 @@ export function buildCodexConfig(
       }
     }
   }
+  if (isValidTokenCount(options.contextWindow)) merged.model_context_window = options.contextWindow
+  else if (isValidTokenCount(existingWindow)) merged.model_context_window = existingWindow
+  if (isValidTokenCount(existingCompaction)) merged.model_auto_compact_token_limit = existingCompaction
   if (options.disableResponseStorage === true) merged.disable_response_storage = true
   if (options.goalMode === true) {
     const features = asRecord(merged.features)

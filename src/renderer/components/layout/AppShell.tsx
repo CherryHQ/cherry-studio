@@ -25,7 +25,7 @@ import { TabRouter } from './TabRouter'
 
 // Routes whose pages stay usable below the global minimum window width.
 const isCompactMinWidthRoute = (url?: string): boolean =>
-  !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents'))
+  !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents') || url.startsWith('/app/scheduled-tasks'))
 
 export const AppShell = () => (
   <NotificationCenterProvider>
@@ -109,8 +109,12 @@ const AppShellContent = () => {
 
   const handleCloseActiveTab = useCallback(() => {
     if (!activeTabId) return
+    if (isMac && tabs.length === 1) {
+      void ipcApi.request('window.close')
+      return
+    }
     handleCloseTab(activeTabId)
-  }, [activeTabId, handleCloseTab])
+  }, [activeTabId, handleCloseTab, tabs.length])
 
   const commandRuntime = useCommandRuntime()
   const tabCommandHints = useNumberShortcutHints(TAB_NUMBER_COMMANDS)
@@ -131,16 +135,16 @@ const AppShellContent = () => {
         () => {
           if (tab) setActiveTab(tab.id)
         },
-        { enabled: !!tab }
+        { enabled: !!tab, allowInKeyboardLayer: true }
       )
     })
     return () => disposers.forEach((dispose) => dispose())
   }, [commandRuntime, setActiveTab, orderedTabs])
 
-  useCommandHandler('app.search', handleOpenGlobalSearch)
-  useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
-  useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
-  useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
+  useCommandHandler('app.search', handleOpenGlobalSearch, { allowInKeyboardLayer: true })
+  useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab, allowInKeyboardLayer: true })
+  useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs, allowInKeyboardLayer: true })
+  useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs, allowInKeyboardLayer: true })
 
   useEffect(() => {
     if (isSettingsTabActive) {

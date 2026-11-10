@@ -116,6 +116,43 @@ describe('Claude native forks', () => {
     await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
   })
 
+  it.each(['compaction', 'replacement'] as const)(
+    'refuses a fork retaining source UUIDs in %s metadata',
+    async (kind) => {
+      const userUuid = '20249b48-e174-4610-84c2-af6224228290'
+      const boundaryUuid = '590bf21c-a5c3-413d-821e-cd33a4016d33'
+      const entries = [
+        { type: 'user', uuid: userUuid, parentUuid: null, sessionId, message: { role: 'user', content: 'Before' } },
+        kind === 'compaction'
+          ? {
+              type: 'system',
+              subtype: 'compact_boundary',
+              uuid: boundaryUuid,
+              parentUuid: userUuid,
+              sessionId,
+              compactMetadata: {
+                trigger: 'auto',
+                preTokens: 1000,
+                preservedSegment: { headUuid: userUuid, tailUuid: userUuid, anchorUuid: boundaryUuid }
+              }
+            }
+          : { type: 'content-replacement', sessionId, replacements: [{ messageUuid: userUuid, content: 'Replaced' }] },
+        {
+          type: 'assistant',
+          uuid: messageUuid,
+          parentUuid: kind === 'compaction' ? boundaryUuid : userUuid,
+          sessionId,
+          message: { role: 'assistant', content: [{ type: 'text', text: 'After' }] }
+        }
+      ]
+      await mkdir(path.dirname(file), { recursive: true })
+      const source = entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n'
+      await writeFile(file, source)
+      await expect(forkClaudeSession(forkInput())).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+      expect(await readFile(file, 'utf8')).toBe(source)
+    }
+  )
+
   it.each(['\n', '\r\n'])('forks the exact UUID on demand and excludes later history (%j)', async (newline) => {
     await mkdir(path.dirname(file), { recursive: true })
     await writeFile(
@@ -131,6 +168,114 @@ describe('Claude native forks', () => {
     expect(output).not.toContain('FUTURE_ONLY')
     expect(JSON.parse(output.trim().split('\n')[0]).forkedFrom.messageUuid).toBe(messageUuid)
     expect(result.resumeToken).not.toBe(sessionId)
+    expect(await readFile(file)).toEqual(before)
+  })
+
+  it.each([
+    { name: 'empty LF', framing: '\n', leading: '', newline: '\n' },
+    { name: 'empty CRLF', framing: '\r\n', leading: '', newline: '\r\n' },
+    { name: 'spaces and tabs', framing: '\t  \n', leading: '', newline: '\n' },
+    { name: 'leading blank', framing: '\n', leading: '\n', newline: '\n' },
+    { name: 'consecutive blanks', framing: '\n\n', leading: '', newline: '\n' }
+  ])(
+    'forks blank-framed committed history without changing source bytes or including later turns ($name)',
+    async ({ framing, leading, newline }) => {
+      const userUuid = '20249b48-e174-4610-84c2-af6224228290'
+      const inheritedUuid = '590bf21c-a5c3-413d-821e-cd33a4016d33'
+      const futureUuid = '706dc088-43ba-425e-ae5e-64d436fbdccb'
+      const entries = [
+        {
+          type: 'user',
+          uuid: userUuid,
+          parentUuid: null,
+          sessionId,
+          message: { role: 'user', content: 'EARLIER_USER' }
+        },
+        {
+          type: 'assistant',
+          uuid: inheritedUuid,
+          parentUuid: userUuid,
+          sessionId,
+          message: { role: 'assistant', content: [{ type: 'text', text: 'INHERITED_ASSISTANT' }] }
+        },
+        {
+          type: 'assistant',
+          uuid: messageUuid,
+          parentUuid: inheritedUuid,
+          sessionId,
+          message: { role: 'assistant', content: [{ type: 'text', text: 'EARLIER_ASSISTANT 检查点' }] }
+        },
+        {
+          type: 'user',
+          uuid: futureUuid,
+          parentUuid: messageUuid,
+          sessionId,
+          message: { role: 'user', content: 'FUTURE_ONLY' }
+        }
+      ].map((value) => JSON.stringify(value))
+      await mkdir(path.dirname(file), { recursive: true })
+      await writeFile(
+        file,
+        leading +
+          entries[0] +
+          newline +
+          entries[1] +
+          newline +
+          framing +
+          entries[2] +
+          newline +
+          newline +
+          entries[3] +
+          newline
+      )
+      const before = await readFile(file)
+      const input = forkInput()
+      input.checkpoints = [{ ...input.checkpoint, messageUuid: inheritedUuid }, input.checkpoint]
+
+      const result = await forkClaudeSession(input)
+
+      expect(result.resumeToken).not.toBe(sessionId)
+      const output = await readFile(result.publish[0].source, 'utf8')
+      expect(output).toContain('EARLIER_USER')
+      expect(output).toContain('INHERITED_ASSISTANT')
+      expect(output).toContain('EARLIER_ASSISTANT 检查点')
+      expect(output).not.toContain('FUTURE_ONLY')
+      expect(output).not.toContain(futureUuid)
+      const assistants = output
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+        .filter((value) => value.type === 'assistant')
+      expect(assistants.map((value) => value.forkedFrom.messageUuid)).toEqual([inheritedUuid, messageUuid])
+      expect(result.checkpoints).toEqual(
+        assistants.map((value) => ({
+          ...input.checkpoint,
+          runtimeSessionId: result.resumeToken,
+          messageUuid: value.uuid
+        }))
+      )
+      expect(await readFile(file)).toEqual(before)
+    }
+  )
+
+  it.each([
+    ['all blank', '\n\r\n\t  \n'],
+    ['bare CR', entry + '\r'],
+    ['unterminated checkpoint after a committed record', '{"type":"user"}\n' + entry]
+  ])('reports missing history for %s without a committed checkpoint', async (_name, content) => {
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, content)
+    await expect(forkClaudeSession(forkInput())).rejects.toMatchObject({ reason: 'history_missing' })
+  })
+
+  it('forks a committed checkpoint before an incomplete tail', async () => {
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, entry + '\n\n{"type":"user","message":"INCOMPLETE_TAIL')
+    const before = await readFile(file)
+    const result = await forkClaudeSession(forkInput())
+    const output = await readFile(result.publish[0].source, 'utf8')
+    expect(JSON.parse(output.trim().split('\n')[0]).forkedFrom.messageUuid).toBe(messageUuid)
+    expect(output).not.toContain('INCOMPLETE_TAIL')
     expect(await readFile(file)).toEqual(before)
   })
 

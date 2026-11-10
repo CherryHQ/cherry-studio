@@ -1,3 +1,4 @@
+import { parse as parseToml } from 'smol-toml'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 
@@ -985,6 +986,67 @@ describe('writeCliConfigDraft', () => {
   describe('codex (~/.codex/config.toml + auth.json)', () => {
     const findWrite = (suffix: string) => writes.find((w) => w.path.endsWith(suffix))
 
+    it('writes selected model capacity with the direct Responses connection', async () => {
+      mockGet({
+        '/providers/deepseek': () => codexProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ id: 'deepseek::large-model', contextWindow: 1000000 })
+      })
+      await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model' })
+      const config = parseToml(findWrite('config.toml')!.content) as Record<string, any>
+      expect(config.model_context_window).toBe(1000000)
+      expect(config.model).toBe('large-model')
+      expect(config.model_provider).toBe('cherry-DeepSeek')
+      expect(config.model_providers['cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
+      expect(JSON.parse(findWrite('auth.json')!.content).OPENAI_API_KEY).toBe('sk-secret')
+    })
+
+    it.each(['null', 'missing', 'rejected', 'fresh'])('preserves existing limits when metadata is %s', async (kind) => {
+      if (kind !== 'fresh')
+        existing['/resolved~/.codex/config.toml'] =
+          'model_context_window = 1000000\nmodel_auto_compact_token_limit = 900000\n'
+      mockGet({
+        '/providers/deepseek': () => codexProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => {
+          if (kind === 'rejected') throw new Error('unavailable')
+          return kind === 'missing' ? { id: 'deepseek::large-model' } : null
+        }
+      })
+      await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model' })
+      const config = parseToml(findWrite('config.toml')!.content) as Record<string, any>
+      expect(config.model).toBe('large-model')
+      if (kind === 'fresh') {
+        expect(config).not.toHaveProperty('model_context_window')
+        expect(config).not.toHaveProperty('model_auto_compact_token_limit')
+      } else {
+        expect(config.model_context_window).toBe(1000000)
+        expect(config.model_auto_compact_token_limit).toBe(900000)
+      }
+    })
+
+    it('submits supplied direct-provider drafts verbatim despite different metadata', async () => {
+      mockGet({
+        '/providers/deepseek': () => codexProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ id: 'deepseek::large-model', contextWindow: 1000000 })
+      })
+      const content = 'model_context_window = 800000\nuser_key = "keep"\n'
+      const files = [
+        { target: 'codex-config' as const, label: '', path: '', language: 'toml' as const, content },
+        {
+          target: 'codex-auth' as const,
+          label: '',
+          path: '',
+          language: 'json' as const,
+          content: '{"OPENAI_API_KEY":"custom"}'
+        }
+      ]
+      await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model', files })
+      expect(findWrite('config.toml')!.content).toBe(content)
+      expect(findWrite('auth.json')!.content).toBe(files[1].content)
+    })
+
     it('writes both auth.json (OPENAI_API_KEY) and config.toml with wire_api = responses', async () => {
       mockGet({
         '/providers/deepseek': () => codexProvider,
@@ -1750,6 +1812,56 @@ describe('writeCliConfigDraft', () => {
       const parsed = JSON.parse(writes.find((w) => w.path.endsWith('opencode.json'))!.content)
       expect(parsed.provider['cherry-gateway'].models['deepseek:deepseek-chat'].name).toBe('deepseek-chat')
     })
+
+    it('rebuilds supplied Codex drafts with model capacity and preserves compaction', async () => {
+      mockGet({
+        '/models/': () => ({ id: 'deepseek::large-model', apiModelId: 'large-api-model', contextWindow: 1000000 })
+      })
+      const files = [
+        {
+          target: 'codex-config' as const,
+          label: '',
+          path: '',
+          language: 'toml' as const,
+          content: 'model_context_window = 800000\nmodel_auto_compact_token_limit = 900000\nuser_key = "keep"\n'
+        },
+        {
+          target: 'codex-auth' as const,
+          label: '',
+          path: '',
+          language: 'json' as const,
+          content: '{"OPENAI_API_KEY":"stale"}'
+        }
+      ]
+      await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model', gateway, files })
+      const config = parseToml(writes.find((w) => w.path.endsWith('config.toml'))!.content) as Record<string, any>
+      expect(config.model_context_window).toBe(1000000)
+      expect(config.model_auto_compact_token_limit).toBe(900000)
+      expect(config.user_key).toBe('keep')
+      expect(config.model).toBe('deepseek:large-api-model')
+      expect(config.model_provider).toBe('cherry-gateway')
+      expect(config.model_providers['cherry-gateway'].base_url).toBe(`${GATEWAY_BASE_URL}/v1`)
+      expect(JSON.parse(writes.find((w) => w.path.endsWith('auth.json'))!.content).OPENAI_API_KEY).toBe('cs-sk-gateway')
+    })
+
+    it.each(['null', 'missing', 'rejected'])(
+      'preserves Codex limits through gateway when metadata is %s',
+      async (kind) => {
+        existing['/resolved~/.codex/config.toml'] =
+          'model_context_window = 1000000\nmodel_auto_compact_token_limit = 900000\n'
+        mockGet({
+          '/models/': () => {
+            if (kind === 'rejected') throw new Error('unavailable')
+            return kind === 'missing' ? { id: 'deepseek::large-model' } : null
+          }
+        })
+        await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model', gateway })
+        const config = parseToml(writes.find((w) => w.path.endsWith('config.toml'))!.content) as Record<string, any>
+        expect(config.model).toBe('deepseek:large-model')
+        expect(config.model_context_window).toBe(1000000)
+        expect(config.model_auto_compact_token_limit).toBe(900000)
+      }
+    )
 
     it('writes the gateway URL + key + gateway-addressed model for codex under the "cherry-gateway" key', async () => {
       mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })

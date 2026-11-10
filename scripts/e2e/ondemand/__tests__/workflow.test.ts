@@ -26,11 +26,18 @@ it('dispatches one validated platform and retains the machine-readable verdict a
   expect(source).not.toContain('inputs.plan }}\n        run:')
   expect(source).not.toContain('run-phase')
   expect(source).not.toContain('startup-smoke')
+  const steps = workflow.jobs.test.steps
+  const prepare = steps.findIndex((step: { name?: string }) => step.name === 'Prepare branch runtime')
+  const execute = steps.findIndex((step: { name?: string }) => step.name === 'Run one test')
+  expect(prepare).toBeLessThan(execute)
+  expect(steps[prepare].if).toBe("needs.resolve.outputs.mode == 'branch'")
+  expect(steps[prepare].run).toContain('exec dotenv -v CHERRY_EDITION=global -- electron-vite build')
 })
 
 it('keeps unrelated workflow diagnostics blocking the CI gate', () => {
   const ci = parse(readFileSync(resolve(__dirname, '../../../../.github/workflows/ci.yml'), 'utf8'))
-  const lint = ci.jobs['basic-checks'].steps.find(
+  expect(ci.jobs['basic-checks'].needs).toContain('repository-checks')
+  const lint = ci.jobs['repository-checks'].steps.find(
     (step: { name?: string }) => step.name === 'Lint GitHub Actions workflows'
   )
   expect(lint.with?.args ?? '').not.toContain('-ignore')

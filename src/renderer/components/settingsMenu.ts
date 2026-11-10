@@ -3,7 +3,6 @@ import {
   Archive,
   AudioLines,
   Bell,
-  CalendarClock,
   Cloud,
   Command,
   Crop,
@@ -32,7 +31,6 @@ import { createElement } from 'react'
 
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
-import { getAppEdition } from '@renderer/utils/appEdition'
 import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 
@@ -63,9 +61,7 @@ export interface SettingsMenuEntry {
  * title searchable — the settings search baseline is structural, not manual.
  */
 export const settingsMenu: readonly SettingsMenuEntry[] = [
-  ...(getAppEdition() === 'global'
-    ? [{ route: '/settings/profile', titleKey: 'settings.profile.title', icon: createElement(UserRound) }]
-    : []),
+  { route: '/settings/profile', titleKey: 'settings.profile.title', icon: createElement(UserRound) },
   { route: '/settings/provider', titleKey: 'settings.provider.title', icon: createElement(Cloud) },
   { route: '/settings/model', titleKey: 'settings.model', icon: createElement(Package) },
   {
@@ -174,12 +170,6 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/device-connections',
     titleKey: 'deviceConnections.title',
     icon: createElement(MonitorSmartphone),
-    groupKey: 'settings.menuGroups.automation'
-  },
-  {
-    route: '/settings/scheduled-tasks',
-    titleKey: 'settings.scheduledTasks.title',
-    icon: createElement(CalendarClock),
     groupKey: 'settings.menuGroups.automation'
   },
   {

@@ -918,6 +918,39 @@ describe('ProviderRegistryService', () => {
       expect(providerRegistryService.getImageGenerationSupport('custom-openai-image', 'image-model')).toEqual(block)
     })
 
+    it('projects official animation capabilities through the Desktop endpoint adapter', () => {
+      vi.stubEnv('CHERRY_EDITION', 'global')
+      mockReadModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(new URL('../../../../../packages/provider-registry/data/models.json', import.meta.url), 'utf8')
+        )
+      )
+      mockReadProviderModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/provider-models.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      mockReadProviders.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/providers.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      const support = providerRegistryService.getImageGenerationSupport('openai', 'gpt-image-2.6-flare')
+      expect(support?.modes.generate?.supports?.frameDurationMs).toMatchObject({ max: 2000 })
+      expect(support?.modes.edit?.supports?.outputFormat).toMatchObject({ options: ['png', 'jpeg', 'webp'] })
+      expect(support?.modes.edit?.supports?.frameCount).toBeUndefined()
+      expect(
+        mockReadModels('models.json').models.find((model) => model.id === 'gpt-image-2-6-flare')?.imageGeneration?.modes
+          .edit?.supports?.outputFormat
+      ).toMatchObject({ options: ['png', 'jpeg', 'webp', 'gif'] })
+    })
+
     it('does not expose native Grok ratio controls for a provider without a preset', () => {
       mockReadModels.mockReturnValue(
         JSON.parse(
