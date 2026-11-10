@@ -595,4 +595,26 @@ describe('PaintingService', () => {
       expect(paintingService.purgeExpiredTx(dbh.db, cutoff, 1)).toEqual([])
     })
   })
+
+  describe('batch and parameter snapshot', () => {
+    it('stores the batch id and parameter snapshot, and returns both from get', () => {
+      const created = paintingService.create({
+        ...p({ providerId: 'aihubmix', modelId: 'flux', prompt: 'lake' }),
+        batchId: 'batch-1',
+        params: { size: '1024x1024', seed: 7 }
+      })
+
+      expect(created).toMatchObject({ batchId: 'batch-1', params: { size: '1024x1024', seed: 7 } })
+      expect(paintingService.getById(created.id)).toMatchObject({
+        batchId: 'batch-1',
+        params: { size: '1024x1024', seed: 7 }
+      })
+    })
+
+    it('leaves a single-model painting unbatched and without a snapshot', () => {
+      const created = paintingService.create(p({ providerId: 'aihubmix', prompt: 'solo' }))
+
+      expect(paintingService.getById(created.id)).toMatchObject({ batchId: null, params: null })
+    })
+  })
 })

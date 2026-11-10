@@ -30,7 +30,9 @@ export const CreatePaintingSchema = z
     providerId: TrimmedStringSchema,
     modelId: OptionalNullableTrimmedStringSchema.optional(),
     prompt: z.string(),
-    files: PaintingFilesSchema
+    files: PaintingFilesSchema,
+    batchId: OptionalNullableTrimmedStringSchema.optional(),
+    params: z.record(z.string(), z.unknown()).nullable().optional()
   })
   .strict()
 export type CreatePaintingDto = z.infer<typeof CreatePaintingSchema>
