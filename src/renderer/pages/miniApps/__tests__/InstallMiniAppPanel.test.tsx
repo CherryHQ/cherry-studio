@@ -293,6 +293,29 @@ describe('InstallMiniAppPanel', () => {
     })
   })
 
+  it('requests a fresh consent token when the same builtin is reopened before unmounting', async () => {
+    let tokenNumber = 0
+    request.mockImplementation(async (route) =>
+      route === 'mini_app.install.preview_builtin'
+        ? { ...preview, installToken: `builtin-token-${++tokenNumber}` }
+        : undefined
+    )
+    const user = userEvent.setup()
+    const { rerender } = render(<InstallMiniAppPanel builtinAppId="com.cherrystudio.miniapp.notes" open />)
+    await screen.findByTestId('install-preview')
+    await user.click(screen.getByRole('button', { name: /^Cancel$/i }))
+
+    rerender(<InstallMiniAppPanel builtinAppId="com.cherrystudio.miniapp.notes" open={false} />)
+    rerender(<InstallMiniAppPanel builtinAppId="com.cherrystudio.miniapp.notes" open />)
+
+    await waitFor(() => expect(tokenNumber).toBe(2))
+    await user.click(await screen.findByRole('button', { name: /^Install$/i }))
+    expect(request).toHaveBeenCalledWith('mini_app.install.confirm', {
+      installToken: 'builtin-token-2',
+      grantedOptional: ['notification.show']
+    })
+  })
+
   it('cancels a builtin preview that resolves after the panel closed', async () => {
     // Late-response compensation (28A #9): pure hygiene now — the ledger entry is a few
     // KB and would expire anyway, but it also frees the one-per-window pending slot.

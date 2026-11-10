@@ -169,7 +169,7 @@ function isRenderedDynamicToolPart(part: CherryMessagePart, toolName: string | u
   if (cherryToolType === 'mcp' || parseFunctionCallToolName(toolName)) {
     return isReportArtifactsToolName(toolName) ? hasRenderableArtifactDeclaration(part) : true
   }
-  const canonicalName = toRenderedAgentToolName(toolName, shape.callProviderMetadata)
+  const canonicalName = toRenderedAgentToolName(toolName, shape.callProviderMetadata, getToolPartInput(part))
   if (NAME_RENDERED_TOOL_NAMES.has(canonicalName) || canonicalName.startsWith('mcp__')) return true
   // Same precedence as the renderer: Pi's builtin NAMES outrank `cherry.tool.type`, so a
   // `vcc_recall` completion keeps its timeline card even though Pi stamps it `builtin`.

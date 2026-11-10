@@ -47,7 +47,7 @@ export function getCanonicalToolName(part: CherryMessagePart): string | undefine
   const toolPart = part as unknown as ToolResponsePart
   const toolName = getToolName(toolPart).trim()
   if (!toolName) return undefined
-  return toRenderedAgentToolName(toolName, toolPart.callProviderMetadata)
+  return toRenderedAgentToolName(toolName, toolPart.callProviderMetadata, toolPart.input)
 }
 
 function normalizeToolName(part: ToolResponsePart): string {
@@ -181,6 +181,27 @@ function normalizeErrorOutput(part: ToolResponsePart): unknown {
   return normalizeToolErrorResponse(part.errorText)
 }
 
+function normalizeToolInput(part: ToolResponsePart): unknown {
+  const input = part.input
+  if (part.callProviderMetadata?.cherry?.transport !== PI_AGENT_TRANSPORT || !isRecord(input)) return input
+  const name = getToolName(part)
+  if (name !== 'read' && name !== 'write' && name !== 'edit') return input
+  if (name === 'edit' && Array.isArray(input.edits)) {
+    return {
+      ...input,
+      file_path: input.path,
+      edits: input.edits.map((edit) =>
+        isRecord(edit) ? { ...edit, old_string: edit.oldText, new_string: edit.newText } : edit
+      )
+    }
+  }
+  return {
+    ...input,
+    file_path: input.path,
+    ...(name === 'edit' ? { old_string: input.oldText, new_string: input.newText } : {})
+  }
+}
+
 export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: string): ToolResponseLike | null {
   if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) return null
 
@@ -230,7 +251,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const normalResponse: NormalToolResponse = {
     id: toolCallId,
     tool,
-    arguments: toolPart.input as NormalToolResponse['arguments'],
+    arguments: normalizeToolInput(toolPart) as NormalToolResponse['arguments'],
     status,
     response,
     ...(approval ? { approval } : {}),

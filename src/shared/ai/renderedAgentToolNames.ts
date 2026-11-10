@@ -73,11 +73,23 @@ export function hasCherryTransportTag(metadata: unknown): boolean {
   return typeof transport === 'string' && CHERRY_AGENT_TRANSPORTS.has(transport)
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Pi emits a multi-hunk edit as its `edit` tool carrying an `edits` array, carded as MultiEdit. */
+function isPiMultiEditTool(callProviderMetadata: unknown, toolName: string, input: unknown): boolean {
+  if (toolName !== 'edit' || !isRecord(input) || !Array.isArray(input.edits)) return false
+  const cherry = isRecord(callProviderMetadata) ? callProviderMetadata.cherry : undefined
+  return isRecord(cherry) && cherry.transport === AGENT_RUNTIME_CAPABILITIES.pi.transport
+}
+
 /**
  * Canonical card name for a tool call: parts tagged with a cherry runtime transport map their
  * runtime-native tool name onto the shared agent-tool name; everything else keeps its wire name.
  */
-export function toRenderedAgentToolName(toolName: string, callProviderMetadata: unknown): string {
+export function toRenderedAgentToolName(toolName: string, callProviderMetadata: unknown, input?: unknown): string {
+  if (isPiMultiEditTool(callProviderMetadata, toolName, input)) return RENDERED_AGENT_TOOL_NAMES.MultiEdit
   return hasCherryTransportTag(callProviderMetadata)
     ? (CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(toolName) ?? toolName)
     : toolName

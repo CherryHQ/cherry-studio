@@ -639,7 +639,14 @@ export default defineConfig([
   eslint.configs.recommended,
   tseslint.configs.recommended,
   eslintReact.configs['recommended-typescript'],
-  reactHooks.configs['recommended-latest'],
+  // The v7 presets also enable React Compiler rules; this app does not use the compiler.
+  {
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn'
+    }
+  },
   {
     plugins: {
       'unused-imports': unusedImports,

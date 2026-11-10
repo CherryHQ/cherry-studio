@@ -1,4 +1,5 @@
-import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,7 +8,7 @@ import { SettingsSearchDomIdsProvider, useSettingsSearchDomIds } from '../Settin
 import { publishResults, setLiveQuery, useSettingsSearchKeyboard } from '../store'
 
 const { locationMock, navigateMock, routerMock, searchMock, onCollapseMock } = vi.hoisted(() => ({
-  locationMock: { pathname: '/settings/general' },
+  locationMock: { pathname: '/settings/general', state: {} },
   navigateMock: vi.fn(),
   routerMock: {
     history: { canGoBack: vi.fn(() => true), back: vi.fn() }
@@ -63,6 +64,7 @@ vi.mock('react-i18next', () => ({
 describe('SettingsSearchBox', () => {
   beforeEach(() => {
     locationMock.pathname = '/settings/general'
+    locationMock.state = {}
     delete searchMock.q
     navigateMock.mockReset()
     routerMock.history.back.mockReset()
@@ -177,6 +179,7 @@ describe('SettingsSearchBox', () => {
     expect(navigateMock).toHaveBeenLastCalledWith({
       to: '/settings/search',
       replace: true,
+      state: expect.any(Function),
       search: expect.any(Function)
     })
     const previous = { q: 'proxy', panel: 'advanced', id: 'provider-1', focusId: 'anchor' }
@@ -211,7 +214,12 @@ describe('SettingsSearchBox', () => {
     expect(input.value).toBe('   ')
     expect(routerMock.history.back).not.toHaveBeenCalled()
     expect(onCollapseMock).not.toHaveBeenCalled()
-    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/search', replace: true, search: expect.any(Function) })
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/settings/search',
+      replace: true,
+      state: expect.any(Function),
+      search: expect.any(Function)
+    })
     expect(navigateMock.mock.calls[0][0].search({ q: 'proxy' })).toEqual({})
   })
 
@@ -239,7 +247,12 @@ describe('SettingsSearchBox', () => {
 
     fireEvent.click(screen.getByTestId('clear-btn'))
     expect(screen.getByTestId<HTMLInputElement>('search-input').value).toBe('')
-    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/search', replace: true, search: expect.any(Function) })
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/settings/search',
+      replace: true,
+      state: expect.any(Function),
+      search: expect.any(Function)
+    })
     expect(navigateMock.mock.calls[0][0].search({ q: '   ' })).toEqual({})
     expect(routerMock.history.back).not.toHaveBeenCalled()
     expect(onCollapseMock).not.toHaveBeenCalled()
@@ -316,6 +329,67 @@ describe('SettingsSearchBox', () => {
         ),
       { timeout: 1000 }
     )
+  })
+
+  it('preserves newer input when an earlier debounced URL mirror arrives late', async () => {
+    const user = userEvent.setup()
+    let completeNavigation!: () => void
+    navigateMock.mockImplementationOnce(() => new Promise<void>((resolve) => (completeNavigation = resolve)))
+    const { result } = renderHook(() => useSettingsSearchKeyboard())
+    const view = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
+    const input = screen.getByTestId<HTMLInputElement>('search-input')
+
+    await user.type(input, 'prox')
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ to: '/settings/search', search: { q: 'prox' } })
+      )
+    )
+    await user.type(input, 'y')
+    expect(input.value).toBe('proxy')
+
+    await act(async () => {
+      locationMock.pathname = '/settings/search'
+      searchMock.q = 'prox'
+      locationMock.state = navigateMock.mock.calls[0][0].state(locationMock.state)
+      view.rerender(<SettingsSearchBox onCollapse={onCollapseMock} />)
+      completeNavigation()
+    })
+
+    expect(input.value).toBe('proxy')
+    expect(result.current.liveQuery).toBe('proxy')
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ to: '/settings/search', search: { q: 'proxy' }, replace: true })
+      )
+    )
+  })
+
+  it('restores an acknowledged mirror when history revisits it after an external query', async () => {
+    const { result } = renderHook(() => useSettingsSearchKeyboard())
+    const view = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
+    const input = screen.getByTestId<HTMLInputElement>('search-input')
+
+    fireEvent.change(input, { target: { value: 'proxy' } })
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledTimes(1))
+    const searchHistoryState = navigateMock.mock.calls[0][0].state(locationMock.state)
+    locationMock.pathname = '/settings/search'
+    locationMock.state = searchHistoryState
+    searchMock.q = 'proxy'
+    view.rerender(<SettingsSearchBox onCollapse={onCollapseMock} />)
+
+    locationMock.state = {}
+    searchMock.q = 'theme'
+    view.rerender(<SettingsSearchBox onCollapse={onCollapseMock} />)
+    expect(input.value).toBe('theme')
+    expect(result.current.liveQuery).toBe('theme')
+
+    fireEvent.change(input, { target: { value: 'unfinished edit' } })
+    locationMock.state = searchHistoryState
+    searchMock.q = 'proxy'
+    view.rerender(<SettingsSearchBox onCollapse={onCollapseMock} />)
+    expect(input.value).toBe('proxy')
+    expect(result.current.liveQuery).toBe('proxy')
   })
 
   it('replaces, not pushes, the mirrored navigate after a back/forward re-entry', async () => {

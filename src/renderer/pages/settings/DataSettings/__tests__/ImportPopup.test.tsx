@@ -1,8 +1,11 @@
+import { MockDataApiService } from '@test-mocks/renderer/DataApiService'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
+import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useQuery } from '@data/hooks/useDataApi'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
@@ -10,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   importConversations: vi.fn(),
   openFile: vi.fn()
 }))
+
+vi.unmock('@data/hooks/useDataApi')
 
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
@@ -136,4 +141,52 @@ describe('ImportPopup', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
+})
+
+// A successful import must refresh already mounted lists without reloading the window.
+it('shows imported assistants and conversations after completion', async () => {
+  let imported = false
+  MockDataApiService.dataApiService.get.mockImplementation(async (path) => ({
+    items: imported
+      ? [{ id: 'imported', name: path === '/assistants' ? 'ChatGPT Import' : 'Imported conversation' }]
+      : [],
+    total: imported ? 1 : 0
+  }))
+  mocks.openFile.mockResolvedValueOnce({ content: '[]' })
+  mocks.importConversations.mockImplementationOnce(async () => {
+    imported = true
+    return { success: true, topicsCount: 1, messagesCount: 2 }
+  })
+  function Lists() {
+    const assistants = useQuery('/assistants', { query: { limit: 500 } })
+    const topics = useQuery('/topics')
+    return (
+      <>
+        <div>
+          {assistants.data
+            ? assistants.data.items.map((item) => item.name).join(', ') || 'No assistants'
+            : 'Loading assistants'}
+        </div>
+        <div>
+          {topics.data
+            ? topics.data.items.map((item) => item.name).join(', ') || 'No conversations'
+            : 'Loading conversations'}
+        </div>
+      </>
+    )
+  }
+  render(
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+      <Lists />
+      <PopupHost />
+    </SWRConfig>
+  )
+  await screen.findByText('No assistants')
+  await screen.findByText('No conversations')
+  act(() => {
+    void ImportPopup.show({ source: 'chatgpt' })
+  })
+  await userEvent.setup().click(await screen.findByRole('button', { name: 'import.chatgpt.button' }))
+  await screen.findByText('ChatGPT Import')
+  await screen.findByText('Imported conversation')
 })
