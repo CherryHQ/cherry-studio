@@ -550,7 +550,7 @@ describe('ProviderApiSetupDialog', () => {
     fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), { target: { value: typedKey } })
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.next' }))
     await screen.findByRole('alert')
-    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
 
     await waitFor(() => expect(showErrorDetailPopup).toHaveBeenCalled())
     const request = showErrorDetailPopup.mock.calls[0]?.[0] as {

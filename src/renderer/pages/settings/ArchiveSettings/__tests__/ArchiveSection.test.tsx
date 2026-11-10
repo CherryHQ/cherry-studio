@@ -144,7 +144,7 @@ describe('ArchiveSection selection and batch actions', () => {
     expect(screen.getByText(i18n.t('settings.data.trash.error.load'))).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: i18n.t('common.retry') }))
     expect(onRetry).toHaveBeenCalledOnce()
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -156,7 +156,7 @@ describe('ArchiveSection selection and batch actions', () => {
       )
     )
     view.rerender(<ArchiveSection {...createProps()} />)
-    expect(screen.queryByRole('button', { name: i18n.t('error.details') })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: i18n.t('common.detail') })).not.toBeInTheDocument()
   })
 
   it('restores selected current-page rows once and keeps only failures selected', async () => {

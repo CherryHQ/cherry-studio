@@ -43,7 +43,7 @@ describe('WorkspaceDeleteConfirmDialog reference preview', () => {
     expect(await screen.findByText(i18n.t('agent.session.workdir.delete.preview_failed'))).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: i18n.t('common.retry') }))
     expect(refetch).toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -70,7 +70,7 @@ describe('WorkspaceDeleteConfirmDialog reference preview', () => {
     expect(await screen.findByText(i18n.t('agent.session.workdir.delete.disk_preserved'))).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: i18n.t('common.retry') }))
     expect(refetch).toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalledWith(expect.objectContaining({ error: cause })))
   })
 })
