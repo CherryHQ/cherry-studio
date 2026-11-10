@@ -95,9 +95,12 @@ export class MediaAnalysisService extends BaseService {
     await mkdir(jobDir, { recursive: true })
     try {
       const analysis = await this.runAnalysis(fileInfo.path, fileInfo.ext, jobDir, execution, signal)
-      if (!analysis.warnings.some((warning) => RECOVERABLE_ANALYSIS_WARNINGS.has(warning))) {
-        cache.set(cacheKey, analysis, CACHE_TTL_MS)
-      }
+      // Without an ASR model the transcription warning is a settings state the cache key already carries.
+      const retryable = analysis.warnings.some(
+        (warning) =>
+          RECOVERABLE_ANALYSIS_WARNINGS.has(warning) && (warning !== 'audio_transcription_failed' || execution.asr)
+      )
+      if (!retryable) cache.set(cacheKey, analysis, CACHE_TTL_MS)
       return analysis
     } finally {
       await rm(jobDir, { recursive: true, force: true }).catch(() => {

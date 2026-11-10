@@ -328,6 +328,10 @@ describe('MediaAnalysisService', () => {
     expect(analysis.audio).toBeUndefined()
     expect(analysis.visuals).toEqual([{ timestampMs: 4_000, ocrText: 'Agenda' }])
     expect(analysis.warnings).toContain('audio_transcription_failed')
+
+    // No ASR model is a settings state, not a retryable failure: a second read reuses the result.
+    await expect(service.analyze(file)).resolves.toEqual(analysis)
+    expect(runtime.extractFrames).toHaveBeenCalledTimes(1)
   })
 
   it('rejects audio-only media when no ASR model is configured', async () => {
