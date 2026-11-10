@@ -17,7 +17,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "ai": "6.0.185"
+    "ai": "6.0.185",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "^24.10.4",

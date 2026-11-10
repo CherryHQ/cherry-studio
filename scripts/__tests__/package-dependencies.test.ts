@@ -138,6 +138,11 @@ describe('packaged Smithy dependencies', () => {
 describe('packaged production dependency closure', () => {
   // Moving a package to devDependencies can drop the only production source of another package's
   // peer; dev and tests still resolve it from the workspace, so only the packaged app fails to load.
+  it('declares zod as an agent runtime dependency', () => {
+    const manifest = JSON.parse(readFileSync(path.join(projectRoot, 'packages/agent-runtime/package.json'), 'utf8'))
+    expect(manifest.dependencies.zod).toBe('4.4.3')
+  })
+
   it('ships every required peer of every packaged module', async () => {
     const modules = await collectProductionModules()
     const versions = new Map<string, string[]>()
