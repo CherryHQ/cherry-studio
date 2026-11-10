@@ -62,7 +62,12 @@ describe('Markdown live preview', () => {
       ['~~gone~~', '.composer-md-delete', 'gone', ['~~', '~~']],
       ['`code`', '.composer-md-inline-code', 'code', ['`', '`']],
       ['[label](https://a.b)', '.composer-md-link', 'label', ['[', '](https://a.b)']],
+      ['[label]()', '.composer-md-link', 'label', ['[', ']()']],
+      ['https://a.b', '.composer-md-link', 'https://a.b', []],
+      ['<https://a.b>', '.composer-md-link', 'https://a.b', ['<', '>']],
+      ['<a@b.com>', '.composer-md-link', 'a@b.com', ['<', '>']],
       ['# Title', '.composer-md-heading-1', '# Title', ['# ']],
+      ['# Title ###', '.composer-md-heading-1', '# Title ###', ['# ', '###']],
       ['###### Small', '.composer-md-heading-6', '###### Small', ['###### ']],
       ['> quoted', '.composer-md-quote', '> quoted', ['> ']]
     ])('styles %s and hides its markers away from the caret', (source, selector, styled, hidden) => {
@@ -104,6 +109,7 @@ describe('Markdown live preview', () => {
       ['inline LaTeX', '$x + y$'],
       ['block LaTeX', '$$\nx + y\n$$'],
       ['a bracketed index', 'array[0] and [note]'],
+      ['a link reference definition', '\n[label]: https://a.b'],
       ['spaced asterisks', '2 * 3 * 4'],
       ['a generic type', 'Array<string>']
     ])('leaves %s as literal source', (_name, source) => {
@@ -190,6 +196,18 @@ describe('Markdown live preview', () => {
       index: 0,
       textOffset: 9
     }
+
+    it('keeps a token visible inside a hidden link title', () => {
+      const prefix = 'caret\n[label](https://a.b "ti'
+      const text = `${prefix}chip tle")`
+      const editor = createEditor(text, [{ ...token, textOffset: prefix.length }])
+
+      expect(textsOf(editor, '.composer-md-link')).toEqual(['label'])
+      expect(hiddenMarkers(editor)).toEqual(['[', '](https://a.b "ti', 'tle")'])
+      expect(serializeComposerDocument(editor)).toEqual(
+        serializeComposerDocument(createEditor(text, [{ ...token, textOffset: prefix.length }], false))
+      )
+    })
 
     it('keeps a token inside a styled span at its original offset', () => {
       const text = 'x\n**a b chip c**\nend'
@@ -327,6 +345,19 @@ describe('Markdown live preview', () => {
 
       vi.advanceTimersByTime(40)
       expect(textsOf(editor, '.composer-md-strong')).toEqual(['x'])
+    })
+
+    it('resumes preview when the editor consumes compositionend', () => {
+      const editor = createEditor('caret\n**bold**')
+      editor.view.setProps({ handleDOMEvents: { compositionend: () => true } })
+
+      compose(editor, 'compositionstart')
+      compose(editor, 'compositionend')
+      vi.advanceTimersByTime(40)
+      caretAt(editor, 1, 4)
+
+      expect(textsOf(editor, '.composer-md-syntax')).toEqual(['**', '**'])
+      expect(hiddenMarkers(editor)).toEqual([])
     })
 
     it('keeps holding when the next composition starts before the last one settles', () => {

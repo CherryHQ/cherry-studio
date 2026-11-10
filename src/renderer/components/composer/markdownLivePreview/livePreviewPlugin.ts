@@ -42,9 +42,10 @@ const DELIMITED_NODES: Record<string, { mark: string; className: string }> = {
   Emphasis: { mark: 'EmphasisMark', className: 'composer-md-emphasis' },
   StrongEmphasis: { mark: 'EmphasisMark', className: 'composer-md-strong' },
   Strikethrough: { mark: 'StrikethroughMark', className: 'composer-md-delete' },
-  InlineCode: { mark: 'CodeMark', className: 'composer-md-inline-code' }
+  InlineCode: { mark: 'CodeMark', className: 'composer-md-inline-code' },
+  Autolink: { mark: 'LinkMark', className: 'composer-md-link' }
 }
-const LITERAL_NODES = new Set(['Image', 'Table', 'HTMLBlock', 'HTMLTag', 'FencedCode', 'CodeBlock'])
+const LITERAL_NODES = new Set(['Image', 'Table', 'HTMLBlock', 'HTMLTag', 'FencedCode', 'CodeBlock', 'LinkReference'])
 
 const COMPOSITION_END_SETTLE_MS = 40
 
@@ -68,21 +69,24 @@ function collectMarkup({ text, lines, tree }: MarkdownSession): LineMarkup[] {
       if (sliceTo > sliceFrom) visit(index, { from: sliceFrom - textFrom, to: sliceTo - textFrom })
     }
   }
-  const addSpan = (from: number, to: number, className: string) => {
+  const forEachTextSlice = (from: number, to: number, visit: (index: number, slice: Range) => void) => {
     forEachLineSlice(from, to, (index, slice) => {
-      // An inline decoration lands on an atom's own element, so spans stop short of token chips.
+      // Inline decorations affect the atom's own element, so skip token chips.
       const { textFrom } = lines[index]
       let start = slice.from
       for (let column = slice.from; column <= slice.to; column += 1) {
         if (column < slice.to && text[textFrom + column] !== TOKEN_PLACEHOLDER) continue
-        if (column > start) markup[index].spans.push({ from: start, to: column, className })
+        if (column > start) visit(index, { from: start, to: column })
         start = column + 1
       }
     })
   }
+  const addSpan = (from: number, to: number, className: string) => {
+    forEachTextSlice(from, to, (index, slice) => markup[index].spans.push({ ...slice, className }))
+  }
   const addMarker = (from: number, to: number, reveal: Range, options?: Pick<Marker, 'collapsesLine'>) => {
     const documentReveal = documentRange(reveal)
-    forEachLineSlice(from, to, (index, slice) =>
+    forEachTextSlice(from, to, (index, slice) =>
       markup[index].markers.push({ ...slice, ...options, reveal: documentReveal })
     )
   }
@@ -97,18 +101,19 @@ function collectMarkup({ text, lines, tree }: MarkdownSession): LineMarkup[] {
   }
   const addLink = (node: SyntaxNode) => {
     const marks = node.getChildren('LinkMark')
-    // Only an inline link has a destination; `[0]` is a shortcut reference the parser cannot rule out.
-    if (marks.length < 2 || !node.getChild('URL')) return
+    // Inline links have destination parentheses even when the URL is empty.
+    if (marks.length !== 4) return
     addMarker(node.from, marks[0].to, node)
     addMarker(marks[1].from, node.to, node)
     addSpan(marks[0].to, marks[1].from, 'composer-md-link')
   }
   const addAtxHeading = (node: SyntaxNode, level: string) => {
     addSpan(node.from, node.to, `composer-md-heading composer-md-heading-${level}`)
-    const mark = node.firstChild
-    if (mark?.name !== 'HeaderMark') return
+    const [mark, closingMark] = node.getChildren('HeaderMark')
+    if (!mark) return
     const end = mark.to + (/^[ \t]*/.exec(text.slice(mark.to, node.to))?.[0].length ?? 0)
     addMarker(mark.from, end, node)
+    if (closingMark) addMarker(closingMark.from, node.to, node)
   }
   const addQuote = (node: SyntaxNode) => {
     const first = findSourceLineIndex(lines, node.from)
@@ -137,6 +142,8 @@ function collectMarkup({ text, lines, tree }: MarkdownSession): LineMarkup[] {
       const delimited = DELIMITED_NODES[name]
       if (delimited) addDelimited(ref.node, delimited.mark, delimited.className)
       else if (name === 'Link') addLink(ref.node)
+      else if (name === 'URL' && ref.node.parent?.name !== 'Link' && ref.node.parent?.name !== 'Autolink')
+        addSpan(ref.from, ref.to, 'composer-md-link')
       else if (name === 'Blockquote') addQuote(ref.node)
       else if (name === 'QuoteMark') addQuoteMark(ref.node)
       else if (name === 'HorizontalRule') addHorizontalRule(ref.node)
@@ -314,33 +321,38 @@ function createLivePreviewPlugin() {
         mousedown: () => {
           pointerDown = true
           return false
-        },
-        compositionstart: () => {
-          window.clearTimeout(settleTimer)
-          composing = true
-          return false
-        },
-        compositionend: (view) => {
-          // Outlast ProseMirror's 20ms composition-end flush so the rebuild sees the committed text.
-          settleTimer = window.setTimeout(() => {
-            composing = false
-            if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(livePreviewKey, true))
-          }, COMPOSITION_END_SETTLE_MS)
-          return false
         }
       }
     },
     view: (view) => {
+      const startComposition = (event: CompositionEvent) => {
+        if (event.target !== view.dom) return
+        window.clearTimeout(settleTimer)
+        composing = true
+      }
+      const endComposition = (event: CompositionEvent) => {
+        if (event.target !== view.dom) return
+        // Outlast ProseMirror's 20ms flush so the rebuild sees the committed text.
+        settleTimer = window.setTimeout(() => {
+          composing = false
+          if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(livePreviewKey, true))
+        }, COMPOSITION_END_SETTLE_MS)
+      }
       const releasePointer = () => {
         if (!pointerDown) return
         pointerDown = false
         if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(livePreviewKey, true))
       }
+      // The Composer can consume compositionend before ProseMirror calls plugin handlers.
+      view.dom.addEventListener('compositionstart', startComposition, true)
+      view.dom.addEventListener('compositionend', endComposition, true)
       window.addEventListener('mouseup', releasePointer)
       window.addEventListener('dragend', releasePointer)
       return {
         destroy: () => {
           window.clearTimeout(settleTimer)
+          view.dom.removeEventListener('compositionstart', startComposition, true)
+          view.dom.removeEventListener('compositionend', endComposition, true)
           window.removeEventListener('mouseup', releasePointer)
           window.removeEventListener('dragend', releasePointer)
         }
