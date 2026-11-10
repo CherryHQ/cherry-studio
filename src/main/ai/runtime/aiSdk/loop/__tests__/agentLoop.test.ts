@@ -343,6 +343,31 @@ describe('Agent', () => {
     })
   })
 
+  it('turns a content-filtered turn with no output into an error instead of an empty success', async () => {
+    const steps = [{ finishReason: 'content-filter', text: '', toolCalls: [], toolResults: [] }]
+    mockStream([{ type: 'finish', finishReason: 'content-filter' }], { steps, finishReason: 'content-filter' })
+
+    const onFinish = vi.fn()
+    const agent = await makeAgent({ hookParts: [{ onFinish }] })
+
+    await expect(agent.stream([], new AbortController().signal).getReader().read()).rejects.toMatchObject({
+      name: 'ContentFilterTerminalError',
+      finishReason: 'content-filter'
+    })
+    expect(onFinish).not.toHaveBeenCalled()
+  })
+
+  it('keeps a content-filtered turn that already produced text as a completed reply', async () => {
+    const steps = [{ finishReason: 'content-filter', text: 'Partial answer', toolCalls: [], toolResults: [] }]
+    mockStream([{ type: 'finish', finishReason: 'content-filter' }], { steps, finishReason: 'content-filter' })
+
+    const agent = await makeAgent()
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'finish' }, done: false })
+    await expect(reader.read()).resolves.toEqual({ value: undefined, done: true })
+  })
+
   it('forwards an approval finish at maxToolCalls=1 when the cap condition was not evaluated', async () => {
     const stopWhen = createToolCallLimitStopCondition(1)
     const steps = [{ toolResults: [] }]

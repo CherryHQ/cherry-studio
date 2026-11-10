@@ -21,6 +21,9 @@ type TrackedStopState = {
 
 const trackedStopConditions = new WeakMap<StopCondition<ToolSet>, TrackedStopState>()
 
+const CONTENT_FILTER_MESSAGE =
+  "The provider's content filter blocked this response before any output. Rephrase the message or switch models."
+
 const TOOL_CALL_LIMIT_MESSAGE =
   'The assistant reached the tool-call limit before producing a final answer. Raise "Max tool call rounds" in the assistant settings, or reduce the task scope.'
 
@@ -106,4 +109,24 @@ export function resolveToolLoopTerminalError({
   }
 
   return undefined
+}
+
+/** A provider content filter that ended the turn; `finishReason` lets error classification name it. */
+export class ContentFilterTerminalError extends Error {
+  readonly finishReason = 'content-filter'
+
+  constructor() {
+    super(CONTENT_FILTER_MESSAGE)
+    this.name = 'ContentFilterTerminalError'
+  }
+}
+
+/** A filtered final step with no text or tool call would otherwise persist as an empty success. */
+export function resolveContentFilterTerminalError(
+  steps: Array<StepResult<ToolSet>>
+): ContentFilterTerminalError | undefined {
+  const lastStep = steps.at(-1)
+  if (lastStep?.finishReason !== 'content-filter') return undefined
+  if (lastStep.text.trim() || lastStep.toolCalls.length > 0) return undefined
+  return new ContentFilterTerminalError()
 }

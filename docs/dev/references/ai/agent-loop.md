@@ -136,6 +136,11 @@ see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
   `Agent` converts only that outcome into an explicit error. This avoids
   treating an approval pause as cap exhaustion. If a queued steer and the cap
   both trigger on one step, the clean steer yield takes precedence.
+- A streamed turn whose final step ends with `content-filter` and produced no
+  text or tool call is converted into `ContentFilterTerminalError`. Its
+  `finishReason` lets the renderer classify it as a content error instead of
+  persisting an empty success. A filtered step that already streamed text
+  still finishes normally.
 - The writer is settled exactly once via the `then`/`catch` of the
   internal IIFE — listeners never see a half-closed stream.
 
