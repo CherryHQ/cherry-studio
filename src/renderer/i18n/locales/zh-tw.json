@@ -616,6 +616,8 @@
   "agent.tools.builtin.list_agents.label": "列出子智能體",
   "agent.tools.builtin.ls.description": "列出目錄內容",
   "agent.tools.builtin.ls.label": "列出目錄內容",
+  "agent.tools.builtin.powershell.description": "在 Windows 上執行 PowerShell 命令",
+  "agent.tools.builtin.powershell.label": "執行 PowerShell 命令",
   "agent.tools.builtin.read.description": "讀取檔案",
   "agent.tools.builtin.read.label": "讀取檔案",
   "agent.tools.builtin.read_image.description": "使用支援視覺的模型讀取 PNG、JPEG、WebP 或 GIF 圖片",

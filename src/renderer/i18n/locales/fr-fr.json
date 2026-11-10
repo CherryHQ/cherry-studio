@@ -616,6 +616,8 @@
   "agent.tools.builtin.list_agents.label": "Liste des sous-agents",
   "agent.tools.builtin.ls.description": "Lister le contenu du répertoire",
   "agent.tools.builtin.ls.label": "Lister le contenu du répertoire",
+  "agent.tools.builtin.powershell.description": "Exécuter des commandes PowerShell sous Windows",
+  "agent.tools.builtin.powershell.label": "Exécuter des commandes PowerShell",
   "agent.tools.builtin.read.description": "Lire des fichiers",
   "agent.tools.builtin.read.label": "Lire des fichiers",
   "agent.tools.builtin.read_image.description": "Lit un fichier PNG, JPEG, WebP ou GIF avec un modèle doté de capacités visuelles",

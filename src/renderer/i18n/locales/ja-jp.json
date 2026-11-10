@@ -616,6 +616,8 @@
   "agent.tools.builtin.list_agents.label": "サブエージェントを一覧表示",
   "agent.tools.builtin.ls.description": "ディレクトリ内容を一覧表示",
   "agent.tools.builtin.ls.label": "ディレクトリ内容を一覧表示",
+  "agent.tools.builtin.powershell.description": "Windows で PowerShell コマンドを実行",
+  "agent.tools.builtin.powershell.label": "PowerShell コマンドを実行",
   "agent.tools.builtin.read.description": "ファイルを読み込む",
   "agent.tools.builtin.read.label": "ファイルを読み込む",
   "agent.tools.builtin.read_image.description": "画像認識対応モデルで PNG、JPEG、WebP、GIF ファイルを読み取ります",
