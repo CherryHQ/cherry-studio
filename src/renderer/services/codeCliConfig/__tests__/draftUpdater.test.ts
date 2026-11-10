@@ -1,4 +1,4 @@
-import { parse as parseToml, stringify as stringifyToml } from 'smol-toml'
+import { parse, stringify } from 'smol-toml'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
@@ -138,6 +138,24 @@ describe('updateCliConfigDraftConfig', () => {
     expect(extractConnectionFromCliConfigDraft(CodeCli.OPENAI_CODEX, updated)).toEqual(before)
   })
 
+  it('preserves Codex token limits and connection during a config-only update', async () => {
+    const files = await buildCodexDraft()
+    const configFile = files.find((file) => file.target === 'codex-config')!
+    const config = parse(configFile.content)
+    config.model_context_window = 900000
+    config.model_auto_compact_token_limit = 900000
+    configFile.content = stringify(config)
+    const updated = updateCliConfigDraftConfig(CodeCli.OPENAI_CODEX, files, { reasoningEffort: 'high' })
+    const result = parse(updated.find((file) => file.target === 'codex-config')!.content) as Record<string, any>
+    expect(result.model_context_window).toBe(900000)
+    expect(result.model_auto_compact_token_limit).toBe(900000)
+    expect(result.model_reasoning_effort).toBe('high')
+    expect(result.model).toBe('gpt-5')
+    expect(result.model_provider).toBe('cherry-DeepSeek')
+    expect(result.model_providers['cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
+    expect(JSON.parse(updated.find((file) => file.target === 'codex-auth')!.content).OPENAI_API_KEY).toBe('sk-secret')
+  })
+
   it('clears a managed flag when it is dropped from the blob', async () => {
     const files = await buildCodexDraft({ goalMode: true, reasoningEffort: 'high' })
     expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, files)).toEqual({
@@ -169,19 +187,19 @@ describe('updateCliConfigDraftConfig', () => {
       sandbox_mode: 'read-only',
       default_permissions: ':read-only'
     }
-    config.content = stringifyToml({ ...parseToml(config.content), ...native })
+    config.content = stringify({ ...parse(config.content), ...native })
     const selected = await readCliConfigDraft({
       cliTool: CodeCli.OPENAI_CODEX,
       modelId: 'deepseek::new-model',
       files,
       configBlob: extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, files) ?? {}
     })
-    expect(parseToml(selected.find((file) => file.target === 'codex-config')!.content)).toMatchObject({
+    expect(parse(selected.find((file) => file.target === 'codex-config')!.content)).toMatchObject({
       ...native,
       model: 'new-model'
     })
     const updated = updateCliConfigDraftConfig(CodeCli.OPENAI_CODEX, selected, { reasoningEffort: 'high' })
-    expect(parseToml(updated.find((file) => file.target === 'codex-config')!.content)).toMatchObject({
+    expect(parse(updated.find((file) => file.target === 'codex-config')!.content)).toMatchObject({
       ...native,
       model_reasoning_effort: 'high'
     })

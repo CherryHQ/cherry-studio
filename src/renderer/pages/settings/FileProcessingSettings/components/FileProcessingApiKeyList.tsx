@@ -171,7 +171,13 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
             <span className="min-w-0 truncate">{maskFileProcessingApiKey(item.key)}</span>
           </Button>
           <div className="flex shrink-0 items-center gap-0.5">
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={t('common.copy')} onClick={handleCopy}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('common.copy')}
+              onClick={handleCopy}
+              className="text-muted-foreground">
               <Copy className="size-3.5" />
             </Button>
             <Button
@@ -179,7 +185,8 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
               variant="ghost"
               size="icon-sm"
               aria-label={t('common.edit')}
-              onClick={() => setIsEditing(true)}>
+              onClick={() => setIsEditing(true)}
+              className="text-muted-foreground">
               <EditIcon size={14} />
             </Button>
             <Button
@@ -187,7 +194,8 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
               variant="ghost"
               size="icon-sm"
               aria-label={t('common.delete')}
-              onClick={() => void handleRemove()}>
+              onClick={() => void handleRemove()}
+              className="text-muted-foreground">
               <Minus className="size-3.5" />
             </Button>
           </div>

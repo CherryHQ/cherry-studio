@@ -24,6 +24,7 @@ import { renderToolFields } from './toolFieldRenderer'
 const logger = loggerService.withContext('OwnLoginConfigPanel')
 
 export interface OwnLoginConfigPanelProps {
+  open?: boolean
   onClose: () => void
   cliTool: CodeCli
   toolName: string
@@ -36,6 +37,7 @@ export interface OwnLoginConfigPanelProps {
  * or credentials. Persists the blob to the tool preference and, when own login is
  * active, re-applies it to the CLI config file (see useConfigPanelController). */
 export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
+  open = true,
   onClose,
   cliTool,
   toolName,
@@ -132,7 +134,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
   })
 
   return (
-    <Dialog open onOpenChange={(o) => (!o ? onClose() : undefined)}>
+    <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : undefined)}>
       <DialogContent
         size="lg"
         aria-describedby={undefined}

@@ -11,7 +11,6 @@ import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionCostSnapshot } from '../../ai/agentSessionCost'
-import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
 import type { McpServer } from '../types/mcpServer'
@@ -205,7 +204,6 @@ export type CacheAgentSessionApiRetryState = AgentSessionApiRetryState | null
 export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
 export type CacheAgentSessionBackgroundTasks = AgentSessionBackgroundTasks
 export type CacheAgentSessionTaskEvents = AgentSessionTaskEvents
-export type CacheAgentSessionFlowParts = AgentSessionFlowParts
 export type CacheAgentSessionTurnOrigin = AutonomousTurnOrigin | null
 
 /**

@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Checkbox } from '@cherrystudio/ui'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import {
   CLAUDE_MODEL_ROLES,
   CLAUDE_PERMISSION_MODES,
@@ -338,6 +338,7 @@ const ClaudeRoleModelSelector: FC<{
   return (
     <div className="min-w-0 flex-1">
       <ModelSelector
+        showSubscriptionOffers={false}
         multiple={false}
         selectionType="id"
         value={value}

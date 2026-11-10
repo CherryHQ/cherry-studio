@@ -73,6 +73,7 @@ export function useConfigPanelController({
 }: UseConfigPanelControllerOptions): ConfigPanelController {
   const { t } = useTranslation()
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
+  const [panelSession, setPanelSession] = useState(0)
   const pendingEnableProviderIdRef = useRef<string | null>(null)
   const writesCliConfig =
     isModelConfiguredCli(selectedCliTool) ||
@@ -100,6 +101,7 @@ export function useConfigPanelController({
 
   const openConfigurePanel = useCallback((provider: Provider) => {
     pendingEnableProviderIdRef.current = null
+    setPanelSession((current) => current + 1)
     setEditingProvider(provider)
   }, [])
 
@@ -293,12 +295,14 @@ export function useConfigPanelController({
         if (cfg?.modelId && !parseConfiguredModelId(cfg.modelId) && !cliConfigContext) {
           await upsertProviderConfig(provider.id, { modelId: null })
           pendingEnableProviderIdRef.current = provider.id
+          setPanelSession((current) => current + 1)
           setEditingProvider(provider)
           toast.error(t('code.launch.validation_error'))
           return
         }
         if (!cliConfigContext) {
           pendingEnableProviderIdRef.current = provider.id
+          setPanelSession((current) => current + 1)
           setEditingProvider(provider)
           return
         }
@@ -390,7 +394,7 @@ export function useConfigPanelController({
   const isEditingOwnLogin = editingProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
 
   return {
-    configPanelKey: editingProvider ? `${selectedCliTool}:${editingProvider.id}` : undefined,
+    configPanelKey: editingProvider ? `${selectedCliTool}:${editingProvider.id}:${panelSession}` : undefined,
     configPanelProps:
       editingProvider && !isEditingOwnLogin
         ? {

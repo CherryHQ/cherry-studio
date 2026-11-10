@@ -21,6 +21,7 @@ protocols:
       - cherrystudio
 files:
   - "**/*"
+  - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**" # ClaudeCodeBinaryService downloads the native runtime on demand
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
   - "!electron-builder.cn.config.cjs"
@@ -164,6 +165,7 @@ mac:
     - target: dmg
     - target: zip
 dmg:
+  format: ULFO
   writeUpdateInfo: false
 toolsets:
   appimage: "1.0.3"

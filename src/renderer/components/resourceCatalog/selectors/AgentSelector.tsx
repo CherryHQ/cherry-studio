@@ -85,8 +85,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     [onOpenChange, open]
   )
 
-  // Keep in lockstep with TasksSettings' agents query — they share one SWR
-  // cache entry only while path + query serialize identically.
+  // Use the shared agent query limit to keep selector results consistent.
   const { data, isLoading, refetch } = useQuery('/agents', {
     enabled: selectorOpen,
     query: { limit: AGENTS_MAX_LIMIT }

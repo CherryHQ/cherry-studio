@@ -6,11 +6,13 @@ import type { ChannelStatus } from '@shared/data/types/channel'
 import type { FileProcessingTask } from '@shared/data/types/fileProcessing'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
+import type { CherryCloudPlanModel } from '@shared/ipc/schemas/cherryCloud'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { CodeBuddyWebUiStatus, ManagedToolStatusState } from '@shared/types/managedTool'
 import type { SelectionAgentCapsule } from '@shared/types/selection'
+import type { MarketplaceSkillMember, SkillSubscriptionSnapshot } from '@shared/types/skillMarketplace'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -213,6 +215,7 @@ export type UseCacheSchema = {
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
   'message.ui.${messageId}': {
     foldSelected?: boolean
+    foldSelectedBranchId?: string | null
     multiModelMessageStyle?: string
     useful?: boolean
     disclosures?: Record<string, boolean>
@@ -325,7 +328,6 @@ export type SharedCacheSchema = {
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
   'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
-  'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
   'agent.session.turn_origin.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionTurnOrigin
   'message.context.compacting.${messageId}': boolean
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
@@ -414,7 +416,6 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.slash_commands.${sessionId}': null,
   'agent.session.background_tasks.${sessionId}': [],
   'agent.session.task_events.${sessionId}': {},
-  'agent.session.flow_parts.${sessionId}.${messageId}': [],
   'agent.session.turn_origin.${sessionId}.${messageId}': null,
   'message.context.compacting.${messageId}': false,
   'topic.stream.statuses.${topicId}': null,
@@ -455,6 +456,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
 export type RendererPersistCacheSchema = {
   'local_agent.model_catalogs': Record<string, CacheValueTypes.LocalAgentModelCacheEntry>
   'ui.browser.import_prompt_hidden': boolean
+  'ui.browser.last_urls': Record<string, string>
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
   // restart. Main window only — written from TabsContext, gated on includePinnedTabs.
@@ -488,6 +490,7 @@ export type RendererPersistCacheSchema = {
   'ui.agent.last_used_workspace_id': string | null
   // Kept separate so the assistant and agent surfaces don't bleed into each other.
   'ui.agent.right_pane_open_override': boolean | null
+  'ui.agent.details.open': boolean
   'ui.agent.session.expansion.time': string[]
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
@@ -525,11 +528,17 @@ export type RendererPersistCacheSchema = {
   'ui.screenshot.annotation_color': string
   'ui.screenshot.annotation_stroke_width': number
   'ui.screenshot.annotation_font_size': number
+  // Set once any Subscribe touchpoint is used; hides the account-avatar subscription dot for good.
+  'ui.cherry_cloud.subscribe_prompt_seen': boolean
+  // Paid plan models last seen while signed in; the plans API needs a session, and the model picker
+  // keeps offering them as locked rows after sign-out.
+  'ui.cherry_cloud.plan_models': CherryCloudPlanModel[]
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'local_agent.model_catalogs': {},
   'ui.browser.import_prompt_hidden': false,
+  'ui.browser.last_urls': {},
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],
   'ui.tab.active_tab_id': '',
@@ -550,6 +559,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
   'ui.agent.right_pane_open_override': null,
+  'ui.agent.details.open': true,
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
@@ -577,7 +587,9 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   // or the overlay opens with no swatch, width or size marked as current.
   'ui.screenshot.annotation_color': '#F54A45',
   'ui.screenshot.annotation_stroke_width': 4,
-  'ui.screenshot.annotation_font_size': 20
+  'ui.screenshot.annotation_font_size': 20,
+  'ui.cherry_cloud.subscribe_prompt_seen': false,
+  'ui.cherry_cloud.plan_models': []
 }
 
 /**
@@ -588,10 +600,15 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  'skill.subscription.catalogs': Record<string, SkillSubscriptionSnapshot>
+  // ZIP-derived contents only; installed state still comes from the skill library.
+  'skill.marketplace.members': Record<string, MarketplaceSkillMember[]>
   'browser.favicons': Record<string, string>
   // Last completed automatic-backup attempt (or manual backup) per backend.
   // AutoBackupService owns this restart-safe scheduling baseline.
   'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
+  // Last processed Cherry Cloud notification position per account id; losing one only rebuilds that baseline.
+  'cherry_cloud.notification_cursors': Record<string, string>
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -603,8 +620,11 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'skill.subscription.catalogs': {},
+  'skill.marketplace.members': {},
   'browser.favicons': {},
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
+  'cherry_cloud.notification_cursors': {},
   'internal.persist_probe': 0,
   'window.bounds': {}
 }

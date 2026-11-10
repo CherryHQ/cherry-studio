@@ -267,7 +267,8 @@ describe('local protocol processes', () => {
     const prompt = wire.find((message) => message.method === 'session/prompt').params.prompt
     expect(prompt).toEqual([
       { type: 'text', text: 'Read both attachments' },
-      { type: 'image', mimeType: 'image/png', data: image },
+      // Main pads images below the minimum edge, so the wire carries a re-encoded PNG.
+      expect.objectContaining({ type: 'image', mimeType: 'image/png' }),
       scenario === 'embedded-files'
         ? {
             type: 'resource',
@@ -744,14 +745,16 @@ describe('local protocol processes', () => {
       await connection.send(input)
       await connection.close()
       await drained
-      const readings = events.flatMap((event) => (event.type === 'context-usage' ? [event.usage] : []))
+      const readings = events.flatMap((event) =>
+        event.type === 'context-usage' && event.result.status === 'confirmed' ? [event.result.value] : []
+      )
       expect(readings).toEqual(
         [20, 40, 10].map((used) => ({
-          categories: [],
-          totalTokens: used,
-          maxTokens: 100,
-          percentage: used,
-          model: 'fixture-default'
+          model: 'fixture-default',
+          revision: 'fixture-default',
+          contextWindow: 100,
+          basis: 'current-context',
+          used: { tokens: used, precision: 'reported' }
         }))
       )
       expect(events.filter((event) => event.type === 'usage')).toEqual([])

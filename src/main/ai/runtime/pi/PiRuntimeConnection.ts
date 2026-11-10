@@ -2,27 +2,31 @@ import { randomUUID } from 'node:crypto'
 import { readdirSync, lstatSync } from 'node:fs'
 
 import type { Usage } from '@earendil-works/pi-ai'
-import type { ContextUsage, CreateAgentSessionOptions, ToolDefinition } from '@earendil-works/pi-coding-agent'
-import { SpanKind, SpanStatusCode, type Span } from '@opentelemetry/api'
-import * as z from 'zod'
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 
 import { application } from '@application'
 import type { BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
-import { runtimeId, type InputState, type Observation, type ObservationPayload } from '@cherrystudio/agent-runtime'
-import type { AgentRuntimeEvent as PiEvent, PiRuntime, PiThreadHandle } from '@cherrystudio/agent-runtime-pi'
+import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
+import type {
+  AgentRuntimeEvent as PiEvent,
+  PiObservation,
+  PiRuntime,
+  PiThreadHandle
+} from '@cherrystudio/agent-runtime-pi'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
 import {
   prepareNativeSubmission,
+  lookupNativeInput,
   bindNativeInput,
   applyNativeSubmissionResult
 } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
-import { startAgentRuntimeChildSpan, endAgentRuntimeSpan } from '@main/ai/observability'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
@@ -35,7 +39,6 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
-import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import {
   KB_READ_TOOL_NAME,
@@ -46,9 +49,9 @@ import {
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
@@ -58,31 +61,40 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
-  AgentRuntimeUserInput,
+  AgentRuntimeCommand,
   AgentSessionUsageCapture
 } from '../types'
+import { childTaskStatus } from './childTaskStatus'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import { createPiBehaviorHost } from './piBehaviorHost'
+import { PiChildTasks } from './PiChildTasks'
 import {
   capturePiConnectionSnapshot,
   type PiConnectionSnapshot,
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
+import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 import { loadPiSdk } from './piSdk'
-import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from './piShell'
-import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
-import { resolvePiThinkingLevel } from './piThinkingLevel'
+import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from './piShell'
+import { PiTurnUsage } from './PiTurnUsage'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
-const childResultSchema = z.object({
-  details: z.object({ sessionId: z.string(), background: z.literal(false), outcome: z.string() })
-})
+
+type PiChildResource = {
+  relation: Subagent
+  handle: PiThreadHandle
+  projection: ChildThreadProjection
+}
 
 export class PiRuntimeConnection implements AgentRuntimeConnection {
+  get contextId(): string | undefined {
+    return this.context?.id
+  }
+
   readonly retainWhileIdle = true
   readonly usageCapture: AgentSessionUsageCapture = { owner: 'provider-calls' }
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
@@ -92,6 +104,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private observation?: Observation
   private context?: ReturnType<typeof preparePiBranch>
   private closing = false
+  private readonly closingAccess = new AbortController()
   private closePromise?: Promise<void>
   private nativeClosed = false
   private active = false
@@ -99,64 +112,27 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private manualCompactInFlight = false
   private autonomous = false
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
-  private readonly childOrigins = new Map<
+  private readonly childTasks = new PiChildTasks(
+    (id) => this.childOrigin(id),
+    (event) => this.eventQueue.push(event)
+  )
+  private readonly children = new Map<
     string,
-    { parentToolCallId: string; parentThreadId: string; description: string }
+    | { state: 'opening'; pending: Promise<PiChildResource | undefined> }
+    | { state: 'attached' | 'closing'; resource: PiChildResource }
   >()
-  private readonly childTaskStates = new Map<string, AgentTaskEventPartData>()
-  private readonly childReadiness = new Map<string, PromiseWithResolvers<void>>()
-  private readonly childHandles = new Map<string, Promise<PiThreadHandle | undefined>>()
-  private readonly childProjections = new Map<string, ChildThreadProjection>()
   private failure?: unknown
   private connectionSignature?: string
   private permissionMode: AgentPermissionMode = 'default'
   private disabledTools = new Set<string>()
   private reconcileChain: Promise<unknown> = Promise.resolve()
   private mcpServerSnapshots: PiConnectionSnapshot['mcpServerSnapshots'] = new Map()
-  private readonly pendingSteers = new Map<string, AgentRuntimeUserInput>()
+  private readonly pendingSteers = new Set<string>()
   private readonly pendingBindings = new Map<string, InputState>()
-  private readonly toolSpans = new Map<string, Span>()
-  private readonly toolNames = new Map<string, string>()
   private checkpoint?: string
-  private reasoningTokens: number | undefined
-  private usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
-  private readonly adapter = new PiStreamAdapter(
-    { enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }) },
-    (name) => this.resolveMcpToolMetadata(name)
-  )
-  private readonly projection = new ThreadProjection(
-    (chunk) => this.eventQueue.push({ type: 'chunk', chunk }),
-    (part) => {
-      const id = part.toolCallId
-      if (!this.toolNames.has(id)) {
-        const span = startAgentRuntimeChildSpan(this.input.trace, 'pi.execute_tool', SpanKind.INTERNAL, {
-          'gen_ai.operation.name': 'execute_tool',
-          'gen_ai.tool.name': part.toolName,
-          'gen_ai.tool.call.id': id
-        })
-        if (span) this.toolSpans.set(id, span)
-        this.toolNames.set(id, part.toolName)
-        if (part.toolName === 'subagent') this.childReadiness.set(id, Promise.withResolvers<void>())
-        this.adapter.handleToolStart(id, part.toolName, part.input)
-      }
-      if (part.state !== 'output-available' && part.state !== 'output-error') return
-      const failed = part.state === 'output-error'
-      const output = failed ? (part.resultProviderMetadata?.pi?.result ?? part.errorText) : part.output
-      const preliminary = part.state === 'output-available' && part.preliminary === true
-      this.adapter.handleToolEnd(id, part.toolName, output, failed, preliminary)
-      if (preliminary) return
-      if (part.toolName === 'subagent') {
-        const result = childResultSchema.safeParse(output)
-        if (result.success)
-          this.publishChildTask(result.data.details.sessionId, childTaskStatus(result.data.details.outcome))
-        this.resolveChildReady(id)
-      }
-      const span = this.toolSpans.get(id)
-      if (span) endAgentRuntimeSpan(span, { code: failed ? SpanStatusCode.ERROR : SpanStatusCode.OK })
-      this.toolSpans.delete(id)
-      this.toolNames.delete(id)
-    }
-  )
+  private readonly turnUsage = new PiTurnUsage()
+  private readonly adapter = new PiMessageMetadata((name) => this.resolveMcpToolMetadata(name))
+  private projection?: ThreadProjection
 
   private readonly input: AgentRuntimeConnectInput & { modelId: UniqueModelId }
 
@@ -302,15 +278,28 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input,
       initialSnapshot.provider,
       initialSnapshot.model,
-      (usage, sessionId) => {
-        if (sessionId === nativeId) this.recordUsage(usage)
+      (usage, sessionId, responseId) => {
+        if (sessionId === nativeId) {
+          if (responseId) this.eventQueue.push({ type: 'response-start', responseId })
+          this.recordUsage(usage)
+        }
       }
     )
     const managedBashTool = pi.createBashToolDefinition(workspacePath, {
       commandPrefix: loginPathPrefix,
       shellPath,
-      spawnHook: (context) => ({ ...context, env: mergePiBashExecutionEnv(context.env) })
+      spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
     }) as ToolDefinition
+    const managedShellTools = [
+      managedBashTool,
+      ...(process.platform === 'win32'
+        ? [
+            pi.createPowerShellToolDefinition(workspacePath, {
+              spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
+            }) as ToolDefinition
+          ]
+        : [])
+    ]
     const toolCallId = async (call: CallRef) => {
       const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
@@ -324,39 +313,33 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     const behavior = await createPiBehaviorHost({
       input: this.input,
-      root: runtimeId(nativeId),
+      root: () => runtimeId(nativeId),
       binding,
       model: initialSnapshot.model,
       approval: approvalContext,
       emit: (event) => this.eventQueue.push(event),
       observe: (event) => this.handleBehaviorEvent(event),
-      toolCallId
+      toolCallId,
+      usageSessionId: async (thread) => {
+        if (thread === nativeId) return this.input.sessionId
+        const child = await this.observeChild(thread)
+        if (!child) throw new Error('Native child usage context is unavailable')
+        return child.projection.context.sessionId
+      }
     })
     const options = {
       ...binding,
       cwd: workspacePath,
       agentDir,
       sessionManager: manager,
-      thinkingLevel: resolvePiThinkingLevel(this.input.reasoningEffort) as CreateAgentSessionOptions['thinkingLevel'],
       systemPrompt: prompt.base.kind === 'custom' ? prompt.base.content : undefined,
       appendSystemPrompt: prompt.append ? [prompt.append] : [],
       contextFiles: true,
       skillPaths: additionalSkillPaths,
-      builtinTools: ['read', 'bash', 'edit', 'write'],
-      tools: [managedBashTool],
+      builtinTools: ['read', 'bash', 'edit', 'write', ...(process.platform === 'win32' ? ['powershell'] : [])],
+      tools: managedShellTools,
       excludeTools: [...this.disabledTools],
-      behavior: {
-        ...behavior,
-        configureChild: async (child: Parameters<typeof behavior.configureChild>[0] & { toolCallId: string }) => {
-          const configured = await behavior.configureChild(child)
-          this.childOrigins.set(child.thread.id, {
-            description: child.origin.description,
-            parentThreadId: child.parent.id,
-            parentToolCallId: child.toolCallId
-          })
-          return configured
-        }
-      },
+      behavior,
       settings: {
         ...(shellPath ? { shellPath } : {}),
         ...(loginPathPrefix ? { shellCommandPrefix: loginPathPrefix } : {})
@@ -390,7 +373,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.failure = undefined
       this.handle = opened.value
       if (files.length) this.context = contexts.bindContext(this.context.id, nativeId)
-      const observed = await this.handle.observe((event) => this.handleObservation(event))
+      const observed = await this.handle.pi.observe((batch) => this.handleObservation(batch))
       if (observed.status !== 'confirmed') throw new Error(observed.error.message)
       this.observation = observed.value
       if (files.length) this.eventQueue.push({ type: 'resume-token', token: nativeId })
@@ -401,13 +384,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  async send(input: AgentRuntimeUserInput): Promise<void> {
+  async send(input: AgentRuntimeCommand): Promise<void> {
     if (!this.handle || !this.context || this.closing) throw new Error('Pi Runtime is unavailable')
     if (this.sending) throw new Error('Pi already has an active submission')
     this.sending = true
     this.failure = undefined
-    this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
-    this.reasoningTokens = undefined
+    this.turnUsage.reset()
     const content = buildAgentUserContent(input.message)
     const command = input.systemReminder ? undefined : parseManualCompactCommand(content)
     if (command) {
@@ -427,9 +409,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  redirect(input: AgentRuntimeUserInput): boolean {
+  lookupInput(contextId: string, inputId: string) {
+    return lookupNativeInput(this.runtime!, this.input.sessionId, contextId, inputId)
+  }
+
+  redirect(input: AgentRuntimeCommand): boolean {
     if (!this.active || this.closing) return false
-    this.pendingSteers.set(input.message.id, input)
+    this.pendingSteers.add(input.message.id)
     void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message)), 'steer').catch((error) => {
       this.pendingSteers.delete(input.message.id)
       this.failure = error
@@ -438,12 +424,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
-  private async submit(input: AgentRuntimeUserInput, text: string, whenBusy: 'reject' | 'steer'): Promise<void> {
+  private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'reject' | 'steer'): Promise<void> {
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
       text,
       parts: input.message.data.parts
     })
+    this.input.onInputPrepared?.(input.message.id, this.context!.id)
     const result = await this.handle!.input.submit(draft)
+    this.eventQueue.push({ type: 'input-submission', contextId: this.context!.id, result })
     if (result.status !== 'acknowledged') applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
     if (result.status === 'acknowledged') {
       this.captureInput(result)
@@ -456,40 +444,73 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  private handleObservation(event: ObservationPayload): void {
+  private async handleObservation(batch: PiObservation): Promise<void> {
     try {
-      this.projection.accept(event)
-      if (event.type === 'snapshot') {
-        for (const input of event.inputs) this.captureInput(input)
-        for (const relation of event.subagents ?? []) if (relation.child) this.observeChild(relation.child.id)
-        this.active = event.activity.state === 'active'
-      } else if (event.type === 'input.changed') {
-        this.captureInput(event.input)
-        const steer = event.input.inputId && this.pendingSteers.get(event.input.inputId)
-        if (steer && event.input.facts.includes('placed')) {
-          this.pendingSteers.delete(steer.message.id)
-          this.eventQueue.push({ type: 'steer-boundary', inputs: [steer] })
+      this.projection ??= new ThreadProjection(
+        this.handle!.thread,
+        this.context!.id,
+        (projection) => this.eventQueue.push({ type: 'message-projection', projection }),
+        (message) => this.adapter.decorate(message)
+      )
+      for (const event of batch.events) {
+        if (event.type === 'context.changed') this.eventQueue.push({ type: 'context-usage', result: event.result })
+        if (event.type === 'snapshot' && event.contextUsage)
+          this.eventQueue.push({ type: 'context-usage', result: event.contextUsage })
+        const inputs = event.type === 'snapshot' ? event.inputs : event.type === 'input.changed' ? [event.input] : []
+        for (const input of inputs) {
+          this.captureInput(input)
+          const steer = input.inputId && this.pendingSteers.has(input.inputId) ? input.inputId : undefined
+          if (steer && input.facts.includes('placed')) {
+            this.pendingSteers.delete(steer)
+            this.eventQueue.push({ type: 'steer-boundary', inputIds: [steer] })
+          }
         }
-        if (event.input.outcome && event.input.outcome !== 'completed')
-          this.failure ??= new Error(event.input.error?.message ?? event.input.outcome)
-      } else if (event.type === 'activity.changed') {
-        this.active = event.activity.state === 'active'
-        if (this.active && !this.sending && !this.closing) {
-          this.autonomous = true
-          this.sending = true
-          this.failure = undefined
-          this.eventQueue.push({ type: 'autonomous-turn-state', state: 'started', origin: this.nextOrigin })
-          this.nextOrigin = { kind: 'background-work' }
-        }
-        if (event.activity.state === 'idle' && this.sending && !this.manualCompactInFlight) this.finishTurn()
-      } else if (event.type === 'subagent.upsert' && event.subagent.child) {
-        this.observeChild(event.subagent.child.id)
-      } else if (event.type === 'diagnostic') {
-        this.failure ??= new Error(event.error.message)
-        if (!this.active) this.finishTurn()
-      } else if (event.type === 'gap' && event.reason !== 'mapping-reset') {
-        throw new Error(`Pi observation interrupted: ${event.reason}`)
+        if (event.type === 'snapshot') {
+          for (const relation of event.subagents ?? []) if (relation.child) void this.observeChild(relation.child.id)
+          this.active = event.activity.state === 'active'
+        } else if (event.type === 'activity.changed') {
+          this.active = event.activity.state === 'active'
+          if (this.active && !this.sending && !this.closing) {
+            this.autonomous = true
+            this.sending = true
+            this.failure = undefined
+            this.turnUsage.reset()
+            this.eventQueue.push({
+              type: 'autonomous-turn-state',
+              state: 'started',
+              origin: this.nextOrigin,
+              sourceToolCallIds:
+                batch.backgroundResults?.status === 'confirmed' ? batch.backgroundResults.value.notification : undefined
+            })
+            this.nextOrigin = { kind: 'background-work' }
+          }
+        } else if (event.type === 'subagent.upsert' && event.subagent.child)
+          void this.observeChild(event.subagent.child.id)
+        else if (event.type === 'diagnostic') this.failure ??= new Error(event.error.message)
+        else if (event.type === 'gap' && !['mapping-reset', 'overflow'].includes(event.reason))
+          throw new Error(`Pi observation interrupted: ${event.reason}`)
+        else if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
+          throw new Error(`Pi observation ended: ${event.reason}`)
       }
+      for (const input of batch.outcomes)
+        if (input.outcome !== 'completed') this.failure ??= new Error(input.error?.message ?? input.outcome)
+      await this.projection.accept(batch)
+      if (batch.backgroundResults) {
+        const result = batch.backgroundResults
+        this.eventQueue.push({
+          type: 'background-results',
+          result: result.status === 'confirmed' ? { status: 'confirmed', value: result.value.pending } : result
+        })
+        this.eventQueue.push({
+          type: 'background-work-state',
+          active: result.status !== 'confirmed' || result.value.active
+        })
+      }
+      for (const child of batch.children)
+        void this.observeChild(child.thread.id).then(() =>
+          this.childTasks.publish(child.thread.id, childTaskStatus(child.outcome))
+        )
+      if (batch.settled && this.sending && !this.manualCompactInFlight) this.finishTurn()
     } catch (error) {
       this.failure = error
       this.sending = false
@@ -504,120 +525,135 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.handle && event.thread !== this.handle.thread.id) return
     if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
     else if (event.type === 'goal-notice') {
-      const id = randomUUID()
-      this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-start', id } })
-      this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-delta', id, delta: event.notice.text } })
-      this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-end', id } })
-    } else if (event.type === 'subagents') {
-      for (const view of event.views) {
-        this.publishChildTask(
-          view.sessionId,
-          view.status === 'finished' ? childTaskStatus(view.outcome) : 'in_progress',
-          true
-        )
+      this.projection?.notice(event.notice.text)
+    } else if (event.type === 'subagents') this.childTasks.showSubagents(event.views, true)
+  }
+
+  private childKey(id: string): string {
+    return JSON.stringify([this.context!.backendId, id])
+  }
+
+  private childOrigin(id: string) {
+    const child = this.children.get(this.childKey(id))
+    return child && child.state !== 'opening' ? child.resource.relation.origin : undefined
+  }
+
+  private async childResource(id: string): Promise<PiChildResource | undefined> {
+    const child = this.children.get(this.childKey(id))
+    return child?.state === 'opening' ? child.pending : child?.resource
+  }
+
+  private async observeChild(id: string, granted?: PiThreadHandle): Promise<PiChildResource | undefined> {
+    const key = this.childKey(id)
+    const existing = this.children.get(key)
+    if (existing) {
+      await granted?.release()
+      if (existing.state === 'closing') {
+        await existing.resource.projection.stop()
+        await existing.resource.handle.release()
+        this.children.delete(key)
+        return this.observeChild(id)
       }
-      const running = event.views.filter((view) => view.status !== 'finished')
-      this.eventQueue.push({
-        type: 'background-tasks',
-        tasks: running.map((view) => ({
-          id: view.sessionId,
-          type: 'subagent',
-          description: view.description,
-          toolCallId: this.childOrigins.get(view.sessionId)?.parentToolCallId
-        }))
-      })
-      this.eventQueue.push({ type: 'background-work-state', active: running.length > 0 })
+      return existing.state === 'opening' ? existing.pending : existing.resource
     }
-  }
-
-  private publishChildTask(id: string, status: AgentTaskEventPartData['status'], background?: boolean): void {
-    const origin = this.childOrigins.get(id)
-    if (!origin) return
-    const previous = this.childTaskStates.get(id)
-    const isBackgrounded = background ?? previous?.isBackgrounded ?? false
-    if (previous && previous.status === status && previous.isBackgrounded === isBackgrounded) return
-    const data: AgentTaskEventPartData = {
-      event: !previous ? 'started' : status === 'in_progress' ? 'updated' : 'notification',
-      taskId: id,
-      toolUseId: origin.parentToolCallId,
-      taskType: 'subagent',
-      title: origin.description,
-      status,
-      isBackgrounded
+    if (this.nativeClosed) {
+      await granted?.release()
+      return undefined
     }
-    this.childTaskStates.set(id, data)
-    this.eventQueue.push({ type: 'background-task-event', data })
-    this.eventQueue.push({
-      type: 'background-flow-chunk',
-      rootToolCallId: origin.parentToolCallId,
-      chunk: { type: 'data-agent-task-event', id: `task-${id}`, data }
-    })
-  }
-
-  private observeChild(id: string): void {
-    if (this.closing || this.childHandles.has(id) || !this.childOrigins.has(id)) return
-    const origin = this.childOrigins.get(id)!
-    this.publishChildTask(id, 'in_progress')
-    this.childHandles.set(
-      id,
-      (async () => {
-        const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: runtimeId(id) })
-        if (opened.status !== 'confirmed') throw new Error(opened.error.message)
-        const handle = opened.value
+    let handle: PiThreadHandle | undefined
+    let resource: PiChildResource | undefined
+    const pending = Promise.resolve()
+      .then(async () => {
+        if (granted) handle = granted
+        else {
+          const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: runtimeId(id) })
+          if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+          handle = opened.value
+        }
+        const relation = handle.pi.relation()
+        if (!relation?.origin) throw new Error('Native child creation origin is unavailable')
+        const parent =
+          relation.parent.id === this.handle?.thread.id ? undefined : await this.observeChild(relation.parent.id)
         const parentContext =
-          origin.parentThreadId === this.handle?.thread.id
-            ? this.context!
-            : this.childProjections.get(origin.parentThreadId)?.context
+          parent?.projection.context ?? (relation.parent.id === this.handle?.thread.id ? this.context : undefined)
         if (!parentContext) throw new Error('Native child owner context is unavailable')
-        const context = contexts.child(parentContext.id, id, origin.parentToolCallId, origin.description)
+        const context = contexts.child(
+          parentContext.id,
+          id,
+          relation.origin.toolCallId,
+          relation.origin.description ?? id
+        )
+        const access = handle
         const projection = new ChildThreadProjection(
           context,
           {
-            ...handle,
+            ...access,
             observe: (sink) =>
-              handle.observe(async (event) => {
+              access.observe(async (event) => {
                 await sink(event)
                 if (event.type === 'snapshot')
-                  for (const relation of event.subagents ?? []) if (relation.child) this.observeChild(relation.child.id)
-                if (event.type === 'subagent.upsert' && event.subagent.child) this.observeChild(event.subagent.child.id)
+                  for (const child of event.subagents ?? []) if (child.child) void this.observeChild(child.child.id)
+                if (event.type === 'subagent.upsert' && event.subagent.child)
+                  void this.observeChild(event.subagent.child.id)
               })
           },
-          () => handle.pi.archive()
+          () => access.pi.archive(),
+          (message) => this.adapter.decorate(message),
+          (responseId, messageId) => this.eventQueue.push({ type: 'response-start', responseId, messageId })
         )
-        this.childProjections.set(id, projection)
+        resource = { relation, handle: access, projection }
         await projection.attach()
-        return handle
-      })()
-        .catch((error) => {
-          logger.error('Failed to observe Pi child', { id, error })
-          return undefined
-        })
-        .finally(() => this.resolveChildReady(origin.parentToolCallId))
-    )
-  }
-
-  private resolveChildReady(toolCallId: string): void {
-    this.childReadiness.get(toolCallId)?.resolve()
-    this.childReadiness.delete(toolCallId)
+        this.children.set(key, { state: 'attached', resource })
+        this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
+        return resource
+      })
+      .catch(async (error) => {
+        logger.error('Failed to observe Pi child', { id, error })
+        if (resource) {
+          try {
+            await resource.projection.stop()
+          } catch (flushError) {
+            this.children.set(key, { state: 'closing', resource })
+            logger.error('Failed to flush Pi child attachment', { id, error: flushError })
+            return undefined
+          }
+        }
+        await handle?.release()
+        this.children.delete(key)
+        return undefined
+      })
+    this.children.set(key, { state: 'opening', pending })
+    return pending
   }
 
   async childProjection(toolCallId: string) {
-    await this.childReadiness.get(toolCallId)?.promise
     if (this.closing) return undefined
-    const id = [...this.childOrigins].find(([, origin]) => origin.parentToolCallId === toolCallId)?.[0]
-    if (!id) return undefined
-    this.observeChild(id)
-    await this.childHandles.get(id)
-    const projection = this.childProjections.get(id)
-    if (!projection) return undefined
-    await projection.attach()
-    return { snapshot: projection.snapshot.bind(projection), subscribe: projection.subscribe.bind(projection) }
+    const known = (await this.childResources()).filter(
+      (child) => (child.relation?.origin?.toolCallId ?? child.projection.context.spawnToolCallId) === toolCallId
+    )
+    if (known.length > 1) return undefined
+    if (known[0]) {
+      const projection = known[0].projection
+      await projection.attach()
+      return { snapshot: () => projection.snapshot(), subscribe: projection.subscribe.bind(projection) }
+    }
+    if (this.closing || !this.handle) return undefined
+    const opened = await this.handle.pi.openChild(toolCallId, this.closingAccess.signal)
+    if (opened.status !== 'confirmed') return undefined
+    const child = await this.observeChild(opened.value.relation.child.id, opened.value.handle)
+    if (!child) return undefined
+    await child.projection.attach()
+    return {
+      snapshot: child.projection.snapshot.bind(child.projection),
+      subscribe: child.projection.subscribe.bind(child.projection)
+    }
   }
 
   async messageChild(contextId: string, text: string): Promise<void> {
-    const projection = [...this.childProjections.values()].find((value) => value.context.id === contextId)
-    const handle = projection && (await this.childHandles.get(projection.thread.id))
-    if (!handle || this.closing) throw new Error('Child native owner is unavailable')
+    const child = (await this.childResources()).find((child) => child.projection.context.id === contextId)
+    const projection = child?.projection
+    const handle = child?.handle
+    if (!handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
     await projection.flush()
     const { sessionId } = projection.context
     const messageId = randomUUID()
@@ -633,18 +669,28 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (result.status !== 'acknowledged') throw new Error(result.error.message)
   }
 
+  private async childResources(): Promise<PiChildResource[]> {
+    const resources: PiChildResource[] = []
+    for (const child of this.children.values()) {
+      const resource = child.state === 'opening' ? await child.pending : child.resource
+      if (resource) resources.push(resource)
+    }
+    return resources
+  }
+
   async drainChildWrites(): Promise<void> {
     await this.handle?.pi.settled()
-    await Promise.all(this.childHandles.values())
+    await this.observation?.drain()
+    await this.childResources()
     if (this.closing) {
       await this.closePromise
       return
     }
-    await Promise.all([...this.childProjections.values()].map((projection) => projection.refresh()))
+    for (const child of await this.childResources()) await child.projection.drain()
   }
 
   async stopTask(taskId: string): Promise<boolean> {
-    const handle = await this.childHandles.get(taskId)
+    const handle = (await this.childResource(taskId))?.handle
     if (!handle?.interrupt) return false
     const result = await handle.interrupt()
     if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -652,6 +698,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private captureInput(input: InputState): void {
+    this.eventQueue.push({ type: 'input-state', contextId: this.context!.id, input })
     if (!input.inputId || !input.nativeInput) return
     this.pendingBindings.set(input.inputId, input)
     this.flushInputs()
@@ -672,7 +719,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           facts: ['placed'],
           nativeInput: { session: this.handle.thread, id: runtimeId(event.entryId) }
         })
-      const steer = this.pendingSteers.get(event.inputId)
+      const steer = this.pendingSteers.has(event.inputId) ? event.inputId : undefined
       if (steer) {
         this.input.onSteerInjected?.([steer])
       }
@@ -715,12 +762,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.cancelQueuedInputs()
     this.flushInputs()
     this.sending = false
-    for (const id of this.childReadiness.keys()) this.resolveChildReady(id)
-    this.endToolSpans('Pi turn ended before tool completion')
     if (this.failure) this.eventQueue.push({ type: 'error', error: this.failure })
     else {
-      const usage = this.handle?.pi.contextUsage()
-      if (usage?.tokens != null) this.eventQueue.push({ type: 'context-usage', usage: this.projectContextUsage(usage) })
       const checkpoint = PiForkCheckpointSchema.safeParse({
         runtime: 'pi',
         runtimeSessionId: this.handle?.thread.id,
@@ -748,24 +791,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private recordUsage(usage: Usage): void {
-    if (usage.reasoning !== undefined) this.reasoningTokens = (this.reasoningTokens ?? 0) + usage.reasoning
-    this.usage.inputTokens += usage.input + usage.cacheRead + usage.cacheWrite
-    this.usage.outputTokens += usage.output
-    this.usage.totalTokens += usage.totalTokens
     this.eventQueue.push({
       type: 'chunk',
-      chunk: {
-        type: 'message-metadata',
-        messageMetadata: {
-          totalTokens: this.usage.totalTokens,
-          stats: {
-            ...this.usage,
-            ...(this.reasoningTokens === undefined
-              ? {}
-              : { outputTokenDetails: { reasoningTokens: this.reasoningTokens } })
-          }
-        }
-      }
+      chunk: { type: 'message-metadata', messageMetadata: this.turnUsage.record(usage) }
     })
   }
 
@@ -804,9 +832,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'
       throw error
     }
-    const nextPermissionMode = this.active
-      ? this.permissionMode
-      : (snapshot.agent.configuration?.permission_mode ?? 'default')
+    // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.
+    const nextPermissionMode = snapshot.agent.configuration?.permission_mode ?? 'default'
     const nextDisabled = normalizeDisabledTools(snapshot.agent.disabledTools, snapshot)
     const disabled = this.active ? new Set([...this.disabledTools, ...nextDisabled]) : nextDisabled
     const changed = nextPermissionMode !== this.permissionMode || !setsEqual(disabled, this.disabledTools)
@@ -816,7 +843,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (
       this.failure ||
       snapshot.signature !== this.connectionSignature ||
-      resolvePiThinkingLevel(input.reasoningEffort) !== resolvePiThinkingLevel(this.input.reasoningEffort) ||
+      (input.reasoningEffort ?? 'default') !== (this.input.reasoningEffort ?? 'default') ||
       (input.serviceTier ?? 'standard') !== (this.input.serviceTier ?? 'standard') ||
       Boolean(input.fastMode) !== Boolean(this.input.fastMode)
     )
@@ -842,30 +869,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     )
   }
 
-  async getContextUsage(): Promise<AgentSessionContextUsage | null> {
-    const usage = this.handle?.pi.contextUsage()
-    return usage && usage.tokens != null ? this.projectContextUsage(usage) : null
-  }
-
-  private projectContextUsage(usage: ContextUsage): AgentSessionContextUsage {
-    return {
-      categories: [],
-      totalTokens: usage.tokens ?? 0,
-      maxTokens: usage.contextWindow,
-      percentage: usage.percent ?? 0,
-      model: parseUniqueModelId(this.input.modelId).modelId
-    }
-  }
-
-  private endToolSpans(message: string): void {
-    for (const span of this.toolSpans.values()) endAgentRuntimeSpan(span, { code: SpanStatusCode.ERROR, message })
-    this.toolSpans.clear()
-    this.toolNames.clear()
+  async getContextUsage() {
+    return this.handle
+      ? this.handle.contextUsage()
+      : {
+          status: 'unknown' as const,
+          error: { operation: 'contextUsage', code: 'not-connected', message: 'Runtime not connected' }
+        }
   }
 
   close(): Promise<void> {
     this.closing = true
-    for (const id of this.childReadiness.keys()) this.resolveChildReady(id)
+    this.closingAccess.abort()
     return (this.closePromise ??= this.finishClose().catch((error) => {
       this.closePromise = undefined
       throw error
@@ -875,38 +890,50 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private async finishClose(): Promise<void> {
     toolApprovalRegistry.abort(this.input.sessionId, 'pi-session-closed')
     if (!this.nativeClosed) {
-      if (this.handle?.interrupt) {
-        const interrupted = await this.handle.interrupt()
-        if (interrupted.status !== 'confirmed') throw new Error(interrupted.error.message)
+      let activeArchive = true
+      try {
+        agentSessionService.getById(this.input.sessionId)
+      } catch (error) {
+        if (!isDataApiError(error) || error.code !== ErrorCode.NOT_FOUND) throw error
+        activeArchive = false
+      }
+      // User-stop persists behavior state and reads approval rows; deleted archives only need owner shutdown.
+      if (activeArchive) {
+        if (this.handle?.interrupt) {
+          const interrupted = await this.handle.interrupt()
+          if (interrupted.status !== 'confirmed') throw new Error(interrupted.error.message)
+        }
+        await Promise.all(
+          (await this.childResources()).map(async ({ handle }) => {
+            if (handle?.interrupt) {
+              const result = await handle.interrupt()
+              if (result.status !== 'confirmed') throw new Error(result.error.message)
+            }
+          })
+        )
       }
       this.cancelQueuedInputs()
-      await Promise.all(
-        [...this.childHandles.values()].map(async (child) => {
-          const handle = await child
-          if (handle?.interrupt) {
-            const result = await handle.interrupt()
-            if (result.status !== 'confirmed') throw new Error(result.error.message)
-          }
-        })
-      )
+      await this.observation?.drain()
+      for (const child of await this.childResources()) await child.projection.drain()
       const result = await this.runtime?.shutdown()
       if (result && result.status !== 'confirmed') throw new Error(result.error.message)
       this.nativeClosed = true
     }
-    await Promise.all([...this.childProjections.values()].map((projection) => projection.stop()))
+    await this.observation?.drain()
+    for (const [key, child] of this.children) {
+      const resource = child.state === 'opening' ? await child.pending : child.resource
+      if (!resource) continue
+      this.children.set(key, { state: 'closing', resource })
+      await resource.projection.stop()
+      await resource.handle.release()
+      this.children.delete(key)
+    }
     await this.observation?.stop()
+    await this.projection?.close()
     this.flushInputs()
     await this.handle?.release()
-    await Promise.all([...this.childHandles.values()].map(async (child) => (await child)?.release()))
-    this.endToolSpans('Pi owner closed')
     this.eventQueue.close()
   }
-}
-
-function childTaskStatus(outcome: string | undefined): AgentTaskEventPartData['status'] {
-  if (outcome === 'completed') return 'completed'
-  if (outcome === 'aborted' || outcome === 'stopped' || outcome === 'interrupted') return 'stopped'
-  return 'error'
 }
 
 function normalizeDisabledTools(

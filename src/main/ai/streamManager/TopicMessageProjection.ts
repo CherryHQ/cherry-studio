@@ -100,19 +100,20 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
   }
 
   private setMessage(execution: ProjectedExecution, message: CherryUIMessage): void {
-    const projected = this.project({ ...message, id: execution.anchorMessageId ?? message.id })
-    this.messages.set(execution.executionId, projected)
-    this.executions.set(execution.executionId, { ...execution, messageId: projected.id })
+    const id = execution.anchorMessageId ?? message.id
+    this.messages.set(execution.executionId, { ...message, id })
+    this.executions.set(execution.executionId, { ...execution, messageId: id })
   }
 
   private publish(immediate = false): void {
+    // Projection re-serializes every finished tool output, so it runs per flushed batch, not per chunk.
     this.update(
-      {
+      () => ({
         kind: 'topic',
         topicId: this.topicId,
         executions: [...this.executions.values()],
-        messages: [...this.messages.values()]
-      },
+        messages: [...this.messages.values()].map(this.project)
+      }),
       immediate
     )
   }

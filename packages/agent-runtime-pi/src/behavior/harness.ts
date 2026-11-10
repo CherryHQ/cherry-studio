@@ -1,5 +1,6 @@
 import { type ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
 
+import { decodeEntry, subagentResults, type SubagentResults } from '@cherrystudio/agent-behavior'
 import type {
   BoundPorts,
   CallRef,
@@ -9,7 +10,13 @@ import type {
   LifecycleHandlers,
   SubagentOrigin
 } from '@cherrystudio/agent-behavior'
-import { type InputId, type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
+import {
+  type InputId,
+  type JsonValue,
+  type OperationResult,
+  runtimeId,
+  type ThreadId
+} from '@cherrystudio/agent-runtime'
 
 import type { CompactionSummarizer } from '../compaction'
 import type { AgentRuntimeSession } from '../session'
@@ -69,6 +76,7 @@ export interface PiBehaviorOptions {
    * a compaction cancelled because it bypassed `BehaviorSessionRequest.summarize`.
    */
   readonly onError?: (error: unknown) => void
+  readonly onResults?: (thread: ThreadId, result: OperationResult<SubagentResults>) => void
 }
 
 /** The agent-behavior harness ports on native coding-agent sessions (README "Behavior ports"). */
@@ -172,6 +180,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
               },
               scope.owner
             )
+            adapter.results(thread)
             if (scope.opening) scope.opening.push(...applied.jobs)
             const launched = await Promise.allSettled(
               applied.children.map((child) =>
@@ -435,6 +444,34 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     conversation,
     track,
     report,
+    results(thread) {
+      const conv = conversation(thread)
+      const input = conv.active && conv.submissions.get(conv.active.key)?.input
+      const marker =
+        input && typeof input !== 'string'
+          ? decodeEntry({ id: runtimeId(conv.active!.key), kind: input.kind, data: input.data })
+          : undefined
+      const notification =
+        marker?.kind === 'marker' && marker.marker.type === 'subagent-notification'
+          ? marker.marker.runs
+          : conv.active
+            ? []
+            : undefined
+      const results = subagentResults(readFacts(adapter, thread).history, conv.active !== undefined, notification)
+      options.onResults?.(
+        thread,
+        results
+          ? { status: 'confirmed', value: results }
+          : {
+              status: 'unknown',
+              error: {
+                operation: 'backgroundResults',
+                code: 'missing-result-origin',
+                message: 'A Pi background result has no recorded triggering call'
+              }
+            }
+      )
+    },
     withScope,
     lifecycle
   }
@@ -502,7 +539,6 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     async submitUser(thread, text) {
       accepting()
       users += 1
-      // A person's submissions get adapter-local keys; rules never see them.
       submit(adapter, conversation(thread), `user:${users}`, text)
     },
     prompt(thread, text, promptOptions, signal) {

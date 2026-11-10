@@ -37,6 +37,7 @@ import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
@@ -56,6 +57,8 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
   return popup.show({ title, messages, processingMethod: '1' })
 }
+
+const canDeleteMessage = (message: MessageListItem): boolean => message.role !== 'assistant'
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
@@ -105,6 +108,7 @@ export type NavigateToForkSource = (input: { sourceSessionId: string; returnSess
 interface AgentMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
+  historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   assistantProfile?: MessageUserProfile
@@ -176,6 +180,7 @@ const requireWorkspaceFilePath = (workspacePath: string | undefined, rawPath: st
 export function useAgentMessageListProviderValue({
   topic,
   messages,
+  historyActions,
   partsByMessageId,
   streamingLayers,
   assistantProfile,
@@ -199,7 +204,6 @@ export function useAgentMessageListProviderValue({
   setActiveBranch,
   startEditing,
   editBusy,
-  supportsNativeFork = true,
   respondToolApproval,
   navigateToForkSource,
   imageActionConsumer,
@@ -298,6 +302,7 @@ export function useAgentMessageListProviderValue({
     partsByMessageId: displayPartsByMessageId,
     streamingLayers: displayStreamingLayers,
     deleteMessage,
+    canDeleteMessage,
     diagnosticReport,
     getDoctorSubject,
     selectAllPagination
@@ -505,28 +510,28 @@ export function useAgentMessageListProviderValue({
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
         normalInteractionsEnabled &&
-        supportsNativeFork &&
         !!startEditing &&
         !editBusy &&
+        historyActions?.[message.id]?.edit === null &&
         message.role === 'user' &&
         !message.delivery,
-      startEditing:
-        normalInteractionsEnabled && supportsNativeFork && startEditing
-          ? (message) => {
-              void startEditing(message.id)
-            }
-          : undefined,
+      startEditing: startEditing
+        ? (message) => {
+            void startEditing(message.id)
+          }
+        : undefined,
       openForkSourceSession: normalInteractionsEnabled && navigateToForkSource ? openForkSourceSession : undefined,
       forkSession: normalInteractionsEnabled
         ? {
             label: t('agent_session_fork.label'),
-            availability: (message) => agentSessionForkAvailability(t, message, supportsNativeFork),
+            availability: (message) => agentSessionForkAvailability(t, message, historyActions?.[message.id]),
             run: forkSession
           }
         : undefined,
       loadOlder,
       bindRuntime,
       deleteMessage,
+      canDeleteMessage,
       ...exportActions,
       ...errorActions,
       renderLocalAgentUpgrade:
@@ -562,7 +567,7 @@ export function useAgentMessageListProviderValue({
       setActiveBranch,
       startEditing,
       editBusy,
-      supportsNativeFork,
+      historyActions,
       navigateToForkSource,
       openForkSourceSession,
       t,

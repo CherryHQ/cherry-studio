@@ -1214,6 +1214,26 @@ describe('BinaryManager', () => {
         })
       })
 
+      it('reports a Claude install listed under the http backend identity as applied, not conflicting', async () => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+        ;(mockFs.existsSync as any).mockImplementation(
+          (candidate: string) => candidate === path.join('/mock/feature.binary.data', 'shims', 'claude')
+        )
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls') {
+            return { stdout: JSON.stringify({ 'http:claude': [{ version: '2.1.312', active: true }] }), stderr: '' }
+          }
+          if (args[0] === 'which') return { stdout: '/opt/other/bin/claude\n', stderr: '' }
+          return { stdout: '', stderr: '' }
+        })
+
+        const snapshots = await service.getToolSnapshots(['claude'])
+
+        expect(snapshots.claude.application).toEqual({ status: 'applied', version: '2.1.312' })
+      })
+
       it('reports absent with no shim and an external fallback for an unbacked recipe', async () => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
@@ -1562,6 +1582,25 @@ describe('BinaryManager', () => {
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
       // A fixed tool is code-owned: it stays a resolvable catalog entry (UI card).
       expect((service as any).resolveFixedDefinition('fd')).toEqual({ name: 'fd', tool: 'fd' })
+    })
+
+    it('uninstalls a Claude install that mise lists under the http backend identity', async () => {
+      const service = makeService()
+      let uninstalled = false
+      const listed = () =>
+        uninstalled ? '{}' : JSON.stringify({ 'http:claude': [{ version: '2.1.312', active: true }] })
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls')
+          return { stdout: args.length === 2 || args[2] === 'http:claude' ? listed() : '{}', stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/claude\n', stderr: '' }
+        if (args[0] === 'uninstall' && args[2] === 'http:claude') uninstalled = true
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.removeTool({ name: 'claude' })).resolves.toEqual({ status: 'removed' })
+
+      expect(miseArgs()).toContainEqual(['unuse', '-g', 'http:claude'])
+      expect(miseArgs()).toContainEqual(['uninstall', '--all', 'http:claude'])
     })
 
     it('clears an already-absent fixed tool without any backend uninstall or Preference write', async () => {

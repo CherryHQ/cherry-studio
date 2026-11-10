@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { PortalContainerProvider } from '@cherrystudio/ui'
 
-const { openAutoFocusEvents, popoverContentProps, portalContainerMock } = vi.hoisted(() => ({
+const { interactOutsideHandlers, openAutoFocusEvents, popoverContentProps, portalContainerMock } = vi.hoisted(() => ({
+  interactOutsideHandlers: [] as Array<(event: unknown) => void>,
   openAutoFocusEvents: [] as Array<{
     preventDefault: ReturnType<typeof vi.fn<(...args: any[]) => any>>
     defaultPrevented: boolean
@@ -63,11 +64,11 @@ vi.mock('@cherrystudio/ui', () => ({
     collisionPadding?: number
     portalContainer?: unknown
     forceMount?: unknown
-    onInteractOutside?: unknown
+    onInteractOutside?: (event: unknown) => void
   }) => {
     popoverContentProps.push({ align, side, sideOffset, collisionPadding, portalContainer })
     void forceMount
-    void onInteractOutside
+    if (onInteractOutside) interactOutsideHandlers.push(onInteractOutside)
     const event = {
       preventDefault: vi.fn(() => {
         event.defaultPrevented = true
@@ -538,6 +539,35 @@ describe('SelectorShell', () => {
 
     expect(renderContent).not.toHaveBeenCalled()
     expect(screen.queryByTestId('lazy-body')).not.toBeInTheDocument()
+  })
+
+  it('does not let the outside press that opened lazy-kept content dismiss it', () => {
+    const shell = (open: boolean) => (
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open={open}
+        onOpenChange={vi.fn()}
+        mountStrategy="lazy-keep">
+        <div />
+      </SelectorShell>
+    )
+    const { rerender } = render(shell(true))
+    rerender(shell(false))
+    const pressedAt = performance.now()
+    rerender(shell(true))
+    const outsideInteraction = (timeStamp: number) => ({
+      target: document.body,
+      detail: { originalEvent: { target: document.body, timeStamp } },
+      preventDefault: vi.fn()
+    })
+
+    const openingPress = outsideInteraction(pressedAt)
+    interactOutsideHandlers.at(-1)?.(openingPress)
+    expect(openingPress.preventDefault).toHaveBeenCalled()
+
+    const laterPress = outsideInteraction(performance.now() + 1)
+    interactOutsideHandlers.at(-1)?.(laterPress)
+    expect(laterPress.preventDefault).not.toHaveBeenCalled()
   })
 
   it('does not expose a lazy-kept placement placeholder as available height', () => {

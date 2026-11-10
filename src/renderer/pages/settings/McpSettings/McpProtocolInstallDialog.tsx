@@ -17,16 +17,18 @@ import type { ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolIns
 import { McpServerConfigPreview } from './ProtocolInstallWarning'
 
 interface McpProtocolInstallDialogProps {
+  open?: boolean
   servers: ProtocolMcpServerInstall[]
   onClose: () => void
   onInstall: () => Promise<void>
 }
 
-const McpProtocolInstallDialog = ({ servers, onClose, onInstall }: McpProtocolInstallDialogProps) => {
+const McpProtocolInstallDialog = ({ open = true, servers, onClose, onInstall }: McpProtocolInstallDialogProps) => {
   const { t } = useTranslation()
   const [installing, setInstalling] = useState(false)
 
   const handleInstall = async () => {
+    if (!open || installing) return
     setInstalling(true)
     try {
       await onInstall()
@@ -36,7 +38,7 @@ const McpProtocolInstallDialog = ({ servers, onClose, onInstall }: McpProtocolIn
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && !installing && onClose()}>
+    <Dialog open={open} onOpenChange={(open) => !open && !installing && onClose()}>
       <DialogContent size="lg" closeOnOverlayClick={!installing} className="flex max-h-[70vh] flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t('settings.mcp.protocolInstall.title')}</DialogTitle>
@@ -65,13 +67,13 @@ const McpProtocolInstallDialog = ({ servers, onClose, onInstall }: McpProtocolIn
         </ScrollArea>
 
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={installing} onClick={onClose}>
+          <Button type="button" variant="outline" disabled={!open || installing} onClick={onClose}>
             {t('common.cancel')}
           </Button>
           <Button
             type="button"
             variant="emphasis"
-            disabled={installing}
+            disabled={!open || installing}
             loading={installing}
             onClick={() => void handleInstall()}>
             {t('settings.mcp.install')}

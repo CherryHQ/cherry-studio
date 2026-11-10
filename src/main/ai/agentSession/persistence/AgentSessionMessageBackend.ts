@@ -7,6 +7,7 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
+import type { RootProjectionCheckpoint } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
@@ -34,6 +35,9 @@ export interface AgentSessionMessageBackendOptions {
   localTurnUsage?: () => LocalAgentTurnUsage | undefined
   localSessionCost?: () => AgentSessionCostSnapshot | undefined
   forkAnchor?: () => RuntimeForkAnchor | undefined
+  projection?: () => RootProjectionCheckpoint | undefined
+  /** Runs at the synchronous commit boundary, before any terminal observer or post-save work. */
+  onPersisted?: () => void
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -60,6 +64,8 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         logger.warn('Fork checkpoint capture failed; preserving completed answer', { error })
       }
     }
+    const projection = this.opts.projection?.()
+    const parts = finalMessage?.parts ?? []
     const save = (runtimeAnchor?: RuntimeForkAnchor) => {
       const nativeContext =
         runtimeResumeToken && runtimeAnchor?.checkpoint.runtime === 'pi'
@@ -78,12 +84,15 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
             id: finalMessage?.id ?? this.opts.assistantMessageId,
             role: 'assistant',
             status,
-            data: { parts: finalMessage?.parts ?? [] },
+            data: { parts },
             modelId: this.opts.modelId,
             messageSnapshot: this.opts.messageSnapshot?.()
           }
         },
-        { publishDataChange: true }
+        {
+          publishDataChange: true,
+          projection
+        }
       )
     }
     let saved
@@ -94,6 +103,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       logger.warn('Fork checkpoint persistence failed; retrying completed answer without checkpoint', { error })
       saved = save()
     }
+    this.opts.onPersisted?.()
     return {
       messageId: saved.id,
       messageRevision: String(Date.parse(saved.updatedAt)),

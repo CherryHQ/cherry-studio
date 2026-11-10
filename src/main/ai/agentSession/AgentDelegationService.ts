@@ -128,7 +128,7 @@ export class AgentDelegationService extends BaseService {
   respond(originSessionId: string, requestId: string, approvalId: string, decision: DispatchDecision): boolean {
     const snapshot = this.read(originSessionId, requestId)
     if (!snapshot.approvals.some((approval) => approval.approvalId === approvalId)) return false
-    return application.get('AgentSessionRuntimeService').respondToolApproval(approvalId, decision)
+    return application.get('AgentSessionRuntimeService').respondToolApproval(approvalId, decision).ok
   }
 
   async cancelOwnedBy(sessionIds: string[]): Promise<void> {

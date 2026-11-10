@@ -1,10 +1,11 @@
 import { ChevronRight } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
-import { isValidElement, useCallback, useEffect, useState } from 'react'
+import { isValidElement, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
-import { CommandContextMenu } from '@renderer/components/command'
+import { CommandContextMenu, CommandFocusScope } from '@renderer/components/command'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { cn } from '@renderer/utils/style'
 
 import {
@@ -14,6 +15,7 @@ import {
   useResourceListActions,
   useResourceListGroupState,
   useResourceListMeta,
+  useResourceListUiStore,
   useResourceListView
 } from './ResourceListContext'
 import {
@@ -41,6 +43,58 @@ const GROUP_HEADER_CHEVRON_SLOT_CLASS =
 
 function stopEventPropagation(event: { stopPropagation: () => void }) {
   event.stopPropagation()
+}
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (typeof ref === 'function') {
+    ref(value)
+    return
+  }
+  if (ref) ref.current = value
+}
+
+function GroupHeaderPermanentDelete({ group }: { group: ResourceListGroup }) {
+  const meta = useResourceListMeta()
+  const store = useResourceListUiStore()
+  const pendingRef = useRef(false)
+  const groupRef = useRef(group)
+  const deleteRef = useRef(meta.onGroupHeaderDeletePermanently)
+  const eligibleRef = useRef(meta.isGroupHeaderPermanentDeleteEligible)
+  groupRef.current = group
+  deleteRef.current = meta.onGroupHeaderDeletePermanently
+  eligibleRef.current = meta.isGroupHeaderPermanentDeleteEligible
+
+  const canRun = () => {
+    if (pendingRef.current) return false
+    const current = groupRef.current
+    if (current.synthetic || !deleteRef.current) return false
+    if (store.getUiSnapshot().renamingId) return false
+    const eligible = eligibleRef.current
+    return !eligible || eligible(current)
+  }
+  const canRunRef = useRef(canRun)
+  canRunRef.current = canRun
+
+  useCommandHandler(
+    'resource.delete_permanently',
+    () => {
+      if (!canRunRef.current()) return
+      const onDelete = deleteRef.current
+      const current = groupRef.current
+      if (!onDelete) return
+      pendingRef.current = true
+      try {
+        return Promise.resolve(onDelete(current)).finally(() => {
+          pendingRef.current = false
+        })
+      } catch (error) {
+        pendingRef.current = false
+        throw error
+      }
+    },
+    { enabled: () => canRunRef.current() }
+  )
+  return null
 }
 
 /**
@@ -155,6 +209,14 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const actions = useResourceListActions()
   const meta = useResourceListMeta()
   const view = useResourceListView()
+  const headerRef = useRef<HTMLDivElement | null>(null)
+  const setHeaderRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      headerRef.current = node
+      assignRef(ref, node)
+    },
+    [ref]
+  )
   const groupState = useResourceListGroupState(group.id)
   const labelOverflow = useLabelOverflow(group.label)
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
@@ -350,7 +412,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   )
   const header = (
     <div
-      ref={ref}
+      ref={setHeaderRef}
       style={style}
       className={cn(
         'group/resource-list-group flex w-full items-center text-foreground text-sm',
@@ -370,12 +432,17 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     </div>
   )
 
-  if (!headerContextMenuItems) return header
-
   return (
-    <CommandContextMenu location="webcontents.context" getExtraItems={resolveHeaderContextMenuItems}>
-      {header}
-    </CommandContextMenu>
+    <CommandFocusScope rootRef={headerRef} context={{ 'resource.focused': true }}>
+      <GroupHeaderPermanentDelete group={group} />
+      {headerContextMenuItems ? (
+        <CommandContextMenu location="webcontents.context" getExtraItems={resolveHeaderContextMenuItems}>
+          {header}
+        </CommandContextMenu>
+      ) : (
+        header
+      )}
+    </CommandFocusScope>
   )
 }
 

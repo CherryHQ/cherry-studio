@@ -1,3 +1,4 @@
+import type * as ChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -14,20 +15,15 @@ import type { Provider as DataProvider } from '@shared/data/types/provider'
 const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
 const crossPlatformSpawnMock = vi.hoisted(() => vi.fn())
 const terminateProcessTreeMock = vi.hoisted(() => vi.fn())
+const execSyncMock = vi.hoisted(() => vi.fn())
+const execFileSyncMock = vi.hoisted(() => vi.fn())
 const platformMock = vi.hoisted(() => ({ isWin: false }))
 const broadcastMock = vi.hoisted(() => vi.fn())
 const cacheSetSharedMock = vi.hoisted(() => vi.fn())
-const apiGateway = vi.hoisted(() => ({
-  start: vi.fn().mockResolvedValue(undefined),
-  ensureValidApiKey: vi.fn().mockResolvedValue('cs-sk-gateway-test'),
-  getCurrentConfig: () => ({ host: '0.0.0.0', port: 23333 })
-}))
 const preferenceGetMock = vi.hoisted(() => vi.fn<(key: string) => unknown>(() => 'en-US'))
 
 function createSpawnChild() {
   return Object.assign(new EventEmitter(), {
-    exitCode: null as number | null,
-    signalCode: null as string | null,
     stdout: new PassThrough(),
     stderr: new PassThrough(),
     kill: vi.fn(),
@@ -89,6 +85,12 @@ function createRuntimeConfigSchema(
 
 // --- Mocks for OpenClawService dependencies ---
 
+vi.mock('node:child_process', async (importOriginal) => ({
+  ...(await importOriginal<typeof ChildProcess>()),
+  execSync: execSyncMock,
+  execFileSync: execFileSyncMock
+}))
+
 vi.mock('@main/core/lifecycle', () => {
   class MockBaseService {}
   return {
@@ -113,7 +115,6 @@ vi.mock('@application', () => ({
       if (name === 'WindowManager') {
         return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) }
       }
-      if (name === 'ApiGatewayService') return apiGateway
       if (name === 'BinaryManager') return binaryManagerMock
       if (name === 'IpcApiService') return { broadcast: broadcastMock }
       if (name === 'CacheService') return { setShared: cacheSetSharedMock }
@@ -235,12 +236,11 @@ describe('OpenClawService gateway status state machine', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    execSyncMock.mockReset().mockReturnValue('')
+    execFileSyncMock.mockReset().mockReturnValue('')
     platformMock.isWin = false
-    preferenceGetMock.mockReset().mockImplementation((key) => (key === 'feature.code_cli.configs' ? {} : 'en-US'))
-    terminateProcessTreeMock.mockReset().mockImplementation(async (child) => {
-      child.exitCode = 0
-      child.emit('exit', 0, null)
-    })
+    terminateProcessTreeMock.mockReset()
+    preferenceGetMock.mockReset().mockReturnValue('en-US')
     binaryManagerMock.getToolSnapshots.mockResolvedValue({
       openclaw: {
         name: 'openclaw',
@@ -1106,6 +1106,16 @@ describe('OpenClawService gateway status state machine', () => {
     )
   })
 
+  describe('getDashboardUrl', () => {
+    it('uses fragment token to keep dashboard auth client-side', () => {
+      // @ts-expect-error -- accessing private field for testing
+      service.gatewayAuthToken = 'a b+c'
+
+      const url = service.getDashboardUrl()
+      expect(url).toBe(`http://127.0.0.1:18790#token=${encodeURIComponent('a b+c')}`)
+    })
+  })
+
   describe('gateway health probe', () => {
     it('uses the canonical /healthz endpoint when /health serves HTML', async () => {
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -1241,16 +1251,12 @@ describe('OpenClawService gateway status state machine', () => {
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledWith(['openclaw'])
     })
 
-    it('shares a single startup across concurrent requests', async () => {
-      checkPortOpenSpy.mockResolvedValueOnce(false).mockResolvedValue(true)
-      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
-      startAndWaitSpy.mockResolvedValue(undefined)
+    it('rejects concurrent startup calls', async () => {
+      ;(service as any).gatewayStatus = 'starting'
 
-      expect(await Promise.all([service.startGateway(), service.startGateway()])).toEqual([
-        { success: true },
-        { success: true }
-      ])
-      expect(startAndWaitSpy).toHaveBeenCalledTimes(1)
+      const result = await service.startGateway()
+
+      expect(result).toEqual({ success: false, message: 'Gateway is already starting' })
     })
 
     it('rejects an invalid formal config before checking or stopping the gateway port', async () => {
@@ -1316,39 +1322,17 @@ describe('OpenClawService gateway status state machine', () => {
       await expect(started).resolves.toEqual({ success: true })
       expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
         resolvePath('/usr/local/bin/openclaw'),
-        ['gateway', 'run', '--port', '18790'],
+        ['gateway', 'run', '--force'],
         expect.objectContaining({
           env: {
             PATH: [resolvePath('/usr/local/bin'), resolvePath('/usr/bin')].join(path.delimiter),
             MISE_DATA_DIR: resolvePath('/user/mise'),
-            OPENCLAW_STATE_DIR: resolvePath('/mock/openclaw'),
             OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json'),
             OPENCLAW_NO_AUTO_UPDATE: '1'
           }
         })
       )
       expect(child.unref).toHaveBeenCalledOnce()
-    })
-
-    it('retains the actual startup failure after verbose startup output', async () => {
-      const child = createSpawnChild()
-      startAndWaitSpy.mockRestore()
-      crossPlatformSpawnMock.mockReturnValue(child)
-      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
-        status: 'unreachable',
-        gatewayPort: 18790
-      })
-      vi.useFakeTimers()
-      const started = (service as any).startAndWaitForGateway('/usr/local/bin/openclaw', {})
-      const rejected = expect(started).rejects.toThrow('openclaw doctor --fix')
-      child.stderr.write(
-        Array.from({ length: 8 }, (_, index) => `startup ${index}`).join('\n') +
-          '\nMigration required: run openclaw doctor --fix\n'
-      )
-      child.stdout.write('startup banner\n')
-      child.emit('exit', 78)
-      await vi.advanceTimersByTimeAsync(1000)
-      await rejected
     })
 
     it('spawns a managed OpenClaw with the refreshed environment and formal config path', async () => {
@@ -1369,12 +1353,11 @@ describe('OpenClawService gateway status state machine', () => {
       await expect(started).resolves.toEqual({ success: true })
       expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
         resolvePath('/mock/bin/openclaw'),
-        ['gateway', 'run', '--port', '18790'],
+        ['gateway', 'run', '--force'],
         expect.objectContaining({
           env: {
             PATH: [resolvePath('/mock/bin'), resolvePath('/usr/bin')].join(path.delimiter),
             MISE_DATA_DIR: resolvePath('/mock/mise'),
-            OPENCLAW_STATE_DIR: resolvePath('/mock/openclaw'),
             OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json'),
             OPENCLAW_NO_AUTO_UPDATE: '1'
           }
@@ -1406,12 +1389,11 @@ describe('OpenClawService gateway status state machine', () => {
       await expect(started).resolves.toBeUndefined()
       expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
         'C:\\Users\\V\\AppData\\Roaming\\npm\\openclaw.cmd',
-        ['gateway', 'run', '--port', '18790'],
+        ['gateway', 'run', '--force'],
         expect.objectContaining({
           detached: false,
           env: {
             Path: 'C:\\Windows\\System32',
-            OPENCLAW_STATE_DIR: resolvePath('/mock/openclaw'),
             OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json'),
             OPENCLAW_NO_AUTO_UPDATE: '1'
           },
@@ -1456,16 +1438,16 @@ describe('OpenClawService gateway status state machine', () => {
         PATH: [resolvePath('/usr/local/bin'), resolvePath('/usr/bin')].join(path.delimiter),
         USER_DEFINED_TOKEN: 'keep-me',
         MISE_DATA_DIR: resolvePath('/user/mise'),
-        OPENCLAW_STATE_DIR: resolvePath('/mock/openclaw'),
         OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json'),
         OPENCLAW_NO_AUTO_UPDATE: '1'
       })
       expect(shellEnv).toEqual(sourceSnapshot)
     })
 
-    it('reuses a healthy existing gateway without restarting it', async () => {
+    it('stops stale gateway and restarts when port is in use by our gateway', async () => {
+      // First call: port occupied; after stop: port free
       checkPortOpenSpy.mockResolvedValueOnce(true).mockResolvedValue(false)
-      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
+      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 }) // startGateway detects our gateway
       findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
@@ -1473,8 +1455,6 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect(result).toEqual({ success: true })
       expect((service as any).gatewayStatus).toBe('running')
-      expect(startAndWaitSpy).not.toHaveBeenCalled()
-      expect(terminateProcessTreeMock).not.toHaveBeenCalled()
     })
 
     it('fails when port is in use by another application', async () => {
@@ -1484,7 +1464,7 @@ describe('OpenClawService gateway status state machine', () => {
       const result = await service.startGateway()
 
       expect(result.success).toBe(false)
-      expect('message' in result && result.message).toContain('in use')
+      expect('message' in result && result.message).toContain('already in use')
     })
 
     it('fails when binary is not found', async () => {
@@ -1549,6 +1529,230 @@ describe('OpenClawService gateway status state machine', () => {
   // ─── stopGateway ─────────────────────────────────────────────
 
   describe('stopGateway', () => {
+    function mockGatewayListeners(windows: boolean, commandLine: string | Error) {
+      platformMock.isWin = windows
+      ;(service as any).gatewayPort = 1879
+      const listeners = new Map([
+        [12341, 1879],
+        [12342, 18790]
+      ])
+      const netstat = () =>
+        [...listeners].map(([pid, port]) => `  TCP  127.0.0.1:${port}  0.0.0.0:0  LISTENING  ${pid}`).join('\n')
+      const command = (file: string, args: string[] = []) => {
+        if (file === 'netstat') return netstat()
+        if (file === 'ps' || file === 'powershell.exe') {
+          if (commandLine instanceof Error) throw commandLine
+          return commandLine
+        }
+        if (file === 'lsof') {
+          const port = Number(args.find((arg) => arg.startsWith('-iTCP:'))?.split(':')[1])
+          return [...listeners]
+            .filter(([, listeningPort]) => listeningPort === port)
+            .map(([pid]) => pid)
+            .join('\n')
+        }
+        if (file === 'taskkill') listeners.delete(Number(args[args.indexOf('/PID') + 1]))
+        return ''
+      }
+      execFileSyncMock.mockImplementation(command)
+      execSyncMock.mockImplementation((text: string) => {
+        if (text.startsWith('pkill')) listeners.clear()
+        else if (text.startsWith('netstat')) return netstat()
+        else command(text.split(' ')[0], text.split(' ').slice(1))
+        return ''
+      })
+      vi.spyOn(process, 'kill').mockImplementation((pid) => {
+        listeners.delete(pid)
+        return true
+      })
+      checkPortOpenSpy.mockImplementation(async (port: number) => [...listeners.values()].includes(port))
+      return listeners
+    }
+
+    it.each([
+      [false, 'active'],
+      [true, 'active'],
+      [false, 'exited'],
+      [true, 'exited'],
+      [false, 'different-port'],
+      [true, 'different-port']
+    ] as const)('retains spawned gateway ownership after argv changes (Windows: %s, %s)', async (windows, state) => {
+      vi.useFakeTimers()
+      const listeners = mockGatewayListeners(windows, 'openclaw')
+      listeners.delete(12341)
+      const child = Object.assign(createSpawnChild(), {
+        pid: 12341,
+        exitCode: null as number | null,
+        signalCode: null as NodeJS.Signals | null
+      })
+      startAndWaitSpy.mockRestore()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({ status: 'healthy' })
+      crossPlatformSpawnMock.mockImplementationOnce(() => {
+        listeners.set(child.pid, 1879)
+        return child
+      })
+      terminateProcessTreeMock.mockImplementation(async (owned) => {
+        if (owned !== child) throw new Error('An unrelated process handle was selected')
+        listeners.delete(owned.pid)
+      })
+
+      const started = service.startGateway()
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect(started).resolves.toEqual({ success: true })
+      if (state === 'exited') {
+        child.exitCode = 0
+        child.emit('exit', 0, null)
+      } else if (state === 'different-port') {
+        ;(service as any).gatewayPort = 18790
+      }
+      const stopped = service.stopGateway()
+      await vi.runAllTimersAsync()
+
+      await expect(stopped).resolves.toMatchObject({ success: state === 'active' })
+      expect([...listeners]).toEqual(
+        state === 'active'
+          ? [[12342, 18790]]
+          : [
+              [12342, 18790],
+              [12341, 1879]
+            ]
+      )
+    })
+
+    it.each([
+      [false, 'openclaw-gateway'],
+      [false, '/usr/local/bin/openclaw gateway run --force'],
+      [false, '/usr/bin/node /opt/node_modules/openclaw/openclaw.mjs gateway run'],
+      [
+        true,
+        '"C:\\Program Files\\nodejs\\node.exe" "C:\\Program Files\\node_modules\\openclaw\\dist\\index.js" gateway run'
+      ],
+      [true, 'C:\\tools\\bun.exe C:\\tools\\node_modules\\openclaw\\openclaw.mjs gateway run'],
+      [true, 'C:\\tools\\openclaw.exe gateway run']
+    ] as const)(
+      'stops only the verified gateway on its configured port (Windows: %s, %s)',
+      async (windows, commandLine) => {
+        const listeners = mockGatewayListeners(windows, commandLine)
+
+        await expect(service.stopGateway()).resolves.toEqual({ success: true })
+        expect([...listeners]).toEqual([[12342, 18790]])
+      }
+    )
+
+    it.each([false, true])(
+      'preserves unrelated and unreadable listeners on the configured port (Windows: %s)',
+      async (windows) => {
+        vi.useFakeTimers()
+        for (const commandLine of [
+          'openclaw',
+          '/usr/bin/node /workspace/server.js',
+          '/usr/bin/node /workspace/server.js openclaw gateway',
+          '/usr/bin/node /workspace/openclaw-helper.js gateway',
+          '/usr/bin/node /opt/node_modules/openclaw/openclaw.mjs doctor',
+          '',
+          new Error('process metadata unavailable')
+        ]) {
+          const listeners = mockGatewayListeners(windows, commandLine)
+          const result = service.stopGateway()
+          await vi.runAllTimersAsync()
+
+          await expect(result).resolves.toMatchObject({ success: false })
+          expect([...listeners]).toEqual([
+            [12341, 1879],
+            [12342, 18790]
+          ])
+        }
+      }
+    )
+
+    it.each([false, true])(
+      'leaves another application alive on shutdown when no gateway was started (Windows: %s)',
+      async (windows) => {
+        vi.useFakeTimers()
+        const listeners = mockGatewayListeners(windows, '/usr/bin/node /workspace/server.js')
+
+        const stopped = (service as any).onStop()
+        await vi.runAllTimersAsync()
+        await stopped
+
+        expect([...listeners]).toEqual([
+          [12341, 1879],
+          [12342, 18790]
+        ])
+      }
+    )
+
+    it.each([false, true])(
+      'preserves an externally started gateway during application shutdown (Windows: %s)',
+      async (windows) => {
+        const listeners = mockGatewayListeners(
+          windows,
+          windows
+            ? 'C:\\tools\\node.exe C:\\tools\\node_modules\\openclaw\\openclaw.mjs gateway run'
+            : 'openclaw-gateway'
+        )
+
+        await (service as any).onStop()
+
+        expect([...listeners]).toEqual([
+          [12341, 1879],
+          [12342, 18790]
+        ])
+      }
+    )
+
+    it.each([
+      [false, false],
+      [true, false],
+      [false, true],
+      [true, true]
+    ] as const)(
+      'shutdown stops only a live spawned gateway after a port change (Windows: %s, exited: %s)',
+      async (windows, exited) => {
+        vi.useFakeTimers()
+        const listeners = mockGatewayListeners(
+          windows,
+          windows ? 'C:\\tools\\openclaw.exe gateway run' : 'openclaw-gateway'
+        )
+        listeners.delete(12341)
+        const child = Object.assign(createSpawnChild(), {
+          pid: 12341,
+          exitCode: null as number | null,
+          signalCode: null as NodeJS.Signals | null
+        })
+        startAndWaitSpy.mockRestore()
+        vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({ status: 'healthy' })
+        crossPlatformSpawnMock.mockImplementationOnce(() => {
+          listeners.set(child.pid, 1879)
+          return child
+        })
+        terminateProcessTreeMock.mockImplementation(async (owned) => {
+          if (owned !== child) throw new Error('An unrelated process handle was selected')
+          listeners.delete(owned.pid)
+        })
+        const started = service.startGateway()
+        await vi.advanceTimersByTimeAsync(1000)
+        await expect(started).resolves.toEqual({ success: true })
+        ;(service as any).gatewayPort = 18790
+        if (exited) {
+          child.exitCode = 0
+          child.emit('exit', 0, null)
+        }
+
+        await (service as any).onStop()
+
+        expect([...listeners]).toEqual(
+          exited
+            ? [
+                [12342, 18790],
+                [12341, 1879]
+              ]
+            : [[12342, 18790]]
+        )
+      }
+    )
+
     it('transitions to stopped on successful stop', async () => {
       ;(service as any).gatewayStatus = 'running'
       checkPortOpenSpy.mockResolvedValue(false)
@@ -1560,94 +1764,19 @@ describe('OpenClawService gateway status state machine', () => {
       expect(checkHealthSpy).not.toHaveBeenCalled()
     })
 
-    it('refuses to terminate an externally started gateway', async () => {
+    it('transitions to error when gateway fails to stop', async () => {
+      vi.useFakeTimers()
       ;(service as any).gatewayStatus = 'running'
       checkPortOpenSpy.mockResolvedValue(true)
 
-      expect(await service.stopGateway()).toMatchObject({
-        success: false,
-        message: expect.stringContaining('outside Cherry Studio')
-      })
-      expect((service as any).gatewayStatus).toBe('running')
-      expect(terminateProcessTreeMock).not.toHaveBeenCalled()
-    })
+      const resultPromise = service.stopGateway()
+      await vi.runAllTimersAsync()
+      const result = await resultPromise
 
-    it('terminates only the child owned by this service', async () => {
-      const owned = createSpawnChild()
-      ;(service as any).gatewayProcess = owned
-      ;(service as any).gatewayStatus = 'running'
-
-      expect(await service.stopGateway()).toEqual({ success: true })
-      expect(owned.exitCode).toBe(0)
-      expect(terminateProcessTreeMock.mock.calls.map(([child]) => child)).toEqual([owned])
-    })
-  })
-
-  describe('ACP gateway ownership', () => {
-    function ownedGateway() {
-      const child = createSpawnChild()
-      checkPortOpenSpy.mockImplementation(async () => child.exitCode === null)
-      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
-      ;(service as any).gatewayProcess = child
-      return child
-    }
-
-    it('keeps a shared gateway alive until its final conversation releases it', async () => {
-      const child = ownedGateway()
-      const first = await service.acquireGateway(new AbortController().signal)
-      const second = await service.acquireGateway(new AbortController().signal)
-      await first.dispose()
-      await first.dispose()
-      expect(child.exitCode).toBeNull()
-      expect(await service.stopGateway()).toMatchObject({
-        success: false,
-        message: expect.stringContaining('conversation')
-      })
-      await second.dispose()
-      expect(child.exitCode).toBe(0)
-    })
-
-    it('keeps an explicitly opened WebUI alive after its conversation closes', async () => {
-      const child = ownedGateway()
-      await service.startGateway()
-      const lease = await service.acquireGateway(new AbortController().signal)
-      await lease.dispose()
-      expect(child.exitCode).toBeNull()
-      await service.stopGateway()
-      expect(child.exitCode).toBe(0)
-    })
-
-    it('never stops an external gateway when a conversation releases it', async () => {
-      checkPortOpenSpy.mockResolvedValue(true)
-      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
-      const lease = await service.acquireGateway(new AbortController().signal)
-      await lease.dispose()
-      expect(await service.getStatus()).toEqual({ status: 'running', port: 18790 })
-      expect(terminateProcessTreeMock).not.toHaveBeenCalled()
-    })
-
-    it('cleans up a gateway whose startup completes after the request is cancelled', async () => {
-      checkPortOpenSpy.mockResolvedValue(false)
-      const child = createSpawnChild()
-      const abort = new AbortController()
-      startAndWaitSpy.mockImplementation(async () => {
-        ;(service as any).gatewayProcess = child
-        abort.abort()
-      })
-      await expect(service.acquireGateway(abort.signal)).rejects.toThrow()
-      expect(child.exitCode).toBe(0)
-      expect(await service.stopGateway()).toEqual({ success: true })
-    })
-
-    it('returns an actionable maintenance message instead of raw database diagnostics', async () => {
-      checkPortOpenSpy.mockResolvedValue(false)
-      startAndWaitSpy.mockRejectedValue(
-        new Error('Gateway stderr: state database schema migration required\n' + 'x'.repeat(2000))
-      )
-      expect(await service.startGateway()).toEqual({
-        success: false,
-        message: 'OpenClaw needs a local database upgrade. Run openclaw doctor --fix in a terminal, then try again.'
-      })
+      expect(result.success).toBe(false)
+      expect((service as any).gatewayStatus).toBe('error')
+      expect(checkPortOpenSpy).toHaveBeenCalledTimes(3)
+      expect(checkHealthSpy).not.toHaveBeenCalled()
     })
   })
 
@@ -1900,105 +2029,491 @@ describe('OpenClawService gateway status state machine', () => {
       })
     })
 
-    it('writes only gateway credentials and addresses, retaining native settings and model metadata', async () => {
+    // Regression: syncProviderConfig writes config.gateway.port from this.gatewayPort, but sync
+    // runs before startGateway(port) updates it. A caller-supplied port must be applied first, or
+    // a custom port is written as the stale default (18790) and the gateway binds the wrong port.
+    it('applies the caller port before syncProviderConfig writes the config', async () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')
-      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-gateway-'))
-      vi.mocked(application.getPath).mockReturnValue(dir)
-      const file = path.join(dir, 'openclaw.json')
-      const selected = createModel({ apiModelId: 'org/gpt-4o', contextWindow: 128000, maxOutputTokens: 16384 })
       vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
-      vi.mocked(modelService.getByKey).mockReturnValue(selected)
-      vi.mocked(modelService.list).mockReturnValue([
-        selected,
-        createModel({ id: 'openai::hidden', isHidden: true }),
-        createModel({ id: 'openai::embedding', capabilities: [MODEL_CAPABILITY.EMBEDDING] })
-      ])
-      const custom = { baseUrl: 'https://native.example', apiKey: 'native-key', models: [] }
-      fs.writeFileSync(
-        file,
-        JSON.stringify({
-          models: { providers: { native: custom, 'cherry-openai': { apiKey: 'old-provider-key' } } },
-          gateway: { auth: { mode: 'token', token: 'native-auth' } }
-        })
+      const model = createModel()
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+
+      let portAtWrite: number | undefined
+      vi.spyOn(service, 'syncProviderConfig').mockImplementation(async () => {
+        portAtWrite = (service as any).gatewayPort
+        return { success: true }
+      })
+
+      await service.syncConfig('openai::gpt-4o', 20000)
+
+      expect(portAtWrite).toBe(20000)
+      expect((service as any).gatewayPort).toBe(20000)
+    })
+
+    it('leaves the current gateway port unchanged when no port is supplied', async () => {
+      ;(service as any).gatewayPort = 12345
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
+      const model = createModel()
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      await service.syncConfig('openai::gpt-4o')
+
+      expect((service as any).gatewayPort).toBe(12345)
+    })
+
+    it('resolves a unique model id before syncing OpenClaw config', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
+      const model = createModel({
+        contextWindow: 128000,
+        maxOutputTokens: 16384,
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        inputModalities: ['text', 'image'],
+        pricing: {
+          input: { perMillionTokens: 2 },
+          output: { perMillionTokens: 8 },
+          cacheRead: { perMillionTokens: 0.2 },
+          cacheWrite: { perMillionTokens: 2.5 }
+        }
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'openai',
+          apiKey: 'sk-test',
+          apiHost: 'https://api.openai.com',
+          anthropicApiHost: undefined,
+          models: [
+            expect.objectContaining({
+              id: 'gpt-4o',
+              endpoint_type: 'openai',
+              contextWindow: 128000,
+              maxTokens: 16384,
+              reasoning: true,
+              input: ['text', 'image'],
+              cost: { input: 2, output: 8, cacheRead: 0.2, cacheWrite: 2.5 }
+            })
+          ]
+        }),
+        expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'openai' })
       )
-      try {
-        expect(await service.syncConfig('openai::gpt-4o', 20000)).toEqual({ success: true })
-        const config = JSON.parse(fs.readFileSync(file, 'utf8'))
-        expect(config.models.providers).toEqual({
-          native: custom,
-          'cherry-gateway': {
-            baseUrl: 'http://127.0.0.1:23333/v1',
-            apiKey: 'cs-sk-gateway-test',
-            api: 'openai-completions',
-            models: [expect.objectContaining({ id: 'openai:org/gpt-4o', contextWindow: 128000, maxTokens: 16384 })]
+      expect(modelService.list).toHaveBeenCalledWith({ providerId: 'openai', enabled: true })
+    })
+
+    it('does not route a mixed provider OpenAI model through the Anthropic endpoint', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          id: 'new-api',
+          name: 'New API',
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-api.example.com/openai' },
+            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://new-api.example.com/anthropic' }
           }
         })
-        expect(config.agents.defaults.model.primary).toBe('cherry-gateway/openai:org/gpt-4o')
-        expect(config.gateway).toMatchObject({ port: 20000, auth: { token: 'native-auth' } })
-        expect(providerService.getApiKeys).not.toHaveBeenCalled()
-        expect(fs.readFileSync(file, 'utf8')).not.toContain('old-provider-key')
-      } finally {
-        fs.rmSync(dir, { recursive: true, force: true })
-      }
+      )
+      const model = createModel({ id: 'new-api::gpt-4o', providerId: 'new-api' })
+      const anthropicModel = createModel({
+        id: 'new-api::claude-sonnet-4',
+        providerId: 'new-api',
+        apiModelId: 'claude-sonnet-4',
+        name: 'Claude Sonnet 4',
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model, anthropicModel])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('new-api::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiHost: 'https://new-api.example.com/openai',
+          anthropicApiHost: undefined,
+          models: [expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'openai' })]
+        }),
+        expect.objectContaining({ endpoint_type: 'openai' })
+      )
     })
 
-    it.each([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT])(
-      'routes %s models through the gateway rather than exporting upstream credentials',
-      async (endpoint) => {
-        const { modelService } = await import('@data/services/ModelService')
-        const { providerService } = await import('@data/services/ProviderService')
-        vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider({ authType: 'api-key', apiKeys: [] }))
-        const model = createModel({ endpointTypes: [endpoint] })
-        vi.mocked(modelService.getByKey).mockReturnValue(model)
-        vi.mocked(modelService.list).mockReturnValue([model])
-        const write = vi.spyOn(service as any, 'writeProviderConfig').mockResolvedValue({ success: true })
-        expect(await service.syncConfig('openai::gpt-4o')).toEqual({ success: true })
-        expect(write).toHaveBeenCalledWith(
-          expect.objectContaining({
-            id: 'gateway',
-            type: 'openai',
-            apiHost: 'http://127.0.0.1:23333/v1',
-            apiKey: 'cs-sk-gateway-test'
-          }),
-          expect.objectContaining({ id: 'openai:gpt-4o', endpoint_type: 'openai' })
-        )
-      }
-    )
-
-    it.each([
-      { provider: { isEnabled: false }, model: {} },
-      { provider: {}, model: { isEnabled: false } },
-      { provider: {}, model: { capabilities: [MODEL_CAPABILITY.EMBEDDING] } },
-      { provider: {}, model: { providerId: 'cherryai-subscription' } }
-    ])('does not start the gateway or write config for an unavailable selection: %j', async ({ provider, model }) => {
-      const { modelService } = await import('@data/services/ModelService')
-      const { providerService } = await import('@data/services/ProviderService')
-      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider(provider))
-      vi.mocked(modelService.getByKey).mockReturnValue(createModel(model))
-      const write = vi.spyOn(service as any, 'writeProviderConfig')
-      expect((await service.syncConfig('openai::gpt-4o')).success).toBe(false)
-      expect(apiGateway.start).not.toHaveBeenCalled()
-      expect(write).not.toHaveBeenCalled()
-    })
-
-    it('preserves config when the API gateway cannot start', async () => {
+    it('excludes hidden models from the synced model list', async () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')
       vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
-      vi.mocked(modelService.getByKey).mockReturnValue(createModel())
-      apiGateway.start.mockRejectedValueOnce(new Error('Gateway port unavailable'))
-      const write = vi.spyOn(service as any, 'writeProviderConfig')
-      expect(await service.syncConfig('openai::gpt-4o')).toEqual({
-        success: false,
-        message: 'Gateway port unavailable'
-      })
-      expect(write).not.toHaveBeenCalled()
+      const visibleModel = createModel()
+      const hiddenModel = createModel({ id: 'openai::hidden-model', apiModelId: 'hidden-model', isHidden: true })
+      vi.mocked(modelService.getByKey).mockReturnValue(visibleModel)
+      vi.mocked(modelService.list).mockReturnValue([visibleModel, hiddenModel])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          models: [expect.objectContaining({ id: 'gpt-4o' })]
+        }),
+        expect.anything()
+      )
     })
 
-    it('rejects invalid model identifiers before starting the gateway', async () => {
-      expect((await service.syncConfig('invalid' as UniqueModelId)).success).toBe(false)
-      expect(apiGateway.start).not.toHaveBeenCalled()
+    it('excludes non-chat models from the synced model list', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
+      const chatModel = createModel()
+      const embeddingModel = createModel({
+        id: 'openai::text-embedding-3-large',
+        apiModelId: 'text-embedding-3-large',
+        name: 'Text Embedding 3 Large',
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(chatModel)
+      vi.mocked(modelService.list).mockReturnValue([chatModel, embeddingModel])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          models: [expect.objectContaining({ id: 'gpt-4o' })]
+        }),
+        expect.anything()
+      )
+    })
+
+    it('returns an error for invalid model selections', async () => {
+      // Bypasses the compile-time UniqueModelId contract on purpose: the service's
+      // runtime safeParse is the boundary defense for non-IPC callers.
+      const result = await service.syncConfig('invalid-model-id' as UniqueModelId)
+
+      expect(result).toEqual({ success: false, message: 'Invalid OpenClaw model selection' })
+    })
+
+    it('returns an error when the selected endpoint has no API host', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          endpointConfigs: {}
+        })
+      )
+      const model = createModel()
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({
+        success: false,
+        message: `Provider openai has no API host configured for ${ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS}`
+      })
+    })
+
+    it('does not borrow an API host from another endpoint type', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com' }
+          }
+        })
+      )
+      const model = createModel({
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({
+        success: false,
+        message: `Provider openai has no API host configured for ${ENDPOINT_TYPE.ANTHROPIC_MESSAGES}`
+      })
+      expect(syncProviderConfigSpy).not.toHaveBeenCalled()
+    })
+
+    it('returns an error when an API-key provider has no enabled API key', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
+      const model = createModel()
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([])
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: false, message: 'Provider openai has no enabled API key configured' })
+    })
+
+    it('returns an error when the selected OpenClaw model is non-chat', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
+      const embeddingModel = createModel({
+        id: 'openai::text-embedding-3-large',
+        apiModelId: 'text-embedding-3-large',
+        name: 'Text Embedding 3 Large',
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(embeddingModel)
+      vi.mocked(modelService.list).mockReturnValue([embeddingModel])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::text-embedding-3-large')
+
+      expect(result).toEqual({ success: false, message: 'Selected OpenClaw model must support chat' })
+      expect(syncProviderConfigSpy).not.toHaveBeenCalled()
+    })
+
+    it('allows keyless GPUStack providers during sync', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          id: 'gpustack',
+          name: 'GPUStack',
+          presetProviderId: 'gpustack',
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:8080/v1' }
+          }
+        })
+      )
+      const model = createModel({
+        id: 'gpustack::qwen3',
+        providerId: 'gpustack',
+        apiModelId: 'qwen3',
+        name: 'Qwen3'
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('gpustack::qwen3')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'gpustack',
+          apiKey: 'gpustack',
+          apiHost: 'http://127.0.0.1:8080/v1'
+        }),
+        expect.objectContaining({ id: 'qwen3' })
+      )
+    })
+
+    it('syncs a keyless provider with no dedicated placeholder by authOptional', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          id: 'ovms',
+          name: 'OVMS',
+          presetProviderId: 'ovms',
+          authOptional: true,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:8000/v3' }
+          }
+        })
+      )
+      const model = createModel({
+        id: 'ovms::qwen3',
+        providerId: 'ovms',
+        apiModelId: 'qwen3',
+        name: 'Qwen3'
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('ovms::qwen3')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'ovms',
+          apiKey: 'no-key-required'
+        }),
+        expect.objectContaining({ id: 'qwen3' })
+      )
+    })
+
+    it('allows keyless oMLX providers during sync', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          id: 'omlx',
+          name: 'oMLX',
+          presetProviderId: 'omlx',
+          authOptional: true,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:8000' }
+          }
+        })
+      )
+      const model = createModel({
+        id: 'omlx::qwen3-coder-30b',
+        providerId: 'omlx',
+        apiModelId: 'qwen3-coder-30b',
+        name: 'Qwen3 Coder 30B'
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('omlx::qwen3-coder-30b')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'omlx',
+          apiKey: 'no-key-required',
+          apiHost: 'http://127.0.0.1:8000'
+        }),
+        expect.objectContaining({ id: 'qwen3-coder-30b' })
+      )
+    })
+
+    it('maps Anthropic endpoint models to Anthropic OpenClaw provider config', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          id: 'new-api',
+          name: 'New API',
+          endpointConfigs: {
+            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://new-api.example.com/anthropic' }
+          }
+        })
+      )
+      const model = createModel({
+        id: 'new-api::claude-sonnet-4',
+        providerId: 'new-api',
+        apiModelId: 'claude-sonnet-4',
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('new-api::claude-sonnet-4')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'anthropic',
+          apiHost: 'https://new-api.example.com/anthropic',
+          anthropicApiHost: 'https://new-api.example.com/anthropic'
+        }),
+        expect.objectContaining({ id: 'claude-sonnet-4', endpoint_type: 'anthropic' })
+      )
+    })
+
+    it('maps OpenAI Responses endpoint models through provider and model config', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.openai.com' }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+        })
+      )
+      const model = createModel({
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'openai-response',
+          apiHost: 'https://api.openai.com'
+        }),
+        expect.objectContaining({ endpoint_type: 'openai-response' })
+      )
+    })
+
+    it('determines OpenAI Responses API type from model endpoint type', () => {
+      const apiType = (service as any).determineApiType(
+        {
+          id: 'openai',
+          type: 'openai',
+          apiHost: 'https://api.openai.com'
+        },
+        { id: 'gpt-4o', provider: 'openai', endpoint_type: 'openai-response' }
+      )
+
+      expect(apiType).toBe('openai-responses')
+    })
+
+    it('returns an error for providers OpenClaw sync cannot adapt yet', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          id: 'vertexai',
+          presetProviderId: 'vertexai',
+          name: 'Vertex AI',
+          endpointConfigs: {
+            [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://generativelanguage.googleapis.com' }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+        })
+      )
+      const model = createModel({
+        id: 'vertexai::gemini-2.5-pro',
+        providerId: 'vertexai',
+        apiModelId: 'gemini-2.5-pro',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+
+      const result = await service.syncConfig('vertexai::gemini-2.5-pro')
+
+      expect(result).toEqual({ success: false, message: 'OpenClaw sync does not support Vertex AI providers yet' })
     })
   })
 
@@ -2038,50 +2553,6 @@ describe('OpenClawService gateway status state machine', () => {
       expect('message' in result && result.message).toMatch(/not valid JSON/)
       // The unparseable file must survive so the user can repair it by hand.
       expect(fs.readFileSync(configPath, 'utf-8')).toBe('{ not json')
-    })
-
-    it('preserves the native Gateway token and authentication settings when selecting a model', async () => {
-      fs.writeFileSync(
-        path.join(configDir, 'openclaw.json'),
-        JSON.stringify({
-          gateway: { auth: { token: 'user-owned-token', mode: 'token', allowTailscale: true } }
-        })
-      )
-      expect(await service.syncProviderConfig(legacyProvider, legacyModel)).toEqual({ success: true })
-      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
-      expect(written.gateway.auth).toEqual({ token: 'user-owned-token', mode: 'token', allowTailscale: true })
-      expect(written.agents.defaults.model.primary).toBe('cherry-openai/gpt-4o')
-    })
-
-    it('preserves password authentication and never bootstraps a random dashboard token', async () => {
-      const file = path.join(configDir, 'openclaw.json')
-      fs.writeFileSync(
-        file,
-        JSON.stringify({ gateway: { auth: { mode: 'password', password: 'native-password', token: 'stale-token' } } })
-      )
-      expect(await service.syncProviderConfig(legacyProvider, legacyModel)).toEqual({ success: true })
-      const written = JSON.parse(fs.readFileSync(file, 'utf8'))
-      expect(written.gateway.auth).toEqual({ mode: 'password', password: 'native-password', token: 'stale-token' })
-      expect(new URL(service.getDashboardUrl()).hash).toBe('')
-      expect(service.getDashboardUrl()).not.toContain('native-password')
-    })
-
-    it('bootstraps native token authentication in a client-side fragment', () => {
-      fs.writeFileSync(
-        path.join(configDir, 'openclaw.json'),
-        JSON.stringify({ gateway: { auth: { mode: 'token', token: 'a b+c' } } })
-      )
-      expect(service.getDashboardUrl()).toBe(`http://127.0.0.1:18790#token=${encodeURIComponent('a b+c')}`)
-    })
-
-    it('uses edited Gateway credentials after saving a native config file', async () => {
-      const file = path.join(configDir, 'openclaw.json')
-      fs.writeFileSync(file, JSON.stringify({ gateway: { auth: { token: 'before-edit' } } }))
-      expect(new URL(service.getDashboardUrl()).hash).toBe('#token=before-edit')
-      await service.writeConfigFiles(() =>
-        fs.promises.writeFile(file, JSON.stringify({ gateway: { auth: { token: 'after-edit' } } }))
-      )
-      expect(new URL(service.getDashboardUrl()).hash).toBe('#token=after-edit')
     })
 
     it('writes a fresh config when none exists yet', async () => {

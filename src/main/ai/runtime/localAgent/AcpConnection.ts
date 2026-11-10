@@ -684,14 +684,18 @@ export class AcpConnection extends LocalConnection {
       if (snapshot.success) this.events.push({ type: 'session-cost', snapshot: snapshot.data })
     }
     if (update.sessionUpdate === 'usage_update' && update.used >= 0 && update.size > 0) {
+      const model = this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? ''
       this.events.push({
         type: 'context-usage',
-        usage: {
-          categories: [],
-          totalTokens: update.used,
-          maxTokens: update.size,
-          percentage: Math.min(100, (update.used / update.size) * 100),
-          model: this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? ''
+        result: {
+          status: 'confirmed',
+          value: {
+            model,
+            revision: model,
+            contextWindow: update.size,
+            basis: 'current-context',
+            used: { tokens: update.used, precision: 'reported' }
+          }
         }
       })
     }

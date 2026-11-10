@@ -4,7 +4,7 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { findCommandDefinition, resolveCommandByKeybinding } from '@shared/utils/command'
 import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
 
-import { getCommandShortcutLabel, resolveCommandDisplayState } from '../command'
+import { getCommandShortcutLabel, resolveCommandDisplayState, resolveCommandPresentationKeybinding } from '../command'
 
 describe('getShortcutBindingFromKeyboardEvent', () => {
   const focusOptions = {
@@ -59,6 +59,45 @@ describe('getShortcutBindingFromKeyboardEvent', () => {
 })
 
 describe('getCommandShortcutLabel', () => {
+  it('shows a configured label while keyboard routing is blocked by focus', () => {
+    const context = { 'webview.focused': true }
+    expect(
+      resolveCommandByKeybinding({
+        binding: ['CommandOrControl', '1'],
+        context,
+        platform: 'darwin',
+        scope: 'renderer'
+      })
+    ).toBeUndefined()
+    expect(getCommandShortcutLabel('app.sidebar.open_1', undefined, { context, isMac: true, platform: 'darwin' })).toBe(
+      '⌘1'
+    )
+    expect(
+      resolveCommandPresentationKeybinding('app.sidebar.open_1', undefined, { context, platform: 'darwin' })
+        ?.accelerator
+    ).toBe('CommandOrControl+1')
+  })
+
+  it('respects disabled bindings and unavailable features in presentation', () => {
+    expect(
+      getCommandShortcutLabel(
+        'topic.create',
+        { binding: ['CommandOrControl', 'N'], enabled: false },
+        {
+          context: {},
+          isMac: true,
+          platform: 'darwin'
+        }
+      )
+    ).toBe('')
+    expect(
+      resolveCommandPresentationKeybinding('selection.toggle', undefined, {
+        context: { 'feature.selection.enabled': false },
+        platform: 'darwin'
+      })
+    ).toBeUndefined()
+  })
+
   it('formats primary binding for each platform family', () => {
     expect(getCommandShortcutLabel('topic.create', undefined, { context: {}, isMac: true, platform: 'darwin' })).toBe(
       '⌘N'

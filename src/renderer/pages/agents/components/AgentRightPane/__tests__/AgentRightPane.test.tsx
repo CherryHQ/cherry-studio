@@ -21,11 +21,14 @@ import {
 import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
 import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import type * as CommandComponents from '@renderer/components/command'
 import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
+import type * as RendererIpc from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { ComputerUseControl } from '@shared/ipc/schemas/computerUse'
 import type { EventPayload } from '@shared/ipc/types'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot } from '@shared/utils/file'
@@ -33,6 +36,7 @@ import { TreeDir, TreeDirRoot } from '@shared/utils/file'
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
 const {
+  desktopState,
   backgroundTasksState,
   buildAgentToolFlowProjectionMock,
   fileSessionDiscardMock,
@@ -52,6 +56,11 @@ const {
   uiMockState,
   useAgentMessageListProviderValueMock
 } = vi.hoisted(() => ({
+  desktopState: {
+    controls: [] as ComputerUseControl[],
+    pending: new Set<string>(),
+    stopApp: vi.fn()
+  },
   backgroundTasksState: { value: [] as AgentSessionBackgroundTask[] },
   buildAgentToolFlowProjectionMock: vi.fn(),
   fileSessionDiscardMock: vi.fn(),
@@ -84,6 +93,10 @@ const {
   webviewBrowserMock: vi.fn(),
   uiMockState: { useRealHoverCard: false },
   useAgentMessageListProviderValueMock: vi.fn()
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentDesktopControls', () => ({
+  useAgentDesktopControls: () => ({ ...desktopState, loading: false, failed: false })
 }))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
@@ -205,10 +218,6 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
   EmptyState: () => <div data-testid="empty-state" />
 }))
 
-vi.mock('@renderer/components/chat/agent/AgentContextUsageSummary', () => ({
-  AgentContextUsageSummary: () => <div data-testid="context-usage" />
-}))
-
 vi.mock('@renderer/components/chat/messages/MessageList', () => ({
   default: () => <div data-testid="message-list" />
 }))
@@ -234,9 +243,9 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   )
 }))
 
-vi.mock('@renderer/ipc', async (importOriginal) => ({
-  ...(await importOriginal()),
-  ipcApi: { request: ipcRequestMock }
+vi.mock('@renderer/ipc', async (importActual) => ({
+  ...(await importActual<typeof RendererIpc>()),
+  ipcApi: { ...(await importActual<typeof RendererIpc>()).ipcApi, request: ipcRequestMock }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -425,7 +434,9 @@ vi.mock('../AgentBrowserView', () => ({
   }
 }))
 
-vi.mock('@renderer/components/command', () => ({
+vi.mock('@renderer/components/command', async (importOriginal) => ({
+  ...(await importOriginal<typeof CommandComponents>()),
+  CommandShortcut: () => null,
   CommandTooltip: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
@@ -649,7 +660,7 @@ function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { o
           taskId: task.id,
           status: task.status,
           title: task.title,
-          taskType: task.taskType,
+          taskType: task.taskType ?? 'subagent',
           toolUseId: task.toolUseId
         }
       }) as unknown as CherryMessagePart
@@ -664,7 +675,8 @@ function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { o
   )
 
   if (openPanel) {
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
+    fireEvent.click(screen.getByRole('button', { name: /agent.right_pane.info.subagents/ }))
   }
 }
 
@@ -718,6 +730,8 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    desktopState.controls = []
+    desktopState.pending = new Set()
     mockUsePreference.mockImplementation(defaultPreferenceImplementation)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.auto_open_panel', true)
     vi.spyOn(window.api.ipcApi, 'on').mockImplementation((event, listener) => {
@@ -739,6 +753,7 @@ describe('AgentRightPane', () => {
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockImplementation(async (route: string) => {
       if (route === 'ai.tool.get_result') return { found: true, output: 'Loaded flow result' }
+      if (route === 'ai.projection.attach') return null
       return {
         kind: 'file',
         type: 'text',
@@ -769,7 +784,10 @@ describe('AgentRightPane', () => {
   it('activates the first attachment preview after metadata resolves in an empty system workspace', async () => {
     const user = userEvent.setup()
     const metadata = Promise.withResolvers<PhysicalFileMetadata>()
-    ipcRequestMock.mockReturnValueOnce(metadata.promise)
+    const request = ipcRequestMock.getMockImplementation()
+    ipcRequestMock.mockImplementation((route: string, ...args: unknown[]) =>
+      route === 'file.get_metadata' ? metadata.promise : request?.(route, ...args)
+    )
     render(
       <TestAgentRightPane
         sessionId="session-a"
@@ -941,9 +959,9 @@ describe('AgentRightPane', () => {
 
     expect(screen.queryByTestId('agent-task-progress-capsule')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
 
-    expect(within(screen.getByTestId('right-pane')).queryByText('Collect context')).toBeNull()
+    expect(screen.queryByText('Collect context')).toBeNull()
   })
 
   it('infers the first pending task as active only while the assistant turn is running', () => {
@@ -973,45 +991,21 @@ describe('AgentRightPane', () => {
     expect(screen.queryByText('Collecting context')).toBeNull()
   })
 
-  it('uses a title header and keeps stable shortcuts available while the pane is open', () => {
+  it('opens details without claiming the work panel and preserves the files shortcut', () => {
     render(
-      <TestAgentRightPane
-        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'agent.session.list.title' }}
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={[]}
-        partsByMessageId={{}}>
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
-
-    expect(screen.queryByRole('button', { name: 'agent.session.list.title' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'trace.label' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' })).toBeInTheDocument()
-    expect(screen.getByTestId('status-shortcut-preview')).toBeInTheDocument()
-
-    const statusShortcut = document.querySelector('[data-shell-tab-shortcut="status"]')
-    expect(statusShortcut).toBeInTheDocument()
-    expect(statusShortcut).toHaveAttribute('data-hover-card-trigger', 'true')
-
-    fireEvent.click(statusShortcut as HTMLElement)
-
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
-    expect(document.querySelector('button[data-state="open"]')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'common.close' })).toBeNull()
-    expect(screen.queryByTestId('status-shortcut-preview')).toBeNull()
-
-    const activeStatusShortcut = document.querySelector('[data-shell-tab-shortcut="status"]')
-    expect(activeStatusShortcut).toBeInTheDocument()
-    expect(activeStatusShortcut).toHaveAttribute('aria-pressed', 'true')
-
-    fireEvent.click(activeStatusShortcut as HTMLElement)
-
+    const toggle = screen.getByRole('button', { name: 'agent.right_pane.tabs.details' })
+    fireEvent.click(toggle)
+    expect(screen.getByRole('dialog', { name: 'agent.right_pane.tabs.details' })).toBeInTheDocument()
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toBeInTheDocument()
   })
 
   it('opens a blank browser when no preview URL has been reported', () => {
@@ -2301,7 +2295,7 @@ describe('AgentRightPane', () => {
 
     expect(screen.queryByRole('button', { name: 'agent.session.list.title' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.status' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.details' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'trace.label' })).toBeNull()
   })
 
@@ -2322,6 +2316,43 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow')
     expect(screen.getByTestId('empty-state')).toBeInTheDocument()
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
+  })
+
+  it('opens the common child projection for Claude and displays its availability diagnostic', async () => {
+    ipcRequestMock.mockImplementation(async (route: string) =>
+      route === 'ai.projection.attach'
+        ? {
+            kind: 'child',
+            sessionId: 'child-archive',
+            contextId: 'child-context',
+            revision: 1,
+            messages: [],
+            active: false,
+            available: true,
+            canSubmit: false,
+            diagnostic: 'Native child transcript is unavailable'
+          }
+        : undefined
+    )
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="claude-owner" runtimeType="claude-code" messages={[]} partsByMessageId={{}}>
+        <OpenFlowButton toolCallId="native-agent-tool" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Native child transcript is unavailable')
+    expect(screen.getByRole('heading', { name: 'agent.right_pane.info.context_usage' })).toBeInTheDocument()
+    expect(screen.getByText('common.unknown')).toBeVisible()
+    expect(screen.queryByRole('meter')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'chat.input.send' })).toBeNull()
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.projection.attach', {
+      target: { kind: 'child', sessionId: 'claude-owner', toolCallId: 'native-agent-tool' },
+      subscriptionId: expect.any(String)
+    })
   })
 
   it('keeps the full flow title for the panel header to truncate by available width', () => {
@@ -2716,6 +2747,43 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('message-list')).toBeInTheDocument()
   })
 
+  it('scopes desktop control to the session and keeps a stop bound to its original app', async () => {
+    const user = userEvent.setup()
+    const first = {
+      ownerId: 'agent:session-a:agent',
+      label: 'Agent',
+      appId: 'a',
+      appName: 'First app',
+      status: 'active' as const
+    }
+    const second = {
+      ownerId: 'agent:session-b:agent',
+      label: 'Agent',
+      appId: 'b',
+      appName: 'Second app',
+      status: 'active' as const
+    }
+    desktopState.controls = [first, second]
+    desktopState.stopApp.mockImplementation(() => new Promise(() => {}))
+    const content = (sessionId: string) => (
+      <TestAgentRightPane sessionId={sessionId} agentId="agent" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const view = render(content('session-a'))
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
+    await user.click(screen.getByRole('button', { name: /agent.right_pane.info.desktop_control.title/ }))
+    expect(screen.getByText('First app')).toBeVisible()
+    expect(screen.queryByText('Second app')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.info.desktop_control.stop' }))
+    expect(desktopState.stopApp).toHaveBeenCalledWith(first)
+    desktopState.pending.add(JSON.stringify([first.ownerId, first.appId]))
+    view.rerender(content('session-b'))
+    expect(screen.queryByText('First app')).toBeNull()
+    expect(desktopState.stopApp).toHaveBeenCalledWith(first)
+  })
+
   it('opens a subagent flow from the shortcut environment context', () => {
     renderStatusTasks(
       [
@@ -2730,10 +2798,9 @@ describe('AgentRightPane', () => {
       { openPanel: false }
     )
 
-    const preview = screen.getByTestId('status-shortcut-preview')
-    const taskButton = within(preview).getByRole('button', { name: /Inspect task state/ })
-    expect(taskButton).toHaveClass('focus-visible:bg-accent', 'focus-visible:outline-none')
-    expect(taskButton).not.toHaveClass('focus-visible:ring-2', 'focus-visible:ring-ring')
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
+    fireEvent.click(screen.getByRole('button', { name: /agent.right_pane.info.subagents/ }))
+    const taskButton = screen.getByRole('button', { name: /Inspect task state/ })
     fireEvent.click(taskButton)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
@@ -2763,8 +2830,9 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
 
+    fireEvent.click(screen.getByRole('button', { name: /agent.right_pane.info.subagents/ }))
     const taskButton = screen.getByRole('button', { name: /Run a detached subagent/ })
     expect(taskButton.querySelector('.animate-spin')).not.toBeNull()
   })
@@ -2791,10 +2859,10 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open child' }))
     fireEvent.click(screen.getByRole('button', { name: 'open other root' }))
     fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
-  it('returns from a subagent flow to the status panel', async () => {
+  it('returns from a subagent flow to the details card', async () => {
     const user = userEvent.setup()
 
     renderStatusTasks([
@@ -2807,14 +2875,13 @@ describe('AgentRightPane', () => {
       }
     ])
 
-    const rightPane = screen.getByTestId('right-pane')
-    await user.click(within(rightPane).getByRole('button', { name: /Inspect task state/ }))
+    await user.click(screen.getByRole('button', { name: /Inspect task state/ }))
 
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
 
     await user.click(screen.getByRole('button', { name: 'common.back' }))
 
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
     expect(screen.getByText('agent.right_pane.info.subagents')).toBeInTheDocument()
   })
 
@@ -2886,10 +2953,11 @@ describe('AgentRightPane', () => {
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
 
     expect(screen.getByText('agent.right_pane.info.workflows')).toBeInTheDocument()
     expect(screen.queryByText('agent.right_pane.info.subagents')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /agent.right_pane.info.workflows/ }))
     expect(screen.getByText('review-pr')).toBeInTheDocument()
     expect(screen.getByText('Reviewing renderer files')).toBeInTheDocument()
     expect(screen.getByText('Checking citation rendering')).toBeInTheDocument()
@@ -2898,7 +2966,7 @@ describe('AgentRightPane', () => {
     expect(screen.queryByTestId('workflow-dag-panel')).toBeNull()
   })
 
-  it('keeps declared artifacts ahead of run sections', () => {
+  it('keeps task summaries above artifacts and context', () => {
     const parts = [
       {
         type: 'dynamic-tool',
@@ -2930,17 +2998,18 @@ describe('AgentRightPane', () => {
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
 
     const sectionOrder = [
+      screen.getByText('agent.right_pane.info.shell_tasks'),
       screen.getByText('agent.right_pane.info.artifacts'),
-      screen.getByTestId('context-usage'),
-      screen.getByText('agent.right_pane.info.shell_tasks')
+      screen.getByRole('region', { name: 'agent.right_pane.info.context' })
     ]
 
     for (const [index, node] of sectionOrder.slice(0, -1).entries()) {
       expect(node.compareDocumentPosition(sectionOrder[index + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
+    fireEvent.click(screen.getByRole('button', { name: /agent.right_pane.info.artifacts/ }))
     expect(screen.getByText('index.html')).toBeInTheDocument()
   })
 
@@ -2962,7 +3031,7 @@ describe('AgentRightPane', () => {
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
 
     expect(screen.queryByText('agent.right_pane.info.artifacts')).toBeNull()
   })
@@ -2996,9 +3065,9 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
 
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
   })
 
@@ -3652,7 +3721,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
   })
 
-  it('returns to the status pane after one Back when the same attachment is previewed again', async () => {
+  it('returns to the trace pane after one Back when the same attachment is previewed again', async () => {
     // Bug: repeating an attachment from another pane makes the first Back stay on the file instead of restoring that pane.
     const user = userEvent.setup()
     render(
@@ -3664,9 +3733,9 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
-    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
-    expect(screen.getByTestId('active-panel')).toHaveTextContent('status')
+    await user.click(screen.getByRole('button', { name: 'trace.label' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('trace.label')
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('trace')
 
     await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
     expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
@@ -3677,13 +3746,13 @@ describe('AgentRightPane', () => {
 
     await user.click(screen.getByRole('button', { name: 'common.back' }))
 
-    expect(screen.getByTestId('active-panel')).toHaveTextContent('status')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('trace')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('trace.label')
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 
-  it('restores the status pane with one Back after the already selected attachment is opened again', async () => {
-    // Bug: skipping return-target refresh sends Back to the old files pane after the same attachment is opened from status.
+  it('restores the trace pane with one Back after the already selected attachment is opened again', async () => {
+    // Bug: skipping return-target refresh sends Back to the old files pane after the same attachment is opened from trace.
     const user = userEvent.setup()
     render(
       <TestAgentRightPane
@@ -3702,9 +3771,9 @@ describe('AgentRightPane', () => {
     await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
     expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
 
-    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
-    expect(screen.getByTestId('active-panel')).toHaveTextContent('status')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    await user.click(screen.getByRole('button', { name: 'trace.label' }))
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('trace')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('trace.label')
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
 
     await previewSameAttachmentAgain(user)
@@ -3713,8 +3782,8 @@ describe('AgentRightPane', () => {
 
     await user.click(screen.getByRole('button', { name: 'common.back' }))
 
-    expect(screen.getByTestId('active-panel')).toHaveTextContent('status')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('trace')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('trace.label')
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
   })
 

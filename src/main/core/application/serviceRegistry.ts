@@ -26,6 +26,7 @@ import {
 } from '@main/ai/runtime/claudeCode'
 import { LocalAgentAuthService } from '@main/ai/runtime/localAgent/LocalAgentAuthService'
 import { LocalAgentInstallService } from '@main/ai/runtime/localAgent/LocalAgentInstallService'
+import { SkillSubscriptionService } from '@main/ai/skills/SkillSubscriptionService'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
 import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
@@ -48,6 +49,7 @@ import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
 import { AutomationReplService } from '@main/services/automation'
 import { BinaryManager } from '@main/services/binaryManager'
+import { CherryCloudNotificationService } from '@main/services/cherryCloud/CherryCloudNotificationService'
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeBuddyWebUiService } from '@main/services/CodeBuddyWebUiService'
@@ -135,11 +137,13 @@ export const services = {
   AnalyticsService,
   AppMenuService,
   AppService,
+  SkillSubscriptionService,
   CodeCliService,
   CommandService,
   ConversationNavigationService,
   CitationPreviewService,
   CherryCloudService,
+  CherryCloudNotificationService,
   DeepSeekHarnessService,
   HermesDashboardService,
   CodeBuddyWebUiService,

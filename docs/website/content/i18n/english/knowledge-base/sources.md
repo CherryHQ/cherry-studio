@@ -21,7 +21,7 @@ The completion standard is not "the file appears in the list," but rather that t
 | URL | A single publicly accessible web page | Saves a snapshot of the web page at the time of fetching | Login pages, script-rendered content, or restricted pages may be incomplete |
 
 {% hint style="warning" %}
-Supported file types include PDF, DOCX, DOC, PPTX, XLSX, XLS, MD, TXT, CSV, HTML, and EPUB. Scanned PDFs or image-based content also require OCR verification.
+Supported file types include PDF, DOCX, DOC, PPTX, XLSX, XLS, ODT, ODP, ODS, RTF, MD, TXT, CSV, HTML, and EPUB. Scanned PDFs or image-based content also require OCR verification.
 {% endhint %}
 
 ## Adding and Validating Sources

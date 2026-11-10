@@ -21,6 +21,7 @@ import type { SerializedError } from '@shared/types/error'
 
 import type { OutputFormat } from '../adapters'
 import { buildStreamErrorFrame, gatewayErrorHandler } from '../errors'
+import { CountTokensBodySchema, MessagesBodySchema } from '../routes/schemas'
 
 const timeoutMessage = 'Upstream request timed out'
 const abortMessage = 'Upstream stream aborted'
@@ -52,6 +53,7 @@ type Case = {
   boundary?: boolean
   providerType?: string
   requestId?: string
+  quota?: boolean
 }
 const realInputs = new Map<string, unknown>()
 const cases: Case[] = []
@@ -92,7 +94,7 @@ cases.push({
   origin: 'real Anthropic SDK HTTP 200 non-Message fixture + serializeError',
   input: () => realInputs.get('sdk-anthropic-200-non-message'),
   status: 502,
-  message: 'Invalid JSON response'
+  message: 'Type validation failed: unexpected data structure. Check the provider endpoint and model.'
 })
 for (const status of [200, 201, 204, 206, 299]) {
   add(
@@ -234,6 +236,24 @@ add('empty-object', {})
 for (const code of ['ETIMEDOUT', 'ECONNRESET', 20, 23])
   add(`unsupported-code-${code}`, { ...markers, name: 'Error', code })
 add('network-category', { ...markers, providerErrorCategory: 'network' })
+const quotaMessage = '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 29天7小时后重试。'
+cases.push({
+  id: 'provider-quota-429',
+  origin: 'APICallError + serializeError',
+  input: () =>
+    serializeError(
+      new APICallError({
+        message: quotaMessage,
+        url: 'http://fixture.invalid',
+        requestBodyValues: {},
+        statusCode: 429,
+        responseBody: JSON.stringify({ error: { code: 'QUOTA_EXHAUSTED', type: 'quota_error', message: quotaMessage } })
+      })
+    ),
+  status: 429,
+  message: quotaMessage,
+  quota: true
+})
 add('nested-timeout-only', { message: 'ordinary failure', cause: { name: 'TimeoutError', message: phrases[0] } })
 for (const [id, value] of Object.entries({
   undefined,
@@ -295,8 +315,9 @@ function expectedBody(format: OutputFormat, c: Case, sse = false) {
       }
     }
   if (format === 'gemini') return { error: { code: c.status, message: c.message, status: v.google } }
-  if (format === 'openai-responses' && sse) return { type: 'error', code: v.code, message: c.message }
-  return { error: { message: c.message, type: v.openai, code: v.code } }
+  const openai = c.quota ? { type: 'insufficient_quota', code: 'insufficient_quota' } : { type: v.openai, code: v.code }
+  if (format === 'openai-responses' && sse) return { type: 'error', code: openai.code, message: c.message }
+  return { error: { message: c.message, ...openai } }
 }
 function expectedFrame(format: OutputFormat, c: Case) {
   const event = format === 'anthropic' || format === 'openai-responses' ? 'event: error\n' : ''
@@ -427,7 +448,9 @@ async function anthropicNonMessageFailure() {
     expect((error as APICallError).message).toBe('Invalid JSON response')
     const serialized = serializeError(error)
     expect(serialized.statusCode).toBe(200)
-    expect(serialized.message).toBe('Invalid JSON response')
+    expect(serialized.message).toBe(
+      'Type validation failed: unexpected data structure. Check the provider endpoint and model.'
+    )
     return serialized
   } finally {
     await close(upstream)
@@ -443,6 +466,8 @@ beforeAll(async () => {
   for (const status of [401, 429, 500, 503]) realInputs.set(`provider-${status}`, await providerFailure(status))
   expect(serializeError(Object.assign(new Error('ordinary failure'), { code: 'ABORT_ERR' }))).not.toHaveProperty('code')
   const app = new Elysia({ adapter: node() }).error({ DATA_API: DataApiError }).onError(gatewayErrorHandler)
+  app.post('/v1/messages', () => ({ ok: true }), { body: MessagesBodySchema })
+  app.post('/v1/messages/count_tokens', () => ({ input_tokens: 42 }), { body: CountTokensBodySchema })
   for (const path of [...dialects.map((d) => d.path), '/v1/models', '/v1/mcps/test/mcp']) {
     app.get(path, async (ctx) => {
       const { test, format, mode } = active
@@ -502,6 +527,31 @@ afterAll(async () => {
   }
 })
 
+it.each(['/v1/messages', '/v1/messages/count_tokens'])(
+  '%s validation exposes only the indexed issue over HTTP',
+  async (path) => {
+    const sentinel = 'PRIVATE_NEIGHBOURING_MESSAGE_CONTENT'
+    const messages = [...Array.from({ length: 178 }, () => ({ role: 'user', content: sentinel })), { role: 'user' }]
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'anthropic:claude', messages, stream: true }),
+      signal: AbortSignal.timeout(5000)
+    })
+    expect(response.status).toBe(400)
+    expect(response.headers.get('content-type')).toContain('application/json')
+    const body = await response.json()
+    expect(body).toEqual({
+      type: 'error',
+      error: {
+        type: 'invalid_request_error',
+        message: 'messages.178.content: content is required and must be a string or an array of content blocks'
+      }
+    })
+    expect(body.error.message).not.toContain(sentinel)
+  }
+)
+
 describe('gateway generation errors over real Elysia/node sockets', () => {
   for (const dialect of dialects) {
     for (const mode of ['non-streaming', 'before-commit', 'after-commit'] as const) {
@@ -555,7 +605,7 @@ describe('gateway generation errors over real Elysia/node sockets', () => {
               if (test.status === 502) {
                 const lengths =
                   test.id === 'sdk-anthropic-200-non-message'
-                    ? { anthropic: 79, openai: 91, 'openai-responses': 91, gemini: 76 }
+                    ? { anthropic: 147, openai: 159, 'openai-responses': 159, gemini: 144 }
                     : { anthropic: test.providerType ? 107 : 95, openai: 107, 'openai-responses': 107, gemini: 92 }
                 expect(Buffer.byteLength(body, 'utf8')).toBe(lengths[dialect.format])
               }

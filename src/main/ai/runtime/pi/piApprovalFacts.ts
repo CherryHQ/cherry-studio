@@ -64,9 +64,10 @@ export async function readPiApprovalFacts(
         cwd: ctx.workspacePath,
         workspacePath: ctx.workspacePath
       })
-  const command = name === 'bash' && typeof input.command === 'string' ? input.command : ''
+  const command = (name === 'bash' || name === 'powershell') && typeof input.command === 'string' ? input.command : ''
   const globalInstall = command ? (detectGlobalInstall(command) ?? undefined) : undefined
-  const rewritten = !disabled && !sqlite && !globalInstall && command ? await rtkRewrite(command) : undefined
+  const rewritten =
+    name === 'bash' && !disabled && !sqlite && !globalInstall && command ? await rtkRewrite(command) : undefined
   return {
     category,
     disabled,

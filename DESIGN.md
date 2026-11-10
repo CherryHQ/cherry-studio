@@ -106,6 +106,17 @@ Do not hard-code hex, `rgb`, `rgba`, or `oklch` values in product UI. Do not dec
 `--color-*` variables in authored code. Shared `--cs-*` variables are internal providers, not component-facing
 semantics. Follow the token architecture when adding or changing a public role.
 
+### Icon color ownership
+
+Monochrome action icons inherit their control's semantic foreground through `currentColor`. Icons with the same
+role and interaction state in one toolbar use the same foreground. Brand marks and icons communicating status
+retain their own meaningful colors.
+
+A shared component's default color must allow an explicitly supplied semantic foreground to take effect in both
+themes. Resolve theme differences through semantic tokens; a component-local `dark:` palette color must not
+override a caller's semantic foreground. Fix conflicting defaults in the owning shared component instead of adding
+`!important` overrides to individual callers.
+
 ### Action icon consistency
 
 - Neutral utility icons in the same card, toolbar, or action group use the same foreground role, normally
@@ -160,6 +171,20 @@ containers use larger ones, and `rounded-full` is limited to pills, avatars, and
 - Icon-only controls require an accessible label and a tooltip when their meaning is not obvious.
 - Dangerous row actions need not remain permanently red; the destructive decision must be clear at confirmation.
 
+### Utility icon states
+
+Neutral toolbar and row-level icon actions use this hierarchy:
+
+| State | Foreground and feedback |
+|---|---|
+| Rest | `muted-foreground` |
+| Hover or keyboard focus | The shared component's stronger semantic foreground and hover surface |
+| Selected or open | The shared component's selected/open semantic foreground and surface |
+| Disabled | The shared component's disabled styling, without interactive hover feedback |
+
+Use the same state hierarchy in light and dark modes. Primary, destructive, and status actions keep their own
+semantic roles. Exact state styling belongs to the shared component.
+
 ### Focus
 
 Keyboard focus must be visible and should reuse a component's existing border, fill, text, underline, or an inset
@@ -204,6 +229,8 @@ Before shipping new UI, check that it:
 - preserves light and dark mode behavior;
 - establishes hierarchy through typography, spacing, surfaces, and borders before decoration;
 - has clear hover, focus-visible, disabled, loading, selected, and invalid states where applicable;
+- verifies rendered icon colors against their semantic roles in both themes, including rest, hover, keyboard
+  focus, selected/open, and disabled states; utility class presence alone does not prove the resulting color;
 - provides accessible names for icon-only actions;
 - keeps adjacent action icons and their loading/state replacements visually consistent;
 - respects reduced motion;

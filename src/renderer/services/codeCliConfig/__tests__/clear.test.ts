@@ -69,6 +69,8 @@ describe('clearCliConfig', () => {
   it('codex: clears Cherry connection and credentials while preserving tool settings', async () => {
     existing['/resolved~/.codex/config.toml'] = [
       'model = "gpt-5"',
+      'model_context_window = 1000000',
+      'model_auto_compact_token_limit = 900000',
       'model_provider = "cherry-deepseek"',
       'approval_policy = "never"',
       'sandbox_mode = "danger-full-access"',
@@ -98,6 +100,8 @@ describe('clearCliConfig', () => {
 
     await clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })
 
+    expect(parseToml(writes['/resolved~/.codex/config.toml'])).not.toHaveProperty('model_context_window')
+    expect(parseToml(writes['/resolved~/.codex/config.toml'])).not.toHaveProperty('model_auto_compact_token_limit')
     expect(parseToml(writes['/resolved~/.codex/config.toml'])).toEqual({
       user_key: 'keep',
       model_providers: { userprov: { base_url: 'https://user.example' } },

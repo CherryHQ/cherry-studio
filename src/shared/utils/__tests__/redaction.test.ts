@@ -261,6 +261,10 @@ describe('redactUrlParams', () => {
 //   header back as `Bearer "sk-..."`), so the quoted alternatives — including escaped
 //   quotes inside — must match before the bare-token fallback, which excludes quotes.
 describe('redactSecretText', () => {
+  it.each(['API key', 'API key provided'])('redacts a provider echo labelled %s', (label) => {
+    expect(redactSecretText(`Incorrect ${label}: sk-mp92-invalid-secret`)).toBe(`Incorrect ${label}: "<redacted>"`)
+  })
+
   it('redacts a quoted TOML-style api_key assignment', () => {
     expect(redactSecretText('unexpected character at line 3: api_key = "sk-ant-real-secret"')).toBe(
       'unexpected character at line 3: api_key = "<redacted>"'

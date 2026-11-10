@@ -44,8 +44,8 @@ vi.mock('@cherrystudio/ui', () => ({
 // model selector, which needs far more of `@cherrystudio/ui` than this file's stand-in.
 // A call-recording boundary: it shows which app it was opened for and can ask to close.
 vi.mock('../MiniAppDetailPanel', () => ({
-  default: ({ appId, onClose }: { appId: string; onClose?: () => void }) => (
-    <div role="dialog" aria-label="mini-app-detail" data-app-id={appId}>
+  default: ({ appId, open, onClose }: { appId: string; open?: boolean; onClose?: () => void }) => (
+    <div role="dialog" aria-label="mini-app-detail" data-app-id={appId} hidden={!open}>
       <button type="button" onClick={onClose}>
         close-detail
       </button>

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '@main/ai/streamManager/types'
-import type { CallOverrides } from '@main/ai/types'
 import { BaseService } from '@main/core/lifecycle'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -34,7 +33,6 @@ const {
           uniqueModelId?: string
           listener?: StreamListener
           contextOwner?: 'cherry' | 'caller'
-          callOverrides?: CallOverrides
           reasoningEffort?: string
           serviceTier?: string
           fastMode?: boolean
@@ -78,6 +76,7 @@ vi.mock('../adapters', () => ({
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
+      getMessageId: () => 'test-response',
       transformChunk: () => [],
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ ok: true })
@@ -105,20 +104,13 @@ beforeEach(() => {
   })
 })
 
-function mockAvailableModel(
-  providerId: string,
-  internalModelId: string,
-  apiModelId = internalModelId,
-  group?: string,
-  maxOutputTokens?: number
-) {
+function mockAvailableModel(providerId: string, internalModelId: string, apiModelId = internalModelId, group?: string) {
   mockGetProvider.mockReturnValue({ id: providerId, name: providerId, isEnabled: true })
   const model = {
     id: createUniqueModelId(providerId, internalModelId),
     providerId,
     apiModelId,
     group,
-    maxOutputTokens,
     capabilities: []
   }
   mockListModels.mockReturnValue([model])
@@ -214,26 +206,6 @@ describe('processMessage model-id parsing', () => {
     mockAvailableModel('openai', 'gpt-4')
     await resolveValid('openai:gpt-4')
     expect(captured.opts?.contextOwner).toBe('caller')
-  })
-
-  it.each([
-    [253_407, 98_304, 98_304],
-    [8_192, 98_304, 8_192],
-    [253_407, undefined, 253_407],
-    [undefined, 98_304, undefined]
-  ])('respects the served model output ceiling (requested %s, ceiling %s)', async (requested, ceiling, expected) => {
-    mockAvailableModel('openai', 'gpt-4', 'gpt-4', undefined, ceiling)
-    mockExtractStreamOptions.mockReturnValue({ maxOutputTokens: requested })
-    mockExtractProviderOptions.mockImplementation((_provider, _model, _params, maxOutputTokens) => ({
-      test: { budget: maxOutputTokens }
-    }))
-
-    await resolveValid('openai:gpt-4')
-
-    expect(captured.opts?.callOverrides).toMatchObject({
-      maxOutputTokens: expected,
-      providerOptions: { test: { budget: expected } }
-    })
   })
 
   it('keeps later colons in the model id (split on FIRST colon only)', async () => {

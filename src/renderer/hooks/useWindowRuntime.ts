@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { useConversationTabTitleChangeSync } from '@renderer/hooks/tab'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
@@ -66,8 +67,8 @@ export function useAppPathSnapshot(): void {
 
 export function useWindowRuntime(): void {
   const { t } = useTranslation()
-  const [exitFullscreenPref] = usePreference('shortcut.app.fullscreen.exit')
-  const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const fullscreenRevision = useRef(0)
   const isMacTransparentWindow = useMacTransparentWindow()
   const navBackground = isMacTransparentWindow ? MAC_TRANSPARENT_NAV_BACKGROUND : DEFAULT_NAV_BACKGROUND
 
@@ -85,6 +86,8 @@ export function useWindowRuntime(): void {
 
   // [Windows] hint toast on entering fullscreen (useIpcOn self-cleans on unmount).
   useIpcOn('window.fullscreen_changed', (isFullscreen) => {
+    fullscreenRevision.current++
+    setIsFullscreen(isFullscreen)
     if (isWin && isFullscreen) {
       toast.info({
         title: t('common.fullscreen'),
@@ -104,18 +107,24 @@ export function useWindowRuntime(): void {
 
   // ESC exits fullscreen (all platforms), gated by the shortcut preference.
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!enableQuitFullScreen) return
-
-      if (e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        void ipcApi.request('window.set_full_screen', false)
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
+    let active = true
+    const revision = fullscreenRevision.current
+    void ipcApi
+      .request('window.is_full_screen')
+      .then((value) => {
+        if (active && fullscreenRevision.current === revision) setIsFullscreen(value)
+      })
+      .catch((error) => logger.error('Failed to query fullscreen state', error as Error))
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
+      active = false
     }
-  }, [enableQuitFullScreen])
+  }, [])
+
+  useCommandHandler('app.fullscreen.exit', () => ipcApi.request('window.set_full_screen', false), {
+    allowInKeyboardLayer: true,
+    enabled: isFullscreen,
+    shouldHandleKeyEvent: (event) => !event.defaultPrevented
+  })
 
   // Each BrowserWindow has its own SWR cache, so both keep their own invalidation.
   useTopicAutoRenameSync()

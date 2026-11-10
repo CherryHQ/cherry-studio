@@ -21,6 +21,7 @@ import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
+  AiToolApprovalRespondResponse,
   AiToolResultRequest,
   AiToolResultResponse,
   StreamChunkPayload,
@@ -400,7 +401,10 @@ export const aiRequestSchemas = {
       topicId: z.string().optional(),
       anchorId: z.string().optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
-    output: z.object({ ok: z.boolean() })
+    output: z.discriminatedUnion('ok', [
+      z.object({ ok: z.literal(true) }),
+      z.object({ ok: z.literal(false), reason: z.enum(['undelivered', 'rejected']) })
+    ]) satisfies z.ZodType<AiToolApprovalRespondResponse>
   }),
 
   // ── Agent session warm-connection lifecycle ──
