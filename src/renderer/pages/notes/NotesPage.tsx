@@ -1109,16 +1109,6 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
                     : 'notes.save_failure.description'
                 )}
               </span>
-              <ErrorDetailAction
-                error={fileSession.saveError}
-                message={t(
-                  fileSession.metadataRecoveryPending
-                    ? 'notes.save_failure.metadata_pending'
-                    : 'notes.save_failure.description'
-                )}
-                source="notes"
-                operation={fileSession.metadataRecoveryPending ? 'notes.metadata.recover' : 'notes.file.write'}
-              />
               {!fileSession.metadataRecoveryPending && (
                 <Button
                   type="button"
@@ -1129,6 +1119,16 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
                   {t('common.retry')}
                 </Button>
               )}
+              <ErrorDetailAction
+                error={fileSession.saveError}
+                message={t(
+                  fileSession.metadataRecoveryPending
+                    ? 'notes.save_failure.metadata_pending'
+                    : 'notes.save_failure.description'
+                )}
+                source="notes"
+                operation={fileSession.metadataRecoveryPending ? 'notes.metadata.recover' : 'notes.file.write'}
+              />
             </div>
           )}
           {shouldRetainMissingDraft && (
