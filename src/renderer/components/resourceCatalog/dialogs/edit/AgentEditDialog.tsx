@@ -29,6 +29,7 @@ import { AgentLanguageField } from '@renderer/components/resourceCatalog/dialogs
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
@@ -625,7 +626,7 @@ function AgentEditDialogContent({
           </TabsContent>
         ) : null}
         {open && activeTab === 'memory' ? (
-          <TabsContent value="memory" className="m-0">
+          <TabsContent value="memory" className="m-0 flex h-full min-h-0 flex-col">
             <AgentMemoryPanel key={resource.id} ref={memoryPanelRef} agent={resource} />
           </TabsContent>
         ) : null}
@@ -673,6 +674,7 @@ function AgentBasicFields({
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
   const [heartbeatOpen, setHeartbeatOpen] = useState(false)
+  const { isPresent: heartbeatPresent } = useExitPresence(heartbeatOpen ? true : null)
 
   return (
     <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
@@ -781,8 +783,13 @@ function AgentBasicFields({
               {t('agent.heartbeat.edit')}
             </Button>
           </div>
-          {heartbeatOpen ? (
-            <HeartbeatEditorDialog agentId={agentId} enabled={heartbeatEnabled} onOpenChange={setHeartbeatOpen} />
+          {heartbeatPresent ? (
+            <HeartbeatEditorDialog
+              agentId={agentId}
+              enabled={heartbeatEnabled}
+              open={heartbeatOpen}
+              onOpenChange={setHeartbeatOpen}
+            />
           ) : null}
         </div>
       ) : null}
