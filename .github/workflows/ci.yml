@@ -60,6 +60,8 @@ jobs:
 
       - name: "Validation scope: ${{ steps.plan.outputs.scope }}"
         run: ":"
+      - name: "Dependency cache: not-used"
+        run: ":"
       - name: Lint GitHub Actions workflows
         if: steps.plan.outputs.repository == 'true'
         uses: docker://rhysd/actionlint:1.7.12

@@ -97,6 +97,9 @@ needs no dependency installation. The observer becomes active after its workflow
 scripts reach the default branch. It has read-only permissions and is not a required
 check; collection failures do not fail the CI gate.
 
+The classification/preflight job declares its dependency-store cache state as
+`not-used`; transient formatter downloads are not dependency-store cache hits.
+
 The summary and 30-day JSON artifact preserve initial queue time, execution window,
 total elapsed time, and the sum of job durations. The latter is runner time, not billed
 minutes; the execution window includes later waits. Per-job created/start/end timestamps,
