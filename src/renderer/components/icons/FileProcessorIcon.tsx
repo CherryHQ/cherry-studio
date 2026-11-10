@@ -1,7 +1,16 @@
 import { FileText } from 'lucide-react'
 
 import type { CompoundIcon } from '@cherrystudio/ui'
-import { Application, Doc2x, Intel, Mineru, Mistral, Paddleocr, TesseractJs } from '@cherrystudio/ui/icons/providers'
+import {
+  Application,
+  Doc2x,
+  Intel,
+  Jina,
+  Mineru,
+  Mistral,
+  Paddleocr,
+  TesseractJs
+} from '@cherrystudio/ui/icons/providers'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { cn } from '@renderer/utils/style'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
@@ -24,6 +33,7 @@ const PROCESSOR_LOGOS = {
   mineru: Mineru,
   doc2x: Doc2x,
   mistral: Mistral,
+  jina: Jina,
   'open-mineru': Mineru
 } as const satisfies Partial<Record<FileProcessorId, CompoundIcon>>
 

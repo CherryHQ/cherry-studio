@@ -6030,6 +6030,8 @@
   "settings.tool.file_processing.processors.doc2x.fields.merge_cross_page_forms": "合併跨頁表格",
   "settings.tool.file_processing.processors.doc2x.fields.model": "模型",
   "settings.tool.file_processing.processors.doc2x.name": "Doc2x",
+  "settings.tool.file_processing.processors.jina.description": "使用 Jina Reader 將 PDF、DOCX、XLSX 和 PPTX 檔案轉換為 Markdown。",
+  "settings.tool.file_processing.processors.jina.name": "Jina",
   "settings.tool.file_processing.processors.local_document.description": "完全在此裝置上將 PDF 轉換為 Markdown。具有文字圖層的文件會直接解析；掃描文件則會改用本機 OCR 模型。",
   "settings.tool.file_processing.processors.local_document.name": "本機文件",
   "settings.tool.file_processing.processors.local_paddleocr.description": "在處理程序內執行的 PaddleOCR（PP-OCRv6 中型模型），可完全離線使用，無需 API Key。辨識作業會在背景執行緒中進行，不會阻塞使用者介面。首次使用前，請先在「環境相依套件」下載模型（約 140 MB）。",

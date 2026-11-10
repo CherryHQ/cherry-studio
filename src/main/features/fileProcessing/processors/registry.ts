@@ -124,6 +124,17 @@ export const processorRegistry = {
       )
     }
   },
+  jina: {
+    runtime: 'remote',
+    isSupported: () => true,
+    capabilities: {
+      document_to_markdown: lazyHandler('background', async () =>
+        import('./jina/documentToMarkdown/handler').then(
+          ({ jinaDocumentToMarkdownHandler }) => jinaDocumentToMarkdownHandler
+        )
+      )
+    }
+  },
   'open-mineru': {
     runtime: 'remote',
     isSupported: () => true,

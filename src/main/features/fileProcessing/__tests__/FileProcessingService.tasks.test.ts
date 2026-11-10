@@ -176,6 +176,16 @@ describe('FileProcessingService tasks', () => {
     expect(await service.getTask(first.task.id)).toMatchObject({ status: 'processing' })
   })
 
+  it('settles a rejected preparation as a failed queued task', async () => {
+    prepareMock.mockImplementationOnce(() => {
+      throw new Error('preparation failed')
+    })
+    const { task, done } = await startOcr()
+    expect(task.status).toBe('queued')
+    expect(await done).toMatchObject({ id: task.id, status: 'failed', error: 'preparation failed' })
+    expect(conversions).toHaveLength(0)
+  })
+
   it('reports a failed conversion with its message', async () => {
     const { task, done } = await startOcr()
     ;(await conversionStarted(1)).fail(new Error('engine crashed'))

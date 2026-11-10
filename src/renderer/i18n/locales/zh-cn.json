@@ -6030,6 +6030,8 @@
   "settings.tool.file_processing.processors.doc2x.fields.merge_cross_page_forms": "合并跨页表格",
   "settings.tool.file_processing.processors.doc2x.fields.model": "模型",
   "settings.tool.file_processing.processors.doc2x.name": "Doc2x",
+  "settings.tool.file_processing.processors.jina.description": "使用 Jina Reader 将 PDF、DOCX、XLSX 和 PPTX 文件转换为 Markdown。",
+  "settings.tool.file_processing.processors.jina.name": "Jina",
   "settings.tool.file_processing.processors.local_document.description": "完全在本机将 PDF 转换为 Markdown。带文本层的文档直接解析，扫描版回退到本地 OCR 模型。",
   "settings.tool.file_processing.processors.local_document.name": "本地文档解析",
   "settings.tool.file_processing.processors.local_paddleocr.description": "在本地进程内运行的 PaddleOCR（PP-OCRv6 中等模型），完全离线、无需 API Key，识别在后台线程进行不阻塞界面。",

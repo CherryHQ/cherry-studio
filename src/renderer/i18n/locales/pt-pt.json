@@ -6030,6 +6030,8 @@
   "settings.tool.file_processing.processors.doc2x.fields.merge_cross_page_forms": "Mesclar tabelas entre páginas",
   "settings.tool.file_processing.processors.doc2x.fields.model": "Modelo",
   "settings.tool.file_processing.processors.doc2x.name": "Doc2x",
+  "settings.tool.file_processing.processors.jina.description": "Converter ficheiros PDF, DOCX, XLSX e PPTX em Markdown com o Jina Reader.",
+  "settings.tool.file_processing.processors.jina.name": "Jina",
   "settings.tool.file_processing.processors.local_document.description": "Converte PDFs para Markdown inteiramente nesta máquina. Documentos com camada de texto são analisados diretamente; digitalizações recorrem ao modelo de OCR local.",
   "settings.tool.file_processing.processors.local_document.name": "Documento Local",
   "settings.tool.file_processing.processors.local_paddleocr.description": "PaddleOCR (PP-OCRv6 medium) em execução em processo — totalmente offline, sem chave de API, com reconhecimento numa thread em segundo plano para manter a interface responsiva. Descarregue o modelo (~140MB) em Dependências de Ambiente antes do primeiro uso.",

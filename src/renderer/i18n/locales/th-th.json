@@ -6030,6 +6030,8 @@
   "settings.tool.file_processing.processors.doc2x.fields.merge_cross_page_forms": "รวมตารางข้ามหน้า",
   "settings.tool.file_processing.processors.doc2x.fields.model": "โมเดล",
   "settings.tool.file_processing.processors.doc2x.name": "Doc2x",
+  "settings.tool.file_processing.processors.jina.description": "แปลงไฟล์ PDF, DOCX, XLSX และ PPTX เป็น Markdown ด้วย Jina Reader",
+  "settings.tool.file_processing.processors.jina.name": "Jina",
   "settings.tool.file_processing.processors.local_document.description": "แปลง PDF เป็น Markdown บนเครื่องนี้ทั้งหมด เอกสารที่มีชั้นข้อความถูกแยกวิเคราะห์โดยตรง ภาพสแกนจะใช้โมเดล OCR ในเครื่อง",
   "settings.tool.file_processing.processors.local_document.name": "เอกสารในเครื่อง",
   "settings.tool.file_processing.processors.local_paddleocr.description": "PaddleOCR (PP-OCRv6 medium) รันภายในแอป — ออฟไลน์เต็มรูปแบบ ไม่ต้องใช้ API Key และการรู้จำทำงานบนเธรดพื้นหลังเพื่อให้ UI ยังคงตอบสนอง",

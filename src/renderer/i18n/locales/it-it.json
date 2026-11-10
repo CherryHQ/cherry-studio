@@ -6030,6 +6030,8 @@
   "settings.tool.file_processing.processors.doc2x.fields.merge_cross_page_forms": "Unisci tabelle tra pagine",
   "settings.tool.file_processing.processors.doc2x.fields.model": "Modello",
   "settings.tool.file_processing.processors.doc2x.name": "Doc2x",
+  "settings.tool.file_processing.processors.jina.description": "Converti file PDF, DOCX, XLSX e PPTX in Markdown con Jina Reader.",
+  "settings.tool.file_processing.processors.jina.name": "Jina",
   "settings.tool.file_processing.processors.local_document.description": "Converte i PDF in Markdown interamente su questo computer. I documenti con un livello di testo vengono analizzati direttamente; per le scansioni viene usato il modello OCR locale.",
   "settings.tool.file_processing.processors.local_document.name": "Documenti locali",
   "settings.tool.file_processing.processors.local_paddleocr.description": "PaddleOCR (PP-OCRv6 medium) eseguito nell'app: completamente offline, senza chiave API e con riconoscimento su un thread in background per mantenere reattiva l'interfaccia.",

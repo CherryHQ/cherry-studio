@@ -279,6 +279,12 @@ export const FILE_PROCESSOR_PRESET_MAP = {
       }
     ]
   },
+  jina: {
+    type: 'api',
+    capabilities: [
+      { feature: 'document_to_markdown', inputs: ['document'], output: 'markdown', apiHost: 'https://r.jina.ai' }
+    ]
+  },
   'open-mineru': {
     type: 'api',
     capabilities: [

@@ -25,7 +25,7 @@ const FILE_PROCESSING_FEATURE_SECTIONS: readonly {
   },
   {
     feature: 'document_to_markdown',
-    processors: ['local-document', 'mineru', 'paddleocr', 'doc2x', 'mistral', 'open-mineru']
+    processors: ['local-document', 'mineru', 'paddleocr', 'doc2x', 'mistral', 'jina', 'open-mineru']
   }
 ] as const
 
@@ -80,6 +80,11 @@ const PROCESSOR_DISPLAY_META: Record<FileProcessorId, ProcessorDisplayMeta> = {
     nameKey: 'settings.tool.file_processing.processors.mistral.name',
     descriptionKey: 'settings.tool.file_processing.processors.mistral.description',
     apiKeyWebsite: 'https://mistral.ai/api-keys'
+  },
+  jina: {
+    nameKey: 'settings.tool.file_processing.processors.jina.name',
+    descriptionKey: 'settings.tool.file_processing.processors.jina.description',
+    apiKeyWebsite: 'https://jina.ai'
   },
   'open-mineru': {
     nameKey: 'settings.tool.file_processing.processors.open_mineru.name',

@@ -129,6 +129,7 @@ const fileProcessorKeyMap = {
   system: 'provider.system',
   tesseract: 'provider.tesseract',
   mistral: 'provider.mistral',
+  jina: 'provider.jina',
   'open-mineru': 'provider.open-mineru'
 } as const
 

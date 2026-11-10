@@ -6030,6 +6030,8 @@
   "settings.tool.file_processing.processors.doc2x.fields.merge_cross_page_forms": "Συγχώνευση πινάκων μεταξύ σελίδων",
   "settings.tool.file_processing.processors.doc2x.fields.model": "Μοντέλο",
   "settings.tool.file_processing.processors.doc2x.name": "Doc2x",
+  "settings.tool.file_processing.processors.jina.description": "Μετατροπή αρχείων PDF, DOCX, XLSX και PPTX σε Markdown με το Jina Reader.",
+  "settings.tool.file_processing.processors.jina.name": "Jina",
   "settings.tool.file_processing.processors.local_document.description": "Μετατρέπει αρχεία PDF σε Markdown εξ ολοκλήρου σε αυτή τη μηχανή. Τα έγγραφα με επίπεδο κειμένου αναλύονται άμεσα· οι σαρώσεις καταφεύγουν στο τοπικό μοντέλο OCR.",
   "settings.tool.file_processing.processors.local_document.name": "Τοπικό Έγγραφο",
   "settings.tool.file_processing.processors.local_paddleocr.description": "PaddleOCR (PP-OCRv6 medium) που εκτελείται εντός της διεργασίας — πλήρως εκτός σύνδεσης, χωρίς κλειδί API, με αναγνώριση σε νήμα παρασκηνίου ώστε το UI να παραμένει ανταποκρινόμενο. Κατεβάστε το μοντέλο (~140MB) στις Εξαρτήσεις Περιβάλλοντος πριν την πρώτη χρήση.",
