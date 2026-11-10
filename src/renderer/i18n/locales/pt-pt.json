@@ -1633,6 +1633,7 @@
   "error.notice.server.title": "Fornecedor temporariamente indisponível",
   "error.notice.stream.info": "A ligação caiu enquanto a resposta estava a chegar. Verifique se a rede está estável e tente novamente.",
   "error.notice.stream.title": "Resposta interrompida",
+  "error.notice.unknown.original": "Mensagem original: {{message}}",
   "error.notice.unknown.summarizing": "A analisar o erro…",
   "error.ocr_detail_empty": "O OCR foi executado mas não encontrou texto legível na imagem. Se a imagem realmente contém texto, verifique o processador OCR configurado (p. ex., as definições de idioma) em Definições → Processamento de ficheiros, ou troque de processador.",
   "error.ocr_detail_failed": "O processador OCR configurado falhou: {{reason}} Verifique ou troque o processador OCR em Definições → Processamento de ficheiros.",

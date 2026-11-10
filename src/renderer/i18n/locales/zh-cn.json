@@ -1633,6 +1633,7 @@
   "error.notice.server.title": "服务商暂时不可用",
   "error.notice.stream.info": "接收回复时连接中断，请确认网络稳定后重试。",
   "error.notice.stream.title": "回复中断了",
+  "error.notice.unknown.original": "原文：{{message}}",
   "error.notice.unknown.summarizing": "正在整理报错信息…",
   "error.ocr_detail_empty": "OCR 已运行，但未在图片中识别出可读文字。如果图片确实包含文字，请检查“设置 → 文件处理”中配置的 OCR 处理器（如语言设置），或更换处理器。",
   "error.ocr_detail_failed": "配置的 OCR 处理器执行失败：{{reason}} 请在“设置 → 文件处理”中检查或更换 OCR 处理器。",

@@ -1633,6 +1633,7 @@
   "error.notice.server.title": "Furnizor temporar indisponibil",
   "error.notice.stream.info": "Conexiunea s-a întrerupt în timp ce sosea răspunsul. Verifică dacă rețeaua este stabilă și încearcă din nou.",
   "error.notice.stream.title": "Răspuns întrerupt",
+  "error.notice.unknown.original": "Mesaj original: {{message}}",
   "error.notice.unknown.summarizing": "Se analizează eroarea…",
   "error.ocr_detail_empty": "OCR a rulat, dar nu a găsit text lizibil în imagine. Dacă imaginea conține într-adevăr text, verificați procesatorul OCR configurat (de ex. setările de limbă) în Setări → Procesarea fișierelor sau schimbați procesatorul.",
   "error.ocr_detail_failed": "Procesatorul OCR configurat a eșuat: {{reason}} Verificați sau schimbați procesatorul OCR în Setări → Procesarea fișierelor.",

@@ -1633,6 +1633,7 @@
   "error.notice.server.title": "Provider temporaneamente non disponibile",
   "error.notice.stream.info": "La connessione si è interrotta mentre arrivava la risposta. Verifica che la rete sia stabile e riprova.",
   "error.notice.stream.title": "Risposta interrotta",
+  "error.notice.unknown.original": "Messaggio originale: {{message}}",
   "error.notice.unknown.summarizing": "Analisi dell'errore in corso…",
   "error.ocr_detail_empty": "L'OCR è stato eseguito ma non ha trovato testo leggibile nell'immagine. Se l'immagine contiene testo, controlla il processore OCR configurato (ad es. le impostazioni della lingua) in Impostazioni → Elaborazione file, oppure cambia processore.",
   "error.ocr_detail_failed": "Il processore OCR configurato ha riscontrato un errore: {{reason}} Controlla o cambia il processore OCR in Impostazioni → Elaborazione file.",

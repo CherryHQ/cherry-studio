@@ -298,24 +298,6 @@ The examples above demonstrate structure only. Write all four diagnosis fields i
   }
 }
 
-/**
- * Lightweight AI classification for errors that don't match any rule.
- * Returns a one-line summary in the user's language, or empty string on failure.
- */
-export async function classifyErrorByAI(error: SerializedError, language: string): Promise<string> {
-  const prompt = `You are an error diagnosis assistant for Cherry Studio. Summarize this error in one sentence (max 30 words) in ${language}. Return ONLY the summary text, no JSON, no markdown, no quotes.`
-  const content = `Error: ${error.name}: ${error.message}`
-
-  try {
-    const model = await getCherryAiDefaultFreeModel()
-    const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
-    return response?.trim() || ''
-  } catch (error) {
-    logger.warn('Free diagnosis model unavailable for error classification', error as Error)
-    return ''
-  }
-}
-
 /** Faithful translation of an error's own text into `language`; '' when the free model is unavailable. */
 export async function translateErrorByAI(text: string, language: string): Promise<string> {
   const prompt = `Translate this error message from an AI chat app into ${language}. Keep error codes, HTTP statuses, model and provider names, ports, URLs and other identifiers exactly as written. If it is long, keep only the sentences that state the cause and what to do. If it is already in ${language}, return it unchanged. Return only the translated text, with no quotes or markdown.`

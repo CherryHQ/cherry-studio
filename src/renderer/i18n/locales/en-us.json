@@ -1633,6 +1633,7 @@
   "error.notice.server.title": "Provider temporarily unavailable",
   "error.notice.stream.info": "The connection dropped while the reply was coming in. Check that your network is stable and try again.",
   "error.notice.stream.title": "Response interrupted",
+  "error.notice.unknown.original": "Original message: {{message}}",
   "error.notice.unknown.summarizing": "Working out what went wrong…",
   "error.ocr_detail_empty": "OCR ran but found no readable text in the image. If the image does contain text, check the configured OCR processor (e.g. its language settings) under Settings → File Processing, or switch processors.",
   "error.ocr_detail_failed": "The configured OCR processor failed: {{reason}} Check or switch the OCR processor under Settings → File Processing.",

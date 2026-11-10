@@ -17,6 +17,7 @@ import {
   getLocalModelResolutionFailure,
   isClaudeCodeNotLoggedIn
 } from '@renderer/utils/errorClassifier'
+import { isLikelyInLanguage } from '@renderer/utils/errorLanguage'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -155,6 +156,7 @@ const MessageErrorInfo: React.FC<{
     !hasAppOwnedI18nKey &&
     category === 'unknown' &&
     !!errorMessage &&
+    !isLikelyInLanguage(errorMessage, i18n.language) &&
     !!error &&
     !!diagnoseMessageError
   const summarySettled = summaryEligible && storedSummary?.fault === summaryFault
@@ -226,7 +228,10 @@ const MessageErrorInfo: React.FC<{
     }
     if (aiSummary) return aiSummary
     if (summaryEligible && !summarySettled) return t('error.notice.unknown.summarizing')
-    return providerErrorText(error)
+    const original = providerErrorText(error)
+    return original && !isLikelyInLanguage(original, i18n.language)
+      ? t('error.notice.unknown.original', { message: original })
+      : original
   })()
 
   const onRemoveErrorPart = useCallback(() => {

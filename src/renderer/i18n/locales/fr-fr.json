@@ -1633,6 +1633,7 @@
   "error.notice.server.title": "Fournisseur temporairement indisponible",
   "error.notice.stream.info": "La connexion a été coupée pendant la réception de la réponse. Vérifiez la stabilité de votre réseau et réessayez.",
   "error.notice.stream.title": "Réponse interrompue",
+  "error.notice.unknown.original": "Message d'origine : {{message}}",
   "error.notice.unknown.summarizing": "Analyse de l'erreur…",
   "error.ocr_detail_empty": "L'OCR a été exécuté mais n'a trouvé aucun texte lisible dans l'image. Si l'image contient bien du texte, vérifiez le processeur OCR configuré (p. ex. ses paramètres de langue) dans Paramètres → Traitement des fichiers, ou changez de processeur.",
   "error.ocr_detail_failed": "Le processeur OCR configuré a échoué : {{reason}} Vérifiez ou changez le processeur OCR dans Paramètres → Traitement des fichiers.",

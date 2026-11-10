@@ -1633,6 +1633,7 @@
   "error.notice.server.title": "プロバイダーが一時的に利用できません",
   "error.notice.stream.info": "応答の受信中に接続が切れました。ネットワークが安定していることを確認してから再試行してください。",
   "error.notice.stream.title": "応答が中断されました",
+  "error.notice.unknown.original": "原文：{{message}}",
   "error.notice.unknown.summarizing": "エラー内容を整理しています…",
   "error.ocr_detail_empty": "OCR は実行されましたが、画像から読み取り可能なテキストは検出されませんでした。画像にテキストがある場合は、「設定 → ファイル処理」で OCR プロセッサー（言語設定など）を確認するか、別のプロセッサーに切り替えてください。",
   "error.ocr_detail_failed": "設定された OCR プロセッサーが失敗しました：{{reason}} 「設定 → ファイル処理」で OCR プロセッサーを確認または変更してください。",

@@ -4,27 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MessageListItem } from '../../types'
 
 const mocks = vi.hoisted(() => ({
-  cache: new Map<string, unknown>(),
-  classifyErrorByAI: vi.fn(),
+  translateErrorByAI: vi.fn(),
   diagnosisModuleEvaluated: vi.fn(),
   errorDetailModuleEvaluated: vi.fn(),
   showErrorDetailPopup: vi.fn()
 }))
 
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    deleteCasual: vi.fn((key: string) => mocks.cache.delete(key)),
-    getCasual: vi.fn((key: string) => mocks.cache.get(key)),
-    setCasual: vi.fn((key: string, value: unknown) => {
-      mocks.cache.set(key, value)
-      return true
-    })
-  }
-}))
-
 vi.mock('@renderer/utils/errorDiagnosis', () => {
   mocks.diagnosisModuleEvaluated()
-  return { classifyErrorByAI: mocks.classifyErrorByAI }
+  return { translateErrorByAI: mocks.translateErrorByAI }
 })
 
 vi.mock('@renderer/components/ErrorDetailModal', () => {
@@ -40,8 +28,7 @@ const modulesEvaluatedDuringHookImport = {
 
 describe('useMessageErrorActions', () => {
   beforeEach(() => {
-    mocks.cache.clear()
-    mocks.classifyErrorByAI.mockReset()
+    mocks.translateErrorByAI.mockReset()
     mocks.showErrorDetailPopup.mockReset()
     vi.clearAllMocks()
   })
@@ -55,7 +42,7 @@ describe('useMessageErrorActions', () => {
       status: 'error'
     } satisfies MessageListItem
     const error = { message: 'provider unavailable', name: 'ProviderError', stack: '' }
-    mocks.classifyErrorByAI.mockResolvedValueOnce('AI summary')
+    mocks.translateErrorByAI.mockResolvedValueOnce('服务商不可用')
 
     const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
 
@@ -65,55 +52,10 @@ describe('useMessageErrorActions', () => {
     expect(mocks.errorDetailModuleEvaluated).toHaveBeenCalledOnce()
 
     await expect(
-      result.current.diagnoseMessageError?.({ message, partId: 'part-1', error, language: 'en-US' })
-    ).resolves.toBe('AI summary')
+      result.current.diagnoseMessageError?.({ message, partId: 'part-1', error, language: 'zh-CN' })
+    ).resolves.toBe('服务商不可用')
     expect(mocks.diagnosisModuleEvaluated).toHaveBeenCalledOnce()
     expect(mocks.errorDetailModuleEvaluated).toHaveBeenCalledOnce()
-  })
-
-  it('evicts failed AI diagnosis promises so transient failures can retry', async () => {
-    const error = { message: 'provider unavailable', name: 'ProviderError', stack: '' }
-    const message = {
-      id: 'message-1',
-      role: 'assistant',
-      topicId: 'topic-1',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      status: 'error'
-    } satisfies MessageListItem
-    mocks.classifyErrorByAI.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce('retry succeeded')
-
-    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
-
-    await expect(
-      result.current.diagnoseMessageError?.({ message, partId: 'part-1', error, language: 'en-US' })
-    ).rejects.toThrow('network')
-
-    await expect(
-      result.current.diagnoseMessageError?.({ message, partId: 'part-1', error, language: 'en-US' })
-    ).resolves.toBe('retry succeeded')
-    expect(mocks.classifyErrorByAI).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not reuse a classification cached for a different error name', async () => {
-    const message = {
-      id: 'message-1',
-      role: 'assistant',
-      topicId: 'topic-1',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      status: 'error'
-    } satisfies MessageListItem
-    const providerError = { message: 'provider unavailable', name: 'ProviderError', stack: '' }
-    const abortError = { message: 'provider unavailable', name: 'AbortError', stack: '' }
-    mocks.classifyErrorByAI.mockResolvedValueOnce('provider summary').mockResolvedValueOnce('abort summary')
-    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
-
-    await expect(
-      result.current.diagnoseMessageError?.({ message, partId: 'part-1', error: providerError, language: 'en-US' })
-    ).resolves.toBe('provider summary')
-    await expect(
-      result.current.diagnoseMessageError?.({ message, partId: 'part-1', error: abortError, language: 'en-US' })
-    ).resolves.toBe('abort summary')
-    expect(mocks.classifyErrorByAI).toHaveBeenCalledTimes(2)
   })
 
   it('projects a visible summary as an error-summary for that fault without inventing a run', async () => {

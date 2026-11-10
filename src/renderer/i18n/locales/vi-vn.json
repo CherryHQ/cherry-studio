@@ -1633,6 +1633,7 @@
   "error.notice.server.title": "Nhà cung cấp tạm thời không khả dụng",
   "error.notice.stream.info": "Kết nối bị ngắt khi đang nhận phản hồi. Hãy kiểm tra mạng ổn định rồi thử lại.",
   "error.notice.stream.title": "Phản hồi bị gián đoạn",
+  "error.notice.unknown.original": "Thông báo gốc: {{message}}",
   "error.notice.unknown.summarizing": "Đang phân tích lỗi…",
   "error.ocr_detail_empty": "OCR đã chạy nhưng không tìm thấy văn bản có thể đọc được trong hình ảnh. Nếu hình ảnh thực sự chứa văn bản, hãy kiểm tra bộ xử lý OCR đã cấu hình (ví dụ: cài đặt ngôn ngữ) trong Cài đặt → Xử lý tệp hoặc đổi sang bộ xử lý khác.",
   "error.ocr_detail_failed": "Bộ xử lý OCR đã cấu hình gặp lỗi: {{reason}} Hãy kiểm tra hoặc đổi bộ xử lý OCR trong Cài đặt → Xử lý tệp.",

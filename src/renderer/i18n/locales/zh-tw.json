@@ -1633,6 +1633,7 @@
   "error.notice.server.title": "服務商暫時無法使用",
   "error.notice.stream.info": "接收回覆時連線中斷，請確認網路穩定後重試。",
   "error.notice.stream.title": "回覆中斷了",
+  "error.notice.unknown.original": "原文：{{message}}",
   "error.notice.unknown.summarizing": "正在整理錯誤資訊…",
   "error.ocr_detail_empty": "OCR 已執行，但未在圖片中辨識出可讀文字。如果圖片確實包含文字，請檢查「設定 → 檔案處理」中設定的 OCR 處理器（如語言設定），或更換處理器。",
   "error.ocr_detail_failed": "設定的 OCR 處理器執行失敗：{{reason}} 請在「設定 → 檔案處理」中檢查或更換 OCR 處理器。",
