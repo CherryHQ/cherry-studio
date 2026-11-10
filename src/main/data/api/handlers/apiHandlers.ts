@@ -11,6 +11,7 @@
  * - providers.ts - Provider API handlers
  * - translate.ts - Translate API handlers
  */
+import type { DataApiCallContext } from '@data/api/core/callContext'
 import type { ApiImplementation } from '@shared/data/api/types'
 
 import { agentChannelHandlers } from './agentChannels'
@@ -52,7 +53,7 @@ import { translateHandlers } from './translate'
  * Handlers are spread from individual domain modules for maintainability.
  * TypeScript ensures exhaustive coverage - missing handlers cause compile errors.
  */
-export const apiHandlers: ApiImplementation = {
+export const apiHandlers: ApiImplementation<DataApiCallContext> = {
   ...apiGatewayPairedDeviceHandlers,
   ...agentHandlers,
   ...archiveHandlers,

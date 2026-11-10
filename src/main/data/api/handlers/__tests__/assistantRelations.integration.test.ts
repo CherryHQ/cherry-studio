@@ -2,6 +2,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { DataApiCallContext } from '@data/api/core/callContext'
 import { assistantHandlers } from '@data/api/handlers/assistants'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
@@ -10,7 +11,6 @@ import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { assistantDataService } from '@data/services/AssistantService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { promptService } from '@data/services/PromptService'
-import type { DataApiCallContext } from '@shared/data/api/types'
 
 type RelationField = 'mcpServerIds' | 'knowledgeBaseIds'
 

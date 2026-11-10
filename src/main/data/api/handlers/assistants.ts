@@ -8,6 +8,7 @@
  * All input validation happens here at the system boundary.
  */
 
+import type { DataApiCallContext } from '@data/api/core/callContext'
 import { assistantDataService } from '@data/services/AssistantService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AssistantSchemas } from '@shared/data/api/schemas/assistants'
@@ -21,7 +22,7 @@ import {
 } from '@shared/data/api/schemas/assistants'
 import type { HandlersFor } from '@shared/data/api/types'
 
-export const assistantHandlers: HandlersFor<AssistantSchemas> = {
+export const assistantHandlers: HandlersFor<AssistantSchemas, DataApiCallContext> = {
   '/assistants': {
     GET: async ({ query }) => {
       const parsed = ListAssistantsQuerySchema.parse(query ?? {})

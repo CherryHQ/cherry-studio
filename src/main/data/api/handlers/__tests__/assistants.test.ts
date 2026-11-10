@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { DataApiCallContext } from '@shared/data/api/types'
+import type { DataApiCallContext } from '@data/api/core/callContext'
 
 const {
   listMock,

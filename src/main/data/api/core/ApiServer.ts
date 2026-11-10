@@ -3,10 +3,11 @@ import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { isDev } from '@main/core/platform'
 import type { RequestContext as ErrorRequestContext } from '@shared/data/api/errors'
 import { DataApiError, DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
-import type { ApiImplementation, DataApiCallContext } from '@shared/data/api/types'
+import type { ApiImplementation } from '@shared/data/api/types'
 import type { DataRequest, DataResponse, HttpMethod, RequestContext, SuccessStatusCode } from '@shared/data/api/types'
 import { isCustomStatusResult, SuccessStatus } from '@shared/data/api/types'
 
+import type { DataApiCallContext } from './callContext'
 import { MiddlewareEngine } from './MiddlewareEngine'
 
 // Handler function type
@@ -28,9 +29,9 @@ const DATA_API_HANDLER_TIMING_ENABLED = isDev
 export class ApiServer {
   private static instance: ApiServer
   private middlewareEngine: MiddlewareEngine
-  private handlers: ApiImplementation
+  private handlers: ApiImplementation<DataApiCallContext>
 
-  private constructor(handlers: ApiImplementation) {
+  private constructor(handlers: ApiImplementation<DataApiCallContext>) {
     this.middlewareEngine = new MiddlewareEngine()
     this.handlers = handlers
   }
@@ -38,7 +39,7 @@ export class ApiServer {
   /**
    * Initialize singleton instance with handlers
    */
-  public static initialize(handlers: ApiImplementation): ApiServer {
+  public static initialize(handlers: ApiImplementation<DataApiCallContext>): ApiServer {
     if (ApiServer.instance) {
       throw new Error('ApiServer already initialized')
     }
@@ -258,7 +259,7 @@ export class ApiServer {
     path: string,
     method: HttpMethod,
     context?: DataApiCallContext
-  ): RequestContext {
+  ): RequestContext<DataApiCallContext> {
     const response: DataResponse = {
       id: request.id,
       status: 200
@@ -278,7 +279,7 @@ export class ApiServer {
    * Execute handler function
    */
   private async executeHandler(
-    context: RequestContext,
+    context: RequestContext<DataApiCallContext>,
     handlerMatch: { handler: HandlerFunction; params: Record<string, string> }
   ): Promise<void> {
     const { request, response } = context

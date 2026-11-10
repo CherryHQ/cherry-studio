@@ -5,10 +5,11 @@ import { loggerService } from '@logger'
 import type { Disposable } from '@main/core/lifecycle'
 import { validateSender } from '@main/core/security/validateSender'
 import { DataApiError, ErrorCode, toDataApiError } from '@shared/data/api/errors'
-import type { DataApiCallContext, DataRequest, DataResponse } from '@shared/data/api/types'
+import type { DataRequest, DataResponse } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import type { ApiServer } from '../ApiServer'
+import type { DataApiCallContext } from '../callContext'
 
 const logger = loggerService.withContext('DataApi:IpcAdapter')
 

@@ -147,15 +147,10 @@ export interface DataRequest<T = any> {
   }
 }
 
-export interface DataApiCallContext {
-  requestId: string | null
-  operationId: string | null
-  /** Sanitized caller-declared source, or 'unknown'. Never trusted for identity. */
-  source: string
-  actor:
-    | { kind: 'renderer'; webContentsId?: number; windowId: string | null }
-    | { kind: 'main'; source: string }
-    | { kind: 'unknown' }
+export interface DataApiRequestContext {
+  source?: string
+  operationId?: string | null
+  requestId?: string | null
 }
 
 /**
@@ -330,8 +325,8 @@ export interface Middleware {
 /**
  * Request context passed through middleware chain
  */
-export interface RequestContext {
-  context?: DataApiCallContext
+export interface RequestContext<Ctx = DataApiRequestContext> {
+  context?: Ctx
   /** Original request */
   request: DataRequest
   /** Response being built */
@@ -510,7 +505,7 @@ type HasRequiredParams<Path extends ApiPaths, Method extends ApiMethods<Path>> =
  * - Data directly (T) - status code will be auto-inferred
  * - { data: T, status: SuccessStatusCode } - custom status code
  */
-export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>> = (
+export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>, Ctx = DataApiRequestContext> = (
   params: (HasRequiredParams<Path, Method> extends true
     ? { params: ApiParams<Path, Method> }
     : { params?: ApiParams<Path, Method> }) &
@@ -520,7 +515,7 @@ export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>> =
     (HasRequiredBody<Path, Method> extends true
       ? { body: ApiBody<Path, Method> }
       : { body?: ApiBody<Path, Method> }) & {
-      context?: DataApiCallContext
+      context?: Ctx
     }
 ) => Promise<HandlerResult<ApiResponse<Path, Method>>>
 
@@ -528,9 +523,9 @@ export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>> =
  * Complete API implementation that must match ApiSchemas structure
  * TypeScript will error if any endpoint is missing - this ensures exhaustive coverage
  */
-export type ApiImplementation = {
+export type ApiImplementation<Ctx = DataApiRequestContext> = {
   [Path in ApiPaths]: {
-    [Method in ApiMethods<Path>]: ApiHandler<Path, Method>
+    [Method in ApiMethods<Path>]: ApiHandler<Path, Method, Ctx>
   }
 }
 
@@ -542,7 +537,10 @@ export type ApiImplementation = {
  * Narrows paths to the module's own schema (prevents typos and cross-module
  * leakage) while keeping the exhaustiveness guarantee inside that scope.
  */
-export type HandlersFor<Schemas> = Pick<ApiImplementation, Extract<keyof Schemas, keyof ApiImplementation>>
+export type HandlersFor<Schemas, Ctx = DataApiRequestContext> = Pick<
+  ApiImplementation<Ctx>,
+  Extract<keyof Schemas, keyof ApiImplementation<Ctx>>
+>
 
 // ============================================================================
 // Data Change Notification Protocol

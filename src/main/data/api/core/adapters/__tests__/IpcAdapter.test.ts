@@ -1,7 +1,11 @@
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 /**
  * IpcAdapter source-trust gate tests.
  *
@@ -24,18 +28,19 @@ vi.mock('@application', async () => {
 type IpcHandler = (event: any, payload: any) => Promise<any>
 
 // The unified application mock resolves getPath('app.root') to '/mock/app.root'.
+const trustedUrl = pathToFileURL(join(application.getPath('app.root'), 'index.html')).toString()
 const trustedEvent = {
   sender: { id: 7, getType: () => 'window' },
-  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+  senderFrame: { url: trustedUrl, parent: null }
 } as any
 const untrustedEvents = {
   webview: {
     sender: { getType: () => 'webview' },
-    senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+    senderFrame: { url: trustedUrl, parent: null }
   },
   'sub-frame': {
     sender: { getType: () => 'window' },
-    senderFrame: { url: 'file:///mock/app.root/index.html', parent: {} }
+    senderFrame: { url: trustedUrl, parent: {} }
   },
   'remote origin': {
     sender: { getType: () => 'window' },
