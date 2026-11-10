@@ -20,6 +20,7 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
+import { topicService } from '@data/services/TopicService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
@@ -1304,7 +1305,7 @@ export class AgentSessionService {
     if (rows.length === 0) return []
 
     const purgedIds = rows.map((row) => row.session.id)
-    getDataService('TopicService').purgeSideChatsForSourcesTx(
+    topicService.purgeSideChatsForSourcesTx(
       tx,
       purgedIds.map((id) => `agent-session:${id}`)
     )
@@ -1363,7 +1364,7 @@ export class AgentSessionService {
       .returning({ id: sessionsTable.id })
       .all()
     const sessionIds = deletedSessions.map((session) => session.id)
-    getDataService('TopicService').purgeSideChatsForSourcesTx(
+    topicService.purgeSideChatsForSourcesTx(
       tx,
       sessionIds.map((id) => `agent-session:${id}`)
     )
@@ -1575,7 +1576,7 @@ export class AgentSessionService {
       .all()
     const deletedIds = rows.map((row) => row.id)
 
-    getDataService('TopicService').purgeSideChatsForSourcesTx(
+    topicService.purgeSideChatsForSourcesTx(
       tx,
       deletedIds.map((id) => `agent-session:${id}`)
     )
