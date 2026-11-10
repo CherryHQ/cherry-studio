@@ -1,4 +1,4 @@
-import { and, count, eq, gt, isNull, lte, ne, or, sql } from 'drizzle-orm'
+import { and, count, eq, gt, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -154,6 +154,15 @@ class NotificationRecordService {
       .update(table)
       .set({ dismissedAt: Date.now() })
       .where(and(eq(table.id, id), visible()))
+      .run()
+    if (changes) notifyChanged()
+  }
+
+  dismissRead(): void {
+    const { changes } = this.db
+      .update(table)
+      .set({ dismissedAt: Date.now() })
+      .where(and(visible(), isNotNull(table.readAt)))
       .run()
     if (changes) notifyChanged()
   }

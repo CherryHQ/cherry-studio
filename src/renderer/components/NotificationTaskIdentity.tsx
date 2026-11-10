@@ -1,21 +1,17 @@
 import { useTranslation } from 'react-i18next'
 
-import { EmojiIcon, Tooltip } from '@cherrystudio/ui'
+import { EmojiIcon } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { NotificationRecord } from '@shared/data/types/notification'
 
-import { notificationPreview } from './notificationPresentation'
+import { notificationPreview, TruncatedLabel } from './notificationPresentation'
 
 function NotificationIdentity({ name, emoji }: { name: string; emoji?: string }) {
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
-      <Tooltip content={name} asChild>
-        <span tabIndex={0} className="min-w-0 truncate rounded-sm focus-visible:bg-accent">
-          {name}
-        </span>
-      </Tooltip>
+      <TruncatedLabel text={name} />
       {emoji && (
         <span className="flex size-5 shrink-0 items-center justify-center">
           <EmojiIcon emoji={emoji} size={18} />

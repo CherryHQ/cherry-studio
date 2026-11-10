@@ -105,7 +105,8 @@ describe('NotificationCenter reading', () => {
     await user.click(await screen.findByRole('button', { name: /Notifications/ }))
     const drawer = await screen.findByRole('dialog')
     expect(drawer).toHaveAttribute('data-vaul-drawer-direction', side)
-    expect(drawer.style.getPropertyValue(side)).toBe('0px')
+    expect(drawer.style.getPropertyValue(side)).not.toBe('')
+    expect(drawer.style.getPropertyValue(side === 'left' ? 'right' : 'left')).toBe('')
   })
 
   it('closes when the user navigates to another page', async () => {
@@ -286,8 +287,8 @@ describe('NotificationCenter reading', () => {
     expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
     const previewText = content
     const preview = within(item).getByText(previewText, { normalizer: (text) => text })
-    // The collapsed preview fades; expansion must remove this mask in place.
-    expect(preview).toHaveClass('[mask-image:linear-gradient(to_bottom,black_75%,transparent)]')
+    // Contract: the collapsed preview is clamped to two lines, and expanding removes the clamp in place.
+    expect(preview).toHaveClass('line-clamp-2')
     await user.click(item)
     const body = await within(item).findByText(content, { normalizer: (text) => text })
     expect(body).toBeVisible()
@@ -297,7 +298,7 @@ describe('NotificationCenter reading', () => {
       expect(bell).toHaveAccessibleDescription('')
     })
     expect(screen.getAllByText(content, { normalizer: (text) => text })).toHaveLength(1)
-    expect(body).not.toHaveClass('[mask-image:linear-gradient(to_bottom,black_75%,transparent)]')
+    expect(body).not.toHaveClass('line-clamp-2')
     expect(body.textContent).toBe(content)
     expect(screen.queryByRole('link', { name: 'link' })).not.toBeInTheDocument()
     // Preserving line breaks is part of the announcement text contract.
@@ -318,5 +319,70 @@ describe('NotificationCenter reading', () => {
         query: undefined
       })
     }
+  })
+
+  const plainRecord = (overrides: Partial<NotificationRecord>): NotificationRecord => ({
+    id: 'c4519cf1-0405-4eb1-a18c-17b263872421',
+    eventKey: 'backup',
+    category: 'system',
+    kind: 'backup-success',
+    title: 'Backup finished',
+    message: 'Open data settings',
+    createdAt: Date.now(),
+    readAt: 1,
+    dismissedAt: null,
+    target: null,
+    ...overrides
+  })
+  const openDrawer = async () => {
+    const user = userEvent.setup()
+    render(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <NotificationCenterProvider>
+          <NotificationCenterButton />
+        </NotificationCenterProvider>
+      </SWRConfig>
+    )
+    await user.click(await screen.findByRole('button', { name: 'Notifications' }))
+    return user
+  }
+
+  it('keeps a notification in the list when dismissing it fails', async () => {
+    const record = plainRecord({})
+    mockDataApiService.get.mockImplementation(async (path) =>
+      path === '/notifications' ? { items: [record] } : { count: 0 }
+    )
+    let rejectDismiss: (error: Error) => void = () => {}
+    mockDataApiService.delete.mockImplementation(() => new Promise((_, reject) => (rejectDismiss = reject)))
+    const user = await openDrawer()
+    await screen.findByRole('button', { name: record.title })
+    await user.click(screen.getByRole('button', { name: 'Delete this notification' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: record.title })).not.toBeInTheDocument())
+    rejectDismiss(new Error('offline'))
+    expect(await screen.findByRole('button', { name: record.title })).toBeVisible()
+  })
+
+  it('clears read notifications and keeps unread ones', async () => {
+    let items = [
+      plainRecord({ title: 'Already read' }),
+      plainRecord({
+        id: 'c4519cf1-0405-4eb1-a18c-17b263872422',
+        eventKey: 'unread',
+        title: 'Still unread',
+        readAt: null
+      })
+    ]
+    mockDataApiService.get.mockImplementation(async (path) =>
+      path === '/notifications' ? { items } : { count: items.filter((item) => item.readAt === null).length }
+    )
+    mockDataApiService.post.mockImplementation(async (path) => {
+      if (path === '/notifications/dismiss-read') items = items.filter((item) => item.readAt === null)
+      return undefined
+    })
+    const user = await openDrawer()
+    await screen.findByRole('button', { name: 'Already read' })
+    await user.click(screen.getByRole('button', { name: 'Clear read' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Already read' })).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Still unread' })).toBeVisible()
   })
 })

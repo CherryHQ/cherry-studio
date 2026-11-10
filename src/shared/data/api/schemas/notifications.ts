@@ -21,6 +21,7 @@ export type NotificationSchemas = {
   '/notifications': { GET: { query: Partial<ListNotificationsQuery>; response: NotificationPage } }
   '/notifications/unread-count': { GET: { response: { count: number } } }
   '/notifications/read-all': { POST: { response: void } }
+  '/notifications/dismiss-read': { POST: { response: void } }
   '/notifications/read-conversation': {
     POST: { body: z.infer<typeof ReadConversationNotificationsSchema>; response: void }
   }

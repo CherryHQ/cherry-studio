@@ -15,7 +15,7 @@ export default function NotificationAnnouncement({
       className={
         expanded
           ? 'block whitespace-pre-wrap wrap-anywhere text-sm text-muted-foreground'
-          : 'block max-h-[2lh] overflow-hidden whitespace-pre-wrap wrap-anywhere text-sm text-muted-foreground [mask-image:linear-gradient(to_bottom,black_75%,transparent)]'
+          : 'line-clamp-2 whitespace-pre-wrap wrap-anywhere text-sm text-muted-foreground'
       }>
       {announcement.content}
     </span>
