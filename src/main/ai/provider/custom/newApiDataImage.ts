@@ -33,7 +33,9 @@ function mayBecomeDataImage(text: string): boolean {
   if (rest.includes(')')) return false
   const params = rest.indexOf(';')
   if (params < 0) return !rest.includes(',')
-  return ';base64,'.startsWith(rest.slice(params)) || rest.startsWith(';base64,')
+  if (!/^[A-Za-z0-9.+-]+$/.test(rest.slice(0, params))) return false
+  const options = rest.slice(params)
+  return ';base64,'.startsWith(options) || options.startsWith(';base64,')
 }
 
 /**
@@ -80,7 +82,7 @@ function normalizeJson(body: string, pending?: Map<number, string>): string {
         const flushed = choice.finish_reason && fed.pending ? fed.text + fed.pending : fed.text
         if (fed.pending && !choice.finish_reason) pending.set(index, fed.pending)
         else pending.delete(index)
-        if (typeof target.content === 'string') target.content = flushed
+        if (typeof target.content === 'string' || flushed.length > 0) target.content = flushed
       }
       extractMarkdownImages(target)
     }

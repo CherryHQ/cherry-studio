@@ -68,6 +68,19 @@ describe('New API data-image compatibility', () => {
     expect(await result.files).toMatchObject([{ mediaType: 'image/png', base64: 'iVBORw0KGgo=' }])
   })
 
+  it('reassembles a text-prefixed data image across content deltas', async () => {
+    const body = `${event('Here: ![result](data:image/png;base64,iVBO')}${event('Rw0KGgo=)')}${finishEvent()}data: [DONE]\n\n`
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response(body, { headers: { 'content-type': 'text/event-stream' } }))
+    const model = createNewApi({ apiKey: 'sk-test', baseURL: 'https://newapi.test/v1', fetch }).languageModel('image')
+    const result = streamText({ model, prompt: 'draw', maxRetries: 0 })
+    await result.consumeStream()
+
+    expect(await result.text).toBe('Here: ')
+    expect(await result.files).toMatchObject([{ mediaType: 'image/png', base64: 'iVBORw0KGgo=' }])
+  })
+
   it('reassembles Markdown images across SSE content deltas, not just transport chunks', async () => {
     const markdown = `![result](${INLINE_PNG})`
     const body = `${[...markdown].map(event).join('')}${event(' done')}${finishEvent()}data: [DONE]\n\n`
@@ -103,6 +116,19 @@ describe('New API data-image compatibility', () => {
     await result.consumeStream()
 
     expect(await result.text).toBe('See ![public](https://x.test/a.png) now')
+    expect(await result.files).toMatchObject([])
+  })
+
+  it('releases buffered ordinary text when the terminal event has no content', async () => {
+    const body = `${event('Great! Have a nice day.')}${finishEvent()}data: [DONE]\n\n`
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response(body, { headers: { 'content-type': 'text/event-stream' } }))
+    const model = createNewApi({ apiKey: 'sk-test', baseURL: 'https://newapi.test/v1', fetch }).languageModel('image')
+    const result = streamText({ model, prompt: 'hello', maxRetries: 0 })
+    await result.consumeStream()
+
+    expect(await result.text).toBe('Great! Have a nice day.')
     expect(await result.files).toMatchObject([])
   })
 
