@@ -184,7 +184,7 @@
     "tesseract.js": "6.0.1",
     "ts-ebml": "3.0.2",
     "ws": "^8.21.0",
-    "zod": "4.4.3"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@ai-sdk/amazon-bedrock": "^4.0.96",
