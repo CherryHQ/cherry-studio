@@ -33,7 +33,7 @@ Ordinary `session_create` and `session_send` retain their documented directory a
 
 ### Ownership, approvals and progress
 
-A lifecycle-managed host delegation owner orchestrates creation, cancellation, parent presentation and recovery. Reuse runtime dispatch, native connections, message persistence and existing result correlation. Keep `AgentSessionDeliveryService` responsible for delivery rather than making it the owner of native subagents. Persist a typed delegation record keyed by request ID, including origin session/message, target session/run identity, workspace binding and terminal/cancel state. Any new SQL schema is introduced through an appended migration and populated-database tests.
+A lifecycle-managed host delegation owner orchestrates creation, cancellation, parent presentation and recovery. Reuse runtime dispatch, native connections, message persistence and existing result correlation. Keep `AgentSessionDeliveryService` responsible for delivery rather than making it the owner of native subagents. Reuse the persisted delivery request ID, sender/source-message identity, receiver session and turn reference. Add only the typed delegation discriminator and control metadata that existing records cannot express; do not introduce a parallel task table or execution engine. Any required SQL schema change uses an appended migration and populated-database tests.
 
 The originating conversation shows target, project, progress and a link to the target conversation. Reuse existing message/tool rendering and approval controls. Route each target approval and supported structured question through its real target session and approval ID, with visible originating-task context. Approval of delegation is not approval of target tools. Parent-turn completion must not lose pending target approvals. A genuinely unavailable responder uses the existing deny/unavailable path; never force auto mode or bypass permissions.
 
@@ -41,7 +41,7 @@ The originating conversation shows target, project, progress and a link to the t
 
 Add `delegation_cancel(requestId)` and a matching task-card action. The host checks ownership; cancellation of request A can never interrupt a later request B. Cancel queued work without starting the CLI; cancel running work through its target runtime, then report the observed terminal state. Repeated cancellation and completion/cancel races produce one final result. CLI failure and timeout are failures, not successful empty replies.
 
-Stopping the originating conversation cancels its outstanding owned delegations and suppresses automatic model wake after that stop; terminal results remain inspectable. Switching away from the view does not cancel the task. Deleting the origin cancels owned work and releases pending approvals. Disabling a target prevents new delegation admissions and cancels pending/running delegated work for it; existing history remains readable.
+Stopping the parent reply does not cancel delegated work. Cancellation is an explicit task-card action or delegation_cancel call. Switching away from the view does not cancel the task. Completion remains available through the existing asynchronous result delivery. Deleting the origin cancels owned work and releases pending approvals. Disabling a target prevents new delegation admissions and cancels pending/running delegated work for it; existing history remains readable.
 
 After restart, reconcile durable records against actual target execution. Resume only where the runtime can prove continuity; otherwise mark interrupted, preserve partial output and do not replay the task. Existing result correlation prevents duplicate terminal delivery. Native harness-owned subagent lifetimes are unaffected.
 
@@ -53,10 +53,10 @@ Reconcile installed system-owned copies using the existing source/namespace owne
 
 ### Delivery sequence
 
-1. Obtain exact-head approval of this Spec; keep #21221 and its current user test instance intact.
-2. Integrate after #21221 is available on the implementation base; implement discovery, delegation ownership and project binding with focused database/runtime tests.
-3. Implement parent progress/approval presentation and precise cancellation/recovery, then run bounded real Codex, Claude Code and OpenCode scenarios in an isolated profile/project.
-4. Retire only owned legacy skills after parity, update docs, and publish implementation layers linked to these acceptance criteria.
+1. The user approved implementation in the development conversation and explicitly waived waiting for GitHub Approval. Stack the Spec on #21221 and preserve the current user test instance.
+2. Core PR: implement discovery, the explicit delegation entry and project binding, reusing durable result delivery; verify AC1, AC2 and affected AC8 regressions.
+3. Interaction PR: implement parent progress/approval presentation and precise cancellation/recovery; verify AC3–AC5 and run bounded real Codex, Claude Code and OpenCode scenarios for AC7 in an isolated profile/project.
+4. Migration PR: retire only owned legacy skills after parity, update the tool guide and complete AC6/AC8 evidence before moving the Spec to implemented.
 
 ## Alternatives considered
 
@@ -70,7 +70,7 @@ Reconcile installed system-owned copies using the existing source/namespace owne
 - AC1 — Disabled local Agents are absent from delegation discovery; disabling between discovery and admission cannot launch them; enabled targets reuse Agent Services configuration without inventing a Cherry model requirement. (verification: unit — discovery and local-runtime owners)
 - AC2 — Delegation operates only in the explicitly selected or caller workspace, rejects stale workspace IDs, and leaves ordinary cross-Agent session defaults unchanged. (verification: unit — real database routing tests)
 - AC3 — Parent UI shows correlated progress and target approvals/questions; target IDs are preserved, parent-turn completion does not lose interaction, and unavailable responses never grant permission. (verification: renderer and Electron — runtime/UI owners)
-- AC4 — Queued/running/repeated cancellation, parent stop/deletion, target disablement and completion races settle the correct request once without stopping unrelated later work or waking a user-stopped parent. (verification: unit and Electron — delegation owner)
+- AC4 — Queued/running/repeated cancellation, parent deletion, target disablement and completion races settle the correct request once without stopping unrelated later work; stopping only the parent reply leaves delegated work running. (verification: unit and Electron — delegation owner)
 - AC5 — Crash/restart, CLI failure and timeout preserve partial history, report truthful outcomes, do not blindly replay work and do not duplicate result delivery. (verification: unit — populated database and runtime fixtures)
 - AC6 — Owned legacy skills disappear only after replacement parity; same-name user skills remain intact; restart/install/update cannot reinstall retired builtins; CLI install/auth/terminal flows still work. (verification: unit and Electron — skill and CodeCli owners)
 - AC7 — Real Codex, Claude Code and OpenCode each complete a bounded delegated task with correct project/model configuration and result return; supported approval/cancel paths are exercised and version-specific limits are recorded without claiming universal compatibility. (verification: Electron — integration owner)
