@@ -1641,8 +1641,9 @@ describe('WindowManager', () => {
       })
 
       expect(wm.center(id)).toBe(true)
-      wm.close(id)
+      // Fullscreen windows are destroyed on release, so the exit must land before close to be recycled.
       win.isFullScreen.mockReturnValue(false)
+      wm.close(id)
       expect(wm.open('pooled' as never)).toBe(id)
 
       const leased = win.getBounds()
@@ -1679,6 +1680,7 @@ describe('WindowManager', () => {
       const stale = staleCall?.[1] as () => void
 
       // SelectionAction closes through the native close event, then the pool leases the same window again.
+      win.isFullScreen.mockReturnValue(false)
       win.emit('close', { preventDefault: vi.fn() })
       win.isFullScreen.mockReturnValue(true)
       expect(wm.open('pooled' as never)).toBe(id)

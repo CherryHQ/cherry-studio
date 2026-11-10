@@ -35,6 +35,7 @@
   "api_gateway.errors.internal_bind_permission_denied": "ระบบปฏิบัติการไม่อนุญาตให้เกตเวย์ API ภายในรับการเชื่อมต่อที่ {{address}}, พอร์ต TCP ที่ขอ {{port}} (EACCES) ลองส่งคำขออีกครั้ง หากยังล้มเหลว ให้ผู้ดูแลระบบตรวจสอบข้อจำกัดการรับการเชื่อมต่อบนลูปแบ็ก",
   "api_gateway.errors.public_bind_permission_denied": "ระบบปฏิบัติการไม่อนุญาตให้เกตเวย์ API รับการเชื่อมต่อที่ {{address}}, พอร์ต TCP {{port}} (EACCES) ใน การตั้งค่า → เกตเวย์ API ให้เลือกพอร์ตอื่น ออกจากช่องเพื่อบันทึก แล้วคลิก เริ่ม อัปเดตปลายทางในไคลเอนต์ด้วย",
   "appMenu.about": "เกี่ยวกับ",
+  "appMenu.center": "จัดกึ่งกลาง",
   "appMenu.close": "ปิดหน้าต่าง",
   "appMenu.copy": "คัดลอก",
   "appMenu.cut": "ตัด",
