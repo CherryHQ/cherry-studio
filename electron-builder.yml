@@ -285,6 +285,7 @@ releaseInfo:
     - [Agents] Enable PowerShell commands for Pi and Pi Durable on Windows without requiring Git Bash.
     - [Settings] Group built-in tools in a secondary settings menu and move interface language selection to a dedicated Language section in General.
     - [Agents] Pi and Pi Durable subagents now default to bypass permissions, avoiding ordinary tool approval prompts. No action required.
+    - [Navigation] Restore sidebar settings on Windows and other non-macOS platforms, and in macOS fullscreen; show the session-details tooltip below its button after a hover delay.
 
     ⚡ Performance
     - [Chat] Preparing large text attachments no longer blocks the interface.
@@ -377,6 +378,7 @@ releaseInfo:
     - [智能体] 为 Windows 上的 Pi 和 Pi Durable 启用 PowerShell 命令，无需安装 Git Bash。
     - [设置] 将内置工具收纳到二级设置菜单，并将界面语言选项移到通用页面的独立语言模块。
     - [智能体] Pi 和 Pi Durable 子智能体默认使用 bypass 权限，不再触发普通工具审批。无需操作。
+    - [导航] 恢复 Windows 等非 macOS 平台及 macOS 全屏模式下的侧边栏设置按钮；会话详情提示改为延迟显示在按钮下方。
 
     ⚡ 性能优化
     - [对话] 准备大型文本附件不再阻塞界面。
