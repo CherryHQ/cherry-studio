@@ -13,7 +13,7 @@ import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/types/file'
 
 import { resolveProviderAiSdkConfig } from '../../config'
-import { resolveEffectiveEndpoint, resolveWireModelId } from '../../endpoint'
+import { resolveWireModelId } from '../../endpoint'
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 import { resolveImageTransport } from '../imageTransportRegistry'
 import { createAbortError } from '../transportUtils'
@@ -65,10 +65,12 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     const model = modelService.getByKey(providerId, modelId)
     if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-    const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
+    const { config, credentialReceipt, endpointType } = await resolveProviderAiSdkConfig(provider, model, {
+      intent: 'image'
+    })
     const sdkConfig = {
       ...config,
-      modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+      modelId: resolveWireModelId(model, endpointType)
     }
 
     const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
@@ -98,7 +100,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       reportedCostCurrency: provider.reportedCostCurrency,
       credentialReceipt,
       source: input.source ?? null,
-      messageRef: null
+      messageRef: input.messageRef ?? null
     })
     const usageStartedAt = Date.now()
     const submit = await transport.submit(submitInput)
@@ -224,7 +226,15 @@ async function downloadAndPersistImageUrls(
     if (signal.aborted) throw createAbortError('Image generation aborted')
     const data = await resolveImageDataUrl(url)
     if (!data) continue
-    files.push(await fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy }))
+    files.push(
+      await fileManager.createInternalEntry({
+        source: 'base64',
+        data,
+        cleanupPolicy,
+        // FileManager otherwise names the entry "Pasted <date>".
+        name: 'Generated image'
+      })
+    )
   }
   // The remote generation succeeded (it returned URLs); surfacing a hard failure
   // when none could be downloaded avoids reporting a paid generation as an empty,

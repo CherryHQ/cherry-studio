@@ -165,7 +165,3 @@ export function buildGenerateImageToolSchema(
 
 /** Fallback contract used when the configured model has no registry capability block. */
 export const generateImageInputSchema = buildGenerateImageToolSchema(undefined)
-
-export function limitGenerateImageInputIds(imageIds: readonly string[], max?: number): string[] {
-  return max === undefined ? [...imageIds] : imageIds.slice(0, max)
-}

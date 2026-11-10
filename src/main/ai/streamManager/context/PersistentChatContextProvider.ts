@@ -37,6 +37,7 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
+import { isImageGenerationOnlyModel } from '@shared/utils/model'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
@@ -820,7 +821,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         contextSettingsOverride,
         toCompactionSink([placeholder.id], subscriber)
       )
-      const history = withSteerReminder(compactedHistory)
+      // A dedicated image turn sends the trailing user text as its prompt, so the steer
+      // wrapper would reach the image provider verbatim instead of being model-facing only.
+      const history = isImageGenerationOnlyModel(model) ? compactedHistory : withSteerReminder(compactedHistory)
       return {
         topicId: req.topicId,
         models: [

@@ -1,4 +1,4 @@
-import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { MessageRef, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -37,6 +37,7 @@ export interface ImageGenerationJobPayload {
   requestTimeoutMs?: number
   /** Non-secret request source captured when the job is enqueued. */
   source?: SourceSnapshot
+  messageRef?: MessageRef | null
   providerParams: Record<string, unknown>
   /** Stamped on the persisted output FileEntries — decided by the requesting business feature. */
   cleanupPolicy: CleanupPolicy
