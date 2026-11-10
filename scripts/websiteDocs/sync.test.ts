@@ -1,7 +1,4 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,16 +24,13 @@ afterEach(() => {
 
 function githubFixture() {
   const dirs = { desktop: scratch(), website: scratch() }
-  const temp = mkdtempSync(path.join(tmpdir(), 'cherry-docs-api-'))
   cleanups.push(() => {
     dirs.desktop.close()
     dirs.website.close()
-    rmSync(temp, { recursive: true, force: true })
   })
   const prs: Record<Side, Pull[]> = { desktop: [], website: [] }
   const verified = new Set<string>()
   const statuses = new Map<string, string>()
-  let sequence = 0
   let rejectPr = false
   let rejectCheckpoint = false
   let raceBranch: Side | undefined
@@ -48,33 +42,25 @@ function githubFixture() {
   }
   const commit = (side: Side, parent: string | null, files: Record<string, string | null>, branch: string) => {
     const repo = dirs[side].repo
-    const env = { ...process.env, GIT_INDEX_FILE: path.join(temp, `index-${sequence++}`) }
-    const run = (args: string[], input?: string) =>
-      execFileSync('git', ['-C', repo, ...args], { env, input, encoding: 'utf8' }).trim()
-    run(['read-tree', ...(parent ? [parent] : ['--empty'])])
+    const commands = [
+      `commit refs/heads/${branch}`,
+      'committer Docs Test <docs@example.test> 0 +0000',
+      'data 7',
+      'fixture',
+      ...(parent ? [`from ${parent}`] : ['deleteall'])
+    ]
     for (const [name, contents] of Object.entries(files)) {
-      if (contents === null) run(['update-index', '--force-remove', '--', name])
+      if (contents === null) commands.push(`D ${JSON.stringify(name)}`)
       else {
-        const blob = run(['hash-object', '-w', '--stdin'], Buffer.from(contents, 'base64').toString())
-        run(['update-index', '--add', '--cacheinfo', '100644', blob, name])
+        const text = Buffer.from(contents, 'base64').toString()
+        commands.push(`M 100644 inline ${JSON.stringify(name)}`, `data ${Buffer.byteLength(text)}`, text)
       }
     }
-    const tree = run(['write-tree'])
-    const oid = run([
-      '-c',
-      'user.name=Docs Test',
-      '-c',
-      'user.email=docs@example.test',
-      '-c',
-      'commit.gpgsign=false',
-      'commit-tree',
-      tree,
-      ...(parent ? ['-p', parent] : []),
-      '-m',
-      'fixture'
-    ])
-    run(['update-ref', `refs/heads/${branch}`, oid, parent ?? '0'.repeat(40)])
-    return oid
+    execFileSync('git', ['-C', repo, 'fast-import', '--quiet', '--force'], {
+      input: commands.join('\n') + '\n\n',
+      encoding: 'utf8'
+    })
+    return revision(side, branch)!
   }
   for (const side of Object.keys(dirs) as Side[]) {
     git(dirs[side].repo, ['config', 'receive.denyCurrentBranch', 'ignore'])

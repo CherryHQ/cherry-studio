@@ -586,6 +586,8 @@ describe('utils/image', () => {
     // settle each swapped-in src on the next macrotask the way a browser decode would.
     const armJsdomImageSettle = (root: HTMLElement) => {
       for (const img of root.querySelectorAll('img')) {
+        // The initial page image is loaded; source swaps still emit their own load event.
+        Object.defineProperty(img, 'complete', { value: true, configurable: true })
         const observer = new MutationObserver(() => {
           if ((img.getAttribute('src') ?? '').startsWith('data:')) {
             observer.disconnect()
