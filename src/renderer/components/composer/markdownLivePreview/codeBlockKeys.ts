@@ -24,19 +24,23 @@ function insertCodeNewline(view: EditorView, { block, line }: CodeLineMatch) {
 
   const before = $from.parent.textBetween(0, $from.parentOffset, undefined, TOKEN_PLACEHOLDER)
   const after = $to.parent.textBetween($to.parentOffset, $to.parent.content.size, undefined, TOKEN_PLACEHOLDER)
+  const $open = state.doc.resolve(block.reveal.from)
+  const container = $open.parent.textBetween(0, $open.parentOffset).replace(/[^ \t>]/g, ' ')
   const isAtLineEnd = $from.parentOffset === $from.parent.content.size
   if (!empty) transaction.deleteSelection()
   transaction.split(transaction.selection.from)
   const nextLineStart = transaction.selection.from
 
   if (line === block.open) {
-    const fence = /^\s*(`{3,}|~{3,})/.exec(before)?.[1]
+    const fence = /^(`{3,}|~{3,})/.exec(before.slice($open.parentOffset))?.[1]
     if (fence && isAtLineEnd && !block.close && block.codeLines.length === 0) {
-      transaction.insert(nextLineStart + 1, paragraph.create(null, state.schema.text(fence)))
+      transaction.insert(nextLineStart + 1, paragraph.create(null, state.schema.text(container + fence)))
       transaction.setSelection(TextSelection.create(transaction.doc, nextLineStart))
     }
+    if (container) transaction.insertText(container, nextLineStart)
   } else if (line !== block.close) {
-    const baseIndent = /^[ \t]*/.exec(before)?.[0] ?? ''
+    const quoteDepth = container.match(/>/g)?.length ?? 0
+    const baseIndent = new RegExp(`^(?:[ \t]*>){${quoteDepth}}[ \t]*`).exec(before)?.[0] ?? container
     if (after && after[0] === CLOSING_BRACKETS[before.at(-1) ?? '']) {
       transaction.insertText(baseIndent + CODE_INDENT, nextLineStart)
       const middleLineEnd = transaction.selection.from

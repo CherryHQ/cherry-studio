@@ -303,6 +303,43 @@ describe('code block keys', () => {
     expect(caret(editor)).toEqual([2, 4])
   })
 
+  it.each(['> ', '> > ', '  > '])('preserves %j and code indentation across consecutive Enter presses', (prefix) => {
+    const editor = createEditor(`${prefix}\`\`\`js\n${prefix}  const a = 1\n${prefix}\`\`\``)
+    caretAt(editor, 1, prefix.length + 13)
+
+    expect(press(editor, 'Enter')).toBe(true)
+    expect(isMarkdownFencedCodePosition(editor.state, editor.state.selection.from)).toBe(true)
+    expect(press(editor, 'Enter')).toBe(true)
+
+    expect(source(editor)).toBe(`${prefix}\`\`\`js\n${prefix}  const a = 1\n${prefix}  \n${prefix}  \n${prefix}\`\`\``)
+    expect(isMarkdownFencedCodePosition(editor.state, editor.state.selection.from)).toBe(true)
+  })
+
+  it('continues a quoted bracket pair on both inserted lines', () => {
+    const editor = createEditor('> ```js\n>   {}\n> ```')
+    caretAt(editor, 1, 5)
+
+    press(editor, 'Enter')
+
+    expect(source(editor)).toBe('> ```js\n>   {\n>     \n>   }\n> ```')
+    expect(caret(editor)).toEqual([2, 6])
+    expect(isMarkdownFencedCodePosition(editor.state, editor.state.selection.from)).toBe(true)
+  })
+
+  it.each([
+    ['> ```js', '> '],
+    ['- ```js', '  '],
+    ['> - ```js', '>   ']
+  ])('continues and closes a nested opening fence %s', (opening, prefix) => {
+    const editor = createEditor(opening)
+    caretAt(editor, 0, opening.length)
+
+    press(editor, 'Enter')
+
+    expect(source(editor)).toBe(`${opening}\n${prefix}\n${prefix}\`\`\``)
+    expect(isMarkdownFencedCodePosition(editor.state, editor.state.selection.from)).toBe(true)
+  })
+
   it.each(['{', '[', '('])('adds one level after an opening %s', (bracket) => {
     const editor = createEditor(`\`\`\`\n  a ${bracket}\n\`\`\``)
     caretAt(editor, 1, 5)

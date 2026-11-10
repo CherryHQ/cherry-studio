@@ -273,7 +273,7 @@
   position: relative;
   border-right: 0.5px solid var(--border);
   border-left: 0.5px solid var(--border);
-  background: var(--background-subtle);
+  background: var(--code-background, var(--background-subtle));
   padding: 0 12px;
   color: var(--code-foreground, var(--foreground));
   font-size: 0.93em;
