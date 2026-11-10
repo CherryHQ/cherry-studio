@@ -18,27 +18,7 @@ import { Chart } from '../../Chart'
 import type { PieChartProps } from '../../types'
 import { Echarts } from '../Echarts'
 
-const instance = vi.hoisted(() => ({
-  dispose: vi.fn(),
-  hideLoading: vi.fn(),
-  resize: vi.fn(),
-  showLoading: vi.fn(),
-  setOption: vi.fn()
-}))
-
 echarts.use([BarChart, PieChart, DataZoomComponent, GridComponent, LegendComponent, TimelineComponent])
-echarts.registerPostInit((chart) => {
-  for (const method of ['dispose', 'hideLoading', 'resize', 'showLoading', 'setOption'] as const) {
-    instance[method] = vi.spyOn(chart, method)
-  }
-})
-// The preserved legacy bar fixtures omit axes; supply them through the real preprocessing API.
-echarts.registerPreprocessor((option) => {
-  if (Array.isArray(option.series) && option.series.some((series) => series.type === 'bar')) {
-    option.xAxis ??= { type: 'category' }
-    option.yAxis ??= {}
-  }
-})
 let width = 640
 let resize: () => void
 
@@ -74,13 +54,9 @@ vi.stubGlobal(
 )
 
 describe('Echarts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('keeps the current option while loading and applies the next option when loading finishes', () => {
-    const initialOption = { series: [{ type: 'bar', data: [1] }] } satisfies EChartsCoreOption
-    const nextOption = { series: [{ type: 'bar', data: [2] }] } satisfies EChartsCoreOption
+    const initialOption = { xAxis: { type: 'category' }, yAxis: {}, series: [{ type: 'bar', data: [1] }] }
+    const nextOption = { ...initialOption, series: [{ type: 'bar', data: [2] }] }
     const view = render(
       <Echarts
         ariaLabel="Usage"
@@ -92,13 +68,9 @@ describe('Echarts', () => {
       />
     )
 
-    expect(instance.setOption).toHaveBeenCalledTimes(1)
-    expect(instance.setOption).toHaveBeenLastCalledWith(
-      expect.any(Object),
-      expect.objectContaining({
-        replaceMerge: expect.arrayContaining(['series', 'dataZoom', 'timeline', 'grid', 'xAxis', 'yAxis', 'legend'])
-      })
-    )
+    const host = view.getByRole('img', { name: 'Usage' }) as HTMLDivElement
+    const chart = echarts.getInstanceByDom(host)!
+    expect(chart.getOption().series).toEqual([expect.objectContaining({ data: [1] })])
 
     view.rerender(
       <Echarts
@@ -111,8 +83,8 @@ describe('Echarts', () => {
       />
     )
 
-    expect(instance.setOption).toHaveBeenCalledTimes(1)
-    expect(instance.showLoading).toHaveBeenLastCalledWith('default', expect.any(Object))
+    expect(host).toHaveAttribute('aria-busy', 'true')
+    expect(chart.getOption().series).toEqual([expect.objectContaining({ data: [1] })])
 
     view.rerender(
       <Echarts
@@ -125,8 +97,8 @@ describe('Echarts', () => {
       />
     )
 
-    expect(instance.setOption).toHaveBeenCalledTimes(2)
-    expect(instance.hideLoading).toHaveBeenCalled()
+    expect(host).toHaveAttribute('aria-busy', 'false')
+    expect(chart.getOption().series).toEqual([expect.objectContaining({ data: [2] })])
   })
 
   it('keeps base components when applying a timeline frame', () => {
@@ -137,10 +109,13 @@ describe('Echarts', () => {
         timeline,
         series: [{ type: 'pie', data: [{ name: 'Model A', value: 10 }] }]
       },
-      options: [{ series: [{ type: 'pie', data: [{ name: 'Model A', value: 10 }] }] }]
+      options: [
+        { series: [{ type: 'pie', data: [{ name: 'Model A', value: 10 }] }] },
+        { series: [{ type: 'pie', data: [{ name: 'Model A', value: 20 }] }] }
+      ]
     }
 
-    render(
+    const view = render(
       <Echarts
         ariaLabel="Usage"
         loading={false}
@@ -151,12 +126,12 @@ describe('Echarts', () => {
       />
     )
 
-    expect(instance.setOption).toHaveBeenLastCalledWith(
-      expect.any(Object),
-      expect.objectContaining({
-        replaceMerge: expect.not.arrayContaining(['legend', 'timeline'])
-      })
-    )
+    const host = view.getByRole('img', { name: 'Usage' }) as HTMLDivElement
+    const chart = echarts.getInstanceByDom(host)!
+    act(() => chart.dispatchAction({ type: 'timelineChange', currentIndex: 1 }))
+    expect(chart.getOption().legend).toHaveLength(1)
+    expect((chart.getOption().timeline as TimelineComponentOption[])[0].currentIndex).toBe(1)
+    expect(chart.getOption().series).toEqual([expect.objectContaining({ data: [{ name: 'Model A', value: 20 }] })])
   })
 })
 
@@ -190,9 +165,160 @@ describe('Chart timeline selection', () => {
     await act(async () => vi.advanceTimersToNextFrame())
     expect(currentIndex()).toBe(0)
 
-    view.rerender(<Chart {...props} data={[{ name: 'Model B', value: 40 }]} />)
+    view.rerender(
+      <Chart
+        {...props}
+        timeline={{
+          currentIndex: 2,
+          frames: [{ ...frames[0], data: [{ name: 'Model B', value: 40 }] }, ...frames.slice(1)]
+        }}
+      />
+    )
     await act(async () => vi.advanceTimersToNextFrame())
-    expect(currentIndex()).toBe(2)
+    expect(currentIndex()).toBe(0)
+    expect(chart.getOption().series).toEqual([expect.objectContaining({ data: [{ name: 'Model B', value: 40 }] })])
+  })
+})
+
+describe('Echarts timeline replay', () => {
+  const props = {
+    ariaLabel: 'Usage',
+    loading: false,
+    loadingColor: '#000',
+    loadingLabel: 'Loading',
+    loadingTextColor: '#111'
+  }
+  function createOption(frameCount = 4) {
+    const timeline: TimelineComponentOption = {
+      axisType: 'category',
+      autoPlay: false,
+      loop: false,
+      currentIndex: frameCount - 1,
+      data: Array.from({ length: frameCount }, (_, index) => `Day ${index + 1}`)
+    }
+    return {
+      baseOption: {
+        animation: true,
+        timeline,
+        series: [{ type: 'pie', animationDuration: 150, animationDurationUpdate: 150 }]
+      },
+      options: Array.from({ length: frameCount }, (_, index) => ({
+        series: [
+          {
+            type: 'pie',
+            data: [
+              { name: 'Model A', value: (index + 1) * 10 },
+              { name: 'Model B', value: 50 - index * 10 }
+            ]
+          }
+        ]
+      }))
+    }
+  }
+
+  it('preserves the user-selected frame when an equivalent new option is replayed', async () => {
+    vi.useFakeTimers()
+    const view = render(<Echarts {...props} option={createOption()} />)
+    const host = view.getByRole('img', { name: 'Usage' }) as HTMLDivElement
+    const chart = echarts.getInstanceByDom(host)!
+    await act(async () => vi.advanceTimersToNextFrame())
+    expect((chart.getOption().timeline as TimelineComponentOption[])[0].currentIndex).toBe(3)
+
+    act(() => chart.dispatchAction({ type: 'timelineChange', currentIndex: 1 }))
+    expect((chart.getOption().timeline as TimelineComponentOption[])[0].currentIndex).toBe(1)
+
+    const replay = createOption()
+    view.rerender(<Echarts {...props} option={replay} />)
+    await act(async () => vi.advanceTimersToNextFrame())
+    expect((chart.getOption().timeline as TimelineComponentOption[])[0].currentIndex).toBe(1)
+    expect(replay.baseOption.timeline.currentIndex).toBe(3)
+  })
+
+  it('waits for the new finished event before capture during a timeline animation', async () => {
+    vi.useFakeTimers()
+    const view = render(<Echarts {...props} option={createOption()} />)
+    const host = view.getByRole('img', { name: 'Usage' }) as HTMLDivElement
+    const chart = echarts.getInstanceByDom(host)!
+    const waitForFinished = () =>
+      new Promise<void>((resolve) => {
+        const onFinished = () => {
+          chart.off('finished', onFinished)
+          resolve()
+        }
+        chart.on('finished', onFinished)
+      })
+    const flush = () => {
+      act(() => {
+        chart.getZr().animation.update()
+        chart.getZr().flush()
+      })
+    }
+    const initialFinished = waitForFinished()
+    flush()
+    flush()
+    await act(async () => vi.advanceTimersByTimeAsync(1500))
+    flush()
+    expect(chart.getZr().animation.isFinished()).toBe(true)
+    await initialFinished
+
+    const finished = waitForFinished()
+    act(() => chart.dispatchAction({ type: 'timelineChange', currentIndex: 0 }))
+    expect((chart.getOption().timeline as TimelineComponentOption[])[0].currentIndex).toBe(0)
+    expect(chart.getZr().animation.isFinished()).toBe(false)
+    const event = new ImageCaptureEvent()
+    host.dispatchEvent(event)
+    expect(event.preparations).toHaveLength(1)
+    const preparation = event.preparations[0]
+    const readiness = Promise.race([
+      preparation.then(() => 'ready'),
+      new Promise<string>((resolve) => setTimeout(() => resolve('animating'), 30))
+    ])
+    flush()
+    await act(async () => vi.advanceTimersByTimeAsync(30))
+    expect(await readiness).toBe('animating')
+    expect(chart.getZr().animation.isFinished()).toBe(false)
+    await act(async () => vi.advanceTimersByTimeAsync(1500))
+    flush()
+    await finished
+    await expect(preparation).resolves.toBeTypeOf('function')
+  })
+
+  it.each([
+    { frameCount: 0, expectedIndex: 0 },
+    { frameCount: 2, expectedIndex: 1 },
+    { frameCount: 3, expectedIndex: 2 },
+    { frameCount: 6, expectedIndex: 3 }
+  ])(
+    'keeps the live index in range when the frame count changes to $frameCount',
+    async ({ frameCount, expectedIndex }) => {
+      vi.useFakeTimers()
+      const view = render(<Echarts {...props} option={createOption()} />)
+      const host = view.getByRole('img', { name: 'Usage' }) as HTMLDivElement
+      const chart = echarts.getInstanceByDom(host)!
+      await act(async () => vi.advanceTimersToNextFrame())
+      act(() => chart.dispatchAction({ type: 'timelineChange', currentIndex: 3 }))
+
+      const nextOption = createOption(frameCount)
+      nextOption.baseOption.timeline.currentIndex = 0
+      view.rerender(<Echarts {...props} option={nextOption} />)
+      await act(async () => vi.advanceTimersToNextFrame())
+      const timeline = (chart.getOption().timeline as TimelineComponentOption[])[0]
+      expect(timeline.data).toHaveLength(frameCount)
+      expect(timeline.currentIndex).toBe(expectedIndex)
+      expect(nextOption.baseOption.timeline.currentIndex).toBe(0)
+    }
+  )
+
+  it('rejects a pending capture when another timeline change starts', async () => {
+    const view = render(<Echarts {...props} option={createOption()} />)
+    const host = view.getByRole('img', { name: 'Usage' }) as HTMLDivElement
+    const chart = echarts.getInstanceByDom(host)!
+    const event = new ImageCaptureEvent()
+    host.dispatchEvent(event)
+    expect(event.preparations).toHaveLength(1)
+    const rejection = expect(event.preparations[0]).rejects.toThrow('Chart changed during image capture')
+    act(() => chart.dispatchAction({ type: 'timelineChange', currentIndex: 1 }))
+    await rejection
   })
 })
 
@@ -214,8 +340,8 @@ describe('Echarts image capture readiness', () => {
     vi.useFakeTimers()
   })
 
-  function mount() {
-    const view = render(<Echarts {...props} option={initialOption} />)
+  function mount(option = initialOption) {
+    const view = render(<Echarts {...props} option={option} />)
     const host = view.getByRole('img', { name: 'Usage' }) as HTMLDivElement
     const chart = echarts.getInstanceByDom(host)!
     const capture = () => {
@@ -316,6 +442,27 @@ describe('Echarts image capture readiness', () => {
     const preparation = view.capture()
     const rejection = expect(preparation).rejects.toThrow('changed')
     view.rerender(<Echarts {...props} option={{ ...initialOption, series: [{ type: 'bar', data: [3] }] }} />)
+    await rejection
+    view.finish()
+    await expect(view.capture()).resolves.toBeTypeOf('function')
+  })
+
+  it('invalidates readiness and rejects a waiting capture on datazoom', async () => {
+    const view = mount({ ...initialOption, dataZoom: { type: 'inside', start: 0, end: 100 } })
+    view.finish()
+    await expect(view.capture()).resolves.toBeTypeOf('function')
+
+    act(() => view.chart.dispatchAction({ type: 'dataZoom', start: 0, end: 50 }))
+    expect(view.chart.getOption().dataZoom).toEqual([expect.objectContaining({ end: 50 })])
+    let ready = false
+    const preparation = view.capture().then((restore) => {
+      ready = true
+      return restore
+    })
+    const rejection = expect(preparation).rejects.toThrow('Chart changed during image capture')
+    await Promise.resolve()
+    expect(ready).toBe(false)
+    act(() => view.chart.dispatchAction({ type: 'dataZoom', start: 0, end: 75 }))
     await rejection
     view.finish()
     await expect(view.capture()).resolves.toBeTypeOf('function')

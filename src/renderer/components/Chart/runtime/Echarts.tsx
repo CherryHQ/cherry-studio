@@ -1,4 +1,4 @@
-import { AriaComponent } from 'echarts/components'
+import { AriaComponent, type TimelineComponentOption } from 'echarts/components'
 import type { EChartsCoreOption, EChartsType, SetOptionOpts } from 'echarts/core'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -51,6 +51,8 @@ export function Echarts({
       }
     }
     instance.on('finished', onFinished)
+    instance.on('timelinechanged', invalidateCapture)
+    instance.on('datazoom', invalidateCapture)
     const prepareCapture = (event: Event) => {
       if (!(event instanceof ImageCaptureEvent)) return
       event.preparations.push(
@@ -105,6 +107,8 @@ export function Echarts({
       container.removeEventListener(ImageCaptureEvent.type, prepareCapture)
       invalidateCapture()
       instance.off('finished', onFinished)
+      instance.off('timelinechanged', invalidateCapture)
+      instance.off('datazoom', invalidateCapture)
       instance.dispose()
       instanceRef.current = null
     }
@@ -115,10 +119,26 @@ export function Echarts({
     invalidateCapture()
     if (loading) return
 
+    const instance = instanceRef.current
+    if (!instance) return
+
     const aria = { enabled: true, label: { description: ariaLabel } }
     const nextOption: EChartsCoreOption = option.baseOption
       ? { ...option, baseOption: { ...option.baseOption, aria } }
       : { ...option, aria }
+    const liveTimeline = (instance.getOption()?.timeline as TimelineComponentOption[] | undefined)?.[0]
+    const liveIndex = liveTimeline?.currentIndex
+    const nextBaseOption = nextOption.baseOption ?? nextOption
+    const nextTimeline = nextBaseOption.timeline as TimelineComponentOption | TimelineComponentOption[] | undefined
+    if (typeof liveIndex === 'number' && Number.isInteger(liveIndex) && nextTimeline && !Array.isArray(nextTimeline)) {
+      const frameCount = nextTimeline.data?.length
+      const currentIndex =
+        frameCount !== undefined && frameCount !== liveTimeline?.data?.length
+          ? Math.max(0, Math.min(liveIndex, frameCount - 1))
+          : liveIndex
+      const timeline: TimelineComponentOption = { ...nextTimeline, currentIndex }
+      nextBaseOption.timeline = timeline
+    }
     const hasTimeline = option.baseOption !== undefined
     const settings: SetOptionOpts = {
       lazyUpdate: true,
@@ -127,7 +147,7 @@ export function Echarts({
         : ['series', 'dataZoom', 'timeline', 'grid', 'xAxis', 'yAxis', 'legend']
     }
     appliedOptionRef.current = { option: nextOption, settings }
-    instanceRef.current?.setOption(nextOption, settings)
+    instance.setOption(nextOption, settings)
   }, [ariaLabel, invalidateCapture, loading, option])
 
   useEffect(() => {
