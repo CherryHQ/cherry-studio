@@ -552,8 +552,11 @@ class FileStorage {
   }
 
   public createTempFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
+    const tempDir = this.tempDir
+    await assertOutsideManagedStorageMutation(tempDir)
+    await fs.promises.mkdir(tempDir, { recursive: true })
     // `fileName` is renderer-supplied; basename it so a value like `../../evil` can't escape tempDir.
-    return path.join(this.tempDir, `temp_file_${uuidv4()}_${path.basename(fileName)}`)
+    return path.join(tempDir, `temp_file_${uuidv4()}_${path.basename(fileName)}`)
   }
 
   public writeFile = async (
