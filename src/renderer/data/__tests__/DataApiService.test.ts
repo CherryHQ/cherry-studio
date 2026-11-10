@@ -262,9 +262,10 @@ describe('PATCH provenance', () => {
     expect(attempts).toHaveLength(2)
     expect(attempts[0].metadata).toMatchObject({
       source: 'composer.mcp-toggle',
+      retryAttempt: 0,
       operationId: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
     })
-    expect(attempts[1].metadata).toEqual(attempts[0].metadata)
+    expect(attempts[1].metadata).toEqual({ ...attempts[0].metadata, retryAttempt: 1 })
     expect(attempts[1].id).not.toBe(attempts[0].id)
     expect(attempts.map((req) => req.body)).toEqual([{ mcpServerIds: ['T'] }, { mcpServerIds: ['T'] }])
   })
@@ -281,6 +282,6 @@ describe('PATCH provenance', () => {
     expect(metadata[0]).toMatchObject({ source: 'assistant-edit.save', operationId })
     expect(metadata[1].operationId).toEqual(expect.any(String))
     expect(metadata[2].operationId).not.toBe(metadata[1].operationId)
-    expect(metadata[3]).toEqual({ timestamp: expect.any(Number) })
+    expect(metadata[3]).toEqual({ timestamp: expect.any(Number), retryAttempt: 0 })
   })
 })

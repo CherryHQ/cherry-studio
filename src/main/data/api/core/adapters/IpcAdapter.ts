@@ -13,6 +13,13 @@ import type { DataApiCallContext } from '../callContext'
 
 const logger = loggerService.withContext('DataApi:IpcAdapter')
 
+// A new producer adds its name here.
+export const DATA_API_SOURCE_ALLOWLIST: readonly string[] = [
+  'assistant-edit.save',
+  'composer.mcp-toggle',
+  'doctor.data-api'
+]
+
 /**
  * IPC transport adapter for Electron environment.
  *
@@ -68,14 +75,29 @@ export class IpcAdapter implements Disposable {
         const windowId = application.get('WindowManager').getWindowIdByWebContents(event.sender)
         const source = request.metadata?.source
         const operationId = request.metadata?.operationId
+        const retryAttempt = request.metadata?.retryAttempt
         const context: DataApiCallContext = {
-          requestId: request.id ?? null,
+          requestId:
+            typeof request.id === 'string' &&
+            (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(request.id) ||
+              /^req_[0-9]{1,16}_[0-9]{1,16}$/.test(request.id))
+              ? request.id
+              : null,
+          retryAttempt:
+            typeof retryAttempt === 'number' && Number.isSafeInteger(retryAttempt) && retryAttempt >= 0
+              ? retryAttempt
+              : null,
           operationId:
             typeof operationId === 'string' &&
             /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(operationId)
               ? operationId
               : null,
-          source: typeof source === 'string' && /^[a-z0-9._-]{1,128}$/.test(source) ? source : 'unknown',
+          source:
+            typeof source === 'string' &&
+            /^[a-z0-9._-]{1,128}$/.test(source) &&
+            DATA_API_SOURCE_ALLOWLIST.includes(source)
+              ? source
+              : 'unknown',
           actor: windowId ? { kind: 'renderer', webContentsId: event.sender.id, windowId } : { kind: 'unknown' }
         }
         const response = await this.apiServer.handleRequest(request, context)

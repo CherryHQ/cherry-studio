@@ -144,13 +144,9 @@ export interface DataRequest<T = any> {
     spanContext?: any
     source?: string
     operationId?: string
+    /** 0-based attempt number, set by the renderer per send. */
+    retryAttempt?: number
   }
-}
-
-export interface DataApiRequestContext {
-  source?: string
-  operationId?: string | null
-  requestId?: string | null
 }
 
 /**
@@ -325,7 +321,7 @@ export interface Middleware {
 /**
  * Request context passed through middleware chain
  */
-export interface RequestContext<Ctx = DataApiRequestContext> {
+export interface RequestContext<Ctx = unknown> {
   context?: Ctx
   /** Original request */
   request: DataRequest
@@ -505,7 +501,7 @@ type HasRequiredParams<Path extends ApiPaths, Method extends ApiMethods<Path>> =
  * - Data directly (T) - status code will be auto-inferred
  * - { data: T, status: SuccessStatusCode } - custom status code
  */
-export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>, Ctx = DataApiRequestContext> = (
+export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>, Ctx = unknown> = (
   params: (HasRequiredParams<Path, Method> extends true
     ? { params: ApiParams<Path, Method> }
     : { params?: ApiParams<Path, Method> }) &
@@ -523,7 +519,7 @@ export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>, C
  * Complete API implementation that must match ApiSchemas structure
  * TypeScript will error if any endpoint is missing - this ensures exhaustive coverage
  */
-export type ApiImplementation<Ctx = DataApiRequestContext> = {
+export type ApiImplementation<Ctx = unknown> = {
   [Path in ApiPaths]: {
     [Method in ApiMethods<Path>]: ApiHandler<Path, Method, Ctx>
   }
@@ -537,7 +533,7 @@ export type ApiImplementation<Ctx = DataApiRequestContext> = {
  * Narrows paths to the module's own schema (prevents typos and cross-module
  * leakage) while keeping the exhaustiveness guarantee inside that scope.
  */
-export type HandlersFor<Schemas, Ctx = DataApiRequestContext> = Pick<
+export type HandlersFor<Schemas, Ctx = unknown> = Pick<
   ApiImplementation<Ctx>,
   Extract<keyof Schemas, keyof ApiImplementation<Ctx>>
 >

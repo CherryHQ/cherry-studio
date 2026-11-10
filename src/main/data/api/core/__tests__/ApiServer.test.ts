@@ -325,6 +325,7 @@ describe('ApiServer caller context', () => {
     const context = {
       requestId: 'req-24065',
       operationId: '24065000-0000-4000-8000-000000000001',
+      retryAttempt: 0,
       source: 'assistant-edit.save',
       actor: { kind: 'renderer' as const, webContentsId: 7, windowId: 'main-1' }
     }

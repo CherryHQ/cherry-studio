@@ -9,7 +9,7 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
-import type { DataApiCallContext } from '@data/api/core/callContext'
+import type { DataApiCallContext } from '@data/api'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
@@ -599,7 +599,23 @@ export class AssistantDataService {
 
     this.emitMcpArmingChange(mcpArmingDelta, 'update', context)
 
-    logger.info('Updated assistant', { id, changes: Object.keys(dto) })
+    const changes = Object.keys(dto)
+    if (dto.mcpServerIds !== undefined) {
+      logger.info('Updated assistant', {
+        id,
+        changes,
+        source: context?.source ?? 'unknown',
+        actor: context?.actor ?? { kind: 'unknown' },
+        operationId: context?.operationId ?? null,
+        requestId: context?.requestId ?? null,
+        retryAttempt: context?.retryAttempt ?? null,
+        requestedMcpServerIdCount: dto.mcpServerIds.length,
+        requestedMcpServerIds: dto.mcpServerIds.map((id) => (id.length > 64 ? id.slice(0, 64) : id)).slice(0, 20),
+        ...(dto.mcpServerIds.length > 20 ? { requestedMcpServerIdsTruncated: true } : {})
+      })
+    } else {
+      logger.info('Updated assistant', { id, changes })
+    }
 
     return rowToAssistant(row, nextRelations, modelName)
   }
@@ -613,6 +629,18 @@ export class AssistantDataService {
       logger.info('MCP arming changed', {
         event: 'assistant.mcp-arming.changed',
         ...delta,
+        beforeIds: delta.beforeIds.map((id) => (id.length > 64 ? id.slice(0, 64) : id)).slice(0, 20),
+        beforeIdsCount: delta.beforeIds.length,
+        ...(delta.beforeIds.length > 20 ? { beforeIdsTruncated: true } : {}),
+        afterIds: delta.afterIds.map((id) => (id.length > 64 ? id.slice(0, 64) : id)).slice(0, 20),
+        afterIdsCount: delta.afterIds.length,
+        ...(delta.afterIds.length > 20 ? { afterIdsTruncated: true } : {}),
+        addedIds: delta.addedIds.map((id) => (id.length > 64 ? id.slice(0, 64) : id)).slice(0, 20),
+        addedIdsCount: delta.addedIds.length,
+        ...(delta.addedIds.length > 20 ? { addedIdsTruncated: true } : {}),
+        removedIds: delta.removedIds.map((id) => (id.length > 64 ? id.slice(0, 64) : id)).slice(0, 20),
+        removedIdsCount: delta.removedIds.length,
+        ...(delta.removedIds.length > 20 ? { removedIdsTruncated: true } : {}),
         reason,
         source: context?.source ?? 'unknown',
         actor: context?.actor ?? { kind: 'unknown' },

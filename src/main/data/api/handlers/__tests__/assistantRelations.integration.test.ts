@@ -146,6 +146,7 @@ describe('Committed MCP arming audit', () => {
   const context: DataApiCallContext = {
     requestId: 'request-24065',
     operationId: '24065000-0000-4000-8000-000000000001',
+    retryAttempt: 1,
     source: 'assistant-edit.save',
     actor: { kind: 'renderer', webContentsId: 7, windowId: 'main-1' }
   }
@@ -167,6 +168,162 @@ describe('Committed MCP arming audit', () => {
 
   beforeEach(() => mockMainLoggerService.info.mockClear())
 
+  it.each([context, undefined])('attributes a no-delta MCP update with context %j', async (callContext) => {
+    const { assistant, s, t } = seedAssistant()
+    const baseline = dbh.db.select().from(assistantMcpServerTable).all()
+    const requestedMcpServerIds = [t.id, s.id, t.id]
+
+    const result = await assistantHandlers['/assistants/:id'].PATCH({
+      params: { id: assistant.id },
+      body: { mcpServerIds: requestedMcpServerIds },
+      context: callContext
+    })
+
+    expect(result).toMatchObject({ mcpServerIds: expect.arrayContaining([s.id, t.id]) })
+    expect(dbh.db.select().from(assistantMcpServerTable).all()).toEqual(baseline)
+    expect(records()).toEqual([])
+    expect(mockMainLoggerService.info.mock.calls.filter(([message]) => message === 'Updated assistant')).toEqual([
+      [
+        'Updated assistant',
+        {
+          id: assistant.id,
+          changes: ['mcpServerIds'],
+          source: callContext?.source ?? 'unknown',
+          actor: callContext?.actor ?? { kind: 'unknown' },
+          operationId: callContext?.operationId ?? null,
+          requestId: callContext?.requestId ?? null,
+          retryAttempt: callContext?.retryAttempt ?? null,
+          requestedMcpServerIdCount: 3,
+          requestedMcpServerIds
+        }
+      ]
+    ])
+  })
+
+  it('bounds the submitted MCP IDs to 20 even when repeated bindings have no delta', async () => {
+    const { assistant, s, t } = seedAssistant()
+    const baseline = dbh.db.select().from(assistantMcpServerTable).all()
+    const firstTwenty = Array.from({ length: 10 }, () => [t.id, s.id]).flat()
+
+    const result = await assistantHandlers['/assistants/:id'].PATCH({
+      params: { id: assistant.id },
+      body: { mcpServerIds: [...firstTwenty, t.id] },
+      context
+    })
+
+    expect(result).toMatchObject({ mcpServerIds: expect.arrayContaining([s.id, t.id]) })
+    expect(dbh.db.select().from(assistantMcpServerTable).all()).toEqual(baseline)
+    expect(records()).toEqual([])
+    expect(mockMainLoggerService.info.mock.calls.filter(([message]) => message === 'Updated assistant')).toEqual([
+      [
+        'Updated assistant',
+        {
+          id: assistant.id,
+          changes: ['mcpServerIds'],
+          source: context.source,
+          actor: context.actor,
+          operationId: context.operationId,
+          requestId: context.requestId,
+          retryAttempt: 1,
+          requestedMcpServerIdCount: 21,
+          requestedMcpServerIds: firstTwenty,
+          requestedMcpServerIdsTruncated: true
+        }
+      ]
+    ])
+  })
+
+  it('caps logged MCP IDs at 64 characters without truncating persisted bindings', async () => {
+    const id = 'x'.repeat(100)
+    const loggedId = 'x'.repeat(64)
+    dbh.db.insert(mcpServerTable).values({ id, name: 'Server' }).run()
+    const assistant = assistantDataService.create({ name: 'Assistant' })
+    mockMainLoggerService.info.mockClear()
+
+    await assistantHandlers['/assistants/:id'].PATCH({
+      params: { id: assistant.id },
+      body: { mcpServerIds: [id] },
+      context
+    })
+
+    expect(assistantDataService.getById(assistant.id).mcpServerIds).toEqual([id])
+    expect(mockMainLoggerService.info.mock.calls.filter(([message]) => message === 'Updated assistant')).toMatchObject([
+      ['Updated assistant', { requestedMcpServerIds: [loggedId] }]
+    ])
+
+    await assistantHandlers['/assistants/:id'].PATCH({
+      params: { id: assistant.id },
+      body: { mcpServerIds: [] },
+      context
+    })
+
+    expect(records()).toMatchObject([
+      { beforeIds: [], afterIds: [loggedId], addedIds: [loggedId], removedIds: [] },
+      { beforeIds: [loggedId], afterIds: [], addedIds: [], removedIds: [loggedId] }
+    ])
+  })
+
+  it.each([20, 21])('bounds every arming delta array to 20 IDs for %i bindings', async (count) => {
+    const beforeIds = Array.from({ length: count }, (_, i) => `before-${String(i).padStart(2, '0')}`)
+    const afterIds = Array.from({ length: count }, (_, i) => `after-${String(i).padStart(2, '0')}`)
+    dbh.db
+      .insert(mcpServerTable)
+      .values([...beforeIds, ...afterIds].map((id) => ({ id, name: id })))
+      .run()
+    const assistant = assistantDataService.create({ name: 'Assistant', mcpServerIds: beforeIds })
+    mockMainLoggerService.info.mockClear()
+
+    await assistantHandlers['/assistants/:id'].PATCH({
+      params: { id: assistant.id },
+      body: { mcpServerIds: afterIds },
+      context
+    })
+
+    expect(assistantDataService.getById(assistant.id).mcpServerIds.sort()).toEqual(afterIds)
+    expect(records()).toEqual([
+      {
+        event: 'assistant.mcp-arming.changed',
+        assistantId: assistant.id,
+        reason: 'update',
+        beforeIds: beforeIds.slice(0, 20),
+        beforeIdsCount: count,
+        afterIds: afterIds.slice(0, 20),
+        afterIdsCount: count,
+        addedIds: afterIds.slice(0, 20),
+        addedIdsCount: count,
+        removedIds: beforeIds.slice(0, 20),
+        removedIdsCount: count,
+        ...(count > 20
+          ? { beforeIdsTruncated: true, afterIdsTruncated: true, addedIdsTruncated: true, removedIdsTruncated: true }
+          : {}),
+        source: context.source,
+        actor: context.actor,
+        operationId: context.operationId,
+        requestId: context.requestId
+      }
+    ])
+  })
+
+  it('keeps non-MCP update logs free of attribution even with context', async () => {
+    const { assistant } = seedAssistant()
+
+    await assistantHandlers['/assistants/:id'].PATCH({
+      params: { id: assistant.id },
+      body: { name: 'Private assistant name' },
+      context
+    })
+
+    expect(mockMainLoggerService.info.mock.calls.filter(([message]) => message === 'Updated assistant')).toEqual([
+      [
+        'Updated assistant',
+        {
+          id: assistant.id,
+          changes: ['name']
+        }
+      ]
+    ])
+  })
+
   it('attributes one committed creation record with sorted MCP additions', async () => {
     const a = mcpServerService.create({ name: 'Server A' })
     const b = mcpServerService.create({ name: 'Server B' })
@@ -184,9 +341,13 @@ describe('Committed MCP arming audit', () => {
         assistantId: assistant.id,
         reason: 'create',
         beforeIds: [],
+        beforeIdsCount: 0,
         afterIds: [a.id, b.id].sort(),
+        afterIdsCount: 2,
         addedIds: [a.id, b.id].sort(),
+        addedIdsCount: 2,
         removedIds: [],
+        removedIdsCount: 0,
         source: context.source,
         actor: context.actor,
         operationId: context.operationId,
@@ -227,9 +388,13 @@ describe('Committed MCP arming audit', () => {
         assistantId: duplicate.id,
         reason: 'duplicate',
         beforeIds: [],
+        beforeIdsCount: 0,
         afterIds: [a.id, b.id].sort(),
+        afterIdsCount: 2,
         addedIds: [a.id, b.id].sort(),
+        addedIdsCount: 2,
         removedIds: [],
+        removedIdsCount: 0,
         source: context.source,
         actor: context.actor,
         operationId: context.operationId,
@@ -297,9 +462,13 @@ describe('Committed MCP arming audit', () => {
         assistantId: assistant.id,
         reason: 'update',
         beforeIds: [s.id, t.id].sort(),
+        beforeIdsCount: 2,
         afterIds: [t.id],
+        afterIdsCount: 1,
         addedIds: [],
+        addedIdsCount: 0,
         removedIds: [s.id],
+        removedIdsCount: 1,
         source: context.source,
         actor: context.actor,
         operationId: context.operationId,
@@ -345,9 +514,13 @@ describe('Committed MCP arming audit', () => {
         assistantId: assistant.id,
         reason: 'update',
         beforeIds: [s.id, t.id].sort(),
+        beforeIdsCount: 2,
         afterIds: [],
+        afterIdsCount: 0,
         addedIds: [],
+        addedIdsCount: 0,
         removedIds: [s.id, t.id].sort(),
+        removedIdsCount: 2,
         source: 'unknown',
         actor: { kind: 'unknown' },
         operationId: null,

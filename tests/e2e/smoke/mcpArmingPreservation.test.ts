@@ -503,8 +503,9 @@ test('stdio drop and recovery preserve assistant MCP arming and retained timesta
       removedIds: [s],
       addedIds: [],
       afterIds: [t],
-      source: 'e2e.mp24065.manual-unarm',
-      actor: { kind: 'renderer' },
+      // This proves a caller-declared source outside the adapter's allowlist is sanitized.
+      source: 'unknown',
+      actor: { kind: 'renderer', webContentsId: expect.any(Number), windowId: expect.any(String) },
       operationId
     })
     await statuses()

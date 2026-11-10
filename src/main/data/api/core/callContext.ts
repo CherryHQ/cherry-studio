@@ -1,8 +1,7 @@
-import type { DataApiRequestContext } from '@shared/data/api/types'
-
-export interface DataApiCallContext extends DataApiRequestContext {
+export interface DataApiCallContext {
   requestId: string | null
   operationId: string | null
+  retryAttempt: number | null
   /** Sanitized caller-declared source, or 'unknown'. Never trusted for identity. */
   source: string
   actor:
