@@ -69,6 +69,7 @@ import { AgentSessionEditError } from './AgentSessionEditError'
 import { RuntimeForkAnchorSchema, type RuntimeForkCheckpoint } from './agentSessionForkContract'
 import {
   advanceAgentSessionHeadTx,
+  agentSessionDescendantIds,
   agentSessionPathIds,
   ensureAgentSessionRootTx,
   getAgentSessionHead,
@@ -545,10 +546,16 @@ export class AgentSessionMessageService {
         .select({ id: sessionMessagesTable.id })
         .from(sessionMessagesTable)
         .where(
-          and(
-            eq(sessionMessagesTable.sessionId, sessionId),
-            or(
-              inArray(sessionMessagesTable.status, ['pending', 'streaming']),
+          or(
+            and(
+              eq(sessionMessagesTable.sessionId, sessionId),
+              or(
+                inArray(sessionMessagesTable.status, ['pending', 'streaming']),
+                inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+              )
+            ),
+            and(
+              eq(sessionMessagesTable.deliverySenderSessionId, sessionId),
               inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
             )
           )
@@ -566,14 +573,24 @@ export class AgentSessionMessageService {
     }
   }
 
-  selectEditParentTx(tx: DbOrTx, sessionId: string, target: { messageId: string; version: string }): void {
+  replaceEditBranchTx(tx: DbOrTx, sessionId: string, target: { messageId: string; version: string }): void {
     const snapshot = this.readEditVersionTx(tx, sessionId, target.messageId)
     if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
-    // Publication selects the shared predecessor; the following insert creates a sibling.
+    const replaced = and(
+      eq(sessionMessagesTable.sessionId, sessionId),
+      inArray(sessionMessagesTable.id, agentSessionDescendantIds(sessionId, target.messageId))
+    )
+    const rows = tx.select({ id: sessionMessagesTable.id }).from(sessionMessagesTable).where(replaced).all()
+    agentSessionContextService.removeRootMessagesTx(
+      tx,
+      sessionId,
+      rows.map((row) => row.id)
+    )
     tx.update(sessionTable).set({ activeNodeId: snapshot.user.parentId }).where(eq(sessionTable.id, sessionId)).run()
+    tx.delete(sessionMessagesTable).where(replaced).run()
   }
 
-  hasRuntimeResumeToken(sessionId: string, resumeToken: string): boolean {
+  hasRuntimeResumeToken(sessionId: string, resumeToken: string, contextId?: string): boolean {
     if (
       application
         .get('DbService')
@@ -583,6 +600,7 @@ export class AgentSessionMessageService {
         .where(
           and(
             eq(agentSessionContextTable.sessionId, sessionId),
+            contextId ? eq(agentSessionContextTable.id, contextId) : undefined,
             eq(agentSessionContextTable.bindingState, 'bound'),
             eq(agentSessionContextTable.nativeThreadId, resumeToken)
           )
@@ -590,6 +608,7 @@ export class AgentSessionMessageService {
         .get()
     )
       return true
+    if (contextId) return false
     return Boolean(
       application
         .get('DbService')
@@ -709,14 +728,7 @@ export class AgentSessionMessageService {
       .where(
         and(
           eq(sessionMessagesTable.sessionId, sessionId),
-          inArray(
-            sessionMessagesTable.id,
-            sql`(with recursive descendants(id) as (
-            select id from agent_session_message where session_id = ${sessionId} and id = ${messageId}
-            union
-            select m.id from agent_session_message m join descendants d on m.parent_id = d.id where m.session_id = ${sessionId}
-          ) select id from descendants)`
-          ),
+          inArray(sessionMessagesTable.id, agentSessionDescendantIds(sessionId, messageId)),
           sql`json_type(${sessionMessagesTable.data}, '$.runtimeAnchor') is not null`
         )
       )
@@ -1159,7 +1171,7 @@ export class AgentSessionMessageService {
     }
     this.invalidateForkPrefixTx(tx, sessionId, messageId)
     if (existing) {
-      agentSessionContextService.removeRootMessageTx(tx, sessionId, messageId)
+      agentSessionContextService.removeRootMessagesTx(tx, sessionId, [messageId])
       tx.update(sessionMessagesTable)
         .set({ parentId: existing.parentId })
         .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.parentId, messageId)))

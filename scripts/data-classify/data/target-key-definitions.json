@@ -55,6 +55,20 @@
       "description": "Automatically open the right-side browser panel when tools browse the web (default: true)."
     },
     {
+      "targetKey": "app.browser.start_page.mode",
+      "type": "PreferenceTypes.BrowserStartPageMode",
+      "defaultValue": "blank",
+      "status": "classified",
+      "description": "Start page for newly opened standalone browser tabs"
+    },
+    {
+      "targetKey": "app.browser.start_page.custom_url",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Custom HTTP(S) start page for standalone browser tabs"
+    },
+    {
       "targetKey": "app.fetch.allow_private_network",
       "type": "boolean",
       "defaultValue": true,
@@ -1488,6 +1502,10 @@
       "defaultValue": [
         {
           "id": "workspace",
+          "visible": true
+        },
+        {
+          "id": "desktop_control",
           "visible": true
         },
         {

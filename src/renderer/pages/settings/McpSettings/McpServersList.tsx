@@ -22,7 +22,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
@@ -266,16 +266,47 @@ const McpServersList: FC = () => {
   }, [exporting, mcpServers, t])
 
   return (
-    <>
-      <SettingsContentBody
-        className="min-h-0 flex-1 overflow-hidden pt-4"
-        innerClassName="flex min-h-0 flex-1 flex-col">
-        <div className="flex min-w-0 shrink-0 items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <SettingTitle className="m-0">{t('settings.mcp.allServers')}</SettingTitle>
-            <div className="flex shrink-0 items-center gap-1">
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-4 pb-6">
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
+        <div className="mb-1 flex min-w-0 shrink-0 items-center justify-between gap-4 border-b border-border-subtle pb-3">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <SettingTitle className="shrink-0">{t('settings.mcp.shortTitle')}</SettingTitle>
+              <Popover open={isFilterMenuOpen} onOpenChange={setIsFilterMenuOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t('settings.mcp.filter.label')}
+                    className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-accent">
+                    <Filter
+                      size={14}
+                      color={filter === 'all' ? 'var(--muted-foreground)' : undefined}
+                      className={filter === 'all' ? undefined : 'text-primary'}
+                    />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" side="bottom" className="w-auto min-w-36 p-1">
+                  <MenuList className="gap-1">
+                    {FILTER_OPTIONS.map((option) => (
+                      <MenuItem
+                        key={option.value}
+                        label={option.label ?? t(option.labelKey!)}
+                        className="h-8 rounded-lg px-2.5 text-sm"
+                        icon={
+                          <Check className={filter === option.value ? 'size-3.5 opacity-100' : 'size-3.5 opacity-0'} />
+                        }
+                        onClick={() => {
+                          setFilter(option.value)
+                          setIsFilterMenuOpen(false)
+                        }}
+                      />
+                    ))}
+                  </MenuList>
+                </PopoverContent>
+              </Popover>
               <CollapsibleSearchBar
                 onSearch={setSearchText}
+                value={searchText}
                 placeholder={t('settings.mcp.search.placeholder')}
                 tooltip={t('settings.mcp.search.tooltip')}
                 maxWidth={220}
@@ -284,7 +315,8 @@ const McpServersList: FC = () => {
               />
             </div>
           </div>
-          <div className="shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
+            <EnvironmentDependencies mini />
             <DropdownMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <Button variant="default" size="sm" className="shrink-0">
@@ -312,39 +344,6 @@ const McpServersList: FC = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </div>
-        <div className="mt-3 flex min-h-9 shrink-0 items-center justify-end gap-3 border-b border-border-subtle">
-          <EnvironmentDependencies mini />
-          <Popover open={isFilterMenuOpen} onOpenChange={setIsFilterMenuOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                aria-label={t('settings.mcp.filter.label')}
-                className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-accent">
-                <Filter
-                  size={14}
-                  color={filter === 'all' ? 'var(--muted-foreground)' : undefined}
-                  className={filter === 'all' ? undefined : 'text-primary'}
-                />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" side="bottom" className="w-auto min-w-36 p-1">
-              <MenuList className="gap-1">
-                {FILTER_OPTIONS.map((option) => (
-                  <MenuItem
-                    key={option.value}
-                    label={option.label ?? t(option.labelKey!)}
-                    className="h-8 rounded-lg px-2.5 text-sm"
-                    icon={<Check className={filter === option.value ? 'size-3.5 opacity-100' : 'size-3.5 opacity-0'} />}
-                    onClick={() => {
-                      setFilter(option.value)
-                      setIsFilterMenuOpen(false)
-                    }}
-                  />
-                ))}
-              </MenuList>
-            </PopoverContent>
-          </Popover>
         </div>
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -383,7 +382,7 @@ const McpServersList: FC = () => {
             </div>
           </div>
         </div>
-      </SettingsContentBody>
+      </div>
 
       <QuickCreateMcpServerDialog
         open={isQuickCreateOpen}
@@ -408,7 +407,7 @@ const McpServersList: FC = () => {
           onInstall={handleProtocolInstall}
         />
       )}
-    </>
+    </div>
   )
 }
 

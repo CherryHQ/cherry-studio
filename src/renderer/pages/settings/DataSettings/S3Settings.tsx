@@ -39,7 +39,7 @@ const S3Settings: FC = () => {
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const { theme } = useTheme()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const { openSmartMiniApp } = useMiniAppPopup()
 
@@ -58,7 +58,7 @@ const S3Settings: FC = () => {
     openSmartMiniApp({
       appId: 's3-help',
       name: 'S3 Compatible Storage Help',
-      url: 'https://docs.cherry-ai.com/data-settings/s3-compatible',
+      url: `${i18n.language.startsWith('zh') ? 'https://cherryai.com.cn/docs/zh-cn' : 'https://cherryai.com/docs/en'}/pre-basic/data-settings/s3-compatible/`,
       logo: AppLogo
     })
   }
