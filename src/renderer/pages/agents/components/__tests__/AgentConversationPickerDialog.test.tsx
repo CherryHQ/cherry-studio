@@ -10,9 +10,12 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 const mocks = vi.hoisted(() => ({
   createAgent: vi.fn(),
+  findAgentByName: vi.fn().mockResolvedValue(undefined),
   pickerProps: undefined as any,
   createDialogProps: undefined as any
 }))
+
+vi.mock('@renderer/services/findAgentByName', () => ({ findAgentByName: mocks.findAgentByName }))
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn() }) }
@@ -149,6 +152,37 @@ describe('resolveAgentIdFromConversationSelection', () => {
     )
 
     expect(id).toBe('existing')
+    expect(createAgent).not.toHaveBeenCalled()
+  })
+
+  it('awaits authoritative lookup when the initial agent list has not loaded', async () => {
+    let finish!: (agent: any) => void
+    mocks.findAgentByName.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    )
+    const createAgent = vi.fn()
+    const pending = resolveAgentIdFromConversationSelection(
+      { type: 'catalog', preset: { id: 'preset-1', name: 'New Preset' } },
+      [],
+      { defaultModelId: 'openai::gpt-4o', createAgent }
+    )
+    expect(createAgent).not.toHaveBeenCalled()
+    finish({ id: 'beyond-first-page', name: 'New Preset' })
+    expect(await pending).toBe('beyond-first-page')
+    expect(createAgent).not.toHaveBeenCalled()
+  })
+
+  it('does not create after a failed authoritative lookup', async () => {
+    mocks.findAgentByName.mockRejectedValueOnce(new Error('lookup failed'))
+    const createAgent = vi.fn()
+    await expect(
+      resolveAgentIdFromConversationSelection({ type: 'catalog', preset: { id: 'preset-1', name: 'New Preset' } }, [], {
+        defaultModelId: 'openai::gpt-4o',
+        createAgent
+      })
+    ).rejects.toThrow('lookup failed')
     expect(createAgent).not.toHaveBeenCalled()
   })
 

@@ -1,5 +1,6 @@
 import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialogs/create'
 import { ResourceEditDialogHost } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { ExportAssistantsDialog } from '@renderer/components/resourceCatalog/dialogs/export/ExportAssistantsDialog'
 import { ImportAssistantDialog } from '@renderer/components/resourceCatalog/dialogs/import'
 import {
   ImportSkillDialog,
@@ -32,6 +33,16 @@ export function ResourceCatalogDialogs({
         onOpenChange={dialogs.setAssistantImportOpen}
         onImported={onRefetch}
       />
+      {resourceType === 'assistant' ? (
+        <ExportAssistantsDialog
+          open={dialogs.assistantExportOpen}
+          onOpenChange={dialogs.handleAssistantExportOpenChange}
+          assistants={dialogs.exportAssistants}
+          loading={dialogs.assistantExportLoading}
+          exporting={dialogs.assistantExporting}
+          onExport={dialogs.handleExportAssistants}
+        />
+      ) : null}
       {resourceType === 'assistant' ? (
         <AssistantLibraryDialog
           open={dialogs.assistantLibraryOpen}

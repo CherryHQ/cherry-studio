@@ -27,6 +27,7 @@ import type {
   RawMessageStartEvent,
   RawMessageStopEvent,
   RawMessageStreamEvent,
+  RedactedThinkingBlock,
   SignatureDelta,
   StopReason,
   TextBlock,
@@ -138,9 +139,11 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         break
 
       // === Reasoning/Thinking Events ===
-      case 'reasoning-start':
-        this.startThinkingBlock(chunk.id)
+      case 'reasoning-start': {
+        const redactedData = chunk.providerMetadata?.anthropic?.redactedData
+        this.startThinkingBlock(chunk.id, typeof redactedData === 'string' ? redactedData : undefined)
         break
+      }
 
       case 'reasoning-delta':
         // @ai-sdk/anthropic delivers the signature on an empty-delta chunk's metadata.
@@ -154,9 +157,9 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         break
 
       // === Tool Events ===
-      // Client tools resolve in one `tool-input-available` chunk (full input,
-      // no incremental input deltas to accumulate). Cache reasoning signatures
-      // off its providerMetadata, then frame the Anthropic tool_use block.
+      // Client runtimes validate object arguments and feed tool errors back to the model.
+      // Preserve provider signatures for the next native turn.
+      case 'tool-input-error':
       case 'tool-input-available': {
         const toolName = this.toClientToolName?.(chunk.toolName) ?? chunk.toolName
         const meta = chunk.providerMetadata as Record<string, any> | undefined
@@ -305,24 +308,23 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     this.state.textBlockIndex = null
   }
 
-  private startThinkingBlock(reasoningId: string): void {
+  private startThinkingBlock(reasoningId: string, redactedData?: string): void {
     if (this.state.thinkingBlocks.has(reasoningId)) return
 
     const index = this.allocateBlockIndex()
     this.state.thinkingBlocks.set(reasoningId, index)
     this.state.currentThinkingId = reasoningId
     this.state.blocks.set(index, {
-      type: 'thinking',
+      type: redactedData === undefined ? 'thinking' : 'redacted_thinking',
       index,
       started: true,
-      content: ''
+      content: redactedData ?? ''
     })
 
-    const contentBlock: ThinkingBlock = {
-      type: 'thinking',
-      thinking: '',
-      signature: ''
-    }
+    const contentBlock: ThinkingBlock | RedactedThinkingBlock =
+      redactedData === undefined
+        ? { type: 'thinking', thinking: '', signature: '' }
+        : { type: 'redacted_thinking', data: redactedData }
 
     const event: RawContentBlockStartEvent = {
       type: 'content_block_start',
@@ -555,6 +557,9 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
 
     for (const block of sortedBlocks) {
       switch (block.type) {
+        case 'redacted_thinking':
+          content.push({ type: 'redacted_thinking', data: block.content })
+          break
         case 'text':
           content.push({
             type: 'text',

@@ -30,6 +30,9 @@ const KEY_LABELS: Record<CanonicalParamKey, { title: string; tooltip?: string }>
   addWatermark: { title: 'paintings.watermark' },
   outputFormat: { title: 'paintings.ppio.output_format' },
   outputCompression: { title: 'paintings.output_compression' },
+  complexity: { title: 'paintings.complexity' },
+  frameCount: { title: 'paintings.frame_count', tooltip: 'paintings.gif_size_tip' },
+  frameDurationMs: { title: 'paintings.frame_duration_ms' },
   quality: { title: 'paintings.quality' },
   resolution: { title: 'paintings.image.size' },
   moderation: { title: 'paintings.moderation' },
@@ -82,6 +85,11 @@ const OPTION_LABELS: Partial<Record<CanonicalParamKey, Record<string, string>>> 
   size: SIZE_AUTO_OPTION,
   aspectRatio: SIZE_AUTO_OPTION,
   imageResolution: SIZE_AUTO_OPTION,
+  complexity: {
+    low: 'paintings.quality_options.low',
+    medium: 'paintings.quality_options.medium',
+    high: 'paintings.quality_options.high'
+  },
   quality: {
     auto: 'paintings.quality_options.auto',
     low: 'paintings.quality_options.low',
@@ -240,8 +248,8 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
 /**
  * Generic registry → form-fields dispatcher. Iterates the
  * `modes[mode].supports` map and turns each entry into the matching
- * `BaseConfigItem`. No per-vendor knowledge; no per-key handlers; no
- * hardcoded canonical-key list. Adding a new param: declare it on the
+ * `BaseConfigItem`. No per-vendor knowledge; canonical dependencies such as
+ * custom sizes and animated output are projected here. Adding a new param: declare it on the
  * model in registry data with the right `SupportSpec`, optionally add an
  * i18n label entry to `KEY_LABELS` above.
  *
@@ -267,7 +275,15 @@ export function imageGenerationToFields(
   const items: BaseConfigItem[] = []
   for (const [key, spec] of Object.entries(supports)) {
     const item = specToField(key, spec, supports)
-    if (item) items.push(item)
+    if (item) {
+      if (key === 'size' && supports.frameCount) {
+        item.condition = (params) => params.outputFormat !== 'gif'
+      }
+      if (key === 'frameCount' || key === 'frameDurationMs') {
+        item.condition = (params) => params.outputFormat === 'gif'
+      }
+      items.push(item)
+    }
   }
   return items
 }

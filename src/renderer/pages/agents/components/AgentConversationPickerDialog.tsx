@@ -12,6 +12,7 @@ import {
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resourceCatalog/selectors'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
+import { findAgentByName } from '@renderer/services/findAgentByName'
 import type { AssistantCatalogPreset } from '@renderer/types/assistantCatalog'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import {
@@ -192,7 +193,7 @@ export function AgentConversationPickerDialog({
         pageSize={AGENT_CATALOG_PAGE_SIZE}
         isLoading={
           activeTab === 'catalog'
-            ? catalogLoading || catalogContextLoading
+            ? agentsLoading || catalogLoading || catalogContextLoading
             : activeTab === 'mine'
               ? agentsLoading
               : agentsLoading || catalogLoading || catalogContextLoading
@@ -233,7 +234,7 @@ export async function resolveAgentIdFromConversationSelection(
   }
 
   const presetName = selection.preset.name.trim()
-  const existing = agents.find((agent) => agent.name === presetName)
+  const existing = agents.find((agent) => agent.name === presetName) ?? (await findAgentByName(presetName))
   if (existing) return existing.id
 
   const modelId = resolveCatalogPresetModelId(selection.preset, options.defaultModelId, options.isModelIdSelectable)

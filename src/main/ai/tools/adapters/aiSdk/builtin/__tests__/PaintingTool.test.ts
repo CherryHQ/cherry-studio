@@ -210,6 +210,21 @@ describe('generate_image', () => {
     )
   })
 
+  it('passes every edit reference when the model does not declare a limit', async () => {
+    fileRead.mockResolvedValue({ content: 'AAAA', mime: 'image/png' })
+    generateImage.mockResolvedValue({ files: [] })
+
+    await callExecute({ prompt: 'combine these', image_ids: ['f1', 'f2', 'f3'] }, undefined, buildTool(editableSupport))
+
+    expect(fileRead).toHaveBeenCalledTimes(3)
+    expect(generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'edit',
+        inputImages: ['data:image/png;base64,AAAA', 'data:image/png;base64,AAAA', 'data:image/png;base64,AAAA']
+      })
+    )
+  })
+
   it('returns a permanent note when the configured model cannot edit images', async () => {
     getPreference.mockReturnValue('openai::dall-e-3')
     getImageGenerationSupport.mockReturnValue(generateSupport)

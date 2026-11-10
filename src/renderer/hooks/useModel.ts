@@ -46,6 +46,8 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
 
   return {
     defaultModel,
+    // True only while the default-model record query is in flight. Undefined data during that
+    // window is not the same as a settled miss.
     isDefaultModelLoading,
     quickModel,
     translateModel,
@@ -74,7 +76,7 @@ export function useModels(
   const fetchEnabledFlag = options?.fetchEnabled
   const hasEnabled = fetchEnabledFlag !== undefined
 
-  const { data, isLoading, refetch } = useQuery(
+  const { data, isLoading, error, refetch } = useQuery(
     '/models',
     hasQuery || hasEnabled
       ? {
@@ -90,7 +92,7 @@ export function useModels(
 
   const models = data ?? EMPTY_MODELS
 
-  return { models, isLoading, refetch }
+  return { models, isLoading, error, refetch }
 }
 
 // ─── Layer 2: Mutations ───────────────────────────────────────────────
