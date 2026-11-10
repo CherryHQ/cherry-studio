@@ -222,14 +222,14 @@ describe('ScreenshotSettings', () => {
         key: 'shortcut.screenshot.capture',
         accelerator: 'CommandOrControl+Shift+A',
         hasConflict: true,
-        reason: 'wayland'
+        reason: 'wayland-session'
       })
     )
-    expect(screen.getByLabelText('settings.shortcuts.unavailable_on_wayland')).toBeInTheDocument()
+    expect(screen.getByLabelText('settings.shortcuts.registration_failed_in_wayland_session')).toBeInTheDocument()
     expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
 
     act(() => conflictListener?.({ key: 'shortcut.screenshot.capture', hasConflict: false }))
-    expect(screen.queryByLabelText('settings.shortcuts.unavailable_on_wayland')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('settings.shortcuts.registration_failed_in_wayland_session')).not.toBeInTheDocument()
   })
 
   it('ignores a conflict reported for a different shortcut', async () => {

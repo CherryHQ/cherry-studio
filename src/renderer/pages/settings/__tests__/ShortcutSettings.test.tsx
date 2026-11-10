@@ -291,13 +291,13 @@ describe('ShortcutSettings shortcut recorder', () => {
     const notify = registrationConflictMock.mock.calls[0]?.[0]
 
     act(() =>
-      notify({ key: 'shortcut.app.search', accelerator: 'CommandOrControl+0', hasConflict: true, reason: 'wayland' })
+      notify({ key: 'shortcut.app.search', accelerator: 'CommandOrControl+0', hasConflict: true, reason: 'wayland-session' })
     )
-    expect(screen.getByText('settings.shortcuts.unavailable_on_wayland')).toBeInTheDocument()
+    expect(screen.getByText('settings.shortcuts.registration_failed_in_wayland_session')).toBeInTheDocument()
     expect(screen.queryByText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
 
     act(() => notify({ key: 'shortcut.app.search', hasConflict: false }))
-    expect(screen.queryByText('settings.shortcuts.unavailable_on_wayland')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.shortcuts.registration_failed_in_wayland_session')).not.toBeInTheDocument()
   })
 
   it('retains inline warnings for every conflicting shortcut at once', () => {
@@ -317,7 +317,7 @@ describe('ShortcutSettings shortcut recorder', () => {
         key: 'shortcut.app.search',
         accelerator: 'CommandOrControl+0',
         hasConflict: true,
-        reason: 'wayland'
+        reason: 'wayland-session'
       })
       notify({
         key: 'shortcut.app.settings.open',
@@ -327,12 +327,12 @@ describe('ShortcutSettings shortcut recorder', () => {
       })
     })
 
-    expect(screen.getByText('settings.shortcuts.unavailable_on_wayland')).toBeInTheDocument()
+    expect(screen.getByText('settings.shortcuts.registration_failed_in_wayland_session')).toBeInTheDocument()
     expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
 
     act(() => notify({ key: 'shortcut.app.search', hasConflict: false }))
 
-    expect(screen.queryByText('settings.shortcuts.unavailable_on_wayland')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.shortcuts.registration_failed_in_wayland_session')).not.toBeInTheDocument()
     expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
   })
 

@@ -241,8 +241,8 @@ const ShortcutSettings: FC = () => {
       if (hasConflict) {
         toast.error(
           t(
-            reason === 'wayland'
-              ? 'settings.shortcuts.unavailable_on_wayland'
+            reason === 'wayland-session'
+              ? 'settings.shortcuts.registration_failed_in_wayland_session'
               : 'settings.shortcuts.occupied_by_other_application'
           )
         )
@@ -493,8 +493,8 @@ const ShortcutSettings: FC = () => {
       conflictLabel ??
       (hasSystemConflict
         ? t(
-            systemConflictReason === 'wayland'
-              ? 'settings.shortcuts.unavailable_on_wayland'
+            systemConflictReason === 'wayland-session'
+              ? 'settings.shortcuts.registration_failed_in_wayland_session'
               : 'settings.shortcuts.occupied_by_other_application'
           )
         : null)
