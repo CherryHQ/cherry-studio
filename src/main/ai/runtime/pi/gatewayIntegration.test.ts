@@ -5,6 +5,8 @@ import { resolve } from 'node:path'
 import { normalizeContext } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { GoogleGenAI } from '@google/genai'
+import { trace } from '@opentelemetry/api'
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { Type } from 'typebox'
@@ -26,12 +28,14 @@ import '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { AgentSessionUsageAttribution } from '@main/ai/agentSession/AgentSessionUsageAttribution'
 import { AiService } from '@main/ai/AiService'
+import { createPiTelemetry, observabilitySinks, type AgentRuntimeTraceContext } from '@main/ai/observability'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import type * as CustomFetch from '@main/ai/utils/customFetch'
 import { BaseService } from '@main/core/lifecycle'
 import type { InputFormat } from '@main/features/apiGateway/adapters/interfaces'
 import { processMessage } from '@main/features/apiGateway/proxyStream'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { SpanEntity } from '@shared/data/types/trace'
 
 import { createTestBehavior, tempDir } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
@@ -39,6 +43,7 @@ import { createPiBehaviorHost } from './piBehaviorHost'
 
 const mocks = vi.hoisted(() => ({
   messageId: 'original-answer',
+  captures: new Map<string, AgentRuntimeTraceContext>(),
   gatewayUrl: '',
   manager: undefined as AiStreamManager | undefined,
   ai: undefined as AiService | undefined,
@@ -54,7 +59,17 @@ vi.mock('@application', async () => {
     },
     AiService: { streamText: (input: Parameters<AiService['streamText']>[0]) => mocks.ai!.streamText(input) },
     ApiGatewayService: {
-      captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
+      captureAgentSessionUsage: (_session: string, _owner: string | undefined, parent?: AgentRuntimeTraceContext) => {
+        if (!parent) return { headers: {}, release: () => {} }
+        const key = String(mocks.captures.size + 1)
+        mocks.captures.set(key, parent)
+        return {
+          headers: { 'x-cherry-agent-usage-capture': key },
+          release: () => {
+            mocks.captures.delete(key)
+          }
+        }
+      },
       ensureInternalGateway: async () => ({ baseUrl: mocks.gatewayUrl, apiKey: 'internal-fixture-key' }),
       getAgentSessionUsageHeaders: (sessionId: string) => ({ 'x-cherry-agent-session-id': sessionId }),
       isInternalRequest: (headers: Headers) => headers.get('authorization') === 'Bearer internal-fixture-key',
@@ -63,6 +78,7 @@ vi.mock('@application', async () => {
         agentSessionId: headers.get('x-cherry-agent-session-id')!,
         assistantMessageId: mocks.messageId,
         source: null,
+        traceContext: mocks.captures.get(headers.get('x-cherry-agent-usage-capture') ?? ''),
         ...(mocks.attribution && { recordInvocation: mocks.attribution.capture(responseId) })
       })
     },
@@ -210,6 +226,7 @@ describe('native Pi through the production gateway', () => {
         const reasoning = {
           type: 'reasoning',
           id: `rs_native_${requests.length}`,
+          status: 'completed',
           summary: [],
           encrypted_content: 'encrypted-native-state'
         }
@@ -236,6 +253,8 @@ describe('native Pi through the production gateway', () => {
             type: 'response.completed',
             response: {
               id: `resp_${requests.length}`,
+              object: 'response',
+              created_at: 1,
               model: 'wire-model',
               status: 'completed',
               output: [reasoning, message],
@@ -270,7 +289,9 @@ describe('native Pi through the production gateway', () => {
     vi.spyOn(application, 'getPath').mockImplementation((key, file) =>
       key === 'feature.provider_registry.data'
         ? resolve('packages/provider-registry/data', file ?? '')
-        : getPath(key, file)
+        : key === 'app.root'
+          ? resolve(process.cwd(), file ?? '')
+          : getPath(key, file)
     )
     dbh.db
       .insert(userProviderTable)
@@ -318,7 +339,7 @@ describe('native Pi through the production gateway', () => {
     const binding = await createPiGatewayModelBinding(input, providerService.getByProviderId('port'), model)
     return createPiBehaviorHost({
       input,
-      root: runtimeId('root'),
+      root: () => runtimeId('root'),
       binding,
       model,
       approval: {
@@ -341,6 +362,177 @@ describe('native Pi through the production gateway', () => {
     })
   }
 
+  it.each([
+    { adapterFamily: undefined, presetProviderId: 'omlx', expected: 'instructions' },
+    { adapterFamily: 'open-responses', presetProviderId: null, expected: 'instructions' },
+    { adapterFamily: 'xai', presetProviderId: null, expected: 'message' },
+    { adapterFamily: 'openai', presetProviderId: null, expected: 'separate' }
+  ] as const)(
+    'preserves caller instructions through the $adapterFamily Responses adapter',
+    async ({ adapterFamily, presetProviderId, expected }) => {
+      protocol = 'openai-responses'
+      const endpoint = providerService.getByProviderId('port').endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          presetProviderId,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: endpoint!.baseUrl, ...(adapterFamily && { adapterFamily }) }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+        })
+        .where(eq(userProviderTable.providerId, 'port'))
+        .run()
+      dbh.db
+        .update(userModelTable)
+        .set({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+        .where(eq(userModelTable.id, 'port::wire-model'))
+        .run()
+      const response = await processMessage({
+        inputFormat: 'openai-responses',
+        outputFormat: 'openai-responses',
+        params: {
+          model: 'port:wire-model',
+          stream: true,
+          instructions: 'Caller instructions must survive.',
+          input: [
+            { role: 'developer', content: 'Keep the skill catalog.' },
+            { role: 'user', content: 'Hello' }
+          ]
+        }
+      })
+      await response.text()
+      expect(requests).toHaveLength(1)
+      const body = requests[0]
+      if (expected === 'instructions') {
+        expect(body.instructions).toContain('Caller instructions must survive.')
+        expect(body.instructions).toContain('Keep the skill catalog.')
+      } else if (expected === 'message') {
+        expect(body.input).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              role: 'system',
+              content: expect.stringContaining('Caller instructions must survive.')
+            }),
+            expect.objectContaining({ role: 'system', content: expect.stringContaining('Keep the skill catalog.') })
+          ])
+        )
+      } else {
+        expect(body.instructions).toBe('Caller instructions must survive.')
+        expect(JSON.stringify(body.input)).toContain('Keep the skill catalog.')
+        expect(JSON.stringify(body.input)).not.toContain('Caller instructions must survive.')
+      }
+    }
+  )
+
+  it('joins the SDK call to the native phase with one upstream request and billing record', async () => {
+    const captured: SpanEntity[] = []
+    const tracerProvider = new BasicTracerProvider()
+    vi.spyOn(trace, 'getTracer').mockImplementation((name) => tracerProvider.getTracer(name))
+    observabilitySinks.register({
+      id: 'pi-gateway-native-test',
+      writeSpanEntity: (span) => {
+        captured.push(span)
+      }
+    })
+    const preferences = application.get('PreferenceService')
+    const previous = preferences.get('app.developer_mode.enabled')
+    await preferences.set('app.developer_mode.enabled', true)
+    const owner = {
+      topicId: 'agent-session:native-parent',
+      sessionId: 'native-parent',
+      turnId: 'turn',
+      traceId: '11111111111111111111111111111111',
+      rootSpanId: '2222222222222222'
+    }
+    const native = createPiTelemetry({ getParent: () => owner, isEnabled: () => true })
+    try {
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: owner.sessionId },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      const answer = await native.startSpan({ name: 'pi.durable.phase', attributes: { 'task.id': 7 } }, (telemetry) =>
+        binding.modelRuntime.completeSimple(
+          binding.model,
+          normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] }),
+          { telemetry }
+        )
+      )
+      expect(answer.stopReason).toBe('stop')
+      const phase = captured.find((span) => span.name === 'pi.durable.phase')!
+      const sdk = captured.filter((span) => span.name === 'ai.streamText')
+      expect(sdk).toHaveLength(1)
+      expect(sdk[0]).toMatchObject({ traceId: owner.traceId, parentId: phase.id, topicId: owner.topicId })
+      expect(captured.filter((span) => span.name.startsWith('pi.')).map((span) => span.name)).toEqual([
+        'pi.durable.phase'
+      ])
+      expect(requests).toHaveLength(1)
+      const records = dbh.db.select().from(aiUsageRecordTable).all()
+      expect(records).toHaveLength(1)
+      expect(records[0]).toMatchObject({ inputTokens: 100, outputTokens: 25 })
+      await expect.poll(() => mocks.captures.size).toBe(0)
+    } finally {
+      await preferences.set('app.developer_mode.enabled', previous)
+      await tracerProvider.shutdown()
+    }
+  })
+
+  it('keeps concurrent roots with the same model on their own gateway session and request settings', async () => {
+    dbh.db
+      .update(userModelTable)
+      .set({
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+        reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }] }
+      })
+      .where(eq(userModelTable.id, 'port::wire-model'))
+      .run()
+    const headers: Headers[] = []
+    const provider = providerService.getByProviderId('port')
+    const model = modelService.getByKey('port', 'wire-model')
+    const first = await createPiGatewayModelBinding(
+      { sessionId: 'parent', serviceTier: 'fast', reasoningEffort: 'high' },
+      provider,
+      model
+    )
+    const child = await createPiGatewayModelBinding(
+      { sessionId: 'fork', serviceTier: 'standard', reasoningEffort: 'low' },
+      provider,
+      model,
+      undefined,
+      first.modelRuntime
+    )
+    const later = await createPiGatewayModelBinding(
+      { sessionId: 'third', serviceTier: 'fast', reasoningEffort: 'medium' },
+      provider,
+      model,
+      undefined,
+      first.modelRuntime
+    )
+    const saved = fetch
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      if (String(input).startsWith(mocks.gatewayUrl)) headers.push(new Headers(init?.headers))
+      return saved(input, init)
+    })
+    const results = await Promise.all(
+      [first, child, later].map((binding) =>
+        binding.modelRuntime.completeSimple(
+          binding.model,
+          normalizeContext({ messages: [{ role: 'user', content: binding.model.provider, timestamp: 1 }] })
+        )
+      )
+    )
+    expect(results.map((result) => result.stopReason)).toEqual(['stop', 'stop', 'stop'])
+    expect(
+      headers.map((header) => [header.get('x-cherry-agent-session-id'), header.get('x-cherry-service-tier')]).sort()
+    ).toEqual([
+      ['fork', 'standard'],
+      ['parent', 'fast'],
+      ['third', 'fast']
+    ])
+    expect(requests.map((request) => request.reasoning_effort).sort()).toEqual(['high', 'low', 'medium'])
+  })
+
   it('excludes a disabled provider with the same model name and preserves the inherited model', async () => {
     dbh.db
       .insert(userProviderTable)
@@ -360,7 +552,7 @@ describe('native Pi through the production gateway', () => {
       })
       .run()
     const { host } = await behaviorHost()
-    const candidates = await host.models.find('wire-model')
+    const candidates = await host.models.find('wire-model', runtimeId('root'))
     expect(candidates).toHaveLength(1)
     expect(candidates[0].provider).toBe('port')
     expect(await host.models.current(runtimeId('root'))).toMatchObject({
@@ -369,7 +561,7 @@ describe('native Pi through the production gateway', () => {
       supportsTools: true
     })
     dbh.db.update(userProviderTable).set({ isEnabled: false }).where(eq(userProviderTable.providerId, 'port')).run()
-    expect(await host.models.find('wire-model')).toEqual([])
+    expect(await host.models.find('wire-model', runtimeId('root'))).toEqual([])
     await expect(
       host.summarizer.summarize(
         { thread: runtimeId('root'), reason: 'manual', messages: ['conversation'] },

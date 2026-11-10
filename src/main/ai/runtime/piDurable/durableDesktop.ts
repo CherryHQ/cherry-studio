@@ -23,11 +23,15 @@ import { buildCitationsGuidance } from '../citationsGuidance'
 import { capturePiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
-import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from '../pi/piShell'
+import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableMcp } from './durableMcp'
 
-export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emit: (event: AgentRuntimeEvent) => void) {
+export async function prepareDurableDesktop(
+  input: AgentRuntimeConnectInput,
+  emit: (event: AgentRuntimeEvent) => void,
+  namespace?: string
+) {
   const discovery = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
@@ -126,15 +130,16 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
     const registry = native.createRegistry()
     const coding = tools.createCodingTools({ images: await images.createNodePhotonImages() })
     const bash = tools.createBashTool({
-      commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env)),
-      prepare(execution) {
-        execution.env = mergePiBashExecutionEnv(execution.env)
-      }
+      commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env))
     })
     registry.install(
       native.defineExtension({
         ...coding,
-        tools: [...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'), bash]
+        tools: [
+          ...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'),
+          bash,
+          ...(process.platform === 'win32' ? [tools.createPowerShellTool()] : [])
+        ]
       })
     )
     registry.install(createCodemodeExtension({ sandbox: new CodemodeSandbox(), models: false }))
@@ -169,12 +174,20 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
         ]
       })
     )
+    if (namespace) {
+      for (const extension of registry.snapshot().installed()) {
+        registry.uninstall(extension)
+        registry.install(native.defineExtension({ ...extension, name: `${namespace}/${extension.name}` }))
+      }
+    }
     const environment = new NodeExecutionEnv({
       cwd,
       shellPath: resolvePiShellPath(),
-      shellEnv: mergePiBashExecutionEnv(env)
+      // Per-call PATH overrides the SDK's inherited environment. Merge the complete PATH here.
+      shellEnv: mergePiShellExecutionEnv(env)
     })
     const agentConfig: AgentChange = {
+      ...(namespace && { extensions: registry.snapshot().installed() }),
       tools: {
         remove: registry
           .snapshot()
@@ -215,8 +228,9 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
           next.knowledgeBaseIds
         )
         const mode = current.agent.configuration?.permission_mode ?? 'default'
-        const permissionChanged = !active && mode !== permissionMode
-        if (!active) permissionMode = mode
+        // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.
+        const permissionChanged = mode !== permissionMode
+        permissionMode = mode
         const names = (current.agent.disabledTools ?? []).map(normalizePiDisabledToolId)
         disabled = active ? new Set([...disabled, ...names]) : new Set(names)
         return { signature: current.signature, permissionChanged }

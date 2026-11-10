@@ -33,7 +33,7 @@ import {
   mergeAgentLoopbackProxyBypass
 } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -225,12 +225,11 @@ function buildRebuildRouteFacts(routeFacts: ClaudeCodeRouteFacts) {
 
 /**
  * Normalized tool-policy facts — the boundary-reconcilable side of {@link ConnectionConfig}.
- * Permission mode can be applied to an idle running connection and newly disabled tools can be
- * applied mid-turn; `disabledTools` is also part of the rebuild signature because removing a
- * disabled tool must restore it to the subprocess model context, which the SDK cannot do live.
+ * Permission mode and newly disabled tools can be applied mid-turn. `disabledTools` also affects
+ * the rebuild signature because restoring a disabled tool to the SDK context requires a rebuild.
  */
 export interface ToolPolicyFacts {
-  permissionMode: string | null
+  permissionMode: AgentPermissionMode | null
   disabledTools: string[]
   mcps: string[]
 }
