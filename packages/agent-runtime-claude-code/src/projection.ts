@@ -30,6 +30,7 @@ import {
 import { ClaudeControlState, type ClaudeControl } from './control'
 import { ClaudeInvocations } from './invocations'
 import { ClaudeFeed } from './observation'
+import { isSyntheticTurnCloser } from './synthetic'
 import type { ClaudeArchive, ClaudeNativeMessage } from './types'
 
 type Part = RuntimeMessage['parts'][number]
@@ -152,7 +153,7 @@ export class ClaudeProjection {
     message: SDKAssistantMessage | SDKUserMessage,
     options: { aborted?: boolean; inputId?: InputId; live?: boolean } = {}
   ): ObservationPayload[] {
-    if (!message.uuid) return []
+    if (!message.uuid || (message.type === 'assistant' && isSyntheticTurnCloser(message.message))) return []
     if (options.aborted) this.aborted.add(message.uuid)
     const partial = this.aborted.has(message.uuid)
     const content = message.message.content
@@ -449,6 +450,7 @@ export class ClaudeProjection {
     const selected = messages.filter((message) => !this.retracted.has(message.uuid))
     const inputs = new Map(before.inputs.map((input) => [input.nativeInput?.id, input.inputId]))
     for (const message of selected) {
+      if (message.type === 'assistant' && isSyntheticTurnCloser(message.message)) continue
       if (metadata.get(message.uuid)?.isAbortedMidStream === true) this.aborted.add(message.uuid)
       const decoded = decodeArchiveContent(message.message, this.aborted.has(message.uuid))
       if (decoded)

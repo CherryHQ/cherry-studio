@@ -56,6 +56,8 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   return popup.show({ title, messages, processingMethod: '1' })
 }
 
+const canDeleteMessage = (message: MessageListItem): boolean => message.role !== 'assistant'
+
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
 export function scrollAgentMessageListToEnd(topicId: string): void {
@@ -268,6 +270,7 @@ export function useAgentMessageListProviderValue({
     partsByMessageId: displayPartsByMessageId,
     streamingLayers: displayStreamingLayers,
     deleteMessage,
+    canDeleteMessage,
     diagnosticReport,
     getDoctorSubject,
     selectAllPagination
@@ -488,6 +491,7 @@ export function useAgentMessageListProviderValue({
       loadOlder,
       bindRuntime,
       deleteMessage,
+      canDeleteMessage,
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
