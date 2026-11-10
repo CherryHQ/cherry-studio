@@ -67,7 +67,7 @@ Part ID 与 part 并列存放，不写入 part 内部。`CherryMessagePart` 保�
 | Renderer | `partId` 作为 part 订阅键及 React key |
 | 模型输入 | 只由 `parts` 构建；`partIds` 不进入服务商转换 |
 
-Main 在来源投影首次创建 part 时或迁移回填时一次分配 part ID（UUIDv7）。Renderer 不分配内容 part ID。`toolCallId` 仍是原生／工具输出关联，不作为 part 键。Patch 指向未知 `partId`，或 `partIds`／`parts` 长度不一致时，需要新基线。旧 offset／count checkpoint 在加载时通过有序列表解析为 part IDs。
+Main 在来源投影首次创建 part 时或迁移回填时一次分配 part ID（UUIDv7）。Renderer 不分配内容 part ID。`toolCallId` 仍是原生／工具输出关联，不作为 part 键。Patch 指向未知 `partId`，或 `partIds`／`parts` 长度不一致时，需要新基线。旧 offset／count checkpoint 在加载时通过有序列表解析为 part IDs。原生来源消息中的 part 没有 ID 时（Claude Code、Pi、Pi Durable），按原生来源消息 ID 与其中的位置一次性分配，存在 `toolCallId`／数据 part `id` 时以其为键，并由 checkpoint 记录得到的 part IDs；该来源映射绝不从产品 `parts` 数组下标重新推导。
 
 增量更新当前内存 part，并通知其订阅者。在该 part 自己语义上的 `onDone` 保存，不等整段助手回复的 `onDone`。回复完成等待必要保存，再更新容器状态／统计，不重写已保存 parts。Stop／错误先保存未完成 parts 的已收到内容及实际状态，再结算回复。用户输入接纳仍立即写入。不设置定时正文 checkpoint、逐 token 写入、历史 part 版本或通用 part 替换协议。Main 异常退出可能丢失当前未完成 part，已提交完成 parts 可恢复；Main 存活时 renderer 重载可重新 attach 到更新的内存内容。
 
