@@ -132,9 +132,16 @@ export class CodeCliService extends BaseService {
   }
 
   async reconcileCliSkills(): Promise<void> {
-    await skillService.uninstallBuiltinSkill('code-mate-gemini', 'code-cli:gemini-cli').catch((error) => {
-      logger.warn('Failed to remove retired Gemini CLI skill', error as Error)
-    })
+    for (const [folder, namespace] of [
+      ['code-mate-gemini', 'code-cli:gemini-cli'],
+      ['code-mate-claude-code', 'code-cli:claude-code'],
+      ['code-mate-codex', 'code-cli:openai-codex'],
+      ['code-mate-opencode', 'code-cli:opencode']
+    ]) {
+      await skillService.uninstallBuiltinSkill(folder, namespace).catch((error) => {
+        logger.warn('Failed to remove retired Code CLI skill', { folder, error })
+      })
+    }
     const snapshots = await application
       .get('BinaryManager')
       .getToolSnapshots(CODE_CLI_TOOL_PRESETS.map((preset) => preset.executable))
@@ -160,6 +167,7 @@ export class CodeCliService extends BaseService {
   }
 
   private async installCliSkill(preset: CodeCliToolPreset): Promise<void> {
+    if (!preset.skillFolderName || !preset.skillNamespace) return
     const sourcePath = path.join(
       toAsarUnpackedPath(application.getPath('feature.code_cli.skills.builtin')),
       preset.skillFolderName
@@ -168,6 +176,7 @@ export class CodeCliService extends BaseService {
   }
 
   private async reconcileCliSkill(preset: CodeCliToolPreset, snapshot: BinaryToolSnapshot): Promise<void> {
+    if (!preset.skillFolderName || !preset.skillNamespace) return
     if (snapshot.availability.source !== 'none') {
       await this.installCliSkill(preset)
       return

@@ -122,3 +122,5 @@ during external tool execution cannot make arbitrary side effects exactly-once.
 `reply: completion` and accept the live approval → continue other work; the runtime
 delivers the terminal result asynchronously. Use `session_deliveries` only if the user
 asks for delivery state or recovery.
+
+The built-in `code-mate-claude-code`, `code-mate-codex` and `code-mate-opencode` shell skills have been retired. Use `agent_list` and `agent_delegate` for these local Agents. Their CLI installation, login and terminal controls remain in Agent Services.

@@ -4,8 +4,8 @@ import { CodeCli } from '@shared/types/codeCli'
 export interface CodeCliToolPreset {
   id: CodeCli
   executable: string
-  skillFolderName: string
-  skillNamespace: `code-cli:${CodeCli}`
+  skillFolderName?: string
+  skillNamespace?: `code-cli:${CodeCli}`
   packageName: string
   install: 'registry' | 'npm' | 'pipx' | 'aqua'
   /** Retained for detecting and removing existing managed installations. */
@@ -32,7 +32,7 @@ function defineCodeCliTool({ pipxExtras, ...definition }: CodeCliToolDefinition)
   return Object.freeze({
     ...definition,
     ...(pipxExtras?.length ? { pipxExtras } : {}),
-    skillNamespace: `code-cli:${definition.id}` as const,
+    ...(definition.skillFolderName ? { skillNamespace: `code-cli:${definition.id}` as const } : {}),
     miseTool: extras ? `${packageTool}[extras=${extras}]` : packageTool
   })
 }
@@ -45,21 +45,18 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
   defineCodeCliTool({
     id: CodeCli.CLAUDE_CODE,
     executable: 'claude',
-    skillFolderName: 'code-mate-claude-code',
     packageName: '@anthropic-ai/claude-code',
     install: 'registry'
   }),
   defineCodeCliTool({
     id: CodeCli.OPENAI_CODEX,
     executable: 'codex',
-    skillFolderName: 'code-mate-codex',
     packageName: '@openai/codex',
     install: 'registry'
   }),
   defineCodeCliTool({
     id: CodeCli.OPEN_CODE,
     executable: 'opencode',
-    skillFolderName: 'code-mate-opencode',
     packageName: 'opencode-ai',
     install: 'registry'
   }),

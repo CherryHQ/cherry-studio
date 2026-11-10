@@ -76,6 +76,12 @@ Reconcile installed system-owned copies using the existing source/namespace owne
 - AC7 — Real Codex, Claude Code and OpenCode each complete a bounded delegated task with correct project/model configuration and result return; supported approval/cancel paths are exercised and version-specific limits are recorded without claiming universal compatibility. (verification: Electron — integration owner)
 - AC8 — Existing session delivery and native-subagent contracts pass focused regressions; the tool guide and bilingual design describe the supported caller/target boundary and recovery behavior. (verification: unit and docs gate — integration owner)
 
+## Verification progress
+
+On 2026-11-10, real delegated tasks completed and returned results through Codex, Claude Code 2.1.260 (Cherry Gateway / DeepSeek V4.1 Flash), and OpenCode (native `opencode/deepseek-v4.1-flash-free`). Claude Code's AskUserQuestion appeared in the parent card; selecting red returned red. An OpenCode `sleep 180` task was cancelled from the parent card before completion and returned a cancellation result. The earlier `sleep 45` completed normally and is not cancellation evidence.
+
+OpenCode's Gateway selection still fails when `cherry-gateway/opencode:deepseek-v4.1-flash` is absent from its ACP model catalog; only the native configuration passed. Error-only child failures currently return a generic no-text result to the parent. These compatibility/diagnostic gaps remain open; this note stays proposed and this bounded acceptance does not claim universal model compatibility.
+
 ## Risks
 
 The target CLI controls model access and protocol features; installation alone cannot prove readiness. Existing local-runtime readiness checks and error diagnostics remain authoritative. Parent-routed approvals require explicit responder ownership rather than merely clearing a headless flag. Cancellation must bind to a run, not only a session, and startup recovery must not repeat file edits. Workspace selection expands a tool schema and must preserve existing ordinary session semantics. Legacy-skill removal remains gated by real replacement evidence; a failing or unavailable CLI acceptance scenario blocks claiming full retirement readiness.

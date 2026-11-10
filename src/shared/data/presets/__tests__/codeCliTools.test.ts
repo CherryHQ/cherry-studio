@@ -59,12 +59,11 @@ describe('Code CLI acquisition catalog', () => {
   })
 
   it('assigns every CLI a unique bundled skill folder', () => {
-    const folderNames = CODE_CLI_TOOL_PRESETS.map((preset) => preset.skillFolderName)
-    expect(new Set(folderNames).size).toBe(CODE_CLI_TOOL_PRESETS.length)
+    const skillPresets = CODE_CLI_TOOL_PRESETS.filter((preset) => preset.skillFolderName)
+    const folderNames = skillPresets.map((preset) => preset.skillFolderName!)
+    expect(new Set(folderNames).size).toBe(skillPresets.length)
     expect(folderNames.every((folderName) => /^code-mate-[a-z0-9-]+$/.test(folderName))).toBe(true)
-    expect(new Set(CODE_CLI_TOOL_PRESETS.map((preset) => preset.skillNamespace)).size).toBe(
-      CODE_CLI_TOOL_PRESETS.length
-    )
+    expect(new Set(skillPresets.map((preset) => preset.skillNamespace)).size).toBe(skillPresets.length)
   })
 
   it('bundles exactly one valid skill for every CLI preset', () => {
@@ -74,9 +73,12 @@ describe('Code CLI acquisition catalog', () => {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort()
-    expect(bundledFolders).toEqual(CODE_CLI_TOOL_PRESETS.map((preset) => preset.skillFolderName).sort())
+    expect(bundledFolders).toEqual(
+      CODE_CLI_TOOL_PRESETS.flatMap((preset) => (preset.skillFolderName ? [preset.skillFolderName] : [])).sort()
+    )
 
     for (const preset of CODE_CLI_TOOL_PRESETS) {
+      if (!preset.skillFolderName) continue
       const skillPath = path.join(skillsRoot, preset.skillFolderName, 'SKILL.md')
       const source = fs.readFileSync(skillPath, 'utf8')
       const parsed = matter(source)

@@ -76,6 +76,12 @@ Status: proposed
 - AC7 — 真实 Codex、Claude Code、OpenCode 分别以正确项目/模型配置完成有界委派并回传结果；验证受支持的审批/取消路径，记录版本限制，不宣称普遍兼容。 (verification: Electron — 集成负责人)
 - AC8 — 现有会话投递与原生子智能体契约通过聚焦回归；工具指南与双语设计明确受支持的调用方/目标边界及恢复行为。 (verification: unit and docs gate — 集成负责人)
 
+## Verification progress
+
+2026-11-10，真实委派任务分别通过 Codex、Claude Code 2.1.260（Cherry Gateway / DeepSeek V4.1 Flash）和 OpenCode（原生 `opencode/deepseek-v4.1-flash-free`）完成并回传结果。Claude Code 的 AskUserQuestion 显示在父会话卡片，选择红色后回传红色。OpenCode 的 `sleep 180` 任务在完成前通过父卡片取消并回传取消结果；更早的 `sleep 45` 是自然完成，不作为取消证据。
+
+OpenCode 的 ACP 模型列表缺少 `cherry-gateway/opencode:deepseek-v4.1-flash` 时，Gateway 模型选择仍然失败；本次仅原生配置通过。子任务只有错误而无文本时，父会话目前收到通用的无文本结果。这些兼容性和诊断问题仍未解决，因此本文保持 proposed，本次有限验收不代表所有模型配置均兼容。
+
 ## Risks
 
 目标 CLI 决定模型访问和协议功能；安装成功不等于就绪。已有本地运行时就绪检查和错误诊断仍是依据。父会话路由审批需要明确响应者所有权，不能仅清除无人值守标记。取消必须绑定到某次运行，而非仅会话；启动恢复不能重复修改文件。工作目录选择会扩展工具 schema，必须保留普通会话原有语义。旧技能移除以真实替代能力证据为前提；CLI 验收失败或不可执行时，不能声称已具备完整退役条件。

@@ -17,6 +17,12 @@ sources:
 
 # Local Agent Runtime
 
+Local Code Mate tasks use `agent_list` and `agent_delegate`. The bundled
+`code-mate-claude-code`, `code-mate-codex` and `code-mate-opencode` shell wrappers
+are retired. Startup removes only matching app-owned builtin copies; user-owned
+same-name skills remain untouched. Installing or updating these CLIs does not
+reinstall the wrappers. CLI installation, authentication and terminal use remain available.
+
 Agent Services manages local Agent installation, models and advanced
 configuration. Model selection offers native Agent models and Cherry models through
 the unified gateway. Direct provider selection is not offered. Selecting a model applies its connection and native default for
