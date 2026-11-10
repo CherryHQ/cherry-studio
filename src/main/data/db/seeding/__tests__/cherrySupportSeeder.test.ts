@@ -102,6 +102,7 @@ describe('CherrySupportSeeder', () => {
         builtinRole: BUILTIN_AGENT_ROLE.SUPPORT,
         type: 'claude-code',
         name: 'Support',
+        preferredModelId: null,
         configuration: {}
       })
     )
