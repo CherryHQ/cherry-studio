@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
@@ -472,8 +473,9 @@ describe('desktop Pi Durable connection', () => {
   it('routes concurrent roots to their own workspace, approval channel and model registration', async () => {
     sharedHosts()
     const sourceId = input.sessionId
-    const workspace = join(application.getPath('feature.agents.system_workspaces'), 'source-workspace')
-    mkdirSync(workspace)
+    const workspacePath = join(application.getPath('feature.agents.system_workspaces'), 'source-workspace')
+    mkdirSync(workspacePath)
+    const workspace = await realpath(workspacePath)
     const workspaceId = snapshot.session.workspace.id
     dbh.db
       .update(agentWorkspaceTable)
@@ -814,8 +816,10 @@ describe('desktop Pi Durable connection', () => {
     })()
     return { connection, events, consuming, nativeInputs, handle }
   }
-  async function done(events: AgentRuntimeEvent[]) {
-    await expect.poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error')).toBe(true)
+  async function done(events: AgentRuntimeEvent[], timeout?: number) {
+    await expect
+      .poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error'), { timeout })
+      .toBe(true)
   }
   function projected(events: AgentRuntimeEvent[]) {
     const messages = new Map<
@@ -867,7 +871,7 @@ describe('desktop Pi Durable connection', () => {
       ])
       const { connection, events } = await connect()
       await connection.send({ message: message('Write and read the PowerShell fixture') })
-      await done(events)
+      await done(events, 10_000)
       expect(
         readFileSync(join(directory, '报告 with spaces.txt'), 'utf8')
           .replace(/^\uFEFF/, '')
@@ -1625,21 +1629,16 @@ describe('desktop Pi Durable connection', () => {
   })
 
   it('persists cancellation during a native tool and does not continue after reopen', async () => {
-    setScript([
-      assistantReply(
-        [
-          toolCallPart('bash', 'bash', {
-            command: 'echo ready > started.txt; /bin/sleep 30; echo late > completed.txt'
-          })
-        ],
-        'toolUse'
-      ),
-      assistantReply('must not run')
-    ])
+    const tool = process.platform === 'win32' ? 'powershell' : 'bash'
+    const command =
+      tool === 'powershell'
+        ? 'Set-Content -LiteralPath started.txt -Value ready; Start-Sleep -Seconds 30; Set-Content -LiteralPath completed.txt -Value late'
+        : 'echo ready > started.txt; /bin/sleep 30; echo late > completed.txt'
+    setScript([assistantReply([toolCallPart(tool, tool, { command })], 'toolUse'), assistantReply('must not run')])
     const { connection, events, nativeInputs } = await connect()
     const user = message('run a tool')
     await connection.send({ message: user })
-    await expect.poll(() => existsSync(join(directory, 'started.txt'))).toBe(true)
+    await expect.poll(() => existsSync(join(directory, 'started.txt')), { timeout: 10_000 }).toBe(true)
     await connection.interrupt()
     await connection.close()
     expect(nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted')).toBe(true)

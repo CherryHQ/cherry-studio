@@ -1,5 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
@@ -224,8 +225,10 @@ describe('desktop Pi root connection', () => {
     })()
     return { connection, events, consuming, nativeInputs }
   }
-  async function done(events: AgentRuntimeEvent[]) {
-    await expect.poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error')).toBe(true)
+  async function done(events: AgentRuntimeEvent[], timeout?: number) {
+    await expect
+      .poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error'), { timeout })
+      .toBe(true)
   }
   function projected(events: AgentRuntimeEvent[]) {
     const messages = new Map<
@@ -282,7 +285,7 @@ describe('desktop Pi root connection', () => {
       ])
       const { connection, events } = await connect()
       await connection.send({ message: message('Write and read the PowerShell fixture') })
-      await done(events)
+      await done(events, 10_000)
       expect(
         readFileSync(join(directory, '报告 with spaces.txt'), 'utf8')
           .replace(/^\uFEFF/, '')
@@ -1184,6 +1187,7 @@ describe('desktop Pi root connection', () => {
   })
 
   it('forwards attachment paths through the input boundary while keeping input identities private', async () => {
+    const attachmentPath = join(directory, 'note.txt')
     const user = messages.saveMessage({
       sessionId: input.sessionId,
       message: {
@@ -1192,7 +1196,7 @@ describe('desktop Pi root connection', () => {
         data: {
           parts: [
             { type: 'text', text: 'read the attachment' },
-            { type: 'file', filename: 'note.txt', mediaType: 'text/plain', url: 'file:///tmp/note.txt' }
+            { type: 'file', filename: 'note.txt', mediaType: 'text/plain', url: pathToFileURL(attachmentPath).href }
           ]
         }
       }
@@ -1201,7 +1205,7 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: user })
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
-    expect(JSON.stringify(script.calls[0].messages)).toContain('/tmp/note.txt')
+    expect(JSON.stringify(script.calls[0].messages)).toContain(JSON.stringify(attachmentPath).slice(1, -1))
     expect(messages.inputBinding(input.sessionId, user.id)?.nativeInputId).toBeDefined()
     const saved = messages.getSessionMessage(input.sessionId, user.id)
     expect(saved).not.toHaveProperty('inputContextId')
