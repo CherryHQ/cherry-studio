@@ -216,7 +216,8 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     this.emit({
       candidates: [{ content: { role: 'model', parts: [] }, finishReason: this.finishReason, index: 0 }],
       usageMetadata: this.buildUsageMetadata(),
-      modelVersion: this.state.model
+      modelVersion: this.state.model,
+      responseId: this.state.messageId
     })
   }
 
@@ -230,7 +231,8 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
         }
       ],
       usageMetadata: this.buildUsageMetadata(),
-      modelVersion: this.state.model
+      modelVersion: this.state.model,
+      responseId: this.state.messageId
     }
   }
 }

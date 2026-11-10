@@ -5,11 +5,17 @@
  * previous / next branch; the messages pane revalidates and re-renders.
  */
 
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { type FC, useCallback } from 'react'
+import { Check, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { type FC, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@cherrystudio/ui'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 
 import { useMessageListActions, useMessageListUi } from '../MessageListProvider'
@@ -21,6 +27,7 @@ interface Props {
 }
 
 const SiblingNavigator: FC<Props> = ({ messageId }) => {
+  const currentItemRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
   const actions = useMessageListActions()
   const messageUi = useMessageListUi()
@@ -65,20 +72,35 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="min-w-8 rounded text-center font-mono tabular-nums transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex min-w-8 items-center justify-center gap-1 rounded px-1 py-0.5 tabular-nums transition-colors hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
             aria-label={t('chat.message.branches')}>
             {activeIndex + 1}/{group.length}
+            <ChevronDown size={10} />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="center" className="min-w-16">
+        <DropdownMenuContent
+          align="end"
+          className="max-h-80 w-72 max-w-[calc(100vw-2rem)]"
+          onFocus={(event) => {
+            if (event.target === event.currentTarget) {
+              event.preventDefault()
+              currentItemRef.current?.focus()
+            }
+          }}>
+          <DropdownMenuLabel>{t('chat.message.branches')}</DropdownMenuLabel>
           {group.map((item, index) => (
             <DropdownMenuItem
               key={item.id}
-              className={index === activeIndex ? 'font-medium' : undefined}
+              ref={index === activeIndex ? currentItemRef : undefined}
+              className={index === activeIndex ? 'bg-accent' : undefined}
+              onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'nearest' })}
+              title={item.preview}
               onSelect={() => {
                 if (index !== activeIndex) void switchTo(item.id)
               }}>
-              {index + 1}/{group.length}
+              <span className="w-5 shrink-0 text-muted-foreground tabular-nums">{index + 1}</span>
+              <span className="min-w-0 flex-1 truncate">{item.preview || `${index + 1}/${group.length}`}</span>
+              <span className="w-4 shrink-0">{index === activeIndex && <Check size={14} />}</span>
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

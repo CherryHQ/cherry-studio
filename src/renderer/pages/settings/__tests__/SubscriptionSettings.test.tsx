@@ -3,12 +3,20 @@ import userEvent from '@testing-library/user-event'
 import { SWRConfig } from 'swr'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { CherryCloudAccountPlans, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+import type {
+  CherryCloudAccountPlans,
+  CherryCloudEndpointFact,
+  CherryCloudStatus
+} from '@shared/ipc/schemas/cherryCloud'
 
 import { SubscriptionSettings } from '../SubscriptionSettings'
 
-const { requestMock, session } = vi.hoisted(() => ({
+const { requestMock, session, receiptFixture } = vi.hoisted(() => ({
   requestMock: vi.fn(),
+  receiptFixture: {
+    initialFact: undefined as CherryCloudEndpointFact<CherryCloudAccountPlans> | undefined,
+    refresh: undefined as (() => Promise<unknown>) | undefined
+  },
   session: {
     status: null as CherryCloudStatus | null,
     loadState: 'ready',
@@ -28,7 +36,64 @@ vi.mock('@renderer/hooks/useCherryAccountSession', () => ({
   })
 }))
 
-const signedIn = (accountId: string): CherryCloudStatus => ({ phase: 'signed-in', accountId, displayName: accountId })
+// This component receives owner facts; transport ordering is covered by the receipt hook tests.
+vi.mock('@renderer/hooks/useCherryCloudReceipt', async () => {
+  const { default: useSWR } = await import('swr')
+  const { useCallback } = await import('react')
+  return {
+    useCherryCloudReceipt: () => {
+      const status = session.status
+      const query = useSWR<CherryCloudEndpointFact<CherryCloudAccountPlans>>(
+        status?.phase === 'signed-in' ? ['settings-plan-fixture', status.scopeId] : null,
+        null,
+        { revalidateOnMount: false, revalidateOnFocus: false, fallbackData: receiptFixture.initialFact }
+      )
+      const { mutate } = query
+      const refresh = useCallback(async () => {
+        try {
+          const value = await requestMock('test.fixture.plans')
+          await mutate({ freshness: 'fresh', value, observedRevision: 1 }, { revalidate: false })
+          return { outcome: 'refreshed' }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          await mutate(
+            (current): CherryCloudEndpointFact<CherryCloudAccountPlans> => {
+              const previous = current ?? receiptFixture.initialFact
+              return previous && previous.freshness !== 'unknown'
+                ? { ...previous, freshness: 'stale', error: message }
+                : { freshness: 'unknown', error: message }
+            },
+            { revalidate: false }
+          )
+          return { outcome: 'failed' }
+        }
+      }, [mutate])
+      receiptFixture.refresh = refresh
+      return {
+        receipt: status
+          ? {
+              status,
+              reason: 'initial',
+              account: { freshness: 'unknown', error: null },
+              models: { freshness: 'unknown', error: null },
+              plans: query.data ?? { freshness: 'unknown', error: null }
+            }
+          : undefined,
+        refresh,
+        reload: query.mutate,
+        isRefreshing: false
+      }
+    }
+  }
+})
+
+const signedIn = (accountId: string): CherryCloudStatus => ({
+  phase: 'signed-in',
+  accountId,
+  displayName: accountId,
+  scopeId: accountId,
+  revision: 1
+})
 
 // A fresh SWR cache per render keeps test cases from sharing fetched plans.
 const renderSettings = () =>
@@ -64,7 +129,15 @@ function paidPlans(displayName: string): CherryCloudAccountPlans {
   }
 }
 
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: requestMock } }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: async (route: string, ...args: unknown[]) => {
+      if (route === 'cherry_cloud.status.get') return session.status
+      const result = await requestMock(route, ...args)
+      return route === 'cherry_cloud.account_portal.open' ? { outcome: 'opened' } : result
+    }
+  }
+}))
 vi.mock('@renderer/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -80,6 +153,8 @@ vi.mock('react-i18next', () => ({
 afterEach(() => {
   session.status = signedIn('account-1')
   session.loadState = 'ready'
+  receiptFixture.initialFact = undefined
+  receiptFixture.refresh = undefined
   vi.clearAllMocks()
   vi.unstubAllEnvs()
 })
@@ -88,7 +163,7 @@ session.status = signedIn('account-1')
 
 describe('SubscriptionSettings', () => {
   it.each([
-    ['signed out', { phase: 'signed-out', accountId: null, displayName: null }],
+    ['signed out', { phase: 'signed-out', accountId: null, displayName: null, scopeId: 'out', revision: 1 }],
     ['signed in', signedIn('account-1')]
   ] satisfies [string, CherryCloudStatus][])(
     'opens the FAQ from the section title while %s',
@@ -96,7 +171,7 @@ describe('SubscriptionSettings', () => {
       session.status = status
       requestMock.mockImplementation((route: string) => {
         if (route === 'cherry_cloud.account_origin.get') return Promise.resolve('https://cloud.cherryai.com.cn')
-        if (route === 'cherry_cloud.account_plans.get') {
+        if (route === 'test.fixture.plans') {
           return Promise.resolve({ measured_at: '2026-09-21T00:00:00Z', entitlements: [], available_plans: [] })
         }
         return Promise.resolve()
@@ -114,7 +189,7 @@ describe('SubscriptionSettings', () => {
 
   it('reports the usage view, Manage subscription, and FAQ clicks of a subscribed account', async () => {
     requestMock.mockImplementation((route: string) => {
-      if (route === 'cherry_cloud.account_plans.get') return Promise.resolve(paidPlans('Plus'))
+      if (route === 'test.fixture.plans') return Promise.resolve(paidPlans('Plus'))
       if (route === 'cherry_cloud.account_origin.get') return Promise.resolve('https://cloud.cherryai.com.cn')
       return Promise.resolve()
     })
@@ -124,34 +199,32 @@ describe('SubscriptionSettings', () => {
     await userEvent.click(screen.getByRole('button', { name: 'settings.subscription.faq' }))
 
     const tracked = requestMock.mock.calls.filter(([route]) => route === 'cherry_cloud.analytics.track')
-    expect(tracked.map(([, event]) => event)).toEqual([
+    expect(tracked.map(([, envelope]) => envelope.payload)).toEqual([
       { event: 'subscription_usage_view', subscribed: true },
       { event: 'subscription_manage_click' },
       { event: 'subscription_faq_click', subscribed: true }
     ])
   })
 
-  it('opens the production account center on the cloud origin', async () => {
+  it('delegates an unsubscribed account to the Main subscription command', async () => {
     vi.stubEnv('DEV', false)
     requestMock.mockImplementation((route: string) => {
       if (route === 'cherry_cloud.status.get') return Promise.resolve(session.status)
       if (route === 'cherry_cloud.account_origin.get') return Promise.resolve('https://cloud.cherryai.com')
-      if (route === 'cherry_cloud.account_plans.get') {
+      if (route === 'test.fixture.plans') {
         return Promise.resolve({ measured_at: '2026-09-21T00:00:00Z', entitlements: [], available_plans: [] })
       }
       return Promise.resolve()
     })
 
     renderSettings()
-    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('cherry_cloud.account_plans.get'))
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('test.fixture.plans'))
 
     await userEvent.click(screen.getByRole('button', { name: 'settings.subscription.subscribe' }))
 
     expect(requestMock).toHaveBeenCalledWith(
-      'system.shell.open_external_website',
-      expect.stringMatching(
-        /^https:\/\/cloud\.cherryai\.com\/account\/plans\?entry=desktop&entry_source=settings&flow_id=/
-      )
+      'cherry_cloud.subscription.start',
+      expect.objectContaining({ source: 'settings', flowId: expect.any(String) })
     )
   })
 
@@ -228,7 +301,7 @@ describe('SubscriptionSettings', () => {
   })
 
   it('signs in from the signed-out section', async () => {
-    session.status = { phase: 'signed-out', accountId: null, displayName: null }
+    session.status = { phase: 'signed-out', accountId: null, displayName: null, scopeId: 'out', revision: 1 }
     renderSettings()
 
     await userEvent.click(screen.getByRole('button', { name: 'settings.subscription.sign_in' }))
@@ -237,7 +310,7 @@ describe('SubscriptionSettings', () => {
   })
 
   it('blocks a second sign-in while the browser is authorizing and lets the user cancel', async () => {
-    session.status = { phase: 'authorizing', accountId: null, displayName: null }
+    session.status = { phase: 'authorizing', accountId: null, displayName: null, scopeId: 'out', revision: 1 }
     renderSettings()
 
     expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.signing_in' })).toBeDisabled()
@@ -292,6 +365,56 @@ describe('SubscriptionSettings', () => {
     expect(screen.queryByText('settings.subscription.no_plan')).not.toBeInTheDocument()
   })
 
+  it.each(['active', 'upcoming'] as const)(
+    'keeps Manage for the last-known %s paid plan after a refresh fails with 503',
+    async (state) => {
+      const plans = paidPlans('Cherry Plus')
+      plans.entitlements[0].state = state
+      requestMock.mockImplementation((route: string) =>
+        route === 'test.fixture.plans' ? Promise.resolve(plans) : Promise.resolve()
+      )
+      renderSettings()
+      await screen.findByText('Cherry Plus')
+      requestMock.mockImplementation((route: string) => {
+        if (route === 'test.fixture.plans') return Promise.reject(new Error('503'))
+        if (route === 'cherry_cloud.account_origin.get') return Promise.resolve('https://cloud.cherryai.com')
+        return Promise.resolve()
+      })
+      requestMock.mockClear()
+
+      await act(async () => receiptFixture.refresh?.())
+
+      expect(screen.getByText('Cherry Plus')).toBeInTheDocument()
+      expect(screen.getByText('settings.subscription.load_failed')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'settings.subscription.subscribe' })).not.toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'settings.subscription.faq' }))
+      expect(requestMock.mock.calls.filter(([route]) => route === 'cherry_cloud.analytics.track')).toEqual([])
+      await userEvent.click(screen.getByRole('button', { name: 'settings.subscription.manage' }))
+      expect(requestMock).toHaveBeenCalledWith(
+        'cherry_cloud.account_portal.open',
+        expect.objectContaining({ scopeId: 'account-1', entrySource: 'manage' })
+      )
+    }
+  )
+
+  it.each(['paid', 'unpaid'] as const)('does not report or market a stale %s snapshot on mount', async (state) => {
+    const plans = paidPlans('Cherry Plus')
+    if (state === 'unpaid') plans.entitlements = []
+    receiptFixture.initialFact = { freshness: 'stale', value: plans, observedRevision: 1, error: '503' }
+    requestMock.mockRejectedValue(new Error('503'))
+
+    renderSettings()
+
+    expect(await screen.findByRole('button', { name: /common.retry/ })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'settings.subscription.subscribe' })).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.subscription.subscribe_hint')).not.toBeInTheDocument()
+    expect(requestMock.mock.calls.filter(([route]) => route === 'cherry_cloud.analytics.track')).toEqual([])
+    if (state === 'paid') {
+      expect(screen.getByText('Cherry Plus')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'settings.subscription.manage' })).toBeEnabled()
+    }
+  })
+
   it('shows the backend plan name without a price or renewal interval', async () => {
     requestMock.mockResolvedValue(paidPlans('Plus'))
 
@@ -299,32 +422,5 @@ describe('SubscriptionSettings', () => {
 
     expect(await screen.findByText('Plus')).toBeInTheDocument()
     expect(screen.queryByText(/19\.9|CNY|month/)).not.toBeInTheDocument()
-  })
-
-  it("keeps the current account's plan when a previous account's response arrives late", async () => {
-    const accountA = Promise.withResolvers<CherryCloudAccountPlans>()
-    requestMock.mockImplementationOnce(() => accountA.promise)
-    session.status = signedIn('account-a')
-    const view = renderSettings()
-    await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1))
-
-    session.status = { phase: 'signed-out', accountId: null, displayName: null }
-    view.rerender(
-      <SWRConfig value={{ provider: () => new Map() }}>
-        <SubscriptionSettings />
-      </SWRConfig>
-    )
-    requestMock.mockResolvedValueOnce(paidPlans('Plan B'))
-    session.status = signedIn('account-b')
-    view.rerender(
-      <SWRConfig value={{ provider: () => new Map() }}>
-        <SubscriptionSettings />
-      </SWRConfig>
-    )
-    expect(await screen.findByText('Plan B')).toBeInTheDocument()
-
-    await act(async () => accountA.resolve(paidPlans('Plan A')))
-    expect(screen.getByText('Plan B')).toBeInTheDocument()
-    expect(screen.queryByText('Plan A')).not.toBeInTheDocument()
   })
 })

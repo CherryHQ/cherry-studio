@@ -294,6 +294,7 @@ it.each([true, false])(
     const messages = await project({ id, role: 'assistant', parts: [{ type: 'text', text, state: 'done' }] }, [
       {
         source: 'live',
+        ...(failed ? { isApiErrorMessage: true as const } : {}),
         message: {
           type: 'assistant',
           uuid: id,
@@ -328,5 +329,30 @@ it.each([true, false])(
       }
     ])
     expect(messages[0].parts).toEqual([{ type: 'text', text: failed ? reason : text, state: 'done' }])
+  }
+)
+
+it.each([true, false])(
+  'decorates cold history only with adapter-validated rejection identity (%s)',
+  async (rejected) => {
+    const id = randomUUID()
+    const reason = 'Quota exhausted; retry tomorrow.'
+    const text = `API Error: Request rejected (429) · ${reason}`
+    const message = { id, role: 'assistant' as const, parts: [{ type: 'text' as const, text, state: 'done' as const }] }
+    const cold = await project(message, [
+      {
+        source: 'archive',
+        ...(rejected ? { isApiErrorMessage: true as const } : {}),
+        message: {
+          type: 'assistant',
+          uuid: id,
+          session_id: 'session',
+          parent_tool_use_id: null,
+          parent_agent_id: null,
+          message: { content: [{ type: 'text', text }] }
+        }
+      }
+    ])
+    expect(cold[0].parts).toEqual([{ type: 'text', text: rejected ? reason : text, state: 'done' }])
   }
 )

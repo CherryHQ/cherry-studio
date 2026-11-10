@@ -97,12 +97,16 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
    * `message_start` first (idempotent).
    */
   transformChunk(chunk: UIMessageChunk): TOutputEvent[] {
-    // Non-object errors cannot be encoded as client tool arguments without changing their meaning.
+    // JSON schemas may omit SDK validation, so both tool events must enforce the wire object shape.
     if (
-      chunk.type === 'tool-input-error' &&
+      (chunk.type === 'tool-input-error' || (chunk.type === 'tool-input-available' && chunk.input !== undefined)) &&
       (chunk.input === null || typeof chunk.input !== 'object' || Array.isArray(chunk.input))
     ) {
-      throw new Error(chunk.errorText)
+      throw new Error(
+        chunk.type === 'tool-input-error'
+          ? chunk.errorText
+          : `Invalid tool arguments for ${chunk.toolName}: expected an object`
+      )
     }
     if (chunk.type === 'message-metadata' || chunk.type === 'finish') {
       const metadata = chunk.messageMetadata as GatewayUsageMetadata | undefined

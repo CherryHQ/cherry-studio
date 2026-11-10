@@ -1,6 +1,6 @@
 import type * as ChildProcess from 'node:child_process'
 import { createServer } from 'node:http'
-import { join } from 'node:path'
+import { basename, join, normalize } from 'node:path'
 import { createContext as createVmContext, runInContext } from 'node:vm'
 
 import { afterEach, vi } from 'vitest'
@@ -8,14 +8,20 @@ import { afterEach, vi } from 'vitest'
 import {
   assertOwnedAppIsolation,
   captureCherryInAuthorizationUrl,
+  inspectOwnedNotificationHistory,
+  inspectOwnedWindowsByUrl,
+  isOwnedGlobalShortcutRegistered,
+  prepareOwnedWindowsNotifications,
   sendCherryInCallbackToOwnedApp,
   setOwnedMainWindowFocus
 } from '../debugBridge'
 import type { AppRecord } from '../lifecycle'
+import { getRunPaths } from '../paths'
 
-const { evaluateCdpExpressionMock, execFileSyncMock } = vi.hoisted(() => ({
+const { evaluateCdpExpressionMock, execFileSyncMock, registerShortcutMock } = vi.hoisted(() => ({
   evaluateCdpExpressionMock: vi.fn(),
-  execFileSyncMock: vi.fn()
+  execFileSyncMock: vi.fn(),
+  registerShortcutMock: vi.fn()
 }))
 
 vi.mock('node:child_process', async (importOriginal) => ({
@@ -23,10 +29,12 @@ vi.mock('node:child_process', async (importOriginal) => ({
   execFileSync: execFileSyncMock
 }))
 vi.mock('../cdpClient', () => ({ evaluateCdpExpression: evaluateCdpExpressionMock }))
+vi.mock('../windowsNotificationShortcut', () => ({ registerWindowsNotificationShortcut: registerShortcutMock }))
 
 afterEach(() => {
   evaluateCdpExpressionMock.mockReset()
   execFileSyncMock.mockReset()
+  registerShortcutMock.mockReset()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -86,36 +94,129 @@ const authorizationUrl = 'https://open.cherryin.ai/oauth2/auth?state=test-state'
 const callback = 'http://127.0.0.1:29873/oauth/callback?code=test-code&state=test-state'
 
 describe('owned application debug bridge', () => {
-  it.each([false, true])('sets main-window focus to %s when another owned window is listed first', async (focused) => {
+  it('registers only the SDK shortcut for the owned development executable', async () => {
     const record = ownedApp('windows')
-    mainInspector()
-    let mainFocused = !focused
-    const window = (pathname: string, setFocus: (value: boolean) => void, isFocused: () => boolean) => ({
-      webContents: { getURL: () => `http://localhost:5173${pathname}`, focus: () => {} },
-      focus: () => setFocus(true),
-      blur: () => setFocus(false),
-      isFocused
-    })
-    const main = window(
-      '/windows/main/index.html',
-      (value) => (mainFocused = value),
-      () => mainFocused
-    )
-    const secondary = window(
-      '/windows/selection/index.html',
-      () => {},
-      () => true
+    const paths = getRunPaths('/tmp/cherry-notification-bridge')
+    const appData = join(paths.root, 'profiles', 'authenticated', 'home', 'AppData', 'Roaming')
+    const executable = 'D:\\target-app\\node_modules\\electron.exe'
+    const nativeCommand = execFileSyncMock.getMockImplementation()!
+    execFileSyncMock.mockImplementation((file, args) =>
+      String(args.at(-1)).includes('GetFolderPath') ? 'D:\\Programs\n' : nativeCommand(file, args)
     )
     const context = createVmContext({
-      URL,
-      process: { mainModule: { require: () => ({ BrowserWindow: { getAllWindows: () => [secondary, main] } }) } }
+      process: {
+        execPath: executable,
+        env: { APPDATA: appData },
+        mainModule: {
+          require(name: string) {
+            if (name === 'node:path') return { join, normalize }
+            if (name === 'node:fs') return { readdirSync: () => ['foreign.lnk', 'packaged.lnk', 'owned.lnk'] }
+            return {
+              Notification: { isSupported: () => true },
+              shell: {
+                readShortcutLink(path: string) {
+                  return {
+                    target: basename(path) === 'foreign.lnk' ? 'D:\\other.exe' : executable,
+                    appUserModelId:
+                      basename(path) === 'packaged.lnk'
+                        ? 'com.cherryai.cherrystudio.cn'
+                        : 'com.cherryai.cherrystudio.cn.Development',
+                    toastActivatorClsid: '{CB9A879E-C6D7-4A6D-AD9A-E660721BB679}'
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     })
-    evaluateCdpExpressionMock.mockImplementation(async (_url: string, expression: string) =>
-      runInContext(expression, context)
+    evaluateCdpExpressionMock.mockImplementation(async (_url, expression) => runInContext(expression, context))
+    vi.stubGlobal('fetch', async () =>
+      Response.json([{ type: 'node', webSocketDebuggerUrl: 'ws://127.0.0.1:9229/main-process' }])
     )
-    expect(await setOwnedMainWindowFocus(record, focused)).toEqual({ focused })
-    expect(mainFocused).toBe(focused)
+
+    await prepareOwnedWindowsNotifications(record, paths)
+
+    expect(registerShortcutMock).toHaveBeenCalledWith(
+      paths,
+      join(appData, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'owned.lnk'),
+      'D:\\Programs'
+    )
   })
+
+  it('returns only notification identifiers matching the case without exposing other notification content', async () => {
+    const record = ownedApp('macos')
+    const { context } = mainInspector()
+    context.process.mainModule.require = () => ({
+      Notification: {
+        getHistory: async () => [
+          { id: 'owned-match', body: 'Unique completed answer' },
+          { id: 'other', body: 'Unrelated private notification content' }
+        ]
+      }
+    })
+
+    expect(await inspectOwnedNotificationHistory(record, 'Unique completed answer')).toEqual(['owned-match'])
+  })
+
+  it('rejects unsupported notification history instead of reporting an empty Windows history', async () => {
+    await expect(inspectOwnedNotificationHistory(ownedApp('windows'), 'Unique completed answer')).rejects.toThrow(
+      'Notification history inspection requires macOS'
+    )
+  })
+
+  it.each([
+    ['windows', false],
+    ['windows', true],
+    ['macos', false],
+    ['macos', true]
+  ] as const)(
+    'sets %s main-window focus to %s when another owned window is listed first',
+    async (platform, focused) => {
+      const record = ownedApp(platform)
+      mainInspector()
+      let mainFocused = !focused
+      let applicationActive = platform === 'windows'
+      const window = (pathname: string, setFocus: (value: boolean) => void, isFocused: () => boolean) => ({
+        webContents: { getURL: () => `http://localhost:5173${pathname}`, focus: () => {} },
+        show: () => {},
+        focus: () => setFocus(applicationActive),
+        blur: () => setFocus(false),
+        isFocused
+      })
+      const main = window(
+        '/windows/main/index.html',
+        (value) => (mainFocused = value),
+        () => mainFocused
+      )
+      const secondary = window(
+        '/windows/selection/index.html',
+        () => {},
+        () => true
+      )
+      const context = createVmContext({
+        URL,
+        process: {
+          mainModule: {
+            require: () => ({
+              app: {
+                show: () => {},
+                focus: () => {
+                  applicationActive = true
+                }
+              },
+              BrowserWindow: { getAllWindows: () => [secondary, main] }
+            })
+          }
+        }
+      })
+      evaluateCdpExpressionMock.mockImplementation(async (_url: string, expression: string) =>
+        runInContext(expression, context)
+      )
+      expect(await setOwnedMainWindowFocus(record, focused)).toEqual({ focused })
+      expect(mainFocused).toBe(focused)
+    }
+  )
 
   it.each(['macos', 'windows'] as const)(
     'accepts profile-owned %s paths before connecting the UI',
@@ -176,13 +277,51 @@ describe('owned application debug bridge', () => {
     expect(context.__cherryRegressionOauth).toBeUndefined()
   })
 
-  it('rejects a main-process inspector owned by another process', async () => {
+  it.each([
+    ['authorization capture', (record: AppRecord) => captureCherryInAuthorizationUrl(record, async () => {})],
+    [
+      'window inspection',
+      (record: AppRecord) => inspectOwnedWindowsByUrl(record, 'file:///windows/selection/toolbar/index.html')
+    ],
+    [
+      'shortcut inspection',
+      (record: AppRecord) => isOwnedGlobalShortcutRegistered(record, 'CommandOrControl+Alt+Shift+K')
+    ]
+  ] as const)('rejects %s through a main-process inspector owned by another process', async (_name, inspect) => {
     const record = ownedApp('macos', 99_999)
-    await expect(captureCherryInAuthorizationUrl(record, async () => {})).rejects.toThrow(
-      'does not own the main-process inspector'
-    )
+    await expect(inspect(record)).rejects.toThrow('does not own the main-process inspector')
     expect(evaluateCdpExpressionMock).not.toHaveBeenCalled()
   })
+
+  it.each(['macos', 'windows'] as const)(
+    'rejects shortcut and window inspection after the %s PID loses ownership',
+    async (platform) => {
+      const record = ownedApp(platform)
+      execFileSyncMock.mockReturnValue('unrelated-application')
+      await expect(isOwnedGlobalShortcutRegistered(record, 'CommandOrControl+Alt+Shift+K')).rejects.toThrow(
+        'command no longer matches the owned run'
+      )
+      await expect(inspectOwnedWindowsByUrl(record, 'file:///windows/selection/toolbar/index.html')).rejects.toThrow(
+        'command no longer matches the owned run'
+      )
+      expect(evaluateCdpExpressionMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['ws://example.com:9229/node', 'ws://127.0.0.1:9333/node', 'wss://127.0.0.1:9229/node'])(
+    'rejects shortcut and window inspection through an unowned discovery target %s',
+    async (webSocketDebuggerUrl) => {
+      const record = ownedApp('macos')
+      vi.stubGlobal('fetch', async () => Response.json([{ type: 'node', webSocketDebuggerUrl }]))
+      await expect(isOwnedGlobalShortcutRegistered(record, 'CommandOrControl+Alt+Shift+K')).rejects.toThrow(
+        'not loopback-owned'
+      )
+      await expect(inspectOwnedWindowsByUrl(record, 'file:///windows/selection/toolbar/index.html')).rejects.toThrow(
+        'not loopback-owned'
+      )
+      expect(evaluateCdpExpressionMock).not.toHaveBeenCalled()
+    }
+  )
 
   it('delivers the authorization code to the real HTTP listener without forwarding credentials', async () => {
     const record = ownedApp('macos')

@@ -5,6 +5,8 @@ import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { defineRoute } from '../define'
 
 export const cherryCloudStatusSchema = z.strictObject({
+  scopeId: z.string(),
+  revision: z.number().int().nonnegative(),
   phase: z.enum(['signed-out', 'authorizing', 'signed-in']),
   /** The signed-in account; consumers key account-scoped data by it. */
   accountId: z.string().nullable(),
@@ -181,23 +183,89 @@ export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
 export type CherryCloudAnalyticsEvent = z.infer<typeof cherryCloudAnalyticsEventSchema>
 export type SubscriptionEntrySource = z.infer<typeof subscriptionEntrySourceSchema>
 
+const cherryCloudLoginResultSchema = z.strictObject({
+  outcome: z.enum(['signed-in', 'cancelled', 'expired', 'rejected', 'stopped']),
+  status: cherryCloudStatusSchema
+})
+export type CherryCloudLoginResult = z.infer<typeof cherryCloudLoginResultSchema>
+
+function endpointFactSchema<TSchema extends z.ZodType>(value: TSchema) {
+  return z.discriminatedUnion('freshness', [
+    z.strictObject({ freshness: z.literal('unknown'), error: z.string().nullable() }),
+    z.strictObject({ freshness: z.literal('fresh'), value, observedRevision: z.number().int().nonnegative() }),
+    z.strictObject({
+      freshness: z.literal('stale'),
+      value,
+      observedRevision: z.number().int().nonnegative(),
+      error: z.string().nullable()
+    })
+  ])
+}
+
+export type CherryCloudEndpointFact<T> = z.infer<ReturnType<typeof endpointFactSchema<z.ZodType<T>>>>
+
+export const cherryCloudRefreshReasonSchema = z.enum(['initial', 'focus_refresh', 'notification', 'models'])
+export type CherryCloudRefreshReason = z.infer<typeof cherryCloudRefreshReasonSchema>
+
+export const cherryCloudAccountReceiptSchema = z.strictObject({
+  status: cherryCloudStatusSchema,
+  reason: cherryCloudRefreshReasonSchema,
+  account: z.discriminatedUnion('freshness', [
+    z.strictObject({ freshness: z.literal('fresh') }),
+    z.strictObject({ freshness: z.enum(['unknown', 'stale']), error: z.string().nullable() })
+  ]),
+  models: endpointFactSchema(cherryCloudModelSyncResultSchema),
+  plans: endpointFactSchema(cherryCloudAccountPlansSchema)
+})
+export type CherryCloudAccountReceipt = z.infer<typeof cherryCloudAccountReceiptSchema>
+
+const cherryCloudAccountRefreshResultSchema = z.discriminatedUnion('outcome', [
+  z.strictObject({ outcome: z.literal('refreshed'), receipt: cherryCloudAccountReceiptSchema }),
+  z.strictObject({ outcome: z.literal('failed'), receipt: cherryCloudAccountReceiptSchema }),
+  z.strictObject({ outcome: z.enum(['superseded', 'aborted', 'signed-out']), status: cherryCloudStatusSchema })
+])
+export type CherryCloudAccountRefreshResult = z.infer<typeof cherryCloudAccountRefreshResultSchema>
+
 export const cherryCloudRequestSchemas = {
   'cherry_cloud.status.get': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.account_origin.get': defineRoute({ input: z.void(), output: z.url() }),
-  'cherry_cloud.login.start': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
+  'cherry_cloud.login.start': defineRoute({ input: z.void(), output: cherryCloudLoginResultSchema }),
+  'cherry_cloud.subscription.start': defineRoute({
+    input: z.strictObject({
+      source: subscriptionEntrySourceSchema,
+      flowId: subscriptionFlowIdSchema,
+      modelId: z.string().max(200).optional()
+    }),
+    output: z.void()
+  }),
   'cherry_cloud.login.cancel': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.session.revoke': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.models.sync': defineRoute({
     input: z.void(),
     output: cherryCloudModelSyncResultSchema
   }),
-  'cherry_cloud.account_plans.get': defineRoute({ input: z.void(), output: cherryCloudAccountPlansSchema }),
+  'cherry_cloud.account.get': defineRoute({ input: z.void(), output: cherryCloudAccountReceiptSchema }),
+  'cherry_cloud.account.refresh': defineRoute({
+    input: z.strictObject({ scopeId: z.string(), reason: z.enum(['initial', 'focus_refresh']) }),
+    output: cherryCloudAccountRefreshResultSchema
+  }),
+  'cherry_cloud.account_portal.open': defineRoute({
+    input: z.strictObject({
+      scopeId: z.string(),
+      entrySource: z.union([subscriptionEntrySourceSchema, z.literal('manage')]).optional(),
+      flowId: subscriptionFlowIdSchema.optional()
+    }),
+    output: z.strictObject({ outcome: z.enum(['opened', 'superseded']) })
+  }),
   'cherry_cloud.public_plans.get': defineRoute({ input: z.void(), output: cherryCloudPublicPlanCatalogSchema }),
-  'cherry_cloud.analytics.track': defineRoute({ input: cherryCloudAnalyticsEventSchema, output: z.void() })
+  'cherry_cloud.analytics.track': defineRoute({
+    input: z.strictObject({ payload: cherryCloudAnalyticsEventSchema, scopeId: z.string().nullable().optional() }),
+    output: z.void()
+  }),
+  'cherry_cloud.notifications.active.get': defineRoute({ input: z.void(), output: z.boolean() })
 }
 
 export type CherryCloudEventSchemas = {
   'cherry_cloud.status_changed': CherryCloudStatus
-  // A subscription notification changed entitlements; main has already refreshed the account and models.
-  'cherry_cloud.account_refreshed': void
+  'cherry_cloud.account_changed': CherryCloudAccountReceipt
 }

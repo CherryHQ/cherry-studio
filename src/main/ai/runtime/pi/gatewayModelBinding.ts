@@ -1,10 +1,12 @@
+import { randomUUID } from 'node:crypto'
+
 import type { Usage } from '@earendil-works/pi-ai'
 import type { ModelRuntime } from '@earendil-works/pi-coding-agent'
-import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
-import { startAgentRuntimeChildSpan, endAgentRuntimeSpan } from '@main/ai/observability'
+import { getPiTraceContext } from '@main/ai/observability'
 import { isPiCompatibleModel, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -22,7 +24,7 @@ import { reportedOutputUsageObserver, type ReportedOutputUsage } from './reporte
 
 /** Native Pi protocols target Cherry's internal gateway; Cherry retains provider credentials and billing. */
 export async function createPiGatewayModelBinding(
-  input: Pick<AgentRuntimeConnectInput, 'sessionId' | 'reasoningEffort' | 'serviceTier' | 'fastMode' | 'trace'>,
+  input: Pick<AgentRuntimeConnectInput, 'sessionId' | 'reasoningEffort' | 'serviceTier' | 'fastMode'>,
   provider: Provider,
   model: Model,
   onUsage?: (usage: Usage, nativeSessionId: string | undefined, responseId?: string) => void,
@@ -61,7 +63,7 @@ export async function createPiGatewayModelBinding(
       refreshOnCreate: false
     }))
   // Native provider re-registration replaces its models and stream handler.
-  const providerName = sharedModels ? `cherry-gateway/${model.id}` : provider.id
+  const providerName = sharedModels ? `cherry-gateway/${input.sessionId}/${randomUUID()}` : provider.id
   modelRuntime.registerProvider(providerName, {
     name: provider.name,
     api,
@@ -89,46 +91,42 @@ export async function createPiGatewayModelBinding(
     },
     // Pi's session retry policy owns retries; neither gateway nor HTTP client retries a step.
     streamSimple: (model, context, options) => {
-      const span = startAgentRuntimeChildSpan(input.trace, 'pi.generate_content', SpanKind.CLIENT, {
-        'gen_ai.operation.name': 'chat',
-        'gen_ai.provider.name': provider.id,
-        'gen_ai.request.model': model.id
-      })
-      // Native reasoning can enlarge per-call output caps before the gateway receives them.
-      const reported: ReportedOutputUsage = {}
-      const stream = streamSimple(model, context, {
-        ...options,
-        reasoning: undefined,
-        maxRetries: 0,
-        onProviderStreamEvent: reportedOutputUsageObserver(reported, options?.onProviderStreamEvent)
-      })
-      void stream
-        .result()
-        .then((message) => {
-          // The pinned SDK resolves result() before delivering its terminal event.
-          // Decorate that same message before native input_settled projects its error.
-          if (message.stopReason === 'length') {
-            message.errorMessage = formatPiOutputLimitDiagnostic({ configuredMaxTokens: model.maxTokens, ...reported })
-          }
-          onUsage?.(message.usage, options?.sessionId, message.responseId)
-          const failed = message.stopReason === 'error' || message.stopReason === 'aborted'
-          if (span) {
-            span.setAttribute(
-              'gen_ai.usage.input_tokens',
-              message.usage.input + message.usage.cacheRead + message.usage.cacheWrite
-            )
-            span.setAttribute('gen_ai.usage.output_tokens', message.usage.output)
-            endAgentRuntimeSpan(span, {
-              code: failed ? SpanStatusCode.ERROR : SpanStatusCode.OK,
-              message: message.errorMessage
-            })
-          }
+      const parent = getPiTraceContext(options?.telemetry)
+      const capture = parent
+        ? application.get('ApiGatewayService').captureAgentSessionUsage(input.sessionId, undefined, parent)
+        : undefined
+      try {
+        // Native reasoning can enlarge per-call output caps before the gateway receives them.
+        const reported: ReportedOutputUsage = {}
+        const stream = streamSimple(model, context, {
+          ...options,
+          ...(capture && { headers: { ...options?.headers, ...capture.headers } }),
+          reasoning: undefined,
+          maxRetries: 0,
+          onProviderStreamEvent: reportedOutputUsageObserver(reported, options?.onProviderStreamEvent)
         })
-        .catch((error) => {
-          if (span) endAgentRuntimeSpan(span, { code: SpanStatusCode.ERROR, message: String(error) })
-          loggerService.withContext('PiGatewayModelBinding').error('Failed to observe native model response', { error })
-        })
-      return stream
+        void stream
+          .result()
+          .then((message) => {
+            if (message.stopReason === 'length') {
+              message.errorMessage = formatPiOutputLimitDiagnostic({
+                configuredMaxTokens: model.maxTokens,
+                ...reported
+              })
+            }
+            onUsage?.(message.usage, options?.sessionId, message.responseId)
+          })
+          .catch((error) => {
+            loggerService
+              .withContext('PiGatewayModelBinding')
+              .error('Failed to observe native model response', { error })
+          })
+          .finally(() => capture?.release())
+        return stream
+      } catch (error) {
+        capture?.release()
+        throw error
+      }
     }
   })
   await modelRuntime.setRuntimeApiKey(providerName, gateway.apiKey)

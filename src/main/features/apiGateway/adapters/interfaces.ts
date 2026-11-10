@@ -1,4 +1,3 @@
-import type { ProviderOptions } from '@ai-sdk/provider-utils'
 /**
  * Core interfaces for the API Server adapter system
  *
@@ -7,7 +6,9 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
  * - Message converters: Convert between API message formats
  * - SSE formatters: Format events for Server-Sent Events
  */
-import type { ToolSet, UIMessageChunk } from 'ai'
+
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { ToolChoice, ToolSet, UIMessageChunk } from 'ai'
 
 import type { ProviderReportedOutputUsage } from '@shared/ai/reportedOutputUsage'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -60,6 +61,7 @@ export interface StreamTextOptions {
   topP?: number
   topK?: number
   stopSequences?: string[]
+  toolChoice?: ToolChoice<ToolSet>
 }
 
 /**
@@ -165,7 +167,8 @@ export interface IMessageConverter<TInputParams = unknown> {
     provider: Provider,
     model: Model,
     params: TInputParams,
-    maxOutputTokens?: number
+    maxOutputTokens?: number,
+    overrideReasoning?: boolean
   ): ProviderOptions | undefined
 }
 

@@ -7,14 +7,15 @@ import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudAccountPlans } from '@shared/ipc/schemas/cherryCloud'
 
-export interface CherryCloudQuotaExhaustion {
-  /** Out of quota, or locked: signed out, not subscribed, or not part of the subscribed plan. */
-  reason: 'quota_exhausted' | 'sign_in_required' | 'subscription_required' | 'not_in_plan'
+export type CherryCloudQuotaExhaustion = {
   isFreeModel: boolean
-  isSubscribed: boolean
-  /** ISO time the model becomes usable again, when every blocking window reports one. */
-  recoversAt?: string
-}
+  /** Undefined while the current account's plans are unknown or stale. */
+  isSubscribed: boolean | undefined
+} & (
+  | { reason: 'unknown'; state: 'loading' | 'error' | 'stale' }
+  | { reason: 'quota_exhausted'; recoversAt?: string }
+  | { reason: 'sign_in_required' | 'subscription_required' | 'not_in_plan' }
+)
 
 // A pool serves the model again once all of its exhausted windows recover; any one such pool suffices.
 function getRecoveryTime(plans: CherryCloudAccountPlans | undefined, cloudModelId: string): string | undefined {
@@ -39,24 +40,58 @@ export function useCherryCloudQuotaExhaustion(
   includeAgentOnlyModels = false
 ): CherryCloudQuotaExhaustion | null {
   const isCloudModel = Boolean(model && isManagedCherryCloudModel(model.providerId))
-  const { isModelFree, isModelLocked, isModelUnavailable } = useCherryCloudModelAvailability(isCloudModel)
+  const { isModelFree, isModelLocked, isModelUnavailable, availabilityFreshness, availabilityError } =
+    useCherryCloudModelAvailability(isCloudModel)
   const locked = Boolean(model && isCloudModel && isModelLocked(model, includeAgentOnlyModels))
   const exhausted = Boolean(model && isCloudModel && !locked && isModelUnavailable(model))
-  const { session, plansQuery, activePaid } = useCherryCloudPlans(locked || exhausted)
+  const { session, plansQuery, activePaid, upcomingPaid, isPlansReady, plansFreshness } =
+    useCherryCloudPlans(isCloudModel)
   const phase = session.status?.phase
 
   return useMemo<CherryCloudQuotaExhaustion | null>(() => {
-    if (!model || !(locked || exhausted)) return null
-    const base = { isFreeModel: isModelFree(model), isSubscribed: Boolean(activePaid) }
+    if (!model || !isCloudModel) return null
+    const base = {
+      isFreeModel: isModelFree(model),
+      isSubscribed: isPlansReady ? Boolean(activePaid || upcomingPaid) : undefined
+    }
+    if (availabilityFreshness !== 'fresh')
+      return {
+        ...base,
+        reason: 'unknown',
+        state: availabilityError ? 'error' : availabilityFreshness === 'stale' ? 'stale' : 'loading'
+      }
+    if (!(locked || exhausted)) return null
     if (exhausted) {
       return {
         ...base,
         reason: 'quota_exhausted',
-        recoversAt: getRecoveryTime(plansQuery.data, parseUniqueModelId(model.id).modelId)
+        recoversAt: getRecoveryTime(isPlansReady ? plansQuery.data : undefined, parseUniqueModelId(model.id).modelId)
       }
     }
-    if (phase !== 'signed-in') return { ...base, reason: 'sign_in_required' }
-    // Until the plans load, offer no subscription that a paying account would not need.
-    return { ...base, reason: plansQuery.data && !activePaid ? 'subscription_required' : 'not_in_plan' }
-  }, [activePaid, exhausted, isModelFree, locked, model, phase, plansQuery.data])
+    if (phase === 'signed-out') return { ...base, reason: 'sign_in_required' }
+    if (phase !== 'signed-in' || !isPlansReady)
+      return {
+        ...base,
+        reason: 'unknown',
+        state:
+          session.loadState === 'error' || plansQuery.error ? 'error' : plansFreshness === 'stale' ? 'stale' : 'loading'
+      }
+    return { ...base, reason: !activePaid && !upcomingPaid ? 'subscription_required' : 'not_in_plan' }
+  }, [
+    activePaid,
+    upcomingPaid,
+    exhausted,
+    isCloudModel,
+    isModelFree,
+    locked,
+    model,
+    phase,
+    plansQuery.data,
+    plansQuery.error,
+    isPlansReady,
+    plansFreshness,
+    availabilityFreshness,
+    availabilityError,
+    session.loadState
+  ])
 }

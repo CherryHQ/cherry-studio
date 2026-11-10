@@ -41,6 +41,8 @@ import AgentComposerImpl, {
 
 const mocks = vi.hoisted(() => ({
   quotaExhaustion: null as CherryCloudQuotaExhaustion | null,
+  exhaustedTargets: new Set<string>(),
+  availabilityRevision: 1,
   screenshotEnabled: false,
   screenshotListeners: new Map<string, (payload: any) => void>(),
   draftText: 'hello',
@@ -491,7 +493,10 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   }),
   useComposerToolLauncherActions: () => ({
     getLaunchers: vi.fn(() => mocks.toolLaunchers),
-    dispatchLauncher: vi.fn()
+    dispatchLauncher: (
+      launcher: ComposerToolLauncher,
+      options: Parameters<NonNullable<ComposerToolLauncher['action']>>[0]
+    ) => launcher.action?.(options)
   }),
   useComposerToolLauncherVersion: () => mocks.toolLaunchersVersion,
   useComposerTokenReconcile: () => mocks.reconcileTokens
@@ -559,6 +564,15 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderDisplayName: (providerId?: string) => (providerId ? mocks.providerNames[providerId] : '')
 }))
 
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelAvailability: () => ({
+    availabilityFreshness: 'fresh',
+    scopeId: 'account-scope',
+    revision: mocks.availabilityRevision,
+    isModelUnavailable: (model: Pick<Model, 'id' | 'providerId'>) => mocks.exhaustedTargets.has(model.id)
+  })
+}))
+
 vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
   useCherryCloudQuotaExhaustion: () => mocks.quotaExhaustion
 }))
@@ -575,6 +589,13 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: ({ size }: { size?: number }) => <span data-testid="model-avatar" data-size={size} />,
   ModelAvatar: ({ size }: { size?: number }) => <span data-testid="model-avatar" data-size={size} />
 }))
+
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
 
 vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({ onSelect, trigger, open, onOpenChange, shortcut }: any) => (
@@ -774,6 +795,8 @@ const originalFetch = globalThis.fetch
 describe('AgentComposer', () => {
   beforeEach(() => {
     mocks.quotaExhaustion = null
+    mocks.exhaustedTargets.clear()
+    mocks.availabilityRevision = 1
     MockCacheUtils.resetMocks()
     globalThis.fetch = vi.fn(async () => ({
       ok: true,
@@ -3884,6 +3907,29 @@ describe('AgentComposer', () => {
     )
   })
 
+  it('routes Shift+Tab through the Plan command instead of saving the mode directly', () => {
+    const requestPlanMode = vi.fn()
+    mocks.optionalQuickPanel = { isVisible: false, symbol: '', updateList: vi.fn() }
+    mocks.toolLaunchers = [
+      { id: 'plan-mode', kind: 'command', label: 'Plan Mode', icon: null, action: requestPlanMode }
+    ]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    expect(mocks.surfaceProps?.onShiftTab).toBeDefined()
+    act(() => mocks.surfaceProps?.onShiftTab?.())
+
+    expect(requestPlanMode).toHaveBeenCalledOnce()
+    expect(mocks.updateAgent).not.toHaveBeenCalled()
+  })
+
   it('adopts launch options that arrive after the restored session first renders', async () => {
     const issueReporterToken = {
       id: 'skill:issue-reporter',
@@ -6152,6 +6198,40 @@ describe('AgentComposer', () => {
       expect(mocks.surfaceProps?.text, 'draining A must preserve B in the editor').toBe('B')
     })
   })
+  it.each([false, true])(
+    'submits a queued Agent turn for launch without client quota advice (latest exhausted=%s)',
+    async (latestExhausted) => {
+      const a = { ...model, id: 'cherryai-subscription::a', providerId: 'cherryai-subscription' } satisfies Model
+      const b = { ...model, id: 'cherryai-subscription::b', providerId: 'cherryai-subscription' } satisfies Model
+      let current: Model = a
+      mocks.sendMessage.mockResolvedValue(undefined)
+      const component = (busy: boolean) => (
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          resolvedAgent={{ ...createControlledAgent(), model: current.id }}
+          resolvedModel={current}
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={busy}
+        />
+      )
+      const view = render(component(true))
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: 'latest target', tokens: [] })
+      })
+      expect(getQueueDock().props.items[0].payload.mentionedModels).toBeUndefined()
+      current = b
+      mocks.exhaustedTargets.add(latestExhausted ? b.id : a.id)
+      mocks.topicFulfilled = true
+      await act(async () => view.rerender(component(false)))
+      expect(mocks.sendMessage).toHaveBeenCalledWith(
+        { text: 'latest target' },
+        expect.objectContaining({ body: expect.objectContaining({ agentId: 'agent-1', sessionId: 'session-1' }) })
+      )
+      expect(getQueueDock()?.props.items ?? []).toEqual([])
+    }
+  )
 })
 
 async function notifyComposerBottomToolbarWidth(width: number, scrollWidth = width + 240) {
