@@ -74,7 +74,9 @@ vi.mock('@application', () => ({ application: applicationMock }))
 
 // attachTab delegates delivery to openTabInMainWindow (live event vs cold-start init data);
 // its own live/cold split is covered in mainWindowNavigation.test.ts.
-vi.mock('@main/services/mainWindowNavigation', () => ({ openTabInMainWindow: openTabInMainWindowMock }))
+vi.mock('@main/services/mainWindowNavigation', () => ({
+  openTabInMainWindow: openTabInMainWindowMock
+}))
 
 vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: vi.fn() },
@@ -366,19 +368,6 @@ describe('SubWindowService', () => {
   })
 
   describe('createWindow - tabId → windowId mapping + cleanup', () => {
-    it('populates tabIdToWindowId after open and cleans up on "closed"', () => {
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-      windowManagerMock.open.mockReturnValue('wid-A')
-
-      svc.createWindow({ id: 'tab-A', url: 'u' })
-      expect((svc as any).tabIdToWindowId.get('tab-A')).toBe('wid-A')
-
-      win.emit('closed')
-      expect((svc as any).tabIdToWindowId.has('tab-A')).toBe(false)
-      expect((svc as any).windowState.has('tab-A')).toBe(false)
-    })
-
     it('shows immediately (no ready-to-show wait) when no initial position was provided', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)
@@ -432,21 +421,25 @@ describe('SubWindowService', () => {
   describe('attachTab', () => {
     const tab = { id: 'tab-1', title: 'T' } as Parameters<SubWindowService['attachTab']>[0]
 
-    it('delegates delivery to openTabInMainWindow and closes the caller sub-window', () => {
+    it('closes the detached window after delivering its tab to main', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
-
       svc.attachTab(tab, 'sub1')
-
       expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
       expect(windowManagerMock.close).toHaveBeenCalledWith('sub1')
     })
 
-    it('does not close the caller when it is not a SubWindow (never closes the main window)', () => {
+    it('rejects attach from a non-subwindow', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
+      expect(() => svc.attachTab(tab, 'main1')).toThrow('Only a detached window')
+      expect(openTabInMainWindowMock).not.toHaveBeenCalled()
+    })
 
-      svc.attachTab(tab, 'main1')
-
-      expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
+    it('surfaces delivery errors without closing the source window', () => {
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
+      openTabInMainWindowMock.mockImplementationOnce(() => {
+        throw new Error('delivery failed')
+      })
+      expect(() => svc.attachTab(tab, 'sub1')).toThrow('delivery failed')
       expect(windowManagerMock.close).not.toHaveBeenCalled()
     })
   })
@@ -473,6 +466,26 @@ describe('SubWindowService', () => {
   })
 
   describe('Tab_MoveWindow handler', () => {
+    it('moves the new detached window after returning the tab and closing its old window', () => {
+      const oldWindow = createMockWindow()
+      const newWindow = createMockWindow()
+      const senderWindow = createMockWindow()
+      windowManagerMock.open.mockReturnValueOnce('old').mockReturnValueOnce('new')
+      windowManagerMock.getWindow.mockImplementation((id) => (id === 'old' ? oldWindow : newWindow))
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
+      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(senderWindow as any)
+
+      svc.createWindow({ id: 'returned', url: '/app/mini-app/a' })
+      svc.attachTab({ id: 'returned' } as Parameters<SubWindowService['attachTab']>[0], 'old')
+      svc.createWindow({ id: 'returned', url: '/app/mini-app/a' })
+      oldWindow.emit('closed')
+      getNativeOnHandler('tab:move-window')({ sender: {} } as any, { tabId: 'returned', x: 120, y: 230 })
+
+      expect(newWindow.setPosition).toHaveBeenCalledWith(120, 230)
+      expect(oldWindow.setPosition).not.toHaveBeenCalled()
+      expect(senderWindow.setPosition).not.toHaveBeenCalled()
+    })
+
     it('prefers tabId lookup over event.sender', () => {
       const targetWin = createMockWindow()
       const senderWin = createMockWindow()

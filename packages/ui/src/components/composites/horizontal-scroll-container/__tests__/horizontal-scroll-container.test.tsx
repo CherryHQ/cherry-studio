@@ -44,7 +44,7 @@ function triggerResizeObserver() {
 }
 
 function getScrollElement() {
-  return screen.getByTestId('scroll-item').closest('[data-scrolling]') as HTMLElement
+  return screen.getByTestId('scroll-item').closest('[data-horizontal-scroll-viewport]') as HTMLElement
 }
 
 describe('HorizontalScrollContainer', () => {

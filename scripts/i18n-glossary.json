@@ -11,21 +11,24 @@
       "ru-ru": "провайдер",
       "zh-cn": "提供商",
       "zh-tw": "供應商",
-      "tr-tr": "sağlayıcı"
+      "tr-tr": "sağlayıcı",
+      "th-th": "ผู้ให้บริการ"
     },
     "Assistant": {
       "note": "A user-configured chat persona (system prompt + model settings). Distinct from Agent.",
       "ja-jp": "アシスタント",
       "zh-cn": "助手",
       "zh-tw": "助手",
-      "tr-tr": "asistan"
+      "tr-tr": "asistan",
+      "th-th": "ผู้ช่วย"
     },
     "Agent": {
       "note": "An autonomous coding agent with tool access and its own session, not a synonym for Assistant.",
       "ja-jp": "エージェント",
       "zh-cn": "智能体",
       "zh-tw": "智能體",
-      "tr-tr": "ajan"
+      "tr-tr": "ajan",
+      "th-th": "เอเจนต์"
     },
     "Knowledge Base": {
       "note": "A user-built document collection queried via retrieval.",
@@ -34,14 +37,16 @@
       "ru-ru": "База знаний",
       "zh-cn": "知识库",
       "zh-tw": "知識庫",
-      "tr-tr": "bilgi tabanı"
+      "tr-tr": "bilgi tabanı",
+      "th-th": "ฐานความรู้"
     },
     "Topic": {
       "note": "One conversation thread inside an assistant, comparable to a chat in other clients.",
       "ja-jp": "トピック",
       "zh-cn": "话题",
       "zh-tw": "話題",
-      "tr-tr": "konu"
+      "tr-tr": "konu",
+      "th-th": "หัวข้อ"
     }
   }
 }

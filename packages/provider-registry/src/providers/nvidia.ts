@@ -95,7 +95,7 @@ export default openaiCompatible({
     official: 'https://build.nvidia.com/explore/discover'
   },
   modelsDevProvider: 'nvidia',
-  overrides: [
+  modelTemplates: [
     ...['qwen3-5-122b-a10b', 'qwen3-5-397b-a17b'].map((modelId) => ({
       modelId,
       reasoningContracts: chatContract(toggleSupport, enableThinkingWire)

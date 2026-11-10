@@ -30,6 +30,12 @@ This will:
 
 > **Note**: CI will check that PRs modifying packages include a changeset.
 
+Run `pnpm changeset:check` to validate pending changesets. Do not include packages
+listed in `config.json`'s `ignore` setting: their changesets survive versioning and
+prevent the release action from reaching npm publication. PR CI and the release
+workflow reject these entries. Empty changesets (`pnpm changeset add --empty`)
+remain valid for changes that need no package release.
+
 ### Versioning and publishing
 
 Versioning and publishing are handled automatically by CI — you do **not** need to run `changeset version` or `changeset publish` locally. See the [CI/CD Integration](#cicd-integration) section below.
@@ -47,6 +53,8 @@ See `config.json` for the changeset configuration:
 
 | Package | Description |
 | --- | --- |
+| `@cherrystudio/web-search` | Portable web-search protocols and optional content utilities |
+| `@cherrystudio/provider-registry` | Cross-platform provider/model catalogs, schemas, and lookup |
 | `@cherrystudio/ai-core` | Unified AI Provider Interface |
 | `@cherrystudio/ai-sdk-provider` | AI SDK provider bundle with CherryIN routing |
 | `@cherrystudio/extension-table-plus` | Table extension for Tiptap |
@@ -66,6 +74,13 @@ Changeset automatically handles updating peer dependency ranges when `ai-sdk-pro
 ## CI/CD Integration
 
 The release workflow (`.github/workflows/release-packages.yml`) uses [changesets/action](https://github.com/changesets/changesets/blob/main/packages/action/README.md) and works in two phases:
+
+Runs are serialized without cancelling an ongoing npm publication. Immediately
+before running Changesets, the workflow checks that its event commit is still the
+current remote `main`. Obsolete runs skip versioning and publishing. If no newer
+eligible run is queued (for example, the latest push only changed unrelated files),
+start a new manual `Release Packages` run on `main`; re-running an old event keeps
+its obsolete commit.
 
 ### Phase 1 — Accumulate changes
 

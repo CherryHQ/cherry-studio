@@ -12,6 +12,7 @@ import {
   useState
 } from 'react'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Checkbox, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
@@ -19,13 +20,13 @@ import {
   ModelSelectorRow,
   ModelSelectorRowActionButton
 } from '@renderer/components/ModelSelector'
-import Scrollbar from '@renderer/components/Scrollbar'
 import {
   DEFAULT_SELECTOR_CONTENT_HEIGHT,
   SelectorShell,
   type SelectorShellMountStrategy,
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 
 export type ResourceSelectorShellItem = {
   id: string
@@ -406,7 +407,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     if (query) {
       filtered = filtered.filter(
         (item) =>
-          item.name.toLowerCase().includes(query) ||
+          matchesSearchText(item.name, query) ||
           (item.description ? item.description.toLowerCase().includes(query) : false)
       )
     }
@@ -764,16 +765,19 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         const listHeight = availableListHeight ?? DEFAULT_MIN_LIST_HEIGHT
 
         return (
-          <Scrollbar
-            ref={listRef}
-            id={listboxId}
-            role="listbox"
-            aria-multiselectable={multiEnabled}
-            tabIndex={-1}
-            className="min-h-0 flex-1 scroll-pt-1.5 px-1 py-1 outline-none"
+          <ScrollArea
+            viewportProps={{
+              ref: listRef,
+              id: listboxId,
+              role: 'listbox',
+              'aria-multiselectable': multiEnabled,
+              tabIndex: -1,
+              className: 'scroll-pt-1.5 px-1 py-1 outline-none'
+            }}
+            className="min-h-0 flex-1"
             style={{ height: listHeight }}>
             {listContent}
-          </Scrollbar>
+          </ScrollArea>
         )
       }}
     </SelectorShell>

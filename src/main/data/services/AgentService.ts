@@ -104,6 +104,14 @@ function getAgentDescription(id: string, description: string, configuration: unk
 /** The doctor Agent only ever runs inside the System Doctor; it has no place in the Agents page. */
 const notDoctorAgent: SQL = sql`coalesce(json_extract(${agentsTable.configuration}, '$.builtin_role'), '') <> ${BUILTIN_AGENT_ROLE.DOCTOR}`
 
+/** Support also requires its reserved ID, so a legacy marker on another Agent never matches. */
+function builtinRolePredicate(builtinRole: string): SQL {
+  const roleMatch = sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
+  return builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
+    ? and(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID), roleMatch)!
+    : roleMatch
+}
+
 function buildAgentSearchPredicate(search: string): SQL {
   const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`
   const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
@@ -310,15 +318,14 @@ export class AgentService {
     const globalSkillService = getDataService('AgentGlobalSkillService')
     const skillIds = Array.from(new Set(req.skillIds ?? []))
 
-    // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
-    // instructions has no DB DEFAULT — service supplies the product-strategic default.
-    // orderKey is omitted — `insertWithOrderKey` computes the fractional key for the requested position.
+    // Omit undefined fields so DB defaults apply; instructions is required and has no DB default.
+    // `insertWithOrderKey` computes the omitted orderKey for the requested position.
     const insertData: Omit<InsertAgentRow, 'orderKey'> = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
       description: req.description,
-      instructions: req.instructions || 'You are a helpful assistant.',
+      instructions: req.instructions ?? '',
       model: req.model,
       planModel: req.planModel,
       smallModel: req.smallModel,
@@ -410,13 +417,7 @@ export class AgentService {
     builtinRole: string,
     options: { includeDeleted?: boolean } = {}
   ): AgentRow | null {
-    const roleCondition =
-      builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
-        ? and(
-            eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID),
-            sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
-          )
-        : sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
+    const roleCondition = builtinRolePredicate(builtinRole)
     const [agent] = tx
       .select()
       .from(agentsTable)
@@ -586,7 +587,7 @@ export class AgentService {
     return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
   }
 
-  listAgents(options: ListOptions & { ids?: string[]; inTrash?: boolean } = {}): {
+  listAgents(options: ListOptions & { ids?: string[]; builtinRole?: BuiltinAgentRole; inTrash?: boolean } = {}): {
     agents: AgentEntity[]
     total: number
   } {
@@ -599,6 +600,7 @@ export class AgentService {
       notDoctorAgent
     ]
     if (options.ids) conditions.push(inArray(agentsTable.id, options.ids))
+    if (options.builtinRole) conditions.push(builtinRolePredicate(options.builtinRole))
     if (options.search) {
       conditions.push(buildAgentSearchPredicate(options.search))
     }
@@ -820,6 +822,7 @@ export class AgentService {
 
     const updated = this.getAgent(id)
     if (updated) {
+      this.notifyReadModelChange([id], 'projection')
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
     }
     return updated

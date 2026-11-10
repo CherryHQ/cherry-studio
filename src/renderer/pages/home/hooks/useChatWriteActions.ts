@@ -97,6 +97,7 @@ interface Params {
 
 interface Result {
   actions: ChatWriteActions
+  retryFailedMessage: (message: CherryUIMessage, modelId: UniqueModelId) => Promise<void>
   /** Capability flags the send path needs to mirror — exposed so
    *  `handleSend` builds the same body shape. */
   capabilityBody: Record<string, unknown>
@@ -274,13 +275,14 @@ export function useChatWriteActions(params: Params): Result {
       })
       try {
         await patchMessageTrigger({ params: { id: messageId }, body: { data: { parts: editedParts } } })
+        setMessages((messages) => messages.map((msg) => (msg.id === messageId ? { ...msg, parts: editedParts } : msg)))
         logger.info('Edited message', { messageId, partCount: editedParts.length })
       } catch (err) {
         await rollbackBranch()
         throw err
       }
     },
-    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch]
+    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages]
   )
 
   const capabilityBody = useMemo<Record<string, unknown>>(
@@ -292,8 +294,11 @@ export function useChatWriteActions(params: Params): Result {
 
   /** Regenerate with capability body + target-driven anchor/model. */
   const regenerateWithCapabilities = useCallback(
-    async (messageId?: string, options?: { modelId?: UniqueModelId; turnOptions?: AssistantTurnOptions }) => {
-      const target = messageId ? uiMessages.find((m) => m.id === messageId) : undefined
+    async (
+      messageId?: string,
+      options?: { modelId?: UniqueModelId; turnOptions?: AssistantTurnOptions; sourceMessage?: CherryUIMessage }
+    ) => {
+      const target = options?.sourceMessage ?? (messageId ? uiMessages.find((m) => m.id === messageId) : undefined)
       const parentAnchorId = target
         ? target.role === 'user'
           ? target.id
@@ -304,8 +309,8 @@ export function useChatWriteActions(params: Params): Result {
         target?.role === 'assistant' &&
         targetStatus !== 'pending' &&
         (targetStatus === 'error' || targetStatus === 'paused' || (target.parts?.length ?? 0) === 0)
-      // Composer selection only overrides failed retries.
-      const regenerateModelId = options?.modelId ?? (isFailedAssistant ? composerModelId : undefined)
+      // Pending replies are not a regeneration target; otherwise use the current composer selection.
+      const regenerateModelId = options?.modelId ?? (targetStatus === 'pending' ? undefined : composerModelId)
       const retryModelId =
         target?.role === 'assistant'
           ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
@@ -428,8 +433,18 @@ export function useChatWriteActions(params: Params): Result {
         activeExecutions: ack.activeExecutions,
         preserveActiveNode: ack.preserveActiveNode
       })
+      scrollToBottom()
     },
-    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
+    [
+      createSiblingTrigger,
+      seedReservedMessages,
+      scrollToBottom,
+      refresh,
+      setMessages,
+      topic.id,
+      topic.assistantId,
+      uiMessages
+    ]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(
@@ -464,8 +479,9 @@ export function useChatWriteActions(params: Params): Result {
         activeExecutions: ack.activeExecutions,
         preserveActiveNode: ack.preserveActiveNode
       })
+      scrollToBottom()
     },
-    [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]
+    [regenerateWithCapabilities, seedReservedMessages, scrollToBottom, topic.id, uiMessages]
   )
 
   const handleSetActiveNode = useCallback<ChatWriteActions['setActiveNode']>(
@@ -557,5 +573,15 @@ export function useChatWriteActions(params: Params): Result {
     ]
   )
 
-  return { actions, capabilityBody }
+  const retryFailedMessage = useCallback(
+    (message: CherryUIMessage, modelId: UniqueModelId) =>
+      regenerateWithCapabilities(message.id, {
+        modelId,
+        turnOptions: message.metadata?.turnOptions,
+        sourceMessage: { ...message, metadata: { ...message.metadata, status: 'error' } }
+      }),
+    [regenerateWithCapabilities]
+  )
+
+  return { actions, capabilityBody, retryFailedMessage }
 }

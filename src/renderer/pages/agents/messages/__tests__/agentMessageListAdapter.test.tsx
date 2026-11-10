@@ -1,4 +1,4 @@
-import { render, renderHook } from '@testing-library/react'
+import { act, render, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -7,11 +7,13 @@ import type {
   MessageListRuntime
 } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Topic } from '@renderer/types/topic'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const exportActionsMock = vi.hoisted(() => ({
   saveTextFile: vi.fn(),
@@ -28,6 +30,7 @@ const exportActionsMock = vi.hoisted(() => ({
 }))
 const useMessageExportActionsMock = vi.hoisted(() => vi.fn(() => exportActionsMock))
 const cacheHookMocks = vi.hoisted(() => ({
+  selectedMessageIds: ['user-1'] as string[],
   setMultiSelectMode: vi.fn(),
   setSelectedMessageIds: vi.fn()
 }))
@@ -63,8 +66,6 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   openUserProfile: vi.fn()
 }))
 const openRouteMock = vi.hoisted(() => vi.fn())
-const navigateMock = vi.hoisted(() => vi.fn())
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
 const ipcApiRequest = vi.hoisted(() => vi.fn())
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
@@ -79,7 +80,8 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcApiRequest } }))
 vi.mock('@data/hooks/useCache', () => ({
   useCache: (key: string) => {
     if (key === 'chat.multi_select_mode') return [true, cacheHookMocks.setMultiSelectMode]
-    if (key === 'chat.selected_message_ids') return [['user-1'], cacheHookMocks.setSelectedMessageIds]
+    if (key === 'chat.selected_message_ids')
+      return [cacheHookMocks.selectedMessageIds, cacheHookMocks.setSelectedMessageIds]
     return [undefined, vi.fn()]
   }
 }))
@@ -190,8 +192,9 @@ const {
 describe('useAgentMessageListProviderValue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cacheHookMocks.selectedMessageIds = ['user-1']
+    cacheHookMocks.setSelectedMessageIds.mockReset()
     clearPendingAgentSessionImageActionsForTest()
-    window.api.file.openPath = vi.fn()
     ipcApiRequest.mockReset()
     ipcApiRequest.mockResolvedValue({
       kind: 'file',
@@ -203,8 +206,51 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
+  it('delivers sent attachment activation to the current pane callback after rerender', async () => {
+    const opened: InputFilePreview[] = []
+    const input = { displayName: 'report.md', previewPath: '/managed/report.md' as AbsoluteFilePath }
+    const { result, rerender } = renderHook(
+      ({ previewInputFile }) =>
+        useAgentMessageListProviderValue({
+          topic: {
+            id: 'agent-session:source',
+            assistantId: 'agent-1',
+            name: 'Source',
+            messages: []
+          } as unknown as Topic,
+          messages: [],
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'anchor',
+          previewInputFile
+        }),
+      {
+        initialProps: {
+          previewInputFile: (file: InputFilePreview) => {
+            opened.push(file)
+          }
+        }
+      }
+    )
+    await act(async () => {
+      await result.current.actions.previewInputFile?.(input)
+    })
+    expect(opened).toEqual([input])
+    const nextOpened: InputFilePreview[] = []
+    rerender({
+      previewInputFile: (file: InputFilePreview) => {
+        nextOpened.push(file)
+      }
+    })
+    await act(async () => {
+      await result.current.actions.previewInputFile?.(input)
+    })
+    expect(nextOpened).toEqual([input])
+    expect(opened).toEqual([input])
+  })
+
   it.each(['success', 'workspace_changed', 'legacy_history', 'cancelled', 'unexpected'] as const)(
-    'offers completed messages without an availability flag and reports native fork errors: %s',
+    'offers Main-approved completed messages and reports native fork errors: %s',
     async (scenario) => {
       let value: MessageListProviderValue | undefined
       const Probe = () => {
@@ -216,6 +262,7 @@ describe('useAgentMessageListProviderValue', () => {
             messages: []
           } as unknown as Topic,
           messages: [],
+          historyActions: { 'selected-message': { fork: null, edit: 'invalid_target' } },
           partsByMessageId: {},
           isLoading: false,
           messageNavigation: 'anchor'
@@ -274,13 +321,15 @@ describe('useAgentMessageListProviderValue', () => {
     async (scenario) => {
       const lookup = Promise.withResolvers<unknown>()
       dataApiMocks.get.mockReturnValueOnce(lookup.promise)
+      const navigateMock = vi.fn(async () => {})
       const { result } = renderHook(() =>
         useAgentMessageListProviderValue({
           topic: { id: 'agent-session:child', assistantId: 'agent-1', name: 'Child', messages: [] } as unknown as Topic,
           messages: [],
           partsByMessageId: {},
           isLoading: false,
-          messageNavigation: 'anchor'
+          messageNavigation: 'anchor',
+          navigateToForkSource: navigateMock
         })
       )
       const opening = result.current.actions.openForkSourceSession!('parent')
@@ -293,10 +342,7 @@ describe('useAgentMessageListProviderValue', () => {
         )
       await opening
       if (scenario === 'success') {
-        expect(navigateMock).toHaveBeenCalledWith({
-          to: '/app/agents',
-          search: { sessionId: 'parent', forkReturnSessionId: 'child' }
-        })
+        expect(navigateMock).toHaveBeenCalledWith({ sourceSessionId: 'parent', returnSessionId: 'child' })
         expect(leafCapabilitiesMock.notifyError).not.toHaveBeenCalled()
       } else {
         expect(navigateMock).not.toHaveBeenCalled()
@@ -306,6 +352,19 @@ describe('useAgentMessageListProviderValue', () => {
       }
     }
   )
+
+  it('offers no fork-source action when the host cannot navigate in place', () => {
+    const { result } = renderHook(() =>
+      useAgentMessageListProviderValue({
+        topic: { id: 'agent-session:child', assistantId: 'agent-1', name: 'Child', messages: [] } as unknown as Topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+    )
+    expect(result.current.actions.openForkSourceSession).toBeUndefined()
+  })
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', async () => {
     const topic = {
@@ -528,7 +587,7 @@ describe('useAgentMessageListProviderValue', () => {
       sessionId: 'session-1',
       path: 'dist/report.md'
     })
-    expect(window.api.file.openPath).not.toHaveBeenCalled()
+    expect(ipcApiRequest.mock.calls.map(([route]) => route)).not.toContain('system.shell.open_path')
   })
 
   it('injects Agent-session diagnosis persistence into the shared error UI', async () => {
@@ -783,6 +842,70 @@ describe('useAgentMessageListProviderValue', () => {
 
     expect(value?.state.messages[0]).toBe(firstHistoryItem)
     expect(value?.state.messages[1]).not.toBe(firstActiveItem)
+  })
+
+  describe('Agent delete presentation policy', () => {
+    const topic = {
+      id: 'agent-session:policy',
+      assistantId: 'agent-1',
+      name: 'Policy',
+      messages: []
+    } as unknown as Topic
+    const messages: CherryUIMessage[] = [
+      { id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'question' }] },
+      { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'answer' }] }
+    ]
+    const renderPolicyAdapter = () => {
+      cacheHookMocks.setSelectedMessageIds.mockImplementation((value) => {
+        cacheHookMocks.selectedMessageIds =
+          typeof value === 'function' ? value(cacheHookMocks.selectedMessageIds) : value
+      })
+      return renderHook(() =>
+        useAgentMessageListProviderValue({
+          topic,
+          messages,
+          partsByMessageId: Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []])),
+          isLoading: false,
+          messageNavigation: 'anchor',
+          deleteMessage: vi.fn()
+        })
+      )
+    }
+
+    it('allows deletion presentation for the returned user item', () => {
+      const { result } = renderPolicyAdapter()
+      const user = result.current.state.messages.find((message) => message.role === 'user')!
+      expect(result.current.actions.canDeleteMessage?.(user)).toBe(true)
+    })
+
+    it('denies deletion presentation for the returned assistant item', () => {
+      const { result } = renderPolicyAdapter()
+      const assistant = result.current.state.messages.find((message) => message.role === 'assistant')!
+      expect(result.current.actions.canDeleteMessage?.(assistant)).toBe(false)
+      expect(result.current.actions.deleteMessage).toBeDefined()
+    })
+
+    it('hides selected delete for an assistant through the real capabilities and controller chain', () => {
+      const { result, rerender } = renderPolicyAdapter()
+      act(() => result.current.actions.selectMessage?.('assistant-1', true))
+      rerender()
+      expect(result.current.state.selection?.selectedMessageIds).toEqual(['assistant-1'])
+      expect(result.current.actions.deleteSelectedMessages).toBeUndefined()
+      expect(result.current.actions.copySelectedMessages).toBeDefined()
+    })
+
+    it('restores selected delete when only the user remains through the real capabilities and controller chain', () => {
+      const { result, rerender } = renderPolicyAdapter()
+      act(() => {
+        result.current.actions.selectMessage?.('assistant-1', true)
+        result.current.actions.selectMessage?.('user-1', true)
+      })
+      rerender()
+      act(() => result.current.actions.selectMessage?.('assistant-1', false))
+      rerender()
+      expect(result.current.state.selection?.selectedMessageIds).toEqual(['user-1'])
+      expect(result.current.actions.deleteSelectedMessages).toBeDefined()
+    })
   })
 
   it('does not expose selected delete action without delete capability', () => {

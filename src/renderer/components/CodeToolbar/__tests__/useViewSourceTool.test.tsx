@@ -75,7 +75,8 @@ describe('useViewSourceTool', () => {
     expect(result.current[0]).toMatchObject({ id: 'edit', tooltip: 'code_block.edit.label' })
 
     rerender({ canEdit: true, hasSpecialView: false, isStreaming: false, viewMode: 'edit' })
-    expect(result.current).toEqual([])
+    act(() => result.current[0].onClick?.())
+    expect(onViewModeChange).toHaveBeenLastCalledWith('source')
 
     rerender({ canEdit: true, hasSpecialView: true, isStreaming: false, viewMode: 'edit' })
     expect(result.current[0]).toMatchObject({ id: 'edit', tooltip: 'preview.label' })
