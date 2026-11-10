@@ -29,6 +29,7 @@ import { AgentLanguageField } from '@renderer/components/resourceCatalog/dialogs
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
@@ -87,6 +88,7 @@ import {
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
+import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
 import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
@@ -298,6 +300,7 @@ function AgentEditDialogContent({
   const caps = AGENT_RUNTIME_CAPABILITIES[resource.type]
   const sealedSkills = isSealedBuiltinAgentRole(resource.configuration?.builtin_role)
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
+  const memoryPanelRef = useRef<AgentMemoryPanelHandle>(null)
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
@@ -354,6 +357,7 @@ function AgentEditDialogContent({
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
       { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
+      { id: 'memory', label: t('agent.memory.button') },
       {
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
@@ -522,6 +526,7 @@ function AgentEditDialogContent({
       onOpenChange(next)
       return true
     }
+    if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return false
     const valuesBeforeSave = JSON.stringify(form.getValues())
     const pendingSave = getPendingSave()
     if (pendingSave) await pendingSave
@@ -556,7 +561,11 @@ function AgentEditDialogContent({
     <EditDialogShell
       activeTab={activeTab}
       form={form}
-      onActiveTabChange={setActiveTab}
+      onActiveTabChange={async (tab) => {
+        if (tab === activeTab) return
+        if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
+        setActiveTab(tab)
+      }}
       onOpenChange={handleOpenChange}
       open={open}
       rootError={rootError}
@@ -616,6 +625,11 @@ function AgentEditDialogContent({
             />
           </TabsContent>
         ) : null}
+        {open && activeTab === 'memory' ? (
+          <TabsContent value="memory" className="m-0 flex h-full min-h-0 flex-col">
+            <AgentMemoryPanel key={resource.id} ref={memoryPanelRef} agent={resource} />
+          </TabsContent>
+        ) : null}
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
           <AgentAdvancedFields form={form} />
         </TabsContent>
@@ -660,6 +674,7 @@ function AgentBasicFields({
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
   const [heartbeatOpen, setHeartbeatOpen] = useState(false)
+  const { isPresent: heartbeatPresent } = useExitPresence(heartbeatOpen ? true : null)
 
   return (
     <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
@@ -768,8 +783,13 @@ function AgentBasicFields({
               {t('agent.heartbeat.edit')}
             </Button>
           </div>
-          {heartbeatOpen ? (
-            <HeartbeatEditorDialog agentId={agentId} enabled={heartbeatEnabled} onOpenChange={setHeartbeatOpen} />
+          {heartbeatPresent ? (
+            <HeartbeatEditorDialog
+              agentId={agentId}
+              enabled={heartbeatEnabled}
+              open={heartbeatOpen}
+              onOpenChange={setHeartbeatOpen}
+            />
           ) : null}
         </div>
       ) : null}
