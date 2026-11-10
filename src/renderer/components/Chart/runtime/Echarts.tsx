@@ -19,6 +19,11 @@ interface EchartsProps {
   option: EChartsCoreOption
 }
 
+function areTimelineLabelsEqual(current: TimelineComponentOption['data'], next: TimelineComponentOption['data']) {
+  if (!current || !next || current.length !== next.length) return false
+  return current.every((label, index) => typeof label === 'string' && label === next[index])
+}
+
 export function Echarts({
   ariaLabel,
   className,
@@ -130,13 +135,14 @@ export function Echarts({
     const liveIndex = liveTimeline?.currentIndex
     const nextBaseOption = nextOption.baseOption ?? nextOption
     const nextTimeline = nextBaseOption.timeline as TimelineComponentOption | TimelineComponentOption[] | undefined
-    if (typeof liveIndex === 'number' && Number.isInteger(liveIndex) && nextTimeline && !Array.isArray(nextTimeline)) {
-      const frameCount = nextTimeline.data?.length
-      const currentIndex =
-        frameCount !== undefined && frameCount !== liveTimeline?.data?.length
-          ? Math.max(0, Math.min(liveIndex, frameCount - 1))
-          : liveIndex
-      const timeline: TimelineComponentOption = { ...nextTimeline, currentIndex }
+    if (
+      typeof liveIndex === 'number' &&
+      Number.isInteger(liveIndex) &&
+      nextTimeline &&
+      !Array.isArray(nextTimeline) &&
+      areTimelineLabelsEqual(liveTimeline?.data, nextTimeline.data)
+    ) {
+      const timeline: TimelineComponentOption = { ...nextTimeline, currentIndex: liveIndex }
       nextBaseOption.timeline = timeline
     }
     const hasTimeline = option.baseOption !== undefined

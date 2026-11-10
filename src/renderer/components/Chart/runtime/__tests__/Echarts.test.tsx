@@ -234,6 +234,26 @@ describe('Echarts timeline replay', () => {
     expect(replay.baseOption.timeline.currentIndex).toBe(3)
   })
 
+  it('preserves the selected frame only when timeline labels remain the same', async () => {
+    vi.useFakeTimers()
+    const view = render(<Echarts {...props} option={createOption()} />)
+    const host = view.getByRole('img', { name: 'Usage' }) as HTMLDivElement
+    const chart = echarts.getInstanceByDom(host)!
+    await act(async () => vi.advanceTimersToNextFrame())
+    act(() => chart.dispatchAction({ type: 'timelineChange', currentIndex: 1 }))
+
+    view.rerender(<Echarts {...props} option={createOption()} />)
+    await act(async () => vi.advanceTimersToNextFrame())
+    expect((chart.getOption().timeline as TimelineComponentOption[])[0].currentIndex).toBe(1)
+
+    const nextOption = createOption()
+    nextOption.baseOption.timeline.data = ['Day 5', 'Day 6', 'Day 7', 'Day 8']
+    nextOption.baseOption.timeline.currentIndex = 2
+    view.rerender(<Echarts {...props} option={nextOption} />)
+    await act(async () => vi.advanceTimersToNextFrame())
+    expect((chart.getOption().timeline as TimelineComponentOption[])[0].currentIndex).toBe(2)
+  })
+
   it('waits for the new finished event before capture during a timeline animation', async () => {
     vi.useFakeTimers()
     const view = render(<Echarts {...props} option={createOption()} />)
@@ -283,31 +303,23 @@ describe('Echarts timeline replay', () => {
     await expect(preparation).resolves.toBeTypeOf('function')
   })
 
-  it.each([
-    { frameCount: 0, expectedIndex: 0 },
-    { frameCount: 2, expectedIndex: 1 },
-    { frameCount: 3, expectedIndex: 2 },
-    { frameCount: 6, expectedIndex: 3 }
-  ])(
-    'keeps the live index in range when the frame count changes to $frameCount',
-    async ({ frameCount, expectedIndex }) => {
-      vi.useFakeTimers()
-      const view = render(<Echarts {...props} option={createOption()} />)
-      const host = view.getByRole('img', { name: 'Usage' }) as HTMLDivElement
-      const chart = echarts.getInstanceByDom(host)!
-      await act(async () => vi.advanceTimersToNextFrame())
-      act(() => chart.dispatchAction({ type: 'timelineChange', currentIndex: 3 }))
+  it.each([0, 2, 3, 6])('uses the option default index when the frame count changes to %i', async (frameCount) => {
+    vi.useFakeTimers()
+    const view = render(<Echarts {...props} option={createOption()} />)
+    const host = view.getByRole('img', { name: 'Usage' }) as HTMLDivElement
+    const chart = echarts.getInstanceByDom(host)!
+    await act(async () => vi.advanceTimersToNextFrame())
+    act(() => chart.dispatchAction({ type: 'timelineChange', currentIndex: 3 }))
 
-      const nextOption = createOption(frameCount)
-      nextOption.baseOption.timeline.currentIndex = 0
-      view.rerender(<Echarts {...props} option={nextOption} />)
-      await act(async () => vi.advanceTimersToNextFrame())
-      const timeline = (chart.getOption().timeline as TimelineComponentOption[])[0]
-      expect(timeline.data).toHaveLength(frameCount)
-      expect(timeline.currentIndex).toBe(expectedIndex)
-      expect(nextOption.baseOption.timeline.currentIndex).toBe(0)
-    }
-  )
+    const nextOption = createOption(frameCount)
+    nextOption.baseOption.timeline.currentIndex = 0
+    view.rerender(<Echarts {...props} option={nextOption} />)
+    await act(async () => vi.advanceTimersToNextFrame())
+    const timeline = (chart.getOption().timeline as TimelineComponentOption[])[0]
+    expect(timeline.data).toHaveLength(frameCount)
+    expect(timeline.currentIndex).toBe(0)
+    expect(nextOption.baseOption.timeline.currentIndex).toBe(0)
+  })
 
   it('rejects a pending capture when another timeline change starts', async () => {
     const view = render(<Echarts {...props} option={createOption()} />)
