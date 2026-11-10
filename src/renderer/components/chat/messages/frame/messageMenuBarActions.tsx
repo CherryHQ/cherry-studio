@@ -404,7 +404,8 @@ registerToolbarAction({
   icon: <RefreshIcon size={15} />,
   availability: toolbarAvailability(
     'assistant-regenerate',
-    ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.regenerateMessage
+    ({ actions, isAssistantMessage, isUserMessage }) =>
+      (isAssistantMessage || isUserMessage) && !!actions.regenerateMessage
   )
 })
 

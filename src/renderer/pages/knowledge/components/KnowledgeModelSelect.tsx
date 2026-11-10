@@ -3,7 +3,8 @@ import { useMemo } from 'react'
 
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
@@ -47,6 +48,7 @@ export const KnowledgeModelSelect = ({
   const triggerLabel = selectedModel?.name ?? (value || placeholder)
   return (
     <ModelSelector
+      showSubscriptionOffers={false}
       multiple={false}
       selectionType="id"
       value={selectorValue}
