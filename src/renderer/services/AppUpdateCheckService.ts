@@ -3,13 +3,22 @@ import type { UpdateInfo } from 'builder-util-runtime'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { openExternalWebsite } from '@renderer/services/website'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 
 import { presentedRouteService } from './PresentedRouteService'
 
 const logger = loggerService.withContext('AppUpdateCheckService')
 
-export const OFFICIAL_RELEASES_URL = 'https://github.com/CherryHQ/cherry-studio/releases'
+const OFFICIAL_DOWNLOAD_URLS = {
+  global: 'https://cherryai.com/download',
+  cn: 'https://cherryai.com.cn/download'
+} as const
+
+/** The official download page for this build's edition. */
+export function officialDownloadUrl(): string {
+  return OFFICIAL_DOWNLOAD_URLS[getAppEdition()]
+}
 
 /** How long a manual check may stay "checking" when the updater emits nothing. */
 export const UPDATE_CHECK_EVENT_WAIT_MS = 20_000
@@ -189,7 +198,7 @@ class AppUpdateCheckService {
   }
 
   private async openOfficialReleases(): Promise<void> {
-    await openExternalWebsite(OFFICIAL_RELEASES_URL)
+    await openExternalWebsite(officialDownloadUrl())
   }
 
   private ownsCheck(owner: number): boolean {

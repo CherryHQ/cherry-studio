@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { updateNoticeIsFailure } from '@renderer/hooks/useAppUpdateCheck'
-import { OFFICIAL_RELEASES_URL } from '@renderer/services/AppUpdateCheckService'
+import { officialDownloadUrl } from '@renderer/services/AppUpdateCheckService'
 import { openExternalWebsite } from '@renderer/services/website'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 
@@ -24,7 +24,7 @@ export function ErrorUpdateBanner({ appUpdateState, noticeKey, onRetry }: ErrorU
 
   const openOfficialReleases = () => {
     setReleasesOpenFailed(false)
-    void openExternalWebsite(OFFICIAL_RELEASES_URL).catch((error: unknown) => {
+    void openExternalWebsite(officialDownloadUrl()).catch((error: unknown) => {
       logger.error('Failed to open official releases', error as Error)
       setReleasesOpenFailed(true)
     })
@@ -34,7 +34,7 @@ export function ErrorUpdateBanner({ appUpdateState, noticeKey, onRetry }: ErrorU
     const failed = updateNoticeIsFailure(noticeKey)
     const checkFailed = noticeKey === 'settings.about.updateError'
     return (
-      <div className="space-y-1.5 rounded-md border border-border-subtle bg-background-subtle px-3 py-2 text-xs text-foreground">
+      <div className="space-y-1.5 rounded-lg border border-border-subtle bg-background-subtle px-3 py-2 text-xs text-foreground">
         <div className="flex flex-wrap items-center gap-2">
           {checkFailed ? (
             <AlertCircle size={14} className="shrink-0 text-error" aria-hidden />
@@ -75,7 +75,7 @@ export function ErrorUpdateBanner({ appUpdateState, noticeKey, onRetry }: ErrorU
     return (
       <div
         role="status"
-        className="flex items-center gap-2 rounded-md border border-border bg-background-subtle px-3 py-2 text-xs text-muted-foreground">
+        className="flex items-center gap-2 rounded-lg border border-border-subtle bg-background-subtle px-3 py-2 text-xs text-muted-foreground">
         <Download size={14} className="shrink-0" aria-hidden />
         <span className="min-w-0 flex-1 truncate">
           {version ? t('error.update_banner.downloading', { version }) : t('settings.about.downloading')}

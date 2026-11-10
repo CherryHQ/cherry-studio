@@ -1635,7 +1635,7 @@
   "error.unknown": "Άγνωστο σφάλμα",
   "error.update_banner.downloading": "Λήψη νέας έκδοσης {{version}}",
   "error.update_banner.failed": "Δεν ήταν δυνατός ο έλεγχος για ενημερώσεις. Μπορείτε να κατεβάσετε την πιο πρόσφατη έκδοση από τον επίσημο ιστότοπο.",
-  "error.update_banner.open_releases": "Άνοιγμα σελίδας εκδόσεων",
+  "error.update_banner.open_releases": "Άνοιγμα σελίδας λήψης",
   "error.usage": "δοσολογία",
   "error.user_message_not_found": "Αδυναμία εύρεσης της αρχικής μηνύματος χρήστη",
   "error.value": "τιμή",

@@ -1635,7 +1635,7 @@
   "error.unknown": "Unbekannter Fehler",
   "error.update_banner.downloading": "Neue Version {{version}} wird heruntergeladen",
   "error.update_banner.failed": "Updates konnten nicht geprüft werden. Die neueste Version kannst du von der offiziellen Website herunterladen.",
-  "error.update_banner.open_releases": "Release-Seite öffnen",
+  "error.update_banner.open_releases": "Download-Seite öffnen",
   "error.usage": "Nutzung",
   "error.user_message_not_found": "Ursprüngliche Benutzernachricht nicht gefunden",
   "error.value": "Wert",

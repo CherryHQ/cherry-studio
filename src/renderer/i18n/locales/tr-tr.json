@@ -1635,7 +1635,7 @@
   "error.unknown": "Bilinmeyen hata",
   "error.update_banner.downloading": "Yeni sürüm {{version}} indiriliyor",
   "error.update_banner.failed": "Güncellemeler denetlenemedi. En son sürümü resmi web sitesinden indirebilirsiniz.",
-  "error.update_banner.open_releases": "Sürümler sayfasını aç",
+  "error.update_banner.open_releases": "İndirme sayfasını aç",
   "error.usage": "Kullanım",
   "error.user_message_not_found": "Yeniden gönderilecek özgün kullanıcı mesajı bulunamıyor",
   "error.value": "Değer",

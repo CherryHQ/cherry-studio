@@ -1635,7 +1635,7 @@
   "error.unknown": "Неизвестная ошибка",
   "error.update_banner.downloading": "Загрузка новой версии {{version}}",
   "error.update_banner.failed": "Не удалось проверить обновления. Последнюю версию можно скачать на официальном сайте.",
-  "error.update_banner.open_releases": "Открыть страницу релизов",
+  "error.update_banner.open_releases": "Открыть страницу загрузки",
   "error.usage": "Дозировка",
   "error.user_message_not_found": "Не удалось найти исходное сообщение пользователя",
   "error.value": "значение",

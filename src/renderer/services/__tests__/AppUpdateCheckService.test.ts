@@ -16,7 +16,7 @@ vi.mock('@renderer/components/UpdateDialogPopup', () => ({
   default: { show: (...args: unknown[]) => updateDialogShow(...args) }
 }))
 
-import { OFFICIAL_RELEASES_URL, UPDATE_CHECK_EVENT_WAIT_MS } from '../AppUpdateCheckService'
+import { UPDATE_CHECK_EVENT_WAIT_MS } from '../AppUpdateCheckService'
 import type * as UpdateCheckModule from '../AppUpdateCheckService'
 let appUpdateCheckService: typeof UpdateCheckModule.appUpdateCheckService
 
@@ -38,6 +38,7 @@ function setWindowSource(source: string) {
 
 describe('runAppUpdateCheck', () => {
   beforeEach(async () => {
+    vi.stubGlobal('__APP_EDITION__', 'global')
     vi.resetModules()
     ;({ appUpdateCheckService } = await import('../AppUpdateCheckService'))
 
@@ -71,18 +72,25 @@ describe('runAppUpdateCheck', () => {
     expect(request.mock.calls.filter(([channel]) => channel === 'app.updater.check_for_update')).toHaveLength(1)
   })
 
-  it('opens the official releases page for a portable build and does not call it up to date', async () => {
-    request.mockResolvedValue({ isPortable: true })
-    const update = vi.fn()
+  it.each([
+    ['global', 'https://cherryai.com/download'],
+    ['cn', 'https://cherryai.com.cn/download']
+  ])(
+    'opens the %s edition download page for a portable build and does not call it up to date',
+    async (edition, url) => {
+      vi.stubGlobal('__APP_EDITION__', edition)
+      request.mockResolvedValue({ isPortable: true })
+      const update = vi.fn()
 
-    await appUpdateCheckService.runAppUpdateCheck(idle, update)
+      await appUpdateCheckService.runAppUpdateCheck(idle, update)
 
-    expect(openExternal).toHaveBeenCalledWith(OFFICIAL_RELEASES_URL)
-    expect(callsTo('app.updater.check_for_update')).toHaveLength(0)
-    expect(callsTo('app.updater.quit_and_install')).toHaveLength(0)
-    expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
-    expect(update).not.toHaveBeenCalled()
-  })
+      expect(openExternal).toHaveBeenCalledWith(url)
+      expect(callsTo('app.updater.check_for_update')).toHaveLength(0)
+      expect(callsTo('app.updater.quit_and_install')).toHaveLength(0)
+      expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
+      expect(update).not.toHaveBeenCalled()
+    }
+  )
 
   it('shows a local error without opening the browser when update info cannot be read', async () => {
     request.mockRejectedValue(new Error('ipc down'))

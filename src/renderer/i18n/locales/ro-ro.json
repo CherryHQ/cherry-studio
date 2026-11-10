@@ -1635,7 +1635,7 @@
   "error.unknown": "Eroare necunoscută",
   "error.update_banner.downloading": "Se descarcă noua versiune {{version}}",
   "error.update_banner.failed": "Nu s-au putut verifica actualizările. Poți descărca cea mai recentă versiune de pe site-ul oficial.",
-  "error.update_banner.open_releases": "Deschide pagina de versiuni",
+  "error.update_banner.open_releases": "Deschide pagina de descărcare",
   "error.usage": "Utilizare",
   "error.user_message_not_found": "Nu se poate găsi mesajul original al utilizatorului pentru a retrimite",
   "error.value": "Valoare",
