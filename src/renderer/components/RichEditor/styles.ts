@@ -216,6 +216,22 @@ const STYLE_CONTENT = `
   border-radius: 3px;
 }
 
+.RichEditorContent .ProseMirror .wiki-link {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.RichEditorContent .ProseMirror .wiki-link:hover {
+  text-decoration-thickness: 2px;
+  background-color: var(--accent);
+  padding: 1px 2px;
+  margin: -1px -2px;
+  border-radius: 3px;
+}
+
 .RichEditorWrapper .BackToTopButton {
   position: absolute;
   right: 44px;

@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => {
     richEditorContent: 'edited rich content',
     sourceEditorContent: 'edited source content',
     mountedEditor: 'source',
+    wikiTarget: 'other',
     editorReady: vi.fn(),
     sourceScrollToLine: vi.fn(),
     richScrollToLine: vi.fn(),
@@ -284,7 +285,8 @@ vi.mock('../NotesEditor', async (importOriginal) => {
     currentContent,
     editorRef,
     onCreateNote,
-    onMarkdownChange
+    onMarkdownChange,
+    onWikiLinkClick
   }: any) {
     React.useEffect(() => {
       if (!activeNodeId) {
@@ -332,7 +334,8 @@ vi.mock('../NotesEditor', async (importOriginal) => {
     return React.createElement('div', {
       'data-active-node-id': activeNodeId,
       'data-current-content': currentContent,
-      'data-testid': 'notes-editor'
+      'data-testid': 'notes-editor',
+      onClick: () => onWikiLinkClick(mocks.wikiTarget)
     })
   }
 
@@ -415,6 +418,7 @@ describe('NotesPage print payloads', () => {
     mocks.richEditorContent = 'edited rich content'
     mocks.sourceEditorContent = 'edited source content'
     mocks.mountedEditor = 'source'
+    mocks.wikiTarget = 'other'
     mocks.settings.defaultEditMode = 'source'
     mocks.settings.defaultViewMode = 'edit'
     mocks.ipcRequest.mockImplementation((route: string) => {
@@ -683,6 +687,45 @@ describe('NotesPage print payloads', () => {
 
     expect(mocks.richScrollToLine).toHaveBeenCalledWith(12, { highlight: true, lineContent: 'current hit' })
     expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+  })
+
+  it('does not navigate or save missing and ambiguous wiki links', async () => {
+    const other = {
+      ...mocks.noteNode,
+      id: '/notes/a/other.md',
+      treePath: '/a/other',
+      externalPath: '/notes/a/other.md'
+    }
+    mocks.projectedNodes = [
+      mocks.noteNode,
+      other,
+      { ...other, id: '/notes/b/other.md', treePath: '/b/other', externalPath: '/notes/b/other.md' }
+    ]
+    await renderReadyNotesPage()
+    mocks.setDraft.mockClear()
+    fireEvent.click(screen.getByTestId('notes-editor'))
+    mocks.wikiTarget = 'missing'
+    fireEvent.click(screen.getByTestId('notes-editor'))
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+    expect(mocks.setDraft).not.toHaveBeenCalled()
+    expect(window.api.file.write).not.toHaveBeenCalled()
+  })
+
+  it('opens a uniquely resolved wiki link without changing the draft or writing', async () => {
+    const otherNode = {
+      ...mocks.noteNode,
+      id: '/notes/other.md',
+      name: 'other',
+      treePath: '/other',
+      externalPath: '/notes/other.md'
+    }
+    mocks.projectedNodes = [mocks.noteNode, otherNode]
+    await renderReadyNotesPage()
+    mocks.setDraft.mockClear()
+    fireEvent.click(screen.getByTestId('notes-editor'))
+    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
+    expect(mocks.setDraft).not.toHaveBeenCalled()
+    expect(window.api.file.write).not.toHaveBeenCalled()
   })
 
   it('opens another note and scrolls to the search match once its content loads', async () => {

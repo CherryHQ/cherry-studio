@@ -48,6 +48,7 @@ interface NotesEditorProps {
   editorRef: RefObject<RichEditorRef | null>
   codeEditorRef: RefObject<CodeEditorHandles | null>
   onMarkdownChange: (content: string) => void
+  onWikiLinkClick?: (target: string) => void
   onCreateNote?: () => void
 }
 
@@ -60,6 +61,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     contentLoadError,
     tokenCount,
     onMarkdownChange,
+    onWikiLinkClick,
     editorRef,
     codeEditorRef,
     onCreateNote
@@ -265,6 +267,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
                   ref={setRichEditorRef}
                   initialContent={currentContent}
+                  onWikiLinkClick={onWikiLinkClick}
                   onMarkdownChange={tmpViewMode === 'preview' ? acceptMarkdown : undefined}
                   showToolbar={tmpViewMode === 'preview' && !readOnly}
                   editable={tmpViewMode === 'preview' && !readOnly}

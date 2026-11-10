@@ -164,6 +164,155 @@ describe('useRichEditor autoFocus', () => {
 })
 
 describe('useRichEditor markdown paste', () => {
+  it('preserves a copied wiki link when clipboard flavours disagree', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: 'before [[T|Alias]] after', autoFocus: false, onWikiLinkClick: () => {} })
+    )
+    const editor = getEditor(result)
+    act(() => {
+      editor.commands.selectAll()
+    })
+    const clipboard = new Map<string, string>()
+    const copy = new Event('copy', { bubbles: true, cancelable: true })
+    Object.defineProperty(copy, 'clipboardData', {
+      value: {
+        clearData: () => clipboard.clear(),
+        setData: (type: string, value: string) => clipboard.set(type, value)
+      }
+    })
+    editor.view.dom.dispatchEvent(copy)
+    expect(clipboard.get('text/plain')).toBe('before [[T|Alias]] after')
+    expect(clipboard.get('text/html')).toContain('data-wiki-raw="[[T|Alias]]"')
+    act(() => {
+      editor.commands.setContent('')
+    })
+    clipboard.set('text/plain', 'before Alias after')
+    const paste = new Event('paste', { bubbles: true, cancelable: true })
+    Object.defineProperty(paste, 'clipboardData', {
+      value: { getData: (type: string) => clipboard.get(type) ?? '', items: [], types: ['text/plain', 'text/html'] }
+    })
+    await act(async () => editor.view.dom.dispatchEvent(paste))
+    expect(editor.getJSON().content?.[0].content?.find((node) => node.type === 'wikiLink')).toMatchObject({
+      attrs: { raw: '[[T|Alias]]', target: 'T', label: 'Alias' }
+    })
+  })
+  it.each(['**[[T]]**', '*a [[T]] b*', '[[dir/T.md|Alias]]', '[[T|空 格 & CJK \\ path]]', '[[T\\|Alias]]'])(
+    'preserves wiki HTML through paste: %s',
+    async (source) => {
+      const { result } = renderHook(() =>
+        useRichEditor({ initialContent: source, autoFocus: false, onWikiLinkClick: () => {} })
+      )
+      const editor = getEditor(result)
+      const html = editor.getHTML()
+      act(() => {
+        editor.commands.clearContent()
+      })
+      const event = new Event('paste', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'clipboardData', {
+        value: {
+          getData: (type: string) => (type === 'text/html' ? html : type === 'text/plain' ? 'wrong plain text' : ''),
+          items: [],
+          types: ['text/plain', 'text/html']
+        }
+      })
+      await act(async () => editor.view.dom.dispatchEvent(event))
+      expect(editor.getMarkdown()).toBe(source)
+    }
+  )
+  it('saves a new final paragraph', () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useRichEditor({ initialContent: 'before', onChange, autoFocus: false }))
+    const editor = getEditor(result)
+    Object.defineProperty(editor, 'isFocused', { value: true, configurable: true })
+    act(() => {
+      editor.commands.setTextSelection(7)
+      editor.commands.splitBlock()
+    })
+    expect(onChange).toHaveBeenLastCalledWith('before\n\n')
+  })
+  it('saves deletion of the final paragraph', () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: 'before\n\nafter\n\n', onChange, autoFocus: false })
+    )
+    const editor = getEditor(result)
+    Object.defineProperty(editor, 'isFocused', { value: true, configurable: true })
+    act(() => {
+      editor.commands.setTextSelection({ from: 7, to: editor.state.doc.content.size - 1 })
+      editor.commands.deleteSelection()
+    })
+    expect(onChange).toHaveBeenLastCalledWith('before')
+  })
+  it('saves the serialized document after an edit', () => {
+    const onChange = vi.fn()
+    const { result } = renderHook(() => useRichEditor({ initialContent: 'before\n\n', onChange, autoFocus: false }))
+    const editor = getEditor(result)
+    Object.defineProperty(editor, 'isFocused', { value: true, configurable: true })
+    act(() => {
+      editor.commands.insertContentAt(7, '!')
+    })
+    expect(onChange).toHaveBeenLastCalledWith('before!\n\n')
+  })
+  it.each([
+    '| Link |\n| --- |\n| `[[X\\|No]]` [[T\\|Alias]] |',
+    '| Link |\n| --- |\n| ``a ` [[X\\|No]] b`` [[T\\|Alias]] |'
+  ])('copies the escaped table token in both clipboard formats: %s', (initialContent) => {
+    const { result } = renderHook(() =>
+      useRichEditor({
+        initialContent,
+        autoFocus: false,
+        onWikiLinkClick: () => {}
+      })
+    )
+    const editor = getEditor(result)
+    act(() => {
+      editor.commands.selectAll()
+    })
+    const clipboard = new Map<string, string>()
+    const copy = new Event('copy', { bubbles: true, cancelable: true })
+    Object.defineProperty(copy, 'clipboardData', {
+      value: {
+        clearData: () => clipboard.clear(),
+        setData: (type: string, value: string) => clipboard.set(type, value)
+      }
+    })
+    editor.view.dom.dispatchEvent(copy)
+    expect(clipboard.get('text/plain')).toContain('[[T\\|Alias]]')
+    expect(clipboard.get('text/html')).toContain('data-wiki-raw="[[T\\|Alias]]"')
+  })
+  it('copies a literal backslash and pipe in both clipboard formats', () => {
+    const { result } = renderHook(() =>
+      useRichEditor({
+        initialContent: '| Link | Other |\n| --- | --- |\n| a\\\\\\|b | x |',
+        autoFocus: false,
+        onWikiLinkClick: () => {}
+      })
+    )
+    const editor = getEditor(result)
+    expect(editor.getText()).toContain('a\\|b')
+    act(() => {
+      editor.commands.selectAll()
+    })
+    const clipboard = new Map<string, string>()
+    const copy = new Event('copy', { bubbles: true, cancelable: true })
+    Object.defineProperty(copy, 'clipboardData', {
+      value: {
+        clearData: () => clipboard.clear(),
+        setData: (type: string, value: string) => clipboard.set(type, value)
+      }
+    })
+    editor.view.dom.dispatchEvent(copy)
+    expect(clipboard.get('text/plain')).toContain('a\\|b')
+    expect(clipboard.get('text/html')).toContain('a\\|b')
+  })
+  it('restores a wiki link from copied plain text', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: '', autoFocus: false, onWikiLinkClick: () => {} })
+    )
+    const editor = getEditor(result)
+    await act(async () => pastePlainText(editor, 'before [[T]] after'))
+    expect(editor.getJSON().content?.[0].content?.some((node) => node.type === 'wikiLink')).toBe(true)
+  })
   it('renders block markdown with carriage-return line endings pasted into an existing paragraph', async () => {
     const { result } = renderHook(() => useRichEditor({ initialContent: 'before', autoFocus: false }))
     await act(async () => {
