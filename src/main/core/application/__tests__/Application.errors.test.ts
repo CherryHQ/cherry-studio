@@ -85,10 +85,8 @@ interface LocaleCopy {
   exit: string
   restart: string
   ok: string
-  copy: string
-  feedback: string
+  copyAndFeedback: string
   releases: string
-  analysis: string
   manualTitle: string
   manualMessage: string
   manualDetail: string
@@ -113,18 +111,14 @@ const COPY: Record<Locale, LocaleCopy> = {
     exit: 'Exit',
     restart: 'Restart',
     ok: 'OK',
-    copy: 'Copy error',
-    feedback: 'Send feedback',
-    releases: 'Open releases',
-    analysis:
-      'Automatic analysis is unavailable. You can copy the error, send feedback, or open the official releases.',
+    copyAndFeedback: 'Copy error and send feedback…',
+    releases: 'Open download page',
     manualTitle: 'Manual Restart Required',
     manualMessage: 'Auto-relaunch is not available in development mode.',
     manualDetail: 'The app will now exit. Please run `pnpm dev` again to restart.',
     fatalTitle: 'Unable to Start',
     fatalMessage: 'Cherry Studio could not start because DbService failed to initialize.',
-    fatalDetail:
-      'Try restarting the application. If the problem persists, check the application logs for detailed error information.',
+    fatalDetail: 'Try restarting. If the problem persists, copy the error and send it to us.',
     kind: {
       validation_error: {
         title: 'Configuration File Invalid',
@@ -157,16 +151,14 @@ const COPY: Record<Locale, LocaleCopy> = {
     exit: '退出',
     restart: '重启',
     ok: '确定',
-    copy: '复制错误',
-    feedback: '发送反馈',
-    releases: '打开发布页',
-    analysis: '自动分析不可用。你可以复制错误、发送反馈或打开官方发布页。',
+    copyAndFeedback: '复制错误并反馈…',
+    releases: '打开官网下载页',
     manualTitle: '需要手动重启',
     manualMessage: '开发模式下无法自动重新启动。',
     manualDetail: '应用程序将立即退出。请再次运行 `pnpm dev` 以重新启动。',
     fatalTitle: '无法启动',
     fatalMessage: 'Cherry Studio 无法启动，因为 DbService 初始化失败。',
-    fatalDetail: '请尝试重启应用程序。如果问题仍然存在，请查看应用程序日志以获取详细错误信息。',
+    fatalDetail: '请尝试重启。如果问题仍然存在，可以复制错误信息发给我们。',
     kind: {
       validation_error: {
         title: '配置文件无效',
@@ -303,8 +295,8 @@ describe('Application startup errors', () => {
           message: prose.message,
           defaultId: 0,
           cancelId: 2,
-          buttons: [prose.continueLabel, prose.recoveryLabel, text.exit, text.copy, text.feedback, text.releases],
-          detail: [prose.continueHint, prose.fileHint, text.analysis].join('\n\n')
+          buttons: [prose.continueLabel, prose.recoveryLabel, text.exit, text.copyAndFeedback],
+          detail: [prose.continueHint, prose.fileHint].join('\n\n')
         })
         expect(JSON.stringify(box)).not.toContain(RAW)
         expect(JSON.stringify(box)).not.toContain('[to be translated]')
@@ -390,8 +382,8 @@ describe('Application startup errors', () => {
         type: 'error',
         title: text.fatalTitle,
         message: text.fatalMessage,
-        detail: `${text.fatalDetail}\n\n${text.analysis}`,
-        buttons: [text.exit, text.restart, text.copy, text.feedback, text.releases],
+        detail: text.fatalDetail,
+        buttons: [text.exit, text.restart, text.copyAndFeedback, text.releases],
         defaultId: 1,
         cancelId: 0
       })
