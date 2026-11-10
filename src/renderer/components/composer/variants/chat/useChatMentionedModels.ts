@@ -118,7 +118,6 @@ export function useChatMentionedModels({
       seedModel,
       isNewSelectorScope && explicitSelectionScopeRef.current === selectorScopeKey
     )
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest mentioned models; this effect is keyed by topic/assistant/model.
   }, [
     runtimeModel,
     runtimeModelPending,

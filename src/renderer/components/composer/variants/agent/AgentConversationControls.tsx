@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
@@ -37,6 +38,7 @@ export interface AgentConversationControlsProps {
   model?: Model
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
+  showWorkspace?: boolean
   workspaceChanging?: boolean
   workspaceWarning?: string
   selectAgentLabel: string
@@ -176,7 +178,7 @@ function ModelControl({
       <span
         title={modelLabel}
         className={cn(
-          'max-w-40 text-xs',
+          'text-xs',
           canChangeModel ? (model ? 'text-foreground' : 'text-muted-foreground') : undefined,
           labelClassName
         )}>
@@ -355,7 +357,7 @@ export function AgentConversationControls(props: AgentConversationControlsProps)
     <>
       <AgentControl {...props} />
       <ModelControl {...props} />
-      <WorkspaceControl {...props} />
+      {props.showWorkspace !== false && <WorkspaceControl {...props} />}
     </>
   )
 }

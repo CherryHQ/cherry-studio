@@ -1,12 +1,19 @@
 import { ChevronDown } from 'lucide-react'
 import type { FC, FocusEvent } from 'react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { useCherryCloudModelSelectorData } from '@renderer/components/cherryCloud/useCherryCloudModelSelectorData'
 import CopyButton from '@renderer/components/CopyButton'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import {
+  countStaleSelectedModelIds,
+  hasStaleSelectedModelIds,
+  type ModelSelectorFilter
+} from '@renderer/components/ModelSelector'
 import { AgentLanguageField } from '@renderer/components/resourceCatalog/dialogs/components/AgentLanguageField'
 import Selector from '@renderer/components/Selector'
 import {
@@ -25,10 +32,38 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { OutputFor } from '@shared/ipc/types'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
+
+function getRetryFallbackModelsTriggerLabel(
+  rawFallbackModelIds: readonly UniqueModelId[],
+  resolvedFallbackModelIds: readonly UniqueModelId[],
+  t: (key: string, options?: Record<string, number>) => string
+) {
+  if (rawFallbackModelIds.length === 0) {
+    return t('settings.models.empty')
+  }
+
+  const staleCount = countStaleSelectedModelIds(rawFallbackModelIds, resolvedFallbackModelIds)
+  const validCount = resolvedFallbackModelIds.length
+
+  if (validCount === 0) {
+    return t('settings.models.retry.fallback_models_unavailable', { count: staleCount })
+  }
+
+  if (staleCount > 0) {
+    return t('settings.models.retry.fallback_models_count_with_invalid', {
+      valid: validCount,
+      invalid: staleCount
+    })
+  }
+
+  return t('settings.models.retry.fallback_models_count', { count: validCount })
+}
 
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
@@ -69,7 +104,6 @@ const GeneralSettings: FC = () => {
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
   const [agentLanguage, setAgentLanguage] = usePreference('agent.language')
-
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
   const [isSavingDeveloperSettings, setIsSavingDeveloperSettings] = useState(false)
@@ -81,6 +115,43 @@ const GeneralSettings: FC = () => {
   const proxyTestButtonRef = useRef<HTMLButtonElement>(null)
   const pendingProxyPreferenceSave = useRef<(() => void) | null>(null)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
+  const configuredRetryFallbackModelIds = useMemo(() => retryFallbackModelIds ?? [], [retryFallbackModelIds])
+  const {
+    resolvedSelectedModelIds: resolvedRetryFallbackModelIds,
+    isLoading: isFallbackSelectorDataLoading,
+    modelsError: fallbackModelsCatalogError,
+    providersError: fallbackProvidersCatalogError,
+    cloudAvailabilityReady: fallbackCloudAvailabilityReady,
+    cloudAvailabilityError: fallbackCloudAvailabilityError
+  } = useCherryCloudModelSelectorData({
+    filter: chatModelFilter,
+    selectedModelIds: configuredRetryFallbackModelIds,
+    searchText: '',
+    showTagFilter: false,
+    showPinnedModels: false
+  })
+  // Catalog failures make all selections unknown. Cloud sync only affects managed
+  // Cloud IDs, so it must not hide known stale non-Cloud selections.
+  const canEvaluateFallbackStale =
+    !isFallbackSelectorDataLoading && fallbackModelsCatalogError == null && fallbackProvidersCatalogError == null
+  const isFallbackCloudAvailabilityKnown = fallbackCloudAvailabilityReady && fallbackCloudAvailabilityError == null
+  const classifiedRetryFallbackModelIds = useMemo(() => {
+    if (isFallbackCloudAvailabilityKnown) return resolvedRetryFallbackModelIds
+    const unknownCloudIds = configuredRetryFallbackModelIds.filter(
+      (id) => isUniqueModelId(id) && isManagedCherryCloudModel(parseUniqueModelId(id).providerId)
+    )
+    // Presentation-only: keep unknown Cloud selections neutral. Do not change
+    // selector resolution, persisted IDs, or runtime fallback behavior.
+    return [...new Set([...resolvedRetryFallbackModelIds, ...unknownCloudIds])]
+  }, [configuredRetryFallbackModelIds, isFallbackCloudAvailabilityKnown, resolvedRetryFallbackModelIds])
+  const hasInvalidRetryFallbackModels =
+    canEvaluateFallbackStale &&
+    hasStaleSelectedModelIds(configuredRetryFallbackModelIds, classifiedRetryFallbackModelIds)
+  const retryFallbackModelsTriggerLabel = canEvaluateFallbackStale
+    ? getRetryFallbackModelsTriggerLabel(configuredRetryFallbackModelIds, classifiedRetryFallbackModelIds, t)
+    : configuredRetryFallbackModelIds.length > 0
+      ? t('settings.models.retry.fallback_models_count', { count: configuredRetryFallbackModelIds.length })
+      : t('settings.models.empty')
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
@@ -470,12 +541,13 @@ const GeneralSettings: FC = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-7.5 min-w-0 flex-1 justify-between px-2.5 text-left font-normal">
-                      <span className="min-w-0 flex-1 truncate">
-                        {retryFallbackModelIds.length > 0
-                          ? t('settings.models.retry.fallback_models_count', { count: retryFallbackModelIds.length })
-                          : t('settings.models.empty')}
-                      </span>
+                      aria-invalid={hasInvalidRetryFallbackModels || undefined}
+                      className={cn(
+                        'h-7.5 min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
+                        hasInvalidRetryFallbackModels &&
+                          'aria-expanded:border-error-border aria-expanded:ring-error/20 aria-invalid:border-error-border aria-invalid:ring-error/20 dark:aria-invalid:ring-error/40 dark:aria-expanded:ring-error/40'
+                      )}>
+                      <span className="min-w-0 flex-1 truncate">{retryFallbackModelsTriggerLabel}</span>
                       <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
                     </Button>
                   }
