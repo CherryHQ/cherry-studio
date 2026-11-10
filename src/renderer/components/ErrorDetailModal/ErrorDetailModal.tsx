@@ -1,24 +1,22 @@
-import { ArrowLeft, Copy, FileUp, Sparkles } from 'lucide-react'
+import { ArrowLeft, Copy, FileUp, RefreshCw, Sparkles } from 'lucide-react'
 import React, { memo, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { DoctorAgentDialog } from '@renderer/components/doctor'
-import { updateCheckLabelKey, updateNoticeIsFailure, useAppUpdateCheck } from '@renderer/hooks/useAppUpdateCheck'
+import { updateCheckLabelKey, useAppUpdateCheck } from '@renderer/hooks/useAppUpdateCheck'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import i18n from '@renderer/i18n/resolver'
 import { operationIncident, operationSubject } from '@renderer/services/AppErrorContextService'
-import { appUpdateCheckService, OFFICIAL_RELEASES_URL } from '@renderer/services/AppUpdateCheckService'
+import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { captureDiagnosticAiDiagnosis } from '@renderer/services/diagnosticAiSnapshot'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { openExternalWebsite } from '@renderer/services/website'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
   isSerializedAiSdkApiCallError,
@@ -62,9 +60,8 @@ import {
 } from './diagnosticReportDescription'
 import { ErrorBasicInformation } from './ErrorBasicInformation'
 import { ErrorDoctorDiagnostics } from './ErrorDoctorDiagnostics'
+import { ErrorUpdateBanner } from './ErrorUpdateBanner'
 import { isDiagnosticReportEligible } from './isDiagnosticReportEligible'
-
-const logger = loggerService.withContext('ErrorDetailContent')
 
 interface ErrorDetailContentProps {
   error?: SerializedError
@@ -563,7 +560,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   const { t } = useTranslation()
   const { appUpdateState, noticeKey, checkForUpdate } = useAppUpdateCheck()
   const [detailsOpen, setDetailsOpen] = useState(false)
-  const [releasesOpenFailed, setReleasesOpenFailed] = useState(false)
   const [agentOpen, setAgentOpen] = useState(false)
   const { isPresent: agentPresent } = useExitPresence(agentOpen ? true : null)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
@@ -649,14 +645,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
     setDetailsOpen(true)
   }
 
-  const openOfficialReleases = () => {
-    setReleasesOpenFailed(false)
-    void openExternalWebsite(OFFICIAL_RELEASES_URL).catch((error: unknown) => {
-      logger.error('Failed to open official releases', error as Error)
-      setReleasesOpenFailed(true)
-    })
-  }
-
   const renderErrorDetails = (detail?: SerializedError) => {
     if (!detail) {
       return <div>{t('error.unknown')}</div>
@@ -679,6 +667,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       <DialogHeader className="pr-8">
         <DialogTitle>{t('error.detail')}</DialogTitle>
       </DialogHeader>
+      <ErrorUpdateBanner appUpdateState={appUpdateState} noticeKey={noticeKey} onRetry={checkForUpdate} />
       <ErrorDetailContainer>
         <div className="space-y-4">
           {subject ? (
@@ -710,36 +699,14 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       </ErrorDetailContainer>
 
       <div className="flex items-center justify-end gap-2">
-        <div className="mr-auto min-w-0 text-xs text-muted-foreground">
-          {noticeKey ? (
-            <p
-              role={updateNoticeIsFailure(noticeKey) ? 'alert' : 'status'}
-              className={updateNoticeIsFailure(noticeKey) ? 'text-destructive' : 'text-muted-foreground'}>
-              {t(noticeKey)}
-            </p>
-          ) : appUpdateState.downloading && appUpdateState.downloadProgress > 0 ? (
-            <p>
-              {t('settings.about.downloading')} {Math.floor(appUpdateState.downloadProgress)}%
-            </p>
-          ) : null}
-        </div>
-        {noticeKey && updateNoticeIsFailure(noticeKey) ? (
-          <>
-            {releasesOpenFailed ? (
-              <p role="alert" className="max-w-48 text-right text-xs text-destructive">
-                {t('chat.artifacts.preview.openExternal.error.content')}
-              </p>
-            ) : null}
-            <Button variant="outline" onClick={openOfficialReleases}>
-              {t('settings.about.releases.button')}
-            </Button>
-          </>
-        ) : null}
         <Button
-          variant="outline"
+          variant="ghost"
+          className="me-auto text-muted-foreground hover:text-foreground"
           disabled={appUpdateState.downloading}
           loading={appUpdateState.checking}
+          loadingIcon={<RefreshCw size={13} className="animate-spin" />}
           onClick={checkForUpdate}>
+          {appUpdateState.checking ? null : <RefreshCw size={13} />}
           {t(updateCheckLabelKey(appUpdateState))}
         </Button>
         {subject || showDiagnosticReportAction ? (
