@@ -135,6 +135,8 @@ Node/web tsconfig 已启用增量编译，并使用不同的 `.tsbuildinfo` 文�
 
 先保留 Linux main 和 renderer 当前分片数作为基线。更多分片会复制大缓存恢复和安装成本，平台 job 已有大量依赖准备开销。按平台敏感模块及其依赖选择 macOS/Windows 工作，不能只检查改动文件是否包含 `process.platform`。保留 main 测试适合 native module 的进程池。
 
+[六台 runner 执行策略](../../implemented/process/2026-11-10-ci-runner-consolidation.md)取代这里 main/renderer 的初始分片基线；任务选择、测试清单和必需门禁的契约仍然适用。
+
 取消被新提交替代的 PR 运行，concurrency 按工作流及 PR 隔离。不要自动将取消策略扩展到发布工作流。保留手动全量验证并增加定时全量验证作为兜底；它们都不能代替受影响改动必须执行的检查。
 
 调研时，[main rules 接口](https://api.github.com/repos/CherryHQ/cherry-studio/rules/branches/main)要求 `basic-checks`、`general-test`、`render-test`。除非明确迁移消费方，否则保留这些名称作为汇总门禁。门禁必须校验计划内任务结果，并拒绝分类失败、必需任务失败或取消、无法解释的跳过。明确声明的空计划可以通过，证据缺失不能通过。

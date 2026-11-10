@@ -67,9 +67,10 @@ branches remain untouched.
 
 Repository, typecheck, lint and i18n groups share one dependency installation in
 `basic-checks`, with separate plan conditions and step outcomes; later groups still
-run after an earlier group fails. Main/preload retain
-three Linux shards; renderer retains five. Selected package tests run once in their
-own job. macOS/Windows retain the platform-gated test inventory (including
+run after an earlier group fails. Main/preload, renderer and selected package tests
+each run in one unsharded Linux job. Together with basic checks and one job per
+macOS/Windows platform, a full plan uses six heavy runners and three lightweight
+classification/aggregation jobs. macOS/Windows retain the platform-gated test inventory (including
 system speech); platform selection is deliberately conservative whenever main is selected.
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.

@@ -18,6 +18,41 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
+describe('six-runner full validation', () => {
+  it('uses four Linux runners and one runner per native platform', () => {
+    const jobs = Object.values(workflow.jobs) as {
+      'runs-on': string
+      steps: { uses?: string }[]
+      strategy?: { matrix: { os?: string[]; shard?: number[] } }
+    }[]
+    const runners = jobs
+      .filter((job) => job.steps.some((step) => step.uses === './.github/actions/setup-validation'))
+      .flatMap((job) => {
+        const matrix = job.strategy?.matrix
+        return matrix?.os ?? Array.from({ length: matrix?.shard?.length ?? 1 }, () => job['runs-on'])
+      })
+
+    expect(runners.sort()).toEqual([
+      'macos-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'windows-2022'
+    ])
+  })
+
+  it.each(['main', 'renderer'])('runs the complete selected %s group without a shard filter', (group) => {
+    const job = workflow.jobs[`${group}-test`]
+    expect(job).toBeDefined()
+    expect(
+      job.steps
+        .filter((step: { run?: string }) => step.run?.startsWith('pnpm check'))
+        .map((step: { run: string }) => step.run)
+    ).toEqual([`pnpm check --group ${group}`])
+  })
+})
+
 describe('CI validation planning', () => {
   it('uses the whole PR and push range even when the last commit only changes docs', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-plan-'))

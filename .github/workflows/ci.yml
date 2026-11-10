@@ -195,15 +195,10 @@ jobs:
           VALIDATION_STEPS: ${{ toJSON(steps) }}
         run: node scripts/validation/verify.mjs basic
 
-  main-test-shard:
-    name: main-test (${{ matrix.shard }}/3)
+  main-test:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.main == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
     env:
       VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
     steps:
@@ -212,17 +207,12 @@ jobs:
         id: dependencies
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
-      - run: pnpm check --group main --shard=${{ matrix.shard }}/3
+      - run: pnpm check --group main
 
-  renderer-test-shard:
-    name: renderer-test (${{ matrix.shard }}/5)
+  renderer-test:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.renderer == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4, 5]
     env:
       VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
     steps:
@@ -231,7 +221,7 @@ jobs:
         id: dependencies
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
-      - run: pnpm check --group renderer --shard=${{ matrix.shard }}/5
+      - run: pnpm check --group renderer
 
   package-test:
     runs-on: ubuntu-latest
@@ -279,7 +269,7 @@ jobs:
 
   general-test:
     runs-on: ubuntu-latest
-    needs: [changes, main-test-shard, package-test, platform-test]
+    needs: [changes, main-test, package-test, platform-test]
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     steps:
       - uses: actions/checkout@v7
@@ -290,7 +280,7 @@ jobs:
 
   render-test:
     runs-on: ubuntu-latest
-    needs: [changes, renderer-test-shard]
+    needs: [changes, renderer-test]
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     steps:
       - uses: actions/checkout@v7
