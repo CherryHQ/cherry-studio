@@ -29,6 +29,8 @@ export interface RightPanelInstance {
   instanceKey: string
   title: ReactNode
   readiness: RightPanelReadiness
+  /** Selection-only panels must not become the generic sidebar fallback. */
+  defaultEligible?: boolean
   /** Shell renders the default header unless the panel composes its own header. */
   headerMode?: 'shell' | 'content'
   /** Whether this panel may enter maximized presentation. */
@@ -144,10 +146,11 @@ function findEntry(entries: readonly ResolvedRightPanelEntry[], panelId?: string
 }
 
 function getDefaultEntry(entries: readonly ResolvedRightPanelEntry[]): ResolvedRightPanelEntry | undefined {
+  const eligible = entries.filter((entry) => entry.defaultEligible !== false)
   return (
-    entries.find((entry) => entry.readiness === 'ready') ??
-    entries.find((entry) => entry.readiness === 'pending') ??
-    entries[0]
+    eligible.find((entry) => entry.readiness === 'ready') ??
+    eligible.find((entry) => entry.readiness === 'pending') ??
+    eligible[0]
   )
 }
 

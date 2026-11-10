@@ -1,15 +1,14 @@
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
-import { useMessageParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { useRightPanelActions } from '@renderer/components/chat/panes/Shell'
-import { acceptSideChat, connectSideChats, useSideChats } from '@renderer/hooks/useSideChats'
+import { acceptSideChat, connectSideChats } from '@renderer/hooks/useSideChats'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { locateSideChatSource } from '@renderer/utils/sideChatAnchor'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { SideChatSource } from '@shared/data/types/sideChat'
 
 interface SideChatContextValue {
+  modelId?: UniqueModelId
+  setModelId: (modelId?: UniqueModelId) => void
   sourceTopicId?: string
   selectedId?: string
   pending?: SideChatSource
@@ -23,7 +22,14 @@ interface SideChatContextValue {
 const SideChatContext = createContext<SideChatContextValue | null>(null)
 export const useSideChatContext = () => use(SideChatContext)
 
-export function SideChatProvider({ sourceTopicId, children }: PropsWithChildren<{ sourceTopicId?: string }>) {
+export function SideChatProvider({
+  sourceTopicId,
+  modelId: ownerModelId,
+  children
+}: PropsWithChildren<{ sourceTopicId?: string; modelId?: UniqueModelId }>) {
+  const [model, setModel] = useState<{ sourceTopicId?: string; modelId?: UniqueModelId }>({})
+  const setModelId = useCallback((modelId?: UniqueModelId) => setModel({ sourceTopicId, modelId }), [sourceTopicId])
+  const modelId = ownerModelId ?? (model.sourceTopicId === sourceTopicId ? model.modelId : undefined)
   const actions = useRightPanelActions()
   const [selected, setSelected] = useState<Record<string, string | undefined>>({})
   const [pending, setPending] = useState<SideChatSource>()
@@ -79,15 +85,18 @@ export function SideChatProvider({ sourceTopicId, children }: PropsWithChildren<
   )
   const openSource = useCallback(
     (source: SideChatSource) => {
+      if (!source.selection?.trim() || source.topicId !== sourceTopicId) return
       select(undefined)
       setPending(source)
       actions.requestOpen('side-chat', { userInitiated: true })
     },
-    [actions, select]
+    [actions, select, sourceTopicId]
   )
   const value = useMemo(
     () => ({
       sourceTopicId,
+      modelId,
+      setModelId,
       selectedId: sourceTopicId ? selected[sourceTopicId] : undefined,
       pending: pending?.topicId === sourceTopicId ? pending : undefined,
       error,
@@ -97,47 +106,7 @@ export function SideChatProvider({ sourceTopicId, children }: PropsWithChildren<
       select,
       reload
     }),
-    [sourceTopicId, selected, pending, error, loading, openSource, open, select, reload]
+    [sourceTopicId, modelId, setModelId, selected, pending, error, loading, openSource, open, select, reload]
   )
   return <SideChatContext value={value}>{children}</SideChatContext>
-}
-
-export function SideChatMarkers({ messageId, aggregate = false }: { messageId: string; aggregate?: boolean }) {
-  const context = useSideChatContext()
-  const views = useSideChats(context?.sourceTopicId)
-  const { t } = useTranslation()
-  const parts = useMessageParts(messageId)
-  const current = parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.text)
-    .join('\n')
-  if (!context) return null
-  const matches = views.filter((view) => view.metadata.snapshot.messageId === messageId)
-  if (aggregate && matches.length)
-    return (
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={(event) => {
-          event.stopPropagation()
-          context.open(matches[0].topicId)
-        }}>
-        {t('side_chat.questions', { count: matches.reduce((total, view) => total + view.questionCount, 0) })}
-      </Button>
-    )
-  return matches.map((view) => (
-    <Button
-      variant="ghost"
-      size="sm"
-      key={view.topicId}
-      className="rounded-sm px-1 text-link hover:bg-muted focus-visible:bg-muted"
-      onClick={() => context.open(view.topicId)}
-      title={
-        locateSideChatSource(current, view.metadata.snapshot) === null
-          ? t('side_chat.location_unavailable')
-          : view.metadata.snapshot.selection
-      }>
-      {t('side_chat.questions', { count: view.questionCount })}
-    </Button>
-  ))
 }

@@ -2,8 +2,6 @@ import type { FC } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
-import { SideChatMarkers } from '@renderer/components/chat/sideChat/SideChatContext'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
@@ -174,18 +172,6 @@ const MessageMenuBar: FC<Props> = (props) => {
           isUserBubbleStyleMessage && 'user-bubble-style mt-[5px]',
           (isLastMessage || forceVisible) && 'show'
         )}>
-        {isAssistantMessage && actions.openSideChat && (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={isProcessing}
-              onClick={() => actions.openSideChat?.(message.id)}>
-              {t('side_chat.create')}
-            </Button>
-            <SideChatMarkers messageId={message.id} />
-          </>
-        )}
         {toolbarActions.map((action) => (
           <MessageMenuBarToolbarAction
             key={action.id}

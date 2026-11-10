@@ -10,6 +10,7 @@ import { MessageEditingProvider, useMessageEditing } from '@renderer/components/
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { replaceReasoningPartText } from '@renderer/components/chat/messages/blocks/reasoningEditing'
 import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
+import { useSideChatContext } from '@renderer/components/chat/sideChat/SideChatContext'
 import { useActiveComposerOverride, useComposerLayerActive } from '@renderer/components/composer/ComposerContext'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
@@ -789,6 +790,12 @@ const ChatComposerInner = ({
   const supportsImageInput = effectiveSubmittedModels.length > 0 && effectiveSubmittedModels.every(isVisionModel)
   const supportsImageInputRef = useLatest(supportsImageInput)
   const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
+  const sideChat = useSideChatContext()
+  const setSideChatModel = sideChat?.sourceTopicId === topicId ? sideChat?.setModelId : undefined
+  useLayoutEffect(() => {
+    setSideChatModel?.(effectiveSubmittedModel?.id)
+    return () => setSideChatModel?.(undefined)
+  }, [setSideChatModel, effectiveSubmittedModel?.id])
   // Persisted assistant refreshes may clear transient mentions; submit the visible selector
   // snapshot so the next turn cannot fall back to stale assistant state.
   const submittedMentionedModels =

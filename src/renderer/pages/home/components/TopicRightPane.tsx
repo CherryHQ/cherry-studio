@@ -1,4 +1,4 @@
-import { Activity, GitBranch, Globe, MessagesSquare } from 'lucide-react'
+import { Activity, GitBranch, Globe } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -217,6 +217,7 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
     component: SideChatPanel,
     resolve: (scope) => ({
       id: 'side-chat',
+      defaultEligible: false,
       instanceKey: `side-chat:${scope.topicId ?? ''}`,
       title: scope.sideChatTitle,
       readiness: scope.topicId ? 'ready' : 'unavailable'
@@ -302,7 +303,6 @@ function TopicRightPaneShortcuts({ browserEnabled = true }: { browserEnabled?: b
       {browserEnabled && browserControlEnabled && (
         <RightPanelShortcut tab="browser" label={t('settings.browser.title')} icon={<Globe className="size-3.5" />} />
       )}
-      <RightPanelShortcut tab="side-chat" label={t('side_chat.title')} icon={<MessagesSquare className="size-3.5" />} />
       <RightPanelShortcut tab="branch" label={t('chat.message.flow.title')} icon={<GitBranch className="size-3.5" />} />
       <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Activity className="size-3.5" />} />
     </>

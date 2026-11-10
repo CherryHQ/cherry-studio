@@ -234,7 +234,11 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
 
 vi.mock('@renderer/ipc', async (importActual) => ({
   ...(await importActual<typeof RendererIpc>()),
-  ipcApi: { ...(await importActual<typeof RendererIpc>()).ipcApi, request: ipcRequestMock }
+  ipcApi: {
+    ...(await importActual<typeof RendererIpc>()).ipcApi,
+    request: (route: string, ...args: unknown[]) =>
+      route === 'side_chat.list' ? Promise.resolve([]) : ipcRequestMock(route, ...args)
+  }
 }))
 
 vi.mock('@renderer/services/toast', () => ({

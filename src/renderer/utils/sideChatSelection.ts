@@ -8,15 +8,13 @@ export function readSideChatSelection(selection: Selection): { messageId: string
   if (!message || message !== end?.closest('[data-side-chat-message]')) return null
   const result = { messageId: message.dataset.sideChatMessage! }
   const span = start?.closest<HTMLElement>('[data-side-chat-source]')
-  if (!span || span !== end?.closest('[data-side-chat-source]')) return result
-  if (
-    span.childNodes.length !== 1 ||
-    span.firstChild !== range.startContainer ||
-    span.firstChild !== range.endContainer
-  )
-    return result
+  if (!span || span !== end?.closest('[data-side-chat-source]')) return null
   const source = span.dataset.sideChatSource
-  if (!source || source !== span.textContent) return result
-  const text = source.slice(range.startOffset, range.endOffset)
-  return text ? { ...result, selection: text } : result
+  if (!source || source !== span.textContent) return null
+  const before = range.cloneRange()
+  before.selectNodeContents(span)
+  before.setEnd(range.startContainer, range.startOffset)
+  const text = range.toString()
+  const offset = before.toString().length
+  return text && source.slice(offset, offset + text.length) === text ? { ...result, selection: text } : null
 }

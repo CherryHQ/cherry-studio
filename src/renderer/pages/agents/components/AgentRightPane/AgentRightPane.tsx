@@ -68,6 +68,8 @@ import {
 import { useArtifactPanePreviewNavigation } from '@renderer/components/chat/panes/useArtifactPanePreviewNavigation'
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import { SideChatProvider } from '@renderer/components/chat/sideChat/SideChatContext'
+import { SideChatPanel } from '@renderer/components/chat/sideChat/SideChatPanel'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
 import { FilePreviewNavigationProvider, hasRenderedFilePreview } from '@renderer/components/FilePreview'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
@@ -289,6 +291,7 @@ interface AgentRightPanelScope {
   meta: AgentRightPaneMeta
   resourcePane: ResourcePaneConfig | null
   traceTitle: string
+  sideChatTitle: string
 }
 
 type AgentConversationState = 'pending' | 'ready' | 'unavailable'
@@ -978,7 +981,8 @@ function AgentRightPaneStateProvider({
       goBackFlow,
       meta,
       resourcePane,
-      traceTitle: t('trace.label')
+      traceTitle: t('trace.label'),
+      sideChatTitle: t('side_chat.title')
     }),
     [
       enableDeveloperMode,
@@ -1024,7 +1028,11 @@ function AgentRightPaneStateProvider({
                 setFileTreeExpandedIds={setFileTreeExpandedIds}
                 setFileTreeSearchKeyword={setFileTreeSearchKeyword}
                 workspaceCurrent={fileWorkspace.key === workspaceKey}>
-                <AgentDetailsScope present={present}>{children}</AgentDetailsScope>
+                <SideChatProvider
+                  sourceTopicId={sessionId ? buildAgentSessionTopicId(sessionId) : undefined}
+                  modelId={model?.id}>
+                  <AgentDetailsScope present={present}>{children}</AgentDetailsScope>
+                </SideChatProvider>
               </AgentRightPaneActionsProvider>
             </RightPanelProvider>
             <ConfirmDialog
@@ -1714,6 +1722,16 @@ const AGENT_BROWSER_PANE_CAPABILITY = {
 } satisfies RightPanelCapability<AgentRightPanelScope>
 const AGENT_RIGHT_PANEL_CAPABILITIES = [
   AGENT_RESOURCE_PANE_CAPABILITY,
+  {
+    component: SideChatPanel,
+    resolve: (scope) => ({
+      id: 'side-chat',
+      defaultEligible: false,
+      instanceKey: `side-chat:${scope.meta.sessionId ?? ''}`,
+      title: scope.sideChatTitle,
+      readiness: scope.meta.sessionId ? scope.meta.conversationState : 'unavailable'
+    })
+  },
   {
     component: AgentRightPaneFilesPanel,
     resolve: (scope) => ({

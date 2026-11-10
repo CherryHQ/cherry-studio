@@ -26,6 +26,7 @@ import {
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { useSideChatContext } from '@renderer/components/chat/sideChat/SideChatContext'
 import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -210,6 +211,13 @@ export function useAgentMessageListProviderValue({
   afterMessages
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
+  const sideChat = useSideChatContext()
+  const openSideChat = useCallback(
+    (messageId: string, selection?: string) => {
+      sideChat?.openSource({ topicId: topic.id, messageId, selection })
+    },
+    [sideChat, topic.id]
+  )
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
@@ -493,6 +501,7 @@ export function useAgentMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      openSideChat: normalInteractionsEnabled && sideChat?.sourceTopicId === topic.id ? openSideChat : undefined,
       setActiveBranch: normalInteractionsEnabled ? setActiveBranch : undefined,
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
@@ -545,6 +554,9 @@ export function useAgentMessageListProviderValue({
     }),
     [
       forkSession,
+      sideChat,
+      openSideChat,
+      topic.id,
       setActiveBranch,
       startEditing,
       editBusy,

@@ -9,7 +9,6 @@ import MessageContent from '@renderer/components/chat/messages/frame/MessageCont
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
-import { SideChatMarkers } from '@renderer/components/chat/sideChat/SideChatContext'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
 import { cn } from '@renderer/utils/style'
@@ -246,7 +245,6 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
           onMouseEnter={data.isAwaitingInput || data.isContextBoundary ? undefined : scheduleOpen}
           onMouseLeave={data.isAwaitingInput || data.isContextBoundary ? undefined : scheduleClose}
           onMouseMove={data.isAwaitingInput || data.isContextBoundary ? undefined : scheduleOpen}>
-          <SideChatMarkers messageId={data.messageId} aggregate />
           <Handle className="opacity-0" isConnectable={false} position={Position.Top} type="target" />
 
           <div className="flex min-w-0 items-center gap-2">
@@ -289,7 +287,6 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
             </time>
           </div>
 
-          <SideChatMarkers messageId={data.messageId} aggregate />
           <Handle className="opacity-0" isConnectable={false} position={Position.Bottom} type="source" />
         </div>
       </PopoverAnchor>

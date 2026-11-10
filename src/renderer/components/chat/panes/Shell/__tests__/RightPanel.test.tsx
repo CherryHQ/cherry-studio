@@ -257,6 +257,23 @@ describe('RightPanel', () => {
     commandMock.handler = undefined
   })
 
+  it('opens a selection-only panel explicitly but never uses it as the sidebar fallback', () => {
+    const selectionOnly = capabilities.map((capability) => ({
+      ...capability,
+      resolve: (scope: TestScope) => ({ ...capability.resolve(scope), defaultEligible: false })
+    }))
+    render(
+      <RightPanelProvider capabilities={selectionOnly} scope={readyScope} defaultOpen>
+        <ControllerProbe />
+        <RightPanel />
+      </RightPanelProvider>
+    )
+    expect(screen.getByTestId('presentation-open')).toHaveTextContent('false')
+    fireEvent.click(screen.getByRole('button', { name: 'open first' }))
+    expect(screen.getByText('first:0')).toBeInTheDocument()
+    expect(screen.getByTestId('presentation-open')).toHaveTextContent('true')
+  })
+
   it('waits for a requested pending panel instead of presenting another panel', () => {
     const scope = { ...readyScope, firstReadiness: 'pending' as const }
     const { rerender } = render(

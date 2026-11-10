@@ -160,10 +160,9 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
     (selection: Selection) => {
       const source = readSideChatSelection(selection)
       if (!source) return
-      if (!source.selection) toast.info(t('side_chat.selection_fallback'))
       openSideChat?.(source.messageId, source.selection)
     },
-    [openSideChat, t]
+    [openSideChat]
   )
 
   const getMenuItems = useCallback(
@@ -267,7 +266,6 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
                 id: 'selection.side-chat',
                 label: t('side_chat.create'),
                 onSelect: () => {
-                  if (!source.selection) toast.info(t('side_chat.selection_fallback'))
                   openSideChat?.(source.messageId, source.selection)
                 }
               }

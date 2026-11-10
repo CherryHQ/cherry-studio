@@ -1,4 +1,5 @@
 import { act, render, renderHook } from '@testing-library/react'
+import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -6,6 +7,8 @@ import type {
   MessageListProviderValue,
   MessageListRuntime
 } from '@renderer/components/chat/messages/types'
+import { SideChatProvider, useSideChatContext } from '@renderer/components/chat/sideChat/SideChatContext'
+import type * as RendererIpc from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Topic } from '@renderer/types/topic'
@@ -74,7 +77,15 @@ const eventMocks = vi.hoisted(() => ({
   listenerCount: vi.fn(() => 1)
 }))
 
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcApiRequest } }))
+vi.mock('@renderer/ipc', async (importActual) => ({
+  ...(await importActual<typeof RendererIpc>()),
+  ipcApi: {
+    ...(await importActual<typeof RendererIpc>()).ipcApi,
+    request: (route: string, ...args: unknown[]) =>
+      route === 'side_chat.list' ? Promise.resolve([]) : ipcApiRequest(route, ...args)
+  }
+}))
+vi.mock('@renderer/components/chat/panes/Shell', () => ({ useRightPanelActions: () => ({ requestOpen: () => {} }) }))
 
 vi.mock('@data/hooks/useCache', () => ({
   useCache: (key: string) => {
@@ -348,6 +359,35 @@ describe('useAgentMessageListProviderValue', () => {
       }
     }
   )
+
+  it('opens a selected Agent answer with its real session identity and rejects whole-answer entry', () => {
+    const topic = { id: 'agent-session:child', assistantId: 'agent-1', name: 'Child', messages: [] } as Topic
+    const { result } = renderHook(
+      () => ({
+        value: useAgentMessageListProviderValue({
+          topic,
+          messages: [],
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'anchor'
+        }),
+        context: useSideChatContext()
+      }),
+      {
+        wrapper: ({ children }: PropsWithChildren) => (
+          <SideChatProvider sourceTopicId={topic.id}>{children}</SideChatProvider>
+        )
+      }
+    )
+    act(() => result.current.value.actions.openSideChat?.('answer'))
+    expect(result.current.context?.pending).toBeUndefined()
+    act(() => result.current.value.actions.openSideChat?.('answer', 'selected text'))
+    expect(result.current.context?.pending).toEqual({
+      topicId: 'agent-session:child',
+      messageId: 'answer',
+      selection: 'selected text'
+    })
+  })
 
   it('offers no fork-source action when the host cannot navigate in place', () => {
     const { result } = renderHook(() =>
