@@ -502,7 +502,8 @@ export class AgentSessionMessageService {
         .select({ id: sessionMessagesTable.id })
         .from(sessionMessagesTable)
         .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.parentId, head)))
-        .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+        // Unary + keeps the planner off session_created_id_idx, which rescans the whole session per level.
+        .orderBy(desc(sql`+${sessionMessagesTable.createdAt}`), desc(sql`+${sessionMessagesTable.id}`))
         .get()
       if (!child) return head
       head = child.id
@@ -1042,7 +1043,8 @@ export class AgentSessionMessageService {
           .select({ id: sessionMessagesTable.id, parentId: sessionMessagesTable.parentId })
           .from(sessionMessagesTable)
           .where(and(eq(sessionMessagesTable.sessionId, sessionId), inArray(sessionMessagesTable.parentId, parents)))
-          .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+          // Unary + keeps the planner on parent_idx instead of scanning the session through session_created_id_idx.
+          .orderBy(asc(sql`+${sessionMessagesTable.createdAt}`), asc(sql`+${sessionMessagesTable.id}`))
           .all()
       : []
     const items = pageRows.map((row) => ({
