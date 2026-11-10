@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-10-rich-editor-highlight-view-lifecycle.md
+2026-11-10-rich-editor-highlight-view-lifecycle.md: 98aafe3fbfe827a8e1be0616ff8fb131bd80206a
+2026-11-10-rich-editor-highlight-view-lifecycle.zh.md: 9cd45481118743dc053db9231d335aa478c27ba1

@@ -341,6 +341,17 @@ describe('AddKnowledgeItemDialog', () => {
       expect(screen.queryByRole('heading', { name: '添加数据源' })).not.toBeInTheDocument()
     })
 
+    it('opens a fresh native picker when reopened during the exit phase', async () => {
+      const onOpenChange = vi.fn()
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      await waitFor(() => expect(mockFileSelect).toHaveBeenCalledTimes(1))
+
+      rerender(<AddKnowledgeItemDialog open={false} onOpenChange={onOpenChange} />)
+      rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await waitFor(() => expect(mockFileSelect).toHaveBeenCalledTimes(2))
+    })
+
     it('submits picked files via detect and closes when added', async () => {
       mockFileSelect.mockResolvedValueOnce([createSelectedFile('alpha.pdf', '/docs/alpha.pdf')])
       const onOpenChange = vi.fn()
