@@ -37,8 +37,10 @@ prints a machine-readable plan. Test commands are one Vitest invocation with exp
 projects; compilers run serially. Local Vitest defaults to two workers, overridable
 through the direct Vitest command or project wrappers' `--maxWorkers` option.
 
-Required workspace packages are built before typechecks and tests; main tests rebuild
-SQLite for Node. Do not run Electron development and Node tests concurrently in one
+Required workspace packages are built before typechecks and tests. CI setup marks
+its successful installation with `VALIDATION_WORKSPACE_PREPARED=true`, avoiding a
+second postinstall build in that same runner; local validation still prepares exports.
+Main tests rebuild SQLite for Node. Do not run Electron development and Node tests concurrently in one
 worktree. Use isolated worktrees and dependency installations for concurrent agents.
 
 `VALIDATION_PLAN` lets CI execute the exact plan from its classification job.
@@ -66,8 +68,8 @@ Repository, typecheck, lint and i18n groups run independently on Ubuntu.
 The required `basic-checks` gate verifies all selected group jobs, including failures
 and unexpected skips. Each runner uses setup-node's pnpm store cache.
 Main/preload retain
-three Linux shards; renderer retains five. Selected package tests run once in their
-own job. macOS/Windows retain the platform-gated test inventory (including
+three Linux shards; renderer uses eight. Selected package tests run once in their
+own job. Windows uses two shards; macOS uses one runner. Both retain the platform-gated test inventory (including
 system speech); platform selection is deliberately conservative whenever main is selected.
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.

@@ -9,9 +9,9 @@ import { parse } from 'yaml'
 import { createPlan } from '../validation/plan.mjs'
 
 const workflow = parse(readFileSync('.github/workflows/ci.yml', 'utf8'))
-const verify = (gate: string, jobs: unknown, steps?: unknown) =>
+const verify = (gate: string, jobs: unknown) =>
   spawnSync(process.execPath, ['scripts/validation/verify.mjs', gate], {
-    env: { ...process.env, VALIDATION_JOBS: JSON.stringify(jobs), VALIDATION_STEPS: JSON.stringify(steps) }
+    env: { ...process.env, VALIDATION_JOBS: JSON.stringify(jobs) }
   }).status
 const directories: string[] = []
 afterEach(() => {
@@ -19,7 +19,7 @@ afterEach(() => {
 })
 
 describe('CI validation planning', () => {
-  it('uses the whole PR and push range even when the last commit only changes docs', () => {
+  it('covers the whole PR and fully validates every push, including docs-only pushes', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-plan-'))
     directories.push(cwd)
     const git = (...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -116,5 +116,33 @@ describe('required gate scheduling', () => {
       )
       expect(selected).toBe(expected)
     }
+  })
+})
+
+// Bursts of main pushes must not replace pending runs; only superseded PRs may cancel.
+describe('CI concurrency', () => {
+  const evaluate = (template: string, github: unknown) =>
+    template.replace(/\$\{\{(.*?)\}\}/g, (_match, expression) =>
+      String(new Function('github', `return (${expression})`)(github))
+    )
+  it.each(['push', 'schedule', 'workflow_dispatch'])('keeps every %s run independent', (event) => {
+    const context = {
+      workflow: 'CI',
+      event_name: event,
+      event: { pull_request: {} },
+      ref: 'refs/heads/main',
+      run_id: 1
+    }
+    expect(evaluate(workflow.concurrency.group, context)).not.toBe(
+      evaluate(workflow.concurrency.group, { ...context, run_id: 2 })
+    )
+    expect(evaluate(workflow.concurrency['cancel-in-progress'], context)).toBe('false')
+  })
+  it('groups successive runs of one PR and cancels its older run', () => {
+    const context = { workflow: 'CI', event_name: 'pull_request', event: { pull_request: { number: 123 } }, run_id: 1 }
+    expect(evaluate(workflow.concurrency.group, context)).toBe(
+      evaluate(workflow.concurrency.group, { ...context, run_id: 2 })
+    )
+    expect(evaluate(workflow.concurrency['cancel-in-progress'], context)).toBe('true')
   })
 })

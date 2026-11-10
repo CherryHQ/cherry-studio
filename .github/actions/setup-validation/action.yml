@@ -16,4 +16,6 @@ runs:
         cache-dependency-path: pnpm-lock.yaml
     - name: Install dependencies
       shell: bash
-      run: pnpm install --frozen-lockfile
+      run: |
+        pnpm install --frozen-lockfile
+        echo "VALIDATION_WORKSPACE_PREPARED=true" >> "$GITHUB_ENV"
