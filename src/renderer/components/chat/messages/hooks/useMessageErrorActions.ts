@@ -1,12 +1,12 @@
 import { useCallback, useMemo } from 'react'
 
-import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
 import { contextFromUnknown } from '@renderer/services/AppErrorContextService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { isAgentSessionTopic } from '@renderer/utils/agentSession'
+import { translateErrorMessage } from '@renderer/utils/errorLanguage'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { AppErrorContext } from '@shared/types/appError'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
@@ -16,12 +16,6 @@ import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('MessageErrorActions')
-const AI_CLASSIFY_TTL_MS = 60 * 60 * 1000
-// classifyErrorByAI reads the error name; a message-only key would reuse another class's summary.
-const aiClassifyCacheKey = (
-  error: { readonly name?: string | null; readonly message?: string | null },
-  language: string
-) => `error.classify.${error.name ?? ''}:${error.message ?? ''}:${language}`
 export const MESSAGE_FAULT_LIMIT = 50
 const messageFaults = new Map<string, AppErrorContext>()
 
@@ -96,23 +90,7 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
   const { diagnosticReport, getDoctorSubject } = options
 
   const diagnoseMessageError = useCallback<NonNullable<MessageListActions['diagnoseMessageError']>>(
-    ({ error, language }) => {
-      const errorMessage = error.message
-      if (!errorMessage) return Promise.resolve(null)
-
-      const cacheKey = aiClassifyCacheKey(error, language)
-      const cached = cacheService.getCasual<Promise<string>>(cacheKey)
-      if (cached) return cached
-
-      const promise = import('@renderer/utils/errorDiagnosis')
-        .then(({ classifyErrorByAI }) => classifyErrorByAI(error, language))
-        .catch((classificationError) => {
-          cacheService.deleteCasual(cacheKey)
-          throw classificationError
-        })
-      cacheService.setCasual<Promise<string>>(cacheKey, promise, AI_CLASSIFY_TTL_MS)
-      return promise
-    },
+    ({ error, language }) => translateErrorMessage(error.message ?? '', language),
     []
   )
 

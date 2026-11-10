@@ -164,6 +164,7 @@ required service tier.`
       recovery: '离开输入框以保存，然后点击“启动”'
     }
   ])('keeps serialized Chinese IPv6 bind recovery visible through providerErrorText: $diagnosis', (copy) => {
+    mocks.language = 'zh-CN'
     const error = { name: 'Error', message: copy.message, stack: null, cause: null }
     render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
     const diagnostic = screen.getByText(copy.message)
@@ -464,6 +465,8 @@ required service tier.`
   })
 
   it('does not treat an unknown exit category as a Claude Code diagnostic', async () => {
+    // A non-English UI, so the English provider text is sent for translation.
+    mocks.language = 'de-DE'
     const diagnoseMessageError = vi.fn().mockResolvedValue('diagnosed')
     mocks.actions = { diagnoseMessageError }
 
@@ -656,6 +659,8 @@ required service tier.`
   })
 
   it('uses injected diagnosis capability for unknown errors', async () => {
+    // A non-English UI, so the English provider text is sent for translation.
+    mocks.language = 'de-DE'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
     mocks.actions = {
       diagnoseMessageError
@@ -679,12 +684,14 @@ required service tier.`
       expect.objectContaining({
         message,
         partId: 'message-1-part-0',
-        language: 'en'
+        language: 'de-DE'
       })
     )
   })
 
   it('refreshes an AI summary when the app language changes', async () => {
+    // A non-English UI, so the English provider text is sent for translation.
+    mocks.language = 'de-DE'
     const diagnoseMessageError = vi.fn().mockResolvedValueOnce('English summary').mockResolvedValueOnce('中文摘要')
     mocks.actions = { diagnoseMessageError }
     const error = {
@@ -705,6 +712,8 @@ required service tier.`
   })
 
   it('sends the visible summary to the detail and drops it when the fault identity changes', async () => {
+    // A non-English UI, so the English provider text is sent for translation.
+    mocks.language = 'de-DE'
     const resolvers: Array<(value: string) => void> = []
     const diagnoseMessageError = vi.fn(
       () =>
@@ -775,6 +784,8 @@ required service tier.`
   })
 
   it('hides a stored summary when the same text becomes classifiable', async () => {
+    // A non-English UI, so the English provider text is sent for translation.
+    mocks.language = 'de-DE'
     const diagnoseMessageError = vi.fn().mockResolvedValue('Visible conclusion.')
     const openErrorDetail = vi.fn()
     mocks.actions = { diagnoseMessageError, openErrorDetail }
@@ -889,6 +900,7 @@ required service tier.`
     let resolveSummary: (value: string) => void = () => {}
     const diagnoseMessageError = vi.fn(() => new Promise<string>((resolve) => (resolveSummary = resolve)))
     mocks.actions = { diagnoseMessageError }
+    mocks.language = 'zh-CN'
     mocks.translations = new Map(Object.entries(zhCN))
     const rawMessage = 'The response was blocked because the input may contain unsafe descriptions.'
 
@@ -907,8 +919,10 @@ required service tier.`
     expect(screen.queryByText(zhCN['error.notice.unknown.summarizing'])).toBeNull()
   })
 
-  it('falls back to the raw message once summarisation fails', async () => {
-    mocks.actions = { diagnoseMessageError: vi.fn().mockRejectedValue(new Error('no diagnosis model')) }
+  it('marks untranslated provider text as the original message once translation fails', async () => {
+    mocks.actions = { diagnoseMessageError: vi.fn().mockResolvedValue('') }
+    mocks.language = 'zh-CN'
+    mocks.translations = new Map(Object.entries(zhCN))
     const rawMessage = 'unmapped provider failure'
 
     render(
@@ -919,15 +933,34 @@ required service tier.`
       />
     )
 
-    expect(await screen.findByText(rawMessage)).toBeInTheDocument()
-    expect(screen.queryByText('error.notice.unknown.summarizing')).toBeNull()
+    expect(await screen.findByText(`原文：${rawMessage}`)).toBeInTheDocument()
+    expect(screen.queryByText(zhCN['error.notice.unknown.summarizing'])).toBeNull()
+  })
+
+  it('shows text already in the UI language as is, without asking for a translation', () => {
+    const diagnoseMessageError = vi.fn()
+    mocks.actions = { diagnoseMessageError }
+    mocks.language = 'en-US'
+    mocks.translations = new Map(Object.entries(enUS))
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: 'unmapped provider failure', stack: null }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('unmapped provider failure')).toBeInTheDocument()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
   it('stops waiting for a summarizer that never answers', async () => {
     vi.useFakeTimers()
     try {
       mocks.actions = { diagnoseMessageError: vi.fn(() => new Promise<string>(() => {})) }
-      mocks.translations = new Map(Object.entries(enUS))
+      mocks.language = 'zh-CN'
+      mocks.translations = new Map(Object.entries(zhCN))
 
       render(
         <ErrorBlock
@@ -936,12 +969,12 @@ required service tier.`
           message={message}
         />
       )
-      expect(screen.getByText(enUS['error.notice.unknown.summarizing'])).toBeInTheDocument()
+      expect(screen.getByText(zhCN['error.notice.unknown.summarizing'])).toBeInTheDocument()
 
       await act(() => vi.advanceTimersByTimeAsync(8000))
 
-      expect(screen.getByText('unmapped provider failure')).toBeInTheDocument()
-      expect(screen.queryByText(enUS['error.notice.unknown.summarizing'])).toBeNull()
+      expect(screen.getByText('原文：unmapped provider failure')).toBeInTheDocument()
+      expect(screen.queryByText(zhCN['error.notice.unknown.summarizing'])).toBeNull()
     } finally {
       vi.useRealTimers()
     }
