@@ -489,7 +489,7 @@ describe('PromptPolishActions', () => {
       mocks.fetchGenerate.mockReturnValueOnce(request.promise)
       render(<RunningStateHarness />)
 
-      fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+      fireEvent.click(screen.getByRole('button', { name: POLISH_BUTTON }))
       expect(screen.getByTestId('running')).toHaveTextContent('true')
 
       await act(async () => request.resolve('Polished prompt'))
@@ -500,8 +500,8 @@ describe('PromptPolishActions', () => {
       mocks.fetchGenerate.mockReturnValueOnce(NEVER_RESOLVING_PROMISE)
       render(<RunningStateHarness />)
 
-      fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
-      fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+      fireEvent.click(screen.getByRole('button', { name: POLISH_BUTTON }))
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel · GPT-4o' }))
 
       expect(screen.getByTestId('running')).toHaveTextContent('false')
     })
@@ -510,7 +510,7 @@ describe('PromptPolishActions', () => {
       mocks.fetchGenerate.mockReturnValueOnce(NEVER_RESOLVING_PROMISE)
       render(<RunningStateHarness />)
 
-      fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+      fireEvent.click(screen.getByRole('button', { name: POLISH_BUTTON }))
       fireEvent.click(screen.getByRole('button', { name: 'unmount actions' }))
 
       expect(screen.getByTestId('running')).toHaveTextContent('false')

@@ -83,6 +83,7 @@ export function PromptPolishActions({
     onRunningChangeRef.current = onRunningChange
     defaultModelRef.current = defaultModel
   }, [defaultModel, disabled, onChange, onRunningChange, value])
+
   useEffect(() => {
     return () => {
       requestIdRef.current += 1
