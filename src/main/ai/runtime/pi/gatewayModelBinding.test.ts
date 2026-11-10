@@ -202,6 +202,70 @@ it.each([{ capabilities: ['image-recognition'] }, { capabilities: [], inputModal
   }
 )
 
+it.each([
+  { dialect: { streamOptions: false }, expected: false },
+  { dialect: { streamOptions: true }, expected: true },
+  { dialect: {}, expected: true }
+])('maps endpoint streamOptions to pi supportsUsageInStreaming ($expected)', async ({ dialect, expected }) => {
+  gateway.baseUrl = 'http://127.0.0.1:23333'
+  const provider = ProviderSchema.parse({
+    isEnabled: true,
+    apiKeys: [],
+    authType: 'api-key',
+    settings: {},
+    id: 'stream-usage-fixture',
+    name: 'Fixture',
+    reportsActualCost: false,
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: { 'openai-chat-completions': { adapterFamily: 'openai-compatible', dialect } }
+  })
+  const model = ModelSchema.parse({
+    isEnabled: true,
+    isHidden: false,
+    supportsStreaming: true,
+    id: 'stream-usage-fixture::model',
+    providerId: provider.id,
+    name: 'Fixture',
+    capabilities: [],
+    endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+  })
+  const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+  expect(binding.model.api).toBe('openai-completions')
+  expect((binding.model as unknown as { compat?: Record<string, unknown> }).compat).toMatchObject({
+    supportsUsageInStreaming: expected
+  })
+})
+
+it('does not set supportsUsageInStreaming for non-completions protocols', async () => {
+  gateway.baseUrl = 'http://127.0.0.1:23333'
+  const provider = ProviderSchema.parse({
+    isEnabled: true,
+    apiKeys: [],
+    authType: 'api-key',
+    settings: {},
+    id: 'stream-usage-responses',
+    name: 'Fixture',
+    reportsActualCost: false,
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+    endpointConfigs: { 'openai-responses': { adapterFamily: 'openai', dialect: { streamOptions: false } } }
+  })
+  const model = ModelSchema.parse({
+    isEnabled: true,
+    isHidden: false,
+    supportsStreaming: true,
+    id: 'stream-usage-responses::model',
+    providerId: provider.id,
+    name: 'Fixture',
+    capabilities: [],
+    endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+  })
+  const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+  expect(binding.model.api).toBe('openai-responses')
+  expect((binding.model as unknown as { compat?: Record<string, unknown> }).compat ?? {}).not.toHaveProperty(
+    'supportsUsageInStreaming'
+  )
+})
+
 it.each(['custom:anthropic', 'claude-code'])('rejects an unroutable provider %s', async (providerId) => {
   const provider = ProviderSchema.parse({
     isEnabled: true,

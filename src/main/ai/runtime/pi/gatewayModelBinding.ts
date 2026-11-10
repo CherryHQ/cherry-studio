@@ -13,6 +13,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
+import { resolveEndpointDialect } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
@@ -53,6 +54,16 @@ export async function createPiGatewayModelBinding(
     loadPiSdk(),
     loadPiApiStreamSimple(api)
   ])
+  const compat: Record<string, unknown> = {
+    // CherryIN can omit the signature delta on thinking blocks that must be replayed.
+    ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { allowEmptySignature: true } : {}),
+    // Cherry's endpoint capability overrides pi's always-true stream usage inference
+    // (pi-ai `supportsUsageInStreaming !== false` sends `stream_options.include_usage`).
+    // `stream_options` is chat-completions-only; Responses never carries it.
+    ...(api === 'openai-completions'
+      ? { supportsUsageInStreaming: resolveEndpointDialect(provider, endpointType).streamOptions }
+      : {})
+  }
   const modelRuntime =
     sharedModels ??
     (await ModelRuntime.create({
@@ -77,8 +88,7 @@ export async function createPiGatewayModelBinding(
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: resolveAgentContextWindow(model),
         maxTokens: model.maxOutputTokens ?? 8_192,
-        // CherryIN can omit the signature delta on thinking blocks that must be replayed.
-        ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { compat: { allowEmptySignature: true } } : {})
+        ...(Object.keys(compat).length > 0 ? { compat } : {})
       }
     ],
     headers: {
