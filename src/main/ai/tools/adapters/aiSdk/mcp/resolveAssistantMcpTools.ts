@@ -7,7 +7,11 @@ import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { mcpServerService } from '@main/data/services/McpServerService'
-import { isMcpToolDisabledBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import {
+  isMcpToolDisabledBySource,
+  isMcpToolForcePromptBySource,
+  matchesMcpSourceToolRule
+} from '@shared/ai/tools/mcpSourcePolicy'
 import { type Assistant, DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
@@ -123,6 +127,14 @@ export async function resolveAssistantMcpToolIds(assistantId: string): Promise<s
     return []
   }
 
+  return resolveMcpToolIdsForAssistant(assistant)
+}
+
+/** Resolve an admitted in-memory configuration using the same catalog and server policies as chat. */
+export async function resolveMcpToolIdsForAssistant(
+  assistant: Assistant,
+  disabledToolNames: readonly string[] = []
+): Promise<string[]> {
   const mode = getEffectiveMcpMode(assistant)
   if (mode === 'disabled') return []
 
@@ -147,7 +159,13 @@ export async function resolveAssistantMcpToolIds(assistantId: string): Promise<s
         })
       }
       const tools = catalog.listTools(server.id)
-      return tools.filter((tool) => !isToolDisabled(server, tool)).map((tool) => tool.id)
+      return tools
+        .filter(
+          (tool) =>
+            !isToolDisabled(server, tool) &&
+            !disabledToolNames.some((rule) => matchesMcpSourceToolRule(rule, server, tool))
+        )
+        .map((tool) => tool.id)
     })
   )
 

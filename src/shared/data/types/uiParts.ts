@@ -287,7 +287,7 @@ const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
   payload: ComposerMessageFileTokenPayloadSchema.optional()
 })
 
-const ComposerMessageSnapshotSchema: z.ZodType<ComposerMessageSnapshot> = z.object({
+export const ComposerMessageSnapshotSchema: z.ZodType<ComposerMessageSnapshot> = z.object({
   version: z.literal(1),
   tokens: z.array(ComposerMessageTokenSchema)
 })

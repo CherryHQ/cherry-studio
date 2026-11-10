@@ -52,6 +52,7 @@ import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/a
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
 import {
   resolveAssistantMcpToolIds,
+  resolveMcpToolIdsForAssistant,
   resolveMcpResourceServers
 } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
 import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
@@ -274,6 +275,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
             },
             request.messageId ?? crypto.randomUUID(),
             () => {
+              if (request.automationAccess) {
+                const access = request.automationAccess()
+                return {
+                  browser: toolSignals?.browserEnabled === true && access.browser,
+                  computer: toolSignals?.computerUseEnabled === true && access.computer
+                }
+              }
               if (topicService.getById(topicId).assistantId !== assistant.id)
                 throw new Error('Conversation owner changed')
               const settings = assistantDataService.getById(assistant.id).settings
@@ -452,22 +460,27 @@ async function resolveRequestToolSignals(
   computerUseEnabled?: boolean
 }> {
   let mcpIdList = request.mcpToolIds
-  if (!mcpIdList && request.assistantId) {
+  if (!mcpIdList && assistant) {
+    mcpIdList = await resolveMcpToolIdsForAssistant(assistant, request.disabledToolNames)
+  } else if (!mcpIdList && request.assistantId) {
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
   }
+  const automationAccess = request.automationAccess?.()
   return {
     mcpToolIds: new Set(mcpIdList ?? []),
     mcpResourceServerIds: new Set(resolveMcpResourceServers(assistant).map((server) => server.id)),
     browserEnabled: Boolean(
       request.conversation.topicId &&
       assistant &&
+      automationAccess?.browser !== false &&
       assistant.settings.enableBrowser !== false &&
       application.get('PreferenceService').get('app.browser.agent_control.enabled')
     ),
     computerUseEnabled: Boolean(
       request.conversation.topicId &&
       assistant &&
-      request.contextOwner !== 'caller' &&
+      automationAccess?.computer !== false &&
+      (request.contextOwner !== 'caller' || request.automationAccess) &&
       application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
     ),
     hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase()
@@ -506,20 +519,22 @@ export async function resolveTools(
   }
 
   const paintingModel = resolveConfiguredPaintingModel()
-  const selected = registry.selectActive({
-    assistant,
-    paintingModel: paintingModel ?? undefined,
-    browserEnabled,
-    computerUseEnabled,
-    mcpToolIds,
-    mcpResourceServerIds,
-    hasFileAttachments,
-    hasPersistedOutputs,
-    canOffloadToolOutputs,
-    hasAnyKnowledgeBase,
-    knowledgeBaseIds,
-    webToolRoutes
-  })
+  const selected = registry
+    .selectActive({
+      assistant,
+      paintingModel: paintingModel ?? undefined,
+      browserEnabled,
+      computerUseEnabled,
+      mcpToolIds,
+      mcpResourceServerIds,
+      hasFileAttachments,
+      hasPersistedOutputs,
+      canOffloadToolOutputs,
+      hasAnyKnowledgeBase,
+      knowledgeBaseIds,
+      webToolRoutes
+    })
+    .filter((entry) => !request.disabledToolNames?.includes(entry.name))
   // Client tools (no `execute`) from assistant-less callers; merged below so
   // they share the registry/defer-exposition path.
   const clientTools = request.callOverrides?.tools

@@ -1016,7 +1016,14 @@ export class AiStreamManager extends BaseService {
    */
   streamPrompt(input: {
     streamId: string
+    /** Persisted assistant message that owns this prompt's usage records. */
+    messageId?: string
     uniqueModelId: UniqueModelId
+    assistant?: AsInProcess<AiStreamRequest>['assistant']
+    interactionWindowId?: AiStreamRequest['interactionWindowId']
+    mcpToolIds?: string[]
+    disabledToolNames?: string[]
+    automationAccess?: AiStreamRequest['automationAccess']
     /** Trusted caller's admitted model snapshot, including its selected wire endpoint. */
     resolvedModel?: AsInProcess<AiStreamRequest>['resolvedModel']
     prompt?: string
@@ -1054,7 +1061,13 @@ export class AiStreamManager extends BaseService {
         topicId: input.streamId
       },
       trigger: 'submit-message',
+      ...(input.messageId ? { messageId: input.messageId } : {}),
       uniqueModelId: input.uniqueModelId,
+      assistant: input.assistant,
+      interactionWindowId: input.interactionWindowId,
+      mcpToolIds: input.mcpToolIds,
+      disabledToolNames: input.disabledToolNames,
+      automationAccess: input.automationAccess,
       ...(input.resolvedModel ? { resolvedModel: input.resolvedModel } : {}),
       messages,
       callOverrides: input.callOverrides,

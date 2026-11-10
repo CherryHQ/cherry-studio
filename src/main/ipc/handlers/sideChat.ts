@@ -26,9 +26,9 @@ export const sideChatHandlers: IpcHandlersFor<typeof sideChatRequestSchemas> = {
     const { service, windowId } = runtime(senderId)
     return service.configure(windowId, topicId, config)
   },
-  'side_chat.submit': async ({ topicId, text, modelId }, { senderId }) => {
+  'side_chat.submit': async ({ topicId, text, modelId, composer, parts, turnOptions }, { senderId }) => {
     const { service, windowId } = runtime(senderId)
-    return service.submit(windowId, topicId, text, modelId)
+    return service.submit(windowId, topicId, text, modelId, composer, parts, turnOptions)
   },
   'side_chat.retry': async ({ topicId, questionId, modelId }, { senderId }) => {
     const { service, windowId } = runtime(senderId)
@@ -37,6 +37,10 @@ export const sideChatHandlers: IpcHandlersFor<typeof sideChatRequestSchemas> = {
   'side_chat.delete_question': async ({ topicId, questionId }, { senderId }) => {
     const { service, windowId } = runtime(senderId)
     return service.deleteQuestion(windowId, topicId, questionId)
+  },
+  'side_chat.respond_approval': async ({ topicId, messageId, approvalId, approved }, { senderId }) => {
+    const { service, windowId } = runtime(senderId)
+    return service.respondApproval(windowId, topicId, messageId, { approvalId, approved })
   },
   'side_chat.stop': async ({ topicId }, { senderId }) => {
     const { service, windowId } = runtime(senderId)

@@ -81,6 +81,10 @@ export interface AiRequest {
 export interface AiChatRequest extends AiRequest {
   conversation: ConversationRef
   mcpToolIds?: string[]
+  /** Main-internal restrictions inherited from an agent on a chat-style request. */
+  disabledToolNames?: string[]
+  /** Trusted in-process caller revalidates automation access for non-topic conversations. */
+  automationAccess?: () => { browser: boolean; computer: boolean }
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier captured when the message was submitted. */

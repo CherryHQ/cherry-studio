@@ -270,6 +270,8 @@ export interface AiRequestOptions extends AiTransportOptions {
 /** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
 export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
+  /** Trusted caller's configuration snapshot, without requiring a persisted assistant. */
+  assistant?: Assistant
   /** Trusted in-process classification for remote token analytics. */
   tokenUsageSource?: TokenUsageSource
   resolvedModel?: { readonly provider: Provider; readonly model: Model }
@@ -1636,8 +1638,8 @@ export class AiService extends BaseService {
   /** Priority: explicit `uniqueModelId` > `assistant.modelId`. */
   private getProviderAndModel(request: AsInProcess<AiRequest>) {
     if (request.resolvedModel) return { ...request.resolvedModel, assistant: undefined }
-    let assistant: Assistant | undefined
-    if (request.assistantId) {
+    let assistant = request.assistant
+    if (!assistant && request.assistantId) {
       try {
         assistant = assistantDataService.getById(request.assistantId)
       } catch {

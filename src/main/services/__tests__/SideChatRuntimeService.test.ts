@@ -13,12 +13,14 @@ import { messageTable } from '@data/db/schemas/message'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { AiStreamManager, type StreamListener } from '@main/ai/streamManager'
 import type { AsInProcess, AiStreamRequest } from '@main/ai/types'
 import { BaseService } from '@main/core/lifecycle'
 import { areDiagnosticsSuppressed } from '@main/core/logger/diagnosticScope'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { KeyedMutex } from '@shared/utils/async'
 
@@ -34,12 +36,12 @@ describe('side-chat runtime boundaries', () => {
   let runs: Run[]
   let live: Set<string>
 
-  async function finish(run: Run, text = 'Side answer') {
+  async function finish(run: Run, text = 'Side answer', parts: CherryMessagePart[] = [{ type: 'text', text }]) {
     const listeners = Array.isArray(run.listener) ? run.listener : [run.listener]
     for (const listener of listeners)
       await listener.onDone({
         status: 'success',
-        finalMessage: { id: 'response', role: 'assistant', parts: [{ type: 'text', text }] }
+        finalMessage: { id: 'response', role: 'assistant', parts }
       })
     live.delete(run.streamId)
   }
@@ -123,7 +125,7 @@ describe('side-chat runtime boundaries', () => {
     saved = true
     expect(service.get('one', temporary.topicId).mode).toBe('temporary')
     expect(runs[0].suppressed).toBe(true)
-    expect(runs[0].disableTools).toBe(true)
+    expect(runs[0].disableTools).not.toBe(true)
   })
 
   function secondModel() {
@@ -143,6 +145,53 @@ describe('side-chat runtime boundaries', () => {
       .run()
     return id
   }
+
+  it.each([true, false])(
+    'retains tool decisions and resumes the same reply only after every approval (saved=%s)',
+    async (persist) => {
+      saved = persist
+      const origin = source()
+      const assistant = assistantDataService.create({ name: 'Tool owner' })
+      assistantDataService.update(assistant.id, { settings: { ...assistant.settings, enableWebSearch: true } })
+      topicService.update(origin.topicId, { assistantId: assistant.id })
+      const side = service.create('one', origin, { modelId })
+      const before = dbh.db.select().from(messageTable).all()
+      const started = await service.submit('one', side.topicId, 'Look this up', modelId)
+      const answerId = started.messages.at(-1)!.id
+      expect(runs[0].assistant?.settings.enableWebSearch).toBe(true)
+      const parts: CherryMessagePart[] = ['a', 'b'].map((id) => ({
+        type: 'dynamic-tool',
+        toolName: 'example',
+        toolCallId: id,
+        input: {},
+        state: 'approval-requested',
+        approval: { id }
+      }))
+      await finish(runs[0], '', parts)
+      await service.respondApproval('one', side.topicId, answerId, { approvalId: 'a', approved: false })
+      await service.respondApproval('one', side.topicId, answerId, { approvalId: 'a', approved: true })
+      expect(runs).toHaveLength(1)
+      const resumed = await service.respondApproval('one', side.topicId, answerId, { approvalId: 'b', approved: true })
+      expect(resumed.messages).toHaveLength(2)
+      expect(resumed.messages.at(-1)?.id).toBe(answerId)
+      expect(runs[1].messages?.at(-1)?.parts).toMatchObject([
+        { state: 'approval-responded', approval: { id: 'a', approved: false } },
+        { state: 'approval-responded', approval: { id: 'b', approved: true } }
+      ])
+      const result: CherryMessagePart = {
+        type: 'dynamic-tool',
+        toolName: 'example',
+        toolCallId: 'b',
+        input: {},
+        state: 'output-available',
+        output: 'Found result'
+      }
+      await finish(runs[1], '', [result])
+      await service.submit('one', side.topicId, 'Explain that result', modelId)
+      expect(runs[2].messages?.flatMap((message) => message.parts)).toContainEqual(result)
+      if (!persist) expect(dbh.db.select().from(messageTable).all()).toEqual(before)
+    }
+  )
 
   it.each([true, false])(
     'binds the selected model to each submit and retry without changing a running request (saved=%s)',
@@ -442,7 +491,8 @@ describe('side-chat runtime boundaries', () => {
         data: { parts: [{ type: 'text', text: 'Live answer' }] }
       })
       expect(privateRequest).toBe(!persist)
-      expect(captured).toMatchObject({ disableTools: true, contextOwner: 'caller' })
+      expect(captured).toMatchObject({ contextOwner: 'caller' })
+      expect(captured?.disableTools).not.toBe(true)
       if (!persist) expect(dbh.db.select().from(messageTable).all()).toEqual(before)
     }
   )
