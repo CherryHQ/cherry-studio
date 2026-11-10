@@ -168,7 +168,10 @@ async function importHistory(sessionId: string): Promise<void> {
       reopened.getSessionId() !== migration.resumeToken ||
       reopened.getEntries().length !== manager.getEntries().length
     ) {
-      throw new Error('Retired session history validation failed')
+      throw new Error(
+        `Pi runtime retired-session migration failed validation for session ${sessionId}; ` +
+          `the migrated history was not saved. Retry opening the session — migration will be attempted again automatically.`
+      )
     }
     await rename(temporary, file)
     application

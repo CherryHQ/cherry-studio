@@ -42,6 +42,7 @@ import * as piBehaviorHost from './piBehaviorHost'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
+import { isPiObservationError } from './piObservationError'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { buildPiLoginPathPrefix } from './piShell'
 
@@ -1204,5 +1205,30 @@ describe('desktop Pi root connection', () => {
       "export PATH=\"$PATH\":'/opt/homebrew/bin:/Users/o'\"'\"'connor/bin'"
     )
     expect(buildPiLoginPathPrefix('C:\\tools', 'win32')).toBeUndefined()
+  })
+
+  // #21901 (DSH bridge successor): a mid-turn observation loss must name the Pi
+  // runtime, stay retryable, and force a rebuild so the next turn reconnects.
+  it.each([
+    ['gap', { events: [{ type: 'gap', reason: 'disconnected' }], settled: false }],
+    ['closed', { events: [{ type: 'closed', reason: 'source-lost' }], settled: false }]
+  ] as const)('reports a %s observation loss as a retryable Pi error that rebuilds', async (_kind, partial) => {
+    const { connection, events } = await connect()
+    await (connection as unknown as { handleObservation: (batch: unknown) => Promise<void> }).handleObservation({
+      aliases: {},
+      live: [],
+      outcomes: [],
+      children: [],
+      ...partial
+    })
+    await expect.poll(() => events.some((event) => event.type === 'error')).toBe(true)
+    const failure = events.find((event) => event.type === 'error')
+    expect(failure?.type).toBe('error')
+    if (failure?.type !== 'error') throw new Error('Missing error event')
+    expect(isPiObservationError(failure.error)).toBe(true)
+    expect(String((failure.error as Error).message)).toContain('Pi runtime')
+    expect((failure.error as { isRetryable?: unknown }).isRetryable).toBe(true)
+    expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('rebuild')
   })
 })

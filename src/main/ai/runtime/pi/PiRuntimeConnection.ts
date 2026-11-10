@@ -78,6 +78,7 @@ import {
 } from './piConnectionSignature'
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
+import { isPiObservationError, PiObservationError } from './piObservationError'
 import { loadPiSdk } from './piSdk'
 import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from './piShell'
 import { PiTurnUsage } from './PiTurnUsage'
@@ -429,6 +430,30 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  private observationIdentity(): { backendId?: string; nativeThreadId?: string } {
+    return {
+      backendId: this.context?.backendId,
+      nativeThreadId: this.context?.nativeThreadId ?? this.handle?.thread.id ?? undefined
+    }
+  }
+
+  private observationFailure(
+    kind: 'gap' | 'closed' | 'diagnostic' | 'outcome',
+    reason: string,
+    causeMessage?: string
+  ): PiObservationError {
+    const failure = new PiObservationError({
+      runtime: 'pi',
+      kind,
+      reason,
+      sessionId: this.input.sessionId,
+      ...this.observationIdentity(),
+      ...(causeMessage ? { causeMessage } : {})
+    })
+    logger.error('Pi observation interrupted', failure.toLogContext())
+    return failure
+  }
+
   private async handleObservation(batch: PiObservation): Promise<void> {
     try {
       this.projection ??= new ThreadProjection(
@@ -471,14 +496,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           }
         } else if (event.type === 'subagent.upsert' && event.subagent.child)
           void this.observeChild(event.subagent.child.id)
-        else if (event.type === 'diagnostic') this.failure ??= new Error(event.error.message)
+        else if (event.type === 'diagnostic')
+          this.failure ??= this.observationFailure('diagnostic', event.error.message, event.error.message)
         else if (event.type === 'gap' && !['mapping-reset', 'overflow'].includes(event.reason))
-          throw new Error(`Pi observation interrupted: ${event.reason}`)
+          throw this.observationFailure('gap', event.reason)
         else if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
-          throw new Error(`Pi observation ended: ${event.reason}`)
+          throw this.observationFailure('closed', event.reason)
       }
       for (const input of batch.outcomes)
-        if (input.outcome !== 'completed') this.failure ??= new Error(input.error?.message ?? input.outcome)
+        if (input.outcome !== 'completed')
+          this.failure ??= this.observationFailure('outcome', input.outcome, input.error?.message ?? input.outcome)
       await this.projection.accept(batch)
       if (batch.backgroundResults) {
         const result = batch.backgroundResults
@@ -497,9 +524,22 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         )
       if (batch.settled && this.sending && !this.manualCompactInFlight) this.finishTurn()
     } catch (error) {
-      this.failure = error
+      const failure =
+        isPiObservationError(error) || error instanceof Error
+          ? error
+          : this.observationFailure('diagnostic', 'unknown', String(error))
+      if (!isPiObservationError(failure)) {
+        logger.error('Pi observation interrupted', {
+          sessionId: this.input.sessionId,
+          ...this.observationIdentity(),
+          error: failure
+        })
+      }
+      // Retain the failure so `reconcile()` reports `rebuild`: the next turn
+      // reconnects fresh instead of reusing this retired observation.
+      this.failure = failure
       this.sending = false
-      this.eventQueue.push({ type: 'error', error })
+      this.eventQueue.push({ type: 'error', error: failure })
       void this.close().catch((closeError) =>
         logger.error('Failed to retire Pi after observation error', { error: closeError })
       )
