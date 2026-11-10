@@ -355,7 +355,9 @@ async function resolveRequestToolSignals(
     // `mcp__{serverSlug}__{toolSlug}_<digest>` (see `buildMcpToolWireId`), so match
     // on the cherry-browser server prefix rather than bare tool names.
     if (request.isTemporaryChat) {
-      const BROWSER_AUTOMATION_SERVER_PREFIX = 'mcp__cherrybrowser__'
+      // Wire IDs use camelCase server names (@cherry/browser → CherryBrowser),
+      // so match the actual prefix rather than a lowercase guess.
+      const BROWSER_AUTOMATION_SERVER_PREFIX = 'mcp__CherryBrowser__'
       mcpIdList = mcpIdList.filter(
         (id: string) => !id.startsWith(BROWSER_AUTOMATION_SERVER_PREFIX)
       )
