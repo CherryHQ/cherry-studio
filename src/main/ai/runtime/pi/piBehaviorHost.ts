@@ -124,7 +124,9 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
           { objective: request.objective, claim: { ...request.claim }, context: [...request.context] },
           signal
         )
-        return verdictSchema.parse(JSON.parse(result.text))
+        // Models often wrap the requested JSON in a markdown fence or a short preamble.
+        const json = result.text.slice(result.text.indexOf('{'), result.text.lastIndexOf('}') + 1)
+        return verdictSchema.parse(JSON.parse(json))
       }
     },
     summarizer: {
