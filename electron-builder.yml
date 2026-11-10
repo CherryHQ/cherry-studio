@@ -284,6 +284,7 @@ releaseInfo:
     - [UI] Restore popup close animations, correct prompt and memory editor sizing and styling, and prevent stale actions or drafts when reopening dialogs.
     - [Agents] Enable PowerShell commands for Pi and Pi Durable on Windows without requiring Git Bash.
     - [Settings] Group built-in tools in a secondary settings menu and move interface language selection to a dedicated Language section in General.
+    - [Agents] Pi and Pi Durable subagents now default to bypass permissions, avoiding ordinary tool approval prompts. No action required.
 
     ⚡ Performance
     - [Chat] Preparing large text attachments no longer blocks the interface.
@@ -375,6 +376,7 @@ releaseInfo:
     - [界面] 恢复弹窗关闭动画，修正提示词与记忆编辑器的高度和样式，并避免重新打开弹窗时触发过期操作或复用已取消的草稿。
     - [智能体] 为 Windows 上的 Pi 和 Pi Durable 启用 PowerShell 命令，无需安装 Git Bash。
     - [设置] 将内置工具收纳到二级设置菜单，并将界面语言选项移到通用页面的独立语言模块。
+    - [智能体] Pi 和 Pi Durable 子智能体默认使用 bypass 权限，不再触发普通工具审批。无需操作。
 
     ⚡ 性能优化
     - [对话] 准备大型文本附件不再阻塞界面。
