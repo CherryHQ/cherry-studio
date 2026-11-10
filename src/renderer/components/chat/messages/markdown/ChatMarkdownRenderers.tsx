@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react'
-import { Children, type ComponentProps, isValidElement, type JSX } from 'react'
+import { Children, cloneElement, type ComponentProps, isValidElement, type JSX, type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components, ExtraProps } from 'streamdown'
 
@@ -15,7 +15,7 @@ import CitationSup from './CitationSup'
 import CodeBlock from './CodeBlock'
 import { getCodeFilePath } from './codeFilePath'
 import Link from './Link'
-import { CODE_BLOCK_TABS_PROPERTY } from './plugins/codeBlockTabs'
+import { CODE_BLOCK_TAB_SOURCES_PROPERTY, CODE_BLOCK_TABS_PROPERTY } from './plugins/codeBlockTabs'
 import { BARE_FILE_PATH_PROPERTY } from './plugins/rehypeBareFilePaths'
 
 type MarkdownRendererProps<Tag extends keyof JSX.IntrinsicElements> = JSX.IntrinsicElements[Tag] & ExtraProps
@@ -73,9 +73,61 @@ function ChatSpanRenderer({ node, children, ...props }: MarkdownRendererProps<'s
 }
 
 function ChatDivRenderer({ node, children, ...props }: MarkdownRendererProps<'div'>) {
-  const { t } = useTranslation()
   const languages = node?.properties[CODE_BLOCK_TABS_PROPERTY]
-  if (!Array.isArray(languages)) return <div {...props}>{children}</div>
+  const sources = node?.properties[CODE_BLOCK_TAB_SOURCES_PROPERTY]
+  if (!Array.isArray(languages) || !Array.isArray(sources)) return <div {...props}>{children}</div>
+  return (
+    <ChatCodeTabsRenderer languages={languages.map(String)} sources={sources.map(String)}>
+      {children}
+    </ChatCodeTabsRenderer>
+  )
+}
+
+function ChatCodeTabsRenderer({
+  languages,
+  sources,
+  children
+}: {
+  languages: string[]
+  sources: string[]
+  children: ReactNode
+}) {
+  const { t } = useTranslation()
+  const [identity, setIdentity] = useState({
+    sources,
+    languages,
+    ids: sources.map((_, index) => String(index)),
+    nextId: sources.length
+  })
+  let current = identity
+  if (
+    sources.length !== identity.sources.length ||
+    sources.some((source, index) => source !== identity.sources[index])
+  ) {
+    const available = new Set(identity.ids)
+    const ids = sources.map((source) => {
+      const match = identity.sources.findIndex(
+        (previous, index) => previous === source && available.has(identity.ids[index])
+      )
+      if (match === -1) return undefined
+      available.delete(identity.ids[match])
+      return identity.ids[match]
+    })
+    let nextId = identity.nextId
+    const nextIds = ids.map((id, index) => {
+      if (id !== undefined) return id
+      const previous = identity.ids[index]
+      if (
+        sources.length >= identity.sources.length &&
+        languages[index] === identity.languages[index] &&
+        available.delete(previous)
+      )
+        return previous
+      return String(nextId++)
+    })
+    current = { sources, languages, ids: nextIds, nextId }
+    setIdentity(current)
+  }
   const blocks = Children.toArray(children).filter(isValidElement)
   const counts = new Map<string, number>()
   const items = blocks.map((content, index) => {
@@ -85,12 +137,13 @@ function ChatDivRenderer({ node, children, ...props }: MarkdownRendererProps<'di
     const label = language || t('richEditor.toolbar.codeBlock')
     const repeated = languages.filter((value) => value === language).length > 1
     return {
-      id: String(index),
+      id: current.ids[index],
       label: !language || repeated ? `${label} ${ordinal}` : label,
       icon: (
         <Icon aria-hidden icon={`material-icon-theme:${getFileIconName(`file${getExtensionByLanguage(language)}`)}`} />
       ),
-      content
+      // eslint-disable-next-line @eslint-react/no-clone-element -- Replace the parser position key so moved blocks retain their editor.
+      content: cloneElement(content, { key: current.ids[index] })
     }
   })
   return <CodeBlockTabs label={t('richEditor.toolbar.codeBlock')} items={items} />

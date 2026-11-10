@@ -9,6 +9,7 @@ import { createLatexMarkdownBlockParser } from '@renderer/components/markdown'
 import { getCodeFilePath } from '../codeFilePath'
 
 export const CODE_BLOCK_TABS_PROPERTY = 'cherryCodeBlockTabs'
+export const CODE_BLOCK_TAB_SOURCES_PROPERTY = 'cherryCodeBlockTabSources'
 const parser = unified().use(remarkParse).freeze()
 
 function isEligibleFence(node: Code, source: string) {
@@ -68,7 +69,12 @@ export const rehypeCodeBlockTabs: Plugin<[], HastRoot> = () => (tree, file) => {
       const group: Element = {
         type: 'element',
         tagName: 'div',
-        properties: { [CODE_BLOCK_TABS_PROPERTY]: labels },
+        properties: {
+          [CODE_BLOCK_TABS_PROPERTY]: labels,
+          [CODE_BLOCK_TAB_SOURCES_PROPERTY]: blocks.map((block) =>
+            String(file).slice(block.position!.start.offset, block.position!.end.offset)
+          )
+        },
         children: blocks,
         position: first.position
       }

@@ -31,6 +31,28 @@ describe('streaming code source', () => {
     }
   )
 
+  it.each(['- ', '1. ', '> - '].flatMap((prefix) => ['```', '~~~'].map((fence) => ({ prefix, fence }))))(
+    'preserves $prefix list syntax around $fence fences during streaming and completion',
+    ({ prefix, fence }) => {
+      const indent = prefix.startsWith('>') ? '>   ' : ' '.repeat(prefix.length)
+      const source = `${prefix}${fence}js\n${indent}const x = 1`
+      const { rerender } = render(
+        <StreamingMarkdown id="list-source" components={{ code: Code }}>
+          {source}
+        </StreamingMarkdown>
+      )
+      expect(screen.getByRole('listitem').contains(screen.getByRole('region', { name: 'Source' }))).toBe(true)
+      expect(screen.getByRole('region', { name: 'Source' }).textContent).toBe('const x = 1\n')
+      rerender(
+        <StreamingMarkdown
+          id="list-source"
+          components={{ code: Code }}>{`${source}\n${indent}${fence}`}</StreamingMarkdown>
+      )
+      expect(screen.getAllByRole('region', { name: 'Source' })).toHaveLength(1)
+      expect(screen.getByRole('region', { name: 'Source' }).textContent).toBe('const x = 1\n')
+    }
+  )
+
   it('preserves fences in containers while still completing surrounding prose', () => {
     const source = '> ~~~text\n> ~~literal\n> ~~~\n\n**bold'
     render(

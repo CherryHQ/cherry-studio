@@ -63,6 +63,29 @@ describe('chat code tabs integration', () => {
     expect(screen.getByRole('tab', { name: 'ts' })).toHaveAttribute('aria-selected', 'true')
   })
 
+  it.each(['py', 'ts'])(
+    'falls back after removing a selected %s fence and retains the surviving draft',
+    async (language) => {
+      const user = userEvent.setup()
+      const first = '```ts\nfirst\n```'
+      const middle = `\`\`\`${language}\nmiddle\n\`\`\``
+      const last = '```ts\nlast\n```'
+      const view = (content: string) => (
+        <ChatMarkdown block={{ id: 'part', content, status: 'success' }} components={components} />
+      )
+      const { rerender } = render(view([first, middle, last].join('\n\n')))
+      await user.click(screen.getAllByRole('tab')[2])
+      await user.clear(screen.getByRole('textbox'))
+      await user.type(screen.getByRole('textbox'), 'surviving draft')
+      await user.click(screen.getAllByRole('tab')[1])
+      rerender(view([first, last].join('\n\n')))
+      expect(screen.getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByRole('textbox')).toHaveValue('first\n')
+      await user.click(screen.getAllByRole('tab')[1])
+      expect(screen.getByRole('textbox')).toHaveValue('surviving draft')
+    }
+  )
+
   it('groups within quote containers, numbers duplicate and missing languages, and preserves boundaries', () => {
     const fences = '```ts\none\n```\n\n```ts\ntwo\n```\n\n```\nthree\n```'
     const quote = fences

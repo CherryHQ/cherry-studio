@@ -19,7 +19,7 @@ index 8abd768b099071a816b507acfa8268df7a024007..692da9c2d361afeb884d3cea439f31e3
 +  const ranges = [];
 +  function collect(node) {
 +    if (node.type === "code") {
-+      ranges.push([node.position.start.offset, node.position.end.offset]);
++      ranges.push([text.lastIndexOf("\n", node.position.start.offset - 1) + 1, node.position.end.offset]);
 +    } else if (node.children) {
 +      for (const child of node.children) collect(child);
 +    }
