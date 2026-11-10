@@ -2,7 +2,8 @@ import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { open, readdir, stat } from 'node:fs/promises'
-import { isAbsolute, join, resolve } from 'node:path'
+import { isAbsolute, join, posix, resolve } from 'node:path'
+import { setTimeout } from 'node:timers/promises'
 import { promisify } from 'node:util'
 
 import Database from 'better-sqlite3'
@@ -25,6 +26,148 @@ interface ArmingRow {
   mcp_server_id: string
   created_at: number
   updated_at: number
+}
+
+interface FixtureProcess {
+  pid: number
+  ppid: number
+  command: string
+}
+
+async function listProcesses(): Promise<FixtureProcess[]> {
+  if (process.platform === 'win32') {
+    const { stdout } = await promisify(execFile)(
+      'powershell',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '@(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine) | ConvertTo-Json -Compress -Depth 3'
+      ],
+      { timeout: 20_000 }
+    )
+    type WindowsProcess = { ProcessId: number; ParentProcessId: number; CommandLine: string | null }
+    const parsed = JSON.parse(stdout) as WindowsProcess | WindowsProcess[]
+    return (Array.isArray(parsed) ? parsed : [parsed]).map((entry) => ({
+      pid: entry.ProcessId,
+      ppid: entry.ParentProcessId,
+      command: entry.CommandLine ?? ''
+    }))
+  }
+  const { stdout } = await promisify(execFile)('ps', ['-axo', 'pid=,ppid=,command='], { timeout: 20_000 })
+  return stdout
+    .split('\n')
+    .filter((line) => line.trim())
+    .flatMap((line) => {
+      const match = line.match(/^\s*(\d+)\s+(\d+)\s+(.*)$/)
+      if (!match) return []
+      const [, pid, ppid, command] = match
+      return [{ pid: Number(pid), ppid: Number(ppid), command }]
+    })
+}
+
+function normalizeProcessPath(value: string): string {
+  const normalized = value.replaceAll('\\', '/')
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+}
+
+function tokenizeCommandLine(command: string): string[] {
+  const tokens: string[] = []
+  let token = ''
+  let quote: string | undefined
+  let started = false
+  for (let index = 0; index < command.length; index++) {
+    const char = command[index]
+    if (quote) {
+      if (quote === '"' && char === '\\' && command[index + 1] === '"') {
+        token += '"'
+        index++
+      } else if (char === quote) {
+        quote = undefined
+      } else {
+        token += char
+      }
+    } else if (char === '"') {
+      quote = char
+      started = true
+    } else if (/\s/.test(char)) {
+      if (started) tokens.push(token)
+      token = ''
+      started = false
+    } else {
+      token += char
+      started = true
+    }
+  }
+  if (quote) return []
+  if (started) tokens.push(token)
+  return tokens
+}
+
+function fixtureProcesses(processes: FixtureProcess[], instance: string): FixtureProcess[] {
+  const fixture = normalizeProcessPath(resolve('tests/e2e/smoke/fixtures/mcpArmingServer.mjs'))
+  return processes.filter(({ command }) => {
+    const args = tokenizeCommandLine(command)
+    if (!args.length) return false
+    const name = posix.basename(normalizeProcessPath(args[0]))
+    return (
+      (name === 'node' || name === 'node.exe') &&
+      args.some((arg) => normalizeProcessPath(arg) === fixture) &&
+      args.includes(instance)
+    )
+  })
+}
+
+async function waitForFixtureSnapshot(
+  expectations: ReadonlyArray<{ instance: string; expected: number }>,
+  timeoutMs = 30_000
+): Promise<Map<string, FixtureProcess[]>> {
+  const deadline = Date.now() + timeoutMs
+  let processes: FixtureProcess[]
+  let matches: Map<string, FixtureProcess[]>
+  do {
+    processes = await listProcesses()
+    matches = new Map(expectations.map(({ instance }) => [instance, fixtureProcesses(processes, instance)]))
+    if (expectations.every(({ instance, expected }) => matches.get(instance)!.length === expected)) return matches
+    await setTimeout(100)
+  } while (Date.now() < deadline)
+  const fixture = normalizeProcessPath(resolve('tests/e2e/smoke/fixtures/mcpArmingServer.mjs'))
+  const lines = processes
+    .filter(({ command }) => normalizeProcessPath(command).includes(fixture))
+    .map(({ pid, ppid, command }) => `${pid} ${ppid} ${command}`)
+  throw new Error(
+    `Timed out after ${timeoutMs}ms waiting for fixture snapshot:\n${expectations
+      .map(({ instance, expected }) => `${instance}: expected ${expected}, observed ${matches.get(instance)!.length}`)
+      .join('\n')}\nFixture process lines:\n${lines.join('\n') || '(none)'}`
+  )
+}
+
+async function waitForProcessExit(pid: number, timeoutMs = 30_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  let processes: FixtureProcess[]
+  let matches: FixtureProcess[]
+  do {
+    processes = await listProcesses()
+    matches = processes.filter((entry) => entry.pid === pid)
+    if (matches.length === 0) return
+    await setTimeout(100)
+  } while (Date.now() < deadline)
+  const fixture = normalizeProcessPath(resolve('tests/e2e/smoke/fixtures/mcpArmingServer.mjs'))
+  const lines = processes
+    .filter((entry) => entry.pid === pid || normalizeProcessPath(entry.command).includes(fixture))
+    .map(({ pid, ppid, command }) => `${pid} ${ppid} ${command}`)
+  throw new Error(
+    `Timed out after ${timeoutMs}ms waiting for process ${pid} to exit: expected 0, observed ${matches.length}\nFixture process lines (including target pid):\n${lines.join('\n') || '(none)'}`
+  )
+}
+
+async function killFixture(pid: number): Promise<'SIGKILL' | 'taskkill /F'> {
+  if (process.platform === 'win32') {
+    await promisify(execFile)('taskkill', ['/PID', String(pid), '/F'])
+    return 'taskkill /F'
+  }
+  process.kill(pid, 'SIGKILL')
+  return 'SIGKILL'
 }
 
 async function directoryListing(root: string): Promise<string[]> {
@@ -53,7 +196,6 @@ test('stdio drop and recovery preserve assistant MCP arming and retained timesta
     testInfo.attach(name, { body: JSON.stringify(value, null, 2), contentType: 'application/json' })
   const data = (request: Omit<DataRequest, 'id'>) =>
     page.evaluate((request) => window.api.dataApi.request(request), { ...request, id: randomUUID() })
-  const ps = async () => (await promisify(execFile)('ps', ['-axo', 'pid=,ppid=,command='])).stdout
   const fixture = resolve('tests/e2e/smoke/fixtures/mcpArmingServer.mjs')
   const profile = process.env.CS_DEV_PROFILE_ROOT?.trim()
   expect(profile, 'CS_DEV_PROFILE_ROOT must identify the launched disposable profile').toBeTruthy()
@@ -242,26 +384,23 @@ test('stdio drop and recovery preserve assistant MCP arming and retained timesta
       return { newestFile: files[0].path, lines }
     }
 
-    const processes = (await ps()).split('\n')
-    const fixtureProcesses = processes.filter((line) => line.includes(fixture))
-    const children = instances.map((instance) =>
-      fixtureProcesses.filter((line) => {
-        const [, , command, ...args] = line.trim().split(/\s+/)
-        return /(?:^|\/)node$/.test(command) && args.includes(fixture) && args.includes(instance)
-      })
-    )
-    await attachJson('pre-kill-processes', { children })
-    const processContext = `Fixture ps lines:\n${fixtureProcesses.join('\n') || '(none)'}`
+    const preKillProcesses = await waitForFixtureSnapshot(instances.map((instance) => ({ instance, expected: 1 })))
+    const children = instances.map((instance) => preKillProcesses.get(instance)!)
+    await attachJson('pre-kill-processes', { instances, children })
+    const processContext = `Fixture process lines:\n${children
+      .flat()
+      .map(({ command }) => command)
+      .join('\n')}`
     expect(children[0], `S must have exactly one identifiable stdio child\n${processContext}`).toHaveLength(1)
     expect(children[1], `T must have exactly one identifiable stdio child\n${processContext}`).toHaveLength(1)
-    const pid = Number(children[0][0].trim().split(/\s+/)[0])
-    const tPid = Number(children[1][0].trim().split(/\s+/)[0])
+    const pid = children[0][0].pid
+    const tPid = children[1][0].pid
     expect(pid).toBeGreaterThan(1)
     expect(tPid).toBeGreaterThan(1)
     expect(pid).not.toBe(tPid)
     const killedAt = new Date().toISOString()
-    process.kill(pid, 'SIGKILL')
-    await attachJson('kill-trace', { pid, tPid, killedAt, signal: 'SIGKILL', lines: children.flat() })
+    const mechanism = await killFixture(pid)
+    await attachJson('kill-trace', { pid, tPid, killedAt, mechanism, lines: children.flat() })
 
     // No idle heartbeat exists, so drive the first failing request to observe the killed child disconnect.
     // Arming must remain untouched when the drop becomes observable.
@@ -275,6 +414,9 @@ test('stdio drop and recovery preserve assistant MCP arming and retained timesta
         { timeout: 30_000, intervals: [100, 250, 500] }
       )
       .toBe(true)
+    await waitForProcessExit(pid)
+    const droppedProcesses = await waitForFixtureSnapshot([{ instance: instances[0], expected: 0 }])
+    expect(droppedProcesses.get(instances[0])).toHaveLength(0)
     const afterDrop = await snapshot()
     await attachJson('arming-after-drop', afterDrop)
     expect(afterDrop.rows).toEqual(baseline.rows)
@@ -294,24 +436,32 @@ test('stdio drop and recovery preserve assistant MCP arming and retained timesta
         )
         .toBe('connected')
     } catch (error) {
-      await attachJson('recovery-failure', { lastStatus: statusSequence.at(-1), refreshAttempts, ps: await ps() })
+      try {
+        const processes = await listProcesses()
+        await attachJson('recovery-failure', {
+          lastStatus: statusSequence.at(-1),
+          refreshAttempts,
+          processes: instances.map((instance) => ({ instance, matches: fixtureProcesses(processes, instance) }))
+        })
+      } catch (enumerationError) {
+        await testInfo
+          .attach('recovery-failure', { body: String(enumerationError), contentType: 'text/plain' })
+          .catch(() => undefined)
+      }
       throw error
     }
     const afterRecovery = await snapshot()
     await attachJson('arming-after-recovery', afterRecovery)
     expect(afterRecovery.rows).toEqual(baseline.rows)
     expect(afterRecovery.apiIds).toEqual(baseline.apiIds)
-    const recoveredProcesses = (await ps()).split('\n')
-    await attachJson(
-      'recovered-processes',
-      recoveredProcesses.filter((line) => line.includes(fixture))
-    )
-    const recoveredS = recoveredProcesses.filter((line) => line.includes(fixture) && line.includes(instances[0]))
-    const survivingT = recoveredProcesses.filter((line) => line.includes(fixture) && line.includes(instances[1]))
+    const recoveryProcesses = await waitForFixtureSnapshot(instances.map((instance) => ({ instance, expected: 1 })))
+    const recoveredS = recoveryProcesses.get(instances[0])!
+    const survivingT = recoveryProcesses.get(instances[1])!
+    await attachJson('recovered-processes', { instances, recoveredS, survivingT })
     expect(recoveredS).toHaveLength(1)
     expect(survivingT).toHaveLength(1)
-    expect(Number(recoveredS[0].trim().split(/\s+/)[0])).not.toBe(pid)
-    expect(Number(survivingT[0].trim().split(/\s+/)[0])).toBe(tPid)
+    expect(recoveredS[0].pid).not.toBe(pid)
+    expect(survivingT[0].pid).toBe(tPid)
     const recoveryLog = await auditLines()
     await attachJson('drop-recovery-audit-lines', recoveryLog)
     expect(recoveryLog.lines, 'Drop/recovery must not emit any arming delta for A').toEqual([])
