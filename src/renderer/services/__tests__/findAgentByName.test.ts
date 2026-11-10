@@ -16,14 +16,14 @@ describe('findAgentByName', () => {
         items: Array.from({ length: AGENTS_MAX_LIMIT }, (_, i) => ({ id: `${i}`, name: 'Other' })),
         total: AGENTS_MAX_LIMIT + 1,
         page: 1
-      } as never)
-      .mockResolvedValueOnce({ items: [match], total: AGENTS_MAX_LIMIT + 1, page: 2 } as never)
+      })
+      .mockResolvedValueOnce({ items: [match], total: AGENTS_MAX_LIMIT + 1, page: 2 })
     expect(await findAgentByName('Preset')).toEqual(match)
     expect(get).toHaveBeenLastCalledWith('/agents', { query: { search: 'Preset', limit: AGENTS_MAX_LIMIT, page: 2 } })
   })
 
   it('returns a settled miss only after the whole result', async () => {
-    vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [], total: 0, page: 1 } as never)
+    vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [], total: 0, page: 1 })
     expect(await findAgentByName('Preset')).toBeUndefined()
   })
 
