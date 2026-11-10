@@ -122,6 +122,7 @@ export const defaultServiceInstances = {
   JobManager: mockJobManager,
   CodeCliService: { openTerminal: vi.fn(async () => ({ success: true })) },
   LocalAgentInstallService: { isUninstalling: vi.fn(() => false) },
+  AgentDelegationService: { cancelOwnedBy: vi.fn(async () => {}) },
   AgentSessionRuntimeService: { closeIdleSessions: vi.fn(async () => true) },
   BinaryManager: { getToolSnapshots: vi.fn(async () => ({})) },
   PowerService: { preventSleep: vi.fn(() => ({ dispose: vi.fn() })) },

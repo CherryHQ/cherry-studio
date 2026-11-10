@@ -3,6 +3,7 @@ import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import type { AgentDelegationSnapshot } from '@shared/ai/agentSessionDelivery'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import {
   LocalAgentConfigurationSchema,
@@ -227,6 +228,25 @@ const projectionTargetSchema = z.discriminatedUnion('kind', [
 ]) satisfies z.ZodType<ProjectionTarget>
 
 export const aiRequestSchemas = {
+  'ai.agent.delegation.read': defineRoute({
+    input: z.strictObject({ originSessionId: z.string().min(1), requestId: z.string().min(1) }),
+    output: z.custom<AgentDelegationSnapshot>()
+  }),
+  'ai.agent.delegation.cancel': defineRoute({
+    input: z.strictObject({ originSessionId: z.string().min(1), requestId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.agent.delegation.respond': defineRoute({
+    input: z.strictObject({
+      originSessionId: z.string().min(1),
+      requestId: z.string().min(1),
+      approvalId: z.string().min(1),
+      approved: z.boolean(),
+      reason: z.string().optional(),
+      updatedInput: z.record(z.string(), z.unknown()).optional()
+    }),
+    output: z.boolean()
+  }),
   'ai.projection.attach': defineRoute({
     input: z.strictObject({ target: projectionTargetSchema, subscriptionId: z.uuid() }),
     output: z.custom<MessageProjectionView | null>()

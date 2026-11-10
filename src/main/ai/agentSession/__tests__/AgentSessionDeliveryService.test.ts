@@ -184,6 +184,7 @@ vi.mock('@application', () => ({
       if (name === 'AgentSessionRuntimeService') return runtime
       if (name === 'AiStreamManager') return manager
       if (name === 'DbService') return dbService
+      if (name === 'AgentDelegationService') return { cancelOwnedBy: async () => {} }
       if (name === 'AgentSessionDeliveryService') return deliveryOwner
       if (name === 'ChannelManager')
         return {
@@ -373,6 +374,27 @@ describe('AgentSessionDeliveryService', () => {
     expect(mocks.claim).toHaveBeenCalledWith({}, 'target', 'delivery-1', 'assistant-1')
     expect(mocks.publishDispatchChanges).toHaveBeenCalledWith('target', [accepted, assistant])
     expect(mocks.send).toHaveBeenCalledOnce()
+  })
+
+  it('starts a native CLI delivery without treating its runtime identity as a configured model', async () => {
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+    mocks.validateDispatch.mockResolvedValue({
+      sessionId: 'target',
+      agentId: 'agent-1',
+      agentUpdatedAt: now,
+      agentType: 'local',
+      uniqueModelId: 'runtime:agent-1'
+    })
+    mocks.persistDispatchTx.mockImplementation((_tx, _validated, expected) => {
+      if (expected.model !== null) throw DataApiErrorFactory.concurrentModification('Agent', 'agent-1')
+      return { assistantMessageId: assistant.id, savedMessages: [accepted, assistant] }
+    })
+    mocks.listAccepted.mockReturnValueOnce([accepted]).mockReturnValue([])
+    service.kick('target')
+    await service.drainInFlight({ timeoutMs: 100 })
+    expect(mocks.send).toHaveBeenCalledOnce()
+    expect(mocks.fail).not.toHaveBeenCalled()
   })
 
   it('reruns a coalesced kick that arrives before the blocked kick releases single-flight ownership', async () => {

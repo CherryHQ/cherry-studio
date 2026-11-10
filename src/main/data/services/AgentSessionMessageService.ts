@@ -2114,6 +2114,9 @@ export class AgentSessionMessageService {
         return { requestId: null, result: null }
       }
 
+      const error = request.delivery.delegation ? request.delivery.error : null
+      const outcome = error?.code === 'TIMEOUT' ? 'failed' : input.outcome
+
       const existingResult = tx
         .select()
         .from(sessionMessagesTable)
@@ -2125,7 +2128,7 @@ export class AgentSessionMessageService {
           .set({
             deliveryStatus: 'consumed',
             deliveryTurnRef: null,
-            delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
+            delivery: { ...request.delivery, outcome, statusAt: new Date().toISOString() }
           })
           .where(eq(sessionMessagesTable.id, request.id))
           .run()
@@ -2172,8 +2175,8 @@ export class AgentSessionMessageService {
           receiverSnapshot: request.delivery.senderSnapshot,
           replyPolicy: 'none',
           sourceMessageId: assistant.id,
-          outcome: input.outcome,
-          error: null,
+          outcome,
+          error,
           statusAt: new Date().toISOString()
         }
         result = this.saveMessageTx(tx, {
@@ -2185,7 +2188,7 @@ export class AgentSessionMessageService {
             id: uuidv7(),
             role: 'user',
             status: 'success',
-            data: terminalResultData(assistant, input.outcome),
+            data: terminalResultData(assistant, outcome, error ?? undefined),
             delivery: resultEnvelope,
             deliveryStatus: 'accepted',
             deliveryInReplyTo: request.id,
@@ -2198,7 +2201,7 @@ export class AgentSessionMessageService {
         .set({
           deliveryStatus: 'consumed',
           deliveryTurnRef: null,
-          delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
+          delivery: { ...request.delivery, outcome, statusAt: new Date().toISOString() }
         })
         .where(eq(sessionMessagesTable.id, request.id))
         .run()

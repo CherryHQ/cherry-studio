@@ -37,6 +37,7 @@ function isHandledElsewhere(event: KeyboardEvent) {
 }
 
 type PermissionRequestComposerProps = {
+  keyboardShortcuts?: boolean
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   className?: string
@@ -205,7 +206,12 @@ function PermissionRiskSummary({ toolName, args }: { toolName: string; args: unk
   )
 }
 
-export default function PermissionRequestComposer({ request, onRespond, className }: PermissionRequestComposerProps) {
+export default function PermissionRequestComposer({
+  request,
+  onRespond,
+  className,
+  keyboardShortcuts = true
+}: PermissionRequestComposerProps) {
   const { t } = useTranslation()
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
   const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
@@ -266,10 +272,15 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
     () => {
       if (!localOptions) void (hasRejectionReason ? deny() : approve())
     },
-    { preventDefault: true, ignoreEventWhen: isHandledElsewhere },
+    { enabled: keyboardShortcuts, preventDefault: true, ignoreEventWhen: isHandledElsewhere },
     [approve, deny, hasRejectionReason, localOptions]
   )
-  useHotkeys('esc', () => void deny(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [deny])
+  useHotkeys(
+    'esc',
+    () => void deny(),
+    { enabled: keyboardShortcuts, preventDefault: true, ignoreEventWhen: isHandledElsewhere },
+    [deny]
+  )
 
   return (
     <div
@@ -371,13 +382,15 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
             <>
               <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
                 {t('agent.toolPermission.button.deny')}
-                <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
-                  {hasRejectionReason ? 'Enter' : 'Esc'}
-                </Kbd>
+                {keyboardShortcuts && (
+                  <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
+                    {hasRejectionReason ? 'Enter' : 'Esc'}
+                  </Kbd>
+                )}
               </Button>
               <Button type="button" variant="emphasis" disabled={isSubmitting} onClick={() => void approve()}>
                 {t('agent.toolPermission.button.allow')}
-                {!hasRejectionReason && (
+                {!hasRejectionReason && keyboardShortcuts && (
                   <Kbd aria-hidden="true" className="bg-current/10 text-current">
                     Enter
                   </Kbd>

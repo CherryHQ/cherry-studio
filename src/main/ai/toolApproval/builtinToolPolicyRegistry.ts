@@ -17,6 +17,7 @@ import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import {
   AGENT_DELEGATE_TOOL_NAME,
+  DELEGATION_CANCEL_TOOL_NAME,
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
@@ -103,6 +104,7 @@ const BUILTIN_TOOL_POLICIES = {
   cherryAgentList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, 'agent_list', 'auto'),
   cherrySessionDeliveries: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_DELIVERIES_TOOL_NAME, 'auto'),
   cherrySessionCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_CREATE_TOOL_NAME, 'delegation'),
+  cherryDelegationCancel: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, DELEGATION_CANCEL_TOOL_NAME, 'auto'),
   cherryAgentDelegate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, AGENT_DELEGATE_TOOL_NAME, 'delegation'),
   cherrySessionSend: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEND_TOOL_NAME, 'delegation'),
   cherryCliList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_LIST_TOOL_NAME, 'auto'),

@@ -1,4 +1,5 @@
 import {
+  AGENT_DELEGATE_TOOL_NAME,
   SESSION_CREATE_TOOL_NAME,
   SESSION_READ_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
@@ -10,6 +11,8 @@ import type { ToolResponseLike } from '../toolResponse'
 export interface SessionCreateResult {
   ok: true
   sessionId: string
+  requestId?: string
+  originSessionId?: string
   delivery?: {
     status?: string
   }
@@ -29,7 +32,12 @@ export interface SessionToolTarget {
 export const MAX_SESSION_SEARCH_RESULT_CARDS = 3
 
 function isSessionCreateToolName(toolName: string | undefined): boolean {
-  return toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`
+  return (
+    toolName === SESSION_CREATE_TOOL_NAME ||
+    toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}` ||
+    toolName === AGENT_DELEGATE_TOOL_NAME ||
+    toolName === `mcp__cherry-tools__${AGENT_DELEGATE_TOOL_NAME}`
+  )
 }
 
 function isSessionSendToolName(toolName: string | undefined): boolean {
@@ -95,6 +103,11 @@ export function parseSessionCreateResult(value: unknown): SessionCreateResult | 
   return {
     ok: true,
     sessionId: candidate.sessionId,
+    requestId: typeof candidate.requestId === 'string' ? candidate.requestId : undefined,
+    originSessionId:
+      isRecord(delivery?.sender) && typeof delivery.sender.sessionId === 'string'
+        ? delivery.sender.sessionId
+        : undefined,
     delivery: delivery && typeof delivery.status === 'string' ? { status: delivery.status } : undefined
   }
 }

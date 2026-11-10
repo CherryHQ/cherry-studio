@@ -3,6 +3,7 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { loggerService } from '@logger'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { getProviderModelId } from '@shared/ai/executionIdentity'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -331,7 +332,7 @@ export class AgentSessionDeliveryService extends BaseService {
           const prepared = agentChatContextProvider.persistDispatchTx(tx, validated, {
             id: validated.agentId,
             updatedAt: validated.agentUpdatedAt,
-            model: validated.uniqueModelId,
+            model: getProviderModelId(validated.uniqueModelId) ?? null,
             type: validated.agentType
           })
           const claimed = agentSessionMessageService.claimSessionDeliveryTx(

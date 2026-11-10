@@ -39,6 +39,7 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
   AGENT_DELEGATE_TOOL_NAME,
+  DELEGATION_CANCEL_TOOL_NAME,
   AgentSessionDeliveryStatusSchema,
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
@@ -1268,6 +1269,19 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       inputSchema: SessionCreateInputSchema
     },
     (args) => runSessionTool(ctx, () => createSession(ctx, args))
+  )
+  server.registerTool(
+    DELEGATION_CANCEL_TOOL_NAME,
+    {
+      description:
+        'Cancel one delegated task owned by this Session, using its requestId. Stopping a parent reply does not cancel its tasks.',
+      inputSchema: z.strictObject({ request_id: z.string().trim().min(1) })
+    },
+    (args) =>
+      runSessionTool(ctx, async () => {
+        await application.get('AgentDelegationService').cancel(ctx.sessionId, args.request_id)
+        return { content: [{ type: 'text', text: JSON.stringify({ ok: true, requestId: args.request_id }) }] }
+      })
   )
   server.registerTool(
     AGENT_DELEGATE_TOOL_NAME,

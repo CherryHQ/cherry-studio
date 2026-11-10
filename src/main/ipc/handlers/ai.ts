@@ -108,6 +108,14 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.agent.delegation.read': async ({ originSessionId, requestId }) =>
+    application.get('AgentDelegationService').read(originSessionId, requestId),
+  'ai.agent.delegation.cancel': ({ originSessionId, requestId }) =>
+    application.get('AgentDelegationService').cancel(originSessionId, requestId),
+  'ai.agent.delegation.respond': async ({ originSessionId, requestId, approvalId, ...decision }, { senderId }) => {
+    if (!senderId) return false
+    return application.get('AgentDelegationService').respond(originSessionId, requestId, approvalId, decision)
+  },
   'ai.projection.attach': ({ target, subscriptionId }, { senderId }) => {
     const sender = senderWebContents(senderId)
     if (!sender || senderId === null) throw new Error('Projection subscription requires a window')

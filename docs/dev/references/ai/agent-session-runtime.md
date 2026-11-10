@@ -318,8 +318,15 @@ It never inherits the target's previous project. Without a caller user workspace
 managed workspace; a missing or non-user explicit workspace is rejected atomically. The receipt
 contains the request ID, target Session ID and resolved workspace. Its persisted request carries
 `delegation: true`; ordinary cross-Session messages do not. Target execution and result delivery
-reuse the existing delivery service. Parent progress, approvals and task-specific controls are
-separate integration work; this entry alone does not replace the bundled Code Mate skills.
+reuse the existing delivery service. `AgentDelegationService` owns request-scoped inspection, cancellation and the ten-minute
+deadline. The parent task card reads live target approvals and reuses the existing permission
+and question controls, with task-local buttons instead of global permission hotkeys. Responses
+are checked against the owning request and dispatched with the target's original approval ID.
+Stopping the parent reply leaves work running; explicit cancellation, parent deletion or target
+disablement stops owned work. Cancellation checks the recorded assistant turn under the dispatch
+lock so a stale request cannot stop a later turn. Timeout results are failures and retain partial
+output; existing recovery reconciles interrupted turns without replay. Bundled Code Mate skills
+remain until real CLI replacement acceptance passes.
 
 ### Deliberate security ceiling
 
