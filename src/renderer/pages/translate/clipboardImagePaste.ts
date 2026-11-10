@@ -1,4 +1,3 @@
-import { hasSupportedClipboardImage } from '@renderer/components/composer/composerPaste'
 import { getFileExtension } from '@renderer/utils/file'
 import { MAX_TRANSLATE_IMAGE_BYTES } from '@shared/utils/constants'
 import { imageExts } from '@shared/utils/file'
@@ -20,7 +19,7 @@ export function shouldPreferTranslateClipboardImage(
   files: readonly Pick<File, 'name' | 'type'>[],
   supportedExts: readonly string[] = TRANSLATE_CLIPBOARD_IMAGE_EXTS
 ): boolean {
-  return hasSupportedClipboardImage(files, supportedExts)
+  return files.some((file) => file.type.startsWith('image/') && supportedExts.includes(getFileExtension(file.name)))
 }
 
 /**

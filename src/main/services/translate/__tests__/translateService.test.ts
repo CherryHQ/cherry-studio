@@ -1,9 +1,9 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import { KeyedMutex } from '@shared/utils/async'
 
 const fileTypeFromBufferMock = vi.hoisted(() => vi.fn())
 vi.mock('file-type', () => ({ fileTypeFromBuffer: fileTypeFromBufferMock }))
