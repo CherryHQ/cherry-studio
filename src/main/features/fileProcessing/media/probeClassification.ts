@@ -46,7 +46,7 @@ function parseFiniteSeconds(value: string | undefined): number | undefined {
 }
 
 export interface VideoTailProbePoint {
-  /** Video stream start plus its duration, in seconds on the container timeline. */
+  /** Video start plus stream duration when it exists; otherwise format start plus format duration. */
   endSeconds: number
   /** `format.start_time`. Input `-ss` is relative to this, not the video stream start. */
   formatStartTimeSeconds: number
@@ -60,9 +60,15 @@ export function videoTailProbePoint(probe: FfprobeResult): VideoTailProbePoint |
   if (!video) return undefined
   const formatStartTimeSeconds = parseFiniteSeconds(probe.format?.start_time) ?? 0
   const videoStartSeconds = parseFiniteSeconds(video.start_time) ?? formatStartTimeSeconds
-  const durationSeconds = parseFiniteSeconds(video.duration) ?? parseFiniteSeconds(probe.format?.duration)
-  if (durationSeconds == null || durationSeconds <= 0) return undefined
-  return { endSeconds: videoStartSeconds + durationSeconds, formatStartTimeSeconds, videoStartSeconds }
+  const videoDurationSeconds = parseFiniteSeconds(video.duration)
+  if (videoDurationSeconds != null) {
+    if (videoDurationSeconds <= 0) return undefined
+    return { endSeconds: videoStartSeconds + videoDurationSeconds, formatStartTimeSeconds, videoStartSeconds }
+  }
+  // Format duration is measured from the format start, so the video start does not apply to it.
+  const formatDurationSeconds = parseFiniteSeconds(probe.format?.duration)
+  if (formatDurationSeconds == null || formatDurationSeconds <= 0) return undefined
+  return { endSeconds: formatStartTimeSeconds + formatDurationSeconds, formatStartTimeSeconds, videoStartSeconds }
 }
 
 /** ffprobe interval covering the end of the video timeline, including a packet that starts earlier. */
