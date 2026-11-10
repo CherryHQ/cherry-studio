@@ -7,6 +7,7 @@
 
 import { createHash } from 'node:crypto'
 
+import type { JSONSchema7 as JsonSchemaLike } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
   ImageBlockParam,
@@ -16,15 +17,14 @@ import type {
   ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
 import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
-import { tool, zodSchema } from 'ai'
+import { jsonSchema, tool } from 'ai'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGemini3ModelId } from '@shared/utils/model'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
-import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
 import { mapAnthropicThinkingToProviderOptions } from './providerOptionsMapper'
 
 const RESPONSES_TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/
@@ -89,6 +89,12 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
 interface ToolResultConversion {
   output: string
   relocatedParts: Array<TextUIPart | FileUIPart>
+  isError?: boolean
+  providerMetadata?: ProviderOptions
+}
+
+function cacheProviderOptions(block: { cache_control?: AnthropicTool['cache_control'] }): ProviderOptions | undefined {
+  return block.cache_control ? { anthropic: { cacheControl: { ...block.cache_control } } } : undefined
 }
 
 function toolResultImageAnchor(toolCallId: string, index: number): string {
@@ -129,10 +135,19 @@ function toolResultToOutput(
 }
 
 /** Anthropic text content (`string` or content blocks) flattened to one string. */
-function textContentToString(content: MessageCreateParams['system'] | MessageParam['content']): string {
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  return content.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('\n')
+function systemMessages(content: MessageCreateParams['system'] | MessageParam['content']): CherryUIMessage[] {
+  const blocks = typeof content === 'string' ? [{ type: 'text' as const, text: content }] : (content ?? [])
+  return blocks.flatMap((block) =>
+    block.type === 'text' && block.text
+      ? [
+          {
+            id: nextUIMessageId(),
+            role: 'system' as const,
+            parts: [{ type: 'text' as const, text: block.text, providerMetadata: cacheProviderOptions(block) }]
+          }
+        ]
+      : []
+  )
 }
 
 /**
@@ -188,10 +203,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     const inputMessages: AgentInputMessage[] = params.messages
 
     // System message
-    const systemText = textContentToString(params.system)
-    if (systemText) {
-      messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text: systemText }] })
-    }
+    messages.push(...systemMessages(params.system))
 
     // tool_use id → result conversion.
     const toolResults = new Map<string, ToolResultConversion>()
@@ -199,20 +211,18 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       if (!Array.isArray(msg.content)) continue
       for (const block of msg.content) {
         if (block.type === 'tool_result') {
-          toolResults.set(
-            block.tool_use_id,
-            block.content ? toolResultToOutput(block.tool_use_id, block.content) : { output: '', relocatedParts: [] }
-          )
+          toolResults.set(block.tool_use_id, {
+            ...toolResultToOutput(block.tool_use_id, block.content ?? ''),
+            isError: block.is_error === true,
+            providerMetadata: cacheProviderOptions(block) ?? {}
+          })
         }
       }
     }
 
     for (const msg of inputMessages) {
       if (msg.role === 'system') {
-        const text = textContentToString(msg.content)
-        if (text) {
-          messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text }] })
-        }
+        messages.push(...systemMessages(msg.content))
         continue
       }
       const role = msg.role === 'user' ? 'user' : 'assistant'
@@ -229,7 +239,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
 
       for (const block of msg.content) {
         if (block.type === 'text') {
-          const part: TextUIPart = { type: 'text', text: block.text }
+          const part: TextUIPart = { type: 'text', text: block.text, providerMetadata: cacheProviderOptions(block) }
           parts.push(part)
         } else if (block.type === 'thinking') {
           // Preserve the signature (even '') — @ai-sdk/anthropic drops reasoning
@@ -250,20 +260,37 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
         } else if (block.type === 'image') {
           const part = imageBlockToFilePart(block.source)
           if (part) {
-            parts.push(part)
+            parts.push({ ...part, providerMetadata: cacheProviderOptions(block) })
           }
         } else if (block.type === 'tool_use') {
           const toolName = this.toProviderToolName(block.name)
-          const callProviderMetadata = this.buildToolCallProviderOptions(params.model, block.id)
+          const callProviderMetadata = {
+            ...this.buildToolCallProviderOptions(params.model, block.id),
+            ...cacheProviderOptions(block)
+          }
           const result = toolResults.get(block.id)
           const base = {
             type: 'dynamic-tool' as const,
             toolName,
             toolCallId: block.id,
-            ...(callProviderMetadata ? { callProviderMetadata } : {})
+            ...(Object.keys(callProviderMetadata).length ? { callProviderMetadata } : {})
           }
           const part: DynamicToolUIPart = result
-            ? { ...base, state: 'output-available', input: block.input, output: result.output }
+            ? result.isError
+              ? {
+                  ...base,
+                  state: 'output-error',
+                  input: block.input,
+                  errorText: result.output,
+                  resultProviderMetadata: result.providerMetadata
+                }
+              : {
+                  ...base,
+                  state: 'output-available',
+                  input: block.input,
+                  output: result.output,
+                  resultProviderMetadata: result.providerMetadata
+                }
             : { ...base, state: 'input-available', input: block.input }
           parts.push(part)
         } else if (block.type === 'tool_result') {
@@ -309,7 +336,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
   /**
    * Convert Anthropic tools to an AI SDK `ToolSet` (client tools, no `execute`).
    */
-  toAiSdkTools(params: MessageCreateParams): ToolSet | undefined {
+  toAiSdkTools(params: MessageCreateParams, targetEndpointType?: EndpointType): ToolSet | undefined {
     const tools = params.tools
     if (!tools || tools.length === 0) return undefined
     this.prepareToolNames(tools)
@@ -321,15 +348,18 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       // Client tools always carry `input_schema`; without it this is a server tool
       // (bash/web_search/text_editor/tool_search/…) only Anthropic's own backend executes.
       if (!rawSchema) continue
-      const schema = jsonSchemaToZod(rawSchema as JsonSchemaLike)
+      const schema = rawSchema as JsonSchemaLike
 
       const aiTool = tool({
         description: sanitizeDescription(toolDef.description || ''),
-        inputSchema: zodSchema(schema),
-        // The gateway forwards arbitrary Anthropic/MCP schemas. They do not satisfy
-        // Responses strict-mode's all-properties-required contract, so match the
-        // Codex client's dynamic-tool behavior and opt out explicitly.
-        strict: false
+        inputSchema: jsonSchema(schema),
+        providerOptions: cacheProviderOptions(toolDef),
+        // Only Responses needs an explicit opt-out; omit elsewhere because CherryIN/Bedrock rejects unknown tool fields (#23378).
+        ...(typeof toolDef.strict === 'boolean'
+          ? { strict: toolDef.strict }
+          : targetEndpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
+            ? { strict: false }
+            : {})
       })
 
       aiSdkTools[this.toProviderToolName(toolDef.name)] = aiTool
@@ -392,12 +422,23 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * Extract stream/generation options from Anthropic params
    */
   extractStreamOptions(params: MessageCreateParams): StreamTextOptions {
+    const choice = params.tool_choice
     return {
       maxOutputTokens: params.max_tokens,
       temperature: params.temperature,
       topP: params.top_p,
       topK: params.top_k,
-      stopSequences: params.stop_sequences
+      stopSequences: params.stop_sequences,
+      ...(choice
+        ? {
+            toolChoice:
+              choice.type === 'tool'
+                ? { type: 'tool', toolName: this.toProviderToolName(choice.name) }
+                : choice.type === 'any'
+                  ? 'required'
+                  : choice.type
+          }
+        : {})
     }
   }
 
@@ -409,15 +450,30 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     provider: Provider,
     model: Model,
     params: MessageCreateParams,
-    maxOutputTokens?: number
+    maxOutputTokens?: number,
+    overrideReasoning = false
   ): ProviderOptions | undefined {
-    return mapAnthropicThinkingToProviderOptions(
-      provider,
-      model,
-      params.thinking,
-      params.output_config?.effort,
-      maxOutputTokens
-    )
+    const reasoning = overrideReasoning
+      ? undefined
+      : mapAnthropicThinkingToProviderOptions(
+          provider,
+          model,
+          params.thinking,
+          params.output_config?.effort,
+          maxOutputTokens
+        )
+    if (model.endpointTypes?.[0] !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return reasoning
+    const choice = params.tool_choice
+    return {
+      ...reasoning,
+      anthropic: {
+        ...reasoning?.anthropic,
+        ...(params.cache_control ? { cacheControl: { ...params.cache_control } } : {}),
+        ...(choice && 'disable_parallel_tool_use' in choice && choice.disable_parallel_tool_use !== undefined
+          ? { disableParallelToolUse: choice.disable_parallel_tool_use }
+          : {})
+      }
+    }
   }
 }
 

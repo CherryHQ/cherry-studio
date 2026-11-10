@@ -7,9 +7,11 @@ import { agentSessionHandlers } from '@data/api/handlers/agentSessions'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import '@data/services/AgentTaskService'
 import { ErrorCode } from '@shared/data/api/errors'
 
 const { notify } = vi.hoisted(() => ({ notify: vi.fn() }))
@@ -29,6 +31,71 @@ describe('background session isolation', () => {
   function create(name: string, type: 'conversation' | 'background' = 'conversation') {
     return agentSessionService.create({ agentId: 'agent', name, workspace: { type: 'system' } }, type)
   }
+
+  it('archives only conversations when a session type scope is supplied', () => {
+    const first = create('first')
+    const second = create('second')
+    const backgrounds = [create('heartbeat', 'background'), create('sticky task', 'background')]
+
+    const result = agentSessionService.deleteByAgentIdWithImpact('agent', {
+      permanent: false,
+      sessionTypes: ['conversation']
+    })
+
+    expect(result.deletedIds.sort()).toEqual([first.id, second.id].sort())
+    for (const session of [first, second]) {
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()?.deletedAt
+      ).toEqual(expect.any(Number))
+    }
+    for (const background of backgrounds) {
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, background.id)).get()?.deletedAt
+      ).toBeNull()
+    }
+  })
+
+  it.each([undefined, []] as const)('archives all session types with scope %j', (sessionTypes) => {
+    const conversation = create('conversation')
+    const background = create('heartbeat', 'background')
+
+    const result = agentSessionService.deleteByAgentIdWithImpact('agent', { permanent: false, sessionTypes })
+
+    expect(result.deletedIds.sort()).toEqual([conversation.id, background.id].sort())
+    for (const session of [conversation, background]) {
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()?.deletedAt
+      ).toEqual(expect.any(Number))
+    }
+  })
+
+  it('filters active IDs by session type while retaining the unfiltered default', () => {
+    const conversation = create('conversation')
+    const background = create('heartbeat', 'background')
+    const trashed = create('already archived')
+    agentSessionService.delete(trashed.id)
+
+    expect(agentSessionService.listActiveIdsByAgent('agent', { sessionTypes: ['conversation'] })).toEqual([
+      conversation.id
+    ])
+    expect(agentSessionService.listActiveIdsByAgent('agent')).toEqual([conversation.id, background.id].sort())
+    expect(agentSessionService.listActiveIdsByAgent('agent', { sessionTypes: [] })).toEqual(
+      [conversation.id, background.id].sort()
+    )
+  })
+
+  it('keeps permanent agent-session deletion unfiltered even when a session type scope is supplied', () => {
+    const conversation = create('conversation')
+    const background = create('heartbeat', 'background')
+
+    const result = agentSessionService.deleteByAgentIdWithImpact('agent', {
+      permanent: true,
+      sessionTypes: ['conversation']
+    })
+
+    expect(result.deletedIds.sort()).toEqual([conversation.id, background.id].sort())
+    expect(dbh.db.select().from(agentSessionTable).all()).toEqual([])
+  })
 
   it('excludes background rows before pin pagination and latest selection, including orphaned sessions', () => {
     const first = create('first')
@@ -68,6 +135,89 @@ describe('background session isolation', () => {
     expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe(second.id)
     expect(agentSessionService.getById(background.id).id).toBe(background.id)
     expect(agentSessionService.getById(unpinnedBackground.id).id).toBe(unpinnedBackground.id)
+  })
+
+  it('excludes sticky and per-run task conversations before pagination and latest restore, but keeps them readable', async () => {
+    const ordinary = create('ordinary')
+    const sticky = create('sticky task')
+    const perRun = create('per-run task')
+    const legacy = create('legacy task')
+    dbh.db
+      .insert(jobScheduleTable)
+      .values({
+        id: 'task',
+        type: 'agent.task',
+        name: 'task',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      .run()
+    dbh.db
+      .update(agentSessionTable)
+      .set({ isTaskReuseTarget: true, taskId: 'task' })
+      .where(eq(agentSessionTable.id, sticky.id))
+      .run()
+    for (const [session, metadata, output] of [
+      [perRun, { sessionId: perRun.id }, null],
+      [legacy, {}, { sessionId: legacy.id }]
+    ] as const) {
+      dbh.db
+        .insert(jobTable)
+        .values({
+          id: `job-${session.id}`,
+          scheduleId: 'task',
+          type: 'agent.task',
+          status: 'completed',
+          queue: 'agent',
+          input: {},
+          scheduledAt: Date.now(),
+          metadata,
+          output
+        })
+        .run()
+    }
+    for (const session of [sticky, perRun, legacy]) {
+      dbh.db
+        .update(agentSessionTable)
+        .set({ taskId: 'task', lastActivityAt: Date.now() + 60_000 })
+        .where(eq(agentSessionTable.id, session.id))
+        .run()
+    }
+    dbh.db.insert(pinTable).values({ id: 'task-pin', entityType: 'session', entityId: perRun.id, orderKey: 'a0' }).run()
+    const ids: string[] = []
+    let cursor: string | undefined
+    do {
+      const page = agentSessionService.listByCursor({ agentId: 'agent', limit: 1, cursor })
+      ids.push(...page.items.map((row) => row.id))
+      cursor = page.nextCursor
+    } while (cursor)
+    expect(ids).toEqual([ordinary.id])
+    expect(agentSessionService.getLatestActive()?.id).toBe(ordinary.id)
+    expect(agentSessionService.getLatestActive({ agentId: 'agent' })?.id).toBe(ordinary.id)
+    for (const session of [sticky, perRun, legacy]) {
+      expect(agentSessionService.getConversationById(session.id).id).toBe(session.id)
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId'].GET({
+          params: { sessionId: session.id },
+          query: { excludeTaskSessions: true }
+        })
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId'].GET({
+          params: { sessionId: session.id }
+        })
+      ).resolves.toMatchObject({ id: session.id })
+      expect(agentSessionService.listByCursor({ ids: [session.id] }).items.map((row) => row.id)).toEqual([session.id])
+    }
+    await expect(
+      agentSessionHandlers['/agent-sessions/:sessionId'].GET({
+        params: { sessionId: ordinary.id },
+        query: { excludeTaskSessions: true }
+      })
+    ).resolves.toMatchObject({ id: ordinary.id })
+    agentSessionService.delete(perRun.id)
+    expect(agentSessionService.listByCursor({ inTrash: true }).items.map((row) => row.id)).toEqual([perRun.id])
   })
 
   it('keeps background sessions out of both active and trash conversation lists', () => {

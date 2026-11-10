@@ -306,6 +306,40 @@ describe('PaintingPage showcase', () => {
     expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
   })
 
+  it('minimizes the prompt dock after images exist and restores it from the expand toggle', () => {
+    // Regression: long prompts permanently stole artboard space after generate (#20739).
+    mocks.files = [{ id: 'generated-image' }]
+
+    render(<PaintingPage />)
+
+    expect(screen.getByTestId('painting-prompt-dock-collapsed')).toBeInTheDocument()
+    expect(screen.queryByTestId('painting-composer')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'paintings.prompt_dock.expand' }))
+
+    expect(screen.getByTestId('painting-composer')).toBeInTheDocument()
+    const dock = screen.getByTestId('painting-prompt-dock')
+    // The sizing boundary must include the dock's padding and its collapse control.
+    expect(dock).toHaveAttribute('data-composer-dock-surface')
+    const stage = dock.closest('[data-composer-stage]')
+    expect(stage).toContainElement(screen.getByTestId('painting-artboard'))
+    expect(dock).toContainElement(screen.getByRole('button', { name: 'paintings.prompt_dock.minimize' }))
+    expect(screen.queryByTestId('painting-prompt-dock-collapsed')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'paintings.prompt_dock.minimize' }))
+
+    expect(screen.getByTestId('painting-prompt-dock-collapsed')).toBeInTheDocument()
+    expect(screen.queryByTestId('painting-composer')).not.toBeInTheDocument()
+  })
+
+  it('keeps the prompt dock expanded on a blank draft without generated images', () => {
+    render(<PaintingPage />)
+
+    expect(screen.getByTestId('painting-composer')).toBeInTheDocument()
+    expect(screen.queryByTestId('painting-prompt-dock-collapsed')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'paintings.prompt_dock.expand' })).not.toBeInTheDocument()
+  })
+
   it('fills the prompt from a style choice without starting generation', () => {
     render(<PaintingPage />)
 

@@ -25,9 +25,7 @@ describe('narrowKnowledgeJobInput', () => {
         input: {
           baseId: 'kb-1',
           itemId: 'file-1',
-          fileProcessingJobId: 'fp-job-1',
-          pollRound: 2,
-          firstScheduledAt: 1779811200000,
+          fileProcessingTaskId: 'fp-task-1',
           processedRelativePath: 'source.md'
         }
       })
@@ -36,9 +34,7 @@ describe('narrowKnowledgeJobInput', () => {
       input: {
         baseId: 'kb-1',
         itemId: 'file-1',
-        fileProcessingJobId: 'fp-job-1',
-        pollRound: 2,
-        firstScheduledAt: 1779811200000,
+        fileProcessingTaskId: 'fp-task-1',
         processedRelativePath: 'source.md'
       }
     })
@@ -69,8 +65,20 @@ describe('narrowKnowledgeJobInput', () => {
         input: {
           baseId: 'kb-1',
           itemId: 'file-1',
-          fileProcessingJobId: 'fp-job-1'
+          fileProcessingTaskId: 'fp-task-1'
         }
+      })
+    ).toBeNull()
+  })
+
+  it('rejects copy-sources snapshots whose copies are malformed', () => {
+    expect(
+      narrowKnowledgeJobInput({ type: 'knowledge.copy-sources', input: { baseId: 'kb-1', itemId: 'file-1' } })
+    ).toBeNull()
+    expect(
+      narrowKnowledgeJobInput({
+        type: 'knowledge.copy-sources',
+        input: { baseId: 'kb-1', itemId: 'file-1', copies: [{ from: '/docs/a.pdf' }] }
       })
     ).toBeNull()
   })

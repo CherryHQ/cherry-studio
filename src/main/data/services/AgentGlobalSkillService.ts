@@ -120,7 +120,7 @@ export class AgentGlobalSkillService {
       logger.warn('Quarantining malformed skill catalog rows during listAll', { error: error.message })
       const rows = this.db.all(
         sql.raw(
-          'SELECT id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at FROM agent_global_skill ORDER BY created_at ASC'
+          'SELECT id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, mirror_enabled, created_at, updated_at FROM agent_global_skill ORDER BY created_at ASC'
         )
       ) as Array<Record<string, unknown>>
       const skills: InstalledSkill[] = []
@@ -142,6 +142,7 @@ export class AgentGlobalSkillService {
               tags,
               contentHash: String(row.content_hash),
               isEnabled: Boolean(row.is_enabled),
+              mirrorEnabled: Boolean(row.mirror_enabled),
               createdAt: Number(row.created_at),
               updatedAt: Number(row.updated_at)
             })
@@ -212,6 +213,22 @@ export class AgentGlobalSkillService {
         dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
         entityIds: [id]
       },
+      { endpoint: '/skills/:skillId', entityIds: [id] }
+    ])
+    return this.rowToInstalledSkill(updated)
+  }
+
+  updateMirrorEnabled(id: string, mirrorEnabled: boolean): InstalledSkill | null {
+    const [updated] = this.db
+      .update(agentGlobalSkillTable)
+      .set({ mirrorEnabled })
+      .where(eq(agentGlobalSkillTable.id, id))
+      .returning()
+      .all()
+    if (!updated) return null
+
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'projection', entityIds: [id] },
       { endpoint: '/skills/:skillId', entityIds: [id] }
     ])
     return this.rowToInstalledSkill(updated)
@@ -394,6 +411,7 @@ export class AgentGlobalSkillService {
       sourceTags: row.tags,
       contentHash: row.contentHash,
       isGlobalEnabled: row.isEnabled,
+      mirrorEnabled: row.mirrorEnabled,
       isEnabled: false,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)

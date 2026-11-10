@@ -1,6 +1,7 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { act, render, renderHook } from '@testing-library/react'
+import { act, render, renderHook, waitFor } from '@testing-library/react'
 import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,7 +10,18 @@ import {
   writeAskUserQuestionDraftCache
 } from '@renderer/components/composer/variants/askUserQuestionDraftCache'
 import type * as AgentSessionPartsModule from '@renderer/hooks/useAgentSessionParts'
-import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
+import { useConversationErrorToasts } from '@renderer/hooks/useConversationErrorToasts'
+import type * as TurnControllerModule from '@renderer/hooks/useConversationTurnController'
+import { takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import type * as ToastServiceModule from '@renderer/services/toast'
+import { AutoReadService } from '@renderer/services/voice/AutoReadService'
+import { AGENT_SESSION_CLOSING_CACHE_KEY } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
+import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
+import type { ActiveExecution, AiStreamOpenResponse } from '@shared/ai/transport'
+import type { AgentSessionMessageEntity, AgentType } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -26,6 +38,8 @@ const mocks = vi.hoisted(() => ({
   resetOverlay: vi.fn(),
   useTopicOverlayHandoffOnTerminal: vi.fn(),
   sendTurn: vi.fn(),
+  streamOpen: vi.fn(),
+  streamListeners: new Map<string, Set<(payload: unknown) => void>>(),
   editTarget: vi.fn(),
   editResend: vi.fn(),
   controllerOptions: vi.fn(),
@@ -34,7 +48,10 @@ const mocks = vi.hoisted(() => ({
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
   invalidateMessages: vi.fn(),
-  toastWarning: vi.fn()
+  toastWarning: vi.fn(),
+  autoReadUpdate: vi.fn(),
+  autoReadConsume: vi.fn(async () => ({ status: 'started' })),
+  autoReadEnabled: true
 }))
 
 // respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
@@ -47,8 +64,15 @@ vi.mock('@renderer/ipc', () => ({
           ? mocks.editTarget(input)
           : route === 'ai.agent.session.edit_resend'
             ? mocks.editResend(input)
-            : Promise.resolve(undefined),
-    on: () => () => {}
+            : route === 'ai.stream.open'
+              ? mocks.streamOpen(input)
+              : Promise.resolve(undefined),
+    on: (event: string, listener: (payload: unknown) => void) => {
+      const listeners = mocks.streamListeners.get(event) ?? new Set()
+      mocks.streamListeners.set(event, listeners)
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    }
   }
 }))
 
@@ -64,10 +88,20 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: mocks.useExecutionOverlay
 }))
 
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: () => [mocks.autoReadEnabled, vi.fn()]
+}))
+
+vi.mock('@renderer/services/voice', () => ({
+  autoReadService: {
+    update: mocks.autoReadUpdate,
+    consume: mocks.autoReadConsume
+  }
+}))
+
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   useConversationTurnController: (options: unknown) => {
-    mocks.controllerOptions(options)
-    return { send: mocks.sendTurn }
+    return mocks.controllerOptions(options) ?? { send: mocks.sendTurn }
   }
 }))
 
@@ -86,7 +120,16 @@ vi.mock('react-i18next', () => ({
 
 import { useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
 
-vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError, warning: mocks.toastWarning } }))
+vi.mock('@cherrystudio/ui', async () => {
+  const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
+  const { getToastUtilities } = await import('@cherrystudio/ui/components/primitives/toast')
+  return { ...MockCherrystudioUI, getToastUtilities }
+})
+
+vi.mock('@renderer/services/toast', async (importOriginal) => {
+  const actual = await importOriginal<typeof ToastServiceModule>()
+  return { toast: { ...actual.toast, error: mocks.toastError, warning: mocks.toastWarning } }
+})
 
 // <Activity> harness: tab switches hide/show the session UI without unmounting
 // it, so hooks keep their state but effects are destroyed and re-created.
@@ -163,7 +206,33 @@ function makeAskUserQuestionApproval(part = makeAskUserQuestionPart()) {
 }
 
 describe('useAgentChatRuntimeState', () => {
-  it('replaces the edited tail before streaming even when history refresh still returns cached rows', async () => {
+  it('blocks edit entry while the session is closing even after the stream stops', async () => {
+    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY('session-1'), true)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    expect(result.current.editBusy).toBe(true)
+    await act(() => result.current.startEditing('user-1'))
+    expect(mocks.editTarget).not.toHaveBeenCalled()
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('allows edit entry when the session is no longer closing', async () => {
+    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY('session-1'), false)
+    const draft = { messageId: 'user-1', version: 'version-1', parts: [{ type: 'text' as const, text: 'Original' }] }
+    mocks.editTarget.mockResolvedValue(draft)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    expect(result.current.editBusy).toBe(false)
+    await act(() => result.current.startEditing('user-1'))
+    expect(mocks.editTarget).toHaveBeenCalledWith({ sessionId: 'session-1', messageId: 'user-1' })
+    expect(result.current.editing).toMatchObject(draft)
+  })
+
+  it('reads the published branch before showing its streaming reply', async () => {
     MockUseDataApiUtils.resetMocks()
     const { useAgentSessionParts } = await vi.importActual<typeof AgentSessionPartsModule>(
       '@renderer/hooks/useAgentSessionParts'
@@ -210,7 +279,28 @@ describe('useAgentChatRuntimeState', () => {
       }
     ]
     mocks.editTarget.mockResolvedValue(draft)
-    mocks.editResend.mockResolvedValue({ mode: 'started', reservedMessages: reserved })
+    mocks.editResend.mockImplementation(async () => {
+      const items = [...history.slice(0, 2), ...reserved.map((message) => message.id)].toReversed().map((id) => ({
+        id,
+        sessionId: 'session-1',
+        role: id.endsWith('user') ? ('user' as const) : ('assistant' as const),
+        data: { parts: [{ type: 'text' as const, text: id }] },
+        status: 'success' as const,
+        modelId: null,
+        messageSnapshot: null,
+        stats: null,
+        searchableText: id,
+        runtimeResumeToken: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }))
+      MockUseDataApiUtils.setInfiniteQueryPages('/agent-sessions/:sessionId/messages', [{ items }], {
+        params: { sessionId: 'session-1' },
+        query: { deferToolOutputs: true },
+        limit: 50
+      })
+      return { mode: 'started', reservedMessages: reserved }
+    })
     mocks.sendTurn.mockImplementation(async (input) => {
       const { openStream, buildStreamRequest, ensureConversation, historyAdapter } =
         mocks.controllerOptions.mock.lastCall![0]
@@ -274,6 +364,96 @@ describe('useAgentChatRuntimeState', () => {
     expect(mocks.toastError).not.toHaveBeenCalledWith('agent_session_fork.unsupported_checkpoint')
   })
 
+  it.each([false, true])('waits for confirmation before replacing history (confirmed: %s)', async (confirmed) => {
+    const draft = { messageId: 'user-1', version: 'version-1', parts: [{ type: 'text' as const, text: 'Original' }] }
+    const history: CherryUIMessage[] = [{ id: draft.messageId, role: 'user', parts: draft.parts }]
+    mocks.useAgentSessionParts.mockReturnValue({ ...mocks.useAgentSessionParts(), messages: history })
+    mocks.editTarget.mockResolvedValue(draft)
+    mocks.editResend.mockResolvedValue({ mode: 'started', reservedMessages: [] })
+    mocks.sendTurn.mockImplementation(async (input) => {
+      const { openStream, buildStreamRequest, ensureConversation } = mocks.controllerOptions.mock.lastCall![0]
+      await openStream(buildStreamRequest(input, ensureConversation()), input)
+      return true
+    })
+    const decision = Promise.withResolvers<boolean>()
+    vi.mocked(popup.confirm).mockReturnValueOnce(decision.promise)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    await act(() => result.current.startEditing(draft.messageId))
+    let resend: Promise<boolean>
+    act(() => {
+      resend = result.current.resendEditedMessage({ text: 'Replacement' })
+    })
+    expect(mocks.editResend).not.toHaveBeenCalled()
+    expect(result.current.uiMessages).toEqual(history)
+    await act(async () => {
+      decision.resolve(confirmed)
+      expect(await resend).toBe(confirmed)
+    })
+    expect(mocks.editResend).toHaveBeenCalledTimes(confirmed ? 1 : 0)
+    if (confirmed) expect(result.current.editing).toBeUndefined()
+    else {
+      expect(result.current.editing).toMatchObject(draft)
+      expect(result.current.uiMessages).toEqual(history)
+    }
+  })
+
+  it('does not resend into a previous session when its confirmation resolves after navigation', async () => {
+    mocks.editTarget.mockResolvedValue({ messageId: 'user-1', version: 'v1', parts: [] })
+    const decision = Promise.withResolvers<boolean>()
+    vi.mocked(popup.confirm).mockReturnValueOnce(decision.promise)
+    const { result, rerender } = renderHook(
+      ({ sessionId }) => useAgentChatRuntimeState({ sessionId, sessionMessagesEnabled: true, reservedMessages: [] }),
+      { initialProps: { sessionId: 'session-1' } }
+    )
+    await act(() => result.current.startEditing('user-1'))
+    let resend: Promise<boolean>
+    act(() => {
+      resend = result.current.resendEditedMessage({ text: 'Replacement' })
+    })
+    rerender({ sessionId: 'session-2' })
+    await act(async () => {
+      decision.resolve(true)
+      expect(await resend).toBe(false)
+    })
+    expect(mocks.editResend).not.toHaveBeenCalled()
+    expect(mocks.sendTurn).not.toHaveBeenCalled()
+  })
+
+  it.each(['hidden', 'reactivated', 'closed'] as const)(
+    'invalidates confirmation when its originating tab is %s',
+    async (state) => {
+      mocks.editTarget.mockResolvedValue({ messageId: 'user-1', version: 'v1', parts: [] })
+      const decision = Promise.withResolvers<boolean>()
+      vi.mocked(popup.confirm).mockReturnValueOnce(decision.promise)
+      latestRuntime = null
+      const view = render(<ActivityHarness sessionId="session-1" mode="visible" />)
+      await act(() => currentRuntime().startEditing('user-1'))
+      let resend: Promise<boolean>
+      act(() => {
+        resend = currentRuntime().resendEditedMessage({ text: 'Replacement' })
+      })
+      if (state === 'closed') view.unmount()
+      else {
+        view.rerender(<ActivityHarness sessionId="session-1" mode="hidden" />)
+        if (state === 'reactivated') view.rerender(<ActivityHarness sessionId="session-1" mode="visible" />)
+      }
+      await act(async () => {
+        decision.resolve(true)
+        expect(await resend).toBe(false)
+      })
+      expect(mocks.sendTurn).not.toHaveBeenCalled()
+      expect(mocks.editResend).not.toHaveBeenCalled()
+      if (state === 'reactivated') {
+        await act(async () => {
+          expect(await currentRuntime().resendEditedMessage({ text: 'Fresh confirmation' })).toBe(true)
+        })
+        expect(mocks.sendTurn).toHaveBeenCalledTimes(1)
+      }
+    }
+  )
+
   it('retains the edited draft after a failed resend and clears it only on acceptance or cancel', async () => {
     const draft = {
       messageId: 'edited-user',
@@ -304,8 +484,9 @@ describe('useAgentChatRuntimeState', () => {
     const sending = Promise.withResolvers<unknown>()
     mocks.editResend.mockReturnValueOnce(sending.promise)
     let resend: Promise<boolean>
-    act(() => {
+    await act(async () => {
       resend = result.current.resendEditedMessage({ text: 'Replacement' })
+      await Promise.resolve()
     })
     expect(result.current.uiMessages.map((item) => item.id)).toEqual([
       'earlier-user',
@@ -332,7 +513,13 @@ describe('useAgentChatRuntimeState', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(popup, 'confirm').mockResolvedValue(true)
+    toast.closeAll()
+    mocks.controllerOptions.mockReset()
+    mocks.streamOpen.mockReset()
+    mocks.streamListeners.clear()
     MockCacheUtils.resetMocks()
+    MockUseCacheUtils.resetMocks()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
     mocks.refresh.mockResolvedValue([assistantMessage])
     mocks.seedReservedMessages.mockResolvedValue(undefined)
@@ -340,6 +527,9 @@ describe('useAgentChatRuntimeState', () => {
     mocks.chatStop.mockResolvedValue(undefined)
     mocks.sendTurn.mockReset()
     mocks.sendTurn.mockResolvedValue(true)
+    mocks.autoReadUpdate.mockReset()
+    mocks.autoReadConsume.mockClear()
+    mocks.autoReadEnabled = true
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [assistantMessage],
       persistedPartsByMessageId: {},
@@ -388,6 +578,43 @@ describe('useAgentChatRuntimeState', () => {
     })
   })
 
+  it.each([
+    { agentType: 'local', liveCommands: undefined, canCompact: false },
+    { agentType: 'claude-code', liveCommands: undefined, canCompact: true },
+    { agentType: 'pi', liveCommands: undefined, canCompact: true },
+    {
+      agentType: 'local',
+      liveCommands: [{ name: 'compact', description: 'Compact context', argumentHint: '' }],
+      canCompact: true
+    },
+    {
+      agentType: 'claude-code',
+      liveCommands: [{ name: 'other', description: 'Other command', argumentHint: '' }],
+      canCompact: false
+    }
+  ])(
+    'exposes context compaction only when supported by $agentType ($canCompact)',
+    async ({ agentType, liveCommands, canCompact }) => {
+      if (liveCommands)
+        MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-1'), liveCommands)
+      const { result } = renderHook(() =>
+        useAgentChatRuntimeState({
+          sessionId: 'session-1',
+          agentType: agentType as AgentType,
+          sessionMessagesEnabled: true,
+          reservedMessages: []
+        })
+      )
+      expect(result.current.sessionId).toBe('session-1')
+      await act(async () => {
+        await mocks.controllerOptions.mock.lastCall![0].onError(new Error('context window exceeded'), { text: 'hello' })
+      })
+      const notification = toast.getToastQueue().toasts[0]
+      expect(notification).toBeDefined()
+      expect(Boolean(notification.action)).toBe(canCompact)
+    }
+  )
+
   it('reports a blocked stream open as not sent', async () => {
     mocks.sendTurn.mockResolvedValueOnce(false)
     const { result } = renderHook(() =>
@@ -405,6 +632,583 @@ describe('useAgentChatRuntimeState', () => {
 
     expect(sent).toBe(false)
   })
+
+  it.each([
+    { beforeAck: false, queued: false },
+    { beforeAck: true, queued: false },
+    { beforeAck: false, queued: true },
+    { beforeAck: true, queued: true }
+  ])(
+    'reports an accepted send without an overlay finish (error before ack: $beforeAck, queued: $queued)',
+    async ({ beforeAck, queued }) => {
+      const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+        '@renderer/hooks/useConversationTurnController'
+      )
+      mocks.controllerOptions.mockImplementation(useConversationTurnController)
+      mocks.useChatWithHistory.mockReturnValue({ ...mocks.useChatWithHistory(), activeExecutions: [] })
+      let acknowledge!: (ack: AiStreamOpenResponse) => void
+      mocks.streamOpen.mockImplementationOnce(() => new Promise((resolve) => (acknowledge = resolve)))
+      const { result } = renderHook(() =>
+        useAgentChatRuntimeState({
+          sessionId: 'session-1',
+          agentType: 'claude-code',
+          sessionMessagesEnabled: true,
+          reservedMessages: []
+        })
+      )
+      const execution: ActiveExecution = {
+        executionId: 'provider::model',
+        attemptId: 2,
+        anchorMessageId: 'assistant-1'
+      }
+      const message: CherryUIMessage = { ...assistantMessage, metadata: { parentId: 'user-1' } }
+      const error = queued
+        ? { name: 'Error', message: 'context window exceeded', stack: null }
+        : { name: 'Error', message: 'invalid_api_key', statusCode: 401, stack: null }
+      const emitError = (attemptId = execution.attemptId, userMessageId = queued ? 'user-1' : undefined) => {
+        mocks.streamListeners
+          .get('ai.stream.error')
+          ?.forEach((listener) =>
+            listener({ topicId: 'agent-session:session-1', ...execution, attemptId, userMessageId, error })
+          )
+      }
+      const emitPassiveErrors = () => {
+        for (let attemptId = 100; attemptId < 356; attemptId++) emitError(attemptId, 'other-window-user')
+      }
+      await act(async () => emitPassiveErrors())
+      expect(toast.getToastQueue().toasts).toEqual([])
+      let send!: Promise<boolean>
+      await act(async () => {
+        send = result.current.sendMessage(
+          { text: 'ordinary message' },
+          queued
+            ? {
+                body: {
+                  agentId: 'agent-1',
+                  sessionId: 'session-1',
+                  userMessageParts: [{ type: 'file', mediaType: 'text/plain', url: 'file:///fixture.txt' }]
+                }
+              }
+            : undefined
+        )
+      })
+      if (beforeAck) {
+        await act(async () => emitError())
+        expect(toast.getToastQueue().toasts).toEqual([])
+      }
+      const ack: AiStreamOpenResponse = queued
+        ? {
+            mode: 'injected',
+            activeExecutions: beforeAck ? [] : [{ ...execution, attemptId: 1, anchorMessageId: 'old-assistant' }],
+            reservedMessages: [{ id: 'user-1', role: 'user', parts: [] }]
+          }
+        : { mode: 'started', activeExecutions: [execution], reservedMessages: [message] }
+      await act(async () => {
+        acknowledge(ack)
+        expect(await send).toBe(true)
+      })
+      if (!beforeAck)
+        await act(async () => {
+          emitPassiveErrors()
+          emitError()
+        })
+      await waitFor(() => expect(toast.getToastQueue().toasts).toHaveLength(1))
+      const notification = toast.getToastQueue().toasts[0]
+      expect(notification).toMatchObject({ key: 'error:agent-session:session-1:assistant-1', type: 'warning' })
+      expect(notification.details).toContain(error.message)
+      expect(notification.action).toBeDefined()
+      if (queued) {
+        mocks.streamOpen.mockResolvedValueOnce({ mode: 'blocked', reason: 'paused' })
+        await act(async () => notification.action!.onClick())
+        expect(mocks.streamOpen).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            userMessageParts: [{ type: 'text', text: '/compact' }]
+          })
+        )
+      }
+      toast.closeToast(notification.key)
+      await act(async () => {
+        mocks.controllerOptions.mock.lastCall?.[0]?.onAccepted(ack)
+        emitError()
+        mocks.useExecutionOverlay.mock.lastCall?.[2]?.onFinish(execution.executionId, {
+          attemptId: execution.attemptId,
+          message: { ...message, parts: [{ type: 'data-error', data: error }] },
+          isError: true,
+          isAbort: false
+        })
+        if (queued) emitError(3)
+      })
+      expect(toast.getToastQueue().toasts).toEqual([])
+    }
+  )
+
+  it.each(['success', 'paused', 'scope-change'] as const)(
+    'releases queued-message ownership after %s',
+    async (outcome) => {
+      const topicId = 'agent-session:session-1'
+      const { result, rerender } = renderHook(({ scope }) => useConversationErrorToasts(scope), {
+        initialProps: { scope: topicId }
+      })
+      const identity = {
+        topicId,
+        executionId: 'provider::model',
+        userMessageId: 'queued-user',
+        anchorMessageId: 'queued-assistant'
+      }
+      await act(async () => {
+        result.current.track([], [{ id: 'queued-user', role: 'user', parts: [] }])
+      })
+      if (outcome === 'scope-change') {
+        rerender({ scope: 'agent-session:session-2' })
+        rerender({ scope: topicId })
+      } else {
+        await act(async () => {
+          mocks.streamListeners
+            .get('ai.stream.done')
+            ?.forEach((listener) => listener({ ...identity, attemptId: 2, status: outcome }))
+        })
+      }
+      await act(async () => {
+        mocks.streamListeners.get('ai.stream.error')?.forEach((listener) =>
+          listener({
+            ...identity,
+            attemptId: 3,
+            error: { name: 'Error', message: 'context window exceeded', stack: null }
+          })
+        )
+      })
+      expect(toast.getToastQueue().toasts).toEqual([])
+    }
+  )
+
+  it.each<{ dismissed: boolean; blocked: boolean; afterAck?: boolean }>([
+    { dismissed: false, blocked: false },
+    { dismissed: true, blocked: false },
+    { dismissed: false, blocked: true },
+    { dismissed: true, blocked: true },
+    { dismissed: false, blocked: false, afterAck: true },
+    { dismissed: true, blocked: false, afterAck: true }
+  ])(
+    'keeps compact startup feedback in its recovery toast ($dismissed, $blocked, $afterAck)',
+    async ({ dismissed, blocked, afterAck }) => {
+      const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+        '@renderer/hooks/useConversationTurnController'
+      )
+      mocks.controllerOptions.mockImplementation(useConversationTurnController)
+      mocks.streamOpen.mockRejectedValueOnce(new Error('context window exceeded'))
+      const { result } = renderHook(() =>
+        useAgentChatRuntimeState({
+          sessionId: 'session-1',
+          agentType: 'claude-code',
+          sessionMessagesEnabled: true,
+          reservedMessages: []
+        })
+      )
+      await act(async () => {
+        expect(await result.current.sendMessage({ text: 'ordinary message' })).toBe(false)
+      })
+      const original = toast.getToastQueue().toasts[0]
+      expect(original.action).toBeDefined()
+      let finishStartup!: () => void
+      const execution: ActiveExecution = {
+        executionId: 'provider::model',
+        attemptId: 2,
+        anchorMessageId: 'assistant-1'
+      }
+      if (afterAck) {
+        mocks.streamOpen.mockResolvedValueOnce({
+          mode: 'started',
+          activeExecutions: [execution],
+          reservedMessages: [assistantMessage]
+        })
+        mocks.seedReservedMessages.mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              finishStartup = () => reject(new Error('compact startup failed'))
+            })
+        )
+      } else {
+        mocks.streamOpen.mockImplementationOnce(
+          () =>
+            new Promise((resolve, reject) => {
+              finishStartup = () =>
+                blocked
+                  ? resolve({ mode: 'blocked', reason: 'agent-session-workspace', message: 'compact startup failed' })
+                  : reject(new Error('compact startup failed'))
+            })
+        )
+      }
+      let recovery!: Promise<void>
+      await act(async () => {
+        recovery = Promise.resolve(original.action!.onClick())
+      })
+      await waitFor(() => expect(mocks.streamOpen).toHaveBeenCalledTimes(2))
+      expect(toast.getToastQueue().toasts[0]).toMatchObject({ key: original.key, type: 'loading' })
+      if (dismissed) toast.closeToast(original.key)
+      await act(async () => {
+        finishStartup()
+        await recovery
+        if (afterAck) {
+          mocks.streamListeners.get('ai.stream.error')?.forEach((listener) =>
+            listener({
+              topicId: 'agent-session:session-1',
+              ...execution,
+              error: { name: 'Error', message: 'late compact failure', stack: null }
+            })
+          )
+        }
+      })
+
+      if (dismissed) expect(toast.getToastQueue().toasts).toEqual([])
+      else {
+        expect(toast.getToastQueue().toasts).toEqual([
+          expect.objectContaining({
+            key: original.key,
+            type: 'error',
+            title: expect.stringContaining('compact startup failed')
+          })
+        ])
+      }
+      expect(mocks.toastError).not.toHaveBeenCalled()
+      mocks.streamOpen.mockRejectedValueOnce(new Error('manual compact failed'))
+      await act(async () => {
+        expect(await result.current.sendMessage({ text: '/compact' })).toBe(false)
+      })
+      expect(toast.getToastQueue().toasts).toEqual([
+        expect.objectContaining({ type: 'error', title: expect.stringContaining('manual compact failed') })
+      ])
+    }
+  )
+
+  it.each<{
+    beforeAck: boolean
+    outcome: 'success' | 'error' | 'paused'
+    cleanup?: 'dismiss' | 'switch'
+    overlay?: boolean
+    queued?: boolean
+  }>([
+    { beforeAck: true, outcome: 'success' },
+    { beforeAck: true, outcome: 'error' },
+    { beforeAck: true, outcome: 'paused' },
+    { beforeAck: false, outcome: 'success' },
+    { beforeAck: false, outcome: 'error' },
+    { beforeAck: false, outcome: 'paused' },
+    { beforeAck: true, outcome: 'error', overlay: true },
+    { beforeAck: false, outcome: 'error', cleanup: 'dismiss' },
+    { beforeAck: true, outcome: 'error', cleanup: 'switch' },
+    { beforeAck: true, outcome: 'error', queued: true },
+    { beforeAck: false, outcome: 'success', queued: true },
+    { beforeAck: false, outcome: 'error', cleanup: 'dismiss', queued: true }
+  ])(
+    'settles compact recovery from its terminal event ($beforeAck, $outcome, $cleanup, $overlay, queued: $queued)',
+    async ({ beforeAck, outcome, cleanup, overlay, queued }) => {
+      const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+        '@renderer/hooks/useConversationTurnController'
+      )
+      mocks.controllerOptions.mockImplementation(useConversationTurnController)
+      mocks.useChatWithHistory.mockReturnValue({ ...mocks.useChatWithHistory(), activeExecutions: [] })
+      mocks.streamOpen.mockRejectedValueOnce(new Error('context window exceeded'))
+      const { result, rerender, unmount } = renderHook(
+        ({ sessionId }) =>
+          useAgentChatRuntimeState({
+            sessionId,
+            agentType: 'claude-code',
+            sessionMessagesEnabled: true,
+            reservedMessages: []
+          }),
+        { initialProps: { sessionId: 'session-1' } }
+      )
+      await act(async () => {
+        await result.current.sendMessage({ text: 'ordinary message' })
+      })
+      const original = toast.getToastQueue().toasts[0]
+      const execution: ActiveExecution = { executionId: 'provider::model', attemptId: 2, anchorMessageId: 'compact' }
+      let acknowledge!: (ack: AiStreamOpenResponse) => void
+      mocks.streamOpen.mockImplementationOnce(() => new Promise((resolve) => (acknowledge = resolve)))
+      let recovery!: Promise<void>
+      await act(async () => {
+        recovery = Promise.resolve(original.action!.onClick())
+      })
+      await waitFor(() => expect(mocks.streamOpen).toHaveBeenCalledTimes(2))
+      if (cleanup === 'dismiss') toast.closeToast(original.key)
+      if (cleanup === 'switch') rerender({ sessionId: 'session-2' })
+      const emit = (event: string, payload: unknown) => {
+        mocks.streamListeners.get(event)?.forEach((listener) => listener(payload))
+      }
+      const error = { name: 'Error', message: 'compact execution failed', stack: null }
+      const finish = () => {
+        if (overlay) {
+          mocks.useExecutionOverlay.mock.lastCall?.[2]?.onFinish(execution.executionId, {
+            attemptId: execution.attemptId,
+            message: { id: 'compact', role: 'assistant', parts: [{ type: 'data-error', data: error }] },
+            isError: true,
+            isAbort: false
+          })
+          return
+        }
+        emit(outcome === 'error' ? 'ai.stream.error' : 'ai.stream.done', {
+          topicId: 'agent-session:session-1',
+          ...execution,
+          ...(queued ? { userMessageId: 'compact-user' } : {}),
+          ...(outcome === 'error' ? { error } : { status: outcome })
+        })
+      }
+      await act(async () => {
+        emit('ai.stream.done', { topicId: 'other-session', ...execution, status: 'success' })
+        emit('ai.stream.done', { topicId: 'agent-session:session-1', ...execution, attemptId: 1, status: 'success' })
+        if (beforeAck) finish()
+      })
+      if (!cleanup) expect(toast.getToastQueue().toasts[0]).toMatchObject({ key: original.key, type: 'loading' })
+      await act(async () => {
+        acknowledge(
+          queued
+            ? {
+                mode: 'injected',
+                activeExecutions: [],
+                reservedMessages: [{ id: 'compact-user', role: 'user', parts: [] }]
+              }
+            : { mode: 'started', activeExecutions: [execution] }
+        )
+      })
+      if (!beforeAck) {
+        if (!cleanup) expect(toast.getToastQueue().toasts[0]).toMatchObject({ key: original.key, type: 'loading' })
+        await act(async () => finish())
+      }
+      await waitFor(() => expect(toast.getToastQueue().toasts[0]?.type).not.toBe('loading'))
+      await recovery
+      if (cleanup || outcome === 'paused') expect(toast.getToastQueue().toasts).toEqual([])
+      else {
+        expect(toast.getToastQueue().toasts).toEqual([
+          expect.objectContaining({ key: original.key, type: outcome === 'error' ? 'error' : 'success' })
+        ])
+        if (outcome === 'error') expect(toast.getToastQueue().toasts[0].title).toContain('compact execution failed')
+      }
+      unmount()
+      expect([...mocks.streamListeners.values()].every((listeners) => listeners.size === 0)).toBe(true)
+    }
+  )
+
+  it('settles concurrent model retries independently through the shared recovery waiter', async () => {
+    const executions: ActiveExecution[] = [
+      { executionId: 'provider::a', attemptId: 3 },
+      { executionId: 'provider::b', attemptId: 4 }
+    ]
+    const { result } = renderHook(() =>
+      useConversationErrorToasts('topic-1', {
+        retry: async (_message, modelId) => {
+          result.current.track(executions.filter((execution) => execution.executionId === modelId))
+        }
+      })
+    )
+    for (const execution of executions) {
+      await act(async () => {
+        const message: CherryUIMessage = {
+          ...assistantMessage,
+          id: execution.executionId,
+          metadata: { parentId: 'user-1' }
+        }
+        const failedExecution = { ...execution, attemptId: execution.attemptId - 2, anchorMessageId: message.id }
+        mocks.streamListeners.get('ai.stream.error')?.forEach((listener) =>
+          listener({
+            topicId: 'topic-1',
+            ...failedExecution,
+            error: { name: 'Error', message: 'fetch failed', stack: null }
+          })
+        )
+        result.current.track([failedExecution], [message])
+      })
+    }
+    const originals = [...toast.getToastQueue().toasts]
+    const recoveries: Promise<void>[] = []
+    for (const original of originals) {
+      await act(async () => {
+        recoveries.push(Promise.resolve(original.action!.onClick()))
+      })
+    }
+    expect(toast.getToastQueue().toasts.map(({ type }) => type)).toEqual(['loading', 'loading'])
+    await act(async () => {
+      mocks.streamListeners
+        .get('ai.stream.done')
+        ?.forEach((listener) => listener({ topicId: 'topic-1', ...executions[1], status: 'success' }))
+      await recoveries[1]
+    })
+    expect(toast.getToastQueue().toasts.map(({ key, type }) => ({ key, type }))).toEqual([
+      { key: originals[0].key, type: 'loading' },
+      { key: originals[1].key, type: 'success' }
+    ])
+    await act(async () => {
+      mocks.streamListeners.get('ai.stream.error')?.forEach((listener) =>
+        listener({
+          topicId: 'topic-1',
+          ...executions[0],
+          error: { name: 'Error', message: 'retry failed', stack: null }
+        })
+      )
+      await recoveries[0]
+    })
+    expect(toast.getToastQueue().toasts.map(({ key, type }) => ({ key, type }))).toEqual([
+      { key: originals[0].key, type: 'error' },
+      { key: originals[1].key, type: 'success' }
+    ])
+  })
+
+  it('reads a live manual Agent answer while excluding autonomous turns', async () => {
+    const spoken: string[] = []
+    const coordinator = new AutoReadService({
+      supportsStreaming: async () => true,
+      playback: {
+        start: async (input) => {
+          spoken.push(input.text)
+          return { status: 'started' }
+        },
+        stopAutoRead: async () => true
+      }
+    })
+    mocks.autoReadUpdate.mockImplementation((input) => coordinator.update(input))
+    renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    const onUpdate = mocks.useExecutionOverlay.mock.calls[0]?.[2]?.onUpdate
+    await act(async () => {
+      onUpdate?.('provider::model', {
+        attemptId: 8,
+        message: {
+          ...assistantMessage,
+          id: 'background',
+          parts: [{ type: 'text', text: 'Background.' }],
+          metadata: { turnOrigin: { kind: 'background-work' } }
+        }
+      })
+      onUpdate?.('provider::model', {
+        attemptId: 9,
+        message: {
+          ...assistantMessage,
+          id: 'manual',
+          parts: [
+            { type: 'reasoning', text: 'Secret.' },
+            { type: 'text', text: 'Manual answer. ' }
+          ]
+        }
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(spoken).toEqual(['Manual answer.'])
+    await coordinator.setEnabled(true)
+    await coordinator.setEnabled(false)
+  })
+
+  it('wires auto-read to overlay finish without taking over the terminal refresh handoff', () => {
+    renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[2]?.onFinish
+    expect(onFinish).toEqual(expect.any(Function))
+    const completed = {
+      ...assistantMessage,
+      parts: [{ type: 'text', text: 'final answer' }]
+    } as CherryUIMessage
+    act(() => {
+      onFinish?.('provider::model', {
+        attemptId: 4,
+        message: completed,
+        isAbort: false,
+        isError: false
+      })
+    })
+
+    expect(mocks.autoReadConsume).toHaveBeenCalledWith({
+      enabled: true,
+      message: completed,
+      attemptId: 4,
+      isAbort: false,
+      isError: false,
+      eligible: true
+    })
+    expect(mocks.refresh).not.toHaveBeenCalled()
+    expect(mocks.disposeOverlay).not.toHaveBeenCalled()
+  })
+
+  it.each(['goal-round', 'background-work'] as const)('skips %s autonomous turns for auto-read', (kind) => {
+    const autonomous = {
+      ...assistantMessage,
+      parts: [{ type: 'text', text: 'background result' }],
+      metadata: {
+        ...assistantMessage.metadata,
+        turnOrigin: kind === 'goal-round' ? { kind, round: 2 } : { kind }
+      }
+    } as CherryUIMessage
+    mocks.useAgentSessionParts.mockReturnValue({
+      messages: [autonomous],
+      persistedPartsByMessageId: {},
+      isLoading: false,
+      hasOlder: false,
+      loadOlder: vi.fn(),
+      refresh: mocks.refresh,
+      seedReservedMessages: mocks.seedReservedMessages,
+      deleteMessage: mocks.deleteSessionMessage
+    })
+    renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[2]?.onFinish
+
+    act(() => {
+      onFinish?.('provider::model', {
+        attemptId: 9,
+        message: { ...autonomous, metadata: undefined } as CherryUIMessage,
+        isAbort: false,
+        isError: false
+      })
+    })
+
+    expect(mocks.autoReadConsume).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.objectContaining({ id: autonomous.id }), eligible: false })
+    )
+  })
+
+  it.each(['goal-round', 'background-work', 'manual'] as const)(
+    'uses live turn origin for %s before history loads',
+    (kind) => {
+      mocks.useAgentSessionParts.mockReturnValue({
+        ...mocks.useAgentSessionParts.getMockImplementation()!(),
+        messages: [],
+        isLoading: true
+      })
+      renderHook(() =>
+        useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+      )
+      MockCacheUtils.setInitialState({
+        shared: [
+          [
+            AGENT_SESSION_TURN_ORIGIN_CACHE_KEY('session-1', assistantMessage.id),
+            kind === 'manual' ? null : kind === 'goal-round' ? { kind, round: 2 } : { kind }
+          ],
+          [AGENT_SESSION_TURN_ORIGIN_CACHE_KEY('another-session', assistantMessage.id), { kind: 'background-work' }]
+        ]
+      })
+      const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[2]?.onFinish
+      act(() => {
+        onFinish?.('provider::model', {
+          attemptId: 9,
+          message: { ...assistantMessage, metadata: undefined },
+          isAbort: false,
+          isError: false
+        })
+      })
+
+      expect(mocks.autoReadConsume).toHaveBeenCalledWith(expect.objectContaining({ eligible: kind === 'manual' }))
+    }
+  )
 
   it('invalidates disclosure state after deleting a session message', async () => {
     const { result } = renderHook(() =>
@@ -515,6 +1319,89 @@ describe('useAgentChatRuntimeState', () => {
     })
 
     expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+  })
+
+  it('re-sends an answer the dead card cannot deliver as the session message', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'undelivered' })
+    const part = makeAskUserQuestionPart()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.respondToolApproval({
+        ...makeAskUserQuestionApproval(part),
+        updatedInput: {
+          ...askUserQuestionUpdatedInput,
+          annotations: { 'Choose logger': { notes: 'or a thin wrapper' } }
+        }
+      })
+    })
+
+    expect(mocks.sendTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'Choose logger\nWinston\nor a thin wrapper' })
+    )
+    expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+  })
+
+  it('does not replay an approval already answered in another window', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'rejected' })
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    await act(async () => {
+      await expect(
+        result.current.respondToolApproval(makeAskUserQuestionApproval(makeAskUserQuestionPart()))
+      ).rejects.toThrow('Tool approval response was not accepted')
+    })
+
+    expect(mocks.sendTurn).not.toHaveBeenCalled()
+  })
+
+  it.each(['blocked', 'error'])('keeps an undelivered answer as a composer draft after %s', async (failure) => {
+    takeAgentDraftHandoffs('session-1')
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'undelivered' })
+    if (failure === 'blocked') mocks.sendTurn.mockResolvedValueOnce(false)
+    else mocks.sendTurn.mockRejectedValueOnce(new Error('stream unavailable'))
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    await act(async () => {
+      await expect(
+        result.current.respondToolApproval(makeAskUserQuestionApproval(makeAskUserQuestionPart()))
+      ).rejects.toThrow()
+    })
+
+    expect(takeAgentDraftHandoffs('session-1')).toEqual([
+      { text: 'Choose logger\nWinston', tokens: [], files: [], knowledgeBaseIds: [] }
+    ])
+  })
+
+  it('sends nothing when a dead card was dismissed rather than answered', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false, reason: 'undelivered' })
+    const part = makeAskUserQuestionPart()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      await result.current.respondToolApproval({
+        match: makeAskUserQuestionApproval(part).match,
+        approved: false
+      })
+    })
+
+    expect(mocks.sendTurn).not.toHaveBeenCalled()
   })
 
   it('preserves optimistic AskUserQuestion inputs across an <Activity> hide/show and clears them on session change', async () => {

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/process/2026-11-09-ci-execution-performance.md
+2026-11-09-ci-execution-performance.md: 4c55cbdc80fc8ed6884e620aae3141f0d1c87f7d
+2026-11-09-ci-execution-performance.zh.md: 9a41c433eb86e045fc10ecb5414534a266de39b4

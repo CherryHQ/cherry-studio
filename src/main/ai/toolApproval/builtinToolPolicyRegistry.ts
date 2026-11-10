@@ -2,7 +2,7 @@
  * Runtime-neutral approval policy for Cherry-owned MCP tools.
  *
  * This is a registry of tool entries, not parallel allow/approval name lists. Each tool declares
- * its canonical MCP identity and approval behavior once; Claude, Pi, and DSH only translate that
+ * its canonical MCP identity and approval behavior once; Claude and Pi only translate that
  * identity into their runtime-specific wire names. Arrays or sets produced by consumers are
  * derived boundary formats for the SDK/bridge and are never policy sources.
  *
@@ -12,6 +12,7 @@
  */
 
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
+import { computerUseToolDefinitions } from '@main/ai/tools/computerUse'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import {
@@ -19,6 +20,7 @@ import {
   SESSION_DELIVERIES_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
   SESSION_READ_TOOL_NAME,
+  SESSION_RENAME_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
@@ -40,13 +42,15 @@ import {
 
 import { listBrowserToolPolicies } from './browserToolPolicy'
 
-export type BuiltinToolApproval = 'auto' | 'required'
+export type BuiltinToolApproval = 'auto' | 'required' | 'delegation'
 export type BuiltinToolBypassApproval = 'lift' | 'enforce'
 
 /** The Cherry-owned MCP servers. Which of them a session mounts is the runtime's call. */
 export const CHERRY_MCP_SERVER = {
   CHERRY_TOOLS: 'cherry-tools',
   BROWSER: 'browser',
+  COMPUTER: 'computer',
+  AUTOMATION: 'automation',
   AGENT_MEMORY: 'agent-memory',
   SKILLS: 'skills',
   MCP_MANAGER: 'mcp-manager',
@@ -58,7 +62,8 @@ export const CHERRY_MCP_SERVER = {
 export interface BuiltinToolPolicyEntry {
   readonly serverName: string
   readonly toolName: string
-  /** `auto`: Cherry pre-approves the tool; `required`: every interactive call asks unless bypassed. */
+  /** `auto`: pre-approved; `required`: asks unless bypassed.
+   * `delegation`: interactive-only, with approval following the session permission mode. */
   readonly approval: BuiltinToolApproval
   /** Whether Full Access lifts a `required` approval. */
   readonly bypassApproval: BuiltinToolBypassApproval
@@ -78,6 +83,8 @@ function tool(
  * omitting it is fail-closed for auto-approval because every consumer selects explicit entries.
  */
 const BUILTIN_TOOL_POLICIES = {
+  automationJs: tool(CHERRY_MCP_SERVER.AUTOMATION, 'js', 'auto'),
+  automationReset: tool(CHERRY_MCP_SERVER.AUTOMATION, 'reset', 'auto'),
   cherryWebSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, WEB_SEARCH_TOOL_NAME, 'auto'),
   cherryWebFetch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, WEB_FETCH_TOOL_NAME, 'auto'),
   cherryKnowledgeSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, KB_SEARCH_TOOL_NAME, 'auto'),
@@ -91,10 +98,11 @@ const BUILTIN_TOOL_POLICIES = {
   cherrySessionList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_LIST_TOOL_NAME, 'auto'),
   cherrySessionSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEARCH_TOOL_NAME, 'auto'),
   cherrySessionRead: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_READ_TOOL_NAME, 'auto'),
+  cherrySessionRename: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_RENAME_TOOL_NAME, 'auto'),
   cherryAgentList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, 'agent_list', 'auto'),
   cherrySessionDeliveries: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_DELIVERIES_TOOL_NAME, 'auto'),
-  cherrySessionCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_CREATE_TOOL_NAME, 'required', 'enforce'),
-  cherrySessionSend: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEND_TOOL_NAME, 'required', 'enforce'),
+  cherrySessionCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_CREATE_TOOL_NAME, 'delegation'),
+  cherrySessionSend: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEND_TOOL_NAME, 'delegation'),
   cherryCliList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_LIST_TOOL_NAME, 'auto'),
   cherryCliSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_SEARCH_TOOL_NAME, 'auto'),
   cherryCliInstall: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_INSTALL_TOOL_NAME, 'required'),
@@ -131,5 +139,9 @@ const BUILTIN_TOOL_POLICIES = {
 
 export const BUILTIN_TOOL_POLICY_ENTRIES: readonly BuiltinToolPolicyEntry[] = Object.values(BUILTIN_TOOL_POLICIES)
 export const MOUNTED_TOOL_POLICY_PROVIDERS: ReadonlyMap<string, () => BuiltinToolPolicyEntry[]> = new Map([
-  [CHERRY_MCP_SERVER.BROWSER, listBrowserToolPolicies]
+  [CHERRY_MCP_SERVER.BROWSER, listBrowserToolPolicies],
+  [
+    CHERRY_MCP_SERVER.COMPUTER,
+    () => computerUseToolDefinitions.map(({ name }) => tool(CHERRY_MCP_SERVER.COMPUTER, name, 'auto'))
+  ]
 ])

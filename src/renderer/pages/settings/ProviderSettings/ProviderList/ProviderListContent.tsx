@@ -1,9 +1,7 @@
-import { closestCenter } from '@dnd-kit/core'
 import { type ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ReorderableList, Sortable } from '@cherrystudio/ui'
-import Scrollbar from '@renderer/components/Scrollbar'
+import { ReorderableList, ScrollArea, Sortable } from '@cherrystudio/ui'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -182,11 +180,7 @@ export default function ProviderListContent({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragEnd}
         onSortEnd={handleSortEnd}
-        collisionDetection={closestCenter}
-        // The drag overlay renders a collapsed (header-only) group, which is a
-        // different size than the in-list card, so the overlay must NOT scale to
-        // the source rect — otherwise dnd-kit stretches the compact header.
-        adjustScale={false}
+        collisionDetection="closest-center"
         className="w-full"
         gap="0.5rem"
         restrictions={{ scrollableAncestor: true }}
@@ -226,7 +220,9 @@ export default function ProviderListContent({
   const hasAnyGroup = entries.some((entry) => entry.kind === 'group')
 
   return (
-    <Scrollbar ref={scrollerRef} className={providerListClasses.scroller}>
+    <ScrollArea
+      className="min-h-0 flex-1"
+      viewportProps={{ ref: scrollerRef, className: providerListClasses.scrollViewport }}>
       <div className={providerListClasses.sectionStack}>
         {hasResults ? (
           <section className={providerListClasses.section}>{hasAnyGroup ? renderGrouped() : renderFlat()}</section>
@@ -234,6 +230,6 @@ export default function ProviderListContent({
           <div className={providerListClasses.emptyState}>{t('common.no_results')}</div>
         )}
       </div>
-    </Scrollbar>
+    </ScrollArea>
   )
 }

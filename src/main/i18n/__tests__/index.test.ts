@@ -72,8 +72,8 @@ describe('main i18n', () => {
 
     it('localizes Agent Session admission errors', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-      expect(t('agent.session.run_status.busy')).toBe('Agent 会话正忙，请稍后重试。')
-      expect(t('agent.session.run_status.unavailable')).toBe('Agent 会话已不可用。')
+      expect(t('agent.session.run_status.busy')).toBe('智能体会话正忙，请稍后重试。')
+      expect(t('agent.session.run_status.unavailable')).toBe('智能体会话已不可用。')
     })
 
     it('interpolates {{var}} placeholders', () => {
@@ -102,6 +102,7 @@ describe('main i18n', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
       expect(t('dialog.save_file', undefined, 'zh-CN')).toBe('保存文件')
       expect(t('dialog.save_file', undefined, 'tr-TR')).toBe('Dosyayı Kaydet')
+      expect(t('dialog.save_file', undefined, 'it-IT')).toBe('Salva file')
       expect(t('dialog.save_file')).toBe('Save File')
     })
   })
@@ -121,11 +122,13 @@ describe('main i18n', () => {
           'fr-FR',
           'pt-PT',
           'ro-RO',
+          'th-TH',
           'tr-TR',
-          'vi-VN'
+          'vi-VN',
+          'it-IT'
         ])
       )
-      expect(SUPPORTED_LANGUAGES).toHaveLength(13)
+      expect(SUPPORTED_LANGUAGES).toHaveLength(15)
     })
   })
 })

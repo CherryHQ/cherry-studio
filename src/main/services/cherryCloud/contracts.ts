@@ -3,6 +3,7 @@ import * as z from 'zod'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY, type ModelCapability, objectValues } from '@cherrystudio/provider-registry'
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { cherryCloudAccountPlansSchema, cherryCloudModelFeatureSchema } from '@shared/ipc/schemas/cherryCloud'
 
 const base64Url32BytesSchema = z.string().regex(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
 const utcDateTimeSchema = z.iso.datetime()
@@ -17,9 +18,23 @@ function isSecureOrLoopbackUrl(value: string): boolean {
   )
 }
 
+// A development backend configured through MAIN_VITE_CHERRY_CLOUD_API_ORIGIN may serve plain HTTP on a LAN
+// address; production builds never set it, so only the exact configured origin is exempt.
+function isConfiguredDevelopmentOrigin(value: string): boolean {
+  const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
+  if (!configuredOrigin) return false
+  const url = new URL(value)
+  return !url.username && !url.password && url.origin === new URL(configuredOrigin).origin
+}
+
 export const createDesktopAuthorizationResponseSchema = z.looseObject({
   authorization_id: z.uuid(),
-  authorization_url: z.url().refine(isSecureOrLoopbackUrl, 'Authorization URL must use HTTPS or loopback HTTP'),
+  authorization_url: z
+    .url()
+    .refine(
+      (value) => isSecureOrLoopbackUrl(value) || isConfiguredDevelopmentOrigin(value),
+      'Authorization URL must use HTTPS, loopback HTTP, or the configured development origin'
+    ),
   expires_at: utcDateTimeSchema
 })
 
@@ -60,6 +75,8 @@ export const accountSnapshotSchema = z.looseObject({
   entitlements: z.array(entitlementSchema).default([]),
   quota_pools: z.array(quotaPoolSchema).default([])
 })
+
+export const accountPlansSchema = cherryCloudAccountPlansSchema
 
 export const exchangeDesktopAuthorizationResponseSchema = z.looseObject({
   token_set: tokenSetSchema,
@@ -102,7 +119,35 @@ export const cloudModelListSchema = z.looseObject({
       endpoint_type: cloudEndpointTypeSchema,
       context_window: z.number().int().positive(),
       max_output_tokens: z.number().int().positive(),
-      capabilities: cloudModelCapabilitiesSchema
+      capabilities: cloudModelCapabilitiesSchema,
+      available_features: z.array(cherryCloudModelFeatureSchema).min(1)
     })
   )
 })
+
+// The fields of the CN client notification protocol (cloud-api `api/control-cn/notifications.yaml`) the client relies on.
+export const notificationReadySchema = z.looseObject({ cursor: z.string().min(1) })
+
+export const cloudNotificationSchema = z.looseObject({
+  id: z.string().min(1),
+  cursor: z.string().min(1),
+  refresh: z.array(z.string()).optional(),
+  type: z.string().optional(),
+  subscription_id: z.string().optional(),
+  title: z.string().optional(),
+  body: z.string().optional(),
+  occurred_at: z.string().optional(),
+  // Deadline for prominent presentation, not deletion or entitlement expiry.
+  expires_at: z.string().optional()
+})
+
+export const cloudNotificationPageSchema = z.looseObject({
+  items: z.array(cloudNotificationSchema),
+  next_cursor: z.string().min(1),
+  has_more: z.boolean()
+})
+
+// Stream error frames carry the code at the top level, unlike the JSON error bodies of HTTP responses.
+export const notificationErrorFrameSchema = z.looseObject({ code: z.string() })
+
+export type CloudNotification = z.infer<typeof cloudNotificationSchema>

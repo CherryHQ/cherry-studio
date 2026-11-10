@@ -14,7 +14,7 @@ describe('OCR capability removal', () => {
       'feature.file_processing.default_document_to_markdown': 'local-document'
     })
 
-    await capabilityHooksFor('ocr').afterRemove?.()
+    await capabilityHooksFor('ocr', 'pp-ocrv6-medium').afterRemove?.()
 
     expect(MockMainPreferenceServiceExport.preferenceService.setMultiple).toHaveBeenCalledWith({
       'feature.file_processing.default_image_to_text': null,
