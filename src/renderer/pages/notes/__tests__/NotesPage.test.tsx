@@ -827,7 +827,7 @@ describe('NotesPage print payloads', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('notes.save_failure.description')
     fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
     expect(mocks.flushSession).toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     expect(detailMocks.open).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -842,7 +842,7 @@ describe('NotesPage print payloads', () => {
 
     detailMocks.open.mockClear()
     rerender(<NotesPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     expect(detailMocks.open.mock.calls[0][0].error).toBe(cause)
   })
@@ -855,7 +855,7 @@ describe('NotesPage print payloads', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('notes.save_failure.metadata_pending')
     expect(screen.queryByRole('button', { name: 'common.retry' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'error.details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({

@@ -36,15 +36,15 @@ describe('ElectronFilePreview error details', () => {
   it('does not offer details for a file over the preview size limit', () => {
     renderPreview()
     act(() => preview.onError?.(new PreviewError('too_large', 'File exceeds preview limit')))
-    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
   })
 
   it('offers details for a load failure and drops them after a reload', () => {
     const view = renderPreview()
     act(() => preview.onError?.(new PreviewError('load_error', 'decode failed')))
-    expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
 
     view.rerender(<ElectronFilePreview filePath={filePath} fileName="report.pdf" metadata={metadata} refreshKey={1} />)
-    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
   })
 })
