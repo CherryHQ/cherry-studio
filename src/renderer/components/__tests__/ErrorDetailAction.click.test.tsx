@@ -40,7 +40,7 @@ describe('ErrorDetailAction click snapshot', () => {
     await vi.waitFor(() => {
       expect(mocks.factoryCalls).toBe(1)
     })
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     view.rerender(<ErrorDetailAction error={new Error('second fault')} operation="file.delete" source="files" />)
 
     await act(async () => {

@@ -51,7 +51,7 @@ describe('ErrorDetailAction presentation snapshot', () => {
     await act(async () => {
       mocks.release()
     })
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     await vi.waitFor(() => {
       expect(mocks.open).toHaveBeenCalledTimes(1)

@@ -1,13 +1,14 @@
+import { RefreshCw } from 'lucide-react'
 import type { ComponentType, ErrorInfo, ReactNode } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
-import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { ipcApi } from '@renderer/ipc'
+import { isDev } from '@renderer/utils/platform'
 
 const logger = loggerService.withContext('ErrorBoundary')
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
@@ -21,22 +22,27 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
   }
   return (
     <div className="flex min-w-0 w-full justify-center overflow-auto p-3">
-      <Alert className="min-w-0 max-w-xl bg-background-subtle text-foreground shadow-none" showIcon type="error">
-        <div className="min-w-0 space-y-3">
-          <p className="font-medium">{t('error.boundary.default.message')}</p>
-          <ErrorFallbackDetails error={error} />
-          <div className="flex flex-wrap items-center gap-2">
-            <ErrorDetailAction error={error} source="renderer" operation="react.render" />
-            <Button size="sm" onClick={reload}>
-              {t('error.boundary.default.reload')}
-            </Button>
-            <ErrorFallbackCopyButton error={error} />
-            <Button variant="outline" size="sm" onClick={debug}>
+      <ErrorNotice
+        className="max-w-xl"
+        title={t('error.boundary.default.title')}
+        info={t('error.boundary.default.info')}
+        action={{
+          label: t('error.boundary.default.reload'),
+          icon: <RefreshCw size={13} />,
+          onClick: () => void reload()
+        }}
+        extra={
+          isDev ? (
+            <button
+              type="button"
+              className="cursor-pointer text-foreground-tertiary text-xs transition-colors hover:text-foreground"
+              onClick={() => void debug()}>
               {t('error.boundary.default.devtools')}
-            </Button>
-          </div>
-        </div>
-      </Alert>
+            </button>
+          ) : undefined
+        }
+        detail={<ErrorDetailAction error={error} source="renderer" operation="react.render" />}
+      />
     </div>
   )
 }

@@ -41,7 +41,7 @@ describe('showSupportedMessageBox', () => {
     vi.mocked(application.get).mockClear()
   })
 
-  it('copies the technical detail, then returns the original retry index', async () => {
+  it('copies the technical detail, opens feedback, then returns the original retry index', async () => {
     showMessageBox.mockResolvedValueOnce({ response: 2 }).mockResolvedValueOnce({ response: 0 })
 
     const response = await showSupportedMessageBox({
@@ -51,12 +51,21 @@ describe('showSupportedMessageBox', () => {
 
     expect(response).toBe(0)
     expect(writeText).toHaveBeenCalledWith('SQLITE_READONLY at /Users/private/cherrystudio.sqlite')
+    expect(openExternal).toHaveBeenCalledWith(expect.stringMatching(/^mailto:/))
+    expect(writeText.mock.invocationCallOrder[0]).toBeLessThan(openExternal.mock.invocationCallOrder[0])
     expect(JSON.stringify(showMessageBox.mock.calls[0][0])).not.toContain('/Users/private')
-    expect(showMessageBox.mock.calls[0][0].buttons.slice(0, 2)).toEqual(['Retry', 'Quit'])
+    expect(showMessageBox.mock.calls[0][0].buttons).toEqual([
+      'Retry',
+      'Quit',
+      'Copy error and send feedback…',
+      'Open download page'
+    ])
   })
 
-  it('keeps a failed copy on the same dialog', async () => {
-    writeText.mockRejectedValueOnce(new Error('clipboard unavailable'))
+  it('still opens feedback when the copy fails, and reports the failure on the same dialog', async () => {
+    writeText.mockImplementationOnce(() => {
+      throw new Error('clipboard unavailable')
+    })
     showMessageBox.mockResolvedValueOnce({ response: 2 }).mockResolvedValueOnce({ response: 1 })
 
     const response = await showSupportedMessageBox({
@@ -65,26 +74,28 @@ describe('showSupportedMessageBox', () => {
     })
 
     expect(response).toBe(1)
+    expect(openExternal).toHaveBeenCalledOnce()
     expect(showMessageBox.mock.calls[1][0].detail).toContain('That action failed.')
     expect(showMessageBox.mock.calls[1][0].detail).not.toContain('clipboard unavailable')
     expect(JSON.stringify(showMessageBox.mock.calls[1][0])).not.toContain('/Users/private')
   })
 
-  it('returns to the original dialog when feedback cannot be opened', async () => {
+  it('keeps the copy and returns to the original dialog when feedback cannot be opened', async () => {
     openExternal.mockRejectedValueOnce(new Error('no handler'))
-    showMessageBox.mockResolvedValueOnce({ response: 3 }).mockResolvedValueOnce({ response: 1 })
+    showMessageBox.mockResolvedValueOnce({ response: 2 }).mockResolvedValueOnce({ response: 1 })
 
-    const response = await showSupportedMessageBox({ box })
+    const response = await showSupportedMessageBox({ box, technicalDetail: 'SQLITE_READONLY' })
 
     expect(response).toBe(1)
+    expect(writeText).toHaveBeenCalledWith('SQLITE_READONLY')
     expect(showMessageBox.mock.calls[1][0].detail).toContain('That action failed.')
     expect(showMessageBox.mock.calls[1][0].detail).not.toContain('no handler')
     expect(showMessageBox).toHaveBeenCalledTimes(2)
   })
 
-  it('runs one caller action, then returns to the original dialog', async () => {
+  it('places the caller action right after the primary buttons and stays within four buttons', async () => {
     const run = vi.fn(async () => undefined)
-    showMessageBox.mockResolvedValueOnce({ response: 5 }).mockResolvedValueOnce({ response: 0 })
+    showMessageBox.mockResolvedValueOnce({ response: 2 }).mockResolvedValueOnce({ response: 0 })
 
     const response = await showSupportedMessageBox({
       box,
@@ -96,19 +107,31 @@ describe('showSupportedMessageBox', () => {
     expect(showMessageBox.mock.calls[0][0].buttons).toEqual([
       'Retry',
       'Quit',
-      'Copy error',
-      'Send feedback',
-      'Open releases',
-      'Export diagnostics'
+      'Export diagnostics',
+      'Copy error and send feedback…'
     ])
     expect(showMessageBox.mock.calls[1][0].detail).not.toContain('That action failed')
+  })
+
+  it('keeps every primary index when three primary buttons leave room for one extra button', async () => {
+    const run = vi.fn(async () => undefined)
+    showMessageBox.mockResolvedValue({ response: 2 })
+
+    const response = await showSupportedMessageBox({
+      box: { ...box, buttons: ['Retry', 'Use Default', 'Quit'], cancelId: 2 },
+      action: { label: 'Export diagnostics', run }
+    })
+
+    expect(response).toBe(2)
+    expect(run).not.toHaveBeenCalled()
+    expect(showMessageBox.mock.calls[0][0].buttons).toEqual(['Retry', 'Use Default', 'Quit', 'Export diagnostics'])
   })
 
   it('keeps a failed caller action on the same dialog and still honors quit', async () => {
     const run = vi.fn(async () => {
       throw new Error('Could not write the diagnostic archive')
     })
-    showMessageBox.mockResolvedValueOnce({ response: 5 }).mockResolvedValueOnce({ response: 1 })
+    showMessageBox.mockResolvedValueOnce({ response: 2 }).mockResolvedValueOnce({ response: 1 })
 
     const response = await showSupportedMessageBox({
       box,
@@ -141,12 +164,12 @@ describe('showSupportedMessageBox', () => {
     expect(showMessageBox.mock.calls[0][0]).toMatchObject({
       title: '错误',
       message: 'Cherry Studio 无法在主窗口中显示此错误。',
-      detail: '自动分析不可用。你可以复制错误、发送反馈或打开官方发布页。',
-      buttons: ['关闭', '复制错误', '发送反馈', '打开发布页']
+      buttons: ['关闭', '复制错误并反馈…', '打开官网下载页']
     })
+    expect(showMessageBox.mock.calls[0][0].detail).toBeUndefined()
   })
 
-  it('waits until Electron is ready and says analysis is unavailable', async () => {
+  it('waits until Electron is ready before showing the dialog', async () => {
     isReady.mockReturnValue(false)
     let markReady: () => void = () => undefined
     whenReady.mockImplementation(
@@ -167,7 +190,7 @@ describe('showSupportedMessageBox', () => {
 
     markReady()
     await expect(pending).resolves.toBe(1)
-    expect(showMessageBox.mock.calls[0][0].detail).toContain('Automatic analysis is unavailable')
+    expect(showMessageBox.mock.calls[0][0].detail).toBe(box.detail)
     expect(JSON.stringify(showMessageBox.mock.calls[0][0])).not.toContain('/Users/private')
   })
 
@@ -192,23 +215,18 @@ describe('showSupportedMessageBox', () => {
     {
       locale: 'en-US',
       ok: 'OK',
-      copy: 'Copy error',
-      feedback: 'Send feedback',
-      releases: 'Open releases',
-      analysis:
-        'Automatic analysis is unavailable. You can copy the error, send feedback, or open the official releases.'
+      support: 'Copy error and send feedback…',
+      releases: 'Open download page'
     },
     {
       locale: 'zh-CN',
       ok: '确定',
-      copy: '复制错误',
-      feedback: '发送反馈',
-      releases: '打开发布页',
-      analysis: '自动分析不可用。你可以复制错误、发送反馈或打开官方发布页。'
+      support: '复制错误并反馈…',
+      releases: '打开官网下载页'
     }
   ])(
     'reads $locale only after Electron is ready and shows that catalog without PreferenceService',
-    async ({ locale, ok, copy, feedback, releases, analysis }) => {
+    async ({ locale, ok, support, releases }) => {
       isReady.mockReturnValue(false)
       getLocale.mockImplementation(() => {
         expect(isReady()).toBe(true)
@@ -243,8 +261,7 @@ describe('showSupportedMessageBox', () => {
       expect(showMessageBox.mock.calls[0][0]).toMatchObject({
         title: 'Database Unavailable',
         message: 'The caller supplied this sentence.',
-        detail: analysis,
-        buttons: [ok, copy, feedback, releases]
+        buttons: [ok, support, releases]
       })
       expect(JSON.stringify(showMessageBox.mock.calls[0][0])).not.toContain('[to be translated]')
       expect(showMessageBox.mock.calls[0][0].buttons[0]).not.toBe('dialog.support.ok')

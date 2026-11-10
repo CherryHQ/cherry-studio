@@ -35,23 +35,32 @@ required service tier.`
     })
   })
 
-  it('shows a Cherry AI plan quota rejection in the plan wording without provider settings', () => {
+  it('titles a Cherry AI plan quota rejection with the plan wording and keeps the raw text for the detail modal', () => {
     const planText = '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 30天8小时后重试。'
-    const key = toast.errorFromException(
-      {
-        name: 'Error',
-        message: `429: ${JSON.stringify({ message: planText, type: 'rate_limit_error' })}`,
-        statusCode: 429,
-        providerErrorCategory: 'quota'
-      },
-      { provider: { id: 'cherryai-subscription', name: 'CherryAI' }, modelName: 'DeepSeek V4.1 Flash' }
-    )
-
-    expect(toast.getToastQueue().toasts.find((item) => item.key === key)).toMatchObject({
-      title: enUS['models.detail.quota_exhausted'],
-      details: planText,
-      action: undefined
+    const failure = {
+      name: 'Error',
+      message: `429: ${JSON.stringify({ message: planText, type: 'rate_limit_error' })}`,
+      statusCode: 429,
+      providerErrorCategory: 'quota'
+    }
+    const key = toast.errorFromException(failure, {
+      provider: { id: 'cherryai-subscription', name: 'CherryAI' },
+      modelName: 'DeepSeek V4.1 Flash'
     })
+
+    const shown = toast.getToastQueue().toasts.find((item) => item.key === key)
+    expect(shown).toMatchObject({ title: enUS['models.detail.quota_exhausted'], action: undefined, cause: failure })
+    expect(shown?.details).toBeUndefined()
+  })
+
+  it('never shows unclassified provider text on the toast surface', () => {
+    const raw = 'upstream exploded: weird_vendor_code_42'
+    const key = toast.errorFromException({ name: 'Error', message: raw }, { provider: { id: 'acme', name: 'Acme' } })
+
+    const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+    expect(shown.title).toBe(enUS['error.diagnosis.unknown'])
+    expect(shown.details).toBeUndefined()
+    expect(JSON.stringify([shown.title, shown.description])).not.toContain('weird_vendor_code_42')
   })
 })
 

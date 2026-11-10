@@ -63,7 +63,7 @@ describe('ToastHost error details', () => {
         title: 'Generation failed'
       })
     })
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     const opened = mocks.open.mock.calls[0]?.[0]
     expect(opened?.context).toMatchObject({
@@ -83,7 +83,7 @@ describe('ToastHost error details', () => {
     act(() => {
       toast.error({ title: 'Backup failed' })
     })
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     expect(mocks.open.mock.calls[0]?.[0].localizedErrorMessage).toBe('Backup failed')
   })
@@ -95,7 +95,7 @@ describe('ToastHost error details', () => {
     act(() => {
       toast.error({ cause: new Error('disk full'), title: <span>not text</span> })
     })
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     const opened = mocks.open.mock.calls[0]?.[0]
     expect(opened?.context.message).toBe('disk full')
@@ -110,17 +110,28 @@ describe('ToastHost error details', () => {
     act(() => {
       toast.error({ cause: new Error('first'), key: 'sync', title: 'First failure' })
     })
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     const first = mocks.open.mock.calls[0]?.[0]
 
     act(() => {
       toast.error({ cause: new Error('second'), key: 'sync', title: 'Second failure' })
     })
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     const second = mocks.open.mock.calls[1]?.[0]
 
     expect(second?.context.id).not.toBe(first?.context.id)
     expect(second?.context.message).toBe('second')
     expect(first?.context.id).toEqual(expect.any(String))
+  })
+
+  it('offers no detail entry on a toast that must not open another error detail', () => {
+    render(<ToastHost />)
+
+    act(() => {
+      toast.error({ data: { suppressDetail: true }, title: 'Could not open error details' })
+    })
+
+    expect(screen.getByText('Could not open error details')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: i18n.t('common.detail') })).not.toBeInTheDocument()
   })
 })

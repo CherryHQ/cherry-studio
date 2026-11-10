@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
+import { ErrorDetailLink } from '@renderer/components/ErrorDetailLink'
 import { openLoadedErrorDetail, showDetailOpenFailed } from '@renderer/services/appErrorDetailOpen'
 import type { AppErrorDetailRequest, InlineErrorDetailInput } from '@renderer/services/AppErrorDetailService'
 
@@ -55,7 +54,6 @@ function loadFaultRequest(
 }
 
 export function ErrorDetailAction(props: InlineErrorDetailInput) {
-  const { t } = useTranslation()
   const requestRef = useRef<AppErrorDetailRequest | undefined>(undefined)
   const loadRef = useRef<DetailLoad | undefined>(undefined)
   const propsRef = useRef(props)
@@ -104,9 +102,5 @@ export function ErrorDetailAction(props: InlineErrorDetailInput) {
     openSnapshot()
   }
 
-  return (
-    <Button type="button" size="sm" variant="outline" onClick={openCurrent}>
-      {t('error.details')}
-    </Button>
-  )
+  return <ErrorDetailLink onClick={openCurrent} />
 }

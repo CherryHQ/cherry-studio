@@ -47,7 +47,7 @@ describe('ErrorDetailAction occurrence identity', () => {
     await vi.waitFor(() => {
       expect(mocks.factoryCalls).toBe(1)
     })
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await act(async () => {
       mocks.release()
     })
@@ -55,7 +55,7 @@ describe('ErrorDetailAction occurrence identity', () => {
       expect(mocks.open).toHaveBeenCalledTimes(1)
     })
 
-    await user.click(screen.getByRole('button', { name: i18n.t('error.details') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     expect(mocks.built).toBe(1)
     expect(mocks.open).toHaveBeenCalledTimes(2)

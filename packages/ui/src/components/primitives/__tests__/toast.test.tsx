@@ -226,7 +226,7 @@ describe('Toast', () => {
     expect(title).toHaveClass('break-words')
     expect(title).not.toHaveClass('truncate')
     expect(screen.getByText('The item can be restored for 30 days.')).toBeVisible()
-    expect(actionButton.parentElement).toHaveClass('flex-wrap', 'justify-end')
+    expect(actionButton.parentElement).toHaveClass('flex-wrap')
     expect(actionButton.parentElement).toContainElement(secondaryButton)
     expect(actionButton.parentElement).not.toContainElement(closeButton)
     expect(closeButton).toBeVisible()
@@ -525,12 +525,19 @@ describe('Toast', () => {
     expect(screen.queryByText('First failure')).not.toBeInTheDocument()
   })
 
-  it('keeps the title on its own row when details and both actions are present', () => {
-    render(
-      <ToastViewport
-        renderExtra={(record) => (record.type === 'error' ? <button type="button">Details</button> : null)}
-      />
-    )
+  it('ends the description row with the host extra when the toast has no action', () => {
+    render(<ViewportWithDetailLink />)
+
+    act(() => {
+      toast.error({ description: 'OpenAI · GPT 5.4', title: 'Too many requests' })
+    })
+
+    const details = screen.getByRole('button', { name: 'Details' })
+    expect(screen.getByText('OpenAI · GPT 5.4').parentElement).toContainElement(details)
+  })
+
+  it('moves the host extra after the actions, off the title and description rows, when there is an action', () => {
+    render(<ViewportWithDetailLink />)
 
     act(() => {
       toast.error({
@@ -541,11 +548,22 @@ describe('Toast', () => {
       })
     })
 
-    const title = screen.getByText('Image generation failed because the provider rejected the request')
-    expect(title.className).not.toContain('truncate')
-    expect(title.parentElement).not.toContainElement(screen.getByRole('button', { name: 'Retry' }))
-    expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Logs' })).toBeInTheDocument()
-    expect(screen.getByText('The provider rejected the image request with status 429.')).toBeInTheDocument()
+    const details = screen.getByRole('button', { name: 'Details' })
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    const footer = retry.parentElement!
+    expect(footer).toContainElement(details)
+    expect(footer).toContainElement(screen.getByRole('button', { name: 'Logs' }))
+    expect(retry.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      screen.getByText('The provider rejected the image request with status 429.').parentElement
+    ).not.toContainElement(details)
   })
 })
+
+function ViewportWithDetailLink() {
+  return (
+    <ToastViewport
+      renderExtra={(record) => (record.type === 'error' ? <button type="button">Details</button> : null)}
+    />
+  )
+}
