@@ -26,6 +26,9 @@ const logger = loggerService.withContext('ErrorBlock')
 const CLAUDE_CODE_SETTINGS_TARGET = '/settings/provider?id=claude-code'
 
 /** Short conclusion + one-sentence cause/next step; `unknown` has no fixed info (AI summary or raw text). */
+/** A slow or unreachable summarizer must not leave the card on its placeholder. */
+const SUMMARY_TIMEOUT_MS = 8000
+
 const NOTICE_KEYS: Record<ErrorCategory, { readonly title: string; readonly info?: string }> = {
   auth: { title: 'error.notice.auth.title', info: 'error.notice.auth.info' },
   bad_request: { title: 'error.notice.bad_request.title', info: 'error.notice.bad_request.info' },
@@ -162,12 +165,19 @@ const MessageErrorInfo: React.FC<{
     if (!summaryEligible || !currentError) return
     let cancelled = false
     const fault = summaryFault
-    void diagnoseMessageError({
-      message: messageRef.current,
-      partId,
-      error: currentError,
-      language: i18n.language
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<string>((resolve) => {
+      timer = setTimeout(() => resolve(''), SUMMARY_TIMEOUT_MS)
     })
+    void Promise.race([
+      diagnoseMessageError({
+        message: messageRef.current,
+        partId,
+        error: currentError,
+        language: i18n.language
+      }),
+      timeout
+    ])
       .then((result) => {
         if (cancelled) return
         const summary = typeof result === 'string' ? result : (result?.summary ?? '')
@@ -178,6 +188,7 @@ const MessageErrorInfo: React.FC<{
       })
     return () => {
       cancelled = true
+      clearTimeout(timer)
     }
   }, [diagnoseMessageError, i18n.language, partId, summaryEligible, summaryFault])
 
@@ -269,6 +280,7 @@ const MessageErrorInfo: React.FC<{
   return (
     <ErrorNotice
       className="my-2"
+      role="group"
       title={title}
       info={info}
       action={action}
