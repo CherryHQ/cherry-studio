@@ -155,6 +155,25 @@ function retainedConnection() {
 }
 
 /**
+ * A detached completion is resolved to the reply its provenance names, so a wake that must continue
+ * the spawning agent's reply instead of folding into the reply the session currently holds needs the
+ * projection lookup the runtime would have populated. Only the members the wake path touches exist.
+ */
+function wakeProjection(replyId: string) {
+  return {
+    toolCallMessageId: () => replyId,
+    lastMessageId: replyId,
+    parts: () => [],
+    prepare: (message: any) => message,
+    control: () => undefined,
+    accept: () => true,
+    resolveToolApproval: () => true,
+    taskEvent: () => ({ parts: [] }),
+    checkpoint: () => ({ contextId: 'context-1', root: { removed: [], sources: {} } })
+  } as any
+}
+
+/**
  * Drive the switch up to the point A's autonomous reply is streaming and B's accepted input is
  * deferred behind it. Returns the turn/reader so the caller controls when the stream is torn down.
  */
@@ -180,9 +199,18 @@ async function streamAutonomousReplyUnderDeferredSwitch(service: Service) {
   })
 
   mocks.saveMessage.mockClear()
+  // The detach's provenance names A's reply, so the wake continues it instead of folding into the
+  // reply B's accepted input currently holds.
+  const acceptedTurn = (entry.runtimeState.execution as { reply: { turn: any } }).reply.turn
+  acceptedTurn.projection = wakeProjection('assistant-1')
   ;(service as any).handleRuntimeEvent(
     entry,
-    { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+    {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'background-work' },
+      sourceToolCallIds: ['detached-call']
+    },
     retained
   )
   await flush()
@@ -409,9 +437,18 @@ describe('retained-reply interruption hands B back only after A persists', () =>
     })
 
     mocks.saveMessage.mockClear()
+    // The detach's provenance names A's reply, so the wake continues it instead of folding into the
+    // reply B's accepted input currently holds.
+    const heldTurn = (entry.runtimeState.execution as { reply: { turn: any } }).reply.turn
+    heldTurn.projection = wakeProjection('assistant-1')
     ;(service as any).handleRuntimeEvent(
       entry,
-      { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+      {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' },
+        sourceToolCallIds: ['detached-call']
+      },
       retained
     )
     await flush()
@@ -491,9 +528,18 @@ describe('retained-reply interruption hands B back only after A persists', () =>
       })
 
       mocks.saveMessage.mockClear()
+      // The detach's provenance names A's reply, so the wake continues it instead of folding into
+      // the reply B's accepted input currently holds.
+      const heldTurn = (entry.runtimeState.execution as { reply: { turn: any } }).reply.turn
+      heldTurn.projection = wakeProjection('assistant-1')
       ;(service as any).handleRuntimeEvent(
         entry,
-        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        {
+          type: 'autonomous-turn-state',
+          state: 'started',
+          origin: { kind: 'background-work' },
+          sourceToolCallIds: ['detached-call']
+        },
         retained
       )
       // B's input suspension has started while the receive-only launch has not persisted its
@@ -597,9 +643,18 @@ describe('retained-reply interruption hands B back only after A persists', () =>
     })
 
     mocks.saveMessage.mockClear()
+    // The detach's provenance names A's reply, so the wake continues it instead of folding into the
+    // reply B's accepted input currently holds.
+    const heldTurn = (entry.runtimeState.execution as { reply: { turn: any } }).reply.turn
+    heldTurn.projection = wakeProjection('assistant-1')
     ;(service as any).handleRuntimeEvent(
       entry,
-      { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+      {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' },
+        sourceToolCallIds: ['detached-call']
+      },
       retained
     )
     // A's reply finishes and the work releases while B's unadmitted stream is still suspending —

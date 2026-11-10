@@ -35,7 +35,7 @@
 | [Agent Lifecycle](./references/ai/agent-lifecycle.md) | Agent lifecycle command ownership, atomic archive and restore, schedule recovery, purge, and backup quiescing |
 | [Agent Loop](./references/ai/agent-loop.md) | The Agent class wrapping single-pass AI SDK streaming with composeHooks-merged hook contributions and error semantics |
 | [Agent Prompt Layers](./references/ai/agent-prompt-layers.md) | Precedence and lifecycle of agent prompt sources — System Prompt, workspace system.md, SOUL.md persona, and variables |
-| [Agent Session Fork](./references/ai/agent-session-fork.md) | Native Agent session forks — service ownership, opaque checkpoints, workspace handling, publication, and recovery |
+| [Agent Session Fork](./references/ai/agent-session-fork.md) | Native Agent history operations — service ownership, opaque checkpoints, workspace handling, publication, and recovery |
 | [Agent Session Runtime](./references/ai/agent-session-runtime.md) | Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer |
 | [AI Usage Records](./references/ai/ai-usage-records.md) | Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection |
 | [Browser Use — Gap Analysis & Design](./references/ai/browser-use-design.md) | Browser automation design, ownership boundaries, capability gaps, and delivery roadmap |

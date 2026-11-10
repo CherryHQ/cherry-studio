@@ -1,9 +1,12 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
-import { createAssistantMessageEventStream, Type } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
+import { obj } from '@earendil-works/pi-schema'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -84,7 +87,7 @@ vi.mock('./piMcpExtension', async (original) => ({
         name: buildPiMcpToolName('cherry-tools', name),
         label: name,
         description: name,
-        parameters: Type.Object({}),
+        parameters: obj({}),
         execute: async () => {
           mocks.delegated()
           return { content: [{ type: 'text', text: 'delegated' }] }
@@ -222,8 +225,10 @@ describe('desktop Pi root connection', () => {
     })()
     return { connection, events, consuming, nativeInputs }
   }
-  async function done(events: AgentRuntimeEvent[]) {
-    await expect.poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error')).toBe(true)
+  async function done(events: AgentRuntimeEvent[], timeout?: number) {
+    await expect
+      .poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error'), { timeout })
+      .toBe(true)
   }
   function projected(events: AgentRuntimeEvent[]) {
     const messages = new Map<
@@ -247,6 +252,80 @@ describe('desktop Pi root connection', () => {
     const directory = application.getPath('feature.agents.pi.sessions')
     return existsSync(directory) ? readdirSync(directory) : []
   }
+
+  it.each([false, true])('limits PowerShell exposure to Windows and honors disabledTools (%s)', async (disabled) => {
+    snapshot.agent.disabledTools = disabled ? ['PowerShell'] : []
+    const { connection, events } = await connect()
+    await connection.send({ message: message('List available tools') })
+    await done(events)
+    const names = script.calls[0].tools.map((tool) => tool.name)
+    if (process.platform === 'win32' && !disabled) expect(names).toContain('powershell')
+    else expect(names).not.toContain('powershell')
+  })
+
+  it.runIf(process.platform === 'win32')(
+    'runs PowerShell file commands with Unicode and space-containing paths',
+    async () => {
+      setScript([
+        assistantReply(
+          [
+            {
+              type: 'toolCall',
+              id: 'powershell-file',
+              name: 'powershell',
+              arguments: {
+                command:
+                  "Set-Content -LiteralPath './报告 with spaces.txt' -Value 'PowerShell 正常' -Encoding utf8; Get-Content -LiteralPath './报告 with spaces.txt'"
+              }
+            }
+          ],
+          'toolUse'
+        ),
+        assistantReply('PowerShell finished')
+      ])
+      const { connection, events } = await connect()
+      await connection.send({ message: message('Write and read the PowerShell fixture') })
+      await done(events, 10_000)
+      expect(
+        readFileSync(join(directory, '报告 with spaces.txt'), 'utf8')
+          .replace(/^\uFEFF/, '')
+          .trim()
+      ).toBe('PowerShell 正常')
+      const output = projected(events)
+        .flatMap((entry) => entry.parts)
+        .find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'powershell-file')
+      expect(output).toMatchObject({ state: 'output-available' })
+      expect(JSON.stringify(output)).toContain('PowerShell 正常')
+    }
+  )
+
+  it('lets subagents write without approval when the root uses default permissions', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        if (!call.messages.some((entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-write'))
+          return assistantReply(
+            [toolCallPart('child-write', 'write', { path: 'child-result.txt', content: 'child completed' })],
+            'toolUse'
+          )
+        return assistantReply('child done')
+      }
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'write', prompt: 'write result', fork: false })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await done(events)
+    expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
+    expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
 
   it.each(['auto', 'bypassPermissions'] as const)(
     'preserves live delegation approval in %s mode after connecting through the Runtime',
@@ -341,6 +420,58 @@ describe('desktop Pi root connection', () => {
     expect(existsSync(join(directory, 'original.txt'))).toBe(false)
     expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('Redis')
     expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  // Catches a mid-turn mode switch that only reaches the next turn: the running turn's next tool call
+  // would still be approved (or skipped) under the mode the user just left.
+  it.each([
+    { from: 'bypassPermissions', to: 'default', asksForWrite: true },
+    { from: 'default', to: 'bypassPermissions', asksForWrite: false }
+  ] as const)('applies a $from → $to switch to the running turn', async ({ from, to, asksForWrite }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: from }
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('ask', 'AskUserQuestion', {
+            questions: [
+              {
+                question: 'Continue?',
+                header: 'Continue',
+                options: [
+                  { label: 'Yes', description: 'Go on' },
+                  { label: 'No', description: 'Stop' }
+                ]
+              }
+            ]
+          })
+        ],
+        'toolUse'
+      ),
+      assistantReply([toolCallPart('write', 'write', { path: 'after-switch.txt', content: 'written' })], 'toolUse'),
+      assistantReply('finished')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('ask then write') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: to }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
+      approved: true,
+      updatedInput: { answers: { 'Continue?': 'Yes' } }
+    })
+
+    if (asksForWrite) {
+      await expect.poll(() => approvals().length).toBe(2)
+      expect(approvals()[1].request).toMatchObject({ toolCallId: 'write' })
+      expect(existsSync(join(directory, 'after-switch.txt'))).toBe(false)
+      toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
+    }
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(approvals()).toHaveLength(asksForWrite ? 2 : 1)
+    expect(readFileSync(join(directory, 'after-switch.txt'), 'utf8')).toBe('written')
   })
 
   // Catches shutdown waiting indefinitely for an unanswered desktop question.
@@ -749,6 +880,42 @@ describe('desktop Pi root connection', () => {
     expect(events[started]).toMatchObject({ origin: { kind: 'goal-round', round: 1 } })
   })
 
+  // Catches a verdict rejected as unverified only because the model wrapped its JSON in prose or a code fence.
+  it.each([
+    ['a markdown code fence', '```json\n{"verdict":"met","reason":"checked"}\n```'],
+    ['a prose preamble', 'Here is the verdict:\n{"verdict":"met","reason":"checked"}']
+  ])('completes a goal when the verifier wraps its verdict in %s', async (_shape, verdict) => {
+    script = respondingModel((call) => {
+      if (call.systemPrompt?.includes('Evaluate whether the objective')) return assistantReply(verdict)
+      const last = call.messages.at(-1)
+      if (last?.role === 'toolResult' && last.toolName === 'get_goal') {
+        const content = last.content.find((part) => part.type === 'text')
+        if (content?.type !== 'text') throw new Error('No goal view')
+        const { goal } = JSON.parse(content.text)
+        return assistantReply(
+          [
+            toolCallPart('complete', 'update_goal', {
+              goal_id: goal.id,
+              revision: goal.revision,
+              action: 'complete',
+              evidence: 'checked files'
+            })
+          ],
+          'toolUse'
+        )
+      }
+      if (last?.role === 'toolResult') return assistantReply('completed')
+      return assistantReply([toolCallPart('get', 'get_goal')], 'toolUse')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('/goal check the files') })
+    await expect.poll(() => text(events)).toContain('completed')
+    const completion = projected(events)
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === 'dynamic-tool' && part.toolName === 'update_goal')
+    expect(completion).toMatchObject({ state: 'output-available' })
+  })
+
   it('streams through the Runtime, keeps native identity without mirroring completion, and saves a native checkpoint', async () => {
     const { connection, events } = await connect()
     expect(nativeFiles()).toEqual([])
@@ -824,6 +991,30 @@ describe('desktop Pi root connection', () => {
       expect(nativeFiles()).toHaveLength(1)
     }
   )
+
+  it.each(['trashed', 'deleted'] as const)('releases a settled runtime after its session is %s', async (state) => {
+    const { connection, events, consuming } = await connect()
+    const user = message('finish before deletion')
+    await connection.send({ message: user })
+    await done(events)
+    const row = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, input.sessionId)).get()!
+    if (state === 'deleted') dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, input.sessionId)).run()
+    else
+      dbh.db
+        .update(agentSessionTable)
+        .set({ deletedAt: Date.now() })
+        .where(eq(agentSessionTable.id, input.sessionId))
+        .run()
+    try {
+      await expect(connection.close()).resolves.toBeUndefined()
+      await consuming
+      await expect(connection.send({ message: user })).rejects.toThrow('unavailable')
+    } finally {
+      if (state === 'deleted') dbh.db.insert(agentSessionTable).values(row).run()
+      else
+        dbh.db.update(agentSessionTable).set({ deletedAt: null }).where(eq(agentSessionTable.id, input.sessionId)).run()
+    }
+  })
 
   it('reopens the native history without replaying archived content into the live product stream', async () => {
     const first = await connect()
@@ -1040,6 +1231,7 @@ describe('desktop Pi root connection', () => {
   })
 
   it('forwards attachment paths through the input boundary while keeping input identities private', async () => {
+    const attachmentPath = join(directory, 'note.txt')
     const user = messages.saveMessage({
       sessionId: input.sessionId,
       message: {
@@ -1048,7 +1240,7 @@ describe('desktop Pi root connection', () => {
         data: {
           parts: [
             { type: 'text', text: 'read the attachment' },
-            { type: 'file', filename: 'note.txt', mediaType: 'text/plain', url: 'file:///tmp/note.txt' }
+            { type: 'file', filename: 'note.txt', mediaType: 'text/plain', url: pathToFileURL(attachmentPath).href }
           ]
         }
       }
@@ -1057,7 +1249,7 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: user })
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
-    expect(JSON.stringify(script.calls[0].messages)).toContain('/tmp/note.txt')
+    expect(JSON.stringify(script.calls[0].messages)).toContain(JSON.stringify(attachmentPath).slice(1, -1))
     expect(messages.inputBinding(input.sessionId, user.id)?.nativeInputId).toBeDefined()
     const saved = messages.getSessionMessage(input.sessionId, user.id)
     expect(saved).not.toHaveProperty('inputContextId')

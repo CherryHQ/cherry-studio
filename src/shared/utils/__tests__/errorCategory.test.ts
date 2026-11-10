@@ -2,6 +2,29 @@ import { describe, expect, it } from 'vitest'
 
 import { classifyErrorCategory, isProxyErrorMessage } from '../errorCategory'
 
+describe('classifyErrorCategory unusable API responses', () => {
+  const text =
+    'API Error: API returned an empty or malformed response (HTTP 200) — check for a proxy or gateway intercepting the request'
+
+  it.each([undefined, 200])('identifies an invalid response with status %s', (status) => {
+    expect(classifyErrorCategory({ text, status })).toBe('parse')
+  })
+
+  it.each([
+    [401, 'auth'],
+    [429, 'rate_limit'],
+    [502, 'server']
+  ] as const)('preserves structured status %s over the response wording', (status, category) => {
+    expect(classifyErrorCategory({ text, status })).toBe(category)
+  })
+
+  it('does not infer a response failure from an invalid request', () => {
+    expect(classifyErrorCategory({ text: 'API received an empty or malformed request', status: 400 })).toBe(
+      'bad_request'
+    )
+  })
+})
+
 describe('classifyErrorCategory HTTP 400', () => {
   it('identifies a provider request failure without guessing its cause', () => {
     expect(classifyErrorCategory({ status: 400, text: 'API Error: 400 Provider returned error' })).toBe('bad_request')

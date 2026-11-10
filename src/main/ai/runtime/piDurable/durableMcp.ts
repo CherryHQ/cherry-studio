@@ -1,6 +1,7 @@
 import type { JsonValue } from '@earendil-works/chord'
 import type { TextContent, ImageContent } from '@earendil-works/pi-ai'
 import type { ToolRegistration } from '@earendil-works/pi-durable'
+import type { Schema } from '@earendil-works/pi-schema'
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
@@ -10,10 +11,7 @@ import { buildPiMcpToolName } from '../pi/piMcpExtension'
 
 /** Native Durable tools retain replay policy; MCP remains a desktop transport. */
 export async function createDurableMcp(servers: Record<string, AgentMcpServer>) {
-  const [{ defineTool, defineExtension }, { Type }] = await Promise.all([
-    import('@earendil-works/pi-durable'),
-    import('@earendil-works/pi-ai')
-  ])
+  const { defineTool, defineExtension } = await import('@earendil-works/pi-durable')
   const clients: Client[] = []
   const metadata = new Map<string, { type: 'mcp'; name: string; serverId: string; serverName: string }>()
   const close = () => Promise.all(clients.map((client) => client.close())).then(() => undefined)
@@ -41,13 +39,14 @@ export async function createDurableMcp(servers: Record<string, AgentMcpServer>) 
         const raw = buildPiMcpToolName(serverId, tool.name)
         const name = buildPiMcpToolName(serverId, tool.name, names.indexOf(raw) !== names.lastIndexOf(raw))
         metadata.set(name, { type: 'mcp', name: tool.name, serverId, serverName: server.name })
+        const parameters: Schema<Record<string, unknown>> = tool.inputSchema
         tools.push(
           defineTool({
             name,
             contextSource: { kind: 'mcp-tools', source: server.name },
             description: tool.description ?? tool.name,
-            parameters: Type.Unsafe<Record<string, unknown>>(tool.inputSchema),
-            ...(tool.outputSchema && { structuredOutputSchema: Type.Unsafe(tool.outputSchema) }),
+            parameters,
+            ...(tool.outputSchema && { structuredOutputSchema: tool.outputSchema }),
             replay: tool.annotations?.readOnlyHint === true ? 'safe' : 'unsafe',
             callers: serverId === 'automation' ? ['model', 'tools'] : ['tools'],
             async execute(args, _api, context) {

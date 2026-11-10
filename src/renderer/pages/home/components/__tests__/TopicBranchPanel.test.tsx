@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import type * as CommandComponents from '@renderer/components/command'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { TreeNode, TreeResponse } from '@shared/data/types/message'
@@ -49,7 +50,7 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: { emit: mocks.eventEmit }
 }))
 
-vi.mock('@renderer/components/command', async () => {
+vi.mock('@renderer/components/command', async (importOriginal) => {
   const React = await import('react')
   type MockExtraItem = {
     id?: string
@@ -60,6 +61,7 @@ vi.mock('@renderer/components/command', async () => {
   }
 
   return {
+    ...(await importOriginal<typeof CommandComponents>()),
     CommandContextMenu: ({
       children,
       getExtraItems,
@@ -289,7 +291,7 @@ describe('TopicBranchPanel', () => {
     const listener = mocks.useDataChange.mock.calls.at(-1)?.[1] as (() => void) | undefined
     listener?.()
 
-    expect(mocks.refetchTree).toHaveBeenCalledOnce()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(2)
   })
 
   it('sets the active branch without a redundant tree refetch', async () => {
@@ -309,7 +311,7 @@ describe('TopicBranchPanel', () => {
     expect(mocks.useMutation).toHaveBeenCalledWith('PUT', '/topics/:id/active-node', {
       refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
     })
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('locates the current active node without writing branch state', async () => {
@@ -345,7 +347,7 @@ describe('TopicBranchPanel', () => {
     expect(onLocateMessage).toHaveBeenCalledWith('message-1')
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('locates an ancestor on the current active path without switching branch', async () => {
@@ -391,7 +393,7 @@ describe('TopicBranchPanel', () => {
     expect(onLocateMessage).toHaveBeenCalledWith('message-1')
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('renders live branch preview without refetching the topic tree per chunk', () => {
@@ -420,7 +422,7 @@ describe('TopicBranchPanel', () => {
     expect(screen.getByText('streaming live preview')).toBeInTheDocument()
     fireEvent.contextMenu(screen.getByText('streaming live preview'))
     expect(screen.queryByRole('button', { name: 'Delete branch' })).not.toBeInTheDocument()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('falls back to the tree preview after live branch state is cleared', () => {
@@ -496,7 +498,7 @@ describe('TopicBranchPanel', () => {
     })
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
     expect(mocks.eventEmit).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('chat.message.new.branch.created')
   })
@@ -563,7 +565,7 @@ describe('TopicBranchPanel', () => {
         params: { id: 'topic-1' }
       })
     })
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('requires confirmation to delete a persisted empty reservation alone', async () => {

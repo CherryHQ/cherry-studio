@@ -46,12 +46,10 @@ interface UseFollowupQueueParams {
   /** Stream completion is independent of the conversation list read receipt. */
   status: TopicStreamStatus | undefined
   lastCompletedAt: number | null
-  /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
+  /** Resolves to whether the submission was accepted; execution completes separately. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
   /** Called when a send fails and leaves the queued draft paused for retry. */
   onDrainFailed?: () => void
-  /** Holds auto-drain without pausing the queue, e.g. while the model is out of quota. */
-  blocked?: boolean
 }
 
 export interface FollowupEditOptions {
@@ -91,8 +89,7 @@ export function useFollowupQueue({
   status,
   lastCompletedAt,
   onDrain,
-  onDrainFailed,
-  blocked = false
+  onDrainFailed
 }: UseFollowupQueueParams): FollowupQueueController {
   const readState = useCallback(
     () => ({
@@ -271,12 +268,12 @@ export function useFollowupQueue({
   )
 
   useEffect(() => {
-    if (blocked || state.scopeKey !== scopeKey || state.paused || status !== 'done' || lastCompletedAt == null) return
+    if (state.scopeKey !== scopeKey || state.paused || status !== 'done' || lastCompletedAt == null) return
     const head = state.items[0]
     const drained = loadCompletion(scopeKey)
     if (!head || drained.pendingIds.length > 0 || (drained.consumed && drained.completedAt === lastCompletedAt)) return
     void sendItem(head.id, lastCompletedAt)
-  }, [blocked, scopeKey, status, lastCompletedAt, state, sendItem])
+  }, [scopeKey, status, lastCompletedAt, state, sendItem])
 
   return {
     items: state.items,

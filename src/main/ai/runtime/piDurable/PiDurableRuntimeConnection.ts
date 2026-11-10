@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import type { Usage } from '@earendil-works/pi-ai'
 
-import type { BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
+import type { BehaviorEvent } from '@cherrystudio/agent-behavior'
 import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
 import type {
   DurableObservation,
@@ -11,10 +11,8 @@ import type {
 } from '@cherrystudio/agent-runtime-pi-durable'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
-import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
-import { prepareDurableRoot } from '@main/ai/agentSession/durableNativeContext'
 import {
   prepareNativeSubmission,
   lookupNativeInput,
@@ -26,15 +24,13 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { t } from '@main/i18n'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
-import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { buildAgentUserContent } from '../agentUserContent'
-import { childTaskStatus } from '../pi/childTaskStatus'
-import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
-import { createPiBehaviorHost } from '../pi/piBehaviorHost'
+import { PiChildTasks } from '../pi/PiChildTasks'
 import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
 import { PiMessageMetadata } from '../pi/PiMessageMetadata'
+import { PiTurnUsage } from '../pi/PiTurnUsage'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -43,12 +39,13 @@ import type {
   AgentRuntimeTraceContext,
   AgentRuntimeCommand
 } from '../types'
-import { prepareDurableBranch } from './durableContext'
-import { prepareDurableDesktop } from './durableDesktop'
+import type { DurableBackend, DurableRoot } from './DurableBackend'
+import type { prepareDurableBranch } from './durableContext'
+import { saveDurableRequest } from './durableRequest'
 
 const logger = loggerService.withContext('PiDurableRuntimeConnection')
 
-/** One desktop owner for a Durable SQLite backend and all its child conversations. */
+/** Root access and its observed child projections borrow the backend owner. */
 type DurableChildResource = {
   relation: Subagent
   handle: PiDurableThreadHandle
@@ -67,7 +64,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private handle?: PiDurableThreadHandle
   private observation?: Observation
   private context?: ReturnType<typeof prepareDurableBranch>
-  private desktop?: Awaited<ReturnType<typeof prepareDurableDesktop>>
+  private desktop?: DurableRoot['desktop']
+  private access?: { owner: DurableBackend; root: DurableRoot; release(flush: () => Promise<void>): Promise<void> }
   private closing = false
   private readonly closingAccess = new AbortController()
   private closePromise?: Promise<void>
@@ -78,7 +76,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private failure?: unknown
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
   private providerSessionId?: string
-  private usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  private readonly turnUsage = new PiTurnUsage()
   private reconcileChain: Promise<unknown> = Promise.resolve()
   private readonly steers = new Set<string>()
   private readonly children = new Map<
@@ -86,11 +84,21 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     | { state: 'opening'; pending: Promise<DurableChildResource | undefined> }
     | { state: 'attached' | 'closing'; resource: DurableChildResource }
   >()
-  private readonly childStates = new Map<string, AgentTaskEventPartData>()
+  private readonly childTasks = new PiChildTasks(
+    (id) => this.childOrigin(id),
+    (event) => this.events.push(event)
+  )
   private readonly adapter = new PiMessageMetadata((name) => this.desktop?.mcp.metadata.get(name))
   private projection?: ThreadProjection
 
-  constructor(private readonly input: AgentRuntimeConnectInput) {}
+  constructor(
+    private readonly input: AgentRuntimeConnectInput,
+    private readonly acquire: () => Promise<{
+      owner: DurableBackend
+      root: DurableRoot
+      release(flush: () => Promise<void>): Promise<void>
+    }>
+  ) {}
 
   /** The frozen owner this connection was spawned under, even after the session row moves on. */
   get agentId(): string | undefined {
@@ -99,77 +107,33 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   async start(): Promise<this> {
     try {
-      this.desktop = await prepareDurableDesktop(this.input, (event) => this.events.push(event))
-      const desktop = this.desktop
-      this.context = prepareDurableBranch(this.input.sessionId, this.input.branchHead)
-      const binding = await createPiGatewayModelBinding(
-        this.input,
-        desktop.snapshot.provider,
-        desktop.snapshot.model,
-        (usage, sessionId, responseId) => {
+      this.access = await this.acquire()
+      const { owner, root } = this.access
+      this.desktop = root.desktop
+      this.context = root.context
+      this.runtime = owner.runtime
+      root.sink = {
+        event: (event) => (event.type === 'error' ? this.fail(event.error) : this.events.push(event)),
+        behavior: (event) => this.onBehavior(event),
+        usage: (usage, sessionId, responseId) => {
           if (sessionId === this.providerSessionId) {
             if (responseId) this.events.push({ type: 'response-start', responseId })
             this.recordUsage(usage)
           }
-        }
-      )
-      const behaviorRoot = runtimeId<'thread'>(this.context.nativeThreadId ?? '0')
-      const behavior = await createPiBehaviorHost({
-        input: this.input,
-        root: behaviorRoot,
-        binding,
-        model: desktop.snapshot.model,
-        approval: desktop.approval,
-        bindModel: (model) =>
-          createPiGatewayModelBinding(
-            this.input,
-            providerService.getByProviderId(model.providerId),
-            model,
-            undefined,
-            binding.modelRuntime
-          ),
-        emit: (event) => this.events.push(event),
-        observe: (event) => this.onBehavior(event),
-        usageSessionId: async (thread) => {
-          if (thread === this.handle?.thread.id || thread === behaviorRoot) return this.input.sessionId
-          const child = await this.observeChild(thread)
-          if (!child) throw new Error('Native child usage context is unavailable')
-          return child.projection.context.sessionId
         },
-        toolCallId: (call) => this.behaviorToolCallId(call)
-      })
-      const root = await prepareDurableRoot(this.context.id)
-      const { createPiDurableRuntime } = await import('@cherrystudio/agent-runtime-pi-durable')
-      const created = await createPiDurableRuntime({
+        placed: (inputId) => {
+          if (inputId && this.steers.has(inputId)) this.input.onSteerInjected?.([inputId])
+        }
+      }
+      const opened = await this.runtime.open({
         backendId: runtimeId(this.context.backendId),
-        openStorage: async () => root.storage,
-        harness: { models: binding.modelRuntime, registry: desktop.registry, env: () => desktop.environment },
-        behavior: {
-          host: behavior.host,
-          configureChild: async (child) => {
-            const configured = await behavior.configureChild(child)
-            return { model: { provider: configured.model.provider, modelId: configured.model.id } }
-          }
-        },
-        onInputPlaced: (inputId) => {
-          const steer = inputId && this.steers.has(inputId) ? inputId : undefined
-          if (steer) this.input.onSteerInjected?.([steer])
-        },
-        onError: (error) => {
-          logger.error('Durable native operation failed', { error })
-          this.failure ??= error
-        }
+        id: runtimeId(this.context.nativeThreadId!)
       })
-      if (created.status !== 'confirmed') throw new Error(created.error.message)
-      this.runtime = created.value
-      const agent = { ...desktop.agentConfig, model: { provider: binding.model.provider, modelId: binding.model.id } }
-      const opened = root.nativeId
-        ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(root.nativeId) })
-        : await this.runtime.create({ ownership: { kind: 'ownerless' }, agent, init: root.init })
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
       this.handle = opened.value
       this.context = contexts.bindContext(this.context.id, this.handle.thread.id)
-      await this.handle.durable.configure(agent)
+      await saveDurableRequest(this.runtime, this.handle.thread.id, this.input)
+      await this.handle.durable.configure(root.agent)
       this.providerSessionId = await this.handle.durable.providerSessionId()
       const observed = await this.handle.durable.observe((batch) => this.onObservation(batch))
       if (observed.status !== 'confirmed') throw new Error(observed.error.message)
@@ -177,8 +141,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       await this.observation.drain()
       await this.childResources()
       this.events.push({ type: 'resume-token', token: this.handle.thread.id })
-      const resumed = await this.runtime.resume()
-      if (resumed.status !== 'confirmed') throw new Error(resumed.error.message)
+      root.attached()
+      await owner.resume()
       return this
     } catch (error) {
       await this.close()
@@ -191,7 +155,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (this.sending) throw new Error('Durable already has an active submission')
     this.sending = true
     this.failure = undefined
-    this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+    this.turnUsage.reset()
     const text = buildAgentUserContent(input.message)
     if (!input.systemReminder && /^\/compact(?:\s|$)/.test(text.trim())) {
       this.compacting = true
@@ -311,7 +275,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       if (batch.completion && !this.compacting && !this.closing && this.sending) {
         const failed = batch.completion.inputs.find((input) => input.outcome && input.outcome !== 'completed')
         if (failed) this.failure ??= new Error(failed.error?.message ?? failed.outcome)
-        this.finishTurn()
+        this.finishTurn(batch.completion.entryId)
       }
     } catch (error) {
       this.fail(error)
@@ -322,7 +286,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.sending = true
     this.autonomous = true
     this.failure = undefined
-    this.usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+    this.turnUsage.reset()
     this.events.push({ type: 'autonomous-turn-state', state: 'started', origin: this.nextOrigin, sourceToolCallIds })
     this.nextOrigin = { kind: 'background-work' }
   }
@@ -339,10 +303,26 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  private finishTurn() {
+  private finishTurn(entryId?: string) {
     if (this.closing || !this.sending) return
     this.sending = false
-    this.events.push(this.failure ? { type: 'error', error: this.failure } : { type: 'turn-complete' })
+    this.events.push(
+      this.failure
+        ? { type: 'error', error: this.failure }
+        : {
+            type: 'turn-complete',
+            ...(entryId && {
+              forkAnchor: {
+                checkpoint: {
+                  runtime: 'pi-durable',
+                  backendId: this.context!.backendId,
+                  conversationId: this.handle!.thread.id,
+                  entryId
+                }
+              }
+            })
+          }
+    )
     if (this.autonomous) {
       this.autonomous = false
       this.events.push({ type: 'autonomous-turn-state', state: 'finished' })
@@ -351,53 +331,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   private onBehavior(event: BehaviorEvent) {
     if (event.type === 'subagents') {
-      for (const view of event.views)
-        this.publishChild(
-          view.sessionId,
-          view.status === 'finished' ? childTaskStatus(view.outcome) : 'in_progress',
-          true
-        )
-      if (!this.handle || event.thread === this.handle.thread.id) {
-        const running = event.views.filter((view) => view.status !== 'finished')
-        this.events.push({
-          type: 'background-tasks',
-          tasks: running.map((view) => ({
-            id: view.sessionId,
-            type: 'subagent',
-            description: view.description,
-            toolCallId: this.childOrigin(view.sessionId)?.toolCallId
-          }))
-        })
-      }
+      this.childTasks.showSubagents(event.views, !this.handle || event.thread === this.handle.thread.id)
     } else if (!this.handle || event.thread === this.handle.thread.id) {
       if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
       if (event.type === 'goal-notice') {
         this.projection?.notice(event.notice.text)
       }
     }
-  }
-
-  private publishChild(id: string, status: AgentTaskEventPartData['status'], background: boolean) {
-    const origin = this.childOrigin(id)
-    const previous = this.childStates.get(id)
-    if (
-      previous &&
-      previous.status === status &&
-      previous.isBackgrounded === background &&
-      previous.toolUseId === origin?.toolCallId
-    )
-      return
-    const data: AgentTaskEventPartData = {
-      event: !previous ? 'started' : status === 'in_progress' ? 'updated' : 'notification',
-      taskId: id,
-      toolUseId: origin?.toolCallId,
-      taskType: 'subagent',
-      title: origin?.description ?? previous?.title,
-      status,
-      isBackgrounded: background
-    }
-    this.childStates.set(id, data)
-    this.events.push({ type: 'background-task-event', data })
   }
 
   private childKey(id: string): string {
@@ -477,7 +417,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
                   for (const child of event.subagents ?? []) if (child.child) void this.observeChild(child.child.id)
                   if (this.closing) return
                   const facts = await access.durable.facts()
-                  this.publishChild(
+                  this.childTasks.publish(
                     id,
                     facts.live.idle
                       ? facts.live.runEnd?.outcome === 'completed'
@@ -485,8 +425,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
                         : facts.live.runEnd?.outcome === 'aborted'
                           ? 'stopped'
                           : 'error'
-                      : 'in_progress',
-                    this.childStates.get(id)?.isBackgrounded ?? false
+                      : 'in_progress'
                   )
                 }
               })
@@ -502,8 +441,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         resource = { relation, handle: access, projection }
         await projection.attach()
         this.children.set(key, { state: 'attached', resource })
-        const previous = this.childStates.get(id)
-        this.publishChild(id, previous?.status ?? 'in_progress', previous?.isBackgrounded ?? false)
+        this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
         return resource
       })
       .catch(async (error) => {
@@ -523,18 +461,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       })
     this.children.set(key, { state: 'opening', pending })
     return pending
-  }
-
-  private async behaviorToolCallId(call: CallRef) {
-    const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
-    if (opened.status !== 'confirmed') throw new Error(opened.error.message)
-    try {
-      const id = await opened.value.durable.behaviorToolCallId(call)
-      if (!id) throw new Error('Durable behavior call has no native identity')
-      return id
-    } finally {
-      await opened.value.release()
-    }
   }
 
   async childProjection(toolCallId: string) {
@@ -565,6 +491,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     const projection = child?.projection
     const handle = child?.handle
     if (!handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
+    await projection.flush()
     const { sessionId } = projection.context
     const id = randomUUID()
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })
@@ -620,15 +547,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private recordUsage(usage: Usage) {
-    this.usage.inputTokens += usage.input + usage.cacheRead + usage.cacheWrite
-    this.usage.outputTokens += usage.output
-    this.usage.totalTokens += usage.totalTokens
     this.events.push({
       type: 'chunk',
-      chunk: {
-        type: 'message-metadata',
-        messageMetadata: { totalTokens: this.usage.totalTokens, stats: { ...this.usage } }
-      }
+      chunk: { type: 'message-metadata', messageMetadata: this.turnUsage.record(usage) }
     })
   }
 
@@ -658,30 +579,31 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async finishClose() {
-    if (this.runtime) {
+    if (!this.access) {
+      this.events.close()
+      return
+    }
+    await this.access.release(async () => {
+      toolApprovalRegistry.abort(this.input.sessionId, 'durable-access-closed')
       await this.observation?.drain()
-      await this.childResources()
-      const result = await this.runtime.shutdown()
-      if (result.status !== 'confirmed') throw new Error(result.error.message)
-      this.runtime = undefined
-    }
-    toolApprovalRegistry.abort(this.input.sessionId, 'durable-owner-closed')
-    await this.observation?.drain()
-    for (const [key, child] of this.children) {
-      const resource = child.state === 'opening' ? await child.pending : child.resource
-      if (!resource) continue
-      this.children.set(key, { state: 'closing', resource })
-      await resource.projection.stop()
-      await resource.handle.release()
-      this.children.delete(key)
-    }
-    await this.observation?.stop()
-    this.observation = undefined
-    await this.projection?.close()
-    this.projection = undefined
-    await this.handle?.release()
-    this.handle = undefined
-    await this.desktop?.close()
+      for (const [key, child] of this.children) {
+        const resource = child.state === 'opening' ? await child.pending : child.resource
+        if (!resource) continue
+        this.children.set(key, { state: 'closing', resource })
+        await resource.projection.stop()
+        await resource.handle.release()
+        this.children.delete(key)
+      }
+      await this.observation?.stop()
+      this.observation = undefined
+      await this.projection?.close()
+      this.projection = undefined
+      await this.handle?.release()
+      this.handle = undefined
+      this.access!.root.sink = undefined
+    })
+    this.access = undefined
+    this.runtime = undefined
     this.desktop = undefined
     this.events.close()
   }

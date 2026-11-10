@@ -13,27 +13,23 @@ function useAccountOrigin(origin: string) {
 describe('openCherryCloudAccountPortal', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it.each([
-    ['https://cloud.cherryai.com.cn', 'https://cloud.cherryai.com.cn/account/plans'],
-    ['https://cloud.cherryai.com', 'https://cloud.cherryai.com/account/plans'],
-    ['http://192.168.1.176:8284', 'http://192.168.1.176:8284/account/plans']
-  ])('opens the portal on the %s account center', async (accountOrigin, portalUrl) => {
-    useAccountOrigin(accountOrigin)
-
-    await openCherryCloudAccountPortal()
-
-    expect(request).toHaveBeenCalledWith('system.shell.open_external_website', `${portalUrl}?entry=desktop`)
-  })
-
-  it('tells the portal which touchpoint and subscription flow the visit came from', async () => {
-    useAccountOrigin('https://cloud.cherryai.com.cn')
-
-    await openCherryCloudAccountPortal({ entrySource: 'quota_notice', flowId: 'f1' })
-
-    expect(request).toHaveBeenCalledWith(
-      'system.shell.open_external_website',
-      'https://cloud.cherryai.com.cn/account/plans?entry=desktop&entry_source=quota_notice&flow_id=f1'
+  it('sends current scope and attribution through the trusted portal command', async () => {
+    request.mockImplementation(async (route) =>
+      route === 'cherry_cloud.status.get'
+        ? { ok: true, data: { scopeId: 'account-scope' } }
+        : { ok: true, data: { outcome: 'opened' } }
     )
+    await openCherryCloudAccountPortal({ entrySource: 'quota_notice', flowId: '00000000-0000-4000-8000-000000000001' })
+    expect(request).toHaveBeenCalledWith('cherry_cloud.account_portal.open', {
+      scopeId: 'account-scope',
+      entrySource: 'quota_notice',
+      flowId: '00000000-0000-4000-8000-000000000001'
+    })
+  })
+  it('preserves the login scope supplied by an asynchronous continuation', async () => {
+    request.mockResolvedValue({ ok: true, data: { outcome: 'superseded' } })
+    await expect(openCherryCloudAccountPortal({ scopeId: 'old' })).resolves.toEqual({ outcome: 'superseded' })
+    expect(request).toHaveBeenCalledWith('cherry_cloud.account_portal.open', { scopeId: 'old' })
   })
 
   it('opens the official China-edition subscription FAQ', async () => {

@@ -87,7 +87,9 @@ type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' 
 function AgentTopBarControls(props: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
 
-  return <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return (
+    <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} showWorkspace={!!props.onWorkspaceChange} />
+  )
 }
 
 interface AgentChatProps {
@@ -764,6 +766,7 @@ const AgentChatSessionCenter = ({
       sessionId={runtime.sessionId}
       workspacePath={session.workspace?.path}
       messages={runtime.uiMessages}
+      historyActions={runtime.historyActions}
       activeAgent={activeAgent}
       partsByMessageId={runtime.partsByMessageId}
       streamingLayers={runtime.streamingLayers}
@@ -836,6 +839,7 @@ function AgentChatLayout({
       isMessageHistoryLoading={isMessageHistoryLoading}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}
+      workspaceName={sessionSnapshot?.workspace?.name}
       workspaceType={sessionSnapshot?.workspace?.type}
       messages={messages}
       partsByMessageId={partsByMessageId}
@@ -867,7 +871,9 @@ function AgentChatLayout({
         center={
           // The layout-mode provider links the message column and the composer so
           // both yield the same anchor-rail gutter and stay aligned.
-          <ChatLayoutModeProvider>{center}</ChatLayoutModeProvider>
+          <AgentRightPane.DetailsLayout>
+            <ChatLayoutModeProvider>{center}</ChatLayoutModeProvider>
+          </AgentRightPane.DetailsLayout>
         }
         sidePanel={sidePanel}
         rightPane={<AgentRightPane.Viewport />}

@@ -108,6 +108,28 @@ const ANTHROPIC_PROVIDER_CASES = [
 ]
 
 describe('toolSchemaCompatibilityFeature', () => {
+  it('removes invalid null required lists without losing references or similarly named properties', async () => {
+    const schema = {
+      type: 'object',
+      required: null,
+      properties: { required: { type: 'string' }, value: { $ref: '#/$defs/value' } },
+      $defs: { value: { anyOf: [{ type: 'object', required: null }, { type: 'string' }] } }
+    }
+    const result = await transform({
+      prompt: [],
+      tools: [{ type: 'function', name: 'lookup', inputSchema: schema as never }]
+    })
+    expect(result.tools?.[0]).toMatchObject({
+      inputSchema: {
+        type: 'object',
+        properties: schema.properties,
+        $defs: { value: { anyOf: [{ type: 'object' }, { type: 'string' }] } }
+      }
+    })
+    expect(JSON.stringify(result.tools)).not.toContain('"required":null')
+    expect(schema.required).toBeNull()
+  })
+
   it.each(ANTHROPIC_PROVIDER_CASES)(
     'applies the $provider input examples policy with built-in meta tools',
     async ({ provider, modelId, createModel, omitExamples }) => {

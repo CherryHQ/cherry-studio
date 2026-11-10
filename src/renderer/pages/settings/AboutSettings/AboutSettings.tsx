@@ -164,7 +164,7 @@ const AboutSettings: FC = () => {
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
-    void openExternalWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
+    void openExternalWebsite(isChinese ? 'https://cherryai.com.cn/docs' : 'https://cherryai.com/docs')
   }
 
   const testChannels = getAvailableTestChannels()
@@ -306,7 +306,9 @@ const AboutSettings: FC = () => {
           icon={<Globe className="size-4.5" />}
           title={t('settings.about.website.title')}
           actionLabel={t('settings.about.website.button')}
-          onAction={() => onOpenWebsite('https://cherry-ai.com')}
+          onAction={() =>
+            onOpenWebsite(i18n.language.startsWith('zh') ? 'https://cherryai.com.cn' : 'https://cherryai.com')
+          }
         />
         <Divider className="my-3" />
         <AboutActionRow

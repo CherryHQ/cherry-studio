@@ -384,6 +384,8 @@ decide. Growth stays bounded because the approval blocks the round (almost no
 chunks stream during the wait) and `approvalIdleTimeoutMs` caps the window.
 Eviction resumes with the same chunk that resolves the approval.
 
+A host-recorded refusal remains `output-denied` in the message projection and final persistence input even if the runtime later reports the rejected tool as an error. Allowed tools retain their actual execution results; an allowed call can still fail.
+
 This keeps `attach` observational: subscribing a new window may never abort,
 pause, or otherwise change the topic or agent runtime. Runtime termination stays
 behind the explicit control/lifecycle paths owned by `AiStreamManager` and

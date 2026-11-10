@@ -13,7 +13,27 @@ const permissionStatusSchema = z.object({
   )
 })
 
+const computerUseControlSchema = z.object({
+  ownerId: z.string(),
+  label: z.string(),
+  appId: z.string().optional(),
+  appName: z.string().optional(),
+  status: z.enum(['opening', 'active', 'stopping', 'stopped', 'unconfirmed'])
+})
+
+export type ComputerUseControl = z.infer<typeof computerUseControlSchema>
+export type ControlStatus = ComputerUseControl['status']
+export type ComputerUseEventSchemas = {
+  'computer_use.controls_changed': ComputerUseControl[]
+}
+
 export const computerUseRequestSchemas = {
+  'computer_use.get_controls': defineRoute({ input: z.void(), output: z.array(computerUseControlSchema) }),
+  'computer_use.stop_app': defineRoute({
+    input: z.strictObject({ ownerId: z.string().min(1), appId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'computer_use.stop_all': defineRoute({ input: z.void(), output: z.void() }),
   'computer_use.get_permission_status': defineRoute({
     input: z.void(),
     output: permissionStatusSchema

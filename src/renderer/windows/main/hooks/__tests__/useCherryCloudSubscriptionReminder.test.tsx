@@ -1,11 +1,14 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { SWRConfig } from 'swr'
-import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { toast } from '@renderer/services/toast'
-import type { CherryCloudAccountPlans, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+import type {
+  CherryCloudAccountPlans,
+  CherryCloudAccountReceipt,
+  CherryCloudStatus
+} from '@shared/ipc/schemas/cherryCloud'
 
 import { useCherryCloudSubscriptionReminder } from '../useCherryCloudSubscriptionReminder'
 
@@ -13,7 +16,13 @@ const request = vi.mocked(window.api.ipcApi.request)
 let status: CherryCloudStatus
 let plans: CherryCloudAccountPlans
 
-const signedIn = (accountId: string): CherryCloudStatus => ({ phase: 'signed-in', accountId, displayName: null })
+const signedIn = (accountId: string): CherryCloudStatus => ({
+  phase: 'signed-in',
+  accountId,
+  displayName: null,
+  scopeId: accountId,
+  revision: 0
+})
 const unpaid = (): CherryCloudAccountPlans => ({
   measured_at: '2026-10-27T00:00:00Z',
   entitlements: [],
@@ -41,201 +50,139 @@ const paid = (planName: string): CherryCloudAccountPlans => ({
   ]
 })
 
+const listeners = new Set<(receipt: CherryCloudAccountReceipt) => void>()
+let revision = 0
+function receipt(reason: 'initial' | 'focus_refresh' | 'notification', fresh = true) {
+  const next = ++revision
+  return {
+    status: { ...status, revision: next },
+    reason,
+    account: { freshness: 'fresh' as const },
+    models: { freshness: 'unknown' as const, error: null },
+    plans: fresh
+      ? { freshness: 'fresh' as const, value: plans, observedRevision: next }
+      : { freshness: 'unknown' as const, error: null }
+  }
+}
 const wrapper = ({ children }: { children: ReactNode }) => (
-  <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, focusThrottleInterval: 0 }}>{children}</SWRConfig>
+  <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>{children}</SWRConfig>
 )
-
-const plansRequests = () => request.mock.calls.filter(([route]) => route === 'cherry_cloud.account_plans.get').length
-
-// Returning from the browser checkout refocuses the window, which refetches the plans.
 async function returnFromBrowser() {
   await act(async () => {
     window.dispatchEvent(new Event('focus'))
   })
 }
-
 beforeEach(() => {
   vi.clearAllMocks()
-  request.mockImplementation(async (route) => {
-    if (route === 'cherry_cloud.status.get') return { ok: true, data: status }
-    if (route === 'cherry_cloud.account_plans.get') return { ok: true, data: plans }
+  listeners.clear()
+  revision = 0
+  status = signedIn('account-1')
+  plans = unpaid()
+  vi.mocked(window.api.ipcApi.on).mockImplementation((event, listener) => {
+    if (event === 'cherry_cloud.account_changed') listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
+    }
+  })
+  request.mockImplementation(async (route, input) => {
+    if (route === 'cherry_cloud.account.get') return { ok: true, data: receipt('initial', false) }
+    if (route === 'cherry_cloud.account.refresh') {
+      const reason =
+        input && typeof input === 'object' && 'reason' in input && input.reason === 'focus_refresh'
+          ? 'focus_refresh'
+          : 'initial'
+      return { ok: true, data: { outcome: 'refreshed', receipt: receipt(reason) } }
+    }
     return { ok: true, data: undefined }
   })
 })
 
 describe('useCherryCloudSubscriptionReminder', () => {
-  it('announces a plan that becomes active, once', async () => {
-    status = signedIn('account-1')
-    plans = unpaid()
+  it('quietly establishes its first plans baseline and announces one subsequent activation', async () => {
     renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
-    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined))
-
+    await waitFor(() =>
+      expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(true)
+    )
+    await act(async () => Promise.resolve())
+    expect(toast.success).not.toHaveBeenCalled()
     plans = paid('Plus')
     await returnFromBrowser()
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Plus 已生效'))
-
     await returnFromBrowser()
-    await waitFor(() => expect(plansRequests()).toBe(3))
     expect(toast.success).toHaveBeenCalledOnce()
   })
-
-  it('refetches model availability after the plans show the new subscription', async () => {
-    status = signedIn('account-1')
-    plans = unpaid()
-    renderHook(
-      () => {
-        useCherryCloudSubscriptionReminder()
-        useCherryCloudModelAvailability()
-      },
-      { wrapper }
-    )
-    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined))
-
-    plans = paid('Plus')
-    await returnFromBrowser()
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Plus 已生效'))
-
-    // The focus-time sync can race the plans request and see the old entitlements; a later one must follow.
-    await waitFor(() => {
-      const routes = request.mock.calls.map(([route]) => route)
-      expect(routes.lastIndexOf('cherry_cloud.models.sync')).toBeGreaterThan(
-        routes.lastIndexOf('cherry_cloud.account_plans.get')
-      )
-    })
-  })
-
-  it('refetches plans and model availability when main reports a refreshed account', async () => {
-    let publishRefresh = () => {}
-    const defaultOn = vi.mocked(window.api.ipcApi.on).getMockImplementation()
-    vi.mocked(window.api.ipcApi.on).mockImplementation((event, handler) => {
-      if (event === 'cherry_cloud.account_refreshed') publishRefresh = () => handler(undefined)
-      return () => {}
-    })
-    onTestFinished(() => {
-      if (defaultOn) vi.mocked(window.api.ipcApi.on).mockImplementation(defaultOn)
-    })
-    status = signedIn('account-1')
-    plans = unpaid()
-    renderHook(
-      () => {
-        useCherryCloudSubscriptionReminder()
-        useCherryCloudModelAvailability()
-      },
-      { wrapper }
-    )
-    await waitFor(() => expect(plansRequests()).toBe(1))
-    const syncs = () => request.mock.calls.filter(([route]) => route === 'cherry_cloud.models.sync').length
-    const syncsBefore = syncs()
-
-    plans = paid('Plus')
-    await act(async () => publishRefresh())
-
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Plus 已生效'))
-    expect(plansRequests()).toBe(2)
-    expect(syncs()).toBeGreaterThan(syncsBefore)
-  })
-
-  it.each([
-    ['a window refocus', 'focus_refresh'],
-    ['a subscription notification', 'notification']
-  ] as const)('reports an activation detected after %s', async (_trigger, detectedBy) => {
-    let publishRefresh = () => {}
-    const defaultOn = vi.mocked(window.api.ipcApi.on).getMockImplementation()
-    vi.mocked(window.api.ipcApi.on).mockImplementation((event, handler) => {
-      if (event === 'cherry_cloud.account_refreshed') publishRefresh = () => handler(undefined)
-      return () => {}
-    })
-    onTestFinished(() => {
-      if (defaultOn) vi.mocked(window.api.ipcApi.on).mockImplementation(defaultOn)
-    })
-    status = signedIn('account-1')
-    plans = unpaid()
+  it('uses the receipt source for notification detection', async () => {
     renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
-    await waitFor(() => expect(plansRequests()).toBe(1))
-
-    plans = paid('Plus')
-    if (detectedBy === 'notification') await act(async () => publishRefresh())
-    else await returnFromBrowser()
-
     await waitFor(() =>
-      expect(request).toHaveBeenCalledWith('cherry_cloud.analytics.track', {
-        event: 'subscription_entitlement_refresh_result',
-        result: 'succeeded',
-        planId: '22222222-2222-4222-8222-222222222222',
-        detectedBy,
-        sinceClick: 'none'
-      })
+      expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(true)
     )
-  })
-
-  it('does not announce a subscription made while signed out', async () => {
-    let publishStatus: (next: CherryCloudStatus) => void = () => {}
-    const defaultOn = vi.mocked(window.api.ipcApi.on).getMockImplementation()
-    vi.mocked(window.api.ipcApi.on).mockImplementation((event, handler) => {
-      if (event === 'cherry_cloud.status_changed') publishStatus = (next) => handler(next)
-      return () => {}
-    })
-    onTestFinished(() => {
-      if (defaultOn) vi.mocked(window.api.ipcApi.on).mockImplementation(defaultOn)
-    })
-    status = signedIn('account-1')
-    plans = unpaid()
-    renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
-    await waitFor(() => expect(plansRequests()).toBe(1))
-
-    status = { phase: 'signed-out', accountId: null, displayName: null }
-    await act(async () => publishStatus(status))
+    await act(async () => Promise.resolve())
     plans = paid('Plus')
-    status = signedIn('account-1')
-    await act(async () => publishStatus(status))
-
-    await waitFor(() => expect(plansRequests()).toBe(2))
-    expect(toast.success).not.toHaveBeenCalled()
-  })
-
-  it('does not announce a subscription made while signed out when the first refresh after sign-in fails', async () => {
-    let publishStatus: (next: CherryCloudStatus) => void = () => {}
-    const defaultOn = vi.mocked(window.api.ipcApi.on).getMockImplementation()
-    vi.mocked(window.api.ipcApi.on).mockImplementation((event, handler) => {
-      if (event === 'cherry_cloud.status_changed') publishStatus = (next) => handler(next)
-      return () => {}
+    act(() => {
+      const next = receipt('notification')
+      listeners.forEach((listener) => listener(next))
     })
-    onTestFinished(() => {
-      if (defaultOn) vi.mocked(window.api.ipcApi.on).mockImplementation(defaultOn)
-    })
-    status = signedIn('account-1')
-    plans = unpaid()
-    renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
-    await waitFor(() => expect(plansRequests()).toBe(1))
-
-    status = { phase: 'signed-out', accountId: null, displayName: null }
-    await act(async () => publishStatus(status))
-    let failNext = true
-    const defaultRequest = request.getMockImplementation()
-    request.mockImplementation(async (route, ...args) => {
-      if (route === 'cherry_cloud.account_plans.get' && failNext) {
-        failNext = false
-        return { ok: false, error: { code: 'INTERNAL', message: 'offline' } }
+    await waitFor(() => expect(toast.success).toHaveBeenCalledOnce())
+    expect(request.mock.calls).toContainEqual([
+      'cherry_cloud.analytics.track',
+      {
+        payload: {
+          event: 'subscription_entitlement_refresh_result',
+          result: 'succeeded',
+          planId: '22222222-2222-4222-8222-222222222222',
+          detectedBy: 'notification',
+          sinceClick: 'none'
+        },
+        scopeId: status.scopeId
       }
-      return defaultRequest!(route, ...args)
-    })
-    plans = paid('Plus')
-    status = signedIn('account-1')
-    await act(async () => publishStatus(status))
-    await waitFor(() => expect(plansRequests()).toBe(2))
-
-    await returnFromBrowser()
-    await waitFor(() => expect(plansRequests()).toBeGreaterThanOrEqual(3))
-    expect(toast.success).not.toHaveBeenCalled()
+    ])
   })
-
-  it('stays quiet for an account that was already subscribed', async () => {
-    status = signedIn('account-1')
-    plans = paid('Flash')
+  it('leaves a China-edition activation to the notification center while its stream is live', async () => {
+    const edition = (globalThis as { __APP_EDITION__?: string }).__APP_EDITION__
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    const fallback = request.getMockImplementation()!
+    request.mockImplementation(async (route, input) =>
+      route === 'cherry_cloud.notifications.active.get' ? { ok: true, data: true } : fallback(route, input)
+    )
+    try {
+      renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
+      await waitFor(() =>
+        expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(true)
+      )
+      await act(async () => Promise.resolve())
+      plans = paid('Plus')
+      act(() => {
+        const next = receipt('notification')
+        listeners.forEach((listener) => listener(next))
+      })
+      await waitFor(() =>
+        expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.notifications.active.get')).toBe(true)
+      )
+      await act(async () => Promise.resolve())
+      expect(toast.success).not.toHaveBeenCalled()
+      expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.analytics.track')).toBe(true)
+    } finally {
+      vi.stubGlobal('__APP_EDITION__', edition)
+    }
+  })
+  it('keeps a paid login and same-account relogin quiet', async () => {
+    plans = paid('Plus')
     renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
-
-    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined))
-    await returnFromBrowser()
+    await waitFor(() =>
+      expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(true)
+    )
+    await act(async () => Promise.resolve())
+    status = { phase: 'signed-out', accountId: null, displayName: null, scopeId: 'out', revision: ++revision }
+    act(() => {
+      const next = receipt('initial', false)
+      listeners.forEach((listener) => listener(next))
+    })
+    status = { ...signedIn('account-1'), scopeId: 'relogin' }
+    act(() => {
+      const next = receipt('initial', false)
+      listeners.forEach((listener) => listener(next))
+    })
+    await act(async () => Promise.resolve())
     expect(toast.success).not.toHaveBeenCalled()
   })
 })
