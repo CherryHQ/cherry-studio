@@ -207,13 +207,9 @@ exports.prepareSystemSpeechHelper = prepareSystemSpeechHelper
 
 const getNativeModuleFilters = (platform, arch) => {
   const keptPackages = keepPackages(platform, arch)
-  const nativeBindingTarget = `${platform}-${arch}${platform === 'win32' ? '-msvc' : platform === 'linux' ? '-gnu' : ''}`
   return [
     ...packages.filter((name) => !keptPackages.includes(name)).map((name) => `!**/node_modules/${name}/**`),
-    `!**/node_modules/@mariozechner/clipboard-!(${nativeBindingTarget})/**`,
-    `!**/node_modules/@koromix/koffi-!(${platform}-${arch})/**`,
-    `!**/node_modules/node-addon-require-builtin-!(${nativeBindingTarget})/**`,
-    `!**/node_modules/{node-pty,selection-hook}/prebuilds/!(${platform}-${arch})/**`
+    `!**/node_modules/selection-hook/prebuilds/!(${platform}-${arch})/**`
   ]
 }
 exports.getNativeModuleFilters = getNativeModuleFilters

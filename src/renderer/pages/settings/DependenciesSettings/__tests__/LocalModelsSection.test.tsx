@@ -214,6 +214,25 @@ describe('LocalModelsSection', () => {
     )
   })
 
+  it('explains that installed model files need the missing shared runtime', async () => {
+    mockRoutes(() => Promise.resolve())
+    publishLocalModelStatus(OCR, {
+      status: 'not_downloaded',
+      percent: 0,
+      hintCode: 'missing_shared_runtime'
+    })
+
+    render(<LocalModelsSection />)
+
+    await screen.findAllByRole('listitem')
+    const modelCard = screen.getAllByRole('listitem').find((item) => {
+      return within(item).queryByText('settings.dependencies.localModels.ocr.name') !== null
+    })
+    expect(modelCard).toBeDefined()
+    expect(within(modelCard!).getByText('settings.dependencies.localModels.notice.missingRuntime')).toBeInTheDocument()
+    expect(within(modelCard!).getByText('settings.dependencies.localModels.download')).toBeInTheDocument()
+  })
+
   it('shows a shared failure as retryable when reopening settings', async () => {
     const user = userEvent.setup()
     mockRoutes((route) => {

@@ -61,7 +61,7 @@ function requiresApproval(mode: PermissionMode, tool: string, host: ApprovalHost
   if (host.approvalRequired) return true
   if (host.category === 'meta') return false
   if (mode === 'auto') {
-    if (tool === 'bash') return host.destructive
+    if (tool === 'bash' || tool === 'powershell') return host.destructive
     if (host.category === 'read' || host.category === 'edit') return !host.withinAllowedRoots
     return false
   }
