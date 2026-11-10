@@ -38,20 +38,27 @@ first user turn and its resends are ordinary siblings under this shared parent, 
 "resend the first message" is structurally identical to any other sibling creation — no
 multiple physical roots.
 
-保存侧聊的根消息包含 `data.sideChat`：来源标识、固定来源快照和最近使用的模型及提示词。
-沿用现有 JSON 列，不新增表或列。仅侧聊服务写入这些结构数据。
-普通消息更新不能修改根数据。历史、渲染和搜索排除根数据，清空内容时保留根数据。
-普通来源使用话题 UUID；Agent 来源使用 `agent-session:<sessionId>`。
-Agent 快照只读取所选回答及其祖先问题的文本，不包含工具、推理或其他分支。
-来源校验要求活跃的普通 Agent 会话，后台会话不可作为来源。
-来源软删除后侧聊不可读，恢复来源后可读；永久删除在同一事务内清理保存侧聊。
+The root message of a saved side chat contains `data.sideChat`: the source identity,
+a fixed source snapshot, and the most recently used model and prompt. This uses the
+existing JSON column without adding tables or columns. Only the side-chat service
+writes this structural data. Ordinary message updates cannot change root data.
+History, rendering, and search exclude it; clearing content preserves it.
+Ordinary chat sources use a topic UUID; Agent sources use `agent-session:<sessionId>`.
+Agent snapshots read only the text of the selected answer and its ancestor question,
+excluding tools, reasoning, and other branches. Source validation requires an active,
+ordinary Agent session; background sessions cannot be sources. Side chats cannot be
+read while their source is soft-deleted and become readable after restoration.
+Permanent source deletion removes saved side chats in the same transaction.
 
-每次 `side_chat.submit` 或 `side_chat.retry` 都重新确定模型。
-普通聊天须在命令中传 `modelId`，值来自主输入框当时的模型解析结果。
-Agent 由主进程读取所属 `agent.model`，不采用调用方传入的旧模型。
-模型在发送入场时固定，主对话切换模型不修改进行中的请求。
-没有有效模型时保留历史并报错，不回退到根消息保存的模型。
-创建时仍读取既有保存偏好；移除设置界面不转换或删除已有记录。
+Each `side_chat.submit` or `side_chat.retry` resolves the model again. Ordinary chat
+commands must pass `modelId` from the main composer's current model resolution.
+For Agent sources, the main process reads the owning `agent.model` instead of using
+a stale model supplied by the caller. The model is fixed at request admission;
+changing the main conversation's model does not alter an in-flight request.
+If no valid model is available, the request reports an error and retains history
+without falling back to the model stored in the root message. Creation still reads
+the existing saving preference; removing the settings UI does not convert or delete
+existing records.
 
 ```
 root            (role='root', parentId=NULL, no content, never rendered)
