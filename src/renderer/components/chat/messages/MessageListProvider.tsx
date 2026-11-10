@@ -11,6 +11,7 @@ import {
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { PartsProvider } from './blocks/MessagePartsContext'
+import type { MessageSelectionStore } from './selection/MessageSelectionStore'
 import type {
   MessageListActions,
   MessageListItem,
@@ -95,6 +96,10 @@ const MessageListActionsContext = createContext<MessageListActions | null>(null)
 const MessageListMetaContext = createContext<MessageListMeta | null>(null)
 const MessageListRenderConfigContext = createContext<MessageRenderConfig | null>(null)
 const MessageListSelectionContext = createContext<MessageListSelectionState | undefined | null>(null)
+const MessageListSelectionModeContext = createContext<
+  Pick<MessageListSelectionState, 'enabled' | 'isMultiSelectMode'> | undefined | null
+>(null)
+const MessageSelectionStoreContext = createContext<MessageSelectionStore | null>(null)
 const MessageListUiStaticContext = createContext<MessageListUiStaticValue | null>(null)
 const MessageListUiSelectorsContext = createContext<MessageListUiSelectorsValue | null>(null)
 const MessageListActivityContext = createContext<MessageListActivityValue | null>(null)
@@ -194,32 +199,46 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     [state.getMessageActivityState, state.messageActivityStore]
   )
 
+  const selectionEnabled = state.selection?.enabled
+  const isMultiSelectMode = state.selection?.isMultiSelectMode
+  const selectionMode = useMemo(
+    () =>
+      selectionEnabled !== undefined
+        ? { enabled: selectionEnabled, isMultiSelectMode: isMultiSelectMode ?? false }
+        : undefined,
+    [selectionEnabled, isMultiSelectMode]
+  )
+
   return (
-    <MessageListDataContext value={data}>
-      <MessageListMessagesContext value={state.messages}>
-        <PartsProvider value={state.partsByMessageId}>
-          <MessageListCitationRegistryContext value={citationRegistry}>
-            <MessageListActionsContext value={actions}>
-              <MessageListMetaContext value={meta}>
-                <MessageListRenderConfigContext value={state.renderConfig}>
-                  <MessageListSelectionContext value={state.selection}>
-                    <MessageListUiStaticContext value={uiStatic}>
-                      <MessageListUiSelectorsContext value={uiSelectors}>
-                        <MessageListActivityContext value={activity}>
-                          <MessageListEditingContext value={state.editingMessageId ?? null}>
-                            {children}
-                          </MessageListEditingContext>
-                        </MessageListActivityContext>
-                      </MessageListUiSelectorsContext>
-                    </MessageListUiStaticContext>
-                  </MessageListSelectionContext>
-                </MessageListRenderConfigContext>
-              </MessageListMetaContext>
-            </MessageListActionsContext>
-          </MessageListCitationRegistryContext>
-        </PartsProvider>
-      </MessageListMessagesContext>
-    </MessageListDataContext>
+    <MessageListSelectionModeContext value={selectionMode}>
+      <MessageSelectionStoreContext value={value.selectionStore ?? null}>
+        <MessageListDataContext value={data}>
+          <MessageListMessagesContext value={state.messages}>
+            <PartsProvider value={state.partsByMessageId}>
+              <MessageListCitationRegistryContext value={citationRegistry}>
+                <MessageListActionsContext value={actions}>
+                  <MessageListMetaContext value={meta}>
+                    <MessageListRenderConfigContext value={state.renderConfig}>
+                      <MessageListSelectionContext value={state.selection}>
+                        <MessageListUiStaticContext value={uiStatic}>
+                          <MessageListUiSelectorsContext value={uiSelectors}>
+                            <MessageListActivityContext value={activity}>
+                              <MessageListEditingContext value={state.editingMessageId ?? null}>
+                                {children}
+                              </MessageListEditingContext>
+                            </MessageListActivityContext>
+                          </MessageListUiSelectorsContext>
+                        </MessageListUiStaticContext>
+                      </MessageListSelectionContext>
+                    </MessageListRenderConfigContext>
+                  </MessageListMetaContext>
+                </MessageListActionsContext>
+              </MessageListCitationRegistryContext>
+            </PartsProvider>
+          </MessageListMessagesContext>
+        </MessageListDataContext>
+      </MessageSelectionStoreContext>
+    </MessageListSelectionModeContext>
   )
 }
 
@@ -356,6 +375,56 @@ export const useMessageListSelection = (): MessageListSelectionState | undefined
   }
   return value
 }
+
+/**
+ * Mode-only selection view (enabled / multi-select). Identity changes only
+ * when the mode toggles — not on selection-set changes (#19209).
+ */
+export const useMessageSelectionMode = ():
+  | Pick<MessageListSelectionState, 'enabled' | 'isMultiSelectMode'>
+  | undefined => {
+  const value = use(MessageListSelectionModeContext)
+  if (value === null) {
+    throw new Error('useMessageSelectionMode must be used within MessageListProvider')
+  }
+  return value
+}
+
+/**
+ * Per-message selected-state subscription: re-renders only when THIS message's
+ * boolean flips, not when the selection set changes elsewhere (#19209).
+ * Outside a selecting list (no store) the answer is always false.
+ */
+export const useIsMessageSelected = (messageId: string): boolean => {
+  const store = use(MessageSelectionStoreContext)
+  const fallback = store ? undefined : use(MessageListSelectionContext)
+  const subscribe = useCallback(
+    (listener: () => void) => (store ? store.subscribeId(messageId, listener) : () => {}),
+    [store, messageId]
+  )
+  return useSyncExternalStore(
+    subscribe,
+    () => store?.isSelected(messageId) ?? fallback?.selectedMessageIds?.includes(messageId) ?? false,
+    () => false
+  )
+}
+
+/**
+ * Full selected-id list via the store: stable identity between changes; used
+ * by the toolbar / popup / whole-list consumers that genuinely need every id.
+ */
+export const useSelectedMessageIds = (): readonly string[] => {
+  const store = use(MessageSelectionStoreContext)
+  const fallback = store ? undefined : use(MessageListSelectionContext)
+  const subscribe = useCallback((listener: () => void) => (store ? store.subscribeList(listener) : () => {}), [store])
+  return useSyncExternalStore(
+    subscribe,
+    () => store?.getSnapshot() ?? fallback?.selectedMessageIds ?? EMPTY_SELECTED_MESSAGE_IDS,
+    () => EMPTY_SELECTED_MESSAGE_IDS
+  )
+}
+
+const EMPTY_SELECTED_MESSAGE_IDS: readonly string[] = []
 
 /** Id of the message currently being edited (null when none). Non-throwing: "not editing"
  * is a valid state, so embeds that never set it simply get null. */

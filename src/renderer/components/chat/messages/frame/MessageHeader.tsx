@@ -15,7 +15,8 @@ import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import {
   useMessageListActions,
   useMessageListMeta,
-  useMessageListSelection,
+  useIsMessageSelected,
+  useMessageSelectionMode,
   useMessageRenderConfig,
   useOptionalMessageListActions
 } from '../MessageListProvider'
@@ -96,7 +97,7 @@ const MessageHeader: FC<Props> = memo(
     const actions = useMessageListActions()
     const meta = useMessageListMeta()
     const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
-    const selection = useMessageListSelection()
+    const selectionMode = useMessageSelectionMode()
     const userName = renderConfig.userName
     const assistantProfile = meta.assistantProfile
     const { t } = useTranslation()
@@ -104,10 +105,8 @@ const MessageHeader: FC<Props> = memo(
     const isBubbleStyle = messageStyle === 'bubble'
     const userAvatar = meta.userProfile?.avatar ?? ''
 
-    const isMultiSelectMode = selection?.isMultiSelectMode ?? false
-    const selectedMessageIds = selection?.selectedMessageIds
-
-    const isSelected = selectedMessageIds?.includes(message.id)
+    const isMultiSelectMode = selectionMode?.isMultiSelectMode ?? false
+    const isSelected = useIsMessageSelected(message.id)
 
     const messageModel = useMemo(() => getMessageListItemModel(message), [message])
     const displayModel = messageModel ?? model
