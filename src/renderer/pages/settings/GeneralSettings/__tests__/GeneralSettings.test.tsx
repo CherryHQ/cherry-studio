@@ -12,7 +12,7 @@ import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
@@ -30,6 +30,13 @@ const mockUseModelSelectorData = vi.fn(() => ({
 }))
 const defaultPreferenceImplementation = mockUsePreference.getMockImplementation()!
 const { ipcRequestMock, translationSpy } = vi.hoisted(() => ({ ipcRequestMock: vi.fn(), translationSpy: vi.fn() }))
+const i18nMock = vi.hoisted(() => ({
+  language: 'zh-CN',
+  resolvedLanguage: 'zh-CN',
+  changeLanguage: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@renderer/i18n/resolver', () => ({ default: i18nMock }))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
@@ -126,7 +133,8 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const { InputNumber } = await importOriginal<typeof CherryStudioUi>()
+  const { InputNumber, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } =
+    await importOriginal<typeof CherryStudioUi>()
   return {
     Button: ({ children, loading, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => (
       <button type="button" data-loading={loading || undefined} {...props}>
@@ -159,6 +167,11 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     ),
     Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     InputNumber,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
     Switch: ({
       checked,
       onCheckedChange,
@@ -176,9 +189,15 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 const requestedRoutes = () => vi.mocked(window.api.ipcApi.request).mock.calls.map(([route]) => route)
 
+beforeAll(() => {
+  HTMLElement.prototype.scrollIntoView = vi.fn()
+})
+
 describe('GeneralSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    i18nMock.language = 'zh-CN'
+    i18nMock.resolvedLanguage = 'zh-CN'
     mockUsePreference.mockImplementation(defaultPreferenceImplementation)
     mockUseModelSelectorData.mockReturnValue({
       resolvedSelectedModelIds: [],
@@ -706,6 +725,29 @@ describe('GeneralSettings', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('app.tray.on_launch')).toBe(false)
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.click_tray_to_show')).toBe(false)
     })
+  })
+
+  it('shows the resolved interface language in its own module when no preference is saved', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.language', null)
+    render(<GeneralSettings />)
+
+    const languageModule = screen.getByRole('heading', { name: 'common.language' }).closest('section')!
+    expect(within(languageModule).getByRole('combobox', { name: '中文' })).toBeInTheDocument()
+    expect(within(languageModule).queryByText('settings.general.sections.startup')).not.toBeInTheDocument()
+  })
+
+  it('persists a selected interface language and applies it immediately', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.language', 'zh-CN')
+    render(<GeneralSettings />)
+
+    screen.getByRole('combobox', { name: '中文' }).focus()
+    await user.keyboard('{Enter}')
+    screen.getByRole('option', { name: /English$/ }).focus()
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(MockUsePreferenceUtils.getPreferenceValue('app.language')).toBe('en-US'))
+    expect(i18nMock.changeLanguage).toHaveBeenCalledWith('en-US')
   })
 
   it('renders the agent reply language row defaulting to follow conversation', () => {

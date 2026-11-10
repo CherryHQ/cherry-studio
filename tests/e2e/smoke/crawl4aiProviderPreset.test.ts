@@ -29,8 +29,12 @@ test('Crawl4AI defaults to Cloud and keeps its setup description visible', async
   await openSettings(page)
   await expect(page.locator('[data-ui="settings.view"]')).toBeVisible({ timeout: 60_000 })
   await page
-    .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')
-    .filter({ hasText: 'Web Search' })
+    .locator('[data-ui="settings.navigation"]')
+    .getByRole('button', { name: 'Built-in Tools', exact: true })
+    .click()
+  await page
+    .getByRole('navigation', { name: 'Built-in Tools', exact: true })
+    .getByRole('button', { name: 'Web Search', exact: true })
     .click()
   const section = page.locator('section[aria-labelledby="web-search-fetchUrls-title"]')
   await expect(section).toBeVisible({ timeout: 60_000 })
