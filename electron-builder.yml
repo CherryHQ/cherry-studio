@@ -282,6 +282,7 @@ releaseInfo:
     - [Workspace] Consistent icon colors and sizing, clearer Chinese agent labels and settings, restored tooltip contrast, and smoother tabs, pane resizing, conversation shortcuts, and notifications
     - [API Gateway] Preserve agent instructions, tool schemas, and cache hints when forwarding requests, and prevent unintended tool execution or retries inside the gateway.
     - [UI] Restore popup close animations, correct prompt and memory editor sizing and styling, and prevent stale actions or drafts when reopening dialogs.
+    - [Agents] Enable PowerShell commands for Pi and Pi Durable on Windows without requiring Git Bash.
 
     ⚡ Performance
     - [Chat] Preparing large text attachments no longer blocks the interface.
@@ -371,6 +372,7 @@ releaseInfo:
     - [工作区] 统一图标颜色与尺寸、中文智能体文案及设置页样式，恢复提示框反色，并修复标签页、分栏拖动、会话快捷键和通知交互
     - [API 网关] 修复转发请求时智能体提示词、工具定义和缓存标记丢失的问题，避免网关意外执行工具或重试。
     - [界面] 恢复弹窗关闭动画，修正提示词与记忆编辑器的高度和样式，并避免重新打开弹窗时触发过期操作或复用已取消的草稿。
+    - [智能体] 为 Windows 上的 Pi 和 Pi Durable 启用 PowerShell 命令，无需安装 Git Bash。
 
     ⚡ 性能优化
     - [对话] 准备大型文本附件不再阻塞界面。
