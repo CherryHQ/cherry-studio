@@ -2859,9 +2859,11 @@ describe('AgentSessionRuntimeService', () => {
         await vi.waitFor(() => expect(firstConnection.reconcile).toHaveBeenCalledOnce())
 
         // An autonomous generation starts on the same connection while the rebuild is deferred.
+        // (A goal round, not a background-work continuation: since #23943 background continuations
+        // resume their existing reply, so a fresh receive-only turn only comes from other origins.)
         ;(service as any).handleRuntimeEvent(
           entry,
-          { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+          { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } },
           firstConnection
         )
         // Its receive-only turn launches (the user turn stays deferred behind it).
