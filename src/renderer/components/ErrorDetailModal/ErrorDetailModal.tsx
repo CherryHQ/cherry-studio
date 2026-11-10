@@ -3,7 +3,7 @@ import React, { memo, useCallback, useLayoutEffect, useRef, useState } from 'rea
 import { useTranslation } from 'react-i18next'
 
 import { ScrollArea } from '@cherrystudio/ui'
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
@@ -699,16 +699,18 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       </ErrorDetailContainer>
 
       <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="ghost"
-          className="me-auto text-muted-foreground hover:text-foreground"
-          disabled={appUpdateState.downloading}
-          loading={appUpdateState.checking}
-          loadingIcon={<RefreshCw size={13} className="animate-spin" />}
-          onClick={checkForUpdate}>
-          {appUpdateState.checking ? null : <RefreshCw size={13} />}
-          {t(updateCheckLabelKey(appUpdateState))}
-        </Button>
+        <Tooltip asChild content={t('error.update_check.hint')}>
+          <Button
+            variant="ghost"
+            className="me-auto text-muted-foreground hover:text-foreground"
+            disabled={appUpdateState.downloading}
+            loading={appUpdateState.checking}
+            loadingIcon={<RefreshCw size={13} className="animate-spin" />}
+            onClick={checkForUpdate}>
+            {appUpdateState.checking ? null : <RefreshCw size={13} />}
+            {t(updateCheckLabelKey(appUpdateState))}
+          </Button>
+        </Tooltip>
         {subject || showDiagnosticReportAction ? (
           <>
             {showDiagnosticReportAction ? (
