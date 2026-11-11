@@ -127,6 +127,7 @@
   "dialog.legacy_upgrade.download": "Tải {{version}}",
   "dialog.legacy_upgrade.error": "Không thể kiểm tra dữ liệu hoặc bắt đầu tải xuống. Chưa thực hiện chuyển đổi dữ liệu.\n\n{{error}}",
   "dialog.legacy_upgrade.message": "Hãy cài đặt Cherry Studio {{version}} trước.",
+  "dialog.legacy_upgrade.prerequisite": "Nếu bạn dùng phiên bản 1.9.11 trở về trước hoặc không thể xác định phiên bản cũ, hãy cài đặt và mở 1.9.12 trước. Sau đó mở 2.1.0 để di chuyển dữ liệu.",
   "dialog.legacy_upgrade.quit": "Thoát",
   "dialog.legacy_upgrade.title": "Cần chuyển đổi dữ liệu trước khi nâng cấp",
   "dialog.mini_app_export": "Xuất từ {{name}}",

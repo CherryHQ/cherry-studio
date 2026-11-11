@@ -7,19 +7,21 @@ sources:
 
 # Upgrading v1 Data
 
-The current application no longer converts v1 Redux, Dexie, or ElectronStore data. Users upgrading from 1.9.x must first install and launch Cherry Studio **2.1.0**, complete its migration, and then reinstall the current version. Keep the existing data directories throughout this process. The intermediate version retains its own source-version compatibility checks.
+The current application no longer converts v1 Redux, Dexie, or ElectronStore data. Users upgrading from 1.9.x must first install and launch Cherry Studio **2.1.0**, complete its migration, and then reinstall the current version. Keep the existing data directories throughout this process. Users on **1.9.11 or earlier**, or whose old version cannot be identified, must first install and launch **1.9.12**, then launch **2.1.0** to migrate, and finally reinstall the current version.
 
 ## Preboot behavior
 
-Before lifecycle bootstrap, `legacyUpgradeGate.ts` checks the current profile and recorded legacy custom directories. Existing databases are opened read-only; the check never creates a database, runs schema migrations, rewrites the data location, or marks conversion completed. A completed migration takes precedence over leftover legacy files. A v2 database with a runtime seeding journal but no conversion marker is also accepted, allowing profiles created after conversion retirement to restart normally.
+Before lifecycle bootstrap, `legacyUpgradeGate.ts` checks the current profile and recorded legacy custom directories. Existing databases are opened read-only; the check never creates a database, runs schema migrations, or marks conversion completed. A completed migration takes precedence over leftover legacy files. A v2 database with a runtime seeding journal but no conversion marker is also accepted, allowing profiles created after conversion retirement to restart normally.
 
-Unmigrated or interrupted profiles receive a localized native dialog with **Download 2.1.0** and **Quit**. Download opens a fixed GitHub release asset directly in the system browser and exits the application. Closing the dialog also exits. macOS selects a DMG, Windows selects setup or portable EXE matching the current installation, and Linux selects AppImage. x64 and arm64 are supported; Electron's ARM translation detection selects arm64 on Rosetta/WOW hosts.
+Unmigrated or interrupted profiles receive a branded, localized preboot window with **Download 2.1.0** and **Quit**. Download opens a fixed GitHub release asset directly in the system browser and exits the application. Closing the window also exits. The window also explains the 1.9.12 prerequisite and offers its platform-matched direct installer. macOS selects a DMG, Windows selects setup or portable EXE matching the current installation, and Linux selects AppImage. x64 and arm64 are supported; Electron's ARM translation detection selects arm64 on Rosetta/WOW hosts.
+
+If the default profile is empty and legacy configuration points to an established v2 custom profile, the gate restores its BootConfig mapping and relaunches before bootstrap. The next launch rebuilds the complete path and Chromium session snapshot; no database contents are modified.
 
 Unavailable custom directories, corrupt databases, unreadable migration status, and failure to open the download produce an error and stop startup. Unpackaged development launches never inspect production legacy config. Download completion and installation remain under the user's control.
 
 ## Retained compatibility records
 
-`migration_v2_status` remains in `app_state`. `migrationStatus.ts` reads historical records for provider edition access and the legacy file-cleanup policy seeder. These consumers do not load a conversion engine. Existing successful migrations remain valid; deleting the marker is not an upgrade procedure.
+`migration_v2_status` remains in `app_state`. `migrationStatus.ts` reads historical records for provider edition access and the legacy file-cleanup policy seeder. Transaction consumers pass their existing database context to the status reader, including during seeding before DbService is ready. These consumers do not load a conversion engine. Existing successful migrations remain valid; deleting the marker is not an upgrade procedure.
 
 The migration renderer, exporters, conversion engine, migrators, migration IPC, and Settings remigration action are removed. Pending remigration reset markers from an older version are rejected and quarantined without deleting v2 data. Normal data reset and backup restoration remain available.
 

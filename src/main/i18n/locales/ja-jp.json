@@ -127,6 +127,7 @@
   "dialog.legacy_upgrade.download": "{{version}} をダウンロード",
   "dialog.legacy_upgrade.error": "データの確認またはダウンロードの開始に失敗しました。データ移行は行われていません。\n\n{{error}}",
   "dialog.legacy_upgrade.message": "先に Cherry Studio {{version}} をインストールしてください。",
+  "dialog.legacy_upgrade.prerequisite": "1.9.11 以前を使用していた場合、または以前のバージョンを判別できない場合は、まず 1.9.12 をインストールして起動してください。その後、2.1.0 を起動してデータを移行してください。",
   "dialog.legacy_upgrade.quit": "終了",
   "dialog.legacy_upgrade.title": "アップグレードにはデータ移行が必要です",
   "dialog.mini_app_export": "{{name}} から書き出す",

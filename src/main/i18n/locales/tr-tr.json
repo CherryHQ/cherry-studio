@@ -127,6 +127,7 @@
   "dialog.legacy_upgrade.download": "{{version}} indir",
   "dialog.legacy_upgrade.error": "Veriler kontrol edilemedi veya indirme başlatılamadı. Veri geçişi yapılmadı.\n\n{{error}}",
   "dialog.legacy_upgrade.message": "Önce Cherry Studio {{version}} sürümünü yükleyin.",
+  "dialog.legacy_upgrade.prerequisite": "1.9.11 veya daha eski bir sürüm kullanıyorsanız ya da önceki sürüm belirlenemiyorsa önce 1.9.12 sürümünü yükleyip başlatın. Ardından verilerinizi taşımak için 2.1.0 sürümünü başlatın.",
   "dialog.legacy_upgrade.quit": "Çıkış",
   "dialog.legacy_upgrade.title": "Yükseltme için veri geçişi gerekiyor",
   "dialog.mini_app_export": "{{name}} üzerinden dışa aktar",

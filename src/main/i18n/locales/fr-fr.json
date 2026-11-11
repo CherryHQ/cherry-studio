@@ -127,6 +127,7 @@
   "dialog.legacy_upgrade.download": "Télécharger {{version}}",
   "dialog.legacy_upgrade.error": "Impossible de vérifier les données ou de lancer le téléchargement. Aucune migration n’a été effectuée.\n\n{{error}}",
   "dialog.legacy_upgrade.message": "Installez d’abord Cherry Studio {{version}}.",
+  "dialog.legacy_upgrade.prerequisite": "Si vous utilisiez la version 1.9.11 ou antérieure, ou si la version précédente ne peut pas être identifiée, installez et lancez d’abord la 1.9.12. Lancez ensuite la 2.1.0 pour migrer vos données.",
   "dialog.legacy_upgrade.quit": "Quitter",
   "dialog.legacy_upgrade.title": "Migration des données requise",
   "dialog.mini_app_export": "Exporter depuis {{name}}",

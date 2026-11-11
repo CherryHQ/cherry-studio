@@ -19,12 +19,14 @@ export function getLegacyUpgradeDownloadUrl({
   platform,
   arch,
   translated,
-  portable
+  portable,
+  version = LEGACY_UPGRADE_VERSION
 }: {
   platform: NodeJS.Platform
   arch: string
   translated: boolean
   portable: boolean
+  version?: typeof LEGACY_UPGRADE_VERSION | '1.9.12'
 }): string {
   const nativeArch = translated ? 'arm64' : arch
   if (nativeArch !== 'arm64' && nativeArch !== 'x64') throw new Error(`Unsupported architecture: ${nativeArch}`)
@@ -42,7 +44,11 @@ export function getLegacyUpgradeDownloadUrl({
     default:
       throw new Error(`Unsupported platform: ${platform}`)
   }
-  return `https://github.com/CherryHQ/cherry-studio/releases/download/v${LEGACY_UPGRADE_VERSION}/Cherry-Studio-${LEGACY_UPGRADE_VERSION}-${asset}`
+  if (version === '1.9.12') {
+    asset = asset.replace(/^(mac|win|linux)-/, '')
+    if (platform === 'linux' && nativeArch === 'x64') asset = 'x86_64.AppImage'
+  }
+  return `https://github.com/CherryHQ/cherry-studio/releases/download/v${version}/Cherry-Studio-${version}-${asset}`
 }
 
 function statIfPresent(file: string) {
@@ -97,15 +103,17 @@ function isPortableExecutable(executable: string) {
   return executable.replaceAll('\\', '/').split('/').at(-1)?.toLowerCase() === 'cherry-studio-portable.exe'
 }
 
-/** Returns the profile requiring the intermediate release, without redirecting or writing it. */
-export function findLegacyUpgradeProfile(): string | undefined {
+export type LegacyUpgradeProfile = { kind: 'legacy' | 'recover'; path: string }
+
+/** Classifies a selected profile without redirecting or writing it. */
+export function findLegacyUpgradeProfile(): LegacyUpgradeProfile | undefined {
   const current = application.getPath('app.userdata')
   const exe = getNormalizedExecutablePath()
   const configured = app.isPackaged ? bootConfigService.get('app.user_data_path')?.[exe] : undefined
   if (configured && !isUsableDataDir(configured)) throw new Error(`Data directory unavailable: ${configured}`)
   const state = inspectLegacyProfile(current)
   if (state === 'ready') return undefined
-  if (state === 'legacy') return current
+  if (state === 'legacy') return { kind: 'legacy', path: current }
   if (!app.isPackaged || configured) return undefined
 
   const configFile = application.getPath('v1.home_config_file')
@@ -124,7 +132,8 @@ export function findLegacyUpgradeProfile(): string | undefined {
     if (!path.isAbsolute(entry.dataPath) || !isUsableDataDir(entry.dataPath)) {
       throw new Error(`Data directory unavailable: ${entry.dataPath}`)
     }
-    if (inspectLegacyProfile(entry.dataPath) !== 'fresh') return entry.dataPath
+    const candidate = inspectLegacyProfile(entry.dataPath)
+    if (candidate !== 'fresh') return { kind: candidate === 'ready' ? 'recover' : 'legacy', path: entry.dataPath }
   }
   return undefined
 }

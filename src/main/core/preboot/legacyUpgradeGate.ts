@@ -1,4 +1,4 @@
-import { app, dialog, shell } from 'electron'
+import { app, dialog } from 'electron'
 
 import { application } from '@application'
 import {
@@ -6,9 +6,13 @@ import {
   getLegacyUpgradeDownloadUrl,
   LEGACY_UPGRADE_VERSION
 } from '@data/migration/legacyUpgrade'
+import { showLegacyUpgradeWindow } from '@data/migration/legacyUpgradeWindow'
 import { loggerService } from '@logger'
 import { isPortable } from '@main/core/platform'
+import { bootConfigService } from '@main/data/bootConfig'
 import { resolveSystemLanguage, t } from '@main/i18n'
+
+import { getNormalizedExecutablePath } from './userDataLocation'
 
 const logger = loggerService.withContext('LegacyUpgradeGate')
 
@@ -16,27 +20,41 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
   try {
     const profile = findLegacyUpgradeProfile()
     if (!profile) return 'skipped'
+    if (profile.kind === 'recover') {
+      const previous = bootConfigService.get('app.user_data_path')
+      bootConfigService.set('app.user_data_path', { ...previous, [getNormalizedExecutablePath()]: profile.path })
+      try {
+        bootConfigService.persist()
+      } catch (error) {
+        bootConfigService.set('app.user_data_path', previous)
+        throw error
+      }
+      application.relaunch()
+      return 'handled'
+    }
     await app.whenReady()
     const language = resolveSystemLanguage(app.getLocale())
-    const url = getLegacyUpgradeDownloadUrl({
+    const platform = {
       platform: process.platform,
       arch: process.arch,
       translated: app.runningUnderARM64Translation,
       portable: isPortable
-    })
-    const { response } = await dialog.showMessageBox({
-      type: 'warning',
-      title: t('dialog.legacy_upgrade.title', undefined, language),
-      message: t('dialog.legacy_upgrade.message', { version: LEGACY_UPGRADE_VERSION }, language),
-      detail: t('dialog.legacy_upgrade.detail', { version: LEGACY_UPGRADE_VERSION, path: profile }, language),
-      buttons: [
-        t('dialog.legacy_upgrade.download', { version: LEGACY_UPGRADE_VERSION }, language),
-        t('dialog.legacy_upgrade.quit', undefined, language)
-      ],
-      defaultId: 0,
-      cancelId: 1
-    })
-    if (response === 0) await shell.openExternal(url)
+    }
+    await showLegacyUpgradeWindow(
+      {
+        title: t('dialog.legacy_upgrade.title', undefined, language),
+        message: t('dialog.legacy_upgrade.message', { version: LEGACY_UPGRADE_VERSION }, language),
+        detail: t('dialog.legacy_upgrade.detail', { version: LEGACY_UPGRADE_VERSION, path: profile.path }, language),
+        prerequisite: t('dialog.legacy_upgrade.prerequisite', undefined, language),
+        download: t('dialog.legacy_upgrade.download', { version: LEGACY_UPGRADE_VERSION }, language),
+        downloadPrerequisite: t('dialog.legacy_upgrade.download', { version: '1.9.12' }, language),
+        quit: t('dialog.legacy_upgrade.quit', undefined, language)
+      },
+      {
+        bridge: getLegacyUpgradeDownloadUrl(platform),
+        prerequisite: getLegacyUpgradeDownloadUrl({ ...platform, version: '1.9.12' })
+      }
+    )
   } catch (error) {
     logger.error('Cannot complete legacy upgrade check', error as Error)
     await app.whenReady()

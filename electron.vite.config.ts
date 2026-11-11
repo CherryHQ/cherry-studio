@@ -352,6 +352,7 @@ export default defineConfig({
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
           selectionAgent: resolve(__dirname, 'src/renderer/windows/selection/agent/index.html'),
           selectionCapsule: resolve(__dirname, 'src/renderer/windows/selection/capsule/index.html'),
+          legacyUpgrade: resolve(__dirname, 'src/renderer/windows/legacyUpgrade/index.html'),
           userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),
           screenshot: resolve(__dirname, 'src/renderer/windows/screenshot/index.html')

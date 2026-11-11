@@ -127,6 +127,7 @@
   "dialog.legacy_upgrade.download": "Descarcă {{version}}",
   "dialog.legacy_upgrade.error": "Nu s-au putut verifica datele sau începe descărcarea. Nu s-a efectuat nicio migrare.\n\n{{error}}",
   "dialog.legacy_upgrade.message": "Instalați mai întâi Cherry Studio {{version}}.",
+  "dialog.legacy_upgrade.prerequisite": "Dacă ați folosit versiunea 1.9.11 sau una anterioară, ori versiunea anterioară nu poate fi identificată, instalați și porniți mai întâi 1.9.12. Apoi porniți 2.1.0 pentru a migra datele.",
   "dialog.legacy_upgrade.quit": "Ieșire",
   "dialog.legacy_upgrade.title": "Actualizarea necesită migrarea datelor",
   "dialog.mini_app_export": "Exportă din {{name}}",

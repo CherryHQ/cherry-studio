@@ -127,6 +127,7 @@
   "dialog.legacy_upgrade.download": "下载 {{version}}",
   "dialog.legacy_upgrade.error": "无法检查数据或开始下载，未执行数据迁移。\n\n{{error}}",
   "dialog.legacy_upgrade.message": "请先安装 Cherry Studio {{version}}。",
+  "dialog.legacy_upgrade.prerequisite": "如果你使用的是 1.9.11 或更早版本，或无法识别原版本，请先安装并启动 1.9.12，再启动 2.1.0 完成数据迁移。",
   "dialog.legacy_upgrade.quit": "退出",
   "dialog.legacy_upgrade.title": "升级前需要迁移数据",
   "dialog.mini_app_export": "从 {{name}} 导出",

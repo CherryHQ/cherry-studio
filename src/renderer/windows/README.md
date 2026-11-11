@@ -47,6 +47,7 @@ Each window declares its logger source **declaratively** in its `index.html`, no
 | `main` | `MainApp` | `components/layout/AppShell` (shared) |
 | `subWindow` | `SubWindowApp` | `SubWindowAppShell` |
 | `quickAssistant` | `QuickAssistantApp` | `HomeWindow` |
+| `legacyUpgrade` | `LegacyUpgradeApp` | preboot upgrade instructions and direct installer downloads |
 | `userDataRelocation` | `RelocationApp` | in-component progress/recovery UI |
 | `selection/action` | `SelectionActionApp` | `ActionWindow` |
 | `selection/agent` | `SelectionAgentApp` | `SelectionAgentWindow` |

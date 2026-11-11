@@ -127,6 +127,7 @@
   "dialog.legacy_upgrade.download": "Λήψη {{version}}",
   "dialog.legacy_upgrade.error": "Δεν ήταν δυνατός ο έλεγχος δεδομένων ή η έναρξη της λήψης. Δεν πραγματοποιήθηκε μεταφορά δεδομένων.\n\n{{error}}",
   "dialog.legacy_upgrade.message": "Εγκαταστήστε πρώτα το Cherry Studio {{version}}.",
+  "dialog.legacy_upgrade.prerequisite": "Αν χρησιμοποιούσατε την έκδοση 1.9.11 ή παλαιότερη, ή η προηγούμενη έκδοση δεν αναγνωρίζεται, εγκαταστήστε και εκκινήστε πρώτα την 1.9.12. Έπειτα εκκινήστε την 2.1.0 για τη μεταφορά των δεδομένων σας.",
   "dialog.legacy_upgrade.quit": "Έξοδος",
   "dialog.legacy_upgrade.title": "Η αναβάθμιση απαιτεί μεταφορά δεδομένων",
   "dialog.mini_app_export": "Εξαγωγή από {{name}}",

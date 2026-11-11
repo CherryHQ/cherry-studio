@@ -12,7 +12,7 @@ export const migrationStatusSchema = z.object({
   completedAt: z.number().optional()
 })
 
-export function readMigrationV2Status(db: DbType) {
+export function readMigrationV2Status(db: Pick<DbType, 'select'>) {
   const row = db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
   return row ? migrationStatusSchema.parse(row.value) : undefined
 }

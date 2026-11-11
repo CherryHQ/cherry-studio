@@ -63,7 +63,7 @@ describe('legacy profile detection', () => {
       fs.writeFileSync(path.join(profile, marker), marker === 'config.json' ? '{"theme":"dark"}' : '1.9.0')
     }
     const before = fs.readdirSync(profile)
-    expect(findLegacyUpgradeProfile()).toBe(profile)
+    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'legacy', path: profile })
     expect(fs.readdirSync(profile)).toEqual(before)
     expect(fs.existsSync(path.join(profile, 'Data'))).toBe(false)
   })
@@ -91,7 +91,7 @@ describe('legacy profile detection', () => {
   it('blocks a converter crash after schema creation but before the first status record', async () => {
     await copyDatabase()
     fs.writeFileSync(path.join(profile, 'version.log'), '1.9.12')
-    expect(findLegacyUpgradeProfile()).toBe(profile)
+    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'legacy', path: profile })
     expect(dbh.db.select().from(appStateTable).all()).toEqual([])
   })
 
@@ -99,7 +99,7 @@ describe('legacy profile detection', () => {
     await copyDatabase({ status })
     const file = path.join(profile, 'Data/cherrystudio.sqlite')
     const before = fs.readFileSync(file)
-    expect(findLegacyUpgradeProfile()).toBe(profile)
+    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'legacy', path: profile })
     expect(fs.readFileSync(file)).toEqual(before)
     expect(isMigratedFromV1()).toBe(false)
   })
@@ -137,9 +137,26 @@ describe('legacy profile detection', () => {
               : [{ executablePath: shape === 'exact' ? '/app/cherry' : '/old/cherry', dataPath: custom }]
         })
       )
-      expect(findLegacyUpgradeProfile()).toBe(custom)
+      expect(findLegacyUpgradeProfile()).toEqual({ kind: 'legacy', path: custom })
       expect(fs.readdirSync(profile)).toEqual([])
       expect(fs.readdirSync(custom)).toEqual(['version.log'])
+    }
+  )
+
+  it.each(['completed', 'seeded'])(
+    'recovers an established %s custom profile without modifying its database',
+    async (state) => {
+      if (state === 'seeded') new SeedRunner(dbh.db).runAll([new LegacyFileCleanupPolicySeeder()])
+      await copyDatabase(state === 'completed' ? { status: 'completed', migratedFromV1: true } : undefined)
+      const custom = path.join(root, 'custom')
+      fs.renameSync(profile, custom)
+      fs.mkdirSync(profile)
+      fs.writeFileSync(configFile, JSON.stringify({ appDataPath: custom }))
+      const file = path.join(custom, 'Data/cherrystudio.sqlite')
+      const before = fs.readFileSync(file)
+      expect(findLegacyUpgradeProfile()).toEqual({ kind: 'recover', path: custom })
+      expect(fs.readFileSync(file)).toEqual(before)
+      expect(fs.readdirSync(profile)).toEqual([])
     }
   )
 
@@ -162,6 +179,19 @@ describe('legacy profile detection', () => {
 })
 
 describe('fixed migration release downloads', () => {
+  it.each([
+    ['darwin', 'x64', false, false, 'x64.dmg'],
+    ['darwin', 'x64', true, false, 'arm64.dmg'],
+    ['win32', 'x64', false, false, 'x64-setup.exe'],
+    ['win32', 'arm64', false, true, 'arm64-portable.exe'],
+    ['linux', 'x64', false, false, 'x86_64.AppImage'],
+    ['linux', 'arm64', false, false, 'arm64.AppImage']
+  ] as const)('selects prerequisite installer for %s/%s', (platform, arch, translated, portable, asset) => {
+    expect(getLegacyUpgradeDownloadUrl({ platform, arch, translated, portable, version: '1.9.12' })).toBe(
+      `https://github.com/CherryHQ/cherry-studio/releases/download/v1.9.12/Cherry-Studio-1.9.12-${asset}`
+    )
+  })
+
   it.each([
     ['darwin', 'x64', false, false, 'mac-x64.dmg'],
     ['darwin', 'arm64', false, false, 'mac-arm64.dmg'],

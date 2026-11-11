@@ -73,24 +73,30 @@ function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 export type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
-function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
+function isProviderAvailableInCurrentEdition(
+  provider: Pick<Provider, 'availableInEditions'>,
+  db?: Pick<DbType, 'select'>
+): boolean {
   const availableInEditions = provider.availableInEditions
-  return isMigratedFromV1() || !availableInEditions || availableInEditions.includes(getAppEdition())
+  return isMigratedFromV1(db) || !availableInEditions || availableInEditions.includes(getAppEdition())
 }
 
-function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMetadata | null {
+function getAvailableProviderMetadata(
+  row: ProviderIdentity,
+  db?: Pick<DbType, 'select'>
+): ProviderDisplayMetadata | null {
   if (isRetiredProvider(row.providerId, row.presetProviderId)) return null
 
   const metadata = getDataService('ProviderRegistryService').getProviderDisplayMetadata(
     row.providerId,
     row.presetProviderId
   )
-  return isProviderAvailableInCurrentEdition(metadata) ? metadata : null
+  return isProviderAvailableInCurrentEdition(metadata, db) ? metadata : null
 }
 
 /** Edition availability from provider metadata, the build edition, and persisted v1 migration origin. */
-export function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
-  return getAvailableProviderMetadata(row) !== null
+export function isProviderIdentityAvailable(row: ProviderIdentity, db?: Pick<DbType, 'select'>): boolean {
+  return getAvailableProviderMetadata(row, db) !== null
 }
 
 function rowToReasoningProviderContext(
@@ -408,7 +414,7 @@ class ProviderService {
       .where(ids ? inArray(userProviderTable.providerId, ids) : undefined)
       .all()
 
-    return new Set(rows.filter(isProviderIdentityAvailable).map((row) => row.providerId))
+    return new Set(rows.filter((row) => isProviderIdentityAvailable(row)).map((row) => row.providerId))
   }
 
   /** Resolve provider registry contexts inside a caller-owned database transaction. */
@@ -431,7 +437,7 @@ class ProviderService {
       .all()
     const contexts = new Map<string, ReasoningProviderContext>()
     for (const row of rows) {
-      const metadata = getAvailableProviderMetadata(row)
+      const metadata = getAvailableProviderMetadata(row, tx)
       if (metadata) contexts.set(row.providerId, rowToReasoningProviderContext(row, metadata))
     }
     return contexts

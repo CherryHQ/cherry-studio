@@ -128,5 +128,5 @@ icon: arrow-right-arrow-left
 * [Cherry Studio V2 官方下载](https://cherryai.com.cn/download)
 * [Cherry Studio V1 官方下载](https://cherryai.com.cn/download/v1)
 * V2 发布页：[GitCode](https://gitcode.com/CherryHQ/cherry-studio/releases) · [GitHub](https://github.com/CherryHQ/cherry-studio/releases)
-* [官方迁移设计说明](https://github.com/CherryHQ/cherry-studio/blob/main/src/main/data/migration/v2/README.md#version-compatibility-gate)
+* [官方迁移设计说明](https://github.com/CherryHQ/cherry-studio/blob/v2.1.0/src/main/data/migration/v2/README.md#version-compatibility-gate)
 * [问题反馈与功能建议](../../question-contact/suggestions.md)

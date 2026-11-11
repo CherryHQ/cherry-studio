@@ -127,5 +127,5 @@ No. Valid indexes will be migrated; only process sources that show as failed, la
 * [Cherry Studio V2 Official Download](https://cherryai.com/download)
 * [Cherry Studio V1 Official Download](https://cherryai.com/download/v1)
 * V2 Release Page: [GitHub](https://github.com/CherryHQ/cherry-studio/releases)
-* [Official Migration Design Notes](https://github.com/CherryHQ/cherry-studio/blob/main/src/main/data/migration/v2/README.md#version-compatibility-gate)
+* [Official Migration Design Notes](https://github.com/CherryHQ/cherry-studio/blob/v2.1.0/src/main/data/migration/v2/README.md#version-compatibility-gate)
 * [Issue Feedback and Feature Suggestions](../../question-contact/suggestions.md)
