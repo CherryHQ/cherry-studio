@@ -70,6 +70,60 @@ const textPart = (text: string, parentToolCallId?: string): CherryMessagePart =>
   }) as unknown as CherryMessagePart
 
 describe('agent right pane projections', () => {
+  it.each(['TaskUpdate', 'TodoWrite'])(
+    'keeps unfinished %s tasks without claiming activity after their owner settles',
+    (toolName) => {
+      const parts =
+        toolName === 'TaskUpdate'
+          ? [
+              toolPart(
+                'create',
+                'TaskCreate',
+                undefined,
+                'output-available',
+                { subject: 'Inspect setup' },
+                { task: { id: '1', subject: 'Inspect setup' } }
+              ),
+              toolPart('start', 'TaskUpdate', undefined, 'output-available', { taskId: '1', status: 'in_progress' })
+            ]
+          : [
+              toolPart('todo', 'TodoWrite', undefined, 'output-available', {
+                todos: [{ content: 'Inspect setup', status: 'in_progress', activeForm: 'Inspecting setup' }]
+              })
+            ]
+      const messages = [message('m1', parts), message('m2', [])]
+      const project = (active: string[]) =>
+        buildAgentRightPaneStatus(
+          messages,
+          { m1: parts },
+          {},
+          {
+            activeMessageIds: new Set(active),
+            liveBackgroundTaskIds: new Set(['unrelated-background-task'])
+          }
+        )
+      expect(project(['m1']).tasks[0].status).toBe('in_progress')
+      for (const active of [[], ['m2']]) {
+        const status = project(active)
+        expect(status.isTaskPlanActive).toBe(false)
+        expect(status.tasks).toEqual([expect.objectContaining({ title: 'Inspect setup', status: 'pending' })])
+        expect(status.completedTaskCount).toBe(0)
+        expect(status.totalTaskCount).toBe(1)
+      }
+      const resumed = buildAgentRightPaneStatus(
+        [...messages, message('m3', parts)],
+        { m1: parts, m3: parts },
+        {},
+        {
+          activeMessageIds: new Set(['m3']),
+          liveBackgroundTaskIds: new Set()
+        }
+      )
+      expect(resumed.isTaskPlanActive).toBe(true)
+      expect(resumed.tasks[0].status).toBe('in_progress')
+    }
+  )
+
   describe('preview URL discovery', () => {
     it('returns the latest loopback URL reported by a shell tool', () => {
       const firstParts = [
@@ -767,31 +821,22 @@ describe('agent right pane projections', () => {
     expect(status.totalTaskCount).toBe(1)
   })
 
-  it('removes a completed task when TaskUpdate changes its status to deleted', () => {
-    const parts = [
-      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Finished task' }),
-      toolPart('complete', 'TaskUpdate', undefined, 'output-available', { taskId: '1', status: 'completed' }),
-      toolPart(
-        'delete',
-        'TaskUpdate',
-        undefined,
-        'output-available',
-        { taskId: '1', status: 'deleted' },
-        {
-          success: true,
-          taskId: '1',
-          updatedFields: ['status'],
-          statusChange: { from: 'completed', to: 'deleted' }
-        }
-      )
-    ]
+  it.each([{ success: true }, 'Updated task #1 deleted'])(
+    'removes a completed task after confirmed deletion (%j)',
+    (output) => {
+      const parts = [
+        toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Finished task' }),
+        toolPart('complete', 'TaskUpdate', undefined, 'output-available', { taskId: '1', status: 'completed' }),
+        toolPart('delete', 'TaskUpdate', undefined, 'output-available', { taskId: '1', status: 'deleted' }, output)
+      ]
 
-    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+      const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
 
-    expect(status.tasks).toEqual([])
-    expect(status.completedTaskCount).toBe(0)
-    expect(status.totalTaskCount).toBe(0)
-  })
+      expect(status.tasks).toEqual([])
+      expect(status.completedTaskCount).toBe(0)
+      expect(status.totalTaskCount).toBe(0)
+    }
+  )
 
   it('starts a new plan without unfinished tasks from an earlier assistant message', () => {
     const oldParts = [

@@ -11,7 +11,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { createAgent, selectAgentWorkspace } from '../helpers/agents'
+import { createAgent, openAgentPane, selectAgentWorkspace } from '../helpers/agents'
 import { ensureCustomChatProvider } from '../helpers/models'
 import { closeSettings } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
@@ -161,6 +161,21 @@ export async function agentTaskPlanProjection(app: RegressionApp, page: Page, te
         ]
       }
     ]
+    phases.push({
+      phase: 'C',
+      screenshot: 'MP-152 unfinished task after reply ends',
+      parts: [
+        createFirst,
+        {
+          type: 'dynamic-tool',
+          toolName: 'TaskUpdate',
+          toolCallId: 'seed-unfinished',
+          state: 'output-available',
+          input: { taskId: '1', status: 'in_progress' },
+          output: 'Updated task #1 status'
+        }
+      ]
+    })
     for (const phase of phases) {
       const patched = await page.evaluate(
         async ({ sessionId, messageId, serializedParts }) => {
@@ -191,18 +206,19 @@ export async function agentTaskPlanProjection(app: RegressionApp, page: Page, te
       await expect(view).toBeVisible({ timeout: 30_000 })
       await expect(view.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)).toBeVisible()
 
+      await expect(capsule).toBeHidden()
+      await expect(progress).toBeHidden()
+      await openAgentPane(page, 'Session details')
+      const details = page.getByRole('dialog', { name: 'Session details', exact: true })
+      const plan = details.getByRole('button', { name: /^Plan/ })
       if (phase.phase === 'A') {
-        await expect(capsule).toBeHidden()
-        await expect(progress).toBeHidden()
+        await expect(plan).toBeHidden()
       } else {
-        await expect(capsule).toBeVisible()
-        await expect(progress).toHaveAttribute('aria-valuenow', '0')
-        await expect(progress).toHaveAttribute('aria-valuemax', '1')
-        await progress.hover()
-        const details = page.getByTestId('agent-task-progress-details')
-        await expect(details).toBeVisible()
-        await expect(details).toContainText('Inspect project setup')
-        await expect(details).not.toContainText('Write handoff notes')
+        await expect(plan).toContainText('0 / 1')
+        if ((await plan.getAttribute('aria-expanded')) !== 'true') await plan.click()
+        await expect(details.getByText('Inspect project setup', { exact: true })).toBeVisible()
+        await expect(details.getByText('Write handoff notes', { exact: true })).toBeHidden()
+        await expect(details.getByRole('img', { name: 'Running', exact: true })).toBeHidden()
       }
       observations.push({
         phase: phase.phase,
@@ -210,10 +226,7 @@ export async function agentTaskPlanProjection(app: RegressionApp, page: Page, te
         progressVisible: await progress.isVisible(),
         completed: (await progress.count()) ? await progress.getAttribute('aria-valuenow') : null,
         total: (await progress.count()) ? await progress.getAttribute('aria-valuemax') : null,
-        tasks:
-          phase.phase === 'B'
-            ? await page.getByTestId('agent-task-progress-details').locator('li').allTextContents()
-            : []
+        tasks: phase.phase === 'A' ? [] : await details.locator('ol li').allTextContents()
       })
       const path = testInfo.outputPath(`${phase.screenshot}.png`)
       await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))

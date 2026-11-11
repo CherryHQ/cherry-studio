@@ -900,6 +900,56 @@ describe('AgentRightPane', () => {
     }
   })
 
+  it.each(['missing-completion', 'completed-update', 'empty-list', 'no-tools'] as const)(
+    'hides a settled task plan without inventing completion (%s)',
+    (scenario) => {
+      uiMockState.useRealHoverCard = true
+      const tool = (id: string, toolName: string, input: unknown, output: unknown): CherryMessagePart =>
+        ({
+          type: 'dynamic-tool',
+          toolCallId: id,
+          toolName,
+          state: 'output-available',
+          input,
+          output
+        }) as CherryMessagePart
+      const initial =
+        scenario === 'no-tools'
+          ? []
+          : [
+              tool(
+                'create',
+                'TaskCreate',
+                { subject: 'Inspect setup', activeForm: 'Inspecting setup' },
+                'Task #1 created successfully: Inspect setup'
+              ),
+              tool('start', 'TaskUpdate', { taskId: '1', status: 'in_progress' }, 'Updated task #1 status')
+            ]
+      const pane = (parts: CherryMessagePart[], status: 'pending' | 'success') => (
+        <TestAgentRightPane
+          sessionId="diagnostic-24240"
+          messages={createTaskMessages(parts, status)}
+          partsByMessageId={{ m1: parts }}>
+          <AgentTaskProgressCapsule />
+        </TestAgentRightPane>
+      )
+      const view = render(pane(initial, 'pending'))
+      if (scenario !== 'no-tools') expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')
+      const terminal =
+        scenario === 'completed-update'
+          ? [tool('complete', 'TaskUpdate', { taskId: '1', status: 'completed' }, 'Updated task #1 status')]
+          : scenario === 'empty-list'
+            ? [tool('list', 'TaskList', {}, 'No tasks found')]
+            : []
+      const parts: CherryMessagePart[] = [...initial, ...terminal, { type: 'text', text: 'All done.', state: 'done' }]
+      view.rerender(pane(parts, 'success'))
+      expect(screen.queryByRole('progressbar')).toBeNull()
+      view.unmount()
+      render(pane(parts, 'success'))
+      expect(screen.queryByRole('progressbar')).toBeNull()
+    }
+  )
+
   it('opens the current task plan from hover and keyboard focus, then hides it after completion', async () => {
     uiMockState.useRealHoverCard = true
     const user = userEvent.setup()
@@ -979,8 +1029,7 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
-    expect(within(screen.getByTestId('agent-task-progress-details')).getByText('Collect context')).toBeInTheDocument()
-    expect(screen.queryByText('Collecting context')).toBeNull()
+    expect(screen.queryByTestId('agent-task-progress-capsule')).toBeNull()
   })
 
   it('opens details without claiming the work panel and preserves the files shortcut', () => {
@@ -2629,7 +2678,7 @@ describe('AgentRightPane', () => {
       }
     } as unknown as CherryMessagePart
     const messages = [
-      { id: 'm1', role: 'assistant', parts: [todoPart], metadata: { status: 'success' } }
+      { id: 'm1', role: 'assistant', parts: [todoPart], metadata: { status: 'pending' } }
     ] as CherryUIMessage[]
 
     render(
