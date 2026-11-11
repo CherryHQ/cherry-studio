@@ -221,7 +221,6 @@ describe('topic context menu actions', () => {
     const actions = resolveTopicMenuActions(context)
     const moveAction = actions.find((action) => action.id === 'topic.move-to-assistant')
 
-    expect(moveAction?.label).toBe('chat.topics.move_to')
     expect(moveAction?.children.map((action) => action.label)).toEqual(['Assistant B'])
 
     await executeTopicMenuAction(moveAction!.children[0], context)

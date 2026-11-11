@@ -34,6 +34,7 @@ import {
   AgentWorkspaceNameSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
+import { CreateTopicSchema } from '@shared/data/api/schemas/topics'
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -42,6 +43,7 @@ import {
   ServiceTierSelectionSchema,
   UniqueModelIdSchema
 } from '@shared/data/types/model'
+import { TopicSchema } from '@shared/data/types/topic'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
 
@@ -529,7 +531,10 @@ export const aiRequestSchemas = {
     // No caller reads the trigger result, so the route is void (see ipc-migration-guide.md).
     input: agentTaskRefSchema,
     output: z.void()
-  })
+  }),
+  'ai.temporary_topic.create': defineRoute({ input: CreateTopicSchema, output: TopicSchema }),
+  'ai.temporary_topic.delete': defineRoute({ input: z.strictObject({ id: z.string().min(1) }), output: z.void() }),
+  'ai.temporary_topic.persist': defineRoute({ input: z.strictObject({ id: z.string().min(1) }), output: z.void() })
 }
 
 /**

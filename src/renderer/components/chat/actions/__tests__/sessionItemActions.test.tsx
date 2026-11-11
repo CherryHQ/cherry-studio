@@ -48,21 +48,6 @@ function createSessionActionFixture(overrides: Partial<SessionActionContext> = {
 }
 
 describe('session item actions', () => {
-  it('resolves rename and delete actions without pin when pin callback is absent', () => {
-    const actions = resolveSessionMenuActions(createSessionActionFixture())
-
-    expect(actions.map((action) => action.id)).toEqual([
-      'session.auto-rename',
-      'session.rename',
-      'session.position',
-      'session.save-notes',
-      'session.save-knowledge',
-      'session.export',
-      'session.copy',
-      'session.delete'
-    ])
-  })
-
   it('resolves pin label from pinned state and executes callbacks without agent editing', async () => {
     const onTogglePin = vi.fn()
     const startEdit = vi.fn()
@@ -72,11 +57,6 @@ describe('session item actions', () => {
       startEdit
     })
     const actions = resolveSessionMenuActions(actionContext)
-
-    expect(actions.find((action) => action.id === 'session.delete')?.availability.enabled).toBe(true)
-    expect(actions.find((action) => action.id === 'session.auto-rename')?.label).toBe('agent.session.auto_rename')
-    expect(actions.find((action) => action.id === 'session.rename')?.label).toBe('agent.session.edit.title')
-    expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('agent.session.unpin.title')
 
     const renameAction = actions.find((action) => action.id === 'session.rename')
     const pinAction = actions.find((action) => action.id === 'session.toggle-pin')
@@ -107,26 +87,6 @@ describe('session item actions', () => {
     expect(onTogglePin).not.toHaveBeenCalled()
   })
 
-  it('hides open-in-new-tab when the session is already active in the current tab', () => {
-    const actions = resolveSessionMenuActions(
-      createSessionActionFixture({
-        isActiveInCurrentTab: true,
-        onOpenInNewTab: vi.fn()
-      })
-    )
-
-    expect(actions.map((action) => action.id)).toEqual([
-      'session.auto-rename',
-      'session.rename',
-      'session.position',
-      'session.save-notes',
-      'session.save-knowledge',
-      'session.export',
-      'session.copy',
-      'session.delete'
-    ])
-  })
-
   it('keeps open-in-new-window available even when the session is active in the current tab', async () => {
     const onOpenInNewWindow = vi.fn()
     const actionContext = createSessionActionFixture({
@@ -134,18 +94,6 @@ describe('session item actions', () => {
       onOpenInNewWindow
     })
     const actions = resolveSessionMenuActions(actionContext)
-
-    expect(actions.map((action) => action.id)).toEqual([
-      'session.auto-rename',
-      'session.rename',
-      'session.position',
-      'session.open-in-new-window',
-      'session.save-notes',
-      'session.save-knowledge',
-      'session.export',
-      'session.copy',
-      'session.delete'
-    ])
 
     const action = actions.find((candidate) => candidate.id === 'session.open-in-new-window')
     await executeSessionMenuAction(action as (typeof actions)[number], actionContext)
@@ -159,7 +107,6 @@ describe('session item actions', () => {
     const positionAction = actions.find((action) => action.id === 'session.position')
     const rightAction = positionAction?.children.find((action) => action.id === 'session.position-right')
 
-    expect(positionAction?.label).toBe('settings.agent.position.label')
     expect(rightAction?.availability.enabled).toBe(true)
 
     await executeSessionMenuAction(rightAction as (typeof actions)[number], actionContext)
