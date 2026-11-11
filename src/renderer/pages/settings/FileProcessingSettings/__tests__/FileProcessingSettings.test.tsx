@@ -286,7 +286,7 @@ describe('processing settings pages', () => {
     loggerWarnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
     ipcRequestMock.mockReset()
     ipcRequestMock.mockResolvedValue({
-      processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru']
+      processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'jina', 'open-mineru']
     })
   })
 
@@ -337,6 +337,26 @@ describe('processing settings pages', () => {
         name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model'
       })
     ).toBeInTheDocument()
+  })
+
+  it('offers Jina only for documents and selects it as the default', async () => {
+    const user = userEvent.setup()
+    const ocr = render(<OcrSettings />)
+    await screen.findByText('settings.tool.file_processing.features.image_to_text.title')
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.jina.name/ })
+    ).not.toBeInTheDocument()
+    ocr.unmount()
+    render(<DocumentProcessingSettings />)
+    await user.click(await screen.findByRole('button', { name: /settings.tool.file_processing.processors.jina.name/ }))
+    expect(setPreferencesMock).toHaveBeenCalledWith({ defaultDocumentProcessor: 'jina' })
+    expect(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('settings.provider.api_host')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'settings.provider.get_api_key' })).toHaveAttribute(
+      'href',
+      'https://jina.ai'
+    )
+    expect(screen.queryByText('settings.tool.file_processing.fields.model')).not.toBeInTheDocument()
   })
 
   it('uses the web search field treatment for document processing inputs', async () => {

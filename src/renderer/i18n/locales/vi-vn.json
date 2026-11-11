@@ -6040,6 +6040,8 @@
   "settings.tool.file_processing.processors.doc2x.fields.merge_cross_page_forms": "Gộp bảng qua các trang",
   "settings.tool.file_processing.processors.doc2x.fields.model": "Mô hình",
   "settings.tool.file_processing.processors.doc2x.name": "Doc2x",
+  "settings.tool.file_processing.processors.jina.description": "Chuyển đổi tệp PDF, DOCX, XLSX và PPTX sang Markdown bằng Jina Reader.",
+  "settings.tool.file_processing.processors.jina.name": "Jina",
   "settings.tool.file_processing.processors.local_document.description": "Chuyển đổi PDF sang Markdown hoàn toàn trên máy này. Tài liệu có lớp văn bản sẽ được phân tích trực tiếp; bản quét sẽ dùng mô hình OCR cục bộ.",
   "settings.tool.file_processing.processors.local_document.name": "Tài liệu cục bộ",
   "settings.tool.file_processing.processors.local_paddleocr.description": "PaddleOCR (PP-OCRv6 medium) chạy trong tiến trình — hoàn toàn offline, không cần API key, với nhận dạng trên luồng nền để giao diện người dùng luôn phản hồi. Tải xuống mô hình (~140MB) trong Phụ thuộc Môi trường trước khi sử dụng lần đầu.",

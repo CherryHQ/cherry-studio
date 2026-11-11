@@ -446,6 +446,7 @@ export const FILE_PROCESSOR_IDS = [
   'mineru',
   'doc2x',
   'mistral',
+  'jina',
   'open-mineru'
 ] as const
 

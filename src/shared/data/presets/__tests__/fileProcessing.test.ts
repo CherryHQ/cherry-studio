@@ -77,6 +77,16 @@ describe('FileProcessorTemplatesSchema', () => {
     })
   })
 
+  it('ships Jina as an unlimited document endpoint without a model', () => {
+    expect(PRESETS_FILE_PROCESSORS.find((preset) => preset.id === 'jina')).toEqual({
+      id: 'jina',
+      type: 'api',
+      capabilities: [
+        { feature: 'document_to_markdown', inputs: ['document'], output: 'markdown', apiHost: 'https://r.jina.ai' }
+      ]
+    })
+  })
+
   it('ships the current PaddleOCR hosted model defaults', () => {
     const paddleocr = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === 'paddleocr')
 
@@ -104,7 +114,7 @@ describe('FileProcessorTemplatesSchema', () => {
   it('declares the product PDF page limits for document processors', () => {
     const limits = Object.fromEntries(
       PRESETS_FILE_PROCESSORS.filter((preset) =>
-        ['paddleocr', 'mineru', 'doc2x', 'mistral', 'local-document', 'open-mineru'].includes(preset.id)
+        ['paddleocr', 'mineru', 'doc2x', 'mistral', 'jina', 'local-document', 'open-mineru'].includes(preset.id)
       ).map((preset) => [
         preset.id,
         preset.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.maxInputPages
@@ -116,6 +126,7 @@ describe('FileProcessorTemplatesSchema', () => {
       mineru: 600,
       doc2x: 1000,
       mistral: 1000,
+      jina: undefined,
       'local-document': undefined,
       'open-mineru': undefined
     })
@@ -124,7 +135,7 @@ describe('FileProcessorTemplatesSchema', () => {
   it('declares the document upload byte limits for processors that enforce one', () => {
     const limits = Object.fromEntries(
       PRESETS_FILE_PROCESSORS.filter((preset) =>
-        ['paddleocr', 'mineru', 'doc2x', 'mistral', 'local-document', 'open-mineru'].includes(preset.id)
+        ['paddleocr', 'mineru', 'doc2x', 'mistral', 'jina', 'local-document', 'open-mineru'].includes(preset.id)
       ).map((preset) => [
         preset.id,
         preset.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.maxInputBytes
@@ -136,6 +147,7 @@ describe('FileProcessorTemplatesSchema', () => {
       mineru: 200 * MB,
       doc2x: GB,
       mistral: undefined,
+      jina: undefined,
       'local-document': undefined,
       'open-mineru': 200 * MB
     })

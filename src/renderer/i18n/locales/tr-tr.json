@@ -6040,6 +6040,8 @@
   "settings.tool.file_processing.processors.doc2x.fields.merge_cross_page_forms": "Sayfalar arası tabloları birleştir",
   "settings.tool.file_processing.processors.doc2x.fields.model": "Model",
   "settings.tool.file_processing.processors.doc2x.name": "Doc2x",
+  "settings.tool.file_processing.processors.jina.description": "PDF, DOCX, XLSX ve PPTX dosyalarını Jina Reader ile Markdown biçimine dönüştürün.",
+  "settings.tool.file_processing.processors.jina.name": "Jina",
   "settings.tool.file_processing.processors.local_document.description": "PDF'leri tamamen bu makinede Markdown'a dönüştürür. Metin katmanı bulunan belgeler doğrudan ayrıştırılır; taranmış belgelerde yerel OCR modeli kullanılır.",
   "settings.tool.file_processing.processors.local_document.name": "Yerel Belge",
   "settings.tool.file_processing.processors.local_paddleocr.description": "Uygulama içinde çalışan PaddleOCR (PP-OCRv6 medium) — tamamen çevrim dışıdır, API anahtarı gerektirmez ve tanıma işlemi arka plan iş parçacığında gerçekleştiğinden kullanıcı arayüzü yanıt vermeye devam eder.",

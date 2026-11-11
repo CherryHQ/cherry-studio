@@ -6040,6 +6040,8 @@
   "settings.tool.file_processing.processors.doc2x.fields.merge_cross_page_forms": "ページ間の表を結合",
   "settings.tool.file_processing.processors.doc2x.fields.model": "モデル",
   "settings.tool.file_processing.processors.doc2x.name": "Doc2x",
+  "settings.tool.file_processing.processors.jina.description": "Jina Reader で PDF、DOCX、XLSX、PPTX ファイルを Markdown に変換します。",
+  "settings.tool.file_processing.processors.jina.name": "Jina",
   "settings.tool.file_processing.processors.local_document.description": "PDFをMarkdownに変換する処理をすべてこのマシン上で行います。テキストレイヤーを含む文書は直接解析され、スキャン文書の場合はローカルのOCRモデルにフォールバックします。",
   "settings.tool.file_processing.processors.local_document.name": "ローカルドキュメント",
   "settings.tool.file_processing.processors.local_paddleocr.description": "PaddleOCR (PP-OCRv6 medium) をインプロセスで実行 — 完全オフライン、APIキー不要、認識処理はバックグラウンドスレッドで実行されるためUIが応答性を保ちます。初回使用前に環境依存関係でモデル（約140MB）をダウンロードしてください。",

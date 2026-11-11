@@ -88,6 +88,7 @@ const validRegistry = {
     isSupported: () => true,
     capabilities: {}
   },
+  jina: { runtime: 'remote', isSupported: () => true, capabilities: {} },
   'open-mineru': {
     runtime: 'remote',
     isSupported: () => true,
