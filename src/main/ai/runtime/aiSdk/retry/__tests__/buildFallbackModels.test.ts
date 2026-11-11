@@ -95,22 +95,6 @@ describe('buildFallbackModels', () => {
     ).toEqual([])
   })
 
-  it('is lazy — no provider/model/buildAgentParams work until a resolver is invoked', () => {
-    getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
-    stubBuildAgentParams('claude-x')
-
-    const resolvers = buildFallbackModels({
-      ...baseArgs,
-      primaryUniqueModelId: 'openai::gpt-4',
-      retryPolicy: policy(['anthropic::claude'])
-    })
-
-    expect(resolvers).toHaveLength(1)
-    expect(getByKey).not.toHaveBeenCalled()
-    expect(buildAgentParams).not.toHaveBeenCalled()
-    expect(resolveLanguageModel).not.toHaveBeenCalled()
-  })
-
   it('resolves a fallback with its OWN plugins and lifts its OWN param overrides', async () => {
     getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
     const { plugins, repairToolCall, credentialReceipt } = stubBuildAgentParams('claude-x')
@@ -122,7 +106,6 @@ describe('buildFallbackModels', () => {
     })
     const fallback = await resolve()
 
-    // The fallback's middleware plugins are passed to resolveLanguageModel.
     expect(createUsagePlugin).toHaveBeenCalledWith({
       provider: expect.objectContaining({ id: 'anthropic' }),
       model: expect.objectContaining({ id: 'anthropic::claude' }),

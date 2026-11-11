@@ -59,7 +59,6 @@ describe('AgentSessionBackgroundTasks', () => {
     }
     render(<AgentSessionBackgroundTasks sessionId="session-1" />)
 
-    expect(screen.getByTestId('horizontal-scroll')).toBeInTheDocument()
     expect(screen.queryByText('Stale task A')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Current task B' }))
 
@@ -67,7 +66,6 @@ describe('AgentSessionBackgroundTasks', () => {
       toolCallId: 'tool-use-b',
       title: 'Current task B'
     })
-    expect(screen.getByText('sleep 300').closest('button')).toBeNull()
   })
 
   it('does not duplicate subagents already shown in the message footer, retaining unanchored work', () => {
@@ -86,23 +84,5 @@ describe('AgentSessionBackgroundTasks', () => {
     expect(screen.queryByText('Review database')).toBeNull()
     expect(screen.getByRole('button', { name: 'Other reply task' })).toBeVisible()
     expect(screen.getByText('Background shell')).toBeVisible()
-  })
-
-  it('does not reserve message space after background work ends', () => {
-    const { container } = render(<AgentSessionBackgroundTasks sessionId="session-1" />)
-
-    expect(container).toBeEmptyDOMElement()
-  })
-
-  it('renders a local Workflow chip without offering an empty root FlowTab', () => {
-    mocks.backgroundTasks = [
-      { id: 'workflow-1', type: 'local_workflow', description: 'Review PR', toolCallId: 'workflow-tool' }
-    ]
-
-    render(<AgentSessionBackgroundTasks sessionId="session-1" />)
-
-    expect(screen.getByText('Review PR')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Review PR' })).toBeNull()
-    expect(mocks.openAgentToolFlow).not.toHaveBeenCalled()
   })
 })

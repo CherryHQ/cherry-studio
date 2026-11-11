@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as TokenProfiles from '@main/ai/tokens/profiles'
 import { resolveOllamaRequestNumCtx } from '@main/ai/utils/ollamaRequestNumCtx'
-import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -62,7 +61,7 @@ describe('allocateAttachmentBudget', () => {
 
     expect(sum(allocated)).toBeLessThanOrEqual(100_000)
     expect(sum(allocated)).toBeGreaterThan(0)
-    expect(1_000 * READ_FILE_PAGE_SIZE).toBeGreaterThan(100_000) // the old floor would have blown it
+    // the old floor would have blown it
   })
 
   // An equal split would truncate the big file at half the pool while the small

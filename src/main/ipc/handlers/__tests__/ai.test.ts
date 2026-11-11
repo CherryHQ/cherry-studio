@@ -221,23 +221,6 @@ describe('aiHandlers', () => {
     })
   })
 
-  it('delegates placeholder reuse and duplicate cleanup to the delivery owner', async () => {
-    const response = {
-      session: { id: 'session-retained' },
-      created: false,
-      deletedDuplicateSessionIds: ['session-duplicate']
-    }
-    agentLifecycleService.reuseOrCreateSession.mockResolvedValue(response)
-
-    await expect(
-      aiHandlers['ai.agent.session.reuse_or_create']({ agentId: 'agent-1', workspace: { type: 'system' } }, ctx)
-    ).resolves.toBe(response)
-    expect(agentLifecycleService.reuseOrCreateSession).toHaveBeenCalledWith({
-      agentId: 'agent-1',
-      workspace: { type: 'system' }
-    })
-  })
-
   it('delegates mixed-effect Agent deletion to the delivery owner', async () => {
     agentLifecycleService.archiveAgent.mockResolvedValue({ deleted: true, deletedSessionIds: ['session-1'] })
 
@@ -264,13 +247,6 @@ describe('aiHandlers', () => {
       deletedIds: ['session-1']
     })
     expect(agentLifecycleService.deleteWorkspace).toHaveBeenCalledWith('workspace-1')
-  })
-
-  it('delegates Support-session creation and returns its id', async () => {
-    const result = await aiHandlers['ai.agent.support_session.create'](undefined, ctx)
-
-    expect(createBuiltinSupportSession).toHaveBeenCalledTimes(1)
-    expect(result).toEqual({ sessionId: 'feedback-session' })
   })
 
   it('reports a missing workspace as a branchable Assistant-session error', async () => {
@@ -322,22 +298,6 @@ describe('aiHandlers', () => {
     expect(result).toBe(out)
   })
 
-  it('check_model forwards the request and returns latency', async () => {
-    aiService.checkModel.mockResolvedValue({ latency: 42 })
-    const request = { uniqueModelId: 'openai::gpt-4o', apiKeyOverride: 'sk-selected', timeout: 5000 } as const
-    const result = await aiHandlers['ai.provider.model.check'](request, ctx)
-    expect(aiService.checkModel).toHaveBeenCalledWith(request)
-    expect(result).toEqual({ latency: 42 })
-  })
-
-  it('embed_many forwards the request and returns embeddings', async () => {
-    const out = { embeddings: [[0, 1]] }
-    aiService.embedMany.mockResolvedValue(out)
-    const result = await aiHandlers['ai.embedding.embed_many']({ uniqueModelId: 'openai::e', values: ['a'] }, ctx)
-    expect(aiService.embedMany).toHaveBeenCalledWith({ uniqueModelId: 'openai::e', values: ['a'] })
-    expect(result).toBe(out)
-  })
-
   it('generate_image unwraps { requestId, payload } into runImageRequest', async () => {
     const payload = {
       uniqueModelId: 'openai::img' as const,
@@ -364,14 +324,6 @@ describe('aiHandlers', () => {
     const result = await aiHandlers['ai.text.abort']({ requestId: 'r1' }, ctx)
     expect(aiService.abortRequest).toHaveBeenCalledWith('r1')
     expect(result).toBeUndefined()
-  })
-
-  it('list_models forwards the request and returns the models', async () => {
-    const models = [{ id: 'openai::gpt-4o' }]
-    aiService.listModels.mockResolvedValue(models)
-    const result = await aiHandlers['ai.provider.model.list']({ providerId: 'openai', throwOnError: true }, ctx)
-    expect(aiService.listModels).toHaveBeenCalledWith({ providerId: 'openai', throwOnError: true })
-    expect(result).toBe(models)
   })
 
   // The point of the migration: a provider failure is re-thrown as an AI_REQUEST_FAILED

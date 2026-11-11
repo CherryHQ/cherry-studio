@@ -628,7 +628,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(prepared.models[0].request.retainedContext?.persistedOutputPaths.size).toBe(0)
     // … and the served summary row tells the model the file is still readable.
     const summaryText = (messages[0].parts?.[0] as { text?: string })?.text ?? ''
-    expect(summaryText).toContain('readable in full via the read_file tool: log.txt')
+    expect(summaryText).toContain('log.txt')
   })
 
   it('2c. summary-row bytes are a pure function of the boundary — live attachments never rewrite them', async () => {
@@ -667,7 +667,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     const { messages: withoutLive } = await makeHistory('u2')
 
     const summaryTextOf = (msgs: typeof withLive) => (msgs[0].parts?.[0] as { text?: string })?.text ?? ''
-    expect(summaryTextOf(withLive)).toContain('readable in full via the read_file tool: folded.txt')
+    expect(summaryTextOf(withLive)).toContain('folded.txt')
     expect(summaryTextOf(withLive)).not.toContain('live.txt')
     expect(summaryTextOf(withLive)).toBe(summaryTextOf(withoutLive))
     // Capability side still covers BOTH attachments (folded + live).

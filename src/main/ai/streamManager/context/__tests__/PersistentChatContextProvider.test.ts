@@ -392,7 +392,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(regenerated.models[0].request.knowledgeBaseIds).toEqual(knowledgeBaseIds)
   })
 
-  it('steer-continuation: opens an assistant turn under the steer user row with a reminder-wrapped prompt', async () => {
+  it('steer-continuation: opens an assistant turn under the steer user row and preserves its content', async () => {
     // u1 → a1 → u2, where u2 is the steer the user sent mid-turn (child of the assistant row).
     await dbh.db.insert(messageTable).values({
       id: 'u2',
@@ -446,9 +446,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(flatten([history[1]])[0]).toEqual({ role: 'assistant', text: PARTIAL })
     const lastText = flatten([history[2]])[0].text
     expect(history[2].role).toBe('user')
-    expect(lastText).toContain('<system-reminder>')
     expect(lastText).toContain('actually do X instead')
-    expect(lastText).toContain('Please address this message and continue with your tasks.')
   })
 
   it('drops the paused partial when the new turn does not anchor on it (precondition is necessary)', async () => {

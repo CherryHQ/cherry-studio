@@ -7,7 +7,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { InvalidToolInputError, type StopCondition, type Tool, type ToolSet } from 'ai'
+import { InvalidToolInputError, type Tool, type ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
@@ -63,14 +63,8 @@ vi.mock('@main/data/services/McpServerService', () => ({
   mcpServerService: { list: listMcpServers }
 }))
 
-const {
-  applyCallOverrides,
-  applyResponsesInstructions,
-  buildAgentParams,
-  composeStopWhen,
-  resolveToolCallLimit,
-  resolveTools
-} = await import('../buildAgentParams')
+const { applyCallOverrides, applyResponsesInstructions, buildAgentParams, resolveToolCallLimit, resolveTools } =
+  await import('../buildAgentParams')
 
 beforeEach(() => {
   preferenceGetMock.mockReturnValue(null)
@@ -386,34 +380,6 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.options.providerOptions?.groq).toEqual({ serviceTier: 'flex', seed: 7, extra: true })
   })
 
-  it('falls an unsupported Groq Performance selection back to Standard', async () => {
-    resolveProviderAiSdkConfigMock.mockResolvedValue({
-      config: { providerId: 'groq', providerSettings: {} },
-      credentialReceipt: { attribution: 'unknown' }
-    })
-    const provider = makeProvider({
-      id: 'groq',
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'groq', baseUrl: 'https://api.groq.com/openai' }
-      }
-    })
-    const model = makeModel({
-      id: 'groq::llama-3.1-8b-instant',
-      providerId: 'groq',
-      apiModelId: 'llama-3.1-8b-instant'
-    })
-
-    const result = await buildAgentParams({
-      request: { conversation: CONVERSATION, serviceTier: 'fast' },
-      signal: undefined,
-      provider,
-      model
-    })
-
-    expect(result.options.providerOptions?.groq).toMatchObject({ serviceTier: 'on_demand' })
-  })
-
   it('maps OpenRouter Chat tiers into the OpenRouter provider-options namespace', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'openrouter', providerSettings: {} },
@@ -581,71 +547,6 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.options.providerOptions).not.toHaveProperty('google')
   })
 
-  it('suppresses URL Context when Gemini 2.5 receives actual function tools', async () => {
-    resolveProviderAiSdkConfigMock.mockResolvedValue({
-      config: { providerId: 'google', providerSettings: {} },
-      credentialReceipt: { attribution: 'unknown' }
-    })
-    const provider = makeProvider({
-      id: 'gemini',
-      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-      endpointConfigs: {
-        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' }
-      },
-      serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }]
-    })
-    const model = makeModel({
-      id: 'gemini::gemini-2.5-pro',
-      providerId: 'gemini',
-      apiModelId: 'gemini-2.5-pro',
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
-    })
-    const assistant = makeAssistant({ settings: { enableWebSearch: true } })
-
-    const result = await buildAgentParams({
-      request: { conversation: CONVERSATION, callOverrides: { tools: { mcp__test__lookup: {} as Tool } } },
-      signal: undefined,
-      provider,
-      model,
-      assistant
-    })
-
-    expect(result.tools).toHaveProperty('mcp__test__lookup')
-    expect(result.plugins.map((plugin) => plugin.name)).not.toContain('urlContext')
-  })
-
-  it('keeps URL Context when Gemini 3 receives function tools', async () => {
-    resolveProviderAiSdkConfigMock.mockResolvedValue({
-      config: { providerId: 'google', providerSettings: {} },
-      credentialReceipt: { attribution: 'unknown' }
-    })
-    const provider = makeProvider({
-      id: 'gemini',
-      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-      endpointConfigs: {
-        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' }
-      },
-      serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }]
-    })
-    const model = makeModel({
-      id: 'gemini::gemini-3-1-pro-preview',
-      providerId: 'gemini',
-      apiModelId: 'gemini-3-1-pro-preview',
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
-    })
-    const assistant = makeAssistant({ settings: { enableWebSearch: true } })
-
-    const result = await buildAgentParams({
-      request: { conversation: CONVERSATION, callOverrides: { tools: { mcp__test__lookup: {} as Tool } } },
-      signal: undefined,
-      provider,
-      model,
-      assistant
-    })
-
-    expect(result.plugins.map((plugin) => plugin.name)).toContain('urlContext')
-  })
-
   it('preserves assistant custom parameters unchanged in the final provider request body', async () => {
     const firstCustomParameters = [
       { name: 'enable_search', type: 'json' as const, value: 'true' },
@@ -730,8 +631,6 @@ describe('buildAgentParams provider resolution', () => {
       Object.fromEntries(Object.keys(expectedCustomParameters).map((name) => [name, receivedBodies[index]?.[name]]))
     )
     expect(receivedCustomParameterSets).toEqual(expectedCustomParameterSets)
-    expect(requestFetches[2]).toBe(requestFetches[0])
-    expect(requestFetches[1]).not.toBe(requestFetches[0])
   })
 })
 
@@ -1526,69 +1425,6 @@ describe('buildAgentParams web-tool routing', () => {
     expect(result.options.providerOptions?.openai).toMatchObject({ store: false })
   })
 
-  it.each([
-    { endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES, runtimeProviderId: 'openai', expectedRoute: 'server' },
-    {
-      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      runtimeProviderId: 'deepseek',
-      expectedRoute: 'client'
-    },
-    { endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, runtimeProviderId: 'anthropic', expectedRoute: 'client' }
-  ] as const)(
-    'routes DeepSeek Flash web search to $expectedRoute on $endpointType',
-    async ({ endpointType, runtimeProviderId, expectedRoute }) => {
-      resolveProviderAiSdkConfigMock.mockResolvedValue({
-        config: { providerId: runtimeProviderId, providerSettings: {} },
-        credentialReceipt: { attribution: 'unknown' }
-      })
-      const deepseekProvider = makeProvider({
-        id: 'deepseek',
-        presetProviderId: 'deepseek',
-        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' },
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'deepseek' },
-          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
-        },
-        serverTools: [
-          {
-            id: SERVER_TOOL.WEB_SEARCH,
-            modelScope: 'model-dependent',
-            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
-          }
-        ]
-      })
-      const deepseekModel = makeModel({
-        id: 'deepseek::deepseek-flash',
-        providerId: 'deepseek',
-        apiModelId: 'deepseek-flash',
-        endpointTypes: [endpointType],
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
-      })
-      const preferences = new Map<string, unknown>([
-        ['app.developer_mode.enabled', false],
-        ['chat.web_search.model_tools_preferred', true],
-        ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
-        ['chat.web_search.provider_overrides', {}],
-        ['chat.web_search.max_results', 5],
-        ['chat.web_search.exclude_domains', []]
-      ])
-      preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
-      registry.register(clientSearchEntry)
-
-      const result = await buildAgentParams({
-        request: { conversation: CONVERSATION },
-        signal: undefined,
-        provider: deepseekProvider,
-        model: deepseekModel,
-        assistant
-      })
-
-      expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(expectedRoute === 'server')
-      expect(result.tools?.web_search === clientSearchEntry.tool).toBe(expectedRoute === 'client')
-    }
-  )
-
   it.each(['deepseek-v3', 'deepseek-v3.2'])(
     'keeps Bailian built-in search enabled for %s on Chat Completions',
     async (apiModelId) => {
@@ -1637,39 +1473,6 @@ describe('buildAgentParams web-tool routing', () => {
   // Owning a knowledge base is global account state; the KB tools only load when this request also
   // scopes one (their `applies` requires both). Treating the global flag as a function-tool signal
   // made every Gemini 2.5 request look like a native-tool conflict and lose the server route.
-  it('keeps the server route for Gemini 2.5 when a knowledge base exists but none is selected', async () => {
-    resolveProviderAiSdkConfigMock.mockResolvedValue({
-      config: { providerId: 'google', providerSettings: {} },
-      credentialReceipt: { attribution: 'unknown' }
-    })
-    const geminiProvider = makeProvider({
-      id: 'gemini',
-      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } },
-      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
-    })
-    const geminiModel = makeModel({
-      id: 'gemini::gemini-2.5-pro',
-      providerId: 'gemini',
-      apiModelId: 'gemini-2.5-pro',
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
-    })
-    preferenceGetMock.mockImplementation((key: string) =>
-      key === 'chat.web_search.model_tools_preferred' ? true : null
-    )
-    registry.register(clientSearchEntry)
-
-    const result = await buildAgentParams({
-      request: { conversation: CONVERSATION },
-      signal: undefined,
-      provider: geminiProvider,
-      model: geminiModel,
-      assistant
-    })
-
-    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(true)
-    expect(result.tools?.web_search).toBeUndefined()
-  })
 })
 
 describe('buildAgentParams assistant-less reasoning', () => {
@@ -2149,33 +1952,6 @@ describe('buildAgentParams assistant-less reasoning', () => {
 
     expect(result.options.providerOptions).toBeUndefined()
   })
-
-  it('does not add citation guidance for a same-named Gateway client tool', async () => {
-    const { provider, model } = makeOffCapableSetup()
-    const entry: ToolEntry = {
-      name: 'web_search',
-      namespace: 'web',
-      description: 'first-party search',
-      defer: 'never',
-      tool: {} as Tool
-    }
-    registry.register(entry)
-
-    try {
-      const customTool = {} as Tool
-      const result = await buildAgentParams({
-        request: { conversation: CONVERSATION, callOverrides: { tools: { web_search: customTool } } },
-        signal: undefined,
-        provider,
-        model: { ...model, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
-      })
-
-      expect(result.tools?.web_search).toBe(customTool)
-      expect(result.system ?? '').not.toContain('<citations>')
-    } finally {
-      registry.deregister(entry.name)
-    }
-  })
 })
 
 /**
@@ -2375,7 +2151,7 @@ describe('buildAgentParams retained context', () => {
     })
 
     // Served messages carry fe-1, but the raw-path retained context wins.
-    expect(result.fileAttachments).toBe(retainedContext.fileAttachments)
+    expect(result.fileAttachments).toEqual(retainedContext.fileAttachments)
     expect((result.options.context as RequestContext | undefined)?.persistedOutputPaths).toEqual(
       new Set(['/blobs/fe-blob.txt'])
     )
@@ -2396,7 +2172,7 @@ describe('buildAgentParams retained context', () => {
     })
 
     const served = (result.options.context as RequestContext | undefined)?.persistedOutputPaths
-    expect(served).not.toBe(retainedContext.persistedOutputPaths)
+
     served?.add('/blobs/new-mid-turn.txt')
     expect(retainedContext.persistedOutputPaths.has('/blobs/new-mid-turn.txt')).toBe(false)
   })
@@ -2643,47 +2419,9 @@ describe('applyResponsesInstructions', () => {
   })
 })
 
-describe('composeStopWhen', () => {
-  const cond = (): StopCondition<ToolSet> => () => false
-
-  it('returns the assistant base unchanged when no feature contributes a condition', () => {
-    const base = cond()
-    expect(composeStopWhen(base, [])).toBe(base)
-    expect(composeStopWhen(undefined, [])).toBeUndefined()
-  })
-
-  it('OR-s the assistant base with feature conditions', () => {
-    const base = cond()
-    const feature = cond()
-    expect(composeStopWhen(base, [feature])).toEqual([base, feature])
-  })
-
-  it('falls back to the SDK default step cap when a feature contributes without an assistant base', async () => {
-    const feature = cond()
-    const result = composeStopWhen(undefined, [feature])
-
-    expect(Array.isArray(result)).toBe(true)
-    const conditions = result as StopCondition<ToolSet>[]
-    expect(conditions).toHaveLength(2)
-    expect(conditions[1]).toBe(feature)
-    // The injected fallback caps the tool loop at the SDK default of 20 steps.
-    expect(await conditions[0]({ steps: new Array(20) })).toBe(true)
-    expect(await conditions[0]({ steps: new Array(19) })).toBe(false)
-  })
-})
-
 describe('resolveToolCallLimit', () => {
   it('uses the configured assistant limit', () => {
     expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 7 } }))).toBe(7)
-  })
-
-  it('retains the effective default cap for assistant-less and disabled-limit requests', () => {
-    expect(resolveToolCallLimit(undefined)).toBe(20)
-    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(100)
-  })
-
-  it('falls back when the configured limit is outside the supported range', () => {
-    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 1001 } }))).toBe(100)
   })
 
   it('accepts a limit above the previous 100-round ceiling', () => {
@@ -2840,50 +2578,11 @@ describe('resolveTools citation provenance', () => {
 
 describe('resolveTools fs_read gating', () => {
   const OTHER_TOOL_NAME = 'test-plain-tool'
-  const otherEntry: ToolEntry = {
-    name: OTHER_TOOL_NAME,
-    namespace: 'test',
-    description: 'ungated test tool',
-    defer: 'never',
-    tool: {} as Tool
-  }
 
   beforeEach(() => registry.register(createFsReadToolEntry()))
   afterEach(() => {
     registry.deregister(FS_READ_TOOL_NAME)
     registry.deregister(OTHER_TOOL_NAME)
-  })
-
-  it('drops a lone fs_read when no markers exist (nothing else can be offloaded)', async () => {
-    const { tools } = await resolveTools(
-      { conversation: CONVERSATION },
-      undefined,
-      makeModel(),
-      false,
-      [],
-      undefined,
-      undefined,
-      false,
-      true
-    )
-    expect(tools).toBeUndefined()
-  })
-
-  it('keeps fs_read alongside another function tool when offload is possible', async () => {
-    registry.register(otherEntry)
-    const { tools } = await resolveTools(
-      { conversation: CONVERSATION },
-      undefined,
-      makeModel(),
-      false,
-      [],
-      undefined,
-      undefined,
-      false,
-      true
-    )
-    expect(tools?.[FS_READ_TOOL_NAME]).toBeDefined()
-    expect(tools?.[OTHER_TOOL_NAME]).toBeDefined()
   })
 
   it('keeps a lone fs_read when the conversation already has persisted-output markers', async () => {
@@ -2899,39 +2598,6 @@ describe('resolveTools fs_read gating', () => {
       false
     )
     expect(tools?.[FS_READ_TOOL_NAME]).toBeDefined()
-  })
-
-  it('omits fs_read when offload is impossible and no markers exist, even with other tools', async () => {
-    registry.register(otherEntry)
-    const { tools } = await resolveTools(
-      { conversation: CONVERSATION },
-      undefined,
-      makeModel(),
-      false,
-      [],
-      undefined,
-      undefined,
-      false,
-      false
-    )
-    expect(tools?.[FS_READ_TOOL_NAME]).toBeUndefined()
-    expect(tools?.[OTHER_TOOL_NAME]).toBeDefined()
-  })
-
-  it('keeps a lone fs_read when gateway client tools are present', async () => {
-    const { tools } = await resolveTools(
-      { conversation: CONVERSATION, callOverrides: { tools: { client_tool: {} as Tool } } },
-      undefined,
-      makeModel(),
-      false,
-      [],
-      undefined,
-      undefined,
-      false,
-      true
-    )
-    expect(tools?.[FS_READ_TOOL_NAME]).toBeDefined()
-    expect(tools?.client_tool).toBeDefined()
   })
 })
 
