@@ -53,7 +53,6 @@ import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
 
-import TranslateHistoryList from './components/TranslateHistory'
 import TranslateInputPane from './components/TranslateInputPane'
 import TranslateLanguageBar from './components/TranslateLanguageBar'
 import TranslateOutputPane from './components/TranslateOutputPane'
@@ -64,11 +63,12 @@ import type {
   PdfTranslationOutput,
   PdfTranslationStatus
 } from './pdf/PdfTranslationView'
-import TranslateSettings from './TranslateSettings'
 import type { TranslationFiles } from './translationFiles'
 import { useTranslateReasoningEffort } from './useTranslateReasoningEffort'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
+const TranslateHistoryList = lazy(() => import('./components/TranslateHistory'))
+const TranslateSettings = lazy(() => import('./TranslateSettings'))
 
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
@@ -244,6 +244,8 @@ const TranslatePage: FC = () => {
   const [outputCopied, setOutputCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [historyActivated, setHistoryActivated] = useState(false)
+  const [settingsActivated, setSettingsActivated] = useState(false)
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [ocrTaskId, setOcrTaskId] = useState<FileProcessingTaskId | null>(null)
@@ -988,7 +990,10 @@ const TranslatePage: FC = () => {
               onClick={() =>
                 setHistoryOpen((open) => {
                   const next = !open
-                  if (next) setSettingsOpen(false)
+                  if (next) {
+                    setHistoryActivated(true)
+                    setSettingsOpen(false)
+                  }
                   return next
                 })
               }
@@ -1003,7 +1008,10 @@ const TranslatePage: FC = () => {
               onClick={() =>
                 setSettingsOpen((open) => {
                   const next = !open
-                  if (next) setHistoryOpen(false)
+                  if (next) {
+                    setSettingsActivated(true)
+                    setHistoryOpen(false)
+                  }
                   return next
                 })
               }
@@ -1096,12 +1104,20 @@ const TranslatePage: FC = () => {
             </section>
           </div>
         )}
-        <TranslateHistoryList
-          isOpen={historyOpen}
-          onClose={() => setHistoryOpen(false)}
-          onHistoryItemClick={onHistoryItemClick}
-        />
-        <TranslateSettings visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        {historyActivated && (
+          <Suspense fallback={null}>
+            <TranslateHistoryList
+              isOpen={historyOpen}
+              onClose={() => setHistoryOpen(false)}
+              onHistoryItemClick={onHistoryItemClick}
+            />
+          </Suspense>
+        )}
+        {settingsActivated && (
+          <Suspense fallback={null}>
+            <TranslateSettings visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+          </Suspense>
+        )}
       </div>
     </div>
   )
