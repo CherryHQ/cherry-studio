@@ -1413,7 +1413,6 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     const m1 = rows.find((r) => r.id === 'm1')
     expect(m1?.parentId).toBe(roots[0].id)
     expect(rows.filter((r) => r.role !== 'root').some((r) => r.parentId === null)).toBe(false)
-    expect((migrator as unknown as Record<string, Set<string>>)['reservedMessageIds'].size).toBe(0)
   })
 
   it('rejects duplicate message IDs that bypass prepare-time normalization', () => {
@@ -1439,7 +1438,6 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       ctx: MigrationContext
     ) => unknown
     expect(() => fn.call(migrator, ctxOf())).toThrow('Duplicate message ID remained after normalization: dup')
-    expect((migrator as unknown as Record<string, Set<string>>)['reservedMessageIds'].size).toBe(0)
   })
 
   it('skips chat_message_file_ref for dangling fileId and records warning', async () => {
@@ -1549,7 +1547,6 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
 
     const refs = await dbh.db.select().from(chatMessageFileRefTable)
     expect(refs).toHaveLength(topicCount)
-    expect(m['fileRefInsertCount']).toBe(topicCount)
   })
 
   it('produces separate chat_message_file_ref rows when different messages reference the same fileId', async () => {

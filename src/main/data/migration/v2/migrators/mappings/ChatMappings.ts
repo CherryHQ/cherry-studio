@@ -41,6 +41,7 @@
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import type { SourceUrlUIPart } from 'ai'
 import mime from 'mime'
@@ -925,7 +926,7 @@ async function transformSingleBlockToPart(
       const basePart: FileUIPart = {
         type: 'file',
         mediaType: inferMediaType(block.file.ext, 'application/octet-stream'),
-        url: block.file.path ? `file://${block.file.path}` : '',
+        url: block.file.path ? pathToFileURL(block.file.path).href : '',
         ...(block.file.origin_name ? { filename: block.file.origin_name } : {})
       }
       const part = block.file.id ? withCherryMeta(basePart, { fileEntryId: block.file.id }) : basePart
@@ -1078,7 +1079,7 @@ async function promoteBase64ToFileEntry(
     const basePart: FileUIPart = {
       type: 'file',
       mediaType: mimeType,
-      url: `file://${physicalPath}`,
+      url: pathToFileURL(physicalPath).href,
       filename: ext ? `${MIGRATED_IMAGE_NAME}.${ext}` : MIGRATED_IMAGE_NAME
     }
     return withCherryMeta(basePart, { fileEntryId: id })
@@ -1126,7 +1127,7 @@ async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDep
     const basePart: FileUIPart = {
       type: 'file',
       mediaType: inferMediaType(block.file.ext, 'image/png'),
-      url: block.file.path ? `file://${block.file.path}` : '',
+      url: block.file.path ? pathToFileURL(block.file.path).href : '',
       ...(block.file.origin_name ? { filename: block.file.origin_name } : {})
     }
     parts.push(block.file.id ? withCherryMeta(basePart, { fileEntryId: block.file.id }) : basePart)

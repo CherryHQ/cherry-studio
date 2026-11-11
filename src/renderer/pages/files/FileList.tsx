@@ -160,6 +160,8 @@ export const FileList = memo(function FileList({
         return (
           <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
             <div
+              data-ui="files.row"
+              data-file-entry-id={file.id}
               onClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
               }}
@@ -178,7 +180,11 @@ export const FileList = memo(function FileList({
                       onSelect(file.id, !selected, e.shiftKey)
                     }}
                     data-file-selection-checkbox
-                    aria-label={t('files.select_file', { name: file.name })}
+                    aria-label={
+                      file.sourcePath
+                        ? t('files.select_file_with_path', { name: file.name, path: file.sourcePath })
+                        : t('files.select_file', { name: file.name })
+                    }
                   />
                 </label>
               </div>
@@ -195,7 +201,9 @@ export const FileList = memo(function FileList({
                   />
                 ) : (
                   <>
-                    <span className="truncate text-sm text-foreground">{file.name}</span>
+                    <span className="truncate text-sm text-foreground" title={file.sourcePath ?? file.name}>
+                      {file.name}
+                    </span>
                     {file.isMissing && (
                       <span className="shrink-0 rounded border border-error-border bg-error-subtle px-1.5 py-0.5 text-[10px] text-error-subtle-foreground">
                         {t('files.missing')}
@@ -204,7 +212,9 @@ export const FileList = memo(function FileList({
                   </>
                 )}
               </div>
-              <span className="truncate text-xs text-muted-foreground">{file.size}</span>
+              <span data-ui="part:file-size" className="truncate text-xs text-muted-foreground">
+                {file.size}
+              </span>
               <span className="truncate text-xs text-muted-foreground">{getFormatLabel(file.format)}</span>
               <span className="truncate text-xs text-foreground-tertiary">{file.updatedAt}</span>
               <div className="grid grid-cols-4 justify-items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">

@@ -82,7 +82,7 @@ The root package contains 105 scripts, including 18 platform/architecture/editio
 
 Different worktrees primarily compete for CPU, memory, and I/O. Concurrent commands in one worktree additionally share mutable build output, caches, and native binaries. No local multi-agent load benchmark or collision reproduction was performed; the contention mechanism is a hypothesis supported by command structure, not a quantified local slowdown.
 
-Node and web tsconfigs already enable incremental compilation and use distinct `.tsbuildinfo` files. Recommending incremental compilation as a missing feature would be incorrect. The [binary downloader](../../../../scripts/download-binaries.js) already has a shared versioned cache, so repeated downloads must be measured rather than assumed. See the [native ABI contract](../../../../docs/references/testing/database-testing.md#better-sqlite3-native-module-abi).
+Node and web tsconfigs already enable incremental compilation and use distinct `.tsbuildinfo` files. Recommending incremental compilation as a missing feature would be incorrect. The [binary downloader](../../../../scripts/download-binaries.js) already has a shared versioned cache, so repeated downloads must be measured rather than assumed. See the [native ABI contract](../../../../docs/dev/references/testing/database-testing.md#better-sqlite3-native-module-abi).
 
 ## Proposal
 
@@ -134,6 +134,8 @@ Measure cold and warm typecheck caches, provider build requirements, and install
 Give ordinary documentation a lightweight path on PRs and pushes. Split heavy lint, typecheck, and i18n work into independently schedulable jobs; evaluate their extra checkout/install overhead before finalizing the grouping. Keep inexpensive formatting/docs/generator checks grouped where practical.
 
 Retain the current Linux main and renderer shard counts as an initial baseline. More shards duplicate large cache restores and installations; platform jobs already spend substantial time preparing dependencies. Select macOS/Windows work from platform-sensitive modules and their dependencies, not only changed files containing `process.platform`. Preserve the native-safe main test pool.
+
+The [nine-runner execution policy](../../implemented/process/2026-11-10-ci-runner-consolidation.md) supersedes this initial main/renderer shard baseline; the selection, inventory, and required-gate contracts still apply.
 
 Cancel superseded PR runs, with concurrency scoped by workflow and PR. Do not extend cancellation automatically to release/publication workflows. Retain manual full validation and add scheduled full validation as a backstop; neither replaces required checks for affected changes.
 
