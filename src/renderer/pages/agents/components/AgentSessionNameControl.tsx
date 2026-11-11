@@ -17,11 +17,16 @@ export function AgentSessionNameControl({ sessionId, sessionName, onCloseAutoFoc
   const interactedOutside = useRef(false)
   const currentSessionId = useRef(sessionId)
   currentSessionId.current = sessionId
+  // Bumped on every session change and every new save. A completion only
+  // applies while its generation is current, so a stale save finishing after
+  // an A→B→A navigation cannot close the editor the user just opened.
+  const submitGeneration = useRef(0)
   const [saving, setSaving] = useState(false)
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(sessionName)
   const [draftSessionId, setDraftSessionId] = useState(sessionId)
   if (draftSessionId !== sessionId) {
+    submitGeneration.current += 1
     setSaving(false)
     setDraftSessionId(sessionId)
     setDraft(sessionName)
@@ -36,15 +41,17 @@ export function AgentSessionNameControl({ sessionId, sessionName, onCloseAutoFoc
       setOpen(false)
       return
     }
+    // A new save supersedes any still-pending one.
+    const generation = ++submitGeneration.current
     setSaving(true)
     try {
       const updated = await updateSession(
         { id: sessionId, name, isNameManuallyEdited: true },
         { showSuccessToast: false }
       )
-      if (currentSessionId.current === sessionId && updated) setOpen(false)
+      if (generation === submitGeneration.current && currentSessionId.current === sessionId && updated) setOpen(false)
     } finally {
-      if (currentSessionId.current === sessionId) setSaving(false)
+      if (generation === submitGeneration.current && currentSessionId.current === sessionId) setSaving(false)
     }
   }
 

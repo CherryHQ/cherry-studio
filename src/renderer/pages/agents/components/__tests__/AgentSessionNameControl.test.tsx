@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { cloneElement, createContext, useContext } from 'react'
 import { beforeEach, expect, it, vi } from 'vitest'
@@ -123,6 +123,32 @@ it('waits for persistence and prevents duplicate submits', async () => {
   expect(mocks.update).toHaveBeenCalledOnce()
   resolve({ id: 'session-a', name: 'Pending name' })
   await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument())
+})
+
+it('keeps a new rename open when a stale save from before an A→B→A navigation finishes', async () => {
+  let resolve!: (value: unknown) => void
+  mocks.update.mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done
+    })
+  )
+  const user = userEvent.setup()
+  const view = render(<AgentSessionNameControl sessionId="session-a" sessionName="First" />)
+  await user.click(screen.getByRole('button', { name: 'First' }))
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Pending A' } })
+  await user.click(screen.getByRole('button', { name: 'common.save' }))
+  // Switch to an already-loaded B and back to A while the first save is pending.
+  view.rerender(<AgentSessionNameControl sessionId="session-b" sessionName="Second" />)
+  view.rerender(<AgentSessionNameControl sessionId="session-a" sessionName="First" />)
+  // Start another rename on A, then let the stale save complete.
+  await user.click(screen.getByRole('button', { name: 'First' }))
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Fresh A' } })
+  await act(async () => {
+    resolve({ id: 'session-a', name: 'Pending A' })
+  })
+  expect(screen.getByRole('textbox')).toHaveValue('Fresh A')
+  expect(screen.getByRole('button', { name: 'common.save' })).toBeEnabled()
+  expect(mocks.update).toHaveBeenCalledOnce()
 })
 
 it('does not close a new session rename when an old save finishes', async () => {
