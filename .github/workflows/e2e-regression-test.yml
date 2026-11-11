@@ -69,6 +69,9 @@ on:
         options:
           - real
           - mock
+  schedule:
+    # 每天 03:45 PST（11:45 UTC）跑一次全量回归；schedule 事件没有 inputs，下面统一取默认值
+    - cron: '45 11 * * *'
 
 permissions:
   contents: read
@@ -79,7 +82,7 @@ concurrency:
 
 jobs:
   resolve:
-    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'branch'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref_type == 'branch')
     runs-on: ubuntu-latest
     outputs:
       mode: ${{ steps.ref.outputs.mode }}
@@ -117,8 +120,8 @@ jobs:
         id: ref
         shell: bash
         env:
-          REQUESTED_REF: ${{ inputs.ref }}
-          REQUESTED_TASK: ${{ inputs.task }}
+          REQUESTED_REF: ${{ inputs.ref || 'main' }}
+          REQUESTED_TASK: ${{ inputs.task || 'all' }}
         run: |
           pnpm exec tsx scripts/e2e/regression/cli.ts resolve-ref \
             --requested "$REQUESTED_REF" \
@@ -207,7 +210,7 @@ jobs:
           --sha "$TEST_SHA"
           --runner "$TEST_RUNNER"
           --task "$TEST_TASK"
-          --provider-mode "${{ inputs.provider_mode }}"
+          --provider-mode "${{ inputs.provider_mode || 'real' }}"
 
       - name: Prepare Notification Center on the disposable macOS runner
         if: matrix.platform == 'macos'
@@ -280,7 +283,7 @@ jobs:
 
       - name: Start in-job mock provider
         id: mock
-        if: inputs.provider_mode == 'mock'
+        if: (inputs.provider_mode || 'real') == 'mock'
         shell: bash
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts mock-start
@@ -786,7 +789,7 @@ jobs:
           --input platform-reports
           --output combined-report
           --mode "${{ needs.resolve.outputs.mode }}"
-          --provider-mode "${{ inputs.provider_mode }}"
+          --provider-mode "${{ inputs.provider_mode || 'real' }}"
 
       - name: Summarize standalone smoke results
         if: needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.task == 'all'
