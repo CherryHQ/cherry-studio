@@ -189,6 +189,15 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+      - name: Upload preview Windows x64 portable
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/*-win-x64-portable.exe
+          archive: false
+          if-no-files-found: error
+          retention-days: 3
+
   summary:
     name: Preview downloads
     needs: [resolve, build]
