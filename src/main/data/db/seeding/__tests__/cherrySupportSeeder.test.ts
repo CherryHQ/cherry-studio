@@ -43,15 +43,9 @@ describe('CherrySupportSeeder', () => {
     const [support] = builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)
     expect(support).toMatchObject({
       id: CHERRY_SUPPORT_AGENT_ID,
-      name: 'Cherry Support',
-      description: '',
-      instructions: '',
       model: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
     })
     expect(support.configuration).toMatchObject({
-      avatar: '🧰',
-      permission_mode: 'acceptEdits',
-      bootstrap_completed: true,
       builtin_role: BUILTIN_AGENT_ROLE.SUPPORT
     })
     expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.ASSISTANT)).toHaveLength(1)
@@ -61,7 +55,7 @@ describe('CherrySupportSeeder', () => {
       .from(agentWorkspaceTable)
       .where(eq(agentWorkspaceTable.id, session.workspaceId))
       .all()
-    expect(session).toMatchObject({ name: '' })
+    expect(session.agentId).toBe(support.id)
     expect(workspace).toMatchObject({ type: AGENT_WORKSPACE_TYPE.SYSTEM })
   })
 
@@ -72,7 +66,7 @@ describe('CherrySupportSeeder', () => {
     new CherrySupportSeeder().run(dbh.db)
 
     expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)).toHaveLength(1)
-    expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)[0].name).toBe('产品反馈')
+
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
   })
 

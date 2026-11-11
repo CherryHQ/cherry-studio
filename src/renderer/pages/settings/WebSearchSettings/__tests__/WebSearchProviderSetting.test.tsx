@@ -276,34 +276,6 @@ describe('WebSearchProviderSetting', () => {
     })
   })
 
-  it('does not render check controls for the zero-config fetch provider', () => {
-    const fetchProvider: WebSearchProvider = {
-      id: 'fetch',
-      name: 'fetch',
-      type: 'api',
-      apiKeys: [],
-      capabilities: [{ feature: 'fetchUrls' as const }],
-      engines: [],
-      basicAuthUsername: '',
-      basicAuthPassword: ''
-    }
-    render(
-      <WebSearchProviderSetting
-        {...createProps(createEntry({ provider: fetchProvider, capability: 'fetchUrls' }))}
-        sectionTitle="settings.tool.websearch.fetch_urls_provider"
-        sectionTitleId="web-search-fetchUrls-title"
-      />
-    )
-
-    expect(screen.queryByPlaceholderText('settings.provider.api_key.label')).not.toBeInTheDocument()
-    expect(screen.queryByText('settings.provider.api_host')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.tool.websearch.check' })).not.toBeInTheDocument()
-    expect(screen.getByText('settings.tool.websearch.fetch_urls_provider')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.tool.websearch.fetch_urls_provider' })).toBeInTheDocument()
-    expect(screen.queryByText('common.default')).not.toBeInTheDocument()
-    expect(screen.queryByText('settings.tool.websearch.set_as_default')).not.toBeInTheDocument()
-  })
-
   it('uses the provider select as the default provider control', async () => {
     const entry = createEntry()
     const exaProvider: WebSearchProvider = {

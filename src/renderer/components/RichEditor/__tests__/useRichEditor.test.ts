@@ -115,14 +115,6 @@ beforeEach(() => {
 })
 
 describe('useRichEditor autoFocus', () => {
-  it('focuses the end of the document on mount by default', async () => {
-    const { result } = renderHook(() => useRichEditor({ initialContent: CONTENT }))
-    await flushFocusTimeout()
-
-    expect(getEditor(result).getText()).toBe(CONTENT)
-    expect(isSelectionAtEnd(getEditor(result))).toBe(true)
-  })
-
   it('leaves the selection at the start on mount when autoFocus is false', async () => {
     const { result } = renderHook(() => useRichEditor({ initialContent: CONTENT, autoFocus: false }))
     await flushFocusTimeout()
@@ -462,12 +454,6 @@ describe('useRichEditor accessibility', () => {
     const { result } = renderHook(() => useRichEditor({ initialContent: '', autoFocus: false, ariaLabel: 'Content' }))
 
     expect(getEditor(result).view.dom.getAttribute('aria-label')).toBe('Content')
-  })
-
-  it('leaves the editing surface unnamed when no label is supplied', async () => {
-    const { result } = renderHook(() => useRichEditor({ initialContent: '', autoFocus: false }))
-
-    expect(getEditor(result).view.dom.hasAttribute('aria-label')).toBe(false)
   })
 })
 

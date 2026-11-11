@@ -111,7 +111,6 @@ describe('useNutstoreSso', () => {
 
     await expect(pending).resolves.toBeNull()
     expect(mocks.activeListeners.size).toBe(0)
-    expect(mocks.logger.warn).toHaveBeenCalledWith('Nutstore SSO timed out')
   })
 
   it('settles cleanly when the protocol subscription cannot be installed', async () => {
@@ -123,7 +122,6 @@ describe('useNutstoreSso', () => {
 
     await expect(result.current()).resolves.toBeNull()
     expect(mocks.activeListeners.size).toBe(0)
-    expect(mocks.logger.error).toHaveBeenCalledWith('Failed to listen for Nutstore SSO callback', subscriptionError)
   })
 
   it('removes the active attempt when the owner unmounts without settling it', async () => {

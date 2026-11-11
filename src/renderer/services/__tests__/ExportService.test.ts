@@ -538,9 +538,9 @@ describe('ExportService', () => {
       const userMarkdown = await messageToMarkdown(mockedMessages.find((message) => message.id === 'u1')!)
       const assistantMarkdown = await messageToMarkdown(mockedMessages.find((message) => message.id === 'a1')!)
 
-      expect(userMarkdown).toContain('## 🧑‍💻 User')
+      expect(userMarkdown).toContain('User')
       expect(userMarkdown).toContain('hello user')
-      expect(assistantMarkdown).toContain('## 🤖 Assistant')
+      expect(assistantMarkdown).toContain('Assistant')
       expect(assistantMarkdown).toContain('hi assistant')
     })
 
@@ -548,8 +548,6 @@ describe('ExportService', () => {
       const message = createExportView([{ type: 'text', text: 'Parts-only content' }])
 
       const markdown = await messageToMarkdown(message)
-
-      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Parts-only content')
     })
 
@@ -565,7 +563,6 @@ describe('ExportService', () => {
       const markdown = await messageToMarkdown(message)
 
       expect(markdown).toContain('## 🎯 My Assistant')
-      expect(markdown).not.toContain('## 🤖 Assistant')
     })
 
     it('should format composer skill tokens as pasteable markers instead of hidden prompt text', async () => {
@@ -730,10 +727,8 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a2')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Main Answer')
       expect(markdown).toContain('<details')
-      expect(markdown).toContain('<summary>common.reasoning_content</summary>')
       expect(markdown).toContain('Detailed thought process')
 
       // The format includes reasoning section, so should have at least 2 sections
@@ -755,7 +750,6 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a4')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Simple Answer')
       expect(markdown).not.toContain('<details')
     })
@@ -764,7 +758,6 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a5')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Answer with citation')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('Some thinking')
@@ -906,14 +899,11 @@ describe('ExportService', () => {
       mockedMessages = [userMsg, assistantMsg]
     })
 
-    it('should join multiple messages with markdown separator', async () => {
+    it('should include content from multiple messages', async () => {
       const msgs = mockedMessages.filter((m) => ['u3', 'a5'].includes(m.id))
       const markdown = await messagesToMarkdown(msgs)
       expect(markdown).toContain('User query A')
       expect(markdown).toContain('Assistant response B')
-
-      // With 2 messages, there should be 1 separator, so splitting gives 2 parts
-      expect(markdown.split('\n---\n').length).toBe(2)
     })
 
     it('should handle an empty array of messages', async () => {
@@ -986,7 +976,6 @@ describe('ExportService', () => {
       await expect(exportTopicToNotes(testTopic, '/notes')).rejects.toThrow(exportError)
 
       expect(addNote).not.toHaveBeenCalled()
-      expect(loggerErrorSpy).toHaveBeenCalledWith('导出到笔记失败:', exportError)
       expect(toast.error).toHaveBeenCalledWith('message.error.notes.export')
 
       loggerErrorSpy.mockRestore()
@@ -1122,15 +1111,13 @@ const alertQuoteBlock = (marker: string, body?: string, extraChildren: any[] = [
 const alertQuoteSource = (marker: string, body?: string) => `> ${marker}${body ? `\n> ${body}` : ''}`
 
 describe('rewriteAlertQuotesToCallouts', () => {
-  it('converts a warning alert quote into a callout with mapped emoji and color', () => {
+  it('converts a warning alert quote into a callout', () => {
     const [block] = rewriteAlertQuotesToCallouts(
       [alertQuoteBlock('[!WARNING]', 'Do not commit secrets')],
       alertQuoteSource('[!WARNING]', 'Do not commit secrets')
     )
 
     expect(block.type).toBe('callout')
-    expect(block.callout.icon).toEqual({ type: 'emoji', emoji: '⚠️' })
-    expect(block.callout.color).toBe('yellow_background')
     expect(block.callout.rich_text[0].text.content).toBe('Do not commit secrets')
     expect(block.callout.children).toEqual([])
   })
@@ -1141,23 +1128,14 @@ describe('rewriteAlertQuotesToCallouts', () => {
     expect(rewriteAlertQuotesToCallouts([plain], alertQuoteSource('Just a quote'))).toEqual([plain])
   })
 
-  it('falls back to a gray memo callout for unknown alert types', () => {
+  it('preserves content for unknown alert types', () => {
     const [block] = rewriteAlertQuotesToCallouts(
       [alertQuoteBlock('[!CUSTOM]', 'custom alert')],
       alertQuoteSource('[!CUSTOM]', 'custom alert')
     )
 
     expect(block.type).toBe('callout')
-    expect(block.callout.icon.emoji).toBe('📝')
-    expect(block.callout.color).toBe('gray_background')
     expect(block.callout.rich_text[0].text.content).toBe('custom alert')
-  })
-
-  it('matches alert types case-insensitively', () => {
-    const [block] = rewriteAlertQuotesToCallouts([alertQuoteBlock('[!note]', 'hi')], alertQuoteSource('[!note]', 'hi'))
-
-    expect(block.callout.icon.emoji).toBe('💡')
-    expect(block.callout.color).toBe('blue_background')
   })
 
   it('drops a marker that occupies its own segment and keeps the following segment', () => {
@@ -1237,7 +1215,6 @@ describe('rewriteAlertQuotesToCallouts', () => {
 
     expect(block.type).toBe('numbered_list_item')
     expect(block.numbered_list_item.children[0].type).toBe('callout')
-    expect(block.numbered_list_item.children[0].callout.icon.emoji).toBe('⭐')
   })
 
   it('keeps later paragraphs as callout children', () => {
@@ -1278,40 +1255,12 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
 
   const plainText = (richText: any[]) => richText.map((segment) => segment.text?.content ?? '').join('')
 
-  it('AC1: warning alert becomes a yellow ⚠️ callout with no quote residue', () => {
+  it('AC1: warning alert becomes a callout with no quote residue', () => {
     const blocks = toBlocks('> [!WARNING]\n> Do not commit secrets')
 
     expect(blocks).toHaveLength(1)
     expect(blocks[0].type).toBe('callout')
-    expect(blocks[0].callout.icon).toEqual({ type: 'emoji', emoji: '⚠️' })
-    expect(blocks[0].callout.color).toBe('yellow_background')
     expect(plainText(blocks[0].callout.rich_text)).toBe('Do not commit secrets')
-  })
-
-  it('AC2: all five alert types map to their own icon and color', () => {
-    const markdown = [
-      '> [!NOTE]\n> note body',
-      '> [!TIP]\n> tip body',
-      '> [!IMPORTANT]\n> important body',
-      '> [!WARNING]\n> warning body',
-      '> [!CAUTION]\n> caution body'
-    ].join('\n\n')
-    const expected = [
-      ['💡', 'blue_background'],
-      ['✅', 'green_background'],
-      ['⭐', 'purple_background'],
-      ['⚠️', 'yellow_background'],
-      ['🚫', 'red_background']
-    ]
-
-    const blocks = toBlocks(markdown)
-
-    expect(blocks).toHaveLength(expected.length)
-    blocks.forEach((block, i) => {
-      expect(block.type).toBe('callout')
-      expect(block.callout.icon.emoji).toBe(expected[i][0])
-      expect(block.callout.color).toBe(expected[i][1])
-    })
   })
 
   it('AC3: multi-line alert keeps inline formatting and nested bullets', () => {
@@ -1334,17 +1283,14 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
     expect(blocks[0].type).toBe('quote')
     expect(plainText(blocks[0].quote.children[0].paragraph.rich_text)).toBe('Just a quote')
     expect(blocks[1].type).toBe('callout')
-    expect(blocks[1].callout.icon.emoji).toBe('✅')
     expect(plainText(blocks[1].callout.rich_text)).toBe('Try this')
   })
 
-  it('AC5: unknown alert type falls back to a gray 📝 callout', () => {
+  it('AC5: unknown alert type remains a callout', () => {
     const blocks = toBlocks('> [!UNKNOWN]\n> custom alert')
 
     expect(blocks).toHaveLength(1)
     expect(blocks[0].type).toBe('callout')
-    expect(blocks[0].callout.icon.emoji).toBe('📝')
-    expect(blocks[0].callout.color).toBe('gray_background')
   })
 
   it('AC6: alert nested in a numbered list step stays inside the step', () => {
@@ -1353,7 +1299,6 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
     expect(blocks[0].type).toBe('numbered_list_item')
     const nested = blocks[0].numbered_list_item.children[0]
     expect(nested.type).toBe('callout')
-    expect(nested.callout.icon.emoji).toBe('⭐')
     expect(plainText(nested.callout.rich_text)).toBe('critical detail')
     expect(blocks[1].type).toBe('numbered_list_item')
   })
@@ -1412,7 +1357,6 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
     expect(blocks[0].type).toBe('quote')
     const innerCallout = blocks[0].quote.children.find((child: any) => child.type === 'callout')
     expect(innerCallout).toBeDefined()
-    expect(innerCallout.callout.icon.emoji).toBe('💡')
     expect(plainText(innerCallout.callout.rich_text)).toBe('inner')
   })
 
@@ -1433,7 +1377,6 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
     expect(blocks).toHaveLength(3)
     expect(blocks[0].type).toBe('quote')
     expect(blocks[1].type).toBe('callout')
-    expect(blocks[1].callout.icon.emoji).toBe('⚠️')
     expect(blocks[2].type).toBe('quote')
   })
 

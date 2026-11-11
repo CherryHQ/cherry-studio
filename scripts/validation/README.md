@@ -12,7 +12,7 @@ unstaged, and untracked files. `--base <parent>` supports stacked branches.
 renames include both old and new paths. Missing history falls back to full validation.
 
 Ordinary Markdown under docs, agent notes, and changesets, root Markdown, source
-READMEs, and translation-pairing `.i18n.yaml` sidecars select format and documentation checks. Runtime Markdown under resources
+READMEs, the generated `docs/dev/sources-index.json`, and translation-pairing `.i18n.yaml` sidecars select format and documentation checks. Runtime Markdown under resources
 retains full checks. Skill files select the skill gate as well. Unknown inputs,
 root configuration, workflow changes, and the planner itself select all tasks.
 
@@ -37,8 +37,10 @@ prints a machine-readable plan. Test commands are one Vitest invocation with exp
 projects; compilers run serially. Local Vitest defaults to two workers, overridable
 through the direct Vitest command or project wrappers' `--maxWorkers` option.
 
-Required workspace packages are built before typechecks and tests; main tests rebuild
-SQLite for Node. Do not run Electron development and Node tests concurrently in one
+Required workspace packages are built before typechecks and tests. CI setup marks a
+successful installation with `VALIDATION_WORKSPACE_PREPARED=true`, so later groups
+reuse those exports in the same job. Unprepared local validation still builds them;
+main tests still rebuild SQLite for Node. Do not run Electron development and Node tests concurrently in one
 worktree. Use isolated worktrees and dependency installations for concurrent agents.
 
 `VALIDATION_PLAN` lets CI execute the exact plan from its classification job.
@@ -67,10 +69,26 @@ branches remain untouched.
 
 Repository, typecheck, lint and i18n groups share one dependency installation in
 `basic-checks`, with separate plan conditions and step outcomes; later groups still
-run after an earlier group fails. Main/preload retain
-three Linux shards; renderer retains five. Selected package tests run once in their
-own job. macOS/Windows retain the platform-gated test inventory (including
-system speech); platform selection is deliberately conservative whenever main is selected.
+run after an earlier group fails. The classification job first checks workflows and
+formatting with the pinned tools, without installing workspace dependencies. Failed
+planning or preflight prevents heavy jobs from starting; required gates still report
+the failure.
+
+Main/preload uses two Vitest shards; selected package tests use a separate unsharded
+Linux job. Neither group waits for the other. Renderer uses three Vitest shards.
+Both matrices disable fail-fast so sibling shards still finish after a failure.
+Together with basic checks and one job per macOS/Windows platform, a full plan uses
+nine heavy runners and three lightweight classification/aggregation jobs. This targets
+about ten minutes of execution; shared-runner queue time is measured separately.
+macOS/Windows retain the platform-gated test inventory (including system speech).
+Portable TypeScript source changes under `packages/aiCore/src`,
+`packages/ai-sdk-provider/src`, and `packages/web-search/src` retain their Linux
+project and consumer tests without selecting native platform jobs. Any mixed input
+that otherwise selects main tests, including main/shared source, native adapters,
+package configuration, dependency locks, and unknown inputs, retains both native
+platforms. Scheduled/manual full validation always retains both platforms. The plan
+records platform selection separately from its Linux projects; the scope hash and
+required gates use that selection.
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.
 Their verifier requires classification to succeed, checks every planned job, and
@@ -81,11 +99,15 @@ provider generation, changeset policy, and catalog edit guards remain CI checks.
 
 ## Performance observations
 
-`CI Performance` runs after CI completes and reads job/step timestamps through the
-GitHub API. It checks out only the default branch, never the measured PR's code, and
-needs no dependency installation. The observer becomes active after its workflow and
-scripts reach the default branch. It has read-only permissions and is not a required
+The `CI Performance` workflow is disabled in repository Actions settings; its
+collection scripts remain available for on-demand analysis. When enabled, the
+workflow runs after CI completes and reads job/step timestamps through the GitHub
+API. It checks out only the default branch, never the measured PR's code, and needs
+no dependency installation. It has read-only permissions and is not a required
 check; collection failures do not fail the CI gate.
+
+The classification/preflight job declares its dependency-store cache state as
+`not-used`; transient formatter downloads are not dependency-store cache hits.
 
 The summary and 30-day JSON artifact preserve initial queue time, execution window,
 total elapsed time, and the sum of job durations. The latter is runner time, not billed

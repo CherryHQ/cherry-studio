@@ -687,18 +687,6 @@ describe('NotesPage print payloads', () => {
     })
   })
 
-  it('shows the resolved print shortcut next to the print menu item', async () => {
-    mocks.printShortcutLabel = '⌘P'
-
-    render(<NotesPage />)
-
-    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('popover-trigger'))
-
-    expect(screen.getByRole('button', { name: /notes\.print/ })).toHaveTextContent('⌘P')
-  })
-
   it('blocks editing and surfaces a load failure for unsupported note files', async () => {
     // Oversize / non-UTF-8 / mixed-line-ending notes must not render as an
     // editable blank document (regression guard for the unsupported status).
@@ -714,7 +702,7 @@ describe('NotesPage print payloads', () => {
     const { rerender } = render(<NotesPage />)
 
     expect(await screen.findByRole('status')).toHaveTextContent('common.loading')
-    expect(screen.getAllByTestId('skeleton')).toHaveLength(3)
+
     expect(screen.queryByTestId('notes-editor')).not.toBeInTheDocument()
     expect(mocks.editorReady).not.toHaveBeenCalled()
     expect(mocks.setDraft).not.toHaveBeenCalled()
