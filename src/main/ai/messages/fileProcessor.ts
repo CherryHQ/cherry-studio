@@ -7,7 +7,8 @@
  *   - `FileUIPart.url = file://${absolutePath}` (legacy / external files;
  *     still produced by renderer attachment flows today)
  * AI SDK's `convertToModelMessages` doesn't fetch either; this module
- * inlines the bytes as base64 `data:` URLs before they hit the provider.
+ * recognizes local bytes and inlines them as base64 `data:` URLs before dispatch.
+ * HTTP(S) URLs remain passthrough; their remote bytes are not inspected.
  *
  * Large-file upload through provider File APIs (Gemini File / OpenAI
  * Files) is not yet wired (GitHub issue #19706). Large PDFs / media
@@ -16,14 +17,16 @@
 
 import { fileURLToPath } from 'node:url'
 
+import { fileTypeFromBuffer } from 'file-type'
 import mime from 'mime'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { read as fsRead } from '@main/utils/file'
+import { decodeTextBufferIfText, read as fsRead } from '@main/utils/file'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 
 const logger = loggerService.withContext('ai:fileProcessor')
 // Ark documents edges >14 px; 15 also satisfies an inclusive 14 px floor.
@@ -39,10 +42,8 @@ const MAX_ATTACHMENT_IMAGE_PIXELS = 100_000_000
 const PROPER_MEDIA_TYPE_RE = /^[a-z]+\/[a-z0-9+.*-]+$/i
 
 /**
- * Last-line defense before provider dispatch: any FileUIPart heading out of the
- * chat pipeline gets a `type/subtype` mediaType or a filename/URL-inferred
- * fallback. Covers stale rows migrated with a bad mediaType and any future
- * intake path that skips the disk-mime overwrite.
+ * Only passthrough parts retain filename/URL-inferred MIME. Locally readable
+ * content receives a type derived from the bytes in `recognizeBytes`.
  */
 function sanitizeFilePartMediaType(part: FileUIPart): FileUIPart {
   if (PROPER_MEDIA_TYPE_RE.test(part.mediaType ?? '')) return part
@@ -55,15 +56,16 @@ function sanitizeFilePartMediaType(part: FileUIPart): FileUIPart {
   return { ...part, mediaType: fallback }
 }
 
-/**
- * Resolve a FileEntryId via FileManager → base64 data URL + its on-disk MIME.
- * Returns `null` on missing entry / unreadable file so the caller can fall
- * through to the `file://` URL branch.
- */
-async function fileEntryIdToDataUrl(fileEntryId: string) {
+export type PreparedFilePart =
+  | { kind: 'recognized'; part: FileUIPart; mediaType: string; ext?: string; bytes: Buffer }
+  | { kind: 'unrecognized'; part: FileUIPart; bytes: Buffer }
+  | { kind: 'passthrough'; part: FileUIPart }
+  | { kind: 'read-failed' }
+
+async function readEntryBytes(fileEntryId: string): Promise<Buffer | null> {
   try {
-    const { content, mime } = await application.get('FileManager').read(fileEntryId, { encoding: 'base64' })
-    return { url: `data:${mime};base64,${content}`, mediaType: mime }
+    const { content } = await application.get('FileManager').read(fileEntryId, { encoding: 'base64' })
+    return Buffer.from(content, 'base64')
   } catch (error) {
     logger.warn('Failed to inline file from fileEntryId', {
       fileEntryId,
@@ -73,59 +75,68 @@ async function fileEntryIdToDataUrl(fileEntryId: string) {
   }
 }
 
-/**
- * Read a `file://` URL's contents from disk → base64 data URL + its on-disk
- * MIME. Returns `null` on failure so callers can drop the part rather than
- * abort the whole request.
- */
-async function fileUrlToDataUrl(fileUrl: string) {
+async function readFileUrlBytes(fileUrl: string): Promise<Buffer | null> {
   try {
     const absPath = AbsoluteFilePathSchema.parse(fileURLToPath(fileUrl))
-    const { data, mime } = await fsRead(absPath, { encoding: 'base64' })
-    return { url: `data:${mime};base64,${data}`, mediaType: mime }
+    const { data } = await fsRead(absPath, { encoding: 'binary' })
+    return Buffer.from(data)
   } catch (error) {
     logger.warn('Failed to inline file:// URL', { fileUrl, error: error instanceof Error ? error.message : error })
     return null
   }
 }
 
-/**
- * Materialize a native file part into a provider-compatible representation,
- * returning the rewritten part (or `null` if the bytes are unreadable, so the
- * caller can degrade to a note).
- *
- * Today the only strategy is **inline base64 `data:` URL**. The boundary is
- * named for what it will become: when provider File-API upload lands (Gemini
- * File / OpenAI Files — see the module header), small files keep inlining while
- * large ones upload and return a file-reference part, chosen here behind this
- * same signature. Add the provider/model strategy input then — callers won't
- * need to change.
- */
-export async function materializeNativeFilePart(part: FileUIPart): Promise<FileUIPart | null> {
-  const materialized = await materializeInner(part)
-  if (materialized === null) return null
-  const normalized = sanitizeFilePartMediaType(materialized)
-  // Validate only locally available formats in this contract. Do not fetch
-  // remote URLs or reject other formats merely because this decoder lacks them.
-  if (!/^image\/(?:png|jpeg|webp|gif)$/i.test(normalized.mediaType) || !normalized.url.startsWith('data:'))
-    return normalized
+async function readDataUrlBytes(url: string): Promise<Buffer | null> {
+  if (!parseDataUrl(url)) return null
   try {
-    const comma = normalized.url.indexOf(',')
-    if (comma < 0) return null
-    const header = normalized.url.slice(0, comma)
-    const payload = normalized.url.slice(comma + 1)
-    const bytes = /;base64$/i.test(header)
-      ? Buffer.from(payload, 'base64')
-      : Buffer.from(
-          payload.replace(/%([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16))),
-          'binary'
-        )
+    const response = await fetch(url)
+    return Buffer.from(await response.arrayBuffer())
+  } catch {
+    return null
+  }
+}
+
+async function recognizeBytes(part: FileUIPart, bytes: Buffer): Promise<PreparedFilePart> {
+  const hasTextBom =
+    (bytes[0] === 0xff && bytes[1] === 0xfe) ||
+    (bytes[0] === 0xfe && bytes[1] === 0xff) ||
+    (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf)
+  const bomText = hasTextBom ? decodeTextBufferIfText(bytes) : null
+  const signature = bomText === null ? await fileTypeFromBuffer(bytes) : undefined
+  const text = signature ? null : (bomText ?? decodeTextBufferIfText(bytes))
+  const mediaType =
+    signature?.mime ??
+    (text === null ? null : /^\s*(?:<\?xml[^>]*>\s*)?<svg(?:\s|>)/i.test(text) ? 'image/svg+xml' : 'text/plain')
+  if (!mediaType) {
+    return {
+      kind: 'unrecognized',
+      part: {
+        ...part,
+        mediaType: 'application/octet-stream',
+        url: `data:application/octet-stream;base64,${bytes.toString('base64')}`
+      },
+      bytes
+    }
+  }
+  return {
+    kind: 'recognized',
+    part: { ...part, mediaType, url: `data:${mediaType};base64,${bytes.toString('base64')}` },
+    mediaType,
+    ext: signature?.ext,
+    bytes
+  }
+}
+
+async function validateRasterImage(prepared: PreparedFilePart): Promise<PreparedFilePart> {
+  if (prepared.kind !== 'recognized' || !/^image\/(?:png|jpeg|webp|gif)$/i.test(prepared.mediaType)) return prepared
+  const { part, bytes } = prepared
+  try {
     const sharp = (await import('sharp')).default
     // Metadata/magic alone accepts truncated pixel data. Strict decode also
     // rejects malformed-but-displayable files; persisted attachments stay intact.
     await sharp(bytes, { failOn: 'error', limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS }).stats()
     try {
-      const animated = /^image\/(?:gif|webp)$/i.test(normalized.mediaType)
+      const animated = /^image\/(?:gif|webp)$/i.test(prepared.mediaType)
       const metadata = await sharp(bytes, {
         failOn: 'error',
         limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS,
@@ -136,7 +147,7 @@ export async function materializeNativeFilePart(part: FileUIPart): Promise<FileU
       if (!width || !height) throw new Error('Image dimensions are unavailable')
       const padW = Math.max(width, MIN_ATTACHMENT_IMAGE_EDGE)
       const padH = Math.max(height, MIN_ATTACHMENT_IMAGE_EDGE)
-      if (padW === width && padH === height) return normalized
+      if (padW === width && padH === height) return prepared
       if (padW * padH * (metadata.pages ?? 1) > MAX_ATTACHMENT_IMAGE_PIXELS) {
         throw new Error('Padded image exceeds the pixel budget')
       }
@@ -156,43 +167,53 @@ export async function materializeNativeFilePart(part: FileUIPart): Promise<FileU
           background: { r: 255, g: 255, b: 255, alpha: 1 }
         })
         .toBuffer()
-      return { ...normalized, url: `data:${normalized.mediaType};base64,${padded.toString('base64')}` }
+      return { ...prepared, part: { ...part, url: `data:${prepared.mediaType};base64,${padded.toString('base64')}` } }
     } catch (error) {
       logger.warn('Failed to pad image attachment', {
-        filename: normalized.filename,
+        filename: part.filename,
         reason: error instanceof Error ? error.message : String(error)
       })
-      return normalized
+      return prepared
     }
   } catch {
     logger.warn('Unreadable image attachment; using the existing file failure note', {
-      filename: normalized.filename,
-      mediaType: normalized.mediaType
+      filename: part.filename,
+      mediaType: prepared.mediaType
     })
-    return null
+    return { kind: 'read-failed' }
   }
 }
 
-async function materializeInner(part: FileUIPart): Promise<FileUIPart | null> {
+/** The local bytes read for this send own the content type; file metadata is only a hint. */
+export async function prepareFilePart(part: FileUIPart): Promise<PreparedFilePart> {
   const fileEntryId = readCherryMeta(part)?.fileEntryId
+  let bytes: Buffer | null = null
   if (fileEntryId) {
-    const inlined = await fileEntryIdToDataUrl(fileEntryId)
-    if (inlined) return { ...part, ...inlined }
-    // fileEntry missing / unreadable — try to rescue from a still-valid
-    // `file://` snapshot (legacy / migrated rows). If no usable file:// URL
-    // is available, drop the part rather than emit `{type:'file', data:''}`.
-    const url = part.url
-    if (!url || !url.startsWith('file://')) return null
-    const rescued = await fileUrlToDataUrl(url)
-    return rescued ? { ...part, ...rescued } : null
+    bytes = await readEntryBytes(fileEntryId)
+    if (!bytes && !part.url?.startsWith('file://')) return { kind: 'read-failed' }
   }
+  if (!bytes && part.url?.startsWith('file://')) bytes = await readFileUrlBytes(part.url)
+  if (!bytes && part.url?.startsWith('data:')) bytes = await readDataUrlBytes(part.url)
+  if (bytes) return validateRasterImage(await recognizeBytes(part, bytes))
+  if (fileEntryId || part.url?.startsWith('file://') || part.url?.startsWith('data:') || !part.url) {
+    return { kind: 'read-failed' }
+  }
+  return { kind: 'passthrough', part: sanitizeFilePartMediaType(part) }
+}
 
-  const url = part.url
-  if (!url) return part
-  if (!url.startsWith('file://')) return part
-
-  const inlined = await fileUrlToDataUrl(url)
-  if (!inlined) return null
-
-  return { ...part, ...inlined }
+/**
+ * Materialize a native file part into a provider-compatible representation,
+ * returning the rewritten part (or `null` if the bytes are unreadable, so the
+ * caller can degrade to a note).
+ *
+ * Today the only strategy is **inline base64 `data:` URL**. The boundary is
+ * named for what it will become: when provider File-API upload lands (Gemini
+ * File / OpenAI Files — see the module header), small files keep inlining while
+ * large ones upload and return a file-reference part, chosen here behind this
+ * same signature. Add the provider/model strategy input then — callers won't
+ * need to change.
+ */
+export async function materializeNativeFilePart(part: FileUIPart): Promise<FileUIPart | null> {
+  const result = await prepareFilePart(part)
+  return result.kind === 'read-failed' ? null : result.part
 }

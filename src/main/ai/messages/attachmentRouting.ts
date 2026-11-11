@@ -3,13 +3,13 @@
  * first-party (`fileEntryId`-backed) file part is either:
  *   - **native** for the target provider/model (image→vision, pdf→native
  *     provider, audio/video→model + endpoint capable) → left in place and
- *     materialized as the real file via `materializeNativeFilePart`; or
+ *     materialized from recognized bytes by `prepareFilePart`; or
  *   - **non-native** → replaced with its extracted text (office/pdf/text via
  *     `extractDocumentText`, image via OCR, audio/video/binary → a note),
- *     inlined and capped. Over the cap, the head is inlined + a `read_file`
- *     pointer. A non-vision image whose OCR yields no text (or whose OCR is
- *     unconfigured/failed) stops before the provider call with a user-facing
- *     error.
+ *     inlined and capped. Over the cap, the head is inlined. A `read_file`
+ *     pointer is added only when that handle is on the allow-list. A non-vision
+ *     image whose OCR yields no text (or whose OCR is unconfigured/failed)
+ *     stops before the provider call with a user-facing error.
  *
  * Content is always inlined, so visibility never depends on the model choosing
  * to call `read_file` — weak and non-tool models see it too. Other failures
@@ -17,12 +17,15 @@
  * note rather than silently dropping the file or failing the request. Unreadable
  * non-vision images stop the request. Legacy / gateway parts (no `fileEntryId`)
  * keep the eager materialization path, but their image/audio/video parts remain
- * capability-gated.
+ * capability-gated. Their overflow notes omit `read_file`: that handle is not
+ * on the allow-list the tool resolves.
  *
  * `collectFileAttachments` builds the per-request allow-list `read_file` resolves
  * handles against (unique handles; the internal `fileEntryId` never reaches the
  * model).
  */
+
+import path from 'node:path'
 
 import { isAbortError } from '@ai-sdk/provider-utils'
 import type { UIMessage } from 'ai'
@@ -32,6 +35,7 @@ import { loggerService } from '@logger'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
+import { decodeTextBufferIfText } from '@main/utils/file'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -42,9 +46,10 @@ import type { AttachmentBudget } from './attachmentBudget'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
 import { runAttachmentWorker } from './attachmentWorkerClient'
 import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
-import { materializeNativeFilePart } from './fileProcessor'
+import { prepareFilePart, type PreparedFilePart } from './fileProcessor'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
+const ZIP_OFFICE_EXTS = new Set(['docx', 'pptx', 'xlsx', 'odt', 'odp', 'ods'])
 
 const NON_VISION_IMAGE_OCR_ERROR_MESSAGE =
   "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
@@ -136,14 +141,47 @@ export interface PrepareChatContext {
    */
   keepUnroutableFileParts?: boolean
   signal?: AbortSignal
+  /** Reuse this turn's byte recognition when another runtime already prepared the file. */
+  preparedFiles?: ReadonlyMap<FileUIPart, PreparedFilePart>
 }
 
 function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boolean {
   if (fileType === FILE_TYPE.IMAGE) return ns.image
   if (fileType === FILE_TYPE.AUDIO) return ns.audio
   if (fileType === FILE_TYPE.VIDEO) return ns.video
-  if (ext === 'pdf') return ns.pdf
+  if (fileType === FILE_TYPE.DOCUMENT && ext === 'pdf') return ns.pdf
   return false
+}
+
+export function contentFileType(prepared: PreparedFilePart, ext: string): FileType {
+  if (prepared.kind === 'passthrough') return getFileTypeByExt(ext)
+  if (prepared.kind !== 'recognized') return FILE_TYPE.OTHER
+  const type = prepared.mediaType
+  if (type === 'image/svg+xml' || type.startsWith('text/')) return FILE_TYPE.TEXT
+  if (type.startsWith('image/')) return FILE_TYPE.IMAGE
+  if (type.startsWith('audio/')) return FILE_TYPE.AUDIO
+  if (type.startsWith('video/')) return FILE_TYPE.VIDEO
+  if (type === 'application/pdf') return FILE_TYPE.DOCUMENT
+  if (
+    type.startsWith('application/vnd.openxmlformats-officedocument.') ||
+    type.startsWith('application/vnd.oasis.opendocument.')
+  )
+    return FILE_TYPE.DOCUMENT
+  if (type === 'application/x-cfb' && getFileTypeByExt(ext) === FILE_TYPE.DOCUMENT) return FILE_TYPE.DOCUMENT
+  if (type === 'application/zip' && ZIP_OFFICE_EXTS.has(ext)) return FILE_TYPE.DOCUMENT
+  return FILE_TYPE.OTHER
+}
+
+export function contentExt(prepared: PreparedFilePart, ext: string): string {
+  if (prepared.kind !== 'recognized') return ext
+  if (prepared.mediaType === 'application/pdf') return 'pdf'
+  if (
+    prepared.mediaType.startsWith('application/vnd.openxmlformats-officedocument.') ||
+    prepared.mediaType.startsWith('application/vnd.oasis.opendocument.')
+  )
+    return prepared.ext ?? ext
+  if (prepared.mediaType === 'image/svg+xml' || prepared.mediaType === 'text/plain') return ''
+  return ext
 }
 
 /**
@@ -170,23 +208,24 @@ async function ocrNonVisionImage(
  *  is the model-facing name used in any note. */
 async function extractNonNativeText(
   entryId: string,
+  ext: string,
   fileType: FileType,
   handle: string,
+  preparedBytes?: Buffer,
   signal?: AbortSignal
 ): Promise<string> {
   if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
     return `This model can't process the attached ${fileType} file "${handle}".`
   }
-  if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || fileType === FILE_TYPE.OTHER) {
-    const extracted = await extractDocumentText(entryId, { signal })
+  if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || !ext) {
+    const extracted = await extractDocumentText(entryId, { signal, preparedBytes, preparedExt: ext })
     if (extracted === null) {
       return `Cannot read the attached file "${handle}" as text (unsupported file type).`
     }
     const text = extracted.trim()
     return text || noExtractableTextNote(handle)
   }
-  // Unknown extensions decode only when the conservative decoder accepts text;
-  // rejected decodes keep the unsupported note.
+  // Byte recognition already rejected text for OTHER content; decoding it would only yield mojibake.
   return `Cannot read the attached file "${handle}" as text (unsupported file type).`
 }
 
@@ -219,13 +258,6 @@ async function prepareChatMessage<T extends UIMessage>(
 
   const kept: UIMessage['parts'] = []
   const composerFileTokenIds = collectComposerFileTokenIds(message)
-  const inlineNative = async (part: FileUIPart): Promise<boolean> => {
-    const inlined = await materializeNativeFilePart(part)
-    if (!inlined) return false
-    kept.push(inlined)
-    return true
-  }
-
   for (const part of message.parts) {
     if (part.type !== 'file') {
       kept.push(part)
@@ -234,22 +266,43 @@ async function prepareChatMessage<T extends UIMessage>(
 
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     if (!fileEntryId) {
-      // Legacy / gateway part — eager materialization, but do not let media
-      // bypass the native-support gate applied to first-party attachments.
+      // Legacy / gateway part — no fileEntryId, so read_file cannot resolve it.
+      // Media still obeys the same native-support gate as first-party files.
       const name = part.filename ?? 'file'
-      const inlined = await materializeNativeFilePart(part)
-      if (!inlined) {
+      const prepared = ctx.preparedFiles?.get(part) ?? (await prepareFilePart(part))
+      if (prepared.kind === 'read-failed') {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
         kept.push(noteOf(name))
       } else {
-        const rejectedKind = rejectedMediaKind(inlined.mediaType, ctx.nativeSupport)
-        if (rejectedKind) {
+        const mediaType = prepared.part.mediaType
+        const rejectedKind = rejectedMediaKind(mediaType, ctx.nativeSupport)
+        if (prepared.kind === 'recognized' && contentFileType(prepared, '') === FILE_TYPE.TEXT) {
+          defer(kept, pending, name, decodeTextBufferIfText(prepared.bytes) ?? '', false)
+        } else if (prepared.kind === 'recognized' && mediaType === 'application/pdf' && !ctx.nativeSupport.pdf) {
+          try {
+            const text = await extractDocumentText('', {
+              signal: ctx.signal,
+              preparedBytes: prepared.bytes,
+              preparedExt: 'pdf'
+            })
+            defer(kept, pending, name, text?.trim() || noExtractableTextNote(name), false)
+          } catch (error) {
+            if (ctx.signal?.aborted || isAbortError(error)) throw error
+            logger.warn('Could not extract legacy PDF text', { messageId: message.id, filename: name, error })
+            kept.push(noteOf(name))
+          }
+        } else if (rejectedKind) {
           kept.push({
             type: 'text',
             text: `[${rejectedKind} attachment omitted: this model does not accept ${rejectedKind} input]`
           })
+        } else if (
+          prepared.kind === 'unrecognized' ||
+          (prepared.kind === 'recognized' && contentFileType(prepared, '') === FILE_TYPE.OTHER)
+        ) {
+          kept.push({ type: 'text', text: `Cannot read the attached file "${name}" as text (unsupported file type).` })
         } else {
-          kept.push(inlined)
+          kept.push(prepared.part)
         }
       }
       continue
@@ -273,14 +326,26 @@ async function prepareChatMessage<T extends UIMessage>(
     const handle = ref?.handle ?? part.filename ?? 'file'
     const displayName = ref?.displayName ?? handle
     try {
-      const bareExt = ((await application.get('FileManager').getById(fileEntryId)).ext ?? '').toLowerCase()
-      const fileType = getFileTypeByExt(bareExt)
+      const prepared = ctx.preparedFiles?.get(part) ?? (await prepareFilePart(part))
+      if (prepared.kind === 'read-failed') {
+        kept.push(noteOf(handle))
+        continue
+      }
+      const fallbackExt = path
+        .extname(part.filename ?? '')
+        .slice(1)
+        .toLowerCase()
+      let bareExt = fallbackExt
+      try {
+        bareExt = ((await application.get('FileManager').getById(fileEntryId)).ext ?? fallbackExt).toLowerCase()
+      } catch {
+        // A valid legacy file:// snapshot can outlive its entry row.
+      }
+      const fileType = contentFileType(prepared, bareExt)
+      const ext = contentExt(prepared, bareExt)
 
-      if (isNative(bareExt, fileType, ctx.nativeSupport)) {
-        if (!(await inlineNative(part))) {
-          logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
-          kept.push(noteOf(handle))
-        }
+      if (prepared.kind === 'recognized' && isNative(ext, fileType, ctx.nativeSupport)) {
+        kept.push(prepared.part)
         continue
       }
 
@@ -311,7 +376,14 @@ async function prepareChatMessage<T extends UIMessage>(
       }
 
       // Non-native first-party attachment → inline its (capped) text.
-      const body = await extractNonNativeText(fileEntryId, fileType, handle, ctx.signal)
+      const body = await extractNonNativeText(
+        fileEntryId,
+        ext,
+        fileType,
+        handle,
+        prepared.kind === 'passthrough' ? undefined : prepared.bytes,
+        ctx.signal
+      )
       defer(kept, pending, handle, body)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
@@ -348,10 +420,18 @@ interface PendingInline {
   index: number
   handle: string
   body: string
+  /** False for legacy/gateway parts: `read_file` only resolves allow-list handles. */
+  readFilePointer: boolean
 }
 
-function defer(parts: UIMessage['parts'], pending: PendingInline[], handle: string, body: string): void {
-  pending.push({ parts, index: parts.length, handle, body })
+function defer(
+  parts: UIMessage['parts'],
+  pending: PendingInline[],
+  handle: string,
+  body: string,
+  readFilePointer = true
+): void {
+  pending.push({ parts, index: parts.length, handle, body, readFilePointer })
   parts.push({ type: 'text', text: '' })
 }
 
@@ -366,7 +446,7 @@ async function applyInlineCaps(pending: PendingInline[], ctx: PrepareChatContext
     : pending.map(() => READ_FILE_PAGE_SIZE)
 
   pending.forEach((entry, index) => {
-    const capped = capInlineText(entry.handle, entry.body, ctx.isToolCapable, caps[index])
+    const capped = capInlineText(entry.handle, entry.body, ctx.isToolCapable && entry.readFilePointer, caps[index])
     entry.parts[entry.index] = { type: 'text', text: `Attached file "${entry.handle}":\n${capped}` }
   })
 }

@@ -19,6 +19,9 @@ vi.mock('@main/ai/messages/attachmentTextExtraction', () => ({
   extractDocumentText: extractMock,
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
+vi.mock('@main/ai/messages/fileProcessor', () => ({
+  prepareFilePart: async (part: unknown) => ({ kind: 'passthrough', part })
+}))
 
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { ReadFileInput } from '@shared/ai/builtinTools'

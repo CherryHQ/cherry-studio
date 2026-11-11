@@ -748,6 +748,112 @@ it('submits native image blocks and local document paths through the common owne
   )
 }, 30000)
 
+const sentUserContent = (body: { messages: { content: unknown }[] }) => {
+  const blocks = body.messages.flatMap((message) => (Array.isArray(message.content) ? message.content : []))
+  return {
+    text: JSON.stringify(body.messages),
+    images: blocks.filter((block) => block.type === 'image').map((block) => block.source)
+  }
+}
+const jsonText = (value: string) => JSON.stringify(value).slice(1, -1)
+
+it('admits only recognized image bytes to the final Claude SDK input', async () => {
+  const test = await desktop()
+  const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#123456' } })
+    .png()
+    .toBuffer()
+  const fakePath = `${test.options.cwd}/fake.png`
+  const realPath = `${test.options.cwd}/real.bin`
+  const rescuePath = `${test.options.cwd}/rescue.png`
+  await Promise.all([writeFile(fakePath, 'not an image'), writeFile(realPath, png), writeFile(rescuePath, png)])
+  MockApplicationUtils.setService('FileManager', {
+    getPhysicalPath: vi.fn().mockReturnValue(rescuePath),
+    getById: vi.fn().mockRejectedValue(new Error('entry unavailable')),
+    read: vi.fn().mockRejectedValue(new Error('entry unavailable'))
+  })
+  const input = {
+    message: messages.saveMessage({
+      sessionId: test.sessionId,
+      message: {
+        role: 'user',
+        status: 'success',
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect these files' },
+            { type: 'file', filename: 'fake.png', mediaType: 'image/png', url: pathToFileURL(fakePath).href },
+            {
+              type: 'file',
+              filename: 'real.bin',
+              mediaType: 'application/octet-stream',
+              url: pathToFileURL(realPath).href
+            },
+            { type: 'file', filename: 'spoof.png', mediaType: 'image/png', url: 'data:image/png;base64,QUJD' },
+            {
+              type: 'file',
+              filename: 'rescue.png',
+              mediaType: 'image/png',
+              url: pathToFileURL(rescuePath).href,
+              providerMetadata: { cherry: { fileEntryId: 'stale-entry' } }
+            }
+          ]
+        }
+      }
+    })
+  }
+  const connection = await test.connect()
+  await connection.send(input)
+  const request = await test.request()
+  const sent = sentUserContent(request.body)
+  const image = { type: 'base64', media_type: 'image/png', data: png.toString('base64') }
+  expect(sent.images).toEqual([image, image])
+  expect(sent.text).toContain(jsonText(`"fake.png": ${fakePath}`))
+  expect(sent.text).toContain(jsonText('Attached file "spoof.png":\nABC'))
+  request.reply.block({ type: 'text', text: 'Attachments received' })
+  request.reply.finish()
+  await test.wait('turn-complete')
+}, 30000)
+
+it.each([
+  [
+    'SVG',
+    'diagram.png',
+    'data:image/png,%3Csvg%20viewBox=%220%200%201%201%22%3E%3C/svg%3E',
+    '<svg viewBox="0 0 1 1"></svg>'
+  ],
+  [
+    'UTF-16 text',
+    'encoded.png',
+    `data:image/png;base64,${Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('hello 中文', 'utf16le')]).toString('base64')}`,
+    'hello 中文'
+  ]
+])(
+  'passes recognized %s bytes in a data URL to Claude as readable text',
+  async (_kind, filename, url, expected) => {
+    const test = await desktop()
+    const input = {
+      message: messages.saveMessage({
+        sessionId: test.sessionId,
+        message: {
+          role: 'user',
+          status: 'success',
+          data: { parts: [{ type: 'file', filename, mediaType: 'image/png', url }] }
+        }
+      })
+    }
+    const connection = await test.connect()
+    await connection.send(input)
+    const request = await test.request()
+    const sent = sentUserContent(request.body)
+    expect(sent.images).toEqual([])
+    expect(sent.text).toContain(jsonText(`Attached file "${filename}":\n${expected}`))
+    expect(sent.text).not.toContain('Unavailable attachments')
+    request.reply.block({ type: 'text', text: 'Text received' })
+    request.reply.finish()
+    await test.wait('turn-complete')
+  },
+  30000
+)
+
 it.each(['rejected', 'unsupported', 'unknown'] as const)(
   'retains only uncertain Claude input bindings after %s',
   async (status) => {

@@ -16,10 +16,11 @@ sources:
 
 How a user's attached files reach the model on a chat turn.
 
-**One rule, per attachment:** if the provider+model can take it as a native
-input, send the **native file**; otherwise send its **extracted text**, inlined
-and capped. The `read_file` tool only exists to page the overflow of large
-text — it is never the *only* way the model sees content.
+**One rule, per attachment:** the AI preparation layer reads local bytes and
+recognizes content independently of declared MIME and filename extension. If
+the provider+model can take the recognized type as a native input, send the
+**native file**; otherwise send its **extracted text** or a visible degradation
+note, inlined and capped. The `read_file` tool only pages text overflow.
 
 This is deliberate: visibility must not depend on the model choosing to call a
 tool. A weak (or non-tool-calling) model still sees every attachment, and a
@@ -38,7 +39,8 @@ Decided per file part in `prepareChatMessages`
 | image | non-vision, no OCR text (or OCR unconfigured/failed) | user-facing error; no provider request |
 | pdf | provider+model native PDF | native PDF part (inline) |
 | pdf | otherwise | extracted text, inline (capped) |
-| office (`docx/xlsx/pptx/odf`) | — | extracted text, inline (capped) |
+| office (`docx/xlsx/pptx/odf`) | — | recognized archive/office content uses its extension to select the parser; extracted text, inline (capped) |
+| SVG | — | decoded text, inline (capped), not a native image |
 | text / code | — | decoded text, inline (capped) |
 | no extension, or an unrecognized extension | — | decoded text when the bytes are text; otherwise unsupported note |
 | audio | model and resolved endpoint are audio-capable | native audio part (inline) |
@@ -47,12 +49,14 @@ Decided per file part in `prepareChatMessages`
 | video | otherwise | short note ("can't process video") |
 | unknown extension with binary content (zip/exe/…) | — | short note ("unsupported file type") |
 
-- **Native** → the file part is left in place and materialized as a `data:` URL
-  by `materializeNativeFilePart` (`src/main/ai/messages/fileProcessor.ts`), which
-  also normalizes the `mediaType` to the on-disk MIME. The provider gets the real
-  file as a user-message part. (The function is named for the boundary: provider
-  File-API upload for large files would slot in behind the same signature.)
-  Locally decoded PNG, JPEG, WebP, and GIF images with a short edge below the
+- **Native** → `prepareFilePart` (`src/main/ai/messages/fileProcessor.ts`)
+  recognizes the bytes actually read from a `fileEntryId`, `file://` path, or
+  locally decoded `data:` URL and inlines those same bytes with the recognized
+  MIME. Failed entry reads may fall back to a still-readable `file://` path.
+  Recognition is repeated at send time, so an attachment changed on disk does
+  not retain a stale native-image classification.
+  Recognized PNG, JPEG, WebP, and GIF bytes must pass a strict decode; an
+  undecodable image is treated as a failed read. Images with a short edge below the
   15 px attachment compatibility target are padded with opaque white before
   the request bytes leave the main process; stored FileEntry and persisted message
   part bytes remain unchanged. Compliant images and inputs outside the strict
@@ -76,9 +80,15 @@ Decided per file part in `prepareChatMessages`
   cap below). The internal `fileEntryId` is never written into the prompt.
 
 Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway /
-external file parts (no `fileEntryId`) are still eagerly materialized, but
-image/audio/video parts are omitted when native support is false. Other
-gateway/external file types keep their existing behavior.
+external file parts (no `fileEntryId`) are still eagerly prepared, but
+image/audio/video parts are omitted when native support is false. Recognized
+SVG and encoded text are inlined, PDFs without native support are extracted,
+and unknown binary content gets a visible unsupported note.
+
+HTTP(S) file URLs are passed through without fetching or verifying remote
+content. Existing `image/*` placeholders are likewise preserved on passthrough
+parts. Neither a remote declaration nor a filename-inferred MIME is proof of
+content type; this change does not add a remote-download path.
 
 ## Supported extensions (upload allowlist)
 
@@ -104,8 +114,8 @@ Extracted text is bounded so multi-turn context stays in control:
 
 - text ≤ cap → inlined in full.
 - text > cap → inline the first `cap` chars + a trailer:
-  - tool-capable model: `[truncated N/total — call read_file("name", offset=N) for more]`
-  - otherwise: `[truncated N/total]`
+  - tool-capable model, and the file is on the `read_file` allow-list (`fileEntryId`): `[truncated N/total — call read_file("name", offset=N) for more]`
+  - otherwise, including a legacy or gateway part with no `fileEntryId`: `[truncated N/total]`
 
 When a context window is known, system text, tools, history, and native media
 are priced first. Attachments share the remaining request budget. A worker
@@ -126,7 +136,9 @@ per-request attachment allow-list from the tool-call context.
   entry id against a per-request allow-list. The model never sees or guesses
   entry ids, and can only read files attached to the current conversation.
 - Returns **text only** (extracted / OCR), paginated. Errors are sanitized to
-  filename-level messages; details are logged, not returned.
+  filename-level messages; details are logged, not returned. Each read uses the
+  same content recognition as the inline excerpt, so a misleading extension
+  cannot switch its later pages to a different parser.
 - Exposed to tool-capable models whenever the request carries first-party file
   attachments (`applies: scope.hasFileAttachments`). It pages over-cap text; when
   everything inlines within the cap the model simply never needs to call it.
@@ -154,15 +166,16 @@ to the shared chat runtime or to ordinary Agents.
 
 `ai/` reaches OCR through the `FileProcessingService` rather than deep-importing
 the feature, keeping processor/handler internals in that domain. Both
-`extractDocumentText` and the OCR path are path-free and cache their result by
-content version (30 min), so the eager every-turn pass over history doesn't
-re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
-`FileManager.read` (PDF via `pdf-parse`, office via
+`extractDocumentText` and the OCR path are path-free. OCR caches by content
+version; document extraction caches prepared bytes by content hash and parser
+extension (30 min), so the eager every-turn pass over history need not re-extract
+the same file. Other callers read through `FileManager.read` (PDF via `pdf-parse`, office via
 `officeparser`/`word-extractor`, known text extensions via
 `decodeTextWithAutoEncoding`, and files with no extension or an unrecognized
-extension (`FILE_TYPE.OTHER`) via `decodeTextBufferIfText`) and dispatches on
-the `FileEntry` canonical `ext`. The conservative decoder returns `null` when
-the bytes are binary or their legacy encoding is too ambiguous to decode safely.
+extension (`FILE_TYPE.OTHER`) via `decodeTextBufferIfText`). The extension
+selects an applicable parser after content recognition; it does not authorize
+native image input. The conservative decoder returns `null` when the bytes are
+binary or their legacy encoding is too ambiguous to decode safely.
 
 Plain-text decoding and inline-budget allocation run in short-lived worker
 threads, with at most two active workers across requests. FileManager owns file

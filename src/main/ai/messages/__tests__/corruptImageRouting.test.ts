@@ -1,6 +1,8 @@
 import sharp from 'sharp'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
+import type * as FileUtilsModule from '@main/utils/file'
+
 vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ warn: vi.fn() }) } }))
 const { files } = vi.hoisted(() => ({ files: new Map<string, Buffer>() }))
 vi.mock('@application', () => ({
@@ -11,8 +13,9 @@ vi.mock('@application', () => ({
     })
   }
 }))
-vi.mock('@main/utils/file', () => ({
-  read: async (path: string) => ({ data: files.get(path)!.toString('base64'), mime: 'image/png' })
+vi.mock('@main/utils/file', async (importOriginal) => ({
+  ...(await importOriginal<typeof FileUtilsModule>()),
+  read: async (path: string) => ({ data: files.get(path)!, mime: 'image/png' })
 }))
 vi.mock('../attachmentTextExtraction', () => ({ extractDocumentText: vi.fn(), noExtractableTextNote: vi.fn() }))
 
@@ -71,10 +74,13 @@ describe('normal chat corrupt image handling', () => {
     expect(await materializeNativeFilePart(part)).toEqual(part)
   })
 
-  it('keeps valid percent-encoded image data unchanged', async () => {
+  it('keeps valid percent-encoded image bytes unchanged', async () => {
     const url = 'data:image/png,' + [...valid].map((b) => '%' + b.toString(16).padStart(2, '0')).join('')
     const part = { type: 'file' as const, mediaType: 'image/png', url }
-    expect(await materializeNativeFilePart(part)).toEqual(part)
+    expect(await materializeNativeFilePart(part)).toEqual({
+      ...part,
+      url: `data:image/png;base64,${valid.toString('base64')}`
+    })
   })
 
   it('accepts a valid JPEG with trailing padding', async () => {
@@ -93,8 +99,9 @@ describe('normal chat corrupt image handling', () => {
   })
 
   it('does not broaden validation to other formats or fetch remote images', async () => {
+    const avif = await sharp(valid).avif().toBuffer()
     for (const part of [
-      { type: 'file' as const, mediaType: 'image/avif', url: 'data:image/avif;base64,AAA' },
+      { type: 'file' as const, mediaType: 'image/avif', url: `data:image/avif;base64,${avif.toString('base64')}` },
       { type: 'file' as const, mediaType: 'image/png', url: 'https://example.com/image.png' }
     ])
       expect(await materializeNativeFilePart(part)).toEqual(part)

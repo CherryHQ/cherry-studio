@@ -26,13 +26,15 @@ import {
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
-import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
+import { prepareFilePart } from '@main/ai/messages/fileProcessor'
 import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
-import { probeReadable } from '@main/utils/file'
+import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
+import { decodeTextBufferIfText, probeReadable } from '@main/utils/file'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
@@ -41,7 +43,6 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { AsyncEventQueue } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import type {
@@ -1006,7 +1007,7 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
  * path fallback. Assistant attachment handles remain an additional compatibility
  * interface; external files and images that cannot be materialized fall back to paths.
  *
- * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
+ * **Side effect**: reads local attachment bytes for content recognition.
  */
 async function materializeUserContent(
   message: AgentSessionMessageEntity,
@@ -1017,20 +1018,24 @@ async function materializeUserContent(
   const firstPartyFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId)
   )
-  const firstPartyImageParts = firstPartyFileParts.filter(isImageFilePart)
-  const firstPartyPathParts = firstPartyFileParts.filter((part) => !isImageFilePart(part))
-  const routedParts = parts.filter(
-    (part) =>
-      part.type === 'text' ||
-      (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && isImageFilePart(part))
-  )
   const externalFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
   )
-  const originalFirstPartyFiles = new Map(
-    firstPartyFileParts
-      .map((part) => [readCherryMeta(part)?.fileEntryId, part] as const)
-      .filter((entry): entry is [string, FileUIPart] => Boolean(entry[0]))
+  const fileParts = [...firstPartyFileParts, ...externalFileParts]
+  const preparedFiles = new Map(
+    await Promise.all(fileParts.map(async (part) => [part, await prepareFilePart(part)] as const))
+  )
+  const firstPartyImageParts = firstPartyFileParts.filter((part) => {
+    const prepared = preparedFiles.get(part)
+    return (
+      prepared?.kind === 'recognized' &&
+      prepared.mediaType.startsWith('image/') &&
+      prepared.mediaType !== 'image/svg+xml'
+    )
+  })
+  const firstPartyPathParts = firstPartyFileParts.filter((part) => !firstPartyImageParts.includes(part))
+  const routedParts = parts.filter(
+    (part) => part.type === 'text' || (!supportsImages && firstPartyImageParts.includes(part as FileUIPart))
   )
 
   let preparedParts = routedParts
@@ -1038,13 +1043,14 @@ async function materializeUserContent(
   if (supportsAttachmentReads && firstPartyFileParts.length > 0) {
     turnAttachments = collectAssistantFileAttachments([{ id: message.id, role: 'user', parts: firstPartyFileParts }])
   }
-  if (firstPartyImageParts.length > 0) {
+  if (!supportsImages && firstPartyImageParts.length > 0) {
     const userMessage = { id: message.id, role: 'user', parts: routedParts } as CherryUIMessage
     const attachments = supportsAttachmentReads ? turnAttachments : collectFileAttachments([userMessage])
     const [prepared] = await prepareChatMessages([userMessage], {
       attachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
       isToolCapable: supportsAttachmentReads,
+      preparedFiles,
       // An unlisted-extension image (AVIF/HEIC — accepted wildcard on the agent surface) must
       // stay a file part so the local-path fallback below still holds its file reference.
       keepUnroutableFileParts: true
@@ -1059,66 +1065,37 @@ async function materializeUserContent(
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []
   const unavailableParts: FileUIPart[] = []
-  // A part that cannot become an image block still reaches the agent through its own path;
-  // only one with nowhere to point is unavailable.
-  const routeWithoutImage = (originalPart: FileUIPart): void => {
-    const target =
-      readCherryMeta(originalPart)?.fileEntryId || originalPart.url?.startsWith('file://')
-        ? fallbackParts
-        : unavailableParts
-    target.push(originalPart)
-  }
+  const inlineTexts: string[] = []
 
-  for (const part of [
-    ...preparedParts.filter((part): part is FileUIPart => part.type === 'file'),
-    ...firstPartyPathParts,
-    ...externalFileParts
-  ]) {
-    const fileEntryId = readCherryMeta(part)?.fileEntryId
-    const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
-    if (!isImageFilePart(originalPart) || !supportsImages || !canBeClaudeImage(part)) {
-      routeWithoutImage(originalPart)
-      continue
-    }
-
-    const preparedDataUrl = part.url ? parseDataUrl(part.url) : null
-    if (preparedDataUrl?.isBase64 && preparedDataUrl.data.length === 0) {
-      routeWithoutImage(originalPart)
-      continue
-    }
-    let parsed = fileEntryId && preparedDataUrl?.isBase64 ? preparedDataUrl : null
-    if (!parsed) {
-      const inlineType = toClaudeImageMediaType(preparedDataUrl?.mediaType)
-      const materialized = await materializeNativeFilePart(inlineType ? { ...part, mediaType: inlineType } : part)
-      if (!materialized) {
-        // Conversion found nothing sendable — the file itself may still be readable at its path.
-        routeWithoutImage(originalPart)
-        continue
-      }
-      parsed = materialized.url ? parseDataUrl(materialized.url) : null
-    }
-
-    if (!parsed?.isBase64 || parsed.data.length === 0) {
-      routeWithoutImage(originalPart)
-      continue
-    }
-
-    const claudeType = toClaudeImageMediaType(parsed.mediaType)
-    if (claudeType) {
+  for (const part of [...(supportsImages ? firstPartyImageParts : []), ...firstPartyPathParts, ...externalFileParts]) {
+    const prepared = preparedFiles.get(part)
+    const claudeType =
+      prepared?.kind === 'recognized' && supportsImages ? toClaudeImageMediaType(prepared.mediaType) : null
+    const parsed = prepared && prepared.kind === 'recognized' && claudeType ? parseDataUrl(prepared.part.url) : null
+    if (claudeType && parsed?.isBase64 && parsed.data.length > 0) {
       images.push({
         type: 'image',
         source: { type: 'base64', media_type: claudeType, data: parsed.data }
       })
       continue
     }
-
-    // Converted, but into a type the image blocks cannot carry (BMP, TIFF …).
-    routeWithoutImage(originalPart)
+    if (readCherryMeta(part)?.fileEntryId || part.url?.startsWith('file://')) fallbackParts.push(part)
+    else if (
+      prepared?.kind === 'recognized' &&
+      (prepared.mediaType === 'text/plain' || prepared.mediaType === 'image/svg+xml')
+    ) {
+      const body = decodeTextBufferIfText(prepared.bytes) ?? ''
+      const head = body.slice(0, surrogateSafeEnd(body, READ_FILE_PAGE_SIZE))
+      inlineTexts.push(
+        `Attached file "${part.filename ?? 'file'}":\n${head}${head.length < body.length ? '\n[Truncated attachment text.]' : ''}`
+      )
+    } else unavailableParts.push(part)
   }
 
   const resolvedPaths = await extractAttachmentPaths(fallbackParts)
   unavailableParts.push(...resolvedPaths.unavailable)
   let textContent = appendAgentAttachmentPaths(text, resolvedPaths.files)
+  if (inlineTexts.length > 0) textContent = [textContent, ...inlineTexts].filter(Boolean).join('\n\n')
   if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
@@ -1186,32 +1163,6 @@ async function extractAttachmentPaths(
     }
   }
   return { files, unavailable }
-}
-
-function isImageFilePart(part: FileUIPart): boolean {
-  if (part.mediaType?.toLowerCase().startsWith('image/')) return true
-  if (part.url?.startsWith('data:') && toClaudeImageMediaType(parseDataUrl(part.url)?.mediaType)) return true
-  const filename = part.filename?.toLowerCase()
-  const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
-  return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
-}
-
-/**
- * Whether the part can become one of Claude's image blocks at all. A declared image type the
- * blocks cannot carry (TIFF, AVIF, HEIC …) answers here, before its bytes are converted: the
- * conversion can only fail, and the local-path fallback delivers the file either way.
- */
-function canBeClaudeImage(part: FileUIPart): boolean {
-  const inlineType = part.url?.startsWith('data:') ? parseDataUrl(part.url)?.mediaType : undefined
-  const mediaType = (inlineType ?? part.mediaType)?.toLowerCase()
-  if (!mediaType || mediaType === 'application/octet-stream') return true
-  if (mediaType.startsWith('image/')) return toClaudeImageMediaType(mediaType) !== null
-
-  const filename = part.filename?.toLowerCase()
-  const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
-  return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(
-    (extension) => filename?.endsWith(extension) || url?.endsWith(extension)
-  )
 }
 
 function toClaudeImageMediaType(value: string | undefined) {

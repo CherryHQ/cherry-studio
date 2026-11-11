@@ -30,6 +30,12 @@ const filePart = (p: Partial<FileUIPart>): FileUIPart => ({
   ...p
 })
 
+// At least 15 px per edge so attachment padding leaves the bytes unchanged.
+const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#123456' } })
+  .png()
+  .toBuffer()
+const redPixelBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
+
 describe('materializeNativeFilePart — file:// inline', () => {
   let tmpDir: string
   let imgPath: string
@@ -37,10 +43,6 @@ describe('materializeNativeFilePart — file:// inline', () => {
   beforeAll(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-fp-'))
     imgPath = path.join(tmpDir, 'pixel.png')
-    const png = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
-      'base64'
-    )
     await fs.writeFile(imgPath, png)
   })
 
@@ -68,8 +70,47 @@ describe('materializeNativeFilePart — file:// inline', () => {
     expect(out?.mediaType).toBe('image/png')
   })
 
+  it('rejects a data URL image declaration when its bytes are text', async () => {
+    const out = await materializeNativeFilePart(filePart({ url: 'data:image/png;base64,QUJD', mediaType: 'image/png' }))
+    expect(out?.mediaType).toBe('text/plain')
+    expect(out?.url).toBe('data:text/plain;base64,QUJD')
+  })
+
+  it('recognizes percent-encoded binary data URL bytes', async () => {
+    const encoded = Array.from(png, (byte) => `%${byte.toString(16).padStart(2, '0')}`).join('')
+    const out = await materializeNativeFilePart(filePart({ url: `data:image/png,${encoded}`, filename: 'pixel.bin' }))
+
+    expect(out?.mediaType).toBe('image/png')
+    expect(out?.url).toBe(`data:image/png;base64,${png.toString('base64')}`)
+  })
+
+  it('does not promote text or ZIP bytes from a .png filename to native image', async () => {
+    const textPath = path.join(tmpDir, 'text.png')
+    const zipPath = path.join(tmpDir, 'archive.png')
+    await fs.writeFile(textPath, 'plain text')
+    await fs.writeFile(zipPath, Buffer.from('504b03041400000000000000000000000000000000000000000000', 'hex'))
+
+    const text = await materializeNativeFilePart(filePart({ url: `file://${textPath}`, mediaType: 'image/png' }))
+    const zip = await materializeNativeFilePart(filePart({ url: `file://${zipPath}`, mediaType: 'image/png' }))
+
+    expect(text?.mediaType).toBe('text/plain')
+    expect(zip?.mediaType).toBe('application/zip')
+    expect(text?.url).toBe(`data:text/plain;base64,${Buffer.from('plain text').toString('base64')}`)
+  })
+
+  it.each(['pixel.bin', 'pixel'])("recognizes PNG bytes despite the filename '%s'", async (filename) => {
+    const target = path.join(tmpDir, filename)
+    await fs.writeFile(target, png)
+    const out = await materializeNativeFilePart(filePart({ url: `file://${target}`, filename }))
+    expect(out?.mediaType).toBe('image/png')
+    expect(out?.url).toBe(`data:image/png;base64,${png.toString('base64')}`)
+  })
+
   it('rejects undecodable image data: URLs', async () => {
-    const out = await materializeNativeFilePart(filePart({ url: 'data:image/png;base64,AAA', mediaType: 'image/png' }))
+    const truncated = png.subarray(0, 40).toString('base64')
+    const out = await materializeNativeFilePart(
+      filePart({ url: `data:image/png;base64,${truncated}`, mediaType: 'image/png' })
+    )
     expect(out).toBeNull()
   })
 
@@ -116,14 +157,11 @@ describe('materializeNativeFilePart — file:// inline', () => {
 })
 
 describe('materializeNativeFilePart — fileEntryId inline', () => {
-  it('reads via FileManager and applies its MIME (overriding a bad hint)', async () => {
+  it('reads via FileManager and uses content type over its extension-derived MIME', async () => {
     readMock.mockReset()
-    readMock.mockResolvedValueOnce({
-      content: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
-      mime: 'image/png'
-    })
+    readMock.mockResolvedValueOnce({ content: redPixelBase64, mime: 'application/octet-stream' })
     const out = await materializeNativeFilePart(
-      filePart({ mediaType: '.png', providerMetadata: { cherry: { fileEntryId: 'entry-1' } } })
+      filePart({ mediaType: '.png', filename: 'pixel.bin', providerMetadata: { cherry: { fileEntryId: 'entry-1' } } })
     )
     expect(out?.mediaType).toBe('image/png')
     const output = Buffer.from(out!.url.split(',')[1], 'base64')
@@ -131,6 +169,29 @@ describe('materializeNativeFilePart — fileEntryId inline', () => {
     const pixel = await sharp(output).extract({ left: 7, top: 7, width: 1, height: 1 }).raw().toBuffer()
     expect([...pixel]).toEqual([255, 0, 0])
     expect(readMock).toHaveBeenCalledWith('entry-1', { encoding: 'base64' })
+  })
+
+  it('rechecks the bytes at send time and recognizes a rescued file path after entry failure', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-fp-fallback-'))
+    const target = path.join(tmpDir, 'attachment.png')
+    try {
+      await fs.writeFile(target, png)
+      readMock.mockReset().mockRejectedValue(new Error('entry gone'))
+      const part = filePart({
+        url: `file://${target}`,
+        mediaType: 'image/png',
+        providerMetadata: { cherry: { fileEntryId: 'gone' } }
+      })
+      const first = await materializeNativeFilePart(part)
+      expect(first?.mediaType).toBe('image/png')
+
+      await fs.writeFile(target, 'changed content')
+      const changed = await materializeNativeFilePart(part)
+      expect(changed?.mediaType).toBe('text/plain')
+      expect(changed?.url).toBe(`data:text/plain;base64,${Buffer.from('changed content').toString('base64')}`)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
   })
 
   it('drops the part when the entry is unreadable and there is no file:// rescue', async () => {
