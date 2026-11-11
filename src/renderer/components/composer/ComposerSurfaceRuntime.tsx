@@ -287,6 +287,8 @@ export interface ComposerSurfaceProps {
   /** Drops the card frame, side gutters, and height controls, for a host whose own surface is the composer. */
   embedded?: boolean
   compactWhenSingleLine?: boolean
+  /** Renders Markdown in place while keeping the source text byte-identical. */
+  markdownLivePreview?: boolean
   renderCompactControls?: (
     inputAdapter?: QuickPanelInputAdapter,
     unifiedPanelControl?: ComposerUnifiedPanelControl
@@ -616,6 +618,7 @@ export default function ComposerSurfaceRuntime({
   leadingContent,
   embedded = false,
   compactWhenSingleLine = false,
+  markdownLivePreview = false,
   renderCompactControls,
   sendAccessory,
   deferQuickPanel = false,
@@ -1552,11 +1555,12 @@ export default function ComposerSurfaceRuntime({
   const editorExtensions = useMemo(
     () =>
       createComposerEditorPreset({
+        markdownLivePreview,
         placeholder,
         renderToken: renderComposerToken,
         suggestionSources: activeSuggestionSources
       }),
-    [activeSuggestionSources, placeholder, renderComposerToken]
+    [activeSuggestionSources, markdownLivePreview, placeholder, renderComposerToken]
   )
 
   // ProseMirror may finish composition without another document update, leaving the quick panel

@@ -195,6 +195,80 @@
   font-style: normal !important;
 }
 
+.composer-tiptap .composer-md-syntax,
+.composer-tiptap .composer-md-list-marker {
+  color: var(--muted-foreground);
+}
+
+/* display: none makes Chromium skip the caret past the run; zero-size text keeps every position addressable. */
+.composer-tiptap .composer-md-syntax-hidden {
+  font-size: 0 !important;
+}
+
+.composer-tiptap .composer-md-strong {
+  font-weight: 600;
+}
+
+.composer-tiptap .composer-md-emphasis {
+  font-style: italic;
+}
+
+.composer-tiptap .composer-md-delete {
+  text-decoration: line-through;
+}
+
+.composer-tiptap .composer-md-inline-code {
+  border-radius: 3px;
+  background: var(--muted);
+  padding: 0 3px;
+  font-family: var(--code-font-family);
+}
+
+.composer-tiptap .composer-md-link {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.composer-tiptap .composer-md-heading {
+  font-weight: 600;
+}
+
+.composer-tiptap .composer-md-heading-1 {
+  font-size: 1.5em;
+}
+
+.composer-tiptap .composer-md-heading-2 {
+  font-size: 1.3em;
+}
+
+.composer-tiptap .composer-md-heading-3 {
+  font-size: 1.15em;
+}
+
+.composer-tiptap .composer-md-quote {
+  color: var(--muted-foreground);
+}
+
+.composer-tiptap.tiptap p.composer-md-quote-line {
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+}
+
+.composer-tiptap.tiptap p.composer-md-list-line {
+  padding-left: 1.4em;
+  text-indent: -1.4em;
+}
+
+.composer-tiptap.tiptap p.composer-md-horizontal-rule:has(.composer-md-syntax-hidden) {
+  background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat;
+}
+
+.composer-tiptap.tiptap p.composer-md-line-hidden {
+  height: 0;
+  overflow: hidden;
+  line-height: 0 !important;
+}
+
 .tiptap img:not([data-file-token-icon-thumbnail]) {
   max-width: 800px;
   width: 100%;

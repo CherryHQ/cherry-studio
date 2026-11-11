@@ -958,7 +958,17 @@ describe('ComposerSurface', () => {
     expect(inputbar?.querySelector('[data-composer-toolbar]')).not.toBeNull()
   })
 
-  it('returns to the regular presentation for an explicit hard break that does not overflow', async () => {
+  it('turns on Markdown live preview only for surfaces that ask for it', async () => {
+    const { unmount } = render(<ComposerSurface {...baseProps} />)
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+    expect(mocks.editorPresetOptions.markdownLivePreview).toBe(false)
+    unmount()
+
+    render(<ComposerSurface {...baseProps} markdownLivePreview />)
+    await waitFor(() => expect(mocks.editorPresetOptions.markdownLivePreview).toBe(true))
+  })
+
+  it('returns to the regular presentation for explicit multiple lines that do not overflow', async () => {
     render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
 
     const inputbar = document.getElementById('inputbar')
