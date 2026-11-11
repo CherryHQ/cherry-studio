@@ -2,7 +2,15 @@ import fs from 'node:fs'
 
 import { CancellationToken } from 'builder-util-runtime'
 import { app } from 'electron'
-import { AppImageUpdater, type AppUpdater, MacUpdater, NsisUpdater, type ProgressInfo } from 'electron-updater'
+import {
+  AppImageUpdater,
+  type AppUpdater,
+  DebUpdater,
+  MacUpdater,
+  NsisUpdater,
+  RpmUpdater,
+  type ProgressInfo
+} from 'electron-updater'
 import type { AppAdapter } from 'electron-updater/out/AppAdapter'
 import { parse } from 'yaml'
 
@@ -15,9 +23,25 @@ import { getAppEdition } from '@main/utils/appEdition'
 import type { LegacyInstallState } from '@shared/types/legacyUpgrade'
 
 import { createLegacyBridgeProvider } from './legacyBridgeProvider'
-import { findLegacyBridgeTarget, isLegacyBridgeCompatible, type LegacyBridgeTarget } from './legacyBridgeTarget'
+import {
+  findLegacyBridgeTarget,
+  isLegacyBridgeCompatible,
+  type LegacyBridgeTarget,
+  type LegacyLinuxPackageType
+} from './legacyBridgeTarget'
 
 const logger = loggerService.withContext('LegacyBridgeInstaller')
+
+export function getLegacyLinuxPackageType(): LegacyLinuxPackageType | undefined {
+  if (process.platform !== 'linux') return undefined
+  if (process.env.APPIMAGE) return 'AppImage'
+  try {
+    const type = fs.readFileSync(application.getPath('app.extra_resources', 'package-type'), 'utf8').trim()
+    return type === 'deb' || type === 'rpm' ? type : undefined
+  } catch {
+    return undefined
+  }
+}
 
 export function getLegacyBridgeEligibility(profile: string): { prerequisite: boolean; target?: LegacyBridgeTarget } {
   let prerequisite = true
@@ -31,15 +55,19 @@ export function getLegacyBridgeEligibility(profile: string): { prerequisite: boo
     if (!app.isPackaged || profile !== application.getPath('app.userdata')) return { prerequisite: false }
     if (bootConfigService.get('app.user_data_path')?.[getNormalizedExecutablePath()]) return { prerequisite: false }
     if (process.env.PORTABLE_EXECUTABLE_DIR || app.runningUnderARM64Translation) return { prerequisite: false }
+    const linuxPackageType = getLegacyLinuxPackageType()
     if (process.platform === 'linux') {
-      if (!process.env.APPIMAGE) return { prerequisite: false }
-      fs.accessSync(process.env.APPIMAGE, fs.constants.W_OK)
+      if (!linuxPackageType) return { prerequisite: false }
+      if (linuxPackageType === 'AppImage') fs.accessSync(process.env.APPIMAGE!, fs.constants.W_OK)
     }
     if (process.platform === 'win32') {
       const config = parse(fs.readFileSync(application.getPath('app.extra_resources', 'app-update.yml'), 'utf8'))
       if (!config?.publisherName?.length) return { prerequisite: false }
     }
-    return { prerequisite: false, target: findLegacyBridgeTarget(getAppEdition(), process.platform, process.arch) }
+    return {
+      prerequisite: false,
+      target: findLegacyBridgeTarget(getAppEdition(), process.platform, process.arch, linuxPackageType)
+    }
   } catch (error) {
     logger.warn('Automatic bridge installation unavailable', error as Error)
     return { prerequisite }
@@ -71,7 +99,11 @@ export function createLegacyBridgeUpdater(target: LegacyBridgeTarget): AppUpdate
       ? new MacUpdater(options, adapter)
       : target.platform === 'win32'
         ? new NsisUpdater(options, adapter)
-        : new AppImageUpdater(options, adapter)
+        : target.url.endsWith('.deb')
+          ? new DebUpdater(options, adapter)
+          : target.url.endsWith('.rpm')
+            ? new RpmUpdater(options, adapter)
+            : new AppImageUpdater(options, adapter)
   updater.logger = {
     info: (message) => logger.info(String(message)),
     warn: (message) => logger.warn(String(message)),

@@ -85,6 +85,64 @@ index 8f18dc5416c91835ded4e47f2358fba680c129ac..35a629185bbde1f83a3debdd41b1d161
              if (!this.autoInstallOnAppQuit) {
                  /**
                   * If this was not `true` previously then MacUpdater.doDownloadUpdate()
+diff --git a/out/RpmUpdater.d.ts b/out/RpmUpdater.d.ts
+index 41eb04a6b38e98249b8ec30556db3b45a4c548e4..0d1aa957f2b1a8074cd8cd7ffdc61e14ac0c18ef 100644
+--- a/out/RpmUpdater.d.ts
++++ b/out/RpmUpdater.d.ts
+@@ -9,5 +9,5 @@ export declare class RpmUpdater extends LinuxUpdater {
+     /*** @private */
+     protected doDownloadUpdate(downloadUpdateOptions: DownloadUpdateOptions): Promise<Array<string>>;
+     protected doInstall(options: InstallOptions): boolean;
+-    static installWithCommandRunner(packageManager: "zypper" | "dnf" | "yum" | "rpm", installerPath: string, commandRunner: (commandWithArgs: string[]) => void, logger: Logger): void;
++    static installWithCommandRunner(packageManager: "zypper" | "dnf" | "yum" | "rpm", installerPath: string, commandRunner: (commandWithArgs: string[]) => void, logger: Logger, isDowngrade?: boolean): void;
+ }
+diff --git a/out/RpmUpdater.js b/out/RpmUpdater.js
+index 7095549478c7f880eeef4c8baa7ce300720f1afe..c84c44f3eb308ac82d851f41030eb4d6b076900a 100644
+--- a/out/RpmUpdater.js
++++ b/out/RpmUpdater.js
+@@ -1,6 +1,7 @@
+ "use strict";
+ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.RpmUpdater = void 0;
++const semver_1 = require("semver");
+ const types_1 = require("./types");
+ const Provider_1 = require("./providers/Provider");
+ const LinuxUpdater_1 = require("./LinuxUpdater");
+@@ -33,7 +34,8 @@ class RpmUpdater extends LinuxUpdater_1.LinuxUpdater {
+         const priorityList = ["zypper", "dnf", "yum", "rpm"];
+         const packageManager = this.detectPackageManager(priorityList);
+         try {
+-            RpmUpdater.installWithCommandRunner(packageManager, installerPath, this.runCommandWithSudoIfNeeded.bind(this), this._logger);
++            const isDowngrade = this.updateInfoAndProvider != null && (0, semver_1.lt)(this.updateInfoAndProvider.info.version, this.currentVersion);
++            RpmUpdater.installWithCommandRunner(packageManager, installerPath, this.runCommandWithSudoIfNeeded.bind(this), this._logger, this.allowDowngrade && isDowngrade);
+         }
+         catch (error) {
+             this.dispatchError(error);
+@@ -44,19 +46,19 @@ class RpmUpdater extends LinuxUpdater_1.LinuxUpdater {
+         }
+         return true;
+     }
+-    static installWithCommandRunner(packageManager, installerPath, commandRunner, logger) {
++    static installWithCommandRunner(packageManager, installerPath, commandRunner, logger, isDowngrade = false) {
+         if (packageManager === "zypper") {
+-            return commandRunner(["zypper", "--non-interactive", "--no-refresh", "install", "--allow-unsigned-rpm", "-f", installerPath]);
++            return commandRunner(["zypper", "--non-interactive", "--no-refresh", "install", "--allow-unsigned-rpm", "-f", ...(isDowngrade ? ["--oldpackage"] : []), installerPath]);
+         }
+         if (packageManager === "dnf") {
+-            return commandRunner(["dnf", "install", "--nogpgcheck", "-y", installerPath]);
++            return commandRunner(["dnf", isDowngrade ? "downgrade" : "install", "--nogpgcheck", "-y", installerPath]);
+         }
+         if (packageManager === "yum") {
+-            return commandRunner(["yum", "install", "--nogpgcheck", "-y", installerPath]);
++            return commandRunner(["yum", isDowngrade ? "downgrade" : "install", "--nogpgcheck", "-y", installerPath]);
+         }
+         if (packageManager === "rpm") {
+             logger.warn("Installing with rpm only (no dependency resolution).");
+-            return commandRunner(["rpm", "-Uvh", "--replacepkgs", "--replacefiles", "--nodeps", installerPath]);
++            return commandRunner(["rpm", "-Uvh", "--replacepkgs", "--replacefiles", "--nodeps", ...(isDowngrade ? ["--oldpackage"] : []), installerPath]);
+         }
+         throw new Error(`Package manager ${packageManager} not supported`);
+     }
 diff --git a/out/util.js b/out/util.js
 index 9294ffd6ca8f02c2e0f90c663e7e9cdc02c1ac37..f52107493e2995320ee4efd0eb2a8c9bf03291a2 100644
 --- a/out/util.js

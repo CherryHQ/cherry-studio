@@ -11,6 +11,7 @@ import { getLegacyProfilePaths } from '@main/core/paths/legacyProfilePaths'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 
+import type { LegacyLinuxPackageType } from './legacyBridgeTarget'
 import { MIGRATION_V2_STATUS, migrationStatusSchema } from './migrationStatus'
 
 export const LEGACY_UPGRADE_VERSION = '2.1.0'
@@ -21,7 +22,8 @@ export function getLegacyUpgradeDownloadUrl({
   translated,
   portable,
   version = LEGACY_UPGRADE_VERSION,
-  edition = 'global'
+  edition = 'global',
+  linuxPackageType = 'AppImage'
 }: {
   platform: NodeJS.Platform
   arch: string
@@ -29,6 +31,7 @@ export function getLegacyUpgradeDownloadUrl({
   portable: boolean
   version?: typeof LEGACY_UPGRADE_VERSION | '1.9.12'
   edition?: 'global' | 'cn'
+  linuxPackageType?: LegacyLinuxPackageType
 }): string {
   const nativeArch = translated ? 'arm64' : arch
   if (nativeArch !== 'arm64' && nativeArch !== 'x64') throw new Error(`Unsupported architecture: ${nativeArch}`)
@@ -41,14 +44,21 @@ export function getLegacyUpgradeDownloadUrl({
       asset = `win-${nativeArch}-${portable ? 'portable' : 'setup'}.exe`
       break
     case 'linux':
-      asset = `linux-${nativeArch}.AppImage`
+      asset = `linux-${nativeArch}.${linuxPackageType}`
       break
     default:
       throw new Error(`Unsupported platform: ${platform}`)
   }
   if (version === '1.9.12') {
     asset = asset.replace(/^(mac|win|linux)-/, '')
-    if (platform === 'linux' && nativeArch === 'x64') asset = 'x86_64.AppImage'
+    if (platform === 'linux') {
+      const legacyArch = {
+        AppImage: { x64: 'x86_64', arm64: 'arm64' },
+        deb: { x64: 'amd64', arm64: 'arm64' },
+        rpm: { x64: 'x86_64', arm64: 'aarch64' }
+      }[linuxPackageType][nativeArch]
+      asset = `${legacyArch}.${linuxPackageType}`
+    }
   }
   return `https://github.com/CherryHQ/cherry-studio/releases/download/v${version}/Cherry-Studio-${edition === 'cn' && version !== '1.9.12' ? 'CN-' : ''}${version}-${asset}`
 }

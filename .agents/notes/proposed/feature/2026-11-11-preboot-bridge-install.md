@@ -29,9 +29,12 @@ After launch, 2.1.0 owns migration and its existing recovery UI. Once migration 
 | Signed macOS app installed normally | `MacUpdater`, using the matching ZIP rather than DMG | Native x64/arm64, Rosetta, signing identity compatibility, replacement and launch |
 | Windows NSIS installation | `NsisUpdater`, preserving installation directory and edition | x64/arm64, translated x64, elevation cancellation, install and launch |
 | Linux AppImage | `AppImageUpdater`, only for the actual writable AppImage | x64/arm64, executable replacement and launch |
-| Windows portable, Linux deb/rpm or unknown form, unpackaged development build | Existing manual download instructions | Correct version/edition/architecture; no automatic replacement |
+| Linux deb/rpm | `DebUpdater` / `RpmUpdater`, selected by the packaged `package-type` marker; use package-manager downgrade support | Package database reports 2.1.0, elevation failure stays recoverable, launch and migration |
+| Windows portable, unknown Linux form, unpackaged development build | Existing manual download instructions | Correct version/edition/architecture; no automatic replacement |
 
 Global and CN must stay in their current edition. Architecture selection uses the existing native-architecture rule, including translated processes; never select the first asset as a fallback. A cross-architecture replacement is enabled only after packaged acceptance proves its installer and profile compatibility; otherwise offer the appropriate manual installer. Missing artifacts, unavailable native updater support, or unverified profile continuity select the manual path with a concise reason.
+
+The Linux package extension is authorized in the implementation conversation. Match manual downloads to the detected package format as well, including the historical 1.9.12 filenames. Extend the existing updater patch so RPM installation distinguishes downgrades from upgrades; do not implement package-manager commands in application code.
 
 ### Ownership and dependency boundary
 

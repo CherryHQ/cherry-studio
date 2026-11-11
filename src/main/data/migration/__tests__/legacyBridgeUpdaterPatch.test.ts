@@ -90,3 +90,58 @@ it('supplies the network transport when a custom AppAdapter isolates updater wri
     fs.rmSync(f.root, { recursive: true, force: true })
   }
 })
+
+// A normal RPM install may keep the newer package and report success instead of installing the bridge.
+it.each(['zypper', 'dnf', 'yum', 'rpm'] as const)(
+  'uses %s downgrade semantics only for an older target',
+  async (manager) => {
+    const { RpmUpdater } = await import('electron-updater')
+    const f = fixture()
+    const commands: string[][] = []
+    class TestUpdater extends RpmUpdater {
+      protected get installerPath() {
+        return '/tmp/bridge.rpm'
+      }
+      protected detectPackageManager() {
+        return manager
+      }
+      protected runCommandWithSudoIfNeeded(command: string[]) {
+        commands.push(command)
+        return ''
+      }
+      installDownloaded() {
+        return this.doInstall({ isSilent: false, isForceRunAfter: false, isAdminRightsRequired: false })
+      }
+    }
+    try {
+      for (const version of ['2.1.0', '2.3.0']) {
+        const updater = new TestUpdater(
+          {
+            provider: 'custom',
+            updateProvider: class {
+              setRequestHeaders() {}
+              async getLatestVersion() {
+                return { version, files: [], path: '', sha512: '', releaseDate: '2026-09-01' }
+              }
+            }
+          },
+          f.adapter
+        )
+        updater.logger = null
+        updater.autoDownload = false
+        updater.allowDowngrade = true
+        expect((await updater.checkForUpdates())?.isUpdateAvailable).toBe(true)
+        expect(updater.installDownloaded()).toBe(true)
+        const command = commands.at(-1)!
+        if (manager === 'dnf' || manager === 'yum') {
+          expect(command.slice(0, 2)).toEqual([manager, version === '2.1.0' ? 'downgrade' : 'install'])
+        } else {
+          expect(command.includes('--oldpackage')).toBe(version === '2.1.0')
+        }
+        expect(command.at(-1)).toBe('/tmp/bridge.rpm')
+      }
+    } finally {
+      fs.rmSync(f.root, { recursive: true, force: true })
+    }
+  }
+)

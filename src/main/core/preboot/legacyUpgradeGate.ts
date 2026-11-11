@@ -1,7 +1,7 @@
 import { app, dialog } from 'electron'
 
 import { application } from '@application'
-import { getLegacyBridgeEligibility } from '@data/migration/legacyBridgeInstaller'
+import { getLegacyBridgeEligibility, getLegacyLinuxPackageType } from '@data/migration/legacyBridgeInstaller'
 import {
   findLegacyUpgradeProfile,
   getLegacyUpgradeDownloadUrl,
@@ -41,7 +41,8 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
       arch: process.arch,
       translated: app.runningUnderARM64Translation,
       portable: isPortable,
-      edition: getAppEdition()
+      edition: getAppEdition(),
+      linuxPackageType: getLegacyLinuxPackageType()
     }
     const eligibility = getLegacyBridgeEligibility(profile.path)
     await showLegacyUpgradeWindow(

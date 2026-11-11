@@ -1,0 +1,112 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { app } from 'electron'
+import { AppImageUpdater, DebUpdater, RpmUpdater } from 'electron-updater'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { bootConfigService } from '@main/data/bootConfig'
+
+import {
+  createLegacyBridgeUpdater,
+  getLegacyBridgeEligibility,
+  getLegacyLinuxPackageType
+} from '../legacyBridgeInstaller'
+import { findLegacyBridgeTarget } from '../legacyBridgeTarget'
+import { getLegacyUpgradeDownloadUrl } from '../legacyUpgrade'
+
+vi.mock('@main/data/bootConfig', () => ({ bootConfigService: { get: vi.fn() } }))
+
+describe('Linux bridge package continuity', () => {
+  let root: string
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-linux-'))
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    vi.stubEnv('APPIMAGE', undefined)
+    vi.stubEnv('PORTABLE_EXECUTABLE_DIR', undefined)
+    vi.spyOn(application, 'getPath').mockImplementation((_key, filename) =>
+      filename ? path.join(root, filename) : root
+    )
+    vi.spyOn(app, 'getVersion').mockReturnValue('2.2.0')
+    vi.spyOn(app, 'isPackaged', 'get').mockReturnValue(true)
+    vi.mocked(bootConfigService.get).mockReturnValue(null)
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ cherryEdition: 'global' }))
+    fs.writeFileSync(path.join(root, 'version.log'), '1.9.12|linux|prod|packaged|install|2026-09-01T00:00:00.000Z')
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  it.each([
+    ['deb', DebUpdater],
+    ['rpm', RpmUpdater]
+  ] as const)('keeps a %s install on its package manager', (format, Updater) => {
+    fs.writeFileSync(path.join(root, 'package-type'), `${format}\n`)
+    const result = getLegacyBridgeEligibility(root)
+    expect(result.prerequisite).toBe(false)
+    expect(result.target?.url).toMatch(new RegExp(`linux-${process.arch}\\.${format}$`))
+    const updater = createLegacyBridgeUpdater(result.target!)
+    expect(updater).toBeInstanceOf(Updater)
+    expect(updater.allowDowngrade).toBe(true)
+    expect(updater.autoInstallOnAppQuit).toBe(false)
+    expect(fs.readFileSync(path.join(root, 'version.log'), 'utf8')).toBe(
+      '1.9.12|linux|prod|packaged|install|2026-09-01T00:00:00.000Z'
+    )
+  })
+
+  it('prefers the running AppImage over a package marker', () => {
+    const image = path.join(root, 'test.AppImage')
+    fs.writeFileSync(image, '')
+    fs.writeFileSync(path.join(root, 'package-type'), 'deb')
+    vi.stubEnv('APPIMAGE', image)
+    expect(getLegacyLinuxPackageType()).toBe('AppImage')
+    expect(createLegacyBridgeUpdater(getLegacyBridgeEligibility(root).target!)).toBeInstanceOf(AppImageUpdater)
+  })
+
+  it.each([undefined, 'pacman', 'unknown'])('does not guess an installer from marker %s', (marker) => {
+    if (marker) fs.writeFileSync(path.join(root, 'package-type'), marker)
+    expect(getLegacyBridgeEligibility(root)).toEqual({ prerequisite: false })
+  })
+
+  it('keeps older and custom profiles out of automatic package installation', () => {
+    fs.writeFileSync(path.join(root, 'package-type'), 'deb')
+    vi.mocked(bootConfigService.get).mockReturnValue({ [app.getPath('exe')]: '/custom' })
+    // A different selected profile must never be handed to the default-profile installer.
+    const custom = path.join(root, 'custom')
+    fs.mkdirSync(custom)
+    fs.copyFileSync(path.join(root, 'version.log'), path.join(custom, 'version.log'))
+    expect(getLegacyBridgeEligibility(custom).target).toBeUndefined()
+    fs.writeFileSync(path.join(root, 'version.log'), '1.9.11|linux|prod|packaged|install|2026-09-01T00:00:00.000Z')
+    expect(getLegacyBridgeEligibility(root)).toEqual({ prerequisite: true })
+  })
+
+  it.each(['global', 'cn'] as const)(
+    'matches direct downloads and pinned %s assets across formats and architectures',
+    (edition) => {
+      for (const arch of ['x64', 'arm64']) {
+        for (const format of ['deb', 'rpm'] as const) {
+          const target = findLegacyBridgeTarget(edition, 'linux', arch, format)!
+          const input = {
+            platform: 'linux' as const,
+            arch,
+            translated: false,
+            portable: false,
+            edition,
+            linuxPackageType: format
+          }
+          expect(getLegacyUpgradeDownloadUrl(input)).toBe(target.url)
+          expect(Buffer.from(target.sha512, 'base64')).toHaveLength(64)
+          const legacyArch =
+            format === 'deb' ? (arch === 'x64' ? 'amd64' : 'arm64') : arch === 'x64' ? 'x86_64' : 'aarch64'
+          expect(getLegacyUpgradeDownloadUrl({ ...input, version: '1.9.12' })).toBe(
+            `https://github.com/CherryHQ/cherry-studio/releases/download/v1.9.12/Cherry-Studio-1.9.12-${legacyArch}.${format}`
+          )
+        }
+      }
+    }
+  )
+})

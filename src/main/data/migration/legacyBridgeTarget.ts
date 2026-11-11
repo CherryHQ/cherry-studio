@@ -4,10 +4,23 @@ import type { AppEdition } from '@shared/types/appEdition'
 
 import targets from './legacyBridgeTargets.json'
 
+export type LegacyLinuxPackageType = 'AppImage' | 'deb' | 'rpm'
+
 export type LegacyBridgeTarget = (typeof targets)[number]
 
-export function findLegacyBridgeTarget(edition: AppEdition, platform: string, arch: string) {
-  return targets.find((target) => target.edition === edition && target.platform === platform && target.arch === arch)
+export function findLegacyBridgeTarget(
+  edition: AppEdition,
+  platform: string,
+  arch: string,
+  linuxPackageType: LegacyLinuxPackageType = 'AppImage'
+) {
+  return targets.find(
+    (target) =>
+      target.edition === edition &&
+      target.platform === platform &&
+      target.arch === arch &&
+      (platform !== 'linux' || target.url.endsWith(`.${linuxPackageType}`))
+  )
 }
 
 export function isLegacyBridgeCompatible(history: string, platform: string): boolean {

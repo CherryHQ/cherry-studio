@@ -102,5 +102,77 @@
     "sha512": "1h/GB+EhApc8V3lkB+m/bXjSuSxORYzdlUVJjNLdZvXBoJlGUBz/5L0g7L0bjFL+q4xX11Z8N7nJJt/RX+nzgQ==",
     "size": 418608701,
     "releaseDate": "2026-09-18T10:15:11.024Z"
+  },
+  {
+    "edition": "global",
+    "platform": "linux",
+    "arch": "x64",
+    "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-2.1.0-linux-x64.deb",
+    "sha512": "2HYlmrTgIvGG1uqNsr25B1u7taLhLmn78xi2sIQPJXEZX6QHuPzb/WkPnvKcVvY8Oes2Qk/yt6nwwpdjIDJ9DA==",
+    "size": 321001436,
+    "releaseDate": "2026-09-18T10:14:14.212Z"
+  },
+  {
+    "edition": "global",
+    "platform": "linux",
+    "arch": "x64",
+    "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-2.1.0-linux-x64.rpm",
+    "sha512": "o70P7lF0PCAcMknm+vxkFQ8QOnfNkcvlQ49bsh1OTfVo404HYjAcjQCXyjavcoioF965CDYHk+241bIO/+vxZw==",
+    "size": 274821901,
+    "releaseDate": "2026-09-18T10:14:14.212Z"
+  },
+  {
+    "edition": "global",
+    "platform": "linux",
+    "arch": "arm64",
+    "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-2.1.0-linux-arm64.deb",
+    "sha512": "8hRoFFOud3Q2y09y2CqUXCK6kmJu2Av9O7JTWfKwu2zXt6WlIBkFgKkf8ZerhCiV7TU47Lfo9rz+sGOzRj8Eqg==",
+    "size": 306591008,
+    "releaseDate": "2026-09-18T10:14:14.212Z"
+  },
+  {
+    "edition": "global",
+    "platform": "linux",
+    "arch": "arm64",
+    "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-2.1.0-linux-arm64.rpm",
+    "sha512": "m0tjs+rFfOYZ2WPthEFJfU6QCERw4VeFdeJHdR7EdR8Dx19a9Mtkc3bcGY4r6ORm0hAQl0SRVKqzE8FI/5taDA==",
+    "size": 260912181,
+    "releaseDate": "2026-09-18T10:14:14.212Z"
+  },
+  {
+    "edition": "cn",
+    "platform": "linux",
+    "arch": "x64",
+    "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-CN-2.1.0-linux-x64.deb",
+    "sha512": "BMtbmvkwhQov2x+D44rHz9b2Bk3kGu1Sf7qsmDDvOi+JDxk/gYYLsHQXpRy8E5e1xu08KBmyEgzvNU4k3eW+fA==",
+    "size": 321002504,
+    "releaseDate": "2026-09-18T10:15:11.024Z"
+  },
+  {
+    "edition": "cn",
+    "platform": "linux",
+    "arch": "x64",
+    "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-CN-2.1.0-linux-x64.rpm",
+    "sha512": "j6zJ7qrAvDlrDcg1y/hsSU/nIlNCFuEdretmnzeElpSgEGs9cTihSxgn98FVTyoQhhOk5W688FqCRX0QevUeJg==",
+    "size": 274784953,
+    "releaseDate": "2026-09-18T10:15:11.024Z"
+  },
+  {
+    "edition": "cn",
+    "platform": "linux",
+    "arch": "arm64",
+    "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-CN-2.1.0-linux-arm64.deb",
+    "sha512": "p6eAG8WeX4mx3QOSi6cg8UtAvyBc67AiCrcdRgHcIaPL6iyC6FKakOjYvtRZ40Eea9ZXeSzzPOo7eGkPgsVioQ==",
+    "size": 306591972,
+    "releaseDate": "2026-09-18T10:15:11.024Z"
+  },
+  {
+    "edition": "cn",
+    "platform": "linux",
+    "arch": "arm64",
+    "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-CN-2.1.0-linux-arm64.rpm",
+    "sha512": "JvuDwIwusQvRdIG9SOinLuTAxShK7cOPQKJ1F3zAQXn3ogyf3ehFFCYWDqlpNJNdZrrlcml+6LsZAHPj4jNHcQ==",
+    "size": 260910221,
+    "releaseDate": "2026-09-18T10:15:11.024Z"
   }
 ]
