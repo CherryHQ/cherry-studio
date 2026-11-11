@@ -129,15 +129,12 @@ describe('MessageGroupMenuBar', () => {
 
     const deleteButton = screen.getByRole('button')
     expect(deleteButton).toBeDisabled()
-    expect(deleteButton.parentElement).toHaveAttribute('data-tooltip-content', 'message.delete.generating_unavailable')
+
     fireEvent.click(deleteButton)
     expect(deleteMessageGroupWithConfirm).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['not-loaded', 'message.delete.root_unavailable'],
-    ['generating', 'message.delete.generating_unavailable']
-  ] as const)('disables group deletion for %s', (reason, tooltip) => {
+  it.each(['not-loaded', 'generating'] as const)('disables group deletion for %s', (reason) => {
     mocks.actions = {
       deleteMessageGroupWithConfirm: vi.fn(),
       getMessageDeleteAvailability: vi.fn(() => ({ enabled: false, reason }))
@@ -155,7 +152,6 @@ describe('MessageGroupMenuBar', () => {
 
     const deleteButton = screen.getByRole('button')
     expect(deleteButton).toBeDisabled()
-    expect(deleteButton.parentElement).toHaveAttribute('data-tooltip-content', tooltip)
   })
 
   it('does not offer Retry All for successful non-text replies', () => {

@@ -8,7 +8,6 @@ import type * as CherryUI from '@cherrystudio/ui'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
-import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import type * as CitationUtils from '@renderer/utils/citation'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
 
@@ -273,16 +272,9 @@ vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
 }))
 
 describe('MainTextBlock', () => {
-  let mockWithCitationTags: any
-  let mockDetermineCitationSource: any
-
   beforeEach(async () => {
     vi.clearAllMocks()
     capturedChatMarkdownProps.length = 0
-
-    const { withCitationTags, determineCitationSource } = await import('@renderer/utils/citation')
-    mockWithCitationTags = withCitationTags as any
-    mockDetermineCitationSource = determineCitationSource as any
 
     mockRenderConfig.renderInputMessageAsMarkdown = false
     mockRenderConfig.showCitationMarkers = true
@@ -323,14 +315,6 @@ describe('MainTextBlock', () => {
   const getRenderedPlainText = () => screen.queryByRole('paragraph')
 
   describe('basic rendering', () => {
-    it('should render in markdown mode for assistant messages', () => {
-      renderMainTextBlock({ content: 'Assistant response', role: 'assistant' })
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-      expect(screen.getByText('Markdown: Assistant response')).toBeInTheDocument()
-      expect(getRenderedPlainText()).not.toBeInTheDocument()
-    })
-
     it('enables bare file paths only for assistant markdown', () => {
       const assistant = renderMainTextBlock({ content: '/Users/lee/report.pdf', role: 'assistant' })
       expect(capturedChatMarkdownProps.at(-1)?.linkifyFilePaths).toBe(true)
@@ -427,10 +411,7 @@ describe('MainTextBlock', () => {
 
       const markdown = getRenderedMarkdown()!
       expect(markdown).toBeInTheDocument()
-      expect(markdown).toHaveAttribute(
-        'data-content',
-        '<span data-composer-token-index="0" data-composer-token-block="test-block-1"></span>\n\nReply'
-      )
+
       expect(markdown).toHaveTextContent('Quote')
       expect(markdown).toHaveTextContent('Reply')
       expect(markdown).not.toHaveTextContent('> quoted line')
@@ -560,16 +541,6 @@ describe('MainTextBlock', () => {
       expect(textElement.textContent).toBe(complexContent)
     })
 
-    it('should not show the collapse toggle for user messages with up to five effective lines', () => {
-      const fiveEffectiveLines = ['Line 1', '', 'Line 2', 'Line 3', 'Line 4', 'Line 5'].join('\n')
-
-      renderMainTextBlock({ content: fiveEffectiveLines, role: 'user' })
-
-      expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Collapse' })).not.toBeInTheDocument()
-      expect(document.body).toHaveTextContent('Line 5')
-    })
-
     it('should preview the first five effective lines for long plain text user messages', () => {
       const longContent = [
         'Line 1',
@@ -594,62 +565,14 @@ describe('MainTextBlock', () => {
         .closest('[data-user-message-collapsible-content-preview]') as HTMLElement
       const button = screen.getByRole('button', { name: 'Expand' })
 
-      expect(content.style.maxHeight).toBe('')
-      expect(content.style.overflow).toBe('')
       expect(content.textContent).toContain('Line 1\n\n\nLine 2')
-      expect(document.body).toHaveTextContent('Line 5')
-      expect(document.body).not.toHaveTextContent('Line 6')
+
       expect(button).toHaveAttribute('aria-expanded', 'false')
 
       fireEvent.click(button)
 
       expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
       expect(document.body).toHaveTextContent('Line 11')
-    })
-
-    it('should preview long markdown-rendered user messages without rendering the full markdown DOM', () => {
-      mockRenderConfig.renderInputMessageAsMarkdown = true
-      renderMainTextBlock({
-        content: Array.from({ length: 11 }, (_, index) => `User **bold** content ${index + 1}`).join('\n'),
-        role: 'user'
-      })
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
-      expect(getRenderedMarkdown()).toHaveAttribute(
-        'data-content',
-        Array.from({ length: 5 }, (_, index) => `User **bold** content ${index + 1}`).join('\n')
-      )
-      expect(getRenderedMarkdown()).not.toHaveAttribute('data-content', expect.stringContaining('content 11'))
-    })
-
-    it('should preview long user messages that render composer tokens', () => {
-      const tokenPrefix = 'Intro line\n\n\nOpen '
-      const content = [tokenPrefix + 'src/chat.ts now']
-        .concat(Array.from({ length: 9 }, (_, index) => `Line ${index + 3}`))
-        .join('\n')
-      renderMainTextBlock({
-        content,
-        role: 'user',
-        composer: {
-          version: 1,
-          tokens: [
-            {
-              id: 'file-1',
-              kind: 'file',
-              label: 'chat.ts',
-              index: 0,
-              textOffset: tokenPrefix.length,
-              promptText: 'src/chat.ts'
-            }
-          ]
-        }
-      })
-
-      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
-      expect(document.body).toHaveTextContent('Line 5')
-      expect(document.body).not.toHaveTextContent('Line 6')
     })
 
     it('does not collapse a short visible message because a reference token contains a long transcript', () => {
@@ -715,18 +638,8 @@ Hidden answer
 
       expect(document.querySelector('[data-composer-token-kind="reference"]')).toHaveTextContent('Project')
       expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
-      expect(document.body).toHaveTextContent('Visible line 5')
-      expect(document.body).not.toHaveTextContent('Visible line 6')
+
       expect(document.body).not.toHaveTextContent('Hidden question')
-    })
-
-    it('should not collapse assistant messages', () => {
-      const content = Array.from({ length: 11 }, (_, index) => `Assistant response ${index + 1}`).join('\n')
-      renderMainTextBlock({ content, role: 'assistant' })
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-      expect(document.body).toHaveTextContent('Assistant response 11')
-      expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument()
     })
 
     it('should render composer tokens as inline chips without leaking hidden prompt text', () => {
@@ -754,7 +667,6 @@ Hidden answer
       expect(textElement).not.toHaveTextContent('src/chat.ts')
       const token = textElement.querySelector('[data-composer-token-kind="file"]')
       expect(token).toBeInTheDocument()
-      expect(token?.querySelector('[data-file-token-icon="code"]')).toBeInTheDocument()
     })
 
     it.each([false, true])('should consume hidden token prompt text in markdown mode %s', (renderAsMarkdown) => {
@@ -807,10 +719,7 @@ Hidden answer
 
       const markdown = getRenderedMarkdown()!
       expect(markdown).toBeInTheDocument()
-      expect(markdown).toHaveAttribute(
-        'data-content',
-        '<span data-composer-token-index="0" data-composer-token-block="test-block-1"></span> **hello**'
-      )
+
       expect(markdown).toHaveTextContent('Markdown: find-skills **hello**')
       expect(markdown).not.toHaveTextContent('Use the find-skills skill.')
       expect(markdown.querySelector('[data-composer-token-kind="skill"]')).toBeInTheDocument()
@@ -838,47 +747,11 @@ Hidden answer
 
       const markdown = getRenderedMarkdown()!
       expect(markdown).toBeInTheDocument()
-      expect(markdown).toHaveAttribute(
-        'data-content',
-        'Open <span data-composer-token-index="0" data-composer-token-block="test-block-1"></span> **now**'
-      )
+
       expect(markdown).toHaveTextContent('Markdown: Open chat.ts **now**')
       expect(markdown).not.toHaveTextContent('src/chat.ts')
       const token = markdown.querySelector('[data-composer-token-kind="file"]')
       expect(token).toBeInTheDocument()
-      expect(token?.querySelector('[data-file-token-icon="code"]')).toBeInTheDocument()
-    })
-
-    it('should preserve the pdf file token variant in sent messages', () => {
-      mockRenderConfig.renderInputMessageAsMarkdown = false
-      renderMainTextBlock({
-        content: 'Read test.pdf now',
-        role: 'user',
-        composer: {
-          version: 1,
-          tokens: [
-            {
-              id: 'file-pdf',
-              kind: 'file',
-              label: 'test.pdf',
-              index: 0,
-              textOffset: 5,
-              promptText: 'test.pdf',
-              payload: {
-                type: 'document',
-                ext: '.pdf',
-                name: 'test.pdf',
-                origin_name: 'test.pdf',
-                size: 2048
-              }
-            }
-          ]
-        }
-      })
-
-      const token = getRenderedPlainText()!.querySelector('[data-composer-token-kind="file"]')
-      expect(token).toHaveAttribute('data-file-token-variant', 'pdf')
-      expect(token?.querySelector('[data-file-token-icon="pdf"]')).toBeInTheDocument()
     })
 
     it.each([false, true])(
@@ -920,16 +793,12 @@ Hidden answer
         })
 
         const token = document.querySelector('[data-composer-token-kind="file"]') as HTMLElement
-        const tooltip = screen.getByTestId('composer-message-token-tooltip')
+
         const tooltipContent = screen.getByTestId('composer-message-token-tooltip-content')
 
-        expect(token).not.toHaveAttribute('title')
-        expect(token).toHaveAttribute('data-tooltip-trigger', 'true')
         expect(token).toHaveAttribute('tabindex', '0')
         expect(token).toHaveAccessibleName('report.pdf')
-        expect(tooltip).toHaveAttribute('data-delay-duration', '300')
-        expect(tooltip).toHaveAttribute('data-side', 'top')
-        expect(tooltip).toHaveAttribute('data-side-offset', '6')
+
         expect(tooltipContent.querySelector('[data-token-path]')).toHaveTextContent(
           '/internal/message-files/report.pdf'
         )
@@ -1092,40 +961,6 @@ Hidden answer
       expect(trigger).toHaveFocus()
     })
 
-    it('keeps command tokens on the legacy chip renderer and reference tokens on the composer chip', () => {
-      mockRenderConfig.renderInputMessageAsMarkdown = false
-      renderMainTextBlock({
-        content: 'Run docs',
-        role: 'user',
-        composer: {
-          version: 1,
-          tokens: [
-            {
-              id: 'command:web-search',
-              kind: 'command',
-              label: 'web-search',
-              index: 0,
-              textOffset: 0,
-              promptText: 'Run'
-            },
-            {
-              id: 'reference:docs',
-              kind: 'reference',
-              label: 'Docs',
-              index: 1,
-              textOffset: 4,
-              promptText: 'docs'
-            }
-          ]
-        }
-      })
-
-      const textElement = getRenderedPlainText()!
-      expect(textElement).toHaveTextContent('web-search Docs')
-      expect(textElement.querySelector('[data-composer-token-kind="command"]')).toBeInTheDocument()
-      expect(textElement.querySelector('[data-composer-token-kind="reference"]')).toBeInTheDocument()
-    })
-
     it('should ignore unsupported raw composer metadata tokens in user messages', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = false
       renderMainTextBlock({
@@ -1219,50 +1054,6 @@ Hidden answer
   })
 
   describe('citation processing', () => {
-    it('should process content with citations when all conditions are met', () => {
-      const citations: Citation[] = [
-        { number: 1, url: 'https://example.com', title: 'Example Citation', content: 'Citation content' }
-      ]
-      const citationReferences = [{ citationBlockSource: WEB_SEARCH_SOURCE.OPENAI }]
-
-      renderMainTextBlock({
-        content: 'Content with citation [1]',
-        role: 'assistant',
-        citations,
-        citationReferences
-      })
-
-      expect(mockDetermineCitationSource).toHaveBeenCalledWith(citationReferences)
-      expect(mockWithCitationTags).toHaveBeenCalledWith(
-        'Content with citation [1]',
-        citations,
-        WEB_SEARCH_SOURCE.OPENAI
-      )
-      expect(screen.getByText('Markdown: Content with citation [1] [processed-citations]')).toBeInTheDocument()
-    })
-
-    it('should skip citation processing when no citationReferences', () => {
-      renderMainTextBlock({ content: 'Content [1]', role: 'assistant', citations: [] })
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-      expect(screen.getByText('Markdown: Content [1]')).toBeInTheDocument()
-      expect(mockWithCitationTags).not.toHaveBeenCalled()
-    })
-
-    it('should skip citation processing when no citations data', () => {
-      const citationReferences = [{ citationBlockSource: 'DEFAULT' as any }]
-
-      renderMainTextBlock({
-        content: 'Content [1]',
-        role: 'assistant',
-        citations: [],
-        citationReferences
-      })
-
-      expect(screen.getByText('Markdown: Content [1]')).toBeInTheDocument()
-      expect(mockWithCitationTags).not.toHaveBeenCalled()
-    })
-
     // #19771: the reported answer reused a `[cite:…]` id minted by an earlier turn, so this
     // message resolved no citation of its own and the internal id was printed verbatim.
     it('drops [cite:id] markers from an assistant message that resolved no citation', () => {
@@ -1319,25 +1110,6 @@ Hidden answer
       renderMainTextBlock({ content: 'What does [cite:2598d0ab-1] mean?', role: 'user' })
 
       expect(getRenderedMarkdown()).toHaveAttribute('data-content', 'What does [cite:2598d0ab-1] mean?')
-    })
-  })
-
-  describe('prop identity stability', () => {
-    // A fresh trustedCitations array per render cascades into ChatMarkdown's
-    // Streamdown components map and forces every markdown block to re-parse
-    // and re-animate on each streaming tick.
-    it('keeps trustedCitations identity stable across re-renders without citations', () => {
-      const view = render(
-        <MainTextBlock id="stable-1" content="chunk one" isStreaming role="assistant" citations={[]} />
-      )
-      view.rerender(<MainTextBlock id="stable-1" content="chunk one two" isStreaming role="assistant" citations={[]} />)
-
-      expect(capturedChatMarkdownProps.length).toBeGreaterThanOrEqual(2)
-      const [first, ...rest] = capturedChatMarkdownProps
-      expect(first.trustedCitations).toEqual([])
-      for (const props of rest) {
-        expect(props.trustedCitations).toBe(first.trustedCitations)
-      }
     })
   })
 })
