@@ -44,16 +44,9 @@ const api = {
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),
   isPathInside: (childPath: string, parentPath: string) =>
     ipcRenderer.invoke(IpcChannel.App_IsPathInside, childPath, parentPath),
-  application: {
-    preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),
-    allowQuit: (holdId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_AllowQuit, holdId)
-  },
   system: {
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
     // Git Bash is resolved in the main process (settingsBuilder); no renderer API.
-  },
-  zip: {
-    decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
     restore: (path: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, path),
@@ -66,8 +59,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_RestoreFromWebdav, webdavConfig),
     listWebdavFiles: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_ListWebdavFiles, webdavConfig),
-    checkConnection: (webdavConfig: WebDavConfig) =>
-      ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
     createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) =>
       ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
     deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) =>
@@ -206,8 +197,7 @@ const api = {
   // setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),
   trace: {
     getData: (topicId: string, traceId: string, cursor?: TraceDataCursor): Promise<TraceDataResult> =>
-      ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId, cursor),
-    cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
+      ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId, cursor)
   },
   shortcut: {
     onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {
