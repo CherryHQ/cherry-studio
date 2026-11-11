@@ -248,6 +248,75 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toHaveLength(2)
   })
 
+  it('detaches parts whose cherryMeta only references the entry as a working file', () => {
+    dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: FILE_ENTRY_ID,
+        name: 'note',
+        ext: 'txt',
+        size: 3,
+        origin: 'internal',
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: 1
+      })
+      .run()
+    const message = {
+      id: USER_MESSAGE_ID,
+      role: 'user' as const,
+      status: 'success' as const,
+      data: {
+        parts: [
+          { type: 'text' as const, text: 'see attachment' },
+          {
+            type: 'file' as const,
+            url: 'file:///files/note.txt',
+            providerMetadata: { cherry: { workingFileEntryId: FILE_ENTRY_ID } }
+          }
+        ]
+      }
+    }
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+
+    dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, FILE_ENTRY_ID)).run()
+    agentSessionMessageService.detachFileEntryParts(SESSION_ID, USER_MESSAGE_ID, FILE_ENTRY_ID)
+
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toEqual([
+      { type: 'text', text: 'see attachment' }
+    ])
+  })
+
+  it('leaves root messages untouched when detaching file parts', () => {
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: USER_MESSAGE_ID,
+        sessionId: SESSION_ID,
+        role: 'root',
+        status: 'success',
+        data: {
+          parts: [
+            { type: 'text', text: 'root' },
+            {
+              type: 'file',
+              url: 'file:///files/note.txt',
+              providerMetadata: { cherry: { fileEntryId: FILE_ENTRY_ID } }
+            }
+          ]
+        }
+      })
+      .run()
+
+    agentSessionMessageService.detachFileEntryParts(SESSION_ID, USER_MESSAGE_ID, FILE_ENTRY_ID)
+
+    const row = dbh.db
+      .select({ data: agentSessionMessageTable.data })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
+      .get()
+    expect(row?.data.parts).toHaveLength(2)
+  })
+
   it('reports message existence per session', async () => {
     await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)

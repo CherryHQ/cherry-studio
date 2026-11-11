@@ -6,9 +6,13 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { BaseService } from '@main/core/lifecycle'
 import { type FileEntryId } from '@shared/data/types/file'
@@ -46,6 +50,7 @@ vi.mock('@data/db/restore/restoreJournal', () => ({
 const { FileManager } = await import('../FileManager')
 const { danglingCache } = await import('../danglingCache')
 const { fileEntryService } = await import('@data/services/FileEntryService')
+const { agentSessionMessageService } = await import('@data/services/AgentSessionMessageService')
 
 describe('FileManager (integration)', () => {
   const dbh = setupTestDatabase()
@@ -456,6 +461,114 @@ describe('FileManager (integration)', () => {
       { endpoint: '/files/entries', kind: 'membership', entityIds: [first.id, second.id] },
       { endpoint: '/files/entries/:id', entityIds: [first.id, second.id] }
     ])
+  })
+
+  it('reconciles agent-session message parts when a trashed entry is permanently deleted', async () => {
+    const entry = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'note',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'workspace-detach', name: 'W', path: '/tmp/workspace-detach', type: 'user', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({
+        id: 'session-detach',
+        workspaceId: 'workspace-detach',
+        name: 'S',
+        orderKey: 'a0',
+        createdAt: 0,
+        lastActivityAt: 0,
+        updatedAt: 0
+      })
+      .run()
+    agentSessionMessageService.saveMessage({
+      sessionId: 'session-detach',
+      message: {
+        id: '019606a0-0000-7000-8000-00000000dd01',
+        role: 'user',
+        status: 'success',
+        data: {
+          parts: [
+            { type: 'text', text: 'see attachment' },
+            {
+              type: 'file',
+              url: 'file:///files/note.txt',
+              providerMetadata: { cherry: { fileEntryId: entry.id } }
+            }
+          ]
+        }
+      }
+    })
+
+    await fm.batchTrash([entry.id])
+    expect(await fm.batchPermanentDeleteFromTrash([entry.id], { detachReferences: true })).toMatchObject({
+      succeeded: [entry.id]
+    })
+
+    const row = dbh.db
+      .select({ data: agentSessionMessageTable.data })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, '019606a0-0000-7000-8000-00000000dd01'))
+      .get()
+    expect(row?.data.parts).toEqual([{ type: 'text', text: 'see attachment' }])
+  })
+
+  it('does not fail a permanent delete when message reconciliation throws', async () => {
+    const entry = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([0x02]),
+      name: 'note',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'workspace-detach', name: 'W', path: '/tmp/workspace-detach', type: 'user', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({
+        id: 'session-detach',
+        workspaceId: 'workspace-detach',
+        name: 'S',
+        orderKey: 'a0',
+        createdAt: 0,
+        lastActivityAt: 0,
+        updatedAt: 0
+      })
+      .run()
+    agentSessionMessageService.saveMessage({
+      sessionId: 'session-detach',
+      message: {
+        id: '019606a0-0000-7000-8000-00000000dd01',
+        role: 'user',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'file',
+              url: 'file:///files/note.txt',
+              providerMetadata: { cherry: { fileEntryId: entry.id } }
+            }
+          ]
+        }
+      }
+    })
+    vi.spyOn(agentSessionMessageService, 'detachFileEntryParts').mockImplementationOnce(() => {
+      throw new Error('reconcile failed')
+    })
+
+    await fm.batchTrash([entry.id])
+    expect(await fm.batchPermanentDeleteFromTrash([entry.id], { detachReferences: true })).toMatchObject({
+      succeeded: [entry.id]
+    })
+    await expect(fm.getById(entry.id)).rejects.toThrow(/not found/i)
   })
 
   it('INT-5: trash on external entry is rejected without mutating the row', async () => {
