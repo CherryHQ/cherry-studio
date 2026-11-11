@@ -38,6 +38,15 @@ describe('PRESET_MCP_SERVERS', () => {
     )
   })
 
+  it('models Datacircle as a hosted built-in server that needs no key', () => {
+    const datacircle = preset(BuiltinMcpServerNames.datacircle)
+    expect(datacircle).toEqual(
+      expect.objectContaining({ type: 'streamableHttp', baseUrl: 'https://api.datacircle.dev/mcp', isActive: false })
+    )
+    expect(datacircle?.env).toBeUndefined()
+    expect(datacircle?.shouldConfig).toBeUndefined()
+  })
+
   it('gives every non in-memory preset what it needs to connect', () => {
     // The seeder copies these fields onto installed rows, so a preset missing them
     // would migrate a working server into an unconnectable one.

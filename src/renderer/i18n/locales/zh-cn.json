@@ -4969,6 +4969,7 @@
   "settings.mcp.builtinServers": "内置服务器",
   "settings.mcp.builtinServersDescriptions.brave_search": "一个集成了Brave 搜索 API 的 MCP 服务器实现，提供网页与本地搜索双重功能。需要配置 BRAVE_API_KEY 环境变量",
   "settings.mcp.builtinServersDescriptions.browser": "通过页面快照浏览网页，点击和输入、切换标签页及处理对话框。默认在后台运行。",
+  "settings.mcp.builtinServersDescriptions.datacircle": "Datacircle 的开放 MCP 服务器，帮你找到最好的 GTM API：列出其表格中的 API，并按 API、提供商或价格搜索它们的套餐，每个套餐附带评分，最好的排在前面。无需密钥或账号",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "一个集成了滴滴 MCP 服务器实现，提供网约车服务包括地图搜索、价格预估、订单管理和司机跟踪。仅支持中国大陆地区。需要配置 DIDI_API_KEY 环境变量",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Dify 的 MCP 服务器实现，提供了一个简单的 API 来与 Dify 进行交互。需要配置 Dify Key",
   "settings.mcp.builtinServersDescriptions.fetch": "用于获取 URL 网页内容的 MCP 服务器",
