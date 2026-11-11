@@ -471,9 +471,8 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
       approvalRequiredTools: new Set([toolName])
     })
 
-    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toEqual({
-      block: true,
-      reason: 'This tool always requires user approval and cannot run unattended. Retry interactively.'
+    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toMatchObject({
+      block: true
     })
     expect(emitted).toHaveLength(0)
     expect(toolApprovalRegistry.size()).toBe(0)

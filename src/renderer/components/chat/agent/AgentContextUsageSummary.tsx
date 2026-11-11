@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { ThreadContextUsage, ContextCategoryKey } from '@cherrystudio/agent-runtime'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, ScrollArea } from '@cherrystudio/ui'
 import { ContextUsageSummary } from '@renderer/components/chat/contextUsage'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
 const CATEGORY_KEYS: Record<ContextCategoryKey | 'buffer' | 'free', string> = {
@@ -40,11 +41,15 @@ const CATEGORY_COLORS: Partial<Record<ContextCategoryKey, string>> = {
   'system-prompt': 'var(--chart-5)'
 }
 
-function resourceLabel(resource: NonNullable<ThreadContextUsage['resources']>[number]): string {
+function resourceLabel(
+  resource: NonNullable<ThreadContextUsage['resources']>[number],
+  serverNames: ReadonlyMap<string, string>
+): string {
   const name = resource.name.split(/[\\/]/).at(-1) ?? resource.name
   if (resource.category !== 'mcp-tools') return name
   const parsed = parseFunctionCallToolName(name)
-  const server = resource.source?.split(/[\\/]/).at(-1) || parsed?.serverPart
+  const serverId = resource.source || parsed?.serverPart
+  const server = serverId ? (serverNames.get(serverId) ?? serverId) : undefined
   const tool = startCase(parsed?.toolPart ?? name.replace(/^mcp__/, '')).replace(
     /\b(Mcp|Js|Cli|Api|Url|Id|Json|Sql|Http)\b/g,
     (word) => word.toUpperCase()
@@ -71,6 +76,10 @@ export function AgentContextUsageSummary({
   showCategories = true
 }: AgentContextUsageSummaryProps) {
   const { t, i18n } = useTranslation()
+  const { mcpServers } = useMcpServers(undefined, {
+    enabled: showCategories && Boolean(usage?.resources?.some((resource) => resource.category === 'mcp-tools'))
+  })
+  const serverNames = new Map(mcpServers.map((server) => [server.id, server.name]))
   const windowTokens = usage?.contextWindow ?? 0
   const label = (id: keyof typeof CATEGORY_KEYS) => t(`agent.right_pane.info.context_categories.${CATEGORY_KEYS[id]}`)
   const formatTokens = (tokens: number) =>
@@ -112,7 +121,7 @@ export function AgentContextUsageSummary({
       .filter((resource) => resource.category === id)
       .map((resource) => ({
         id: resource.id,
-        name: resourceLabel(resource),
+        name: resourceLabel(resource, serverNames),
         tokens: resource.count?.tokens,
         precision: resource.count?.precision,
         status: resource.state ? t(`agent.right_pane.info.context_details.${resource.state}`) : undefined

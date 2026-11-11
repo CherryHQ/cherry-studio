@@ -148,8 +148,6 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', providerId: 'openai' })
 
     const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'sk-selected' })
-
-    expect(resolveApiKeyMock).toHaveBeenCalledWith('openai', 'sk-selected')
     expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
   })
 

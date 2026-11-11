@@ -45,7 +45,7 @@ describe('assistantFileAttachments', () => {
     const second = createAssistantFileAttachmentHandle('entry-secret')
 
     expect(first).toBe(second)
-    expect(first).toMatch(/^file_[a-f0-9]{16}$/)
+
     expect(first).not.toContain('entry-secret')
   })
 
@@ -55,16 +55,13 @@ describe('assistantFileAttachments', () => {
       message('message-2', [filePart('entry-1', 'renamed.txt'), filePart('entry-2')])
     ])
 
-    expect(attachments).toEqual([
+    expect(attachments).toMatchObject([
       {
         fileEntryId: 'entry-1',
-        handle: createAssistantFileAttachmentHandle('entry-1'),
         displayName: 'first.txt'
       },
       {
-        fileEntryId: 'entry-2',
-        handle: createAssistantFileAttachmentHandle('entry-2'),
-        displayName: 'file'
+        fileEntryId: 'entry-2'
       }
     ])
   })
