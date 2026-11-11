@@ -149,7 +149,7 @@ export async function canonicalGenerate<T extends PaintingData>(
       : undefined
 
   const requestTimeoutMs = resolveImageRequestTimeoutMs(
-    provider.id,
+    provider,
     painting.requestTimeoutMs,
     provider.imageRequestTimeoutMs
   )

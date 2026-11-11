@@ -55,13 +55,14 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
   const paintingParams = painting.params ?? {}
   const requestTimeoutSeconds = painting.requestTimeoutMs == null ? null : painting.requestTimeoutMs / 1000
   const { provider, error } = useProviderById(painting.providerId)
+  const providerIdentity = provider ?? { id: painting.providerId }
   const effectiveTimeoutMs = resolveImageRequestTimeoutMs(
-    painting.providerId,
+    providerIdentity,
     painting.requestTimeoutMs,
     provider?.settings.imageRequestTimeoutMs
   )
   // The override only reaches transports that apply it; hide it where the value would be inert.
-  const requestTimeoutSupported = supportsImageRequestTimeout(painting.providerId)
+  const requestTimeoutSupported = supportsImageRequestTimeout(providerIdentity)
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
   const configItems = useMemo(
     () =>

@@ -127,7 +127,10 @@ describe('ProviderApiOptionsDrawer', () => {
   })
 
   it('saves the supported provider timeout as a single settings patch', () => {
-    useProviderMock.mockReturnValue({ provider: { ...provider, id: 'ppio' }, updateProvider: updateProviderMock })
+    useProviderMock.mockReturnValue({
+      provider: { ...provider, id: 'ppio', presetProviderId: 'ppio' },
+      updateProvider: updateProviderMock
+    })
     render(<ProviderApiOptionsDrawer providerId="ppio" open onClose={vi.fn()} />)
     const input = screen.getByLabelText('settings.provider.api.options.image_request_timeout.label')
     fireEvent.change(input, { target: { value: '900' } })
@@ -137,7 +140,12 @@ describe('ProviderApiOptionsDrawer', () => {
 
   it('shows the saved timeout and clears it with a null patch', () => {
     useProviderMock.mockReturnValue({
-      provider: { ...provider, id: 'ppio', settings: { ...provider.settings, imageRequestTimeoutMs: 900_000 } },
+      provider: {
+        ...provider,
+        id: 'ppio',
+        presetProviderId: 'ppio',
+        settings: { ...provider.settings, imageRequestTimeoutMs: 900_000 }
+      },
       updateProvider: updateProviderMock
     })
     render(<ProviderApiOptionsDrawer providerId="ppio" open onClose={vi.fn()} />)
@@ -151,7 +159,12 @@ describe('ProviderApiOptionsDrawer', () => {
   it('reports a failed save and restores the saved value', async () => {
     updateProviderMock.mockRejectedValueOnce(new Error('failed'))
     useProviderMock.mockReturnValue({
-      provider: { ...provider, id: 'ppio', settings: { ...provider.settings, imageRequestTimeoutMs: 600_000 } },
+      provider: {
+        ...provider,
+        id: 'ppio',
+        presetProviderId: 'ppio',
+        settings: { ...provider.settings, imageRequestTimeoutMs: 600_000 }
+      },
       updateProvider: updateProviderMock
     })
     render(<ProviderApiOptionsDrawer providerId="ppio" open onClose={vi.fn()} />)
@@ -166,6 +179,16 @@ describe('ProviderApiOptionsDrawer', () => {
     useProviderMock.mockReturnValue({ provider: { ...provider, id: 'dmxapi' }, updateProvider: updateProviderMock })
     render(<ProviderApiOptionsDrawer providerId="dmxapi" open onClose={vi.fn()} />)
     expect(screen.queryByLabelText('settings.provider.api.options.image_request_timeout.label')).not.toBeInTheDocument()
+  })
+
+  it('shows the timeout for a duplicated dashscope provider', () => {
+    const id = '00000000-0000-4000-8000-000000000002'
+    useProviderMock.mockReturnValue({
+      provider: { ...provider, id, presetProviderId: 'dashscope' },
+      updateProvider: updateProviderMock
+    })
+    render(<ProviderApiOptionsDrawer providerId={id} open onClose={vi.fn()} />)
+    expect(screen.getByLabelText('settings.provider.api.options.image_request_timeout.label')).toBeInTheDocument()
   })
 
   it('preserves sibling endpoints when changing the selected endpoint dialect', () => {

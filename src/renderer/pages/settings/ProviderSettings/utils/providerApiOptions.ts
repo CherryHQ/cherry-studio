@@ -18,7 +18,7 @@ export function getProviderApiOptionsVisibility(provider: Provider) {
   const isSupportAnthropicPromptCache = isAnthropicSupportedProvider(provider) || isAIGatewayProvider(provider)
   const isOpenAIProvider = isOpenAIOptionsProvider(provider)
 
-  const showImageRequestTimeout = supportsImageRequestTimeout(provider.id)
+  const showImageRequestTimeout = supportsImageRequestTimeout(provider)
 
   return {
     showImageRequestTimeout,

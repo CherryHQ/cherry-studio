@@ -45,7 +45,7 @@ function renderSettings(overrides: Partial<PaintingData> = {}) {
 beforeEach(() => {
   vi.mocked(useImageGenerationSupport).mockReturnValue(undefined)
   vi.mocked(useProviderById).mockReturnValue({
-    provider: { settings: {} },
+    provider: { id: 'dashscope', settings: {} },
     isLoading: false,
     error: undefined
   } as ReturnType<typeof useProviderById>)
@@ -63,9 +63,28 @@ describe('PaintingSettings request timeout', () => {
   })
 
   it('hides the override where the transport does not apply it', () => {
+    vi.mocked(useProviderById).mockReturnValue({ provider: { id: 'dmxapi', settings: {} } } as ReturnType<
+      typeof useProviderById
+    >)
     renderWithI18n(<PaintingSettings painting={{ ...painting, providerId: 'dmxapi' }} onConfigChange={vi.fn()} />)
 
     expect(screen.queryByLabelText('Request timeout (seconds)')).not.toBeInTheDocument()
+  })
+
+  it('shows the saved timeout when a duplicated dashscope provider loads', () => {
+    const id = '00000000-0000-4000-8000-000000000002'
+    vi.mocked(useProviderById).mockReturnValue({ provider: undefined, isLoading: true, error: undefined } as ReturnType<
+      typeof useProviderById
+    >)
+    const draft = { ...painting, providerId: id }
+    const { rerender } = renderWithI18n(<PaintingSettings painting={draft} onConfigChange={vi.fn()} />)
+    expect(screen.queryByLabelText('Request timeout (seconds)')).not.toBeInTheDocument()
+    vi.mocked(useProviderById).mockReturnValue({
+      provider: { id, presetProviderId: 'dashscope', settings: { imageRequestTimeoutMs: 900_000 } }
+    } as ReturnType<typeof useProviderById>)
+    rerender(<PaintingSettings painting={draft} onConfigChange={vi.fn()} />)
+    expect(screen.getByLabelText('Request timeout (seconds)')).toBeInTheDocument()
+    expect(screen.getByText('Effective timeout: 900 seconds')).toBeInTheDocument()
   })
 
   it('clears the override when the field is emptied', () => {
@@ -106,7 +125,7 @@ it.each([
   [10_001, undefined, '10.001']
 ])('shows the effective timeout', (saved, draft, seconds) => {
   vi.mocked(useProviderById).mockReturnValue({
-    provider: { settings: { imageRequestTimeoutMs: saved } },
+    provider: { id: 'dashscope', settings: { imageRequestTimeoutMs: saved } },
     isLoading: false,
     error: undefined
   } as ReturnType<typeof useProviderById>)
@@ -122,7 +141,7 @@ it('updates the helper when provider data arrives without changing the draft', (
   const { rerender } = renderWithI18n(<PaintingSettings painting={painting} onConfigChange={onConfigChange} />)
   expect(screen.getByText('Loading...')).toBeInTheDocument()
   vi.mocked(useProviderById).mockReturnValue({
-    provider: { settings: { imageRequestTimeoutMs: 900_000 } },
+    provider: { id: 'dashscope', settings: { imageRequestTimeoutMs: 900_000 } },
     isLoading: false,
     error: undefined
   } as ReturnType<typeof useProviderById>)

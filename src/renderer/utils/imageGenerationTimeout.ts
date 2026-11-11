@@ -6,6 +6,7 @@
 const IMAGE_REQUEST_TIMEOUT_PROVIDERS: ReadonlySet<string> = new Set(['ppio', 'dashscope', 'modelscope', 'tokenhub'])
 
 /** Whether the painting timeout override reaches the selected provider's image transport. */
-export function supportsImageRequestTimeout(providerId: string | undefined): boolean {
+export function supportsImageRequestTimeout(provider: { id?: string; presetProviderId?: string | null }): boolean {
+  const providerId = provider.presetProviderId ?? provider.id
   return providerId !== undefined && IMAGE_REQUEST_TIMEOUT_PROVIDERS.has(providerId)
 }

@@ -112,4 +112,17 @@ describe('paintingGenerate', () => {
     if (expected === undefined) expect(sentPayload()).not.toHaveProperty('requestTimeoutMs')
     else expect(sentPayload().requestTimeoutMs).toBe(expected)
   })
+
+  it.each([
+    ['dashscope', 900_000],
+    ['dmxapi', undefined]
+  ])('resolves the saved timeout for a duplicate of %s', async (presetProviderId, expected) => {
+    prefetchMock.mockResolvedValue({ modes: { generate: { supports: {} } } })
+    const id = '00000000-0000-4000-8000-000000000002'
+    const input = makeInput({ providerId: id })
+    input.provider = { ...input.provider, id, presetProviderId, imageRequestTimeoutMs: 900_000 }
+    await paintingGenerate(input)
+    if (expected === undefined) expect(sentPayload()).not.toHaveProperty('requestTimeoutMs')
+    else expect(sentPayload().requestTimeoutMs).toBe(expected)
+  })
 })

@@ -170,7 +170,7 @@ const PaintingParamsButton: FC<{
 
   // A model without registry fields can still have the timeout control; hiding the entry
   // point would make that setting unreachable.
-  if (configItems.length === 0 && !supportsImageRequestTimeout(painting.providerId)) return null
+  if (configItems.length === 0 && !supportsImageRequestTimeout({ id: painting.providerId })) return null
 
   return (
     <Popover>
