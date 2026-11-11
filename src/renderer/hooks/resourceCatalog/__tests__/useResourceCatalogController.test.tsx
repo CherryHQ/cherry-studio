@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import { ExportAssistantsDialog } from '@renderer/components/resourceCatalog/dialogs/export/ExportAssistantsDialog'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
@@ -20,6 +21,7 @@ const archiveSessionsPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
 
 const controllerMocks = vi.hoisted(() => ({
   hiddenRoles: [] as string[],
+  getHiddenRoles: vi.fn(),
   setHiddenRoles: vi.fn(),
   createAgent: vi.fn(),
   createAssistant: vi.fn(),
@@ -211,9 +213,14 @@ function createSkillResource(id: string, folderName: string, source: string): Ex
 
 describe('useResourceCatalogController', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     vi.clearAllMocks()
     controllerMocks.hiddenRoles = []
-    controllerMocks.setHiddenRoles.mockResolvedValue(undefined)
+    let committedHiddenRoles: string[] = []
+    controllerMocks.getHiddenRoles.mockReset().mockImplementation(async () => committedHiddenRoles)
+    controllerMocks.setHiddenRoles.mockReset().mockImplementation(async (roles: string[]) => {
+      committedHiddenRoles = roles
+    })
     archiveSessionsPopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
       await action()
       return true
@@ -240,6 +247,10 @@ describe('useResourceCatalogController', () => {
     Object.assign(window, {
       api: {
         ...window.api,
+        preference: {
+          ...window.api.preference,
+          get: controllerMocks.getHiddenRoles
+        },
         file: {
           ...window.api.file,
           save: controllerMocks.saveFile
@@ -693,6 +704,11 @@ describe('useResourceCatalogController', () => {
   })
 
   it('blocks overlapping hidden-role writes and permits writes after completion', async () => {
+    controllerMocks.getHiddenRoles
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(['support'])
+      .mockResolvedValueOnce(['support'])
+      .mockResolvedValueOnce(['support', 'assistant'])
     let resolveWrite!: () => void
     controllerMocks.setHiddenRoles.mockReturnValueOnce(
       new Promise<void>((resolve) => {
@@ -708,14 +724,100 @@ describe('useResourceCatalogController', () => {
       void result.current.gridProps.onHide(assistant)
       void result.current.gridProps.onRestoreHiddenBuiltins()
     })
-    expect(controllerMocks.setHiddenRoles).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(controllerMocks.setHiddenRoles).toHaveBeenCalledTimes(1))
+    expect(controllerMocks.getHiddenRoles).toHaveBeenCalledTimes(1)
     await act(async () => {
       resolveWrite()
       await firstWrite
     })
     await act(async () => result.current.gridProps.onHide(assistant))
     expect(controllerMocks.setHiddenRoles).toHaveBeenCalledTimes(2)
-    expect(controllerMocks.setHiddenRoles).toHaveBeenLastCalledWith(['assistant'])
+    expect(controllerMocks.setHiddenRoles).toHaveBeenLastCalledWith(['support', 'assistant'])
+  })
+
+  it('merges a hidden role with committed roles instead of the stale hook snapshot', async () => {
+    controllerMocks.getHiddenRoles.mockResolvedValueOnce(['assistant']).mockResolvedValueOnce(['assistant', 'support'])
+    const support = { type: 'agent', raw: { configuration: { builtin_role: 'support' } } } as ResourceItem
+    const { result } = renderHook(() => useResourceCatalogController('agent'))
+
+    await act(async () => result.current.gridProps.onHide(support))
+
+    expect(controllerMocks.setHiddenRoles).toHaveBeenCalledExactlyOnceWith(['assistant', 'support'])
+    expect(controllerMocks.getHiddenRoles).toHaveBeenNthCalledWith(1, 'agent.builtin.hidden_roles')
+    expect(controllerMocks.getHiddenRoles).toHaveBeenNthCalledWith(2, 'agent.builtin.hidden_roles')
+  })
+
+  it('retries an overwritten hide using the latest committed roles', async () => {
+    const logError = vi.spyOn(loggerService, 'error').mockImplementation(() => {})
+    controllerMocks.getHiddenRoles
+      .mockResolvedValueOnce(['assistant'])
+      .mockResolvedValueOnce(['doctor'])
+      .mockResolvedValueOnce(['doctor', 'support'])
+    const support = { type: 'agent', raw: { configuration: { builtin_role: 'support' } } } as ResourceItem
+    const { result } = renderHook(() => useResourceCatalogController('agent'))
+
+    await act(async () => {
+      await expect(result.current.gridProps.onHide(support)).resolves.toBeUndefined()
+    })
+
+    expect(controllerMocks.setHiddenRoles).toHaveBeenCalledTimes(2)
+    expect(controllerMocks.setHiddenRoles).toHaveBeenNthCalledWith(1, ['assistant', 'support'])
+    expect(controllerMocks.setHiddenRoles).toHaveBeenLastCalledWith(['doctor', 'support'])
+    expect(logError).not.toHaveBeenCalled()
+  })
+
+  it('logs hide retry exhaustion after exactly three writes without rejecting onHide', async () => {
+    const logError = vi.spyOn(loggerService, 'error').mockImplementation(() => {})
+    controllerMocks.getHiddenRoles.mockResolvedValue([])
+    const support = { type: 'agent', raw: { configuration: { builtin_role: 'support' } } } as ResourceItem
+    const { result } = renderHook(() => useResourceCatalogController('agent'))
+
+    await act(async () => {
+      await expect(result.current.gridProps.onHide(support)).resolves.toBeUndefined()
+    })
+
+    expect(controllerMocks.setHiddenRoles).toHaveBeenCalledTimes(3)
+    expect(controllerMocks.getHiddenRoles).toHaveBeenCalledTimes(4)
+    expect(logError).toHaveBeenCalledWith(expect.any(String), expect.any(Error))
+  })
+
+  it('does not write when the committed roles already include the role to hide', async () => {
+    controllerMocks.getHiddenRoles.mockResolvedValue(['support'])
+    const support = { type: 'agent', raw: { configuration: { builtin_role: 'support' } } } as ResourceItem
+    const { result } = renderHook(() => useResourceCatalogController('agent'))
+
+    await act(async () => result.current.gridProps.onHide(support))
+
+    expect(controllerMocks.setHiddenRoles).not.toHaveBeenCalled()
+    expect(controllerMocks.getHiddenRoles).toHaveBeenCalledExactlyOnceWith('agent.builtin.hidden_roles')
+  })
+
+  it('falls back to one snapshot-based write when the first committed read fails', async () => {
+    controllerMocks.getHiddenRoles.mockRejectedValueOnce(new Error('IPC unavailable'))
+    const support = { type: 'agent', raw: { configuration: { builtin_role: 'support' } } } as ResourceItem
+    const { result } = renderHook(() => useResourceCatalogController('agent'))
+
+    await act(async () => result.current.gridProps.onHide(support))
+
+    expect(controllerMocks.setHiddenRoles).toHaveBeenCalledExactlyOnceWith(['support'])
+    expect(controllerMocks.getHiddenRoles).toHaveBeenCalledExactlyOnceWith('agent.builtin.hidden_roles')
+  })
+
+  it('sanitizes committed reads and retries when a previously committed role disappears', async () => {
+    const logError = vi.spyOn(loggerService, 'error').mockImplementation(() => {})
+    controllerMocks.getHiddenRoles
+      .mockResolvedValueOnce(['assistant', 'assistant', 'nope'])
+      .mockResolvedValueOnce(['support', 'support', 'nope'])
+      .mockResolvedValueOnce(['support'])
+    const support = { type: 'agent', raw: { configuration: { builtin_role: 'support' } } } as ResourceItem
+    const { result } = renderHook(() => useResourceCatalogController('agent'))
+
+    await act(async () => result.current.gridProps.onHide(support))
+
+    expect(controllerMocks.setHiddenRoles).toHaveBeenCalledTimes(2)
+    expect(controllerMocks.setHiddenRoles).toHaveBeenNthCalledWith(1, ['assistant', 'support'])
+    expect(controllerMocks.setHiddenRoles).toHaveBeenLastCalledWith(['support'])
+    expect(logError).not.toHaveBeenCalled()
   })
 
   it('hides protected roles once and restores all hidden roles', async () => {
@@ -733,8 +835,15 @@ describe('useResourceCatalogController', () => {
       await result.current.gridProps.onHide(ordinaryAgent)
     })
     expect(controllerMocks.setHiddenRoles).toHaveBeenCalledTimes(1)
+    const committedReads = controllerMocks.getHiddenRoles.mock.calls.length
+    await act(async () => {
+      await result.current.gridProps.onHide(ordinaryAgent)
+      await result.current.gridProps.onHide(assistantResource)
+    })
+    expect(controllerMocks.getHiddenRoles).toHaveBeenCalledTimes(committedReads)
     await act(async () => result.current.gridProps.onRestoreHiddenBuiltins())
     expect(controllerMocks.setHiddenRoles).toHaveBeenLastCalledWith([])
+    expect(controllerMocks.getHiddenRoles).toHaveBeenCalledTimes(committedReads)
   })
 
   it('confirms before archiving protected Agent sessions without opening the owner confirmation', async () => {
