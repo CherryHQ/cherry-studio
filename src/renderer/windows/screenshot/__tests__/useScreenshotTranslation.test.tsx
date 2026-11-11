@@ -71,6 +71,7 @@ describe('useScreenshotTranslation', () => {
   let availableModels: Model[]
   let modelsLoading: boolean
   let modelsError: Error | undefined
+  let lookupErrors: Record<string, Error>
   let oversizedMetrics: boolean
   let crop: ImageData
 
@@ -85,6 +86,7 @@ describe('useScreenshotTranslation', () => {
     availableModels = [MODEL, FALLBACK]
     modelsLoading = false
     modelsError = undefined
+    lookupErrors = {}
     oversizedMetrics = false
     mockUseQuery.mockImplementation((path, options) => ({
       data: (options?.enabled === false
@@ -94,7 +96,7 @@ describe('useScreenshotTranslation', () => {
           : availableModels.find((model) => path === `/models/${model.id}`)) as never,
       isLoading: modelsLoading && path === '/models',
       isRefreshing: false,
-      error: modelsError,
+      error: path === '/models' ? modelsError : lookupErrors[path],
       refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }))
@@ -106,7 +108,7 @@ describe('useScreenshotTranslation', () => {
       font: '',
       measureText: (text: string) => ({
         width: oversizedMetrics ? 100000 : text.length * 8,
-        actualBoundingBoxLeft: -1,
+        actualBoundingBoxLeft: 1,
         actualBoundingBoxRight: text.length * 8,
         fontBoundingBoxAscent: NaN,
         fontBoundingBoxDescent: NaN
@@ -359,6 +361,27 @@ describe('useScreenshotTranslation', () => {
     await start(result)
     expect(result.current.modelId).toBe(FALLBACK.id)
     expect(vi.mocked(translateText).mock.calls.every((call) => call[4] === FALLBACK.id)).toBe(true)
+    expect(result.current.workState).toBe('done')
+  })
+
+  it('uses the chat default when the remembered model record is gone', async () => {
+    // Regression: a deleted optional remembered model suppresses a valid chat-default fallback.
+    availableModels = [FALLBACK]
+    lookupErrors[`/models/${MODEL.id}`] = new Error('not found')
+    const { result } = renderTranslation()
+    await start(result)
+    expect(result.current.modelId).toBe(FALLBACK.id)
+    expect(result.current.workState).toBe('done')
+    expect(vi.mocked(translateText).mock.calls.every((call) => call[4] === FALLBACK.id)).toBe(true)
+  })
+
+  it('keeps a usable remembered model when the default record is gone', async () => {
+    // Regression: a deleted optional default model suppresses a valid remembered-model fallback.
+    availableModels = [MODEL]
+    lookupErrors[`/models/${FALLBACK.id}`] = new Error('not found')
+    const { result } = renderTranslation()
+    await start(result)
+    expect(result.current.modelId).toBe(MODEL.id)
     expect(result.current.workState).toBe('done')
   })
 

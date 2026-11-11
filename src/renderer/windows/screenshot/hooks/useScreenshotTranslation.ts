@@ -11,6 +11,7 @@ import { isNonChatModel } from '@shared/utils/model'
 
 import type { OverlayPhase, SelectionRect, TranslationBlock, TranslationView, TranslationWorkState } from '../types'
 import { fitTranslationText, type TranslationTextMetrics } from '../utils/fitTranslationText'
+import { measureTranslationText } from '../utils/measureTranslationText'
 import { getSelectionImageData } from '../utils/mosaic'
 import { sampleTranslationBackground } from '../utils/sampleTranslationBackground'
 import { classifyTranslationBlocks } from '../utils/translationBlocks'
@@ -93,7 +94,9 @@ export function useScreenshotTranslation(options: ScreenshotTranslationOptions):
   const fallback = useModelById(parsedDefaultId.success ? parsedDefaultId.data : null)
   const models = useModels()
   const loading = models.isLoading || remembered.isLoading || fallback.isLoading
-  const configurationError = models.error || remembered.error || fallback.error
+  // Candidate errors have no status code: deleted remembered/default IDs and transient failures are indistinguishable.
+  // Treat either as unusable and try the other candidate, or ask for a model; only a failed list is a configuration error.
+  const configurationError = models.error
   const resolvedModel = usable(remembered.model, preferredId)
     ? remembered.model
     : usable(fallback.model, defaultId)
@@ -257,14 +260,7 @@ export function useScreenshotTranslation(options: ScreenshotTranslationOptions):
         if (generation.current !== run.generation) return
         run.measure = (text, size) => {
           context.font = `${size}px ${fontFamily}`
-          const m = context.measureText(text)
-          return {
-            width: m.width,
-            left: Math.max(0, -m.actualBoundingBoxLeft),
-            right: m.actualBoundingBoxRight,
-            ascent: Number.isFinite(m.fontBoundingBoxAscent) ? m.fontBoundingBoxAscent : 0.8 * size,
-            descent: Number.isFinite(m.fontBoundingBoxDescent) ? m.fontBoundingBoxDescent : 0.2 * size
-          }
+          return measureTranslationText(context, text, size)
         }
         pump(run)
       } catch {
