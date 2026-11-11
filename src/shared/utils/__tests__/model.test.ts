@@ -7,7 +7,6 @@ import {
 } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
-  deriveModelGroupName,
   getRawModelId,
   isAudioModel,
   isEmbeddingModel,
@@ -43,19 +42,6 @@ describe('shared model capability helpers', () => {
     ['custom-wire-id', 'custom-wire-id']
   ])('resolves a usable wire model id for apiModelId %j', (apiModelId, expected) => {
     expect(getRawModelId({ ...createModel(), apiModelId })).toBe(expected)
-  })
-
-  describe('deriveModelGroupName', () => {
-    it.each([
-      ['openai/gpt-4o', 'openai'],
-      ['deepseek-v4-pro', 'deepseek'],
-      ['gpt-5.6-sol', 'gpt'],
-      ['codex-auto-review', 'codex'],
-      ['hy3', undefined],
-      ['  ', undefined]
-    ])('derives %s as %s', (modelId, expected) => {
-      expect(deriveModelGroupName(modelId)).toBe(expected)
-    })
   })
 
   it('reads capability state from v2 Model.capabilities', () => {
