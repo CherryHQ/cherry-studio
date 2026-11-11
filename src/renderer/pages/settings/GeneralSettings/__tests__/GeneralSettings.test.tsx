@@ -472,7 +472,7 @@ describe('GeneralSettings', () => {
   })
 
   it('shows only the effective first five fallback models for an existing over-limit preference', () => {
-    const models = Array.from({ length: 9 }, (_, index) => `openai::model-${index}` as UniqueModelId)
+    const models = Array.from({ length: 9 }, (_, index): UniqueModelId => `openai::model-${index}`)
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.retry.enabled': true,
       'chat.retry.fallback_model_ids': models
