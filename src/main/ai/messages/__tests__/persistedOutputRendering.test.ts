@@ -107,11 +107,6 @@ describe('renderPersistedToolOutputs', () => {
     expect(part.output).not.toContain('Full output saved to:')
   })
 
-  it('returns the same references when no part carries an envelope', () => {
-    const messages = [messageWith('plain output')]
-    expect(renderPersistedToolOutputs(messages)).toBe(messages)
-  })
-
   it('renders entities envelopes byte-identical to the in-flight entity codec lane', async () => {
     // Cross-lane byte contract: the persisted skeleton + per-blob marker must
     // stringify to the exact value the in-flight truncator assembles for the

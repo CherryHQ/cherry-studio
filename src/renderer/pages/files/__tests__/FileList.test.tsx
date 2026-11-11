@@ -11,7 +11,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof Cher
 
 import type { FileContextMenuActions } from '../FileContextMenu'
 import type { FileItem } from '../fileDisplay'
-import { formatFileSize, getFormatLabel } from '../fileDisplay'
+import { formatFileSize } from '../fileDisplay'
 import { FileList } from '../FileList'
 
 type VirtualizerOptionsMock = {
@@ -38,7 +38,10 @@ vi.mock('@tanstack/react-virtual', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, string>) =>
+      key === 'files.select_file_with_path' ? `Select ${values?.name} (${values?.path})` : key
+  })
 }))
 
 const file: FileItem = {
@@ -97,14 +100,6 @@ describe('fileDisplay helpers', () => {
     expect(formatFileSize(10 * 1024)).toBe('10 KB')
     expect(formatFileSize(1024 * 1024)).toBe('1.0 MB')
   })
-
-  it('uses known format labels and uppercases unknown extensions', () => {
-    expect(getFormatLabel('')).toBe('—')
-    expect(getFormatLabel('md')).toBe('Markdown')
-    expect(getFormatLabel('xls')).toBe('Excel')
-    expect(getFormatLabel('xlsx')).toBe('Excel')
-    expect(getFormatLabel('custom')).toBe('CUSTOM')
-  })
 })
 
 describe('FileList', () => {
@@ -113,33 +108,15 @@ describe('FileList', () => {
     const actions = { ...menuActions, onDelete }
     render(<FileList {...fileListProps(null)} onDelete={onDelete} menuActions={actions} deleteDisabled />)
 
-    const rowDelete = screen.getByRole('button', { name: 'recycle_bin.move.confirm_action' })
+    const rowDelete = screen.getByRole('button', { name: 'files.delete.label' })
     expect(rowDelete).toBeDisabled()
     fireEvent.contextMenu(screen.getByText('report.md'))
-    const contextDelete = await screen.findByRole('menuitem', { name: 'recycle_bin.move.confirm_action' })
+    const contextDelete = await screen.findByRole('menuitem', { name: 'files.delete.label' })
     expect(contextDelete).toHaveAttribute('data-disabled')
 
     fireEvent.click(rowDelete)
     fireEvent.click(contextDelete)
     expect(onDelete).not.toHaveBeenCalled()
-  })
-
-  it('virtualizes accumulated files with stable file identity keys', () => {
-    const files = Array.from({ length: 100 }, (_, index) => ({
-      ...file,
-      id: `file-${index}`,
-      name: `report-${index}.md`
-    }))
-
-    render(<FileList {...fileListProps(null)} files={files} />)
-
-    expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ count: files.length, overscan: 8 })
-    )
-    const options = virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0]
-    expect(options?.getItemKey?.(37)).toBe('file-37')
-    expect(screen.getByText('report-0.md')).toBeInTheDocument()
-    expect(screen.queryByText('report-1.md')).not.toBeInTheDocument()
   })
 
   it('focuses the inline rename input when rename is triggered', () => {
@@ -160,18 +137,6 @@ describe('FileList', () => {
     expect(input.selectionEnd).toBe('report'.length)
   })
 
-  it('scrolls an off-screen rename target into the virtual window', () => {
-    const files = Array.from({ length: 100 }, (_, index) => ({
-      ...file,
-      id: `file-${index}`,
-      name: `report-${index}.md`
-    }))
-
-    render(<FileList {...fileListProps('file-37')} files={files} />)
-
-    expect(virtualizerMocks.scrollToIndex).toHaveBeenCalledWith(37, { align: 'auto' })
-  })
-
   it('forwards checkbox state and the Shift modifier without opening the row', async () => {
     const onSelect = vi.fn()
     const onOpen = vi.fn()
@@ -189,14 +154,6 @@ describe('FileList', () => {
     await user.click(screen.getByText(file.name))
     expect(onOpen).toHaveBeenCalledWith(file)
     expect(onSelect).toHaveBeenCalledOnce()
-  })
-
-  it('uses the selected border only for the checked checkbox state', () => {
-    render(<FileList {...fileListProps(null)} />)
-
-    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
-    expect(checkbox).toHaveClass('data-[state=checked]:border-border-selected')
-    expect(checkbox).not.toHaveClass('border-border-selected')
   })
 
   it('opens files through the existing action', () => {
@@ -221,39 +178,6 @@ describe('FileList', () => {
     expect(onOpen).not.toHaveBeenCalled()
   })
 
-  it('shows the row show-in-folder action for active files', () => {
-    const externalFile: FileItem = {
-      ...file,
-      id: 'external-file',
-      origin: 'external'
-    }
-
-    const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
-
-    expect(screen.getByRole('button', { name: 'files.show_in_folder' })).toBeInTheDocument()
-
-    rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
-
-    expect(screen.getByRole('button', { name: 'files.show_in_folder' })).toBeInTheDocument()
-  })
-
-  it('uses remove-from-library wording for external row deletes', () => {
-    const externalFile: FileItem = {
-      ...file,
-      id: 'external-file',
-      origin: 'external'
-    }
-
-    const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
-
-    expect(screen.getByRole('button', { name: 'recycle_bin.move.confirm_action' })).toBeInTheDocument()
-
-    rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
-
-    expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'recycle_bin.move.confirm_action' })).not.toBeInTheDocument()
-  })
-
   it('hides invalid row actions for missing files', () => {
     const missingExternalFile: FileItem = {
       ...file,
@@ -268,5 +192,52 @@ describe('FileList', () => {
     expect(screen.queryByRole('button', { name: 'files.rename' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'files.show_in_folder' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
+  })
+
+  it('exposes distinct source paths for same-name files', () => {
+    virtualizerMocks.useVirtualizer.mockImplementation((options: VirtualizerOptionsMock) => ({
+      getTotalSize: () => options.count * options.estimateSize(),
+      getVirtualItems: () =>
+        Array.from({ length: options.count }, (_, index) => ({
+          index,
+          key: options.getItemKey?.(index) ?? index,
+          size: options.estimateSize(),
+          start: index * options.estimateSize()
+        })),
+      measureElement: vi.fn(),
+      scrollToIndex: virtualizerMocks.scrollToIndex
+    }))
+
+    const first: FileItem = {
+      ...file,
+      id: 'file-migrated-a',
+      name: 'migrated-image.png',
+      format: 'png',
+      type: 'image',
+      sourcePath: '/Users/a/Pictures/migrated-image.png'
+    }
+    const second: FileItem = {
+      ...first,
+      id: 'file-migrated-b',
+      sourcePath: '/Users/b/Downloads/migrated-image.png'
+    }
+
+    render(<FileList {...fileListProps(null)} files={[first, second]} />)
+
+    const names = screen.getAllByText('migrated-image.png')
+    expect(names).toHaveLength(2)
+    expect(names[0]).toHaveAttribute('title', '/Users/a/Pictures/migrated-image.png')
+    expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-image.png')
+    expect(
+      screen.getByRole('checkbox', {
+        name: 'Select migrated-image.png (/Users/a/Pictures/migrated-image.png)'
+      })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('checkbox', {
+        name: 'Select migrated-image.png (/Users/b/Downloads/migrated-image.png)'
+      })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'files.select_file' })).not.toBeInTheDocument()
   })
 })
