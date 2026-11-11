@@ -261,6 +261,38 @@ describe('SkillService', () => {
       await expect(fs.promises.lstat(external)).rejects.toMatchObject({ code: 'ENOENT' })
     })
 
+    it('installs a new skill without exporting while disabled and exports it after re-enabling', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', false)
+      const sourceDir = path.join(root, 'skill-three')
+      await fs.promises.mkdir(sourceDir)
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# Skill three')
+      const parser = await vi.importActual<typeof MarkdownParserModule>('@main/utils/markdownParser')
+      vi.mocked(parseSkillMetadata).mockImplementationOnce(parser.parseSkillMetadata)
+      vi.mocked(findSkillMdPath).mockImplementation(parser.findSkillMdPath)
+
+      try {
+        const installed = await service['installSkillDir'](sourceDir, 'local', pathToFileURL(sourceDir).href)
+
+        expect(installed.folderName).toBe('skill-three')
+      } finally {
+        vi.mocked(findSkillMdPath).mockReset()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+      expect(await fs.promises.readdir(storage)).toContain('skill-three')
+      await expect(fs.promises.lstat(path.join(mirror, 'skill-three'))).resolves.toBeDefined()
+      const target = path.join(external, 'skill-three')
+      await expect(fs.promises.lstat(target)).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(fs.promises.lstat(external)).rejects.toMatchObject({ code: 'ENOENT' })
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
+      await service.syncExternalExports()
+
+      expect((await fs.promises.lstat(target)).isSymbolicLink()).toBe(true)
+      expect(path.resolve(path.dirname(target), await fs.promises.readlink(target))).toBe(
+        path.join(mirror, 'skill-three')
+      )
+    })
+
     it('continues pruning other links when one unlink fails and reports the failure', async () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', false)
       await fs.promises.mkdir(external, { recursive: true })
