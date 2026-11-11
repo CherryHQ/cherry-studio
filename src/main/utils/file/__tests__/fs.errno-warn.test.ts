@@ -67,7 +67,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 // MockMainLoggerService; warn assertions read through the singleton's spy.
 const mockLoggerWarn = mockMainLoggerService.warn
 
-const { atomicWriteFile, createAtomicWriteStream, isSameFile, move: fsMove } = await import('../fs')
+const { atomicWriteFile, prepareAtomicWrite, createAtomicWriteStream, isSameFile, move: fsMove } = await import('../fs')
 
 function makeErrnoErr(code: string, message = code): NodeJS.ErrnoException {
   return Object.assign(new Error(message), { code })
@@ -379,6 +379,22 @@ describe('atomicWriteFile (write/sync failure cleans up .tmp-{uuid})', () => {
       }
     })
   }
+
+  it.each([false, true])('preserves the original on validation failure (cleanup failure: %s)', async (cleanupFails) => {
+    const target = path.join(tmp, 'guarded.txt') as AbsoluteFilePath
+    await writeFile(target, 'original')
+    const prepared = await prepareAtomicWrite(target, 'replacement')
+    const rejected = new Error('validation rejected')
+    if (cleanupFails) mockUnlink.mockRejectedValueOnce(makeErrnoErr('EACCES'))
+    await expect(
+      prepared.commit(async () => {
+        throw rejected
+      })
+    ).rejects.toBe(rejected)
+    expect(await readFile(target, 'utf8')).toBe('original')
+    expect(prepared.state).toBe('aborted')
+    if (!cleanupFails) expect(await readdir(tmp)).toEqual(['guarded.txt'])
+  })
 
   it('on writeFile failure (ENOSPC): rejects with the write error and leaves no .tmp- residue', async () => {
     const target = path.join(tmp, 'data.txt')
