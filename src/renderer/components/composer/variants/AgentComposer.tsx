@@ -549,6 +549,7 @@ const AgentComposerInner = ({
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
+  const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
   const { railGutterPx, sidePaddingPx } = useChatLayoutMode()
@@ -628,16 +629,6 @@ const AgentComposerInner = ({
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
-  const togglePlanMode = useCallback(() => {
-    if (!agent) return
-    void updateAgent(
-      {
-        id: agent.id,
-        configuration: { permission_mode: agent.configuration?.permission_mode === 'plan' ? 'default' : 'plan' }
-      },
-      { showSuccessToast: false }
-    )
-  }, [agent, updateAgent])
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -658,6 +649,10 @@ const AgentComposerInner = ({
   const workspaceWarning = resolvedWorkspaceWarning ?? undefined
   const compaction = useAgentSessionCompaction(sessionId)
   const quickPanel = useOptionalQuickPanel()
+  const togglePlanMode = useCallback(() => {
+    const launcher = getLaunchers('root-panel').find((entry) => entry.id === 'plan-mode')
+    if (launcher && quickPanel) dispatchLauncher(launcher, { quickPanel, source: 'root-panel' })
+  }, [dispatchLauncher, getLaunchers, quickPanel])
   const rootPanelVisible =
     layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const skillsPanelVisible =
@@ -1620,6 +1615,7 @@ const AgentComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
+          markdownLivePreview={renderInputMessageAsMarkdown}
           showAiDisclaimer
           voiceTarget={{ targetId: `composer:session:${sessionId}`, sourceEntityId: sessionId }}
           text={text}

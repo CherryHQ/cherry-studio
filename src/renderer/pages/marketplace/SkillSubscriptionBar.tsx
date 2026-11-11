@@ -1,4 +1,4 @@
-﻿import { Plus, RefreshCw, X } from 'lucide-react'
+﻿import { Plus, RefreshCw, Settings2, X } from 'lucide-react'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,7 +15,9 @@ import {
   ScrollArea
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { ipcApi } from '@renderer/ipc'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
@@ -39,6 +41,7 @@ export function SkillSubscriptionBar({
   const { t } = useTranslation()
   const [sources] = usePreference('ui.marketplace.skill_sources')
   const [adding, setAdding] = useState(false)
+  const addDialog = useExitPresence(active && adding ? true : null)
   const [removeId, setRemoveId] = useState<string | null>(null)
   const [removing, setRemoving] = useState(false)
   const addRef = useRef<HTMLButtonElement>(null)
@@ -52,7 +55,6 @@ export function SkillSubscriptionBar({
   return (
     <div className="flex shrink-0 items-center gap-2 py-3">
       <ScrollArea
-        type="hover"
         orientation="horizontal"
         className="min-w-0 flex-1"
         contentProps={{ className: 'flex! items-center gap-2' }}
@@ -61,7 +63,9 @@ export function SkillSubscriptionBar({
           size="sm"
           variant={sourceId === null ? 'default' : 'ghost'}
           className="shrink-0 rounded-full focus-visible:underline"
-          style={sourceId === null ? { backgroundColor: '#FF5F5F', color: '#ffffff' } : undefined}
+          style={
+            sourceId === null ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined
+          }
           aria-pressed={sourceId === null}
           onClick={() => onSelect(null)}>
           {t('marketplace.curated')}
@@ -81,7 +85,7 @@ export function SkillSubscriptionBar({
           ref={addRef}
           size="icon-sm"
           variant="ghost"
-          className="shrink-0 rounded-full"
+          className="shrink-0 rounded-full text-muted-foreground"
           title={t('marketplace.subscription.add')}
           aria-label={t('marketplace.subscription.add')}
           onClick={() => setAdding(true)}>
@@ -105,7 +109,7 @@ export function SkillSubscriptionBar({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="shrink-0 rounded-full"
+            className="shrink-0 rounded-full text-muted-foreground"
             onClick={onRefresh}
             disabled={refreshing}
             title={t('marketplace.subscription.refresh')}
@@ -115,7 +119,7 @@ export function SkillSubscriptionBar({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="shrink-0 rounded-full"
+            className="shrink-0 rounded-full text-muted-foreground"
             onClick={() => setRemoveId(sourceId)}
             title={t('marketplace.subscription.remove')}
             aria-label={t('marketplace.subscription.remove')}>
@@ -123,8 +127,13 @@ export function SkillSubscriptionBar({
           </Button>
         </>
       ) : null}
-      {active && adding ? (
+      <Button size="sm" variant="ghost" className="shrink-0" onClick={() => openSettingsTab('/settings/skills')}>
+        <Settings2 className="size-4" />
+        {t('plugins.manage_skills')}
+      </Button>
+      {addDialog.isPresent ? (
         <AddSubscriptionDialog
+          open={active && adding}
           onClose={() => setAdding(false)}
           onAdded={onSelect}
           onReturnFocus={() => addRef.current?.focus()}
@@ -132,6 +141,7 @@ export function SkillSubscriptionBar({
       ) : null}
       {active ? (
         <ConfirmDialog
+          contentClassName="max-h-[90vh]"
           open={Boolean(removeId)}
           onOpenChange={(open) => {
             if (!open && !removing) setRemoveId(null)
@@ -164,10 +174,12 @@ export function SkillSubscriptionBar({
 }
 
 function AddSubscriptionDialog({
+  open,
   onClose,
   onAdded,
   onReturnFocus
 }: {
+  open: boolean
   onClose: () => void
   onAdded: (id: string) => void
   onReturnFocus: () => void
@@ -179,13 +191,12 @@ function AddSubscriptionDialog({
   const pending = useRef(false)
   return (
     <Dialog
-      open
+      open={open}
       onOpenChange={(open) => {
         if (!open && !pending.current) onClose()
       }}>
       <DialogContent
-        className="gap-0 rounded-3xl p-6 pb-10 sm:max-w-lg"
-        overlayClassName="backdrop-blur-sm"
+        className="max-h-[90vh] gap-0 rounded-3xl p-6 pb-10 sm:max-w-lg"
         showCloseButton={!busy}
         closeLabel={t('common.close')}
         onCloseAutoFocus={(event) => {

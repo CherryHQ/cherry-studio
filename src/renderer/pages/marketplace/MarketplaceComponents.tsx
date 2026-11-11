@@ -99,9 +99,9 @@ export function MarketplaceGrid<T extends { id: string }>({
     )
   return (
     <ScrollArea
-      type="hover"
       viewportProps={{ ref: setElement }}
-      className="min-h-0 flex-1 pr-1"
+      className="min-h-0 flex-1"
+      contentProps={{ className: 'pr-5 pb-4' }}
       data-testid="marketplace-virtual-grid">
       <div style={{ height: rows.getTotalSize(), position: 'relative' }}>
         {rows.getVirtualItems().map((row) => (
@@ -171,11 +171,7 @@ export function MarketplaceDetailContent({ className, ...props }: ComponentProps
       size="default"
       motion="fade-scale"
       closeLabel={t('common.close')}
-      overlayClassName="backdrop-blur-sm"
-      className={cn(
-        'flex max-h-[calc(100vh-3rem)] flex-col gap-0 overflow-hidden rounded-3xl bg-transparent p-0',
-        className
-      )}
+      className={cn('flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-3xl bg-card p-0', className)}
       {...props}
     />
   )
@@ -201,7 +197,7 @@ export function MarketplaceDetailHeader({
       <DialogDescription className="sr-only">{description}</DialogDescription>
       <DialogHeader
         className={cn(
-          'shrink-0 border-border-subtle border-b px-5 pt-10 pb-5 text-left backdrop-blur-2xl backdrop-saturate-150',
+          'shrink-0 border-border-subtle border-b px-5 pt-10 pb-5 text-left',
           curated && 'text-neutral-700'
         )}
         style={{
@@ -235,7 +231,11 @@ export function MarketplaceDetailHeader({
 }
 
 export function MarketplaceDetailBody({ children }: { children: ReactNode }) {
-  return <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-card px-5 py-5">{children}</div>
+  return (
+    <ScrollArea className="min-h-0 flex-1 bg-card" contentProps={{ className: 'space-y-5 px-5 py-5' }}>
+      {children}
+    </ScrollArea>
+  )
 }
 
 export function MarketplaceDetailFooter({ children }: { children: ReactNode }) {

@@ -363,7 +363,11 @@ export class PiProjection {
   private write(message: PiMessage, id: string, completeness: 'partial' | 'complete'): void {
     if (!('content' in message)) return
     if (message.role === 'toolResult') {
-      this.result(message.toolCallId, { content: message.content, details: message.details }, message.isError)
+      this.result(
+        message.toolCallId,
+        { content: message.content, details: message.details, structuredContent: message.structuredContent },
+        message.isError
+      )
       return
     }
     if (

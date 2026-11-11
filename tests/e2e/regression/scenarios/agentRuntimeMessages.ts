@@ -2,6 +2,9 @@ import { writeFile } from 'node:fs/promises'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
 
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { LatestAgentSessionResponse } from '@shared/data/api/schemas/agentSessions'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { formatShortcutDisplay, type ShortcutBinding } from '@shared/utils/shortcut'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
@@ -42,6 +45,38 @@ export async function agentRuntimeMessages(app: RegressionApp, page: Page, testI
   const composer = view.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
   const messages = view.locator('[data-ui~="chat.message"]')
   const completed = view.getByTestId('completed-process-trigger')
+  const history = async () => {
+    const result = await page.evaluate(async (name) => {
+      const agents = await window.api.dataApi.request({
+        id: 'mp144-agents',
+        method: 'GET',
+        path: '/agents',
+        params: { limit: 500 }
+      })
+      if (agents.status !== 200) throw new Error('Cannot read runtime-message Agent')
+      const agent = (agents.data as { items: { id: string; name: string }[] }).items.find((item) => item.name === name)
+      if (!agent) throw new Error('Runtime-message Agent is missing')
+      const latest = await window.api.dataApi.request({
+        id: 'mp144-session',
+        method: 'GET',
+        path: '/agent-sessions/latest',
+        params: { agentId: agent.id }
+      })
+      if (latest.status !== 200) throw new Error('Cannot read runtime-message session')
+      const session = (latest.data as LatestAgentSessionResponse).session
+      if (!session) throw new Error('Runtime-message session is missing')
+      return window.api.dataApi.request({
+        id: 'mp144-history',
+        method: 'GET',
+        path: `/agent-sessions/${session.id}/messages`,
+        params: { limit: 200 }
+      })
+    }, name)
+    expect(result.status).toBe(200)
+    const data = result.data as CursorPaginationResponse<AgentSessionMessageEntity>
+    expect(data.nextCursor, 'The short test conversation must fit in one history page').toBeUndefined()
+    return data.items.reverse()
+  }
   let labels: string[] = []
   try {
     await openSettingsSection(page, 'Appearance')
@@ -107,10 +142,14 @@ export async function agentRuntimeMessages(app: RegressionApp, page: Page, testI
     await expect(queue).toBeHidden()
     await expect(messages.filter({ hasText: queued })).toHaveCount(1)
     await expect(messages.filter({ hasText: 'MP144_QUEUE_ACK' }).last()).toBeVisible()
-    const firstTurn = await messages.allTextContents()
-    const firstEnd = firstTurn.findIndex((text) => text.includes('MP144_QUEUE_END') && !text.includes('First output'))
+    const firstTurn = await history()
+    const firstEnd = firstTurn.findIndex(
+      (message) => message.role === 'assistant' && message.searchableText.includes('MP144_QUEUE_END')
+    )
     expect(firstEnd).toBeGreaterThan(-1)
-    expect(firstEnd).toBeLessThan(firstTurn.findIndex((text) => text.includes(queued)))
+    expect(firstEnd).toBeLessThan(
+      firstTurn.findIndex((message) => message.role === 'user' && message.searchableText === queued)
+    )
 
     await startNewAgentTask(page, name)
     await selectAgentWorkspace(app, page)
@@ -150,18 +189,28 @@ export async function agentRuntimeMessages(app: RegressionApp, page: Page, testI
     await expect(messages.filter({ hasText: 'MP144_STEER_ACK' }).filter({ hasNotText: steer }).last()).toBeVisible({
       timeout: 120_000
     })
+    // A completed turn can briefly hide Pause before the next queued turn starts.
+    await expect(messages.filter({ hasText: 'MP144_EDIT_ACK' }).filter({ hasNotText: edited }).last()).toBeVisible({
+      timeout: 120_000
+    })
     await expect(view.getByRole('button', { name: 'Pause', exact: true })).toBeHidden({ timeout: 120_000 })
-    const steerHistory = await messages.allTextContents()
-    const acknowledgement = steerHistory.findIndex((text) => text.includes('MP144_STEER_ACK') && !text.includes(steer))
-    const end = steerHistory.findIndex((text) => text.includes('MP144_STEER_END') && !text.includes('First output'))
+    const steerHistory = await history()
+    const acknowledgement = steerHistory.findIndex(
+      (message) => message.role === 'assistant' && message.searchableText.includes('MP144_STEER_ACK')
+    )
+    const end = steerHistory.findIndex(
+      (message) => message.role === 'assistant' && message.searchableText.includes('MP144_STEER_END')
+    )
     expect(acknowledgement).toBeGreaterThan(-1)
     expect(end).toBeGreaterThanOrEqual(acknowledgement)
-    await expect(view.getByRole('button', { name: 'Pause', exact: true })).toBeHidden({ timeout: 120_000 })
-    await expect
-      .soft(messages.filter({ hasText: first }), 'Preserved queue A must eventually be delivered exactly once')
-      .toHaveCount(1, { timeout: 1_000 })
-    await expect(messages.filter({ hasText: edited })).toHaveCount(1)
-    await expect(messages.filter({ hasText: second })).toHaveCount(0)
+    const delivered = steerHistory.filter((message) => message.role === 'user').map((message) => message.searchableText)
+    expect(
+      delivered.filter((text) => text === first),
+      'Preserved queue A must be delivered exactly once'
+    ).toHaveLength(1)
+    expect(delivered.filter((text) => text === edited)).toHaveLength(1)
+    expect(delivered).not.toContain(second)
+    expect(delivered.indexOf(first)).toBeLessThan(delivered.indexOf(edited))
 
     await openSettingsSection(page, 'Appearance')
     const steerSelect = page.locator('#setting-appearance-steer-shortcuts [role="combobox"]')
