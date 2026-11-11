@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
@@ -32,6 +33,7 @@ import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProj
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
+import { getShellEnv } from '@main/utils/shellEnv'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 import type { SpanEntity } from '@shared/data/types/trace'
@@ -86,7 +88,10 @@ vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
   buildAgentMcpServers: () => ({})
 }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathFromEnvironment: () => undefined }))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: vi.fn(async (): Promise<Record<string, string>> => ({})),
+  getPathFromEnvironment: () => undefined
+}))
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 describe('desktop Pi Durable connection', () => {
@@ -98,12 +103,13 @@ describe('desktop Pi Durable connection', () => {
   const connections: PiDurableRuntimeConnection[] = []
   let driver: PiDurableRuntimeDriver
 
-  beforeEach(() => {
+  beforeEach(async () => {
     driver = new PiDurableRuntimeDriver()
+    vi.mocked(getShellEnv).mockReset()
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     mocks.delegated.mockClear()
     mocks.prime.mockReset()
-    directory = realpathSync(tempDir('desktop-pi'))
+    directory = await realpath(tempDir('desktop-pi'))
     vi.mocked(application.getPath).mockImplementation((key, file) => {
       const dir = join(directory, key)
       if (key !== 'external.pi.settings_file' && key !== 'feature.agents.pi.sessions')
@@ -814,8 +820,10 @@ describe('desktop Pi Durable connection', () => {
     })()
     return { connection, events, consuming, nativeInputs, handle }
   }
-  async function done(events: AgentRuntimeEvent[]) {
-    await expect.poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error')).toBe(true)
+  async function done(events: AgentRuntimeEvent[], timeout?: number) {
+    await expect
+      .poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error'), { timeout })
+      .toBe(true)
   }
   function projected(events: AgentRuntimeEvent[]) {
     const messages = new Map<
@@ -835,6 +843,60 @@ describe('desktop Pi Durable connection', () => {
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
+  it.each([false, true])('limits PowerShell exposure to Windows and honors disabledTools (%s)', async (disabled) => {
+    snapshot.agent.disabledTools = disabled ? ['PowerShell'] : []
+    const { connection, events } = await connect()
+    await connection.send({ message: message('List available tools') })
+    await done(events)
+    const names = script.calls[0].tools.map((tool) => tool.name)
+    if (process.platform === 'win32' && !disabled) expect(names).toContain('powershell')
+    else expect(names).not.toContain('powershell')
+  })
+
+  it.runIf(process.platform === 'win32')(
+    'runs PowerShell file commands with Unicode paths and preserves the configured PATH',
+    async () => {
+      const binDirectory = join(directory, 'test bin')
+      mkdirSync(binDirectory)
+      writeFileSync(join(binDirectory, 'cherry-path-probe.cmd'), '@echo off\r\necho PATH probe succeeded\r\n')
+      const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'Path'
+      vi.mocked(getShellEnv).mockResolvedValue({
+        [pathKey]: `${binDirectory};${process.env[pathKey] ?? ''}`
+      })
+      setScript([
+        assistantReply(
+          [
+            {
+              type: 'toolCall',
+              id: 'powershell-file',
+              name: 'powershell',
+              arguments: {
+                command:
+                  "Set-Content -LiteralPath './报告 with spaces.txt' -Value 'PowerShell 正常' -Encoding utf8; Get-Content -LiteralPath './报告 with spaces.txt'; & cherry-path-probe.cmd"
+              }
+            }
+          ],
+          'toolUse'
+        ),
+        assistantReply('PowerShell finished')
+      ])
+      const { connection, events } = await connect()
+      await connection.send({ message: message('Write and read the PowerShell fixture') })
+      await done(events, 10_000)
+      expect(
+        readFileSync(join(directory, '报告 with spaces.txt'), 'utf8')
+          .replace(/^\uFEFF/, '')
+          .trim()
+      ).toBe('PowerShell 正常')
+      const output = projected(events)
+        .flatMap((entry) => entry.parts)
+        .find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'powershell-file')
+      expect(JSON.stringify(output)).toContain('PATH probe succeeded')
+      expect(JSON.stringify(output)).toContain('PowerShell 正常')
+      expect(output).toMatchObject({ state: 'output-available' })
+    }
+  )
+
   // An idle observation during summary generation must not finish the owning desktop turn.
   it.each(['complete', 'error', 'stop', 'close'] as const)(
     'keeps manual compaction owned through %s',
@@ -1161,6 +1223,34 @@ describe('desktop Pi Durable connection', () => {
     expect(nativeInputs.some((state) => state.inputId === first.id && state.outcome === 'completed')).toBe(true)
     expect(injected).toBe(true)
     expect(text(events)).toBe('first answernext answer')
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('lets subagents write without approval when the root uses default permissions', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        if (!call.messages.some((entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-write'))
+          return assistantReply(
+            [toolCallPart('child-write', 'write', { path: 'child-result.txt', content: 'child completed' })],
+            'toolUse'
+          )
+        return assistantReply('child done')
+      }
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'write', prompt: 'write result', fork: false })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await done(events, 10_000)
+    expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
+    expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
@@ -1579,21 +1669,16 @@ describe('desktop Pi Durable connection', () => {
   })
 
   it('persists cancellation during a native tool and does not continue after reopen', async () => {
-    setScript([
-      assistantReply(
-        [
-          toolCallPart('bash', 'bash', {
-            command: 'echo ready > started.txt; /bin/sleep 30; echo late > completed.txt'
-          })
-        ],
-        'toolUse'
-      ),
-      assistantReply('must not run')
-    ])
+    const tool = process.platform === 'win32' ? 'powershell' : 'bash'
+    const command =
+      tool === 'powershell'
+        ? 'Set-Content -LiteralPath started.txt -Value ready; Start-Sleep -Seconds 30; Set-Content -LiteralPath completed.txt -Value late'
+        : 'echo ready > started.txt; /bin/sleep 30; echo late > completed.txt'
+    setScript([assistantReply([toolCallPart(tool, tool, { command })], 'toolUse'), assistantReply('must not run')])
     const { connection, events, nativeInputs } = await connect()
     const user = message('run a tool')
     await connection.send({ message: user })
-    await expect.poll(() => existsSync(join(directory, 'started.txt'))).toBe(true)
+    await expect.poll(() => existsSync(join(directory, 'started.txt')), { timeout: 10_000 }).toBe(true)
     await connection.interrupt()
     await connection.close()
     expect(nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted')).toBe(true)

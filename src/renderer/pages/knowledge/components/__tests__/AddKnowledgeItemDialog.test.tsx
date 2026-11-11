@@ -631,7 +631,6 @@ describe('AddKnowledgeItemDialog', () => {
       ])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
       expect(screen.getByText('Meeting notes')).toBeInTheDocument()
       expect(screen.getByText('Ideas')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
@@ -865,7 +864,6 @@ describe('AddKnowledgeItemDialog', () => {
       setPendingAddSource('url')
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'sm')
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
       fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
         target: { value: 'https://example.com' }

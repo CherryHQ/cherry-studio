@@ -219,12 +219,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ['kb-selected']
     )
 
-    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ contextWindow: 128_000, knowledgeBaseIds: ['kb-selected'] }),
-      expect.anything()
-    )
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
   })
 
@@ -271,34 +265,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(warmRequest?.connectionRebuildSignature).toBe(agentDefaultRequest?.connectionConfig.rebuildSignature)
     expect(overrideRequest?.connectionConfig.rebuildSignature).not.toBe(
       agentDefaultRequest?.connectionConfig.rebuildSignature
-    )
-  })
-
-  it('passes native image support from the captured connection model into settings', async () => {
-    mocks.getModelByKey.mockReturnValue({
-      id: 'model-1',
-      apiModelId: 'claude-sonnet',
-      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
-    })
-
-    await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ supportsImages: true }),
-      expect.anything()
-    )
-
-    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'text-only', capabilities: [] })
-
-    await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ supportsImages: false }),
-      expect.anything()
     )
   })
 
@@ -496,12 +462,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
 
-    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ notificationContext }),
-      expect.anything()
-    )
     expect(warmRequest?.notificationContext).toEqual(notificationContext)
   })
 

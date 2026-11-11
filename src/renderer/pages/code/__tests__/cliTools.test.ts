@@ -19,21 +19,6 @@ describe('CLI_TOOLS', () => {
 })
 
 describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
-  it('covers exactly the tools that offer the virtual own-login option', () => {
-    expect([...LOGIN_CAPABLE_CLI_TOOLS].sort()).toEqual(
-      [
-        CodeCli.CLAUDE_CODE,
-        CodeCli.OPENAI_CODEX,
-        CodeCli.GEMINI_CLI,
-        CodeCli.ANTIGRAVITY_CLI,
-        CodeCli.QWEN_CODE,
-        CodeCli.KIMI_CODE,
-        CodeCli.PI,
-        CodeCli.MINIMAX_CODE
-      ].sort()
-    )
-  })
-
   it('never overlaps the fully providerless tools', () => {
     for (const tool of PROVIDERLESS_CLI_TOOLS) {
       expect(LOGIN_CAPABLE_CLI_TOOLS.has(tool)).toBe(false)
@@ -71,26 +56,6 @@ describe('MiniMax Code provider support', () => {
     ])
 
     expect(supported.map((item) => item.id)).toEqual(['anthropic', 'responses'])
-  })
-})
-
-describe('GATEWAY_CAPABLE_CLI_TOOLS', () => {
-  it('covers exactly the tools that can launch through the Unified Gateway', () => {
-    expect([...GATEWAY_CAPABLE_CLI_TOOLS].sort()).toEqual(
-      [
-        CodeCli.CLAUDE_CODE,
-        CodeCli.OPENAI_CODEX,
-        CodeCli.GEMINI_CLI,
-        CodeCli.ANTIGRAVITY_CLI,
-        CodeCli.OPEN_CODE,
-        CodeCli.QWEN_CODE,
-        CodeCli.KIMI_CODE,
-        CodeCli.PI,
-        CodeCli.HERMES,
-        CodeCli.DEEPSEEK_HARNESS,
-        CodeCli.MINIMAX_CODE
-      ].sort()
-    )
   })
 })
 

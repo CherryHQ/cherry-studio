@@ -42,7 +42,7 @@ export function resolvePiShellPath(): string | undefined {
   return shellPath
 }
 
-export function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+export function mergePiShellExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   const definedEnv = Object.fromEntries(
     Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined)
   )

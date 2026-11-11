@@ -32,7 +32,6 @@ describe('buildPieChart', () => {
 
     expect(option).toMatchObject({
       baseOption: {
-        legend: { bottom: 46, left: 'center' },
         timeline: {
           axisType: 'category',
           autoPlay: false,

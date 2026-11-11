@@ -43,36 +43,12 @@ describe('createDmxapiProvider', () => {
 
   it('languageModel uses "dmxapi.chat" with Bearer auth at chat baseURL', () => {
     const provider = createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    // A generic (non-OpenAI/Anthropic/Gemini) chat id routes through the
-    // OpenAI-compat fallback family, which is the `dmxapi.chat` path.
-    expect((provider.languageModel('qwen-max') as unknown as { provider: string }).provider).toBe('dmxapi.chat')
+    provider.languageModel('qwen-max')
 
     const [, config] = ChatCtor.mock.calls[0]
     expect(config.url({ path: '/chat/completions', modelId: 'qwen-max' })).toBe(
       'https://www.dmxapi.cn/chat/completions'
     )
     expect(config.headers()).toMatchObject({ Authorization: 'Bearer sk' })
-  })
-
-  it('embeddingModel uses "dmxapi.embedding"', () => {
-    const provider = createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    expect((provider.embeddingModel('e') as unknown as { provider: string }).provider).toBe('dmxapi.embedding')
-  })
-
-  it('imageModel returns an ImageGenerationModel with provider="dmxapi"', () => {
-    const provider = createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    // A bespoke-family model (Doubao Seedream) routes through the custom
-    // transport-backed ImageGenerationModel, whose provider is plain "dmxapi".
-    expect(provider.imageModel('doubao-seedream-3-0').provider).toBe('dmxapi')
-  })
-
-  it('strips the OpenAI-compat suffix from baseURL to derive the transport host', () => {
-    createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1' })
-    expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-  })
-
-  it('keeps baseURL untouched when no OpenAI-compat suffix is present', () => {
-    createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
   })
 })

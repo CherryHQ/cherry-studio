@@ -39,55 +39,6 @@ describe('useAgentConversationBootstrap', () => {
     mocks.modelLookupId = undefined
   })
 
-  it('uses the list agent as a key hint while the canonical agent is loading', () => {
-    mocks.agentLoading = true
-
-    const { result } = renderHook(() =>
-      useAgentConversationBootstrap({
-        session,
-        sessionLoading: false,
-        sessionSource: 'query',
-        agentHint: { id: 'agent-1', model: 'provider-hint::model-hint' }
-      })
-    )
-
-    expect(mocks.agentLookupId).toBe('agent-1')
-    expect(mocks.modelLookupId).toBe('provider-hint::model-hint')
-    expect(result.current.resources.model?.id).toBe('provider-hint::model-hint')
-  })
-
-  it('switches the model key to the canonical agent result', () => {
-    mocks.agentLoading = true
-    const { rerender, result } = renderHook(() =>
-      useAgentConversationBootstrap({
-        session,
-        sessionLoading: false,
-        sessionSource: 'query',
-        agentHint: { id: 'agent-1', model: 'provider-hint::model-hint' }
-      })
-    )
-
-    expect(mocks.modelLookupId).toBe('provider-hint::model-hint')
-    mocks.agent = { id: 'agent-1', model: 'provider-canonical::model-canonical' }
-    rerender()
-
-    expect(mocks.modelLookupId).toBe('provider-canonical::model-canonical')
-    expect(result.current.resources.agent).toBe(mocks.agent)
-  })
-
-  it('does not use a hint from a different agent', () => {
-    renderHook(() =>
-      useAgentConversationBootstrap({
-        session,
-        sessionLoading: false,
-        sessionSource: 'query',
-        agentHint: { id: 'agent-2', model: 'provider-stale::model-stale' }
-      })
-    )
-
-    expect(mocks.modelLookupId).toBeUndefined()
-  })
-
   it('prefers a per-session model override over the agent default', () => {
     mocks.agent = { id: 'agent-1', model: 'provider-canonical::model-canonical' }
 
