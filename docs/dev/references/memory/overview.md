@@ -53,7 +53,7 @@ there is still no app-wide Global Memory setting.
 
 Legacy FACT migration preserves complete Markdown sections and original bytes, then checks every new private file before activation. Oversized indivisible sections or conflicts leave migration incomplete and retain readonly legacy facts. JOURNAL is unchanged and stops receiving events. Neither the old Agent Memory MCP nor ordinary file tools write these historical files. No dual-writing or alternating old/new app version compatibility is promised.
 
-The current implementation is a Draft stack. Dreaming organization is a subsequent layer; platform, runtime, and migration acceptance remains unverified. See [the module contract](../../../src/main/ai/memory/README.md) for the implementation boundary.
+The current implementation is a Draft stack. Dreaming organization is a subsequent layer; platform, runtime, and migration acceptance remains unverified. See [the module contract](../../../../src/main/ai/memory/README.md) for the implementation boundary.
 
 ### Knowledge Base (Assistant + Agent)
 
