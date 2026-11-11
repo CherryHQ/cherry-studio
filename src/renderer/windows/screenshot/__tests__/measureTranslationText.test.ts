@@ -12,7 +12,7 @@ function contextWith(metrics: Partial<TextMetrics> = {}): CanvasRenderingContext
       fontBoundingBoxDescent: 4,
       ...metrics
     })
-  } as CanvasRenderingContext2D
+  } as unknown as CanvasRenderingContext2D
 }
 
 describe('measureTranslationText', () => {

@@ -1,9 +1,10 @@
 import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { translateText } from '@renderer/utils/translate/translateText'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { MODEL_CAPABILITY, type Model, ModelSchema } from '@shared/data/types/model'
 
 import { type ScreenshotTranslationOptions, useScreenshotTranslation } from '../hooks/useScreenshotTranslation'
@@ -71,7 +72,11 @@ describe('useScreenshotTranslation', () => {
   let availableModels: Model[]
   let modelsLoading: boolean
   let modelsError: Error | undefined
+  let lookupData: Record<string, Model | undefined>
   let lookupErrors: Record<string, Error>
+  let lookupLoading: Record<string, boolean>
+  let lookupRefreshing: Record<string, boolean>
+  let refetches: Record<string, Mock<() => Promise<unknown>>>
   let oversizedMetrics: boolean
   let crop: ImageData
 
@@ -86,18 +91,24 @@ describe('useScreenshotTranslation', () => {
     availableModels = [MODEL, FALLBACK]
     modelsLoading = false
     modelsError = undefined
+    lookupData = {}
     lookupErrors = {}
+    lookupLoading = {}
+    lookupRefreshing = {}
+    refetches = {}
     oversizedMetrics = false
     mockUseQuery.mockImplementation((path, options) => ({
       data: (options?.enabled === false
         ? undefined
         : path === '/models'
           ? availableModels
-          : availableModels.find((model) => path === `/models/${model.id}`)) as never,
-      isLoading: modelsLoading && path === '/models',
-      isRefreshing: false,
+          : path in lookupData
+            ? lookupData[path]
+            : availableModels.find((model) => path === `/models/${model.id}`)) as never,
+      isLoading: path === '/models' ? modelsLoading : !!lookupLoading[path],
+      isRefreshing: !!lookupRefreshing[path],
       error: path === '/models' ? modelsError : lookupErrors[path],
-      refetch: vi.fn().mockResolvedValue(undefined),
+      refetch: (refetches[path] ??= vi.fn().mockResolvedValue(undefined)),
       mutate: vi.fn()
     }))
     vi.mocked(translateText).mockReset().mockResolvedValue('译文')
@@ -367,7 +378,7 @@ describe('useScreenshotTranslation', () => {
   it('uses the chat default when the remembered model record is gone', async () => {
     // Regression: a deleted optional remembered model suppresses a valid chat-default fallback.
     availableModels = [FALLBACK]
-    lookupErrors[`/models/${MODEL.id}`] = new Error('not found')
+    lookupErrors[`/models/${MODEL.id}`] = DataApiErrorFactory.notFound('Model', MODEL.id)
     const { result } = renderTranslation()
     await start(result)
     expect(result.current.modelId).toBe(FALLBACK.id)
@@ -375,10 +386,180 @@ describe('useScreenshotTranslation', () => {
     expect(vi.mocked(translateText).mock.calls.every((call) => call[4] === FALLBACK.id)).toBe(true)
   })
 
+  it('uses the chat default when the deleted remembered model still has cached data', async () => {
+    // Regression: a cached record wins over NOT_FOUND and hides a valid chat default.
+    availableModels = [FALLBACK]
+    lookupData[`/models/${MODEL.id}`] = MODEL
+    lookupErrors[`/models/${MODEL.id}`] = DataApiErrorFactory.notFound('Model', MODEL.id)
+    const { result } = renderTranslation()
+    await start(result)
+    expect(result.current.modelId).toBe(FALLBACK.id)
+    expect(result.current.workState).toBe('done')
+  })
+
+  it('reports unreadable model candidates as a retryable configuration failure', async () => {
+    // Regression: lookup failures without cached data ask the user to pick a model instead of retrying.
+    lookupData[`/models/${MODEL.id}`] = undefined
+    lookupData[`/models/${FALLBACK.id}`] = undefined
+    lookupErrors[`/models/${MODEL.id}`] = DataApiErrorFactory.timeout(`/models/${MODEL.id}`, 15000)
+    lookupErrors[`/models/${FALLBACK.id}`] = DataApiErrorFactory.timeout(`/models/${FALLBACK.id}`, 15000)
+    const { result } = renderTranslation()
+    await start(result)
+    expect(result.current.modelStatus).toBe('loading')
+    expect(result.current.errorMessage).toBe('configuration_failed')
+    expect(translateText).not.toHaveBeenCalled()
+  })
+
+  it('keeps a usable remembered model when the unused default is unreadable', async () => {
+    // Guard: an unreadable (not deleted) unused default must not block a usable remembered model.
+    availableModels = [MODEL]
+    lookupErrors[`/models/${FALLBACK.id}`] = DataApiErrorFactory.timeout(`/models/${FALLBACK.id}`, 15000)
+    const { result } = renderTranslation()
+    await start(result)
+    expect(result.current.modelId).toBe(MODEL.id)
+    expect(result.current.workState).toBe('done')
+  })
+
+  it('uses the healthy default when the remembered model has cached data and a timeout', async () => {
+    // Regression: cached data from a timed-out remembered lookup beats a healthy default.
+    lookupData[`/models/${MODEL.id}`] = MODEL
+    lookupErrors[`/models/${MODEL.id}`] = DataApiErrorFactory.timeout(`/models/${MODEL.id}`, 15000)
+    const { result } = renderTranslation()
+    await start(result)
+    expect(result.current.modelId).toBe(FALLBACK.id)
+    expect(result.current.workState).toBe('done')
+  })
+
+  it('reports configuration failure when the remembered model is gone and the cached default times out', async () => {
+    // Regression: cached default data hides a read failure when the remembered model is deleted.
+    lookupData[`/models/${MODEL.id}`] = undefined
+    lookupErrors[`/models/${MODEL.id}`] = DataApiErrorFactory.notFound('Model', MODEL.id)
+    lookupData[`/models/${FALLBACK.id}`] = FALLBACK
+    lookupErrors[`/models/${FALLBACK.id}`] = DataApiErrorFactory.timeout(`/models/${FALLBACK.id}`, 15000)
+    const { result } = renderTranslation()
+    await start(result)
+    expect(result.current.modelStatus).toBe('loading')
+    expect(result.current.errorMessage).toBe('configuration_failed')
+    expect(translateText).not.toHaveBeenCalled()
+    expect(refetches[`/models/${MODEL.id}`]).not.toHaveBeenCalled()
+    expect(refetches[`/models/${FALLBACK.id}`]).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for candidate lookups to settle before reporting configuration failure', async () => {
+    // Guard: a candidate failure must not be reported while the other candidate is still loading.
+    lookupData[`/models/${MODEL.id}`] = undefined
+    lookupErrors[`/models/${MODEL.id}`] = DataApiErrorFactory.timeout(`/models/${MODEL.id}`, 15000)
+    lookupData[`/models/${FALLBACK.id}`] = undefined
+    lookupLoading[`/models/${FALLBACK.id}`] = true
+    const hook = renderTranslation()
+    await start(hook.result)
+    expect(hook.result.current.modelStatus).toBe('loading')
+    expect(hook.result.current.errorMessage).toBeNull()
+    expect(translateText).not.toHaveBeenCalled()
+    lookupLoading = {}
+    lookupData = {}
+    hook.rerender(hook.options)
+    expect(hook.result.current.modelStatus).toBe('ready')
+    await start(hook.result)
+    expect(hook.result.current.workState).toBe('done')
+  })
+
+  it('waits for an errored candidate with cached data to finish refreshing before reporting configuration failure', async () => {
+    // Regression: round-3 code reports configuration failure while a cached candidate retries a timeout.
+    lookupData[`/models/${MODEL.id}`] = undefined
+    lookupErrors[`/models/${MODEL.id}`] = DataApiErrorFactory.notFound('Model', MODEL.id)
+    lookupData[`/models/${FALLBACK.id}`] = FALLBACK
+    lookupErrors[`/models/${FALLBACK.id}`] = DataApiErrorFactory.timeout(`/models/${FALLBACK.id}`, 15000)
+    lookupRefreshing[`/models/${FALLBACK.id}`] = true
+    const hook = renderTranslation()
+    await start(hook.result)
+    expect(hook.result.current.errorMessage).toBeNull()
+    expect(hook.result.current.modelStatus).toBe('loading')
+    expect(translateText).not.toHaveBeenCalled()
+    lookupRefreshing = {}
+    hook.rerender(hook.options)
+    await start(hook.result)
+    expect(hook.result.current.errorMessage).toBe('configuration_failed')
+  })
+
+  it('waits for a default with cached non-chat data to finish refreshing before reporting configuration failure', async () => {
+    // Regression: a remembered timeout reports failure while the non-chat cached default is still refreshing.
+    lookupData[`/models/${MODEL.id}`] = undefined
+    lookupErrors[`/models/${MODEL.id}`] = DataApiErrorFactory.timeout(`/models/${MODEL.id}`, 15000)
+    lookupData[`/models/${FALLBACK.id}`] = { ...FALLBACK, capabilities: [MODEL_CAPABILITY.EMBEDDING] }
+    lookupRefreshing[`/models/${FALLBACK.id}`] = true
+    const hook = renderTranslation()
+    await start(hook.result)
+    expect(hook.result.current.errorMessage).toBeNull()
+    expect(hook.result.current.modelStatus).toBe('loading')
+    expect(translateText).not.toHaveBeenCalled()
+    lookupData[`/models/${FALLBACK.id}`] = FALLBACK
+    lookupRefreshing = {}
+    hook.rerender(hook.options)
+    expect(hook.result.current.modelStatus).toBe('ready')
+    await start(hook.result)
+    expect(hook.result.current.workState).toBe('done')
+  })
+
+  it('refetches a failed lookup once when the remembered and default model ids are equal', async () => {
+    // Regression: round-3 code retries the same timed-out model twice in a single start.
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', MODEL.id)
+    const path = `/models/${MODEL.id}`
+    lookupErrors[path] = DataApiErrorFactory.timeout(path, 15000)
+    refetches[path] = vi.fn().mockReturnValue(deferred().promise)
+    const { result } = renderTranslation()
+    await start(result)
+    expect(result.current.errorMessage).toBe('configuration_failed')
+    expect(refetches[path]).toHaveBeenCalledTimes(1)
+    expect(translateText).not.toHaveBeenCalled()
+  })
+
+  it('refetches failed candidate lookups on start and completes after recovery', async () => {
+    // Regression: starting again repeats a retryable message without re-querying the failed lookups.
+    lookupData[`/models/${MODEL.id}`] = undefined
+    lookupData[`/models/${FALLBACK.id}`] = undefined
+    lookupErrors[`/models/${MODEL.id}`] = DataApiErrorFactory.timeout(`/models/${MODEL.id}`, 15000)
+    lookupErrors[`/models/${FALLBACK.id}`] = DataApiErrorFactory.timeout(`/models/${FALLBACK.id}`, 15000)
+    const hook = renderTranslation()
+    await start(hook.result)
+    expect(hook.result.current.errorMessage).toBe('configuration_failed')
+    expect(refetches[`/models/${MODEL.id}`]).toHaveBeenCalledTimes(1)
+    expect(refetches[`/models/${FALLBACK.id}`]).toHaveBeenCalledTimes(1)
+    expect(refetches['/models']).not.toHaveBeenCalled()
+    expect(translateText).not.toHaveBeenCalled()
+    await start(hook.result)
+    expect(refetches[`/models/${MODEL.id}`]).toHaveBeenCalledTimes(2)
+    expect(refetches[`/models/${FALLBACK.id}`]).toHaveBeenCalledTimes(2)
+    lookupErrors = {}
+    lookupData = {}
+    hook.rerender(hook.options)
+    expect(hook.result.current.modelStatus).toBe('ready')
+    expect(hook.result.current.errorMessage).toBeNull()
+    await start(hook.result)
+    expect(hook.result.current.workState).toBe('done')
+  })
+
+  it('reconciles a candidate configuration failure to model required when both records are gone', async () => {
+    // Regression: settling with no model leaves the configuration failure stale because modelId stays null.
+    lookupData[`/models/${MODEL.id}`] = undefined
+    lookupData[`/models/${FALLBACK.id}`] = undefined
+    lookupErrors[`/models/${MODEL.id}`] = DataApiErrorFactory.timeout(`/models/${MODEL.id}`, 15000)
+    lookupErrors[`/models/${FALLBACK.id}`] = DataApiErrorFactory.timeout(`/models/${FALLBACK.id}`, 15000)
+    const hook = renderTranslation()
+    await start(hook.result)
+    expect(hook.result.current.errorMessage).toBe('configuration_failed')
+    lookupErrors[`/models/${MODEL.id}`] = DataApiErrorFactory.notFound('Model', MODEL.id)
+    lookupErrors[`/models/${FALLBACK.id}`] = DataApiErrorFactory.notFound('Model', FALLBACK.id)
+    hook.rerender(hook.options)
+    expect(hook.result.current.modelStatus).toBe('missing')
+    expect(hook.result.current.errorMessage).toBe('model_required')
+    expect(translateText).not.toHaveBeenCalled()
+  })
+
   it('keeps a usable remembered model when the default record is gone', async () => {
     // Regression: a deleted optional default model suppresses a valid remembered-model fallback.
     availableModels = [MODEL]
-    lookupErrors[`/models/${FALLBACK.id}`] = new Error('not found')
+    lookupErrors[`/models/${FALLBACK.id}`] = DataApiErrorFactory.notFound('Model', FALLBACK.id)
     const { result } = renderTranslation()
     await start(result)
     expect(result.current.modelId).toBe(MODEL.id)
@@ -388,12 +569,16 @@ describe('useScreenshotTranslation', () => {
   it('reports model query failures as configuration errors rather than deleting memory', async () => {
     // Regression: a failed query is interpreted as model deletion.
     modelsError = new Error('offline')
+    lookupErrors[`/models/${MODEL.id}`] = DataApiErrorFactory.timeout(`/models/${MODEL.id}`, 15000)
+    lookupErrors[`/models/${FALLBACK.id}`] = DataApiErrorFactory.timeout(`/models/${FALLBACK.id}`, 15000)
     const { result } = renderTranslation()
     await start(result)
     expect(result.current.modelStatus).toBe('loading')
     expect(result.current.errorMessage).toBe('configuration_failed')
     expect(translateText).not.toHaveBeenCalled()
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.screenshot.translate.model_id')).toBe(MODEL.id)
+    expect(refetches[`/models/${MODEL.id}`]).not.toHaveBeenCalled()
+    expect(refetches[`/models/${FALLBACK.id}`]).not.toHaveBeenCalled()
   })
 
   it('keeps an explicitly selected model locally and reports a rejected preference write', async () => {

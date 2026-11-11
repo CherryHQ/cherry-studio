@@ -5,6 +5,7 @@ import { detectLanguageByFranc } from '@renderer/hooks/translate'
 import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { isAbortError } from '@renderer/utils/error'
 import { translateText } from '@renderer/utils/translate'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { type Model, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
@@ -94,16 +95,25 @@ export function useScreenshotTranslation(options: ScreenshotTranslationOptions):
   const fallback = useModelById(parsedDefaultId.success ? parsedDefaultId.data : null)
   const models = useModels()
   const loading = models.isLoading || remembered.isLoading || fallback.isLoading
-  // Candidate errors have no status code: deleted remembered/default IDs and transient failures are indistinguishable.
-  // Treat either as unusable and try the other candidate, or ask for a model; only a failed list is a configuration error.
-  const configurationError = models.error
-  const resolvedModel = usable(remembered.model, preferredId)
-    ? remembered.model
-    : usable(fallback.model, defaultId)
-      ? fallback.model
+  // Any error makes a candidate unavailable, even with cached data; remembered still takes precedence over default.
+  // If neither resolves, NOT_FOUND versus other errors decides model_required versus configuration_failed.
+  const rememberedModel = remembered.error ? undefined : remembered.model
+  const fallbackModel = fallback.error ? undefined : fallback.model
+  const resolvedModel = usable(rememberedModel, preferredId)
+    ? rememberedModel
+    : usable(fallbackModel, defaultId)
+      ? fallbackModel
       : null
+  const candidateRefreshing = !resolvedModel && (remembered.isRefreshing || fallback.isRefreshing)
+  const candidateError =
+    !loading &&
+    !candidateRefreshing &&
+    !resolvedModel &&
+    ((preferredId && remembered.error && !isDataApiNotFoundError(remembered.error)) ||
+      (defaultId && fallback.error && !isDataApiNotFoundError(fallback.error)))
+  const configurationError = models.error || candidateError
   const modelId = loading || configurationError ? null : (resolvedModel?.id ?? null)
-  const modelStatus = loading || configurationError ? 'loading' : modelId ? 'ready' : 'missing'
+  const modelStatus = loading || candidateRefreshing || configurationError ? 'loading' : modelId ? 'ready' : 'missing'
   const [modelPersistError, setModelPersistError] = useState(false)
   const [result, setResult] = useState<Result>(INITIAL)
   const [view, setView] = useState<TranslationView>('original')
@@ -138,6 +148,16 @@ export function useScreenshotTranslation(options: ScreenshotTranslationOptions):
     clear()
     return invalidate
   }, [mediaId, image, selectionKey, scaleFactor, phase, targetLangCode, modelId, clear, invalidate])
+
+  // Status can settle without modelId changing, so the keyed useLayoutEffect does not run.
+  useEffect(() => {
+    if (modelStatus === 'loading') return
+    setResult((previous) =>
+      previous.workState === 'idle' && previous.errorMessage === 'configuration_failed'
+        ? { ...previous, errorMessage: modelStatus === 'ready' ? null : 'model_required' }
+        : previous
+    )
+  }, [modelStatus])
 
   const pump = useCallback(
     function pump(run: Run) {
@@ -279,6 +299,11 @@ export function useScreenshotTranslation(options: ScreenshotTranslationOptions):
       return
     }
     if (configurationError || modelStatus === 'missing') {
+      if (!models.error && candidateError) {
+        if (remembered.error && !isDataApiNotFoundError(remembered.error)) void remembered.refetch()
+        if (defaultId !== preferredId && fallback.error && !isDataApiNotFoundError(fallback.error))
+          void fallback.refetch()
+      }
       setResult((previous) => ({
         ...previous,
         errorMessage: configurationError ? 'configuration_failed' : 'model_required'
