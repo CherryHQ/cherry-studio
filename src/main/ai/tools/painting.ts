@@ -32,11 +32,16 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 
-import { type GenerateImageToolInput, editInputImageLimit, limitGenerateImageInputIds } from './generateImageTool'
+import {
+  type GenerateImageToolInput,
+  editInputImageLimit,
+  limitGenerateImageInputIds,
+  validateGenerateImageAnimationInput
+} from './generateImageTool'
 
 const logger = loggerService.withContext('Painting')
 
-export const GENERATE_IMAGE_DESCRIPTION = `Generate or edit an image with the user's painting model. Pass image_ids only for edits; needs a configured model.`
+export const GENERATE_IMAGE_DESCRIPTION = `Generate or edit an image with the user's painting model. Pass image_ids only for edits; needs a configured model. Describe the actual output using the returned metadata and warnings; do not infer animation or frame timing from the request.`
 
 /**
  * A failed generation must be distinguishable from "ran fine, produced files":
@@ -76,7 +81,7 @@ export function isPaintingError(output: PaintingResult): output is PaintingError
   return !Array.isArray(output)
 }
 
-/** Shared model-output projection: an error renders its note; success renders a one-line summary. */
+/** Both runtimes report artifact facts and unmet requirements through the same model-facing text. */
 export function paintingModelOutput(output: PaintingResult): { type: 'text'; value: string } {
   if (isPaintingError(output)) {
     return { type: 'text', value: output.error }
@@ -84,8 +89,60 @@ export function paintingModelOutput(output: PaintingResult): { type: 'text'; val
   if (output.length === 0) {
     return { type: 'text', value: 'Image generation returned no images.' }
   }
-  const list = output.map((file) => `${file.name} (${file.id})`).join(', ')
-  return { type: 'text', value: `Generated ${output.length} image(s): ${list}` }
+  const list = output.map((file) => {
+    const metadata = file.metadata
+    const details = metadata
+      ? `${metadata.format}, ${metadata.frameCount} frame(s)${metadata.frameDurationsMs ? `, frame durations (ms): ${metadata.frameDurationsMs.join(', ')}` : ''}`
+      : 'format, animation and frame timing unverified; do not claim animation or frame timing'
+    return `${file.name} (${file.id}): ${details}${file.warning ? `. Warning: ${file.warning}` : ''}`
+  })
+  return { type: 'text', value: `Generated ${output.length} image(s):\n${list.join('\n')}` }
+}
+
+async function inspectGeneratedImage(
+  file: { id: string; name: string },
+  input: GenerateImageToolInput,
+  signal?: AbortSignal
+): Promise<GenerateImageOutput[number]> {
+  try {
+    signal?.throwIfAborted()
+    const { content } = await application.get('FileManager').read(file.id, { encoding: 'base64' })
+    signal?.throwIfAborted()
+    const sharp = (await import('sharp')).default
+    signal?.throwIfAborted()
+    const detected = await sharp(Buffer.from(content, 'base64'), { animated: true }).metadata()
+    signal?.throwIfAborted()
+    const metadata = {
+      format: detected.format,
+      frameCount: detected.pages ?? 1,
+      ...(detected.delay && { frameDurationsMs: detected.delay })
+    }
+    const mismatch =
+      input.outputFormat === 'gif' &&
+      (metadata.format !== 'gif' ||
+        metadata.frameCount < 2 ||
+        (input.frameCount != null && input.frameCount !== metadata.frameCount) ||
+        (input.frameDurationMs != null &&
+          (!detected.delay?.length || detected.delay.some((delay) => delay !== input.frameDurationMs))))
+    return {
+      id: file.id,
+      name: file.name,
+      metadata,
+      ...(mismatch && {
+        warning:
+          'The requested GIF animation settings were not met. Report the actual metadata; do not automatically retry this paid request.'
+      })
+    }
+  } catch (error) {
+    if (signal?.aborted || isAbortError(error)) throw error
+    logger.warn('Failed to inspect generated image metadata', { id: file.id, error })
+    return {
+      id: file.id,
+      name: file.name,
+      warning:
+        'Image metadata could not be verified. Do not claim animation or frame timing; do not automatically retry this paid request.'
+    }
+  }
 }
 
 export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null {
@@ -161,6 +218,9 @@ export async function generateImageFromPrompt(
 ): Promise<PaintingResult> {
   if (!configuredModel) return { error: PAINTING_MODEL_NOT_CONFIGURED_NOTE }
 
+  const inputError = validateGenerateImageAnimationInput(input)
+  if (inputError) return { error: inputError }
+
   const { uniqueModelId, support } = configuredModel
   const mode = resolveMode(input)
   if ((mode === 'edit' && !support?.modes.edit) || (mode === 'generate' && support && !support.modes.generate)) {
@@ -194,7 +254,10 @@ export async function generateImageFromPrompt(
       cleanupPolicy: 'manual',
       requestOptions: signal ? { signal } : undefined
     })
-    return files.map((file) => ({ id: file.id, name: file.name }))
+    signal?.throwIfAborted()
+    const output: GenerateImageOutput = []
+    for (const file of files) output.push(await inspectGeneratedImage(file, input, signal))
+    return output
   } catch (error) {
     // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
     // retryable error that keeps the tool loop running after the request was already aborted.

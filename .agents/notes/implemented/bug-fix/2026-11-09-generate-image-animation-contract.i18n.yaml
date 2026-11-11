@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-09-generate-image-animation-contract.md
+2026-11-09-generate-image-animation-contract.md: 9fe4721cf3b96bfac387e39e82237d28140d1ead
+2026-11-09-generate-image-animation-contract.zh.md: 6325f4cef70d3a1239554d093ebebc60e3ee45fb

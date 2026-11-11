@@ -1,5 +1,6 @@
 import type { Client } from '@modelcontextprotocol/client'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
@@ -11,21 +12,39 @@ const { getImageGenerationSupport, getModelByKey, loggerWarn } = vi.hoisted(() =
   loggerWarn: vi.fn()
 }))
 
-const searchKeywords = vi.fn()
-const fetchUrls = vi.fn()
-const kbSearch = vi.fn()
-const kbReadConcept = vi.fn()
-const kbGrepConcept = vi.fn()
-const kbGetOrganizationTree = vi.fn()
-const kbAddItems = vi.fn()
-const kbDeleteConcepts = vi.fn()
-const kbRefreshConcepts = vi.fn()
-const kbCreateBase = vi.fn()
-const listBasesForDiscovery = vi.fn()
-const listRootItems = vi.fn()
-const getPreference = vi.fn()
-const generateImage = vi.fn()
-const fileRead = vi.fn()
+const {
+  searchKeywords,
+  fetchUrls,
+  kbSearch,
+  kbReadConcept,
+  kbGrepConcept,
+  kbGetOrganizationTree,
+  kbAddItems,
+  kbDeleteConcepts,
+  kbRefreshConcepts,
+  kbCreateBase,
+  listBasesForDiscovery,
+  listRootItems,
+  getPreference,
+  generateImage,
+  fileRead
+} = vi.hoisted(() => ({
+  searchKeywords: vi.fn(),
+  fetchUrls: vi.fn(),
+  kbSearch: vi.fn(),
+  kbReadConcept: vi.fn(),
+  kbGrepConcept: vi.fn(),
+  kbGetOrganizationTree: vi.fn(),
+  kbAddItems: vi.fn(),
+  kbDeleteConcepts: vi.fn(),
+  kbRefreshConcepts: vi.fn(),
+  kbCreateBase: vi.fn(),
+  listBasesForDiscovery: vi.fn(),
+  listRootItems: vi.fn(),
+  getPreference: vi.fn(),
+  generateImage: vi.fn(),
+  fileRead: vi.fn()
+}))
 vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: getModelByKey }
 }))
@@ -40,31 +59,24 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'WebSearchService') return { searchKeywords, fetchUrls }
-      if (name === 'KnowledgeService') {
-        return {
-          search: kbSearch,
-          readConcept: kbReadConcept,
-          grepConcept: kbGrepConcept,
-          getOrganizationTree: kbGetOrganizationTree,
-          addItems: kbAddItems,
-          deleteConcepts: kbDeleteConcepts,
-          refreshConcepts: kbRefreshConcepts,
-          createBase: kbCreateBase,
-          listBasesForDiscovery,
-          listRootItems
-        }
-      }
-      if (name === 'PreferenceService') return { get: getPreference }
-      if (name === 'AiService') return { generateImage }
-      if (name === 'FileManager') return { read: fileRead }
-      throw new Error(`unexpected service: ${name}`)
-    }
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory, MockApplicationUtils } = await import('@test-mocks/main/application')
+  MockApplicationUtils.setService('WebSearchService', { searchKeywords, fetchUrls })
+  MockApplicationUtils.setService('KnowledgeService', {
+    search: kbSearch,
+    readConcept: kbReadConcept,
+    grepConcept: kbGrepConcept,
+    getOrganizationTree: kbGetOrganizationTree,
+    addItems: kbAddItems,
+    deleteConcepts: kbDeleteConcepts,
+    refreshConcepts: kbRefreshConcepts,
+    createBase: kbCreateBase,
+    listBasesForDiscovery,
+    listRootItems
+  })
+  MockApplicationUtils.setService('AiService', { generateImage })
+  return mockApplicationFactory({ PreferenceService: { get: getPreference }, FileManager: { read: fileRead } })
+})
 
 const { createCherryToolsServer } = await import('../cherryBuiltinTools')
 const { CLAUDE_KNOWLEDGE_TOOL_NAMES } = await import('@shared/ai/claudecode/toolRegistry')
@@ -693,6 +705,47 @@ describe('cherry-tools builtin tools', () => {
     // …followed by the base64 image content block the agent renderer shows inline.
     expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
     expect(result.content[1]).toEqual({ type: 'image', data: 'BASE64DATA', mimeType: 'image/png' })
+  })
+
+  it('rejects incomplete animation parameters over MCP with an actionable note before generation', async () => {
+    getPreference.mockReturnValue('openai::gpt-image-2.6-sunburst')
+    getImageGenerationSupport.mockReturnValue({
+      modes: {
+        generate: {
+          supports: {
+            outputFormat: { type: 'enum', options: ['png', 'gif'] },
+            frameCount: { type: 'range', min: 2, max: 16 },
+            frameDurationMs: { type: 'range', min: 20, max: 2000 }
+          }
+        }
+      }
+    } satisfies ImageGenerationSupport)
+    const result = await callCherryTool('generate_image', { prompt: 'a panda', frameCount: 8, frameDurationMs: 200 })
+    expect(textOf(result)).toContain('outputFormat="gif"')
+    expect(textOf(result)).toContain('do not retry unchanged')
+    expect(generateImage).not.toHaveBeenCalled()
+  })
+
+  it('returns actual GIF timing and unchanged inline bytes over MCP', async () => {
+    const raw = Buffer.concat([Buffer.alloc(4 * 4 * 3, 40), Buffer.alloc(4 * 4 * 3, 200)])
+    const bytes = await sharp(raw, { raw: { width: 4, height: 8, channels: 3, pageHeight: 4 } })
+      .gif({ delay: [100, 200] })
+      .toBuffer()
+    getPreference.mockReturnValue('openai::gpt-image-2.6-sunburst')
+    getImageGenerationSupport.mockReturnValue({
+      modes: {
+        generate: {
+          supports: {
+            outputFormat: { type: 'enum', options: ['png', 'gif'] }
+          }
+        }
+      }
+    } satisfies ImageGenerationSupport)
+    generateImage.mockResolvedValue({ files: [{ id: 'f1', name: 'animation.gif' }] })
+    fileRead.mockResolvedValue({ content: bytes.toString('base64'), mime: 'image/gif' })
+    const result = await callCherryTool('generate_image', { prompt: 'a panda', outputFormat: 'gif' })
+    expect(textOf(result)).toContain('gif, 2 frame(s), frame durations (ms): 100, 200')
+    expect(result.content[1]).toEqual({ type: 'image', data: bytes.toString('base64'), mimeType: 'image/gif' })
   })
 
   it('advertises provider-accurate generate_image params from the configured model', async () => {

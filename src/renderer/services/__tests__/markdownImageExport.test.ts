@@ -177,9 +177,12 @@ describe('collectExportableImages', () => {
     expect(refs).toEqual([])
   })
 
-  it('resolves generate_image output ids to file urls', async () => {
+  it.each([
+    { id: 'gen-1', name: 'painting.png' },
+    { id: 'gen-1', name: 'painting.png', metadata: { format: 'png', frameCount: 1 }, warning: 'GIF request not met' }
+  ])('exports historical and inspected generate_image outputs: %j', async (file) => {
     mockPhysicalPaths({ 'gen-1': '/data/Files/gen-1.png' })
-    const message = view([generateImagePart([{ id: 'gen-1', name: 'painting.png' }])], 'assistant')
+    const message = view([generateImagePart([file])], 'assistant')
 
     const { refs } = await collectExportableImages([message])
     expect(ipcApiRequest).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: ['gen-1'] })
