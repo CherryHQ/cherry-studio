@@ -46,7 +46,7 @@ describe('side-chat runtime boundaries', () => {
     live.delete(run.streamId)
   }
 
-  function source() {
+  function source(answerText = 'Original answer excerpt') {
     const topic = topicService.create({ name: 'Source' })
     messageService.create(topic.id, {
       role: 'user',
@@ -56,7 +56,7 @@ describe('side-chat runtime boundaries', () => {
     })
     const answer = messageService.create(topic.id, {
       role: 'assistant',
-      data: { parts: [{ type: 'text', text: 'Original answer excerpt' }] },
+      data: { parts: [{ type: 'text', text: answerText }] },
       status: 'success',
       setAsActive: true
     })
@@ -383,11 +383,65 @@ describe('side-chat runtime boundaries', () => {
     expect(() => service.get('one', side.topicId)).toThrow()
   })
 
-  it('rejects an oversize selection/question without submitting a truncated question', async () => {
+  it.each(['data', 'file'])('accepts the same image budget for %s URLs', async (transport) => {
+    saved = false
+    dbh.db.update(userModelTable).set({ contextWindow: 131072 }).run()
     const side = service.create('one', source(), { modelId })
-    await expect(service.submit('one', side.topicId, 'x'.repeat(50_000), modelId)).rejects.toThrow(
+    const url =
+      transport === 'data'
+        ? `data:image/png;base64,${Buffer.alloc(100 * 1024).toString('base64')}`
+        : 'file:///example.png'
+    const parts: CherryMessagePart[] = [
+      { type: 'text', text: 'Explain' },
+      { type: 'file', mediaType: 'image/png', url }
+    ]
+    await service.submit('one', side.topicId, 'Explain', modelId, undefined, parts)
+    expect(runs[0].messages?.at(-1)?.parts).toEqual(parts)
+    expect(service.get('one', side.topicId).omittedContext).toEqual([])
+  })
+
+  it('still reserves context for images rather than treating media as free', async () => {
+    saved = false
+    dbh.db.update(userModelTable).set({ contextWindow: 4096 }).run()
+    const side = service.create('one', source(), { modelId })
+    await service.submit('one', side.topicId, 'Explain', modelId)
+    await finish(runs[0])
+    const parts: CherryMessagePart[] = Array.from({ length: 4 }, () => ({
+      type: 'file',
+      mediaType: 'image/png',
+      url: 'file:///example.png'
+    }))
+    await expect(service.submit('one', side.topicId, '', modelId, undefined, parts)).rejects.toThrow(
       'side_chat_context_too_large'
     )
+    expect(service.get('one', side.topicId).questionCount).toBe(1)
+    expect(runs).toHaveLength(1)
+  })
+
+  it('rejects oversized inline images before creating a question or starting a provider request', async () => {
+    saved = false
+    const side = service.create('one', source(), { modelId })
+    const parts: CherryMessagePart[] = [
+      {
+        type: 'file',
+        mediaType: 'image/png',
+        url: `data:image/png;base64,${'A'.repeat(Math.ceil((100 * 1024 * 1024 + 1) / 3) * 4)}`
+      }
+    ]
+    await expect(service.submit('one', side.topicId, '', modelId, undefined, parts)).rejects.toThrow(
+      'side_chat_invalid_question'
+    )
+    expect(service.get('one', side.topicId).messages).toEqual([])
+    expect(runs).toHaveLength(0)
+  })
+
+  it.each(['selection', 'question'])('rejects an oversize %s without truncation', async (kind) => {
+    const oversized = 'x'.repeat(50_000)
+    const input = kind === 'selection' ? { ...source(oversized), selection: oversized } : source()
+    const side = service.create('one', input, { modelId })
+    await expect(
+      service.submit('one', side.topicId, kind === 'question' ? oversized : 'Explain', modelId)
+    ).rejects.toThrow('side_chat_context_too_large')
     expect(service.get('one', side.topicId).messages).toEqual([])
     expect(runs).toHaveLength(0)
   })
