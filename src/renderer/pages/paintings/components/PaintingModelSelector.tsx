@@ -7,7 +7,8 @@ import { useTranslation } from 'react-i18next'
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { getProviderDisplayName, ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { getProviderDisplayName, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelLogoRef } from '@renderer/utils/model'
@@ -74,6 +75,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
         </PaintingSectionTitle>
       )}
       <ModelSelector
+        showSubscriptionOffers={false}
         open={open}
         onOpenChange={setOpen}
         multiple={false}

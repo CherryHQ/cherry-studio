@@ -3,136 +3,124 @@ import { createElement, type PropsWithChildren } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  ipcRequest: vi.fn(),
-  statusChanged: undefined as ((status: { phase: string; displayName: string | null }) => void) | undefined,
-  toastError: vi.fn()
-}))
-
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mocks.ipcRequest },
-  useIpcOn: (_event: string, listener: NonNullable<typeof mocks.statusChanged>) => {
-    mocks.statusChanged = listener
-  }
-}))
-
-vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError } }))
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
-
-import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
-import { IpcError } from '@shared/ipc/errors/IpcError'
+import { toast } from '@renderer/services/toast'
+import type { CherryCloudAccountReceipt, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 
 import { useCherryAccountSession } from '../useCherryAccountSession'
 
-const signedOut = { phase: 'signed-out' as const, displayName: null }
-const signedIn = { phase: 'signed-in' as const, displayName: 'Sora' }
-
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((done) => {
-    resolve = done
-  })
-  return { promise, resolve }
+const request = vi.mocked(window.api.ipcApi.request)
+let current: CherryCloudAccountReceipt
+const listeners = new Set<(receipt: CherryCloudAccountReceipt) => void>()
+function receipt(phase: CherryCloudStatus['phase'], revision = 1): CherryCloudAccountReceipt {
+  return {
+    status: {
+      phase,
+      accountId: phase === 'signed-in' ? 'account-1' : null,
+      displayName: null,
+      scopeId: phase === 'signed-in' ? 'in' : 'out',
+      revision
+    },
+    reason: 'initial',
+    account: { freshness: 'unknown', error: null },
+    models: { freshness: 'unknown', error: null },
+    plans: { freshness: 'unknown', error: null }
+  }
 }
-
-function createWrapper() {
+function publish(next: CherryCloudAccountReceipt) {
+  current = next
+  listeners.forEach((listener) => listener(next))
+}
+function wrapper() {
   const cache = new Map()
   return ({ children }: PropsWithChildren) => createElement(SWRConfig, { value: { provider: () => cache } }, children)
 }
-
-describe('useCherryAccountSession', () => {
-  beforeEach(() => {
-    mocks.ipcRequest.mockReset().mockResolvedValue(signedOut)
-    mocks.statusChanged = undefined
-    mocks.toastError.mockReset()
+beforeEach(() => {
+  vi.clearAllMocks()
+  listeners.clear()
+  current = receipt('signed-out')
+  request.mockImplementation(async () => ({ ok: true, data: current }))
+  vi.mocked(window.api.ipcApi.on).mockImplementation((event, listener) => {
+    if (event === 'cherry_cloud.account_changed') listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
+    }
   })
+})
 
-  it('keeps a known session ready across remounts and during background refresh', async () => {
-    const wrapper = createWrapper()
-    const first = renderHook(() => useCherryAccountSession(), { wrapper })
+describe('useCherryAccountSession receipt projection', () => {
+  it('keeps known status ready while its background snapshot is pending', async () => {
+    const cached = wrapper()
+    const first = renderHook(() => useCherryAccountSession(), { wrapper: cached })
     await waitFor(() => expect(first.result.current.loadState).toBe('ready'))
     first.unmount()
-
-    const pending = deferred<typeof signedIn>()
-    mocks.ipcRequest.mockReturnValue(pending.promise)
-    const second = renderHook(() => useCherryAccountSession(), { wrapper })
-    expect(second.result.current.status).toEqual(signedOut)
-    expect(second.result.current.loadState).toBe('ready')
-
-    let refresh!: Promise<void>
-    act(() => {
-      refresh = second.result.current.reload()
-    })
+    const pending = Promise.withResolvers<{ ok: true; data: CherryCloudAccountReceipt }>()
+    request.mockReturnValueOnce(pending.promise)
+    const second = renderHook(() => useCherryAccountSession(), { wrapper: cached })
+    expect(second.result.current.status?.phase).toBe('signed-out')
     expect(second.result.current.loadState).toBe('ready')
     await act(async () => {
-      pending.resolve(signedIn)
-      await refresh
+      pending.resolve({ ok: true, data: receipt('signed-in', 2) })
     })
-    expect(second.result.current.status).toEqual(signedIn)
   })
-
-  it('does not let an older status request overwrite a newer status event', async () => {
-    const pendingStatus = deferred<typeof signedOut>()
-    mocks.ipcRequest.mockReturnValueOnce(pendingStatus.promise)
-    const { result } = renderHook(() => useCherryAccountSession(), { wrapper: createWrapper() })
-
-    act(() => mocks.statusChanged?.(signedIn))
-    expect(result.current.status).toEqual(signedIn)
-
+  it('does not let an older request replace a newer receipt event', async () => {
+    const pending = Promise.withResolvers<{ ok: true; data: CherryCloudAccountReceipt }>()
+    request.mockReturnValueOnce(pending.promise)
+    const { result } = renderHook(() => useCherryAccountSession(), { wrapper: wrapper() })
+    act(() => publish(receipt('signed-in', 2)))
     await act(async () => {
-      pendingStatus.resolve(signedOut)
-      await pendingStatus.promise
+      pending.resolve({ ok: true, data: receipt('signed-out') })
     })
-    expect(result.current.status).toEqual(signedIn)
+    expect(result.current.status?.phase).toBe('signed-in')
   })
-
-  it.each([
-    [
-      'login',
-      'cherry_cloud.login.start',
-      'isStartingLogin',
-      { phase: 'authorizing', accountId: null, displayName: null }
-    ],
-    ['cancelLogin', 'cherry_cloud.login.cancel', 'isCancellingLogin', signedOut],
-    ['revokeSession', 'cherry_cloud.session.revoke', 'isRevokingSession', signedOut]
-  ] as const)('runs %s with an isolated loading state', async (action, route, pendingFlag, nextStatus) => {
-    const pendingAction = deferred<typeof nextStatus>()
-    const { result } = renderHook(() => useCherryAccountSession(), { wrapper: createWrapper() })
+  it('reports a terminal login failure after normal authorizing and signed-out progress', async () => {
+    const { result } = renderHook(() => useCherryAccountSession(), { wrapper: wrapper() })
     await waitFor(() => expect(result.current.loadState).toBe('ready'))
-    mocks.ipcRequest.mockImplementationOnce((requestedRoute: string) => {
-      expect(requestedRoute).toBe(route)
-      return pendingAction.promise
-    })
-
-    let request!: Promise<void>
+    const pending = Promise.withResolvers<never>()
+    request.mockImplementationOnce(() => pending.promise)
+    let login!: Promise<void>
     act(() => {
-      request = result.current[action]()
+      login = result.current.login()
     })
-    expect(result.current[pendingFlag]).toBe(true)
-
+    act(() => publish(receipt('authorizing', 2)))
+    act(() => publish(receipt('signed-out', 3)))
     await act(async () => {
-      pendingAction.resolve(nextStatus)
-      await request
+      pending.reject(new Error('browser unavailable'))
+      await login
     })
-    expect(result.current.status).toEqual(nextStatus)
-    expect(result.current[pendingFlag]).toBe(false)
+    expect(toast.error).toHaveBeenCalledOnce()
+    expect(result.current.isAuthorizing).toBe(false)
+    expect(result.current.status?.phase).toBe('signed-out')
   })
-
-  it.each([
-    ['login', new IpcError(cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE), 'error.http.503'],
-    ['login', new IpcError('CHERRY_CLOUD_UPGRADE_REQUIRED'), 'settings.provider.cherry_cloud.upgrade_required'],
-    ['login', new Error('Cherry Cloud login request failed (400)'), 'settings.provider.cherry_cloud.sign_in_failed'],
-    ['cancelLogin', new Error('cancel failed'), 'settings.provider.cherry_cloud.sign_in_failed'],
-    ['revokeSession', new Error('revoke failed'), 'settings.provider.cherry_cloud.logout_failed']
-  ] as const)('translates %s failures', async (action, error, message) => {
-    const { result } = renderHook(() => useCherryAccountSession(), { wrapper: createWrapper() })
-    await waitFor(() => expect(result.current.loadState).toBe('ready'))
-    mocks.ipcRequest.mockRejectedValueOnce(error)
-
-    await act(() => result.current[action]())
-
-    expect(mocks.toastError).toHaveBeenCalledWith(message)
-    expect(result.current.isStartingLogin).toBe(false)
-    expect(result.current.status).toEqual(signedOut)
+  it.each(['login', 'cancelLogin', 'revokeSession'] as const)(
+    'settles %s from the owner and reloads its snapshot',
+    async (action) => {
+      const { result } = renderHook(() => useCherryAccountSession(), { wrapper: wrapper() })
+      await waitFor(() => expect(result.current.loadState).toBe('ready'))
+      request.mockImplementationOnce(async () => {
+        current = receipt(action === 'login' ? 'signed-in' : 'signed-out', 2)
+        return {
+          ok: true,
+          data: action === 'login' ? { outcome: 'signed-in', status: current.status } : current.status
+        }
+      })
+      await act(() => result.current[action]())
+      expect(result.current.status?.phase).toBe(action === 'login' ? 'signed-in' : 'signed-out')
+      expect(
+        result.current.isStartingLogin || result.current.isCancellingLogin || result.current.isRevokingSession
+      ).toBe(false)
+    }
+  )
+  it('does not report an abandoned component action failure', async () => {
+    const pending = Promise.withResolvers<never>()
+    const hook = renderHook(() => useCherryAccountSession(), { wrapper: wrapper() })
+    await waitFor(() => expect(hook.result.current.loadState).toBe('ready'))
+    request.mockReturnValueOnce(pending.promise)
+    const login = hook.result.current.login()
+    hook.unmount()
+    await act(async () => {
+      pending.reject(new Error('late'))
+      await login
+    })
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

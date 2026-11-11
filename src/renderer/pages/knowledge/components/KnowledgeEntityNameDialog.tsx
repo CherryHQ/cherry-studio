@@ -43,12 +43,7 @@ const KnowledgeEntityNameDialog = ({
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open) {
-      setName('')
-      setHasAttemptedSubmit(false)
-      setSubmitError(null)
-      return
-    }
+    if (!open) return
 
     setName(initialName)
     setHasAttemptedSubmit(false)

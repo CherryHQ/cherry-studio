@@ -1,0 +1,568 @@
+import { randomUUID } from 'node:crypto'
+
+import {
+  sessionEntryToContextMessages,
+  type AgentSession,
+  type AgentSessionEvent
+} from '@earendil-works/pi-coding-agent'
+
+import { ENTRY_KINDS, type SubagentResults } from '@cherrystudio/agent-behavior'
+import {
+  runtimeId,
+  ThreadFeed,
+  RuntimeMessageStream,
+  type RuntimeMessage,
+  type InputId,
+  type InputState,
+  type ItemRef,
+  type Observation,
+  type ObservationPayload,
+  type OperationResult,
+  type Thread
+} from '@cherrystudio/agent-runtime'
+
+import { readContextUsage } from './contextUsage'
+
+type PiMessage = AgentSession['messages'][number]
+type PiContext = { message: PiMessage; id: string }[]
+
+export interface PiObservation {
+  readonly backgroundResults?: OperationResult<SubagentResults>
+  readonly events: readonly ObservationPayload[]
+  readonly aliases: Readonly<Record<string, string>>
+  readonly live: readonly string[]
+  readonly settled: boolean
+  readonly outcomes: readonly InputState[]
+  readonly children: readonly { thread: Thread; outcome: string }[]
+}
+
+export class PiProjection {
+  readonly feed: ThreadFeed
+  private ids = new WeakMap<object, string>()
+  private originals = new WeakMap<object, PiMessage>()
+  private readonly aliases: Record<string, string> = {}
+  private inputIds = new WeakMap<object, InputId>()
+  private active = new Map<string, string>()
+  private calls = new Map<string, string>()
+  private snapshotMessages: RuntimeMessage[] | undefined
+  private readonly readers = new Map<
+    string,
+    {
+      reader: RuntimeMessageStream
+      texts: Map<number, { index: number; text: string }>
+    }
+  >()
+  private pending = Promise.resolve()
+  private backgroundResults?: OperationResult<SubagentResults>
+  private settled = false
+  private generation = 0
+  private unsubscribe: () => void = () => {}
+
+  constructor(
+    readonly ref: Thread,
+    private session: AgentSession,
+    private readonly report: (error: unknown) => void,
+    children: boolean
+  ) {
+    this.feed = new ThreadFeed(
+      {
+        type: 'snapshot',
+        messages: [],
+        inputs: [],
+        ...(children ? { subagents: [] } : {}),
+        activity: { state: session.isIdle ? 'idle' : 'active' }
+      },
+      report
+    )
+    this.bind(session)
+    this.feed.publish({ type: 'context.changed', result: readContextUsage(session) })
+    for (const message of this.currentMessages()) this.write(message, this.id(message), 'complete')
+  }
+
+  observe(sink: (batch: PiObservation) => void | Promise<void>): Observation {
+    const historical = new Set(this.feed.snapshot.messages.map((message) => message.id))
+    let children: { thread: Thread; outcome: string }[] = []
+    let outcomes: readonly InputState[] = []
+    const completedCalls = new Set<string>()
+    return this.feed.observeCaptured(sink, (event, delivery) => {
+      for (const [committed, preview] of Object.entries(this.aliases))
+        if (historical.has(preview)) historical.add(committed)
+      const messages =
+        event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+      if (delivery !== 'recovery') {
+        children = []
+        outcomes = event.type === 'input.changed' && event.input.outcome ? [event.input] : []
+      }
+      for (const message of delivery === 'update' && event.type === 'message.upsert' ? messages : [])
+        for (const part of message.parts) {
+          if (part.type !== 'dynamic-tool' || part.toolName !== 'subagent' || completedCalls.has(part.toolCallId))
+            continue
+          const output =
+            part.state === 'output-error'
+              ? part.resultProviderMetadata?.pi?.result
+              : part.state === 'output-available' && !part.preliminary
+                ? part.output
+                : undefined
+          if (!output || typeof output !== 'object' || Array.isArray(output) || !('details' in output)) continue
+          const details = output.details
+          if (!details || typeof details !== 'object' || Array.isArray(details)) continue
+          if (
+            'background' in details &&
+            details.background === false &&
+            'sessionId' in details &&
+            typeof details.sessionId === 'string' &&
+            'outcome' in details &&
+            typeof details.outcome === 'string'
+          ) {
+            children.push({
+              thread: { backendId: this.ref.backendId, id: runtimeId(details.sessionId) },
+              outcome: details.outcome
+            })
+            completedCalls.add(part.toolCallId)
+          }
+        }
+      const settled = delivery !== 'baseline' && this.settled
+      return {
+        value: {
+          events: [event],
+          backgroundResults: this.backgroundResults,
+          aliases: this.aliases,
+          live:
+            delivery === 'baseline'
+              ? []
+              : messages.filter((message) => !historical.has(message.id)).map((message) => message.id),
+          settled,
+          children,
+          outcomes
+        },
+        retain: settled || children.length > 0 || outcomes.length > 0
+      }
+    })
+  }
+
+  results(result: OperationResult<SubagentResults>): void {
+    const captured = structuredClone(result)
+    this.pending = this.pending
+      .then(() => {
+        this.backgroundResults = captured
+        this.feed.publish(this.feed.snapshot)
+      })
+      .catch((error) => this.report(error))
+  }
+
+  rebind(session: AgentSession): void {
+    this.unsubscribe()
+    this.generation++
+    for (const { reader } of this.readers.values()) void reader.close()
+    this.readers.clear()
+    this.reset(session)
+    this.bind(session)
+  }
+
+  private reset(session: AgentSession, context?: PiContext): void {
+    this.session = session
+    this.ids = new WeakMap()
+    this.inputIds = new WeakMap()
+    this.active.clear()
+    this.calls.clear()
+    this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
+    this.snapshotMessages = []
+    for (const { message, id } of context ?? this.captureContext()) this.write(message, id, 'complete')
+    this.feed.publish({
+      ...this.feed.snapshot,
+      messages: this.snapshotMessages,
+      activity: { state: session.isIdle ? 'idle' : 'active' }
+    })
+    this.snapshotMessages = undefined
+    this.feed.publish({ type: 'context.changed', result: readContextUsage(session) })
+  }
+
+  private captureContext(): PiContext {
+    const own = this.ownEntryIds()
+    return this.session.sessionManager
+      .buildSessionProjection()
+      .entries.filter(({ sourceEntry }) => !own || own.has(sourceEntry.id))
+      .flatMap(({ sourceEntry, messages }) =>
+        messages.map((message) => ({ message: structuredClone(message), id: sourceEntry.id }))
+      )
+  }
+
+  private currentMessages(): PiMessage[] {
+    const own = this.ownEntryIds()
+    return own ? this.session.messages.filter((message) => own.has(this.entryId(message) ?? '')) : this.session.messages
+  }
+
+  private ownEntryIds(): Set<string> | undefined {
+    const branch = this.session.sessionManager.getBranch()
+    const origin = branch.findLastIndex(
+      (entry) => entry.type === 'custom' && entry.customType === ENTRY_KINDS.subagentOrigin
+    )
+    return origin < 0 ? undefined : new Set(branch.slice(origin + 1).map((entry) => entry.id))
+  }
+
+  /** Committed native entries and their proven live identities; copied parent context is excluded. */
+  archive(): {
+    messages: RuntimeMessage[]
+    responseIds: Record<string, string>
+    aliases: Record<string, string>
+    legacy: Record<string, { messageId: string; parts: number[] }>
+  } {
+    const branch = this.session.sessionManager.getBranch()
+    const start = branch.findLastIndex(
+      (entry) => entry.type === 'custom' && entry.customType === ENTRY_KINDS.subagentOrigin
+    )
+    const calls = this.calls
+    this.calls = new Map()
+    this.snapshotMessages = []
+    const aliases: Record<string, string> = {}
+    const responseIds: Record<string, string> = {}
+    try {
+      for (const entry of branch.slice(start + 1)) {
+        if (entry.type !== 'message' && entry.type !== 'custom_message') continue
+        const message = sessionEntryToContextMessages(entry)[0]
+        if (message.role === 'assistant' && message.responseId) responseIds[message.responseId] = entry.id
+        const offset = this.snapshotMessages.length
+        this.write(message, entry.id, 'complete')
+        const live = this.ids.get(message)
+        if (live) for (const message of this.snapshotMessages.slice(offset)) aliases[message.id] = live
+      }
+      const legacy: Record<string, { messageId: string; parts: number[] }> = {}
+      for (const message of this.snapshotMessages) {
+        const parts: number[] = []
+        message.parts.forEach((part, index) => {
+          if (part.type === 'dynamic-tool')
+            legacy[`${message.id}:call:${part.toolCallId}`] = { messageId: message.id, parts: [index] }
+          else parts.push(index)
+        })
+        legacy[message.id] = { messageId: message.id, parts }
+      }
+      return { messages: this.snapshotMessages, responseIds, aliases: { ...aliases, ...this.aliases }, legacy }
+    } finally {
+      this.snapshotMessages = undefined
+      this.calls = calls
+    }
+  }
+
+  private bind(session: AgentSession): void {
+    this.unsubscribe = session.subscribe((native) => {
+      const event = structuredClone(native)
+      if ('message' in native && 'message' in event) {
+        const message = native.message
+        const slot = message.role === 'toolResult' ? `tool:${message.toolCallId}` : message.role
+        const id = native.type === 'message_start' ? this.id(message) : (this.active.get(slot) ?? this.id(message))
+        this.ids.set(message, id)
+        this.ids.set(event.message, id)
+        this.originals.set(event.message, message)
+        if (native.type === 'message_start') this.active.set(slot, id)
+        if (native.type === 'message_end') this.active.delete(slot)
+        if (native.type === 'input_placed') {
+          const inputId = runtimeId<'input'>(native.inputId)
+          this.inputIds.set(message, inputId)
+          this.inputIds.set(event.message, inputId)
+        }
+      }
+      const context =
+        event.type === 'entry_appended' &&
+        (event.entry.type === 'custom_message' ||
+          event.entry.type === 'context_edit' ||
+          event.entry.type === 'compaction')
+          ? this.captureContext()
+          : undefined
+      const generation = this.generation
+      this.pending = this.pending
+        .then(async () => {
+          if (generation === this.generation) await this.event(event, context)
+        })
+        .catch((error) => {
+          this.report(error)
+          this.feed.publish({ type: 'gap', reason: 'disconnected' })
+        })
+    })
+  }
+
+  async close(): Promise<void> {
+    this.unsubscribe()
+    await this.pending
+    for (const { reader } of this.readers.values()) await reader.close()
+    this.readers.clear()
+    this.feed.close('shutdown')
+  }
+
+  recordInput(input: InputState & { readonly inputId: InputId }): void {
+    const previous = this.feed.snapshot.inputs.find((known) => known.inputId === input.inputId)
+    this.feed.publish({
+      type: 'input.changed',
+      input: { ...previous, ...input, facts: [...new Set([...(previous?.facts ?? []), ...input.facts])] }
+    })
+  }
+
+  private id(message: PiMessage): string {
+    const known = this.ids.get(message)
+    if (known) return known
+    const id = this.entryId(message) ?? `live:${randomUUID()}`
+    this.ids.set(message, id)
+    return id
+  }
+
+  private entryId(message: PiMessage): string | undefined {
+    const entry = this.session.sessionManager
+      .getBranch()
+      .find((entry) => entry.type === 'message' && entry.message === message)
+    if (entry) return entry.id
+    const index = this.session.messages.indexOf(message)
+    if (index < 0) return undefined
+    // Pi rebuilds custom/context-edited messages from this ordered native projection.
+    return this.session.sessionManager
+      .buildSessionProjection()
+      .entries.flatMap((entry) => entry.messages.map(() => entry.sourceEntry.id))[index]
+  }
+
+  private itemRef(id: string): ItemRef {
+    return { session: this.ref, id: runtimeId(id) }
+  }
+
+  private publish(message: RuntimeMessage, replaces?: readonly ItemRef[]): void {
+    if (this.snapshotMessages) {
+      const index = this.snapshotMessages.findIndex((item) => item.id === message.id)
+      if (index < 0) this.snapshotMessages.push(message)
+      else this.snapshotMessages[index] = message
+    } else this.feed.publish({ type: 'message.upsert', message, replaces })
+  }
+
+  private result(callId: string, output: unknown, isError: boolean, preliminary = false): void {
+    const id = this.calls.get(callId)
+    const message = (this.snapshotMessages ?? this.feed.snapshot.messages).find((message) => message.id === id)
+    if (!message) return
+    this.publish({
+      ...message,
+      parts: message.parts.map((part) => {
+        if (part.type !== 'dynamic-tool' || part.toolCallId !== callId) return part
+        const base = {
+          type: 'dynamic-tool' as const,
+          toolName: part.toolName,
+          toolCallId: part.toolCallId,
+          input: part.input,
+          callProviderMetadata: part.callProviderMetadata
+        }
+        if (!isError) return { ...base, state: 'output-available', output, preliminary }
+        const content = (output as { content?: { type: string; text?: string }[] }).content
+        return {
+          ...base,
+          state: 'output-error',
+          errorText:
+            content
+              ?.filter((part) => part.type === 'text')
+              .map((part) => part.text)
+              .join('\n') ?? String(output),
+          resultProviderMetadata: { pi: { result: JSON.parse(JSON.stringify(output)) } }
+        }
+      })
+    })
+  }
+
+  private write(message: PiMessage, id: string, completeness: 'partial' | 'complete'): void {
+    if (!('content' in message)) return
+    if (message.role === 'toolResult') {
+      this.result(message.toolCallId, { content: message.content, details: message.details }, message.isError)
+      return
+    }
+    if (
+      message.role !== 'user' &&
+      message.role !== 'assistant' &&
+      message.role !== 'system' &&
+      !(message.role === 'custom' && (message.display || message.customType === ENTRY_KINDS.subagentMessage))
+    )
+      return
+    const liveId = id
+    if (completeness === 'complete' && !this.snapshotMessages) {
+      const original = this.originals.get(message) ?? message
+      const entryId = this.entryId(original)
+      if (entryId) {
+        id = entryId
+        this.ids.set(message, id)
+        this.ids.set(original, id)
+        if (id !== liveId) this.aliases[id] = liveId
+      }
+    }
+    const value: RuntimeMessage = {
+      id,
+      role: message.role === 'custom' ? 'user' : message.role,
+      parts: [],
+      metadata: {
+        completeness,
+        inputId:
+          this.inputIds.get(message) ?? this.feed.snapshot.messages.find((known) => known.id === id)?.metadata?.inputId
+      }
+    }
+    const state = completeness === 'complete' ? 'done' : 'streaming'
+    if (typeof message.content === 'string') value.parts.push({ type: 'text', text: message.content, state })
+    else
+      for (const part of message.content) {
+        if (part.type === 'text')
+          value.parts.push({
+            type: 'text',
+            text: part.text,
+            state,
+            ...('textSignature' in part &&
+              part.textSignature && { providerMetadata: { pi: { textSignature: part.textSignature } } })
+          })
+        if (part.type === 'thinking')
+          value.parts.push({
+            type: 'reasoning',
+            text: part.thinking,
+            state,
+            ...(part.thinkingSignature && { providerMetadata: { pi: { thinkingSignature: part.thinkingSignature } } })
+          })
+        if (part.type === 'image')
+          value.parts.push({ type: 'file', mediaType: part.mimeType, url: `data:${part.mimeType};base64,${part.data}` })
+        if (part.type === 'toolCall') {
+          this.calls.set(part.id, id)
+          value.parts.push({
+            type: 'dynamic-tool',
+            toolCallId: part.id,
+            toolName: part.name,
+            state: completeness === 'complete' ? 'input-available' : 'input-streaming',
+            input: part.arguments
+          })
+        }
+      }
+    this.publish(value, id === liveId ? undefined : [this.itemRef(liveId)])
+  }
+
+  private async delta(event: Extract<AgentSessionEvent, { type: 'message_update' }>, id: string): Promise<void> {
+    const native = event.assistantMessageEvent
+    const stream = this.readers.get(id)
+    if (!stream || !('contentIndex' in native)) return
+    const part = native.partial.content[native.contentIndex]
+    const key = String(native.contentIndex)
+    type Chunk = Parameters<RuntimeMessageStream['append']>[0][number]
+    const chunks: Chunk[] = []
+    if (native.type === 'text_start') chunks.push({ type: 'text-start', id: key })
+    if (native.type === 'text_delta') chunks.push({ type: 'text-delta', id: key, delta: native.delta })
+    if (native.type === 'text_end') chunks.push({ type: 'text-end', id: key })
+    if (native.type === 'thinking_start') chunks.push({ type: 'reasoning-start', id: key })
+    if (native.type === 'thinking_delta') chunks.push({ type: 'reasoning-delta', id: key, delta: native.delta })
+    if (native.type === 'thinking_end') chunks.push({ type: 'reasoning-end', id: key })
+    if (part?.type === 'toolCall') {
+      this.calls.set(part.id, id)
+      if (native.type === 'toolcall_start')
+        chunks.push({ type: 'tool-input-start', toolCallId: part.id, toolName: part.name, dynamic: true })
+      if (native.type === 'toolcall_delta')
+        chunks.push({ type: 'tool-input-delta', toolCallId: part.id, inputTextDelta: native.delta })
+      if (native.type === 'toolcall_end')
+        chunks.push({
+          type: 'tool-input-available',
+          toolCallId: part.id,
+          toolName: part.name,
+          input: part.arguments,
+          dynamic: true
+        })
+    }
+    if (chunks.length) {
+      const message = await stream.reader.append(chunks, 'partial')
+      if (native.type === 'text_start' || native.type === 'thinking_start')
+        stream.texts.set(native.contentIndex, { index: message.parts.length - 1, text: '' })
+      const text = stream.texts.get(native.contentIndex)
+      if (text) {
+        // Native partials can run ahead of delta delivery; block-end content may also revise them.
+        if (native.type === 'text_end' || native.type === 'thinking_end') text.text = native.content
+        else if (part?.type === 'text') text.text = part.text
+        else if (part?.type === 'thinking') text.text = part.thinking
+      }
+      const parts = message.parts.slice()
+      for (const { index, text } of stream.texts.values()) {
+        const part = parts[index]
+        if (part.type === 'text' || part.type === 'reasoning') parts[index] = { ...part, text }
+      }
+      if (this.readers.get(id) === stream) this.publish({ ...message, parts })
+    }
+  }
+
+  private async event(event: AgentSessionEvent, context?: PiContext): Promise<void> {
+    if (
+      event.type === 'message_end' ||
+      event.type === 'compaction_end' ||
+      event.type === 'agent_settled' ||
+      event.type === 'model_select'
+    )
+      this.feed.publish({ type: 'context.changed', result: readContextUsage(this.session) })
+    if (event.type === 'input_settled') {
+      const reason = event.aborted ? 'aborted' : event.message.stopReason
+      const completed = reason === 'stop' && !event.message.content.some((part) => part.type === 'toolCall')
+      for (const inputId of event.inputIds) {
+        this.recordInput({
+          inputId: runtimeId(inputId),
+          facts: [],
+          outcome: completed
+            ? 'completed'
+            : reason === 'aborted'
+              ? 'aborted'
+              : reason === 'error'
+                ? 'failed'
+                : 'unanswered',
+          ...(!completed && {
+            error: {
+              operation: 'input',
+              code:
+                reason === 'length'
+                  ? 'output-truncated'
+                  : reason === 'error'
+                    ? 'model-error'
+                    : reason === 'aborted'
+                      ? 'aborted'
+                      : 'no-final-answer',
+              message: event.message.errorMessage ?? `Pi response ended: ${reason}`
+            }
+          })
+        })
+      }
+    }
+    if (event.type === 'input_placed') {
+      const inputId = runtimeId<'input'>(event.inputId)
+      this.inputIds.set(event.message, inputId)
+      this.write(event.message, this.id(event.message), 'complete')
+      this.recordInput({ inputId, facts: ['placed'] })
+    }
+    if (event.type === 'input_handled') {
+      this.recordInput({
+        inputId: runtimeId(event.inputId),
+        facts: ['locally-handled'],
+        ...(event.errorMessage === undefined
+          ? {}
+          : {
+              outcome: 'failed',
+              error: { operation: 'input', code: 'command-failed', message: event.errorMessage }
+            })
+      })
+    }
+    if (
+      (event.type === 'compaction_end' && event.result) ||
+      (event.type === 'entry_appended' && (event.entry.type === 'compaction' || event.entry.type === 'context_edit'))
+    )
+      this.reset(this.session, context)
+    if (event.type === 'entry_appended' && event.entry.type === 'custom_message') {
+      for (const { message, id } of context ?? []) if (id === event.entry.id) this.write(message, id, 'complete')
+    }
+    if (event.type === 'message_start' || event.type === 'message_update' || event.type === 'message_end') {
+      const message = event.message
+      const id = this.id(message)
+      if (event.type === 'message_start' && message.role === 'assistant')
+        this.readers.set(id, { reader: new RuntimeMessageStream(id), texts: new Map() })
+      if (event.type === 'message_update') await this.delta(event, id)
+      else this.write(message, id, event.type === 'message_end' ? 'complete' : 'partial')
+      if (event.type === 'message_end') {
+        await this.readers.get(id)?.reader.close()
+        this.readers.delete(id)
+      }
+    }
+    if (event.type === 'tool_execution_update') this.result(event.toolCallId, event.partialResult, false, true)
+    if (event.type === 'agent_start' || event.type === 'agent_settled') {
+      this.settled = event.type === 'agent_settled'
+      this.feed.publish({
+        type: 'activity.changed',
+        activity: { state: event.type === 'agent_start' ? 'active' : 'idle' }
+      })
+      this.settled = false
+    }
+  }
+}

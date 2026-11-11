@@ -172,7 +172,8 @@ describe('deferred ComposerSurface', () => {
     expect(input).toBeEnabled()
     expect(input).toHaveClass('w-full')
     expect(input).toHaveAttribute('rows', '1')
-    expect(input).toHaveStyle({ height: '46px', minHeight: '46px', padding: '6px 15px 0', lineHeight: '1.4' })
+    expect(input.closest('[data-slot="scroll-area"]')).toHaveStyle({ height: '46px' })
+    expect(input).toHaveStyle({ minHeight: '46px', padding: '6px 15px 0', lineHeight: '1.4' })
     expect(narrowLayout).toHaveClass('max-w-[calc(800px+3rem)]', 'px-6')
     expect(narrowLayout).toContainElement(inputbar)
     expect(inputbar).toContainElement(screen.getByText('Composer tools'))
@@ -721,5 +722,22 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.onSendDraft).not.toHaveBeenCalled()
     await screen.findByTestId('composer-runtime')
     expect(mocks.runtimeIntent?.transfer).toBeUndefined()
+  })
+  it('handles the mode shortcut before the editor loads without changing the draft', () => {
+    let mode = 'ordinary'
+    render(
+      <Harness
+        text="Keep this draft"
+        onShiftTab={() => {
+          mode = mode === 'ordinary' ? 'plan' : 'ordinary'
+        }}
+      />
+    )
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    fireEvent.keyDown(input, { key: 'Tab', shiftKey: true })
+    expect(mode).toBe('plan')
+    expect(input).toHaveValue('Keep this draft')
+    fireEvent.keyDown(input, { key: 'Tab', shiftKey: true, repeat: true })
+    expect(mode).toBe('plan')
   })
 })
