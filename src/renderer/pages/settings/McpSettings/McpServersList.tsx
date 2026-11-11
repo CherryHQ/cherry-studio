@@ -6,19 +6,24 @@ import { useTranslation } from 'react-i18next'
 
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   EmptyState,
   MenuItem,
   MenuList,
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Scrollbar,
+  ScrollArea,
   Sortable,
   useDndReorder
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
@@ -71,6 +76,11 @@ const McpServersList: FC = () => {
   const protocolInstallQueueRef = useRef<ProtocolMcpInstallRequest[]>([])
   const pendingAutoEnableServerIdRef = useRef<string | null>(null)
   const protocolInstallRequest = protocolInstallQueue[0]
+  const [displayedProtocolRequestId, setDisplayedProtocolRequestId] = useState<string | null>(null)
+  const displayedProtocolRequest = protocolInstallQueue.find(
+    (request) => request.requestId === displayedProtocolRequestId
+  )
+  const protocolDialog = useExitPresence(displayedProtocolRequest ?? null)
 
   const [searchText, setSearchText] = useState('')
   // Keep typing responsive: the list re-filters on the deferred value.
@@ -111,23 +121,27 @@ const McpServersList: FC = () => {
     [navigate]
   )
 
+  useEffect(() => {
+    if (protocolDialog.isPresent) return
+    setDisplayedProtocolRequestId(protocolInstallRequest?.requestId ?? null)
+    if (protocolInstallRequest || !pendingAutoEnableServerIdRef.current) return
+    const serverId = pendingAutoEnableServerIdRef.current
+    pendingAutoEnableServerIdRef.current = null
+    openProtocolServer(serverId)
+  }, [openProtocolServer, protocolDialog.isPresent, protocolInstallRequest])
+
   const handleProtocolInstallClose = useCallback(async () => {
-    if (!protocolInstallRequest) return
+    if (!displayedProtocolRequest) return
 
     try {
-      await ipcApi.request('mcp.protocol_install.cancel', { requestId: protocolInstallRequest.requestId })
+      await ipcApi.request('mcp.protocol_install.cancel', { requestId: displayedProtocolRequest.requestId })
     } catch (error) {
       logger.error('Failed to cancel MCP protocol install request', error as Error)
       return
     }
 
-    const remainingRequests = removeProtocolInstallRequest(protocolInstallRequest.requestId)
-    if (remainingRequests.length > 0 || !pendingAutoEnableServerIdRef.current) return
-
-    const serverId = pendingAutoEnableServerIdRef.current
-    pendingAutoEnableServerIdRef.current = null
-    openProtocolServer(serverId)
-  }, [openProtocolServer, protocolInstallRequest, removeProtocolInstallRequest])
+    removeProtocolInstallRequest(displayedProtocolRequest.requestId)
+  }, [displayedProtocolRequest, removeProtocolInstallRequest])
 
   const filteredMcpServers = useMemo(() => {
     const keywords = deferredSearchText.toLowerCase().split(/\s+/).filter(Boolean)
@@ -200,12 +214,12 @@ const McpServersList: FC = () => {
   )
 
   const handleProtocolInstall = useCallback(async () => {
-    if (!protocolInstallRequest) return
+    if (!displayedProtocolRequest) return
 
     let createdServers: McpServer[]
     try {
       createdServers = await ipcApi.request('mcp.protocol_install.install', {
-        requestId: protocolInstallRequest.requestId
+        requestId: displayedProtocolRequest.requestId
       })
     } catch (error) {
       logger.error('Failed to install MCP servers from protocol', error as Error)
@@ -219,16 +233,10 @@ const McpServersList: FC = () => {
     void refetch().catch((error) =>
       logger.error('Failed to refresh MCP servers after protocol install', error as Error)
     )
-    const remainingRequests = removeProtocolInstallRequest(protocolInstallRequest.requestId)
+    pendingAutoEnableServerIdRef.current = lastCreatedServer.id
+    removeProtocolInstallRequest(displayedProtocolRequest.requestId)
     toast.success(t('settings.mcp.addSuccess'))
-    if (remainingRequests.length > 0) {
-      pendingAutoEnableServerIdRef.current = lastCreatedServer.id
-      return
-    }
-
-    pendingAutoEnableServerIdRef.current = null
-    openProtocolServer(lastCreatedServer.id)
-  }, [openProtocolServer, protocolInstallRequest, refetch, removeProtocolInstallRequest, t])
+  }, [displayedProtocolRequest, refetch, removeProtocolInstallRequest, t])
 
   const handleManualAdd = useCallback(() => {
     setIsAddMenuOpen(false)
@@ -262,12 +270,12 @@ const McpServersList: FC = () => {
   }, [exporting, mcpServers, t])
 
   return (
-    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-3 pb-6">
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-4 pb-6">
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-        <div className="mb-3 flex w-full flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <SettingTitle className="m-0">{t('settings.mcp.allServers')}</SettingTitle>
-            <div className="flex shrink-0 items-center gap-1">
+        <div className="mb-1 flex min-w-0 shrink-0 items-center justify-between gap-4 border-b border-border-subtle pb-3">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <SettingTitle className="shrink-0">{t('settings.mcp.shortTitle')}</SettingTitle>
               <Popover open={isFilterMenuOpen} onOpenChange={setIsFilterMenuOpen}>
                 <PopoverTrigger asChild>
                   <button
@@ -302,45 +310,49 @@ const McpServersList: FC = () => {
               </Popover>
               <CollapsibleSearchBar
                 onSearch={setSearchText}
+                value={searchText}
                 placeholder={t('settings.mcp.search.placeholder')}
                 tooltip={t('settings.mcp.search.tooltip')}
-                maxWidth={200}
-                collapsedSize={28}
-                animated={false}
-                style={{ borderRadius: 14 }}
+                maxWidth={220}
+                collapsedSize={30}
+                style={{ borderRadius: 8 }}
               />
             </div>
           </div>
-          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <EnvironmentDependencies mini />
-            <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
-              <PopoverTrigger asChild>
-                <Button type="button" size="sm">
-                  <Plus className="size-3" />
-                  {t('common.add')}
-                  <ChevronDown className="size-3" />
+            <DropdownMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="default" size="sm" className="shrink-0">
+                  <Plus size={12} className="lucide-custom" />
+                  <span>{t('common.add')}</span>
+                  <ChevronDown size={12} className="text-primary-foreground" />
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" side="bottom" className="w-auto p-1">
-                <MenuList className="gap-1">
-                  <MenuItem label={t('settings.mcp.addServer.create')} onClick={handleManualAdd} />
-                  <MenuItem label={t('settings.mcp.addServer.importFrom.json')} onClick={() => handleImport('json')} />
-                  <MenuItem label={t('settings.mcp.addServer.importFrom.dxt')} onClick={() => handleImport('dxt')} />
-                  <MenuItem label={t('settings.mcp.addServer.importFrom.mcpb')} onClick={() => handleImport('mcpb')} />
-                  <MenuItem
-                    label={t('settings.mcp.exportAsJson')}
-                    onClick={() => void handleExport()}
-                    disabled={exporting || !mcpServers.some(isExportableMcpServer)}
-                  />
-                </MenuList>
-              </PopoverContent>
-            </Popover>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-40">
+                <DropdownMenuItem onSelect={handleManualAdd}>{t('settings.mcp.addServer.create')}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => handleImport('json')}>
+                  {t('settings.mcp.addServer.importFrom.json')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => handleImport('dxt')}>
+                  {t('settings.mcp.addServer.importFrom.dxt')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => handleImport('mcpb')}>
+                  {t('settings.mcp.addServer.importFrom.mcpb')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => void handleExport()}
+                  disabled={exporting || !mcpServers.some(isExportableMcpServer)}>
+                  {t('settings.mcp.exportAsJson')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-              <Scrollbar ref={scrollRef} className="min-h-0 flex-1">
+              <ScrollArea viewportProps={{ ref: scrollRef }} className="min-h-0 flex-1">
                 {filteredMcpServers.length > 0 ? (
                   <Sortable
                     className="[&>div:last-child_[data-slot=mcp-server-row]]:border-b-0"
@@ -370,7 +382,7 @@ const McpServersList: FC = () => {
                     className="py-12"
                   />
                 )}
-              </Scrollbar>
+              </ScrollArea>
             </div>
           </div>
         </div>
@@ -391,10 +403,11 @@ const McpServersList: FC = () => {
         initialImportMethod={modalType}
       />
 
-      {protocolInstallRequest && (
+      {protocolDialog.value && (
         <McpProtocolInstallDialog
-          key={protocolInstallRequest.requestId}
-          servers={protocolInstallRequest.servers}
+          key={protocolDialog.value.requestId}
+          open={displayedProtocolRequest !== undefined}
+          servers={protocolDialog.value.servers}
           onClose={handleProtocolInstallClose}
           onInstall={handleProtocolInstall}
         />

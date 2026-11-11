@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
@@ -342,11 +343,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     },
     Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
     Separator: () => <div />,
-    Scrollbar: ({ children, ...props }: ComponentProps<'div'>) => (
-      <div data-testid="shared-scrollbar" {...props}>
-        {children}
-      </div>
-    ),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
     Switch: actual.Switch,
     Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -427,6 +424,22 @@ function createAgentResource(): ResourceItem {
     raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw']
   }
 }
+
+it('renders assistant card images with an emoji fallback for missing or broken images', () => {
+  const { rerender } = render(
+    <ResourceCard
+      resource={createAssistantResource({ avatar: '🎓', avatarSrc: 'file:///avatar.webp' })}
+      {...getResourceCardProps()}
+    />
+  )
+  const image = screen.getByRole('img', { name: 'Assistant' })
+  expect(image).toHaveAttribute('src', 'file:///avatar.webp')
+  fireEvent.error(image)
+  expect(screen.getByText('🎓')).toBeVisible()
+  expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  rerender(<ResourceCard resource={createAssistantResource({ avatar: '🤖' })} {...getResourceCardProps()} />)
+  expect(screen.getByText('🤖')).toBeVisible()
+})
 
 function createSkillResource(version: string | null = null, isGlobalEnabled = true): ResourceItem {
   return {

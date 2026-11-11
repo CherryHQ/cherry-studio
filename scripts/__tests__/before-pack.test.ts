@@ -4,7 +4,8 @@
  * stopped materialising both CPU architectures for the host OS — the packaging bug that
  * shipped a macOS x64 build without `@img/sharp-darwin-x64`.
  */
-import { readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { Arch } from 'electron-builder'
@@ -34,7 +35,7 @@ describe('prepareSystemSpeechHelper', () => {
     expect(config.win.extraResources).toEqual([
       ...originalResources,
       {
-        from: 'packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe',
+        from: 'native/system-speech/dist/native/win32-x64/cherry-system-speech.exe',
         to: 'system-speech/cherry-system-speech.exe'
       }
     ])
@@ -77,34 +78,42 @@ describe('assertPrebuiltPackages', () => {
 
 describe('prepareNativeModulesForElectron', () => {
   it.each([
-    ['mac', Arch.arm64, 'darwin', 'arm64'],
-    ['windows', Arch.x64, 'win32', 'x64']
-  ])('does not reuse the %s binary mirror for headers', async (platformName, arch, platform, archName) => {
-    const rebuild = vi.fn(async () => {})
+    ['mac', Arch.arm64, 'darwin-arm64'],
+    ['windows', Arch.x64, 'win32-x64']
+  ])('replaces the preferred %s prebuild with the source output', async (platformName, arch, target) => {
+    const projectDir = mkdtempSync(path.join(tmpdir(), 'sqlite-rebuild-'))
+    const moduleDir = path.join(projectDir, 'node_modules/better-sqlite3')
+    const previous = process.env.npm_package_config_node_gyp_force_build
+    mkdirSync(path.join(moduleDir, 'prebuilds'), { recursive: true })
+    writeFileSync(path.join(moduleDir, 'package.json'), '{"name":"better-sqlite3"}')
+    writeFileSync(path.join(moduleDir, `prebuilds/${target}.node`), 'bundled')
+    writeFileSync(path.join(moduleDir, 'prebuilds/linux-x64.node'), 'other-target')
+    const context = {
+      arch,
+      packager: { projectDir, platform: { name: platformName }, config: { electronVersion: '45.2.2' } }
+    }
+    try {
+      await prepareNativeModulesForElectron(context, async () => {
+        if (process.env.npm_package_config_node_gyp_force_build !== '1') return
+        mkdirSync(path.join(moduleDir, 'build/Release'), { recursive: true })
+        writeFileSync(path.join(moduleDir, 'build/Release/better_sqlite3.node'), 'compiled')
+      })
+      expect(readFileSync(path.join(moduleDir, `prebuilds/${target}.node`), 'utf8')).toBe('compiled')
+      expect(readFileSync(path.join(moduleDir, 'prebuilds/linux-x64.node'), 'utf8')).toBe('other-target')
+      expect(process.env.npm_package_config_node_gyp_force_build).toBe(previous)
 
-    await prepareNativeModulesForElectron(
-      {
-        arch,
-        packager: {
-          platform: { name: platformName },
-          config: {
-            electronVersion: '41.8.0',
-            electronDownload: { mirror: 'https://npmmirror.com/mirrors/electron/' }
-          }
-        }
-      },
-      rebuild
-    )
-
-    expect(rebuild).toHaveBeenCalledWith({
-      buildPath: path.resolve(import.meta.dirname, '../..'),
-      electronVersion: '41.8.0',
-      platform,
-      arch: archName,
-      onlyModules: ['better-sqlite3'],
-      force: true,
-      buildFromSource: true
-    })
+      await expect(
+        prepareNativeModulesForElectron(context, async () => {
+          throw new Error('compiler failed')
+        })
+      ).rejects.toThrow('compiler failed')
+      expect(process.env.npm_package_config_node_gyp_force_build).toBe(previous)
+      expect(readFileSync(path.join(moduleDir, `prebuilds/${target}.node`), 'utf8')).toBe('compiled')
+      await expect(prepareNativeModulesForElectron(context, async () => {})).rejects.toThrow('ENOENT')
+      expect(process.env.npm_package_config_node_gyp_force_build).toBe(previous)
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true })
+    }
   })
 
   it.each([
@@ -121,6 +130,7 @@ describe('prepareNativeModulesForElectron', () => {
       {
         arch,
         packager: {
+          projectDir: path.resolve(import.meta.dirname, '../..'),
           platform: { name: 'linux' },
           config: { electronVersion: '41.8.0' }
         }

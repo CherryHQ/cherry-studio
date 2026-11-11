@@ -6,13 +6,13 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronsUp, GripVertical, Pl
 import React, { useCallback, useDeferredValue, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FindBar, type FindBarRef, type FindBarState, INITIAL_FIND_BAR_STATE } from '@renderer/components/FindBar'
 import { findRangesInScope, supportsCustomHighlights } from '@renderer/utils/contentSearch'
 import { scrollElementIntoView } from '@renderer/utils/dom'
 
-import Scrollbar from '../Scrollbar'
 import {
   getAllCommands,
   getToolbarCommands,
@@ -669,10 +669,11 @@ const RichEditor = ({
           disabledCommands={disabledCommands}
         />
       )}
-      <Scrollbar
-        ref={scrollContainerRef}
+      <ScrollArea
+        viewportProps={{ ref: scrollContainerRef }}
         className="rich-editor-content"
-        style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        style={{ flex: 1, minHeight: 0 }}
+        contentProps={{ className: 'flex min-h-full' }}>
         <StyledEditorContent>
           <PlusButton editor={editor} onElementClick={handlePlusButtonClick}>
             <Tooltip content={t('richEditor.plusButton')}>
@@ -686,7 +687,7 @@ const RichEditor = ({
           </DragHandle>
           <EditorContent style={{ minHeight: '100%' }} editor={editor} />
         </StyledEditorContent>
-      </Scrollbar>
+      </ScrollArea>
       <Tooltip content={t('richEditor.backToTop')}>
         <button
           type="button"

@@ -1,13 +1,16 @@
-// Load the sibling so TopicService can purge topic messages through the data-service registry.
-import '@data/services/MessageService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+// Load the sibling so TopicService can purge topic messages through the data-service registry.
+import '@data/services/MessageService'
+import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { assistantAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
@@ -17,6 +20,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AssistantDataService, assistantDataService } from '@data/services/AssistantService'
+import { fileRefService } from '@data/services/FileRefService'
 import { pinService } from '@data/services/PinService'
 import { promptService } from '@data/services/PromptService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
@@ -27,6 +31,7 @@ import {
   ListAssistantsQuerySchema
 } from '@shared/data/api/schemas/assistants'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { FileEntryId } from '@shared/data/types/file'
 import { createUniqueModelId } from '@shared/data/types/model'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -2035,6 +2040,53 @@ describe('AssistantDataService', () => {
       const result = assistantDataService.search({ q: '   ', limit: 5 })
 
       expect(result.map((item) => item.id)).toEqual(['ast-blank-new', 'ast-blank-old'])
+    })
+  })
+
+  describe('avatar slot', () => {
+    const fileId = '019606a0-0000-7000-8000-00000000aa01' as FileEntryId
+    function bind(id: string) {
+      dbh.db
+        .insert(fileEntryTable)
+        .values({
+          id: fileId,
+          name: 'avatar',
+          ext: 'webp',
+          origin: 'internal',
+          size: 1,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+        .run()
+      dbh.db.transaction((tx) => assistantDataService.setAvatarSlotTx(tx, id, fileId))
+    }
+    it('projects get/list/update consistently and batches slot reads', () => {
+      const first = assistantDataService.create({ name: 'A', modelId: null })
+      const second = assistantDataService.create({ name: 'B', modelId: null })
+      bind(first.id)
+      const slot = { avatarFileId: fileId, avatarSrc: application.get('FileManager').getUrl(fileId) }
+      expect(assistantDataService.getById(first.id)).toMatchObject(slot)
+      const select = vi.spyOn(dbh.db, 'select')
+      const result = assistantDataService.list(listQuery())
+      expect(result.items.find((a) => a.id === first.id)).toMatchObject(slot)
+      expect(result.items.find((a) => a.id === second.id)?.avatarFileId).toBeUndefined()
+      expect(select).toHaveBeenCalledTimes(5)
+      select.mockRestore()
+      expect(assistantDataService.update(first.id, { name: 'Renamed' })).toMatchObject(slot)
+      expect(assistantDataService.update(first.id, { emoji: '🎉' }).avatarFileId).toBeUndefined()
+      expect(dbh.db.select().from(assistantAvatarFileRefTable).all()).toEqual([])
+    })
+    it('copies the ref, preserves it across soft delete/restore, and cascades only the deleted owner', () => {
+      const owner = assistantDataService.create({ name: 'Original', modelId: null })
+      bind(owner.id)
+      const copy = assistantDataService.duplicate(owner.id, { name: 'Copy' })
+      expect(copy.avatarFileId).toBe(fileId)
+      expect(fileRefService.countByEntryIds([fileId]).get(fileId)).toBe(2)
+      assistantDataService.delete(owner.id)
+      expect(assistantDataService.getById(owner.id, { includeDeleted: true }).avatarFileId).toBe(fileId)
+      expect(assistantDataService.restore(owner.id).avatarFileId).toBe(fileId)
+      assistantDataService.delete(owner.id, { permanent: true, targetState: 'active' })
+      expect(assistantDataService.getById(copy.id).avatarFileId).toBe(fileId)
+      expect(fileRefService.countByEntryIds([fileId]).get(fileId)).toBe(1)
     })
   })
 })

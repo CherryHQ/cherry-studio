@@ -19,12 +19,10 @@ import {
 import { type AgentSession, ModelRuntime, type SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent'
 import { onTestFinished } from 'vitest'
 
-import {
-  type AgentRuntimeEvent,
-  type AgentRuntimeModel,
-  type AgentRuntimeSessionOptions,
-  createAgentRuntimeSession
-} from '../src'
+import { createScriptedHost } from '@cherrystudio/agent-behavior'
+
+import { type AgentRuntimeEvent } from '../src'
+import { type AgentRuntimeModel, type AgentRuntimeSessionOptions, createAgentRuntimeSession } from '../src/session'
 
 export type ModelCall = TranscriptContext &
   SimpleStreamOptions & { model: AgentRuntimeModel; tools: Tool[]; systemPrompt: string }
@@ -191,15 +189,7 @@ export async function createTestSession(options: TestSessionOptions) {
     systemPrompt: 'You are Cherry.',
     ...sessionOptions,
     settings: { retry: { enabled: false }, ...sessionOptions.settings },
-    ...binding,
-    subagents: options.subagents && {
-      ...options.subagents,
-      async configure(child, configureSignal) {
-        const configured = await options.subagents!.configure(child, configureSignal)
-        if (!configured.model || child.fork || configured.modelRuntime) return configured
-        return { ...configured, ...(await createTestBinding({ stream, model: configured.model, signal })) }
-      }
-    }
+    ...binding
   })
   onTestFinished(() => runtime.dispose())
   return runtime
@@ -226,4 +216,22 @@ export function hostStore() {
     if (event.type === 'session-append') entries.push(...plain(event.entries))
   }
   return { entries, events, onEvent }
+}
+
+export function createTestBehavior(model: Pick<AgentRuntimeModel, 'provider' | 'id'> = MODEL) {
+  const modelKey = `${model.provider}/${model.id}`
+  return {
+    host: createScriptedHost({
+      settings: {
+        goalDefaults: { maxGoalRounds: 3, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
+        autonomy: 'auto',
+        permissionMode: 'auto',
+        attendance: 'stream',
+        maxBackground: 4,
+        offloadThreshold: 20_000
+      },
+      modelKeys: { parentModelKey: modelKey, defaultChildModelKey: modelKey }
+    }),
+    configureChild: () => ({})
+  }
 }

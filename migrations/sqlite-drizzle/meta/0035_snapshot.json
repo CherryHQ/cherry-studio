@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f5cff893-e464-4fbd-8a08-e1e4764b6b2c",
-  "prevId": "48588181-f234-4284-b0ad-42d77aac81e4",
+  "id": "13604f26-aae6-4e99-acf4-83eb07b6e40f",
+  "prevId": "21fa5fe5-e74e-4e5c-94f1-5fae6691f254",
   "tables": {
     "agent": {
       "name": "agent",
@@ -748,12 +748,20 @@
           "notNull": true,
           "autoincrement": false
         },
-        "task_schedule_id": {
-          "name": "task_schedule_id",
+        "task_id": {
+          "name": "task_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "is_task_reuse_target": {
+          "name": "is_task_reuse_target",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "trace_id": {
           "name": "trace_id",
@@ -806,19 +814,27 @@
         }
       },
       "indexes": {
-        "agent_session_taskScheduleId_unique": {
-          "name": "agent_session_taskScheduleId_unique",
-          "columns": [
-            "task_schedule_id"
-          ],
-          "isUnique": true
-        },
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
           "columns": [
             "order_key"
           ],
           "isUnique": false
+        },
+        "agent_session_task_idx": {
+          "name": "agent_session_task_idx",
+          "columns": [
+            "task_id"
+          ],
+          "isUnique": false
+        },
+        "agent_session_task_reuse_uq": {
+          "name": "agent_session_task_reuse_uq",
+          "columns": [
+            "task_id"
+          ],
+          "isUnique": true,
+          "where": "\"agent_session\".\"is_task_reuse_target\" = 1"
         },
         "agent_session_owner_idx": {
           "name": "agent_session_owner_idx",
@@ -882,12 +898,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "agent_session_task_schedule_id_job_schedule_id_fk": {
-          "name": "agent_session_task_schedule_id_job_schedule_id_fk",
+        "agent_session_task_id_job_schedule_id_fk": {
+          "name": "agent_session_task_id_job_schedule_id_fk",
           "tableFrom": "agent_session",
           "tableTo": "job_schedule",
           "columnsFrom": [
-            "task_schedule_id"
+            "task_id"
           ],
           "columnsTo": [
             "id"
@@ -898,7 +914,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "agent_session_task_reuse_owner_check": {
+          "name": "agent_session_task_reuse_owner_check",
+          "value": "\"agent_session\".\"is_task_reuse_target\" = 0 OR \"agent_session\".\"task_id\" IS NOT NULL"
+        }
+      }
     },
     "agent_session_context": {
       "name": "agent_session_context",
@@ -5306,6 +5327,111 @@
         }
       }
     },
+    "notification_record": {
+      "name": "notification_record",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "event_key": {
+          "name": "event_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "read_at": {
+          "name": "read_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "dismissed_at": {
+          "name": "dismissed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "target": {
+          "name": "target",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "notification_record_event_key_idx": {
+          "name": "notification_record_event_key_idx",
+          "columns": [
+            "event_key"
+          ],
+          "isUnique": true
+        },
+        "notification_record_time_idx": {
+          "name": "notification_record_time_idx",
+          "columns": [
+            "created_at",
+            "id"
+          ],
+          "isUnique": false
+        },
+        "notification_record_category_time_idx": {
+          "name": "notification_record_category_time_idx",
+          "columns": [
+            "category",
+            "created_at",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "painting": {
       "name": "painting",
       "columns": {
@@ -6593,154 +6719,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
-    },
-    "followup_queue_state": {
-      "name": "followup_queue_state",
-      "columns": {
-        "scope_key": {
-          "name": "scope_key",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "paused": {
-          "name": "paused",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "followup_queue": {
-      "name": "followup_queue",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "scope_key": {
-          "name": "scope_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "draft": {
-          "name": "draft",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "payload": {
-          "name": "payload",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'pending'"
-        },
-        "sent_at": {
-          "name": "sent_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "claim_token": {
-          "name": "claim_token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "followup_queue_scope_key_idx": {
-          "name": "followup_queue_scope_key_idx",
-          "columns": [
-            "scope_key"
-          ],
-          "isUnique": false
-        },
-        "followup_queue_status_idx": {
-          "name": "followup_queue_status_idx",
-          "columns": [
-            "status"
-          ],
-          "isUnique": false
-        },
-        "followup_queue_scope_key_order_key_idx": {
-          "name": "followup_queue_scope_key_order_key_idx",
-          "columns": [
-            "scope_key",
-            "order_key"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "followup_queue_status_check": {
-          "name": "followup_queue_status_check",
-          "value": "\"followup_queue\".\"status\" IN ('pending', 'sending', 'failed', 'closed')"
-        }
-      }
     }
   },
   "views": {},
@@ -6748,7 +6726,9 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {}
+    "columns": {
+      "\"agent_session\".\"task_schedule_id\"": "\"agent_session\".\"task_id\""
+    }
   },
   "internal": {
     "indexes": {

@@ -1,8 +1,12 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as Ui from '@cherrystudio/ui'
+import type * as Naming from '@renderer/utils/naming'
+
+import type { MessageListMeta } from '../../types'
 import MessageHeader from '../MessageHeader'
 
 const providerState = vi.hoisted(() => ({
@@ -10,39 +14,40 @@ const providerState = vi.hoisted(() => ({
     navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void
     selectMessage?: (messageId: string, selected: boolean) => void
   },
-  selection: undefined as { isMultiSelectMode: boolean; selectedMessageIds: string[] } | undefined
+  selection: undefined as { isMultiSelectMode: boolean; selectedMessageIds: string[] } | undefined,
+  meta: {} as Partial<MessageListMeta>
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Avatar: ({ children, className }: { children?: ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
-  ),
-  AvatarFallback: ({ children, className }: { children?: ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
-  ),
-  AvatarImage: ({ className }: { className?: string }) => <div className={className} />,
-  Badge: ({ asChild, children }: { asChild?: boolean; children?: ReactNode }) =>
-    asChild ? <>{children}</> : <span>{children}</span>,
-  Checkbox: ({
-    className,
-    ...props
-  }: {
-    className?: string
-    checked?: boolean
-    onCheckedChange?: (checked: boolean) => void
-    [key: string]: unknown
-  }) => {
-    const domProps = { ...props }
-    delete domProps.checked
-    delete domProps.onCheckedChange
+vi.mock('@cherrystudio/ui', async (original) => {
+  const actual = await original<typeof Ui>()
+  return {
+    Avatar: actual.Avatar,
+    AvatarFallback: actual.AvatarFallback,
+    AvatarImage: actual.AvatarImage,
+    EmojiIcon: actual.EmojiIcon,
+    Badge: ({ asChild, children }: { asChild?: boolean; children?: ReactNode }) =>
+      asChild ? <>{children}</> : <span>{children}</span>,
+    Checkbox: ({
+      className,
+      ...props
+    }: {
+      className?: string
+      checked?: boolean
+      onCheckedChange?: (checked: boolean) => void
+      [key: string]: unknown
+    }) => {
+      const domProps = { ...props }
+      delete domProps.checked
+      delete domProps.onCheckedChange
 
-    return <div className={className} role="checkbox" {...domProps} />
-  },
-  EmojiAvatar: ({ children, className }: { children?: ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
-  ),
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
-}))
+      return <div className={className} role="checkbox" {...domProps} />
+    },
+    EmojiAvatar: ({ children, className }: { children?: ReactNode; className?: string }) => (
+      <div className={className}>{children}</div>
+    ),
+    Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
+  }
+})
 
 vi.mock('@renderer/utils/model', () => ({
   getModelLogoRef: () => undefined
@@ -52,9 +57,9 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/utils/naming', () => ({
+vi.mock('@renderer/utils/naming', async (original) => ({
   firstLetter: (value: string) => value.slice(0, 1),
-  isEmoji: () => false,
+  isEmoji: (await original<typeof Naming>()).isEmoji,
   removeLeadingEmoji: (value: string) => value
 }))
 
@@ -63,7 +68,8 @@ vi.mock('../../MessageListProvider', () => ({
   useOptionalMessageListActions: () => providerState.actions,
   useMessageListMeta: () => ({
     assistantProfile: undefined,
-    userProfile: undefined
+    userProfile: undefined,
+    ...providerState.meta
   }),
   useMessageListSelection: () => providerState.selection,
   useMessageRenderConfig: () => ({
@@ -95,6 +101,69 @@ describe('MessageHeader', () => {
   beforeEach(() => {
     providerState.actions = {}
     providerState.selection = undefined
+    providerState.meta = {}
+  })
+
+  it('uses the snapshot image instead of the live avatar', async () => {
+    class LoadedImage {
+      complete = true
+      naturalWidth = 1
+      src = ''
+      addEventListener() {}
+      removeEventListener() {}
+    }
+    vi.stubGlobal('Image', LoadedImage)
+    providerState.meta = {
+      assistantProfile: { name: 'Live', avatar: 'file:///live.webp' },
+      assistantAvatarSources: new Map([['file:frozen', 'file:///frozen.webp']])
+    }
+    try {
+      render(
+        <MessageHeader
+          message={createMessage('assistant', {
+            messageSnapshot: { id: 'a1', name: 'Frozen', emoji: '🎓', avatarFileId: 'file:frozen' }
+          })}
+        />
+      )
+      const image = await screen.findByRole('img')
+      expect(image).toHaveAttribute('src', 'file:///frozen.webp')
+      fireEvent.error(image)
+      expect(screen.getAllByText('🎓')[0]).toBeVisible()
+      expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('falls back to the frozen emoji when its file is missing', () => {
+    providerState.meta = { assistantProfile: { name: 'Live', avatar: 'file:///live.webp' } }
+    render(
+      <MessageHeader
+        message={createMessage('assistant', {
+          messageSnapshot: { id: 'a1', name: 'Frozen', emoji: '🎓', avatarFileId: 'file:missing' }
+        })}
+      />
+    )
+    expect(screen.getAllByText('🎓')[0]).toBeVisible()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  })
+
+  it('uses the live avatar when the message has no snapshot', async () => {
+    class LoadedImage {
+      complete = true
+      naturalWidth = 1
+      src = ''
+      addEventListener() {}
+      removeEventListener() {}
+    }
+    vi.stubGlobal('Image', LoadedImage)
+    providerState.meta = { assistantProfile: { name: 'Live', avatar: 'file:///live.webp' } }
+    try {
+      render(<MessageHeader message={createMessage()} />)
+      expect(await screen.findByRole('img')).toHaveAttribute('src', 'file:///live.webp')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('keeps content and footer in the same body column', () => {
@@ -130,8 +199,10 @@ describe('MessageHeader', () => {
     expect(getByText('Goal round 2')).toBeTruthy()
   })
 
-  it('renders no origin badge for a prompted assistant turn', () => {
-    const { queryByText } = render(<MessageHeader message={createMessage('assistant')} />)
+  it('renders no badge for a background continuation', () => {
+    const { queryByText } = render(
+      <MessageHeader message={createMessage('assistant', { turnOrigin: { kind: 'background-work' } })} />
+    )
     expect(queryByText(/Goal round/)).toBeNull()
     expect(queryByText('agent.session_turn_origin.background_work')).toBeNull()
   })

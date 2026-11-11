@@ -94,10 +94,8 @@ describe('AgentChatContextProvider', () => {
     runtimeDriverRegistry.clearForTest()
     runtimeDriverRegistry.register({
       type: 'claude-code',
-      capabilities: ['agent-session'],
       connect: vi.fn(),
-      validateSession: mocks.runtimeValidateSession,
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: mocks.runtimeValidateSession
     })
     mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
     mocks.ensureTraceIdTx.mockReturnValue('a'.repeat(32))
@@ -196,6 +194,24 @@ describe('AgentChatContextProvider', () => {
       expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
     }
   )
+
+  it('snapshots the agent avatar identity instead of its URL', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      name: 'My Agent',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet',
+      configuration: { avatar: '🌟' },
+      avatarFileId: 'file-1',
+      avatarSrc: 'file:///avatar.webp'
+    })
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+    const snapshot = prepared.reservedMessages?.find((message) => message.role === 'assistant')?.metadata
+      ?.messageSnapshot
+    expect(snapshot).toMatchObject({ emoji: '🌟', avatarFileId: 'file-1' })
+    expect(JSON.stringify(snapshot)).not.toContain('file:///avatar.webp')
+  })
 
   it('prepares fresh agent-session dispatch through the long-lived runtime service', async () => {
     const subscriber = makeSubscriber()
