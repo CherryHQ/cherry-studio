@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import { initReactI18next } from 'react-i18next'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import type * as DoctorComponents from '@renderer/components/doctor'
@@ -376,6 +376,11 @@ function completedDoctorState(
 }
 
 describe('ErrorDetailContent diagnostics', () => {
+  // The consultation is a lazy chunk; a cold first transform can outlast findByRole's wait under load.
+  beforeAll(async () => {
+    await import('@renderer/components/doctor/DoctorAgentConsultation')
+  })
+
   it('keeps an unknown diagnostic target separate from an existing global report', () => {
     mocks.doctorState = completedDoctorState([lowDiskResult])
     renderErrorDetailContent({ subject: undefined, error: providerError })
