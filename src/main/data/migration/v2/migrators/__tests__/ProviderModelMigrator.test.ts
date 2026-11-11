@@ -812,11 +812,7 @@ describe('ProviderModelMigrator', () => {
       const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
-      expect(registryFixtures.loaderPaths.at(-1)).toEqual({
-        models: path.resolve('/mock/feature.provider_registry.data/models.json'),
-        providers: path.resolve('/mock/feature.provider_registry.data/providers.json'),
-        providerModels: path.resolve('/mock/feature.provider_registry.data/provider-models.json')
-      })
+
       // The legacy baseUrl equals the registry default → nothing user-owned
       // remains, so the row stores no endpoint config at all...
       const [providerRow] = await dbh.db

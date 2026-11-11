@@ -59,7 +59,9 @@ bottom of this document — read them.
    - `transport` — a unique tag stamped on every tool part by your stream
      adapter (`providerMetadata.cherry.transport`); the renderer uses it to
      route tool parts to the right card renderer.
-   - `builtinTools()` — the edit-dialog catalog. If the runtime ships its own
+   - `builtinTools(platform?)` — the edit-dialog catalog, filtered for the supplied
+     platform. Omit the platform when resolving tool identities in historical messages.
+     If the runtime ships its own
      tool set, define the descriptors in one shared module (pattern:
      `src/shared/ai/piBuiltinTools.ts`) carrying name, category, **and**
      approval default, and derive everything else from it.
@@ -104,8 +106,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      steer, wrap it with `wrapSteerReminder(...)`.
    - `reconcile(input)` — re-derive the desired connection state. Serialize concurrent
      calls per connection; hot-apply safe policy facts before returning `rebuild` for
-     spawn-frozen differences, freeze permission-mode changes during an active turn,
-     and return `failed` when a live tightening cannot be applied so the host fails closed.
+     spawn-frozen differences, apply permission-mode changes even during an active turn
+     (from its next tool call), and return `failed` when a live tightening cannot be applied
+     so the host fails closed.
    - `close()` — seal admission, stop native production, await observation delivery and callbacks,
      flush committed archives, then detach and release. A failed final flush retains a retryable writer.
      Durable runtimes may preserve unfinished work.

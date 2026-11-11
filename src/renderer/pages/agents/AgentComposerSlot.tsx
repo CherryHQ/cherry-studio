@@ -87,7 +87,6 @@ function AgentComposerSlot({
             editing: {
               messageId: editing.messageId,
               onCancel: cancelEditing,
-              description: t('agent.edit_resend.warning'),
               sendLabel: t('agent.edit_resend.save')
             }
           }

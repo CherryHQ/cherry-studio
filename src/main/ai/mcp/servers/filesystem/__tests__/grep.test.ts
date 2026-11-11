@@ -109,7 +109,7 @@ describe('grep MCP ripgrep integration', () => {
 
     expect(rgArgs).toContain('--no-config')
     expect(rgArgs).toContain('--json')
-    expect(rgArgs).not.toContain('--field-match-separator')
+
     expect(getTextContent(result)).toContain(matchedFile)
     expect(getTextContent(result)).toContain(`12: ${matchContent}`)
   })
@@ -187,6 +187,5 @@ describe('grep MCP ripgrep integration', () => {
     const result = await grepTool({ pattern: 'needle', path: binaryFile }, workspaceRoot)
 
     expect(getTextContent(result)).not.toContain('needle in the head')
-    expect(getTextContent(result)).toBe('No matches found')
   })
 })

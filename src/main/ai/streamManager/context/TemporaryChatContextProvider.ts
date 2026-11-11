@@ -90,6 +90,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
           id: assistant.id,
           name: assistant.name,
           emoji: assistant.emoji,
+          ...(assistant.avatarFileId ? { avatarFileId: assistant.avatarFileId } : {}),
           model: buildModelSnapshotFromRuntimeModel(model)
         }
       : undefined
@@ -141,6 +142,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
     }
 
+    temporaryChatService.retainAvatar(req.topicId, messageSnapshot?.avatarFileId)
     return {
       topicId: req.topicId,
       models: [{ modelId: model.id, request: streamRequest }],

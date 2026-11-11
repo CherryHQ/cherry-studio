@@ -10,6 +10,7 @@ import {
   Smithery,
   Zhipu
 } from '@cherrystudio/ui/icons/providers'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 export const MCP_MARKETS = [
   {
@@ -89,6 +90,23 @@ export function getProviderDisplayName(provider: { nameKey: string }, t: (key: s
   return provider.nameKey.startsWith('provider.') ? t(provider.nameKey) : provider.nameKey
 }
 
-export function getMcpProviderLogo(key: string) {
-  return MCP_PROVIDER_ENTRIES.find((provider) => provider.key === key)?.logo
+export type McpProviderKey = (typeof MCP_PROVIDER_ENTRIES)[number]['key']
+
+export const isSameMcpServerCandidate = (existing: McpServer, candidate: McpServer): boolean => {
+  if (candidate.baseUrl && existing.baseUrl === candidate.baseUrl) {
+    return true
+  }
+
+  if (candidate.provider && existing.provider === candidate.provider) {
+    return (
+      (candidate.providerUrl !== undefined && existing.providerUrl === candidate.providerUrl) ||
+      existing.name === candidate.name
+    )
+  }
+
+  if (candidate.installSource === 'builtin') {
+    return existing.name === candidate.name
+  }
+
+  return false
 }
