@@ -29,7 +29,11 @@ const mockUseModelSelectorData = vi.fn(() => ({
   cloudAvailabilityError: undefined as Error | undefined
 }))
 const defaultPreferenceImplementation = mockUsePreference.getMockImplementation()!
-const { ipcRequestMock, translationSpy } = vi.hoisted(() => ({ ipcRequestMock: vi.fn(), translationSpy: vi.fn() }))
+const { ipcRequestMock, translationSpy, modelSelectorSpy } = vi.hoisted(() => ({
+  ipcRequestMock: vi.fn(),
+  translationSpy: vi.fn(),
+  modelSelectorSpy: vi.fn()
+}))
 const i18nMock = vi.hoisted(() => ({
   language: 'zh-CN',
   resolvedLanguage: 'zh-CN',
@@ -95,7 +99,10 @@ vi.mock('@renderer/components/Selector', () => ({
 vi.mock('@renderer/components/ModelSelector', async () => {
   const selection = await import('@renderer/components/ModelSelector/selection')
   return {
-    ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger,
+    ModelSelector: (props: { trigger: ReactNode; value?: UniqueModelId[] }) => {
+      modelSelectorSpy(props)
+      return props.trigger
+    },
     countStaleSelectedModelIds: selection.countStaleSelectedModelIds,
     hasStaleSelectedModelIds: selection.hasStaleSelectedModelIds,
     useModelSelectorData: () => mockUseModelSelectorData()
@@ -462,6 +469,27 @@ describe('GeneralSettings', () => {
     expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(true)
     expect(screen.getByRole('switch', { name: 'Developer mode' })).toBeEnabled()
     expect(screen.getByRole('switch', { name: 'Local automation (CDP)' })).toBeEnabled()
+  })
+
+  it('shows only the effective first five fallback models for an existing over-limit preference', () => {
+    const models = Array.from({ length: 9 }, (_, index) => `openai::model-${index}` as UniqueModelId)
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.retry.enabled': true,
+      'chat.retry.fallback_model_ids': models
+    })
+    mockUseModelSelectorData.mockReturnValue({
+      resolvedSelectedModelIds: models.slice(0, 5),
+      isLoading: false,
+      modelsError: undefined,
+      providersError: undefined,
+      cloudAvailabilityReady: true,
+      cloudAvailabilityError: undefined
+    })
+    render(<GeneralSettings />)
+    expect(translationSpy).toHaveBeenCalledWith('settings.models.retry.fallback_models_count', { count: 5 })
+    expect(translationSpy).not.toHaveBeenCalledWith('settings.models.retry.fallback_models_count', { count: 9 })
+    expect(modelSelectorSpy).toHaveBeenCalledWith(expect.objectContaining({ value: models.slice(0, 5) }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.retry.fallback_model_ids')).toEqual(models)
   })
 
   it('renders model retry settings in General and persists changes', async () => {

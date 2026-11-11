@@ -138,7 +138,10 @@ const GeneralSettings: FC = () => {
   const proxyTestButtonRef = useRef<HTMLButtonElement>(null)
   const pendingProxyPreferenceSave = useRef<(() => void) | null>(null)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
-  const configuredRetryFallbackModelIds = useMemo(() => retryFallbackModelIds ?? [], [retryFallbackModelIds])
+  const configuredRetryFallbackModelIds = useMemo(
+    () => (retryFallbackModelIds ?? []).slice(0, MAX_RETRY_FALLBACK_MODELS),
+    [retryFallbackModelIds]
+  )
   const {
     resolvedSelectedModelIds: resolvedRetryFallbackModelIds,
     isLoading: isFallbackSelectorDataLoading,
@@ -594,7 +597,7 @@ const GeneralSettings: FC = () => {
                 <ModelSelector
                   multiple={true}
                   selectionType="id"
-                  value={retryFallbackModelIds}
+                  value={configuredRetryFallbackModelIds}
                   onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds.slice(0, MAX_RETRY_FALLBACK_MODELS))}
                   filter={chatModelFilter}
                   trigger={
