@@ -69,11 +69,18 @@ describe('local protocol processes', () => {
     })
   }
 
-  function create(protocol: 'acp' | 'codex', scenario = 'normal', nativeModel?: string, presetId?: string) {
+  function create(
+    protocol: 'acp' | 'codex',
+    scenario = 'normal',
+    nativeModel?: string,
+    presetId?: string,
+    sourceModelId?: LocalAgentConfiguration['sourceModelId']
+  ) {
     const config: LocalAgentConfiguration = {
       protocol,
       presetId,
       nativeModel,
+      sourceModelId,
       enabled: true,
       executableOverride: process.execPath,
       args: [fixture, protocol, scenario],
@@ -94,6 +101,24 @@ describe('local protocol processes', () => {
         .join('')
     return { connection, events, drained, text }
   }
+
+  it.each([
+    ['pi-startup-late', 'pi-acp', undefined, 'OKpi v0.84.2\nUpdate available\n'],
+    ['pi-startup-early', 'pi-acp', undefined, 'OKpi v0.84.2\nUpdate available\n'],
+    ['pi-startup-missing', 'pi-acp', undefined, 'pi v0.84.2\nUpdate available\nOKpi v0.84.2\nUpdate available\n'],
+    ['pi-startup-late', 'opencode', undefined, 'pi v0.84.2\nUpdate available\nOKpi v0.84.2\nUpdate available\n'],
+    ['pi-startup-late', 'pi-acp', 'native-session', 'pi v0.84.2\nUpdate available\nOKpi v0.84.2\nUpdate available\n']
+  ])(
+    'preserves answers while excluding only Pi startup metadata (%s, %s, %s)',
+    async (scenario, preset, resume, expected) => {
+      const { connection, text, drained } = create('acp', scenario, undefined, preset)
+      await connection.start(cwd, resume)
+      await connection.send(input)
+      await connection.close()
+      await drained
+      expect(text()).toBe(expected)
+    }
+  )
 
   it('releases the OpenClaw Gateway after closing its ACP bridge', async () => {
     const dispose = vi.fn().mockResolvedValue(undefined)
@@ -899,6 +924,34 @@ describe('local protocol processes', () => {
       protocol === 'acp' ? { configId: 'model', value: 'fixture-model' } : { model: 'fixture-model' }
     )
   })
+
+  it.each([
+    ['qwen', 'deepseek/deepseek-flash', 'deepseek/deepseek-flash(openai)'],
+    ['hermes', 'deepseek/deepseek-flash', 'custom:deepseek/deepseek-flash'],
+    [
+      'minimax',
+      'custom_provider:cherry-CherryIN/deepseek/deepseek-flash',
+      'm:custom_provider%3Acherry-CherryIN:deepseek%2Fdeepseek-flash:v:'
+    ]
+  ])(
+    'starts a provider-configured %s session using its advertised model ID',
+    async (preset, configured, advertised) => {
+      const { connection, text, drained } = create(
+        'acp',
+        `provider-${preset}`,
+        configured,
+        preset,
+        'cherryin::deepseek/deepseek-flash'
+      )
+      await connection.start(cwd)
+      await connection.send(input)
+      await connection.close()
+      await drained
+      expect(text()).toContain('hello')
+      const selection = (await readWire()).find((message) => message.method === 'session/set_config_option')
+      expect(selection.params.value).toBe(advertised)
+    }
+  )
 
   it.each(['acp', 'codex'] as const)('%s handshake never sends a prompt', async (protocol) => {
     const { connection } = create(protocol)

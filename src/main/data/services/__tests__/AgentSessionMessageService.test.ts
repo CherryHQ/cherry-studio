@@ -1082,6 +1082,60 @@ describe('AgentSessionMessageService', () => {
       ).toEqual([first!.id, request.id].sort())
     })
 
+    it.each([false, true])('returns the child failure with partial output: %s', async (partial) => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-a', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: 'target',
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'error',
+          data: {
+            parts: [
+              ...(partial ? [{ type: 'text' as const, text: 'Partial result' }] : []),
+              { type: 'data-error', data: { message: 'Selected model is unavailable', stack: 'private stack' } }
+            ]
+          }
+        }
+      })
+      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+        expected: ['accepted'],
+        turnRef: ASSISTANT_MESSAGE_ID
+      })
+      const input = {
+        requestSessionId: 'target',
+        requestMessageId: request.id,
+        assistantMessageId: ASSISTANT_MESSAGE_ID,
+        outcome: 'failed' as const
+      }
+      const result = agentSessionMessageService.finalizeSessionDelivery(input)
+      expect(result?.data.parts).toEqual([
+        ...(partial ? [{ type: 'text', text: 'Partial result' }] : []),
+        { type: 'text', text: 'Selected model is unavailable' }
+      ])
+      expect(result?.delivery).toMatchObject({
+        outcome: 'failed',
+        error: {
+          code: 'TARGET_EXECUTION_FAILED',
+          message: 'Selected model is unavailable'
+        }
+      })
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery?.error).toEqual(
+        result?.delivery?.error
+      )
+      expect(agentSessionMessageService.finalizeSessionDelivery(input)).toBeNull()
+      expect(JSON.stringify(result)).not.toContain('private stack')
+    })
+
     it('does not write a completion result to a trashed caller when finalizing', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedAgent('agent-b', 'Agent B')

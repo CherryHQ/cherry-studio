@@ -71,6 +71,12 @@ vi.mock('@application', async () => {
         return true
       }
     },
+    ...{
+      LocalAgentWebUiService: { stop: async () => {} },
+      CodeBuddyWebUiService: { stop: async () => {} },
+      HermesDashboardService: { stop: async () => {} },
+      DeepSeekHarnessService: { stop: async () => {} }
+    },
     IpcApiService: { broadcast: () => {} }
   })
 })
@@ -761,7 +767,7 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
       const cli = path.join(state.root, 'agy')
       await writeFile(
         cli,
-        '#!/usr/bin/env node\nconsole.log(process.argv.includes("--version") ? "1.2.3" : "Antigravity CLI")\n'
+        '#!/usr/bin/env node\nif (process.argv.includes("--version")) process.stdout.write("1.2.3"); else process.stderr.write("Usage of agy:")\n'
       )
       await chmod(cli, 0o755)
       const config = path.join(state.root, 'settings.json')

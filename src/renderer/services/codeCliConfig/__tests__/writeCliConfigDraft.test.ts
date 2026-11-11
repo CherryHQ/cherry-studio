@@ -1098,6 +1098,21 @@ describe('writeCliConfigDraft', () => {
       })
     })
 
+    it.each([{ contextWindow: 1048576 }, { maxOutputTokens: 8192 }, { contextWindow: 1048576, maxOutputTokens: 0 }])(
+      'keeps the OpenCode provider valid with incomplete model limits: %j',
+      async (limits) => {
+        mockGet({
+          '/providers/deepseek': () => openaiCompatProvider,
+          '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+          '/models/': () => limits
+        })
+        await writeCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat' })
+        const parsed = JSON.parse(opencodeWrite().content)
+        expect(parsed.provider['cherry-DeepSeek'].models['deepseek-chat']).not.toHaveProperty('limit')
+        expect(parsed.model).toBe('cherry-DeepSeek/deepseek-chat')
+      }
+    )
+
     it('enables anthropic thinking when reasoning is on', async () => {
       mockGet({
         '/providers/anthropic': () => anthropicProvider,
@@ -1414,7 +1429,7 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('names the OpenCode provider "cherry-gateway" (not the localized-title-sanitized "cherry-Cherry-")', async () => {
-      mockGet({ '/models/': () => ({ id: 'deepseek-chat', name: 'DeepSeek Chat' }) })
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat', name: 'DeepSeek Chat', contextWindow: 1048576 }) })
 
       await writeCliConfigDraft({
         cliTool: CodeCli.OPEN_CODE,
@@ -1430,6 +1445,7 @@ describe('writeCliConfigDraft', () => {
       // The map key stays the addressing id; `name` is what OpenCode's UI shows, so it
       // carries the display name instead of the opaque gateway id.
       expect(provider.models['deepseek:deepseek-chat'].name).toBe('DeepSeek Chat')
+      expect(provider.models['deepseek:deepseek-chat']).not.toHaveProperty('limit')
       // The gateway-addressed model id contains ":" and OpenCode splits the selector at the
       // FIRST "/", so this exact string resolves to provider "cherry-gateway" + that model key.
       expect(parsed.model).toBe('cherry-gateway/deepseek:deepseek-chat')

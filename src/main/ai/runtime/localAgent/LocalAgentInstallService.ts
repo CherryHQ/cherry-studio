@@ -318,7 +318,7 @@ export class LocalAgentInstallService extends BaseService {
       const version = await this.run(expectedPath, ['--version'], env, 8000)
       const identity = target.executable === 'agy' ? /\b(?:antigravity|agy)\b/i : /\bkiro-cli\b/i
       if (!/\d+\.\d+/.test(version)) return undefined
-      if (!identity.test(version) && !identity.test(await this.run(expectedPath, ['--help'], env, 8000)))
+      if (!identity.test(version) && !identity.test(await this.run(expectedPath, ['--help'], env, 8000, true)))
         return undefined
       const original = await lstat(expectedPath)
       return async () => {
@@ -383,10 +383,10 @@ export class LocalAgentInstallService extends BaseService {
       if (!(await this.closeIdleAgentSessions(agents.map((agent) => agent.id)))) return { ok: false, reason: 'busy' }
       for (const agent of agents) {
         const webUiId = LOCAL_AGENT_WEB_UI_IDS.find((id) => id === agent.id)
-        if (webUiId) await application.getOptional('LocalAgentWebUiService')?.stop(webUiId)
-        if (agent.id === 'codebuddy-code') await application.getOptional('CodeBuddyWebUiService')?.stop()
-        if (agent.id === 'hermes') await application.getOptional('HermesDashboardService')?.stop()
-        if (agent.id === 'deepseek-harness') await application.getOptional('DeepSeekHarnessService')?.stop()
+        if (webUiId) await application.get('LocalAgentWebUiService').stop(webUiId)
+        if (agent.id === 'codebuddy-code') await application.get('CodeBuddyWebUiService').stop()
+        if (agent.id === 'hermes') await application.get('HermesDashboardService').stop()
+        if (agent.id === 'deepseek-harness') await application.get('DeepSeekHarnessService').stop()
         if (agent.id === 'openclaw') {
           const stopped = await application.get('OpenClawService').stopGateway()
           if (!stopped.success) return { ok: false, reason: 'busy' }
@@ -649,7 +649,13 @@ export class LocalAgentInstallService extends BaseService {
     )
   }
 
-  private run(command: string, args: string[], env: Record<string, string>, timeout = 15 * 60_000): Promise<string> {
+  private run(
+    command: string,
+    args: string[],
+    env: Record<string, string>,
+    timeout = 15 * 60_000,
+    includeStderr = false
+  ): Promise<string> {
     this.abort.signal.throwIfAborted()
     return new Promise((resolve, reject) => {
       const child = crossPlatformSpawn(command, args, {
@@ -672,7 +678,7 @@ export class LocalAgentInstallService extends BaseService {
       child.once('close', (code) => {
         clearTimeout(timer)
         this.children.delete(child)
-        if (code === 0) resolve(stdout)
+        if (code === 0) resolve(includeStderr ? `${stdout}\n${stderr}` : stdout)
         else reject(new Error(stderr || `Installer exited with code ${code}`))
       })
     })

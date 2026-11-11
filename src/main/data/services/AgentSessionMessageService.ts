@@ -43,6 +43,7 @@ import {
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
+import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -323,6 +324,7 @@ function terminalResultData(
     if (part.type === 'file' && readCherryMeta(part)?.fileEntryId) return [structuredClone(part)]
     return []
   })
+  if (error?.message) parts.push({ type: 'text', text: error.message })
   if (parts.length > 0) return { parts }
 
   const text =
@@ -2173,7 +2175,7 @@ export class AgentSessionMessageService {
         return { requestId: null, result: null }
       }
 
-      const error = request.delivery.delegation ? request.delivery.error : null
+      let error = request.delivery.delegation ? request.delivery.error : null
       const outcome = error?.code === 'TIMEOUT' ? 'failed' : input.outcome
 
       const existingResult = tx
@@ -2187,7 +2189,7 @@ export class AgentSessionMessageService {
           .set({
             deliveryStatus: 'consumed',
             deliveryTurnRef: null,
-            delivery: { ...request.delivery, outcome, statusAt: new Date().toISOString() }
+            delivery: { ...request.delivery, outcome, error, statusAt: new Date().toISOString() }
           })
           .where(eq(sessionMessagesTable.id, request.id))
           .run()
@@ -2200,6 +2202,12 @@ export class AgentSessionMessageService {
       const assistant = this.findExistingMessageRow(tx, input.requestSessionId, input.assistantMessageId)
       if (!assistant || assistant.role !== 'assistant' || assistant.status === 'pending') {
         return { requestId: null, result: null }
+      }
+
+      if (!error && outcome === 'failed') {
+        const failure = assistant.data.parts?.findLast((part) => part.type === 'data-error')
+        const message = failure?.type === 'data-error' ? getSafeProviderErrorMessage(failure.data) : ''
+        if (message) error = { code: 'TARGET_EXECUTION_FAILED', message }
       }
 
       let result: AgentSessionMessageEntity | null = null
@@ -2260,7 +2268,7 @@ export class AgentSessionMessageService {
         .set({
           deliveryStatus: 'consumed',
           deliveryTurnRef: null,
-          delivery: { ...request.delivery, outcome, statusAt: new Date().toISOString() }
+          delivery: { ...request.delivery, outcome, error, statusAt: new Date().toISOString() }
         })
         .where(eq(sessionMessagesTable.id, request.id))
         .run()

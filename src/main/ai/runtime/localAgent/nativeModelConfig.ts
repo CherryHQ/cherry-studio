@@ -128,3 +128,17 @@ export function readNativeModelConfig(target: CliConfigTarget, content: string):
             : config.model
   return typeof value === 'string' ? value : undefined
 }
+
+/** Resolves a config-file default against the IDs advertised by the ACP session. */
+export function resolveConfiguredAcpModel(presetId: string | undefined, model: string, available: string[]): string {
+  if (available.includes(model)) return model
+  let candidate = model
+  if (presetId === 'qwen') candidate = `${model}(openai)`
+  if (presetId === 'hermes') candidate = `custom:${model}`
+  if (presetId === 'minimax') {
+    const slash = model.indexOf('/')
+    if (slash > 0)
+      candidate = `m:${encodeURIComponent(model.slice(0, slash))}:${encodeURIComponent(model.slice(slash + 1))}:v:`
+  }
+  return available.includes(candidate) ? candidate : model
+}

@@ -5,7 +5,7 @@ import { parse as parseYaml } from 'yaml'
 
 import { application } from '@application'
 
-import { readNativeModelConfig, updateNativeModelConfig } from '../nativeModelConfig'
+import { readNativeModelConfig, resolveConfiguredAcpModel, updateNativeModelConfig } from '../nativeModelConfig'
 
 describe('native model defaults', () => {
   it('persists Poolside native defaults without replacing the saved account or other agent servers', () => {
@@ -130,5 +130,21 @@ describe('native model defaults', () => {
     } finally {
       await preferences.set('app.language', previous)
     }
+  })
+})
+
+describe('provider-configured ACP model identities', () => {
+  it.each([
+    ['qwen', 'deepseek/deepseek-flash', 'deepseek/deepseek-flash(openai)'],
+    ['hermes', 'deepseek/deepseek-flash', 'custom:deepseek/deepseek-flash'],
+    [
+      'minimax',
+      'custom_provider:cherry-CherryIN/deepseek/deepseek-flash',
+      'm:custom_provider%3Acherry-CherryIN:deepseek%2Fdeepseek-flash:v:'
+    ]
+  ])('resolves %s config IDs only when advertised by the session', (preset, configured, advertised) => {
+    expect(resolveConfiguredAcpModel(preset, configured, [advertised])).toBe(advertised)
+    expect(resolveConfiguredAcpModel(preset, configured, ['unrelated-model'])).toBe(configured)
+    expect(resolveConfiguredAcpModel(preset, configured, [configured, advertised])).toBe(configured)
   })
 })

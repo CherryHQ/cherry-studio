@@ -173,10 +173,15 @@ function buildOpenCodeModelOptions(
 }
 
 function openCodeModelLimit(options: Record<string, any>): Record<string, number> | undefined {
-  const limit: Record<string, number> = {}
-  if (Number.isInteger(options.contextWindow) && options.contextWindow > 0) limit.context = options.contextWindow
-  if (Number.isInteger(options.maxOutputTokens) && options.maxOutputTokens > 0) limit.output = options.maxOutputTokens
-  return Object.keys(limit).length > 0 ? limit : undefined
+  // OpenCode rejects the entire provider when a limit omits context or output.
+  if (
+    !Number.isInteger(options.contextWindow) ||
+    options.contextWindow <= 0 ||
+    !Number.isInteger(options.maxOutputTokens) ||
+    options.maxOutputTokens <= 0
+  )
+    return undefined
+  return { context: options.contextWindow, output: options.maxOutputTokens }
 }
 
 export function buildOpenCodeConfig(

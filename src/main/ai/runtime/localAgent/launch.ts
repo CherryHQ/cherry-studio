@@ -21,14 +21,23 @@ import type { InputFor } from '@shared/ipc/types'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
 
-import { readInstalledPackageVersion } from './installedVersion'
+import { readInstalledPackageVersion, resolveInstalledExecutable } from './installedVersion'
 import { resolveRequiredRuntime } from './runtimeDependency'
 
-function selectInstallation(
+async function selectInstallation(
   preset: Pick<LocalAgentPreset, 'executable' | 'aliases'>,
   snapshots: Record<string, BinaryToolSnapshot>
 ) {
-  const candidates = [preset.executable, ...(preset.aliases ?? [])].map((name) => snapshots[name]?.availability)
+  const candidates = await Promise.all(
+    [preset.executable, ...(preset.aliases ?? [])].map(async (name) => {
+      const candidate = snapshots[name]?.availability
+      if (preset.executable === 'cursor-agent' && name === 'agent' && candidate && candidate.source !== 'none') {
+        const target = await resolveInstalledExecutable(candidate.path).catch(() => '')
+        if (!/^cursor-agent(?:\.exe|\.cmd)?$/i.test(path.basename(target))) return undefined
+      }
+      return candidate
+    })
+  )
   return (
     candidates.find((value) => value?.source === 'mise') ??
     candidates.find((value) => value && value.source !== 'none') ?? { source: 'none' as const }
@@ -49,7 +58,7 @@ export async function selectAvailableInstallation(
   preset: Pick<LocalAgentPreset, 'executable' | 'aliases'>,
   snapshots: Record<string, BinaryToolSnapshot>
 ) {
-  const installed = selectInstallation(preset, snapshots)
+  const installed = await selectInstallation(preset, snapshots)
   if (installed.source !== 'none') return installed
   const entry = systemAgentEntry(preset.executable)
   try {

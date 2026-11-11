@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -318,7 +318,7 @@ agent_servers:
     ['copilot', 'copilot', ['--acp']],
     ['deepseek-harness', 'dsh', ['--profile', 'acp']],
     ['minimax', 'mcode', ['acp']],
-    ['cursor', 'agent', ['acp']],
+    ['cursor', 'cursor-agent', ['acp']],
     ['cline', 'cline', ['--acp']],
     ['kilo', 'kilo', ['acp']],
     ['goose', 'goose', ['acp']],
@@ -345,6 +345,21 @@ agent_servers:
     expect(launch.executable).toBe(`/user/bin/${executable}`)
     expect(launch.args).toEqual(presetId === 'antigravity-acp' && process.platform === 'linux' ? ['--uid='] : args)
     expect(launch.env.MISE_DATA_DIR).toBe('/user/mise')
+  })
+
+  it('accepts the Cursor agent symlink but rejects a Grok executable with the same alias', async () => {
+    const alias = path.join(directory, 'agent')
+    const cursor = path.join(directory, 'cursor-agent')
+    const grok = path.join(directory, 'grok')
+    await writeFile(cursor, '#!/bin/sh\n')
+    await writeFile(grok, '#!/bin/sh\n')
+    await symlink(cursor, alias)
+    inventory.snapshots.agent = { name: 'agent', availability: { source: 'system', path: alias } }
+    expect((await detectLocalAgents()).find((agent) => agent.presetId === 'cursor')).toMatchObject({ path: alias })
+    await rm(alias)
+    await symlink(grok, alias)
+    expect((await detectLocalAgents()).find((agent) => agent.presetId === 'cursor')).toMatchObject({ source: 'none' })
+    await expect(resolveLocalAgentLaunch({ ...config, presetId: 'cursor', protocol: 'acp' })).rejects.toThrow()
   })
 
   it('applies required protocol environment without overriding explicit user choices', async () => {

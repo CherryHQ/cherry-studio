@@ -80,7 +80,11 @@ Status: proposed
 
 2026-11-10，真实委派任务分别通过 Codex、Claude Code 2.1.260（Cherry Gateway / DeepSeek V4.1 Flash）和 OpenCode（原生 `opencode/deepseek-v4.1-flash-free`）完成并回传结果。Claude Code 的 AskUserQuestion 显示在父会话卡片，选择红色后回传红色。OpenCode 的 `sleep 180` 任务在完成前通过父卡片取消并回传取消结果；更早的 `sleep 45` 是自然完成，不作为取消证据。
 
-OpenCode 的 ACP 模型列表缺少 `cherry-gateway/opencode:deepseek-v4.1-flash` 时，Gateway 模型选择仍然失败；本次仅原生配置通过。子任务只有错误而无文本时，父会话目前收到通用的无文本结果。这些兼容性和诊断问题仍未解决，因此本文保持 proposed，本次有限验收不代表所有模型配置均兼容。
+OpenCode Gateway 失败运行的日志指出 `provider.cherry-gateway` 配置格式错误。Cherry 根据模型元数据写入了 `limit.context`，却缺少 `limit.output`；OpenCode 要求两者同时存在，否则会跳过该服务商。配置生成器现在只在两个值都有效时写入限制，元数据不完整时保留 CLI 默认行为。重新选择模型会重新生成之前写入的配置；修复不会自动改写用户 CLI 文件，也不会绕过 ACP 模型校验。
+
+失败的子任务现在会把已持久化的错误消息同时回传到完成文本和投递元数据，保留部分输出，并排除错误堆栈。显式的委派超时或取消错误优先。回归覆盖直连和 Gateway 模型限制不完整、有或无部分文本的失败任务，以及终态只投递一次：75 项 renderer 测试和 150 项 main 测试通过。随后使用隔离配置进行真实运行，验证了 OpenCode Gateway 完成、具体模型错误回传、主动取消、禁用运行中的目标、父会话权限批准，以及正常退出重启后不重放任务；六条请求各生成一条终态回执。拒绝 OpenCode 工具权限会停止执行，但只回传“Session failed without a text response.”，未清楚说明拒绝原因。强制崩溃、超时、删除父会话、项目目录覆盖和用户自有技能保留尚未纳入本轮实测。本文保持 proposed，不宣称所有模型配置均兼容。
+
+扩展本地 Agent 验收发现 Qwen、MiniMax 和 Hermes 的配置文件模型 ID 与 ACP 模型 ID 不一致。连接现在仅将已知的服务商配置 ID 对照真实目录转换，不可用的模型仍严格报错。通过正常服务商配置流程重新发起真实委派，分别收到 `FIX_QWEN_OK`、`FIX_MINIMAX_OK` 和 `FIX_HERMES_OK`，每条请求均只有一条持久化完成回执。修正错误的可选服务获取方式后，Qwen 与 MiniMax 卸载成功。Cursor 检测不再将 Grok 的 `agent` 符号链接误认成 Cursor。Bun 依赖检测现在会查找 PATH 后面的兼容版本；OMP 18.18.8 使用官方源安装后完成 ACP 握手，本机配置的 npm 镜像则缺少一项依赖。Factory Droid 1.7.1 从官方源隔离安装后也完成握手。握手均不代表模型认证或真实提示词执行已通过。Antigravity 身份检查现在同时读取标准错误输出中的帮助信息；真实卸载已成功移除其 CLI 和 ACP 适配器。Pi 启动文本混入仍属于上游适配器问题；Trae 和源码安装的 Hermes 仍不支持卸载。Hermes 的共享网关按上游设计在闲置超时后退出，不会随 ACP 查看端立即退出。
 
 ## Risks
 

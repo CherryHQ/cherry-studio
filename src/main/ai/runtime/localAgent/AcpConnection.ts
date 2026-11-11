@@ -46,6 +46,7 @@ import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
 import { LocalConnection } from './LocalConnection'
 import { acpContent } from './localContent'
+import { resolveConfiguredAcpModel } from './nativeModelConfig'
 
 const logger = loggerService.withContext('AcpConnection')
 const LegacyModelsSchema = z.object({
@@ -75,6 +76,7 @@ export class AcpConnection extends LocalConnection {
   private nativeId?: string
   private supportsClose = false
   private readonly terminals = new Map<string, Terminal>()
+  private piStartupBanner?: string
   private loading = false
   private modelConfigId?: string
   private legacyModels = false
@@ -153,7 +155,8 @@ export class AcpConnection extends LocalConnection {
             params.update.sessionUpdate === 'usage_update' ||
             params.update.sessionUpdate === 'session_info_update' ||
             params.update.sessionUpdate === 'notice' ||
-            params.update.sessionUpdate === 'current_mode_update'
+            params.update.sessionUpdate === 'current_mode_update' ||
+            (this.config.presetId === 'pi-acp' && params.update.sessionUpdate === 'agent_message_chunk')
           )
             this.pendingUpdates.push(params)
         } else if (params.sessionId === this.nativeId) this.update(params.update)
@@ -463,11 +466,22 @@ export class AcpConnection extends LocalConnection {
           cwd,
           mcpServers: []
         })
+        if (this.config.presetId === 'pi-acp') {
+          const metadata = z.object({ piAcp: z.object({ startupInfo: z.string() }) }).safeParse(session._meta)
+          this.piStartupBanner = metadata.success ? metadata.data.piAcp.startupInfo || undefined : undefined
+        }
         this.nativeId = session.sessionId
         this.readSessionModels(session)
       }
       for (const pending of this.pendingUpdates.splice(0)) {
         if (pending.sessionId === this.nativeId) this.update(pending.update)
+      }
+      if (this.defaultModel && this.config.sourceModelId) {
+        this.defaultModel = resolveConfiguredAcpModel(
+          this.config.presetId,
+          this.defaultModel,
+          (this.localSessionInfo.models ?? []).map((model) => model.id)
+        )
       }
       if (this.defaultModel && this.localSessionInfo.activeModel?.id !== this.defaultModel) {
         if (
@@ -642,6 +656,17 @@ export class AcpConnection extends LocalConnection {
     return terminal
   }
   private update(update: SessionUpdate) {
+    if (
+      this.piStartupBanner !== undefined &&
+      update.sessionUpdate === 'agent_message_chunk' &&
+      update.content.type === 'text' &&
+      update.content.text === this.piStartupBanner
+    ) {
+      // pi-acp repeats session/new startup metadata as an unmarked assistant chunk.
+      this.piStartupBanner = undefined
+      return
+    }
+
     if (update.sessionUpdate === 'compaction_update') {
       const { compactionId, status } = update
       if (!['in_progress', 'completed', 'failed', 'cancelled'].includes(status)) return

@@ -302,6 +302,9 @@ During session creation/loading, command and configuration notifications are buf
 and applied only to the matching native session. Transcript/tool replay is not
 rendered again. Modern model configuration takes precedence when both model
 interfaces are advertised; a failed model selection is not silently ignored.
+Provider-configured Qwen, MiniMax and Hermes defaults are translated from their
+configuration-file IDs to the corresponding advertised ACP IDs. Native model
+selections keep their original IDs; an unadvertised model still fails explicitly.
 
 Connection checks expose `protocolInfo`: protocol version, reported agent identity,
 advertised capabilities and completed verification
@@ -460,6 +463,11 @@ configured `maxOutputTokens` before deriving reasoning options. Smaller budgets,
 missing budgets and models with no known ceiling retain their original behavior.
 Custom provider limits must reflect that provider's served model: a generic model
 catalog ceiling does not establish the limit for every endpoint.
+
+Pi startup text reported in `session/new._meta.piAcp.startupInfo` is excluded
+from assistant output exactly once when an identical text chunk arrives. This also
+handles startup chunks received before the session response. Later identical text,
+messages without startup metadata, and other agents' messages remain unchanged.
 
 Pi ACP 0.0.34 discards native model failure information and resolves a settled
 prompt as `end_turn`, even after retries fail. Cherry cannot reliably classify

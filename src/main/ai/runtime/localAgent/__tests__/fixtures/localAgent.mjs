@@ -4,6 +4,11 @@ import { createInterface } from 'node:readline'
 
 const protocol = process.argv[2]
 const scenario = process.argv[3]
+const configuredModel = {
+  'provider-qwen': 'deepseek/deepseek-flash(openai)',
+  'provider-hermes': 'custom:deepseek/deepseek-flash',
+  'provider-minimax': 'm:custom_provider%3Acherry-CherryIN:deepseek%2Fdeepseek-flash:v:'
+}[scenario]
 if (process.env.FIXTURE_LOG) writeFileSync(`${process.env.FIXTURE_LOG}.pid`, String(process.pid))
 const emit = (message) => process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', ...message })}\n`)
 const reply = (id, result) => emit({ id, result })
@@ -27,6 +32,7 @@ const text = (value) =>
         method: 'item/agentMessage/delta',
         params: { threadId: 'native-session', itemId: 'answer', delta: value }
       })
+const piBanner = 'pi v0.84.2\nUpdate available\n'
 let turn = 0
 let cwd
 let terminalId
@@ -237,6 +243,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       return emit({ id, error: { code: -32603, message: 'Native session was not found' } })
     }
     cwd = message.params.cwd
+    if (scenario === 'pi-startup-early') text(piBanner)
     if (method === 'session/load') {
       if (scenario.startsWith('compaction'))
         update({ sessionUpdate: 'compaction_update', compactionId: 'historical', status: 'in_progress' })
@@ -346,6 +353,9 @@ createInterface({ input: process.stdin }).on('line', (line) => {
           }
         : {}),
       sessionId: 'native-session',
+      ...(scenario.startsWith('pi-startup') && scenario !== 'pi-startup-missing' && method === 'session/new'
+        ? { _meta: { piAcp: { startupInfo: piBanner } } }
+        : {}),
       configOptions:
         scenario === 'config-semantics'
           ? semanticConfig()
@@ -369,7 +379,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
                         name: 'Model',
                         type: 'select',
                         currentValue: scenario === 'thought-resume' ? 'fixture-model' : 'fixture-default',
-                        options: [{ value: 'fixture-model', name: 'Fixture model' }]
+                        options: [{ value: configuredModel ?? 'fixture-model', name: 'Fixture model' }]
                       }
                     ]
     })
@@ -426,7 +436,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
           name: 'Model',
           type: 'select',
           currentValue: message.params.value,
-          options: [{ value: 'fixture-model', name: 'Fixture model' }]
+          options: [{ value: configuredModel ?? 'fixture-model', name: 'Fixture model' }]
         }
       ]
     })
@@ -440,6 +450,13 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       return emit({ id, error: { code: -32603, message: 'Prompt arrived before configuration settled' } })
     promptId = id
     turn++
+    if (scenario.startsWith('pi-startup')) {
+      if (scenario !== 'pi-startup-early') text(piBanner)
+      text('OK')
+      text(piBanner)
+      finish()
+      return
+    }
     if (scenario === 'error-details')
       return emit({
         id,
