@@ -13,7 +13,7 @@ import { bootConfigService } from '@main/data/bootConfig'
 
 import { MIGRATION_V2_STATUS, migrationStatusSchema } from './migrationStatus'
 
-export const LEGACY_UPGRADE_VERSION = '2.1.10'
+export const LEGACY_UPGRADE_VERSION = '2.1.0'
 
 export function getLegacyUpgradeDownloadUrl({
   platform,

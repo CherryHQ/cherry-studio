@@ -10,7 +10,7 @@ Shipping the complete v1-to-v2 converter indefinitely retains an obsolete conver
 
 ## Decision
 
-The application retains read-only legacy profile detection and directs unmigrated users through Cherry Studio **2.1.10**. This fixed release contains the converter and the required platform assets. The native preboot dialog offers a direct installer download or quit, before lifecycle bootstrap. The download action opens the fixed asset URL in the system browser and exits; dismissing the dialog also exits. Users install and launch the intermediate release, complete its migration, then reinstall the current version while preserving their data.
+The application retains read-only legacy profile detection and directs unmigrated users through Cherry Studio **2.1.0**. This fixed release contains the converter and the required platform assets. The native preboot dialog offers a direct installer download or quit, before lifecycle bootstrap. The download action opens the fixed asset URL in the system browser and exits; dismissing the dialog also exits. Users install and launch the intermediate release, complete its migration, then reinstall the current version while preserving their data.
 
 Installer selection uses operating system and architecture: macOS DMG, Windows setup or portable EXE matching the current installation, and Linux AppImage. Both x64 and arm64 are supported. Electron's ARM translation detection selects arm64 when an ARM computer runs an x64 application under Rosetta or WOW. No release page or moving latest-version link is involved.
 

@@ -7,13 +7,13 @@ sources:
 
 # Upgrading v1 Data
 
-The current application no longer converts v1 Redux, Dexie, or ElectronStore data. Users upgrading from 1.9.x must first install and launch Cherry Studio **2.1.10**, complete its migration, and then reinstall the current version. Keep the existing data directories throughout this process. The intermediate version retains its own source-version compatibility checks.
+The current application no longer converts v1 Redux, Dexie, or ElectronStore data. Users upgrading from 1.9.x must first install and launch Cherry Studio **2.1.0**, complete its migration, and then reinstall the current version. Keep the existing data directories throughout this process. The intermediate version retains its own source-version compatibility checks.
 
 ## Preboot behavior
 
 Before lifecycle bootstrap, `legacyUpgradeGate.ts` checks the current profile and recorded legacy custom directories. Existing databases are opened read-only; the check never creates a database, runs schema migrations, rewrites the data location, or marks conversion completed. A completed migration takes precedence over leftover legacy files. A v2 database with a runtime seeding journal but no conversion marker is also accepted, allowing profiles created after conversion retirement to restart normally.
 
-Unmigrated or interrupted profiles receive a localized native dialog with **Download 2.1.10** and **Quit**. Download opens a fixed GitHub release asset directly in the system browser and exits the application. Closing the dialog also exits. macOS selects a DMG, Windows selects setup or portable EXE matching the current installation, and Linux selects AppImage. x64 and arm64 are supported; Electron's ARM translation detection selects arm64 on Rosetta/WOW hosts.
+Unmigrated or interrupted profiles receive a localized native dialog with **Download 2.1.0** and **Quit**. Download opens a fixed GitHub release asset directly in the system browser and exits the application. Closing the dialog also exits. macOS selects a DMG, Windows selects setup or portable EXE matching the current installation, and Linux selects AppImage. x64 and arm64 are supported; Electron's ARM translation detection selects arm64 on Rosetta/WOW hosts.
 
 Unavailable custom directories, corrupt databases, unreadable migration status, and failure to open the download produce an error and stop startup. Unpackaged development launches never inspect production legacy config. Download completion and installation remain under the user's control.
 

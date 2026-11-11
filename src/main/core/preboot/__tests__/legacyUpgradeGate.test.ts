@@ -33,7 +33,7 @@ describe('legacy upgrade gate', () => {
     expect(options).toMatchObject({ cancelId: 1, defaultId: 0 })
     expect(options).toHaveProperty('detail', expect.stringContaining('/legacy/profile'))
     expect(shell.openExternal).toHaveBeenCalledWith(
-      expect.stringContaining('/releases/download/v2.1.10/Cherry-Studio-2.1.10-')
+      expect.stringContaining('/releases/download/v2.1.0/Cherry-Studio-2.1.0-')
     )
     expect(application.quit).toHaveBeenCalledOnce()
   })

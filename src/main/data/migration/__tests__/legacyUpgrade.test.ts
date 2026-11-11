@@ -175,7 +175,7 @@ describe('fixed migration release downloads', () => {
     ['linux', 'arm64', false, false, 'linux-arm64.AppImage']
   ] as const)('selects %s/%s translated=%s portable=%s', (platform, arch, translated, portable, asset) => {
     expect(getLegacyUpgradeDownloadUrl({ platform, arch, translated, portable })).toBe(
-      `https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.10/Cherry-Studio-2.1.10-${asset}`
+      `https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-2.1.0-${asset}`
     )
   })
 })
