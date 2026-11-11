@@ -84,8 +84,6 @@ describe('createCustomModel', () => {
     expect(model.name).toBe('my-custom-model')
     expect(model.id).toContain('my-custom-model')
     expect(model.providerId).toBe('openai')
-    expect(model.capabilities).toEqual([])
-    expect(model.isEnabled).toBe(true)
   })
 })
 

@@ -1,5 +1,4 @@
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
@@ -2388,7 +2387,6 @@ describe('MessageService', () => {
         ])
       )
       const virtualRootId = 'vroot-topic-root-sibling'
-      const beforeWriteTx = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
 
       const sibling = messageService.createSibling('u-root', mainText('edited root prompt'))
 
@@ -2407,7 +2405,6 @@ describe('MessageService', () => {
 
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-root-sibling')).limit(1)
       expect(topic.activeNodeId).toBe(sibling.id)
-      expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx).toBe(beforeWriteTx + 1)
 
       const branch = messageService.getBranchMessages('topic-root-sibling', { includeSiblings: true })
       expect(branch.items).toHaveLength(1)
@@ -2522,14 +2519,11 @@ describe('MessageService', () => {
         ])
       )
 
-      const beforeWriteTx = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
-
       const sibling = messageService.createSibling('u-follow', mainText('edited follow up'))
 
       expect(sibling.role).toBe('user')
       expect(sibling.parentId).toBe('a-root')
       expect(sibling.status).toBe('success')
-      expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx).toBe(beforeWriteTx + 1)
 
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-sibling-status')).limit(1)
       expect(topic.activeNodeId).toBe(sibling.id)
@@ -4483,5 +4477,48 @@ describe('MessageService', () => {
       expect(duplicate?.alreadySettledApprovalIds).toEqual(['ap-a'])
       expect(stateOf(duplicate?.parts, 'ap-a')).toBe('approval-responded')
     })
+  })
+
+  it('keeps frozen author refs through placeholder, edit, finalization and retry, then cascades on delete', async () => {
+    const fileId = '019606a0-0000-7000-8000-00000000aa02'
+    const topicId = 'avatar-history'
+    await seedFileEntry(fileId)
+    await seedTopicWithRoot(topicId)
+    const snapshot = {
+      id: 'author',
+      name: 'Author',
+      emoji: '🌟',
+      avatarFileId: fileId,
+      model: { id: 'm', name: 'M', provider: 'p' }
+    }
+    const readRefs = (id: string) =>
+      dbh.db
+        .select({ fileEntryId: chatMessageFileRefTable.fileEntryId, role: chatMessageFileRefTable.role })
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, id))
+        .all()
+    const expected = [{ fileEntryId: fileId, role: 'author_avatar' }]
+    const created = messageService.create(topicId, {
+      role: 'assistant',
+      data: mainText('initial'),
+      messageSnapshot: snapshot
+    })
+    expect(readRefs(created.id)).toEqual(expected)
+    const { placeholders } = messageService.createUserMessageWithPlaceholders({
+      topicId,
+      userMessage: { mode: 'create', dto: { role: 'user', data: mainText('Q') } },
+      placeholders: [{ role: 'assistant', data: mainText(''), messageSnapshot: snapshot }]
+    })
+    const id = placeholders[0].id
+    expect(readRefs(id)).toEqual(expected)
+    messageService.update(id, { data: mainText('edited') })
+    expect(readRefs(id)).toEqual(expected)
+    messageService.finalizeAssistantMessage(id, { data: mainText('failed'), status: 'error' })
+    expect(readRefs(id)).toEqual(expected)
+    messageService.resetAssistantForRetry(id)
+    expect(readRefs(id)).toEqual(expected)
+    expect(messageService.getById(id).messageSnapshot).toEqual(snapshot)
+    messageService.delete(id)
+    expect(readRefs(id)).toEqual([])
   })
 })

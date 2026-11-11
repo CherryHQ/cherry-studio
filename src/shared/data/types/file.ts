@@ -467,12 +467,12 @@ export const createRefSchema = <T extends BusinessRefShape>(shape: T): z.ZodObje
 
 export const chatMessageSourceType = 'chat_message' as const
 
-export const chatMessageRoles = ['attachment', 'tool_output', 'generated'] as const
+export const chatMessageRoles = ['attachment', 'tool_output', 'author_avatar', 'generated'] as const
 export const chatMessageRoleSchema = z.enum(chatMessageRoles)
 
 export const chatMessageRefFields = {
   sourceType: z.literal(chatMessageSourceType),
-  sourceId: MessageIdSchema,
+  sourceId: z.lazy(() => MessageIdSchema),
   role: chatMessageRoleSchema
 }
 
@@ -486,12 +486,12 @@ export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
 
 export const agentSessionMessageSourceType = 'agent_session_message' as const
 
-export const agentSessionMessageRoles = ['attachment', 'generated'] as const
+export const agentSessionMessageRoles = ['attachment', 'author_avatar', 'generated'] as const
 export const agentSessionMessageRoleSchema = z.enum(agentSessionMessageRoles)
 
 export const agentSessionMessageRefFields = {
   sourceType: z.literal(agentSessionMessageSourceType),
-  sourceId: MessageIdSchema,
+  sourceId: z.lazy(() => MessageIdSchema),
   role: agentSessionMessageRoleSchema
 }
 
@@ -617,6 +617,8 @@ function defineSingleFileRef<const T extends string>(sourceType: T) {
   return { sourceType, refFields, schema: z.object({ ...refCommonFields, ...refFields }) } as const
 }
 
+export const agentAvatarRef = defineSingleFileRef('agent_avatar')
+export const assistantAvatarRef = defineSingleFileRef('assistant_avatar')
 export const providerLogoRef = defineSingleFileRef('provider_logo')
 export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
 
@@ -665,6 +667,8 @@ export const allSourceTypes = [
   paintingSourceType,
   jobSourceType,
   translateHistorySourceType,
+  agentAvatarRef.sourceType,
+  assistantAvatarRef.sourceType,
   providerLogoRef.sourceType,
   miniAppLogoRef.sourceType,
   miniAppFileRef.sourceType
@@ -693,6 +697,8 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   paintingFileRefSchema,
   jobFileRefSchema,
   translateHistoryFileRefSchema,
+  agentAvatarRef.schema,
+  assistantAvatarRef.schema,
   providerLogoRef.schema,
   miniAppLogoRef.schema,
   miniAppFileRef.schema

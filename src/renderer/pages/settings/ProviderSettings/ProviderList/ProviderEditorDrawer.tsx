@@ -678,7 +678,8 @@ export default function ProviderEditorDrawer({
           <DialogTitle className="text-base leading-5">{title}</DialogTitle>
         </DialogHeader>
         <ScrollArea
-          viewportProps={{ 'data-testid': 'provider-editor-scrollbar', className: 'px-6 py-2' }}
+          contentProps={{ className: 'px-6 py-2' }}
+          viewportProps={{ 'data-testid': 'provider-editor-scrollbar' }}
           className="min-h-0">
           {formContent}
         </ScrollArea>

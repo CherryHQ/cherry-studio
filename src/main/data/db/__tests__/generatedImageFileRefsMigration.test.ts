@@ -8,7 +8,7 @@ import { applyMigrations } from '@data/db/applyMigrations'
 // The generated-role constraint change rebuilds two populated tables. Existing
 // references, message bytes and the main branch's task-ownership migration survive.
 describe('generated image reference migrate-forward', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0036_fancy_kabuki' })
+  const dbh = setupTestDatabase({ beforeMigration: '0038_fancy_kabuki' })
 
   it('preserves attachment/tool-output refs, accepts generated refs and keeps FK cleanup', () => {
     dbh.sqlite.exec(`

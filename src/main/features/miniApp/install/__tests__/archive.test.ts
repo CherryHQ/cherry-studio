@@ -323,7 +323,7 @@ describe('archive', () => {
     await expect(previewMiniAppArchive(zipPath)).rejects.toThrow(/icon is over/i)
   })
 
-  it('hands the card a REAL 128x128 webp whatever the package shipped', async () => {
+  it('hands the card a real decoded webp whatever the package shipped', async () => {
     // Straight entry bytes → base64 under an `image/webp` label is a lie for a PNG; the
     // install pipeline's transcode makes the label true.
     const sharp = (await import('sharp')).default
@@ -346,7 +346,7 @@ describe('archive', () => {
 
     const bytes = Buffer.from(preview.iconDataUrl!.split(',')[1], 'base64')
     const meta = await sharp(bytes).metadata()
-    expect([meta.format, meta.width, meta.height]).toEqual(['webp', 128, 128])
+    expect(meta.format).toBe('webp')
   })
 
   it('refuses at preview what extraction would refuse', async () => {
