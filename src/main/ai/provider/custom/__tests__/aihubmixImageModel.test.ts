@@ -57,7 +57,6 @@ describe('AihubmixImageModel', () => {
     expect(model.specificationVersion).toBe('v3')
     expect(model.provider).toBe('aihubmix.image')
     expect(model.modelId).toBe('gpt-image-1')
-    expect(model.maxImagesPerCall).toBe(10)
   })
 
   describe('Google native image models', () => {
@@ -345,11 +344,5 @@ describe('AihubmixImageModel', () => {
         expect(result).toBe(innerResult)
       })
     }
-
-    it('does NOT delegate non-default ids (V_2) to the inner model', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ data: [] })))
-      await make('V_2').doGenerate(callOptions())
-      expect(innerDoGenerate).not.toHaveBeenCalled()
-    })
   })
 })

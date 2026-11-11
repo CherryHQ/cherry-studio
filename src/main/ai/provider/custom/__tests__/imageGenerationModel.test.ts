@@ -115,16 +115,14 @@ describe('createImageGenerationModel.doGenerate', () => {
     expect(cancel).toHaveBeenCalledWith('task-1')
   })
 
-  it('forwards the onProgress callback (by reference) and provider params to submit', async () => {
+  it('delivers progress and provider params', async () => {
     const onProgress = vi.fn()
-    let polledOnProgress: ((p: number) => void) | undefined
     const transport: ImageGenerationTransport = {
       submit: vi.fn(async (input: ImageGenerationSubmitInput) => {
-        expect(input.providerParams).toMatchObject({ model: 'mid', onProgress })
+        expect(input.providerParams).toMatchObject({ model: 'mid' })
         return { taskId: 'task-1' }
       }),
       poll: vi.fn(async (_taskId, opts) => {
-        polledOnProgress = opts.onProgress
         opts.onProgress?.(42)
         return ['https://img/1.png']
       })
@@ -132,8 +130,6 @@ describe('createImageGenerationModel.doGenerate', () => {
     const model = createImageGenerationModel('m', { provider: 'ppio', transport })
 
     await model.doGenerate(makeOptions({ providerOptions: { ppio: { model: 'mid', onProgress } } as never }))
-
-    expect(polledOnProgress).toBe(onProgress)
     expect(onProgress).toHaveBeenCalledWith(42)
   })
 

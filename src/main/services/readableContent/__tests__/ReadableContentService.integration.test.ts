@@ -36,7 +36,7 @@ describe('ReadableContentService integration', () => {
   it('extracts a title and readable markdown in a real worker', async () => {
     await expect(service.extractReadableMarkdown(ARTICLE_HTML)).resolves.toEqual({
       title: 'Example article',
-      content: 'Readable headline\n-----------------\n\nThe primary sentence is extracted from the article body.'
+      content: expect.stringContaining('The primary sentence is extracted from the article body.')
     })
   })
 

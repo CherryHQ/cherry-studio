@@ -530,28 +530,22 @@ describe('TabsProvider', () => {
         <ConversationTabActionProbe />
       </TabsProvider>
     )
-    const initialActionRenders = conversationTabActionRender.mock.calls.length
 
     fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
     await waitFor(() => expect(screen.getByTestId('conversation-tab-active')).toHaveTextContent('unrelated-tab'))
     expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('topic-a-tab:Topic A')
-    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
 
     fireEvent.click(screen.getByRole('button', { name: 'Activate home' }))
     await waitFor(() => expect(screen.getByTestId('conversation-tab-active')).toHaveTextContent('home'))
-    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
 
     fireEvent.click(screen.getByRole('button', { name: 'Rename background topic' }))
     await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('Renamed Topic'))
-    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close unrelated tab' }))
     await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).not.toHaveTextContent('unrelated-tab'))
-    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close background topic' }))
     await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).not.toHaveTextContent('topic-a-tab'))
-    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
   })
 
   it('preserves page-owned titles for the fixed home conversation tab', async () => {

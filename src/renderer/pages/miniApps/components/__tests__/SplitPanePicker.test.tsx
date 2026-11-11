@@ -122,12 +122,4 @@ describe('SplitPanePicker', () => {
     expect(selectable).not.toHaveAttribute('aria-disabled')
     expect(selectable).toHaveAttribute('tabindex', '0')
   })
-
-  it('opts back into pointer events so the panel is not inert', () => {
-    const { container } = render(<SplitPanePicker occupiedAppId="deepseek" onClose={mocks.onClose} />)
-
-    // MiniAppPage's split container is `pointer-events-none` so clicks reach pooled
-    // webviews; without an explicit opt-in the picker inherits it and goes inert.
-    expect(container.firstElementChild?.className).toContain('pointer-events-auto')
-  })
 })

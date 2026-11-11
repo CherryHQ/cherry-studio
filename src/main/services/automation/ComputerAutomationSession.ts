@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import * as z from 'zod'
 
-import { type Action, ComputerUseError, type Element, type Snapshot } from '@cherrystudio/computer-use'
+import { type Action, type AppInfo, ComputerUseError, type Element, type Snapshot } from '@cherrystudio/computer-use'
 
 import type { ComputerUseService, ComputerUseTask } from '../ComputerUseService'
 
@@ -34,6 +34,7 @@ const schemas = {
 }
 
 interface AppBinding {
+  app: AppInfo
   sessionId: string
   snapshot?: Snapshot
   refs: Map<string, string>
@@ -49,7 +50,13 @@ export class ComputerAutomationSession {
     private readonly task: ComputerUseTask
   ) {}
 
-  async execute(name: string, args: Record<string, unknown>, target: string | undefined, signal: AbortSignal) {
+  async execute(
+    name: string,
+    args: Record<string, unknown>,
+    target: string | undefined,
+    signal: AbortSignal,
+    onApp?: (app: AppInfo) => void
+  ) {
     if (name === 'listApps') {
       z.object({}).strict().parse(args)
       return { value: await this.service.listApps(this.task, signal) }
@@ -60,8 +67,9 @@ export class ComputerAutomationSession {
         .strict()
         .parse(args)
       const app = await this.service.resolveApp(this.task, query, signal)
-      const binding = { sessionId: app.id, refs: new Map<string, string>(), coordinates: false }
+      const binding = { app: app.app, sessionId: app.id, refs: new Map<string, string>(), coordinates: false }
       this.apps.set(query, binding)
+      onApp?.(binding.app)
       try {
         return await this.observe(binding, query, 'getAXState', signal, observationSchema.parse({}), 4_000)
       } catch (cause) {
@@ -82,7 +90,7 @@ export class ComputerAutomationSession {
     let binding = target ? this.apps.get(target) : undefined
     if (!binding && target && observation) {
       const app = await this.service.resolveApp(this.task, target, signal, false)
-      binding = { sessionId: app.id, refs: new Map(), coordinates: false }
+      binding = { app: app.app, sessionId: app.id, refs: new Map(), coordinates: false }
       this.apps.set(target, binding)
     }
     if (!binding)
@@ -90,6 +98,7 @@ export class ComputerAutomationSession {
         'STALE_SNAPSHOT',
         'Observe through the retained app handle with getAXState() before acting in this run. Rebind only if the target is no longer available.'
       )
+    onApp?.(binding.app)
     if (continuation) {
       signal.throwIfAborted()
       this.service.validateAppSession(this.task, binding.sessionId)

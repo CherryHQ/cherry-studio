@@ -299,6 +299,62 @@ describe('desktop Pi root connection', () => {
     }
   )
 
+  // Catches a child's incidental bypass mode overriding the root's installation policy.
+  it.each([
+    { mode: 'default', approved: true },
+    { mode: 'default', approved: false },
+    { mode: 'auto', approved: true },
+    { mode: 'auto', approved: false },
+    { mode: 'plan', approved: false },
+    { mode: 'bypassPermissions', approved: true }
+  ] as const)('uses root $mode for child installs (approved=$approved)', async ({ mode, approved }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: mode }
+    const marker = join(directory, 'child-install.txt')
+    const prefixMarker = join(directory, 'before-install.txt')
+    // A shell function records execution without installing a real package.
+    const command = `echo started > "${prefixMarker}"\nnpm() { echo installed > "${marker}"; }\nnpm install -g left-pad`
+    let root = ''
+    let childResult = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        const result = call.messages.find(
+          (entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-install'
+        )
+        if (!result) return assistantReply([toolCallPart('child-install', 'bash', { command })], 'toolUse')
+        childResult = JSON.stringify(result)
+        return assistantReply('child done')
+      }
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'install', prompt: 'install tool', fork: false })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    if (mode === 'default' || mode === 'auto') {
+      await expect
+        .poll(() => events.filter((event) => event.type === 'tool-approval-request').length, { timeout: 15_000 })
+        .toBe(1)
+      expect(existsSync(marker)).toBe(false)
+      expect(existsSync(prefixMarker)).toBe(false)
+      const event = events.find((event) => event.type === 'tool-approval-request')!
+      if (event.type !== 'tool-approval-request') throw new Error('Missing installation approval')
+      expect(event.request.input).toEqual({ command })
+      toolApprovalRegistry.dispatch(event.request.approvalId, { approved })
+    }
+    await done(events, 15_000)
+    expect(existsSync(marker)).toBe(approved)
+    expect(existsSync(prefixMarker)).toBe(approved)
+    if (mode === 'plan') expect(childResult).toContain('Plan mode is read-only')
+    else if (!approved) expect(childResult).toContain('rejected')
+    if (mode === 'plan' || mode === 'bypassPermissions')
+      expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
   it('lets subagents write without approval when the root uses default permissions', async () => {
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
     let root = ''
