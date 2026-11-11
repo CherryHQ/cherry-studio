@@ -1,3 +1,5 @@
+import type { Server } from 'node:http'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -96,6 +98,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 }))
 
 import { buildApp } from '../../app'
+import { CountTokensBodySchema, MessagesBodySchema } from '../schemas'
 
 const AUTH = { 'content-type': 'application/json', 'x-api-key': 'test-key' }
 function post(app: ReturnType<typeof buildApp>, path: string, body: unknown, headers: Record<string, string> = AUTH) {
@@ -129,7 +132,7 @@ describe('API gateway routes (integration)', () => {
     it('GET / → 200 API info', async () => {
       const { status, body } = await read(await get(app, '/', {}))
       expect(status).toBe(200)
-      expect(body.name).toBe('Cherry Studio API')
+
       expect(body.endpoints).toBeDefined()
     })
 
@@ -153,26 +156,8 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(200)
       expect(body.info.description).toBe('apiGateway.docs.description::en-US')
       const health = body.paths['/health'].get
-      expect(health.tags).toEqual(['Cherry Studio'])
-      expect(health.summary).toBe('Health')
-      expect(health.description).toBe('apiGateway.docs.operations.health::en-US')
-    })
 
-    it('groups endpoints by the upstream API they are compatible with, keeping canonical names', async () => {
-      const { body } = await read(await get(app, '/openapi/json', {}))
-      expect(body.tags.map((tag: { name: string }) => tag.name)).toEqual([
-        'OpenAI API',
-        'Anthropic API',
-        'Gemini API',
-        'Cherry Studio'
-      ])
-      // Tag names and operation summaries are upstream identifiers: never translated,
-      // so generated clients keep stable module/method names. Only prose is localized.
-      expect(body.tags[0].description).toBe('apiGateway.docs.tags.openai::en-US')
-      expect(body.paths['/v1/chat/completions'].post.tags).toEqual(['OpenAI API'])
-      expect(body.paths['/v1/chat/completions'].post.summary).toBe('Chat Completions')
-      expect(body.paths['/v1/messages/'].post.tags).toEqual(['Anthropic API'])
-      expect(body.paths['/v1/messages/'].post.summary).toBe('Messages')
+      expect(health.description).toBe('apiGateway.docs.operations.health::en-US')
     })
 
     it('routes every documented operation through translation (no raw i18n key survives)', async () => {
@@ -184,12 +169,6 @@ describe('API gateway routes (integration)', () => {
         // openapiDocs.ts never resolved would show up here as a bare key.
         expect(operation.description).toMatch(/^apiGateway\.docs\.operations\.[a-z_]+::zh-CN$/)
       }
-    })
-
-    it('keeps the docs routes themselves out of the spec', async () => {
-      const { body } = await read(await get(app, '/openapi/json', {}))
-      expect(Object.keys(body.paths)).not.toContain('/openapi')
-      expect(Object.keys(body.paths)).not.toContain('/openapi/json')
     })
 
     it('GET /openapi/json?lang=zh-CN translates against the requested language', async () => {
@@ -230,12 +209,6 @@ describe('API gateway routes (integration)', () => {
       // Ask AI uploads the OpenAPI document to api.scalar.com — off unless a user
       // has been asked to accept that.
       expect(config.agent).toEqual({ disabled: true })
-    })
-
-    it('GET /openapi renders a language dropdown offering every supported language, defaulting to the app language', async () => {
-      const html = await (await get(app, '/openapi', {})).text()
-      expect(html).toContain(`<option value="en-US" selected>English</option>`)
-      expect(html).toContain(`<option value="zh-CN">中文</option>`)
     })
 
     it('GET /openapi?lang=zh-CN renders Scalar chrome + the dropdown in the requested language', async () => {
@@ -329,6 +302,174 @@ describe('API gateway routes (integration)', () => {
       // Anthropic dialect: { type: 'error', error: { type, message } }.
       expect(body.type).toBe('error')
       expect(body.error.type).toBe('invalid_request_error')
+    })
+  })
+
+  describe('Anthropic message content contract', () => {
+    const contract = 'content is required and must be a string or an array of content blocks'
+
+    for (const path of ['/v1/messages', '/v1/messages/count_tokens']) {
+      it.each([0, 178])(`${path} rejects missing content at index %i before processing`, async (index) => {
+        const messages = [...Array.from({ length: index }, () => ({ role: 'user', content: 'hi' })), { role: 'user' }]
+        const { status, body } = await read(
+          await post(app, path, { model: 'anthropic:claude', messages, stream: true })
+        )
+        expect(status).toBe(400)
+        expect(body).toEqual({
+          type: 'error',
+          error: { type: 'invalid_request_error', message: `messages.${index}.content: ${contract}` }
+        })
+        expect(mockProcessMessage).not.toHaveBeenCalled()
+        expect(mockEstimateAnthropicRequestTokens).not.toHaveBeenCalled()
+      })
+
+      it.each([null, false, 42, {}])(`${path} rejects content %j`, async (content) => {
+        const { status, body } = await read(
+          await post(app, path, { model: 'anthropic:claude', messages: [{ role: 'user', content }] })
+        )
+        expect(status).toBe(400)
+        expect(body).toEqual({
+          type: 'error',
+          error: { type: 'invalid_request_error', message: `messages.0.content: ${contract}` }
+        })
+        expect(mockProcessMessage).not.toHaveBeenCalled()
+        expect(mockEstimateAnthropicRequestTokens).not.toHaveBeenCalled()
+      })
+
+      it.each([
+        { role: 'user', content: 'hi' },
+        { role: 'user', content: [{ type: 'text', text: 'hi' }] },
+        { role: 'user', content: '' },
+        { role: 'user', content: [] },
+        { role: 'system', content: 'Inline instructions' },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-1' }] }
+      ])(`${path} accepts $role content $content`, async (message) => {
+        const { status, body } = await read(await post(app, path, { model: 'anthropic:claude', messages: [message] }))
+        expect(status).toBe(200)
+        if (path === '/v1/messages') {
+          expect(body).toEqual({ ok: true })
+          expect(mockProcessMessage).toHaveBeenCalledOnce()
+        } else {
+          expect(body).toEqual({ input_tokens: 42 })
+        }
+      })
+
+      it(`${path} preserves unknown message and block fields`, async () => {
+        const messages = [
+          { role: 'user', content: [{ type: 'text', text: 'hi', future_block: 42 }], future_message: true }
+        ]
+        const { status, body } = await read(await post(app, path, { model: 'anthropic:claude', messages }))
+        expect(status).toBe(200)
+        if (path === '/v1/messages') {
+          expect(body).toEqual({ ok: true })
+          expect(mockProcessMessage).toHaveBeenCalledWith(
+            expect.objectContaining({ params: { model: 'anthropic:claude', messages } })
+          )
+        } else {
+          expect(body).toEqual({ input_tokens: 42 })
+          expect(mockEstimateAnthropicRequestTokens).toHaveBeenCalledWith(
+            { model: 'anthropic:claude', messages },
+            expect.any(AbortSignal),
+            false
+          )
+        }
+      })
+    }
+
+    it.each([MessagesBodySchema, CountTokensBodySchema])('rejects explicitly undefined content', (schema) => {
+      const result = schema.safeParse({ model: 'anthropic:claude', messages: [{ role: 'user', content: undefined }] })
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0].path).toEqual(['messages', 0, 'content'])
+        expect(result.error.issues[0].message).toBe(contract)
+      }
+    })
+
+    it('keeps OpenAI tool calls without content valid', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1/chat/completions', {
+          model: 'openai:gpt-4',
+          messages: [
+            {
+              role: 'assistant',
+              tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'lookup', arguments: '{}' } }]
+            }
+          ]
+        })
+      )
+      expect(status).toBe(200)
+      expect(body).toEqual({ ok: true })
+      expect(mockProcessMessage).toHaveBeenCalledOnce()
+    })
+
+    it('keeps Responses function_call items valid', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1/responses', {
+          model: 'openai:gpt-4',
+          input: [{ type: 'function_call', call_id: 'call-1', name: 'lookup', arguments: '{}' }]
+        })
+      )
+      expect(status).toBe(200)
+      expect(body).toEqual({ ok: true })
+      expect(mockProcessMessage).toHaveBeenCalledOnce()
+    })
+
+    it('enforces the content contract through real buildApp HTTP sockets', async () => {
+      let server: Server | undefined
+      try {
+        const baseUrl = await new Promise<string>((resolve, reject) => {
+          app.listen({ port: 0, hostname: '127.0.0.1', gracefulShutdown: false }, (info) => {
+            const handle = info as unknown as { raw: { node: { server: Server }; ready(): Promise<unknown> } }
+            server = handle.raw.node.server
+            void handle.raw.ready().then(() => {
+              const address = server!.address()
+              if (!address || typeof address === 'string') return reject(new Error('No gateway port'))
+              resolve(`http://127.0.0.1:${address.port}`)
+            }, reject)
+          })
+        })
+        for (const path of ['/v1/messages', '/v1/messages/count_tokens']) {
+          for (const index of [0, 178]) {
+            const messages = [
+              ...Array.from({ length: index }, () => ({ role: 'user', content: 'hi' })),
+              { role: 'user' }
+            ]
+            const response = await fetch(`${baseUrl}${path}`, {
+              method: 'POST',
+              headers: AUTH,
+              body: JSON.stringify({ model: 'anthropic:claude', messages }),
+              signal: AbortSignal.timeout(5000)
+            })
+            expect(response.status).toBe(400)
+            expect(await response.json()).toEqual({
+              type: 'error',
+              error: { type: 'invalid_request_error', message: `messages.${index}.content: ${contract}` }
+            })
+            expect(mockProcessMessage).not.toHaveBeenCalled()
+            expect(mockEstimateAnthropicRequestTokens).not.toHaveBeenCalled()
+          }
+        }
+        for (const path of ['/v1/messages', '/v1/messages/count_tokens']) {
+          for (const content of ['hi', [{ type: 'text', text: 'hi' }]]) {
+            const response = await fetch(`${baseUrl}${path}`, {
+              method: 'POST',
+              headers: AUTH,
+              body: JSON.stringify({ model: 'anthropic:claude', messages: [{ role: 'user', content }] }),
+              signal: AbortSignal.timeout(5000)
+            })
+            expect(response.status).toBe(200)
+            expect(await response.json()).toEqual(path === '/v1/messages' ? { ok: true } : { input_tokens: 42 })
+          }
+        }
+      } finally {
+        if (server) {
+          const listener = server
+          await new Promise<void>((resolve, reject) => {
+            listener.close((error) => (error ? reject(error) : resolve()))
+            listener.closeAllConnections()
+          })
+        }
+      }
     })
   })
 

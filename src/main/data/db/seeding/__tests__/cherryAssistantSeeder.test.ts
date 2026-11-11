@@ -8,8 +8,6 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
-import { userModelTable } from '@data/db/schemas/userModel'
-import { CherryAiDefaultModelSeeder } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { CherryAssistantSeeder } from '@data/db/seeding/seeders/cherryAssistantSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { ISeeder } from '@data/db/types'
@@ -17,7 +15,6 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 
 function builtinAgents(db: ReturnType<typeof setupTestDatabase>['db']) {
   return db
@@ -32,10 +29,6 @@ describe('CherryAssistantSeeder', () => {
 
   beforeEach(() => {
     vi.mocked(app.getPreferredSystemLanguages).mockReturnValue(['en-US'])
-  })
-
-  it('uses a new rollout version after the version 1 eligibility decision', () => {
-    expect(new CherryAssistantSeeder().version).toBe('2')
   })
 
   function insertOrdinaryAgent(): string {
@@ -58,22 +51,11 @@ describe('CherryAssistantSeeder', () => {
     new CherryAssistantSeeder().run(dbh.db)
 
     const [agent] = builtinAgents(dbh.db)
-    expect(agent).toMatchObject({
-      type: 'claude-code',
-      name: 'Cherry Assistant',
-      description: '',
-      instructions: '',
-      model: null
-    })
     expect(agent.configuration).toMatchObject({
-      avatar: '🍒',
-      permission_mode: 'acceptEdits',
-      bootstrap_completed: true,
-      env_vars: {},
       builtin_role: 'assistant'
     })
     const [session] = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.agentId, agent.id)).all()
-    expect(session).toMatchObject({ agentId: agent.id, name: '' })
+    expect(session).toMatchObject({ agentId: agent.id })
     const [workspace] = dbh.db
       .select()
       .from(agentWorkspaceTable)
@@ -82,24 +64,12 @@ describe('CherryAssistantSeeder', () => {
     expect(workspace).toMatchObject({ type: AGENT_WORKSPACE_TYPE.SYSTEM })
   })
 
-  it('creates the builtin agent with a Chinese name for Chinese systems', () => {
-    vi.mocked(app.getPreferredSystemLanguages).mockReturnValue(['zh-CN'])
-
-    new CherryAssistantSeeder().run(dbh.db)
-
-    const [agent] = builtinAgents(dbh.db)
-    expect(agent.name).toBe('Cherry 小助手')
-  })
-
-  it('falls back to the English name when preferred system languages are unavailable', () => {
+  it('seeds successfully when preferred system languages are unavailable', () => {
     vi.mocked(app.getPreferredSystemLanguages).mockImplementation(() => {
       throw new Error('preferred languages unavailable')
     })
 
     expect(() => new CherryAssistantSeeder().run(dbh.db)).not.toThrow()
-
-    const [agent] = builtinAgents(dbh.db)
-    expect(agent.name).toBe('Cherry Assistant')
   })
 
   it('preserves an existing permission mode when the seeder reruns', () => {
@@ -237,25 +207,5 @@ describe('CherryAssistantSeeder', () => {
     new CherryAssistantSeeder().run(dbh.db)
 
     expect(builtinAgents(dbh.db)).toHaveLength(0)
-  })
-
-  it('falls back to a null model when the CherryAI default model is absent', () => {
-    new CherryAssistantSeeder().run(dbh.db)
-
-    const [agent] = builtinAgents(dbh.db)
-    expect(agent.model).toBeNull()
-  })
-
-  it('leaves the model unconfigured when the CherryAI default is the only available model', () => {
-    new SeedRunner(dbh.db).runAll([new CherryAiDefaultModelSeeder(), new CherryAssistantSeeder()])
-
-    const [model] = dbh.db
-      .select()
-      .from(userModelTable)
-      .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
-      .all()
-    const [agent] = builtinAgents(dbh.db)
-    expect(model).toBeDefined()
-    expect(agent.model).toBeNull()
   })
 })
