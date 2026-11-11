@@ -503,7 +503,12 @@ describe('userDataRelocation execution', () => {
     // relocated profile's first launch misreport a kill.
     fs.writeFileSync(
       path.join(source, 'last-session.json'),
-      JSON.stringify({ pid: 1234, startedAt: '2026-01-01T00:00:00.000Z', heartbeatAt: '2026-01-01T00:00:05.000Z', memMB: 200 })
+      JSON.stringify({
+        pid: 1234,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        heartbeatAt: '2026-01-01T00:00:05.000Z',
+        memMB: 200
+      })
     )
     relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
