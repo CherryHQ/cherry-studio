@@ -2954,6 +2954,7 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
+      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
       const chunks: UIMessageChunk[] = []
       entry.currentTurn.controller = { enqueue: (chunk: UIMessageChunk) => chunks.push(chunk) } as never
       const original = { path: 'C:/Memory/MEMORY.md', edits: [{ oldText: 'Short', newText: 'Detailed' }] }
