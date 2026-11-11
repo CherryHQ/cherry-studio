@@ -1943,6 +1943,7 @@
   "knowledge.empty_action": "Crear Base de Conocimientos",
   "knowledge.empty_description": "Amplía tus conocimientos con IA",
   "knowledge.error.directory_not_migrated": "La migración de la carpeta falló. Por favor, elimínala y vuelve a subirla.",
+  "knowledge.error.empty_indexable_text": "No se ha extraído texto indexable. Revisa el origen, la configuración de OCR o del procesamiento de documentos y vuelve a indexar.",
   "knowledge.error.failed_base_unknown": "Esta base de conocimiento falló durante la migración. Reconstrúyela y elige un nuevo modelo de embeddings.",
   "knowledge.error.failed_to_create": "Error al crear la base de conocimientos",
   "knowledge.error.failed_to_delete": "Error al eliminar la base de conocimientos",

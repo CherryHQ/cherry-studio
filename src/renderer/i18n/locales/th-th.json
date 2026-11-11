@@ -1943,6 +1943,7 @@
   "knowledge.empty_action": "สร้างฐานความรู้",
   "knowledge.empty_description": "สร้างฐานความรู้ด้วย AI",
   "knowledge.error.directory_not_migrated": "การย้ายโฟลเดอร์ล้มเหลว กรุณาลบและอัปโหลดใหม่",
+  "knowledge.error.empty_indexable_text": "ไม่พบข้อความที่สามารถจัดทำดัชนีได้ โปรดตรวจสอบต้นฉบับ การตั้งค่า OCR หรือการประมวลผลเอกสาร แล้วจัดทำดัชนีใหม่",
   "knowledge.error.failed_base_unknown": "ฐานความรู้นี้ล้มเหลวระหว่างการย้าย สร้างใหม่และเลือกโมเดล Embedding ใหม่",
   "knowledge.error.failed_to_create": "ไม่สามารถสร้างฐานความรู้",
   "knowledge.error.failed_to_delete": "ไม่สามารถลบฐานความรู้",

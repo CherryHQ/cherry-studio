@@ -1943,6 +1943,7 @@
   "knowledge.empty_action": "Créer une base de connaissances",
   "knowledge.empty_description": "Développez vos connaissances avec l’IA",
   "knowledge.error.directory_not_migrated": "Échec de la migration du dossier. Veuillez le supprimer et le télécharger à nouveau.",
+  "knowledge.error.empty_indexable_text": "Aucun texte indexable n'a été extrait. Vérifiez la source, les paramètres OCR ou de traitement des documents, puis relancez l'indexation.",
   "knowledge.error.failed_base_unknown": "Cette base de connaissances a échoué lors de la migration. Reconstruisez-la et choisissez un nouveau modèle d'embedding.",
   "knowledge.error.failed_to_create": "Échec de la création de la base de connaissances",
   "knowledge.error.failed_to_delete": "Échec de la suppression de la base de connaissances",
