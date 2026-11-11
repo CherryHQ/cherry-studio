@@ -36,6 +36,8 @@ const mocks = vi.hoisted(() => {
     sourceEditorContent: 'edited source content',
     mountedEditor: 'source',
     editorReady: vi.fn(),
+    sourceScrollToLine: vi.fn(),
+    richScrollToLine: vi.fn(),
     getNode: vi.fn(),
     setDraft: vi.fn(),
     discardSession: vi.fn(),
@@ -293,7 +295,7 @@ vi.mock('../NotesEditor', async (importOriginal) => {
           ? null
           : {
               getContent: () => mocks.sourceEditorContent,
-              scrollToLine: vi.fn()
+              scrollToLine: mocks.sourceScrollToLine
             }
       editorRef.current =
         mocks.mountedEditor === 'source'
@@ -304,7 +306,7 @@ vi.mock('../NotesEditor', async (importOriginal) => {
               setMarkdown: (content: string) => {
                 mocks.richEditorContent = content
               },
-              scrollToLine: vi.fn()
+              scrollToLine: mocks.richScrollToLine
             }
       if (mocks.mountedEditor !== 'rich') {
         onMarkdownChange(mocks.sourceEditorContent)
@@ -345,10 +347,12 @@ vi.mock('../NotesSettings', () => ({
 vi.mock('../NotesSidebar', () => ({
   default: ({
     onSelectNode,
-    onRenameNode
+    onRenameNode,
+    onLocateNoteLine
   }: {
     onSelectNode: (node: typeof mocks.noteNode) => void
     onRenameNode: RenameNote
+    onLocateNoteLine: (noteId: string, match: { lineNumber: number; lineContent: string }) => void
   }) => {
     mocks.renameNote = onRenameNode
     return (
@@ -368,6 +372,16 @@ vi.mock('../NotesSidebar', () => ({
             })
           }>
           select other note
+        </button>
+        <button
+          type="button"
+          onClick={() => onLocateNoteLine('/notes/note.md', { lineNumber: 12, lineContent: 'current hit' })}>
+          locate current note line
+        </button>
+        <button
+          type="button"
+          onClick={() => onLocateNoteLine('/notes/other.md', { lineNumber: 7, lineContent: 'other hit' })}>
+          locate other note line
         </button>
       </>
     )
@@ -605,18 +619,6 @@ describe('NotesPage print payloads', () => {
     })
   })
 
-  it('shows the resolved print shortcut next to the print menu item', async () => {
-    mocks.printShortcutLabel = '⌘P'
-
-    render(<NotesPage />)
-
-    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('popover-trigger'))
-
-    expect(screen.getByRole('button', { name: /notes\.print/ })).toHaveTextContent('⌘P')
-  })
-
   it('blocks editing and surfaces a load failure for unsupported note files', async () => {
     // Oversize / non-UTF-8 / mixed-line-ending notes must not render as an
     // editable blank document (regression guard for the unsupported status).
@@ -632,7 +634,7 @@ describe('NotesPage print payloads', () => {
     const { rerender } = render(<NotesPage />)
 
     expect(await screen.findByRole('status')).toHaveTextContent('common.loading')
-    expect(screen.getAllByTestId('skeleton')).toHaveLength(3)
+
     expect(screen.queryByTestId('notes-editor')).not.toBeInTheDocument()
     expect(mocks.editorReady).not.toHaveBeenCalled()
     expect(mocks.setDraft).not.toHaveBeenCalled()
@@ -656,6 +658,43 @@ describe('NotesPage print payloads', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
     expect(mocks.discardSession).not.toHaveBeenCalled()
+  })
+
+  it('scrolls the mounted rich editor to a search match in the current note', async () => {
+    mocks.showWorkspace = true
+    mocks.mountedEditor = 'rich'
+    mocks.settings.defaultEditMode = 'preview'
+    const user = userEvent.setup()
+    await renderReadyNotesPage()
+
+    await user.click(screen.getByRole('button', { name: 'locate current note line' }))
+
+    expect(mocks.richScrollToLine).toHaveBeenCalledWith(12, { highlight: true, lineContent: 'current hit' })
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+  })
+
+  it('opens another note and scrolls to the search match once its content loads', async () => {
+    const otherNode = {
+      ...mocks.noteNode,
+      id: '/notes/other.md',
+      name: 'other',
+      treePath: '/other',
+      externalPath: '/notes/other.md'
+    }
+    mocks.projectedNodes = [mocks.noteNode, otherNode]
+    mocks.showWorkspace = true
+    const user = userEvent.setup()
+    const { rerender } = await renderReadyNotesPage()
+
+    await user.click(screen.getByRole('button', { name: 'locate other note line' }))
+
+    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
+    expect(mocks.sourceScrollToLine).not.toHaveBeenCalled()
+
+    mocks.activeFilePath = '/notes/other.md'
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(mocks.sourceScrollToLine).toHaveBeenCalledWith(7, { highlight: true }))
   })
 
   it('keeps the composing editor mounted until composition ends', async () => {

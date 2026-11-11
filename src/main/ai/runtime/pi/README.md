@@ -30,7 +30,7 @@ still validates availability for each request after selection.
 
 The binding preserves the model's native protocol when the gateway supports it. The model route
 uses `providerId:apiModelId`; the gateway resolves the configured Cherry model. Internal usage
-headers associate provider calls with the active Agent input. The internal listener works independently
+headers capture the Agent session; native response IDs associate completed calls with root or child messages. The internal listener works independently
 of the externally exposed gateway setting. Its origin participates in the connection signature, so
 a listener restart retires warm connections. Trusted headers carry reasoning, tier and Fast selections
 to the same Cherry parameter builder used by other requests.
@@ -38,16 +38,24 @@ to the same Cherry parameter builder used by other requests.
 The behavior adapter disables native retries; the native HTTP client and gateway do not add retries.
 Native usage is for context and display; it must not create another billing record. Only root model
 calls emit native usage updates on the root stream; child, summary and verifier calls still contribute
-to gateway billing. Product message totals use the gateway's aggregated provider calls.
+to gateway billing. Desktop-owned summaries freeze their initiating owner before the gateway hop. Product message totals use the gateway's aggregated provider calls.
 Model metadata, native errors and tool validation follow Pi's provider implementation. There is no
 `ModelCallPort`, custom AI SDK stream protocol, metadata codec or implicit session requirement.
+
+## Telemetry
+
+Model traces come from the gateway's AI SDK and HTTP instrumentation. The binding forwards
+an explicit native Durable phase parent using the gateway's internal usage capture; it creates
+no model span and writes no billing record. Ordinary Pi 1.5.0 has no native tool-span API,
+so tool details remain in its transcript. The host does not reconstruct tool spans from message events.
 
 ## Host ports
 
 `piBehaviorHost.ts` connects shared behavior to the existing approval registry, question cards, model
 catalog, native Pi model binding and output files. `piApprovalFacts.ts` collects tool, workspace and
 interaction facts; `agent-behavior` decides permission policy. Cross-session delegation still requires
-an interactive user turn. Child tools use the root's live agent policy.
+an interactive user turn. Child threads default to `bypassPermissions`; root threads use the live agent permission mode.
+Child tools retain the root's disabled-tool and non-bypassable approval restrictions.
 
 Approval and question identities use `CallRef`. The Pi facet resolves these opaque keys to native
 `toolCallId` values for cards, including nested calls. Persisted approval outcomes are read from the
@@ -62,19 +70,24 @@ Large tool output is saved under `feature.agents.outputs`, which read tools may 
 
 ## Desktop ownership
 
-`ThreadProjection` converts ordered runtime items into UI chunks. A snapshot establishes its baseline;
-it never replays recovered content into the product archive. Tool items use the Pi facet's opaque
-lookup and the existing tool renderer. Child output uses an independent `ChildThreadProjection`
-and product archive; only task-card metadata remains on background-flow. Goal rounds and background
-delivery announce autonomous turn boundaries.
+`ThreadMessageProjection` receives authoritative SDK messages from the runtime adapter. Main applies
+tool display metadata, and `RootMessageProjection` groups native messages into product replies without
+a second SDK reader. Child output uses an independent `ChildThreadProjection` and product archive;
+the parent reply carries task-card metadata. Goal rounds and background delivery announce autonomous
+turn boundaries.
 Observation loss fails the turn and retires the owner.
 
+Closing an active session records user-stop for the root and its children before owner shutdown.
+After the product archive is trashed or deleted, close goes directly through owner shutdown,
+which aborts and drains native work without reading the removed approval history.
+
 `PiRuntimeConnection` remains the bridge to `AgentSessionRuntimeService`: it owns product input
-persistence, branch bindings, UI chunks, trace context and configuration reconciliation. Retiring the
+persistence, branch bindings, message views, trace context and configuration reconciliation. Retiring the
 class requires moving those consumers to `ThreadHandle`; installing behavior alone does not remove it.
 
 Before dispatch, Main binds the existing user row to its native context; placement adds the native
-input entry ID. Input outcomes and response associations remain in the live runtime projection.
+input entry ID. Input outcomes remain in the live runtime projection; Main owns product reply
+identity and joins billing through native response identity.
 Saving an assistant row confirms its branch binding and stores its resume token and checkpoint in
 the same transaction. Attachments retain Cherry's existing file-path input representation.
 
@@ -90,7 +103,7 @@ placeholders while preserving native bindings and history; delivery recovery own
 
 Child projection consumes the public `ThreadHandle` and committed content supplied by the connection.
 It never imports Pi types or dispatches input. The connection reads the typed `pi.archive()` facet,
-which proves native entry/live-item aliases and excludes inherited parent context, and submits child
+which proves native entry/live-message aliases and excludes inherited parent context, and submits child
 input through its native owner. Archive messages use the existing shared message model, with stable
 product IDs and source mappings saved atomically. IPC sends a snapshot on attach and ordered patches
 afterward; detaching a window leaves the native observer and archive writer alive.

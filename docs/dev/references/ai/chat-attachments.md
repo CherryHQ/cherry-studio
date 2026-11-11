@@ -2,6 +2,10 @@
 description: Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow
 sources:
   - src/main/ai/messages/attachmentRouting.ts
+  - src/main/ai/messages/attachmentBudget.ts
+  - src/main/ai/messages/attachmentInlineBudget.ts
+  - src/main/ai/messages/attachmentWorkerClient.ts
+  - src/main/ai/messages/attachmentTextExtraction.ts
   - src/main/ai/messages/fileProcessor.ts
   - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
   - src/shared/utils/file/fileExtensions.ts
@@ -48,6 +52,14 @@ Decided per file part in `prepareChatMessages`
   also normalizes the `mediaType` to the on-disk MIME. The provider gets the real
   file as a user-message part. (The function is named for the boundary: provider
   File-API upload for large files would slot in behind the same signature.)
+  Locally decoded PNG, JPEG, WebP, and GIF images with a short edge below the
+  15 px attachment compatibility target are padded with opaque white before
+  the request bytes leave the main process; stored FileEntry and persisted message
+  part bytes remain unchanged. Compliant images and inputs outside the strict
+  decoder, including remote URLs and AVIF/HEIC, pass through unchanged; images
+  that cannot be padded are also sent unchanged. This prevents providers such as
+  Volcengine Ark from rejecting the whole request and aborting the turn when an
+  image edge is below their minimum.
 - Unknown extensions undergo a conservative content sniff (binary detection +
   encoding confidence). Binary bytes or ambiguous legacy encodings get a short
   unsupported note instead of being decoded into mojibake.
@@ -102,7 +114,14 @@ Extracted text is bounded so multi-turn context stays in control:
   - tool-capable model: `[truncated N/total — call read_file("name", offset=N) for more]`
   - otherwise: `[truncated N/total]`
 
-Default cap ≈ 8k chars/file (tunable).
+When a context window is known, system text, tools, history, and native media
+are priced first. Attachments share the remaining request budget. A worker
+prices attachment bodies by UTF-8 byte length as a conservative token bound;
+small files fit whole and larger files share the remainder. It selects a
+Unicode-safe fitting prefix without whole-body BPE or repeated prefix counting.
+This can inline less text than exact token counting, especially for ASCII.
+
+Without a computable request budget, the fallback cap is 8k characters per file.
 
 ## `read_file` — text-only overflow tool
 
@@ -151,6 +170,15 @@ re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
 extension (`FILE_TYPE.OTHER`) via `decodeTextBufferIfText`) and dispatches on
 the `FileEntry` canonical `ext`. The conservative decoder returns `null` when
 the bytes are binary or their legacy encoding is too ambiguous to decode safely.
+
+Plain-text decoding and inline-budget allocation run in short-lived worker
+threads, with at most two active workers across requests. FileManager owns file
+access and main retains the version cache. Queued cancellation skips worker
+creation; active cancellation terminates its worker, and the concurrency slot
+remains occupied until termination finishes. Worker errors propagate to the
+existing attachment-routing error handling. PDF/Office parsing keeps its
+existing path.
+
 
 ## Capability resolution
 

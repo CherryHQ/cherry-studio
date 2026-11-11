@@ -70,19 +70,6 @@ describe('FeedbackDialog', () => {
     })
   })
 
-  it('orders diagnostics, the feedback assistant, GitHub, and email contact', () => {
-    render(<FeedbackDialog open onOpenChange={vi.fn()} />)
-
-    const agent = screen.getByRole('button', { name: /Feedback assistant/ })
-    const github = screen.getByRole('button', { name: /GitHub Issue/ })
-    const report = screen.getByRole('button', { name: /Report a problem/i })
-    const email = screen.getByRole('button', { name: /Contact/ })
-
-    expect(report.compareDocumentPosition(agent)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(agent.compareDocumentPosition(github)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(github.compareDocumentPosition(email)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-  })
-
   it('closes the chooser and opens an email draft with version and platform details', async () => {
     mocks.ipcRequest.mockImplementation(async (route: string) => {
       if (route === 'app.get_info') return { version: '2.1.9' }

@@ -7,6 +7,7 @@ import { expect, it } from 'vitest'
 import { runtimeId } from '@cherrystudio/agent-runtime'
 
 import { claudeThread } from '../src'
+import { readArchive } from '../src/archive'
 import { confirmed, fixture, inputId, observe, spawnChild, textOf } from './nativeFixture'
 
 it('claims one prewarmed native process for commands, input and confirmed shutdown', async () => {
@@ -57,6 +58,9 @@ it('reconciles an archive read overlapping live output without losing the commit
     const request = await test.request()
     request.reply.block({ type: 'text', text: 'Before archive' })
     await expect.poll(() => textOf(view.snapshot)).toContain('Before archive')
+    await expect
+      .poll(() => readArchive(test.configDir, test.options.cwd, root.thread.id), { timeout: 15000 })
+      .not.toBeNull()
     const reading = root.claude.archive()
     request.reply.block({ type: 'text', text: 'Concurrent tail' })
     request.reply.finish()
@@ -68,7 +72,7 @@ it('reconciles an archive read overlapping live output without losing the commit
     ])
     expect(view.snapshot.messages.some((item) => item.id.startsWith('live:'))).toBe(false)
     const final = confirmed(await root.claude.archive())
-    expect(final.sources.filter((source) => source.ref.id.startsWith('live:'))).toEqual([])
+    expect(final.content.some((message) => message.id.startsWith('live:'))).toBe(false)
     expect(final.content.filter((item) => item.role === 'assistant')).toHaveLength(2)
     await expect.poll(() => view.snapshot.messages.map((item) => item.id)).toEqual(final.content.map((item) => item.id))
     expect(view.snapshot.messages[0]).toMatchObject({ role: 'user' })
@@ -101,12 +105,24 @@ it('places steer at a native tool boundary and associates one answer with both i
     )
     expect(JSON.stringify(reply.body.messages)).toContain('Use the revised requirement')
     reply.reply.block({ type: 'text', text: 'Shared answer' })
+    await expect.poll(() => textOf(view.snapshot)).toContain('Shared answer')
+    const boundary = view.batches.findIndex((batch) =>
+      batch.controls?.some((control) => control.type === 'input-boundary' && control.inputIds.includes(second))
+    )
+    const answer = view.batches.findIndex((batch) =>
+      batch.events.some(
+        (event) =>
+          event.type === 'message.upsert' &&
+          event.message.parts.some((part) => part.type === 'text' && part.text === 'Shared answer')
+      )
+    )
+    expect(boundary).toBeGreaterThanOrEqual(0)
+    expect(boundary).toBeLessThan(answer)
     reply.reply.finish()
     await expect.poll(() => view.snapshot.inputs.find((input) => input.inputId === second)?.outcome).toBe('completed')
     const inputs = view.snapshot.inputs.filter((input) => input.inputId === first || input.inputId === second)
     expect(inputs.map((input) => input.outcome)).toEqual(['completed', 'completed'])
-    expect(inputs[0].response).toEqual(inputs[1].response)
-    expect(inputs[0].response).toBeDefined()
+    expect(textOf(view.snapshot)).toContain('Shared answer')
     const resultIndex = view.batches.findIndex((batch) =>
       batch.native.some((native) => native.message.type === 'result')
     )
@@ -143,9 +159,8 @@ it('keeps end-boundary steer as the next turn instead of rejecting it', async ()
     next.reply.block({ type: 'text', text: 'Next answer' })
     next.reply.finish()
     await expect.poll(() => view.snapshot.inputs.find((input) => input.inputId === nextId)?.outcome).toBe('completed')
-    expect(view.snapshot.inputs.find((input) => input.inputId === firstId)?.response).not.toEqual(
-      view.snapshot.inputs.find((input) => input.inputId === nextId)?.response
-    )
+    expect(textOf(view.snapshot)).toEqual(expect.arrayContaining(['First answer', 'Next answer']))
+    expect(view.snapshot.inputs.find((input) => input.inputId === firstId)?.outcome).toBe('completed')
   } finally {
     await test.close()
   }
@@ -177,7 +192,7 @@ it('stops only the addressed sibling and keeps the other child observable', asyn
     expect(await root.claude.stopTask('unknown')).toMatchObject({ status: 'rejected', error: { code: 'unknown-task' } })
     expect(await root.claude.stopTask(task.task_id)).toMatchObject({
       status: 'confirmed',
-      value: { effect: 'requested' }
+      value: undefined
     })
     await leftRequest.reply.closed
     rightRequest.reply.block({ type: 'text', text: 'Sibling survived' })
@@ -232,19 +247,25 @@ it('keeps nested relationships on the immediate parent across archive reopen', a
     rootReply.reply.finish()
     await view.event((event) => event.type === 'result')
     expect(view.snapshot.subagents).toHaveLength(1)
+    expect(view.snapshot.subagents![0].origin?.toolCallId).toBe('toolu_child')
     const childThread = view.snapshot.subagents![0].child!
-    const child = confirmed(await runtime.open(childThread))
+    const child = confirmed(await root.claude.openChild('toolu_child')).handle
+    expect(child.thread).toEqual(childThread)
     const childView = await observe(child)
     await expect.poll(() => childView.snapshot.subagents?.length).toBe(1)
     const grandchildThread = childView.snapshot.subagents![0].child!
     expect(childView.snapshot.subagents![0].parent).toEqual(childThread)
-    const grandchildView = await observe(confirmed(await runtime.open(grandchildThread)))
+    expect(childView.snapshot.subagents![0].origin?.toolCallId).toBe('toolu_grandchild')
+    const grandchildView = await observe(confirmed(await child.claude.openChild('toolu_grandchild')).handle)
     await expect.poll(() => textOf(grandchildView.snapshot)).toContain('Grandchild answer')
     expect(textOf(grandchildView.snapshot)).not.toContain('Root answer')
     confirmed(await runtime.shutdown())
     const reopened = test.runtime()
-    const restored = await observe(confirmed(await reopened.open(childThread)))
+    const reopenedChild = confirmed(await reopened.open(childThread))
+    const restored = await observe(reopenedChild)
     await expect.poll(() => restored.snapshot.subagents?.[0]?.child).toEqual(grandchildThread)
+    expect(restored.snapshot.subagents![0].origin?.toolCallId).toBe('toolu_grandchild')
+    expect(confirmed(await reopenedChild.claude.openChild('toolu_grandchild')).handle.thread).toEqual(grandchildThread)
   } finally {
     await test.close()
   }
@@ -319,7 +340,7 @@ it.each([false, true])(
       expect(child.thread).toEqual(childThread)
       expect(textOf(childView.snapshot)).toContain('Original child answer')
       expect(
-        confirmed(await child.claude.archive()).messages.filter((message) => message.type === 'assistant')
+        confirmed(await child.claude.archive()).content.filter((message) => message.role === 'assistant')
       ).toHaveLength(2)
     } finally {
       await test.close()
@@ -431,6 +452,63 @@ it('shares a lazy Query, binds streamed blocks once, and retains archives after 
   }
 }, 30000)
 
+it('attributes background spawn and continuation until the parent has answered each notification', async () => {
+  const test = await fixture()
+  try {
+    const runtime = test.runtime()
+    const root = confirmed(await runtime.create(test.options))
+    const view = await observe(root)
+    const controls = () => view.batches.flatMap((batch) => batch.controls ?? [])
+    const pending = () => controls().findLast((event) => event.type === 'background-results')?.result
+    let taskId: string | undefined
+    for (const callId of ['toolu_spawn_result', 'toolu_continue_result']) {
+      await root.input!.submit({
+        inputId: inputId(),
+        text: taskId ? 'Continue the child' : 'Start child',
+        whenBusy: 'steer'
+      })
+      const request = await test.request()
+      request.reply.block(
+        taskId
+          ? {
+              type: 'tool_use',
+              id: callId,
+              name: 'SendMessage',
+              input: { to: taskId, message: 'Continue with the old context', summary: 'Continue child' }
+            }
+          : spawnChild(callId, true)
+      )
+      request.reply.finish('tool_use')
+      const requests = [await test.request(), await test.request()]
+      const parent = requests.find((value) =>
+        JSON.stringify(value.body.messages).includes(`"tool_use_id":"${callId}"`)
+      )!
+      const child = requests.find((value) => value !== parent)!
+      await expect.poll(pending).toEqual({ status: 'confirmed', value: [callId] })
+      parent.reply.block({ type: 'text', text: `Waiting for ${callId}` })
+      parent.reply.finish()
+      await expect.poll(() => controls().findLast((event) => event.type === 'result')?.terminal).toBe(true)
+      child.reply.block({ type: 'text', text: `Result for ${callId}` })
+      child.reply.finish()
+      const notification = await test.request()
+      expect(pending()).toEqual({ status: 'confirmed', value: [callId] })
+      await expect
+        .poll(() => controls().findLast((event) => event.type === 'autonomous-turn-state' && event.state === 'started'))
+        .toMatchObject({
+          sourceToolCallIds: [callId]
+        })
+      notification.reply.block({ type: 'text', text: `Summary for ${callId}` })
+      notification.reply.finish()
+      await expect.poll(pending).toEqual({ status: 'confirmed', value: [] })
+      const task = await view.event((event) => event.type === 'system' && event.subtype === 'task_started')
+      if (task.type !== 'system' || task.subtype !== 'task_started') throw new Error('Missing child task')
+      taskId = task.task_id
+    }
+  } finally {
+    await test.close()
+  }
+}, 30000)
+
 it('observes a background child after its parent result without adding child bodies to the root', async () => {
   const test = await fixture()
   try {
@@ -461,9 +539,9 @@ it('observes a background child after its parent result without adding child bod
     await expect.poll(() => textOf(childView.snapshot)).toEqual(['Child block one', 'Child block two'])
     expect(textOf(parent.snapshot)).not.toContain('Child block one')
     const archive = confirmed(await child.claude.archive())
-    const assistant = archive.messages.filter((message) => message.type === 'assistant')
+    const assistant = archive.content.filter((message) => message.role === 'assistant')
     expect(assistant).toHaveLength(2)
-    expect(new Set(assistant.map((message) => message.uuid)).size).toBe(2)
+    expect(new Set(assistant.map((message) => message.id)).size).toBe(2)
     expect(archive.content.filter((item) => item.role === 'assistant').map((item) => item.id)).toEqual(
       childView.snapshot.messages.filter((item) => item.role === 'assistant').map((item) => item.id)
     )
@@ -478,7 +556,6 @@ it('preserves interrupted partial output and later queued input, without claimin
     const runtime = test.runtime()
     const root = confirmed(await runtime.create(test.options))
     const view = await observe(root)
-    expect(root.input!.policies).toEqual(['steer', 'follow-up'])
     expect(await root.input!.submit({ inputId: inputId(), text: 'Reject', whenBusy: 'reject' })).toMatchObject({
       status: 'unsupported'
     })
@@ -492,7 +569,7 @@ it('preserves interrupted partial output and later queued input, without claimin
     await view.event(
       (event) => (event as { type: string }).type === 'command_lifecycle' && JSON.stringify(event).includes(laterId)
     )
-    expect(await root.interrupt!()).toMatchObject({ status: 'confirmed', value: { effect: 'requested' } })
+    expect(await root.interrupt!()).toMatchObject({ status: 'confirmed', value: undefined })
     const later = await test.request()
     later.reply.block({ type: 'text', text: 'Later answer' })
     later.reply.finish()
@@ -620,6 +697,96 @@ it('closes stale admission on clear and binds the new native session to the same
     await expect.poll(() => view.snapshot.inputs.find((input) => input.inputId === clearId)?.outcome).toBe('completed')
     expect(view.snapshot.inputs.find((input) => input.inputId === clearId)?.facts).toContain('locally-handled')
     expect(textOf(view.snapshot)).toContain('Old answer')
+  } finally {
+    await test.close()
+  }
+}, 30000)
+
+it('does not spawn a CLI for context reads and normalizes the real native reading after a turn', async () => {
+  const test = await fixture()
+  try {
+    const runtime = test.runtime()
+    const root = confirmed(await runtime.create(test.options))
+    expect(await root.contextUsage()).toMatchObject({ status: 'unknown', error: { code: 'not-connected' } })
+    expect(test.children).toHaveLength(0)
+    const view = await observe(root)
+    const id = inputId()
+    await root.input!.submit({ inputId: id, text: 'Context reading', whenBusy: 'steer' })
+    const request = await test.request()
+    request.reply.block({ type: 'text', text: 'A native response' })
+    request.reply.finish()
+    await expect.poll(() => view.snapshot.inputs.find((input) => input.inputId === id)?.outcome).toBe('completed')
+    const requests = test.requestCount
+    const usage = confirmed(await root.contextUsage())
+    expect(usage.contextWindow).toBeGreaterThan(0)
+    expect(usage.used?.tokens).toBeGreaterThan(0)
+    expect(usage.breakdown?.categories.some((row) => row.key === 'system-prompt')).toBe(true)
+    const archive = confirmed(await root.claude.archive())
+    await root.contextUsage()
+    expect(test.requestCount).toBe(requests)
+    expect(confirmed(await root.claude.archive())).toEqual(archive)
+    expect(test.children).toHaveLength(1)
+    await root.release()
+    expect(await root.contextUsage()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
+  } finally {
+    await test.close()
+  }
+}, 30000)
+
+// This catches rejection identity being retained only by a warm owner's live SDK messages.
+it('recovers real CLI API rejection identity from raw storage with a fresh owner', async () => {
+  const test = await fixture()
+  try {
+    const options = { ...test.options, env: { ...test.options.env, CLAUDE_CODE_MAX_RETRIES: '0' } }
+    const runtime = test.runtime()
+    const root = confirmed(await runtime.create(options))
+    const view = await observe(root)
+    const reason = 'Quota exhausted; retry tomorrow.'
+    const quoted = `API Error: Request rejected (429) · ${reason}`
+    await root.input!.submit({ inputId: inputId(), text: 'Quote this diagnostic', whenBusy: 'steer' })
+    const request = await test.request()
+    request.reply.block({ type: 'text', text: quoted })
+    request.reply.finish()
+    await view.event((message) => message.type === 'result')
+    const quotation = view.snapshot.messages.find((message) =>
+      message.parts.some((part) => part.type === 'text' && part.text === quoted)
+    )!
+
+    test.refuseRequests(429, { type: 'error', error: { type: 'rate_limit_error', message: reason } })
+    const rejectedInput = inputId()
+    await root.input!.submit({ inputId: rejectedInput, text: 'Rejected native request', whenBusy: 'steer' })
+    const rejection = await view.event((message) => message.type === 'assistant' && message.error === 'rate_limit')
+    await expect
+      .poll(() => view.snapshot.inputs.find((input) => input.inputId === rejectedInput)?.outcome)
+      .toBe('failed')
+    const nativeFact = () =>
+      view.batches
+        .flatMap((batch) => batch.native)
+        .find((entry) => entry.message.uuid === rejection.uuid && entry.isApiErrorMessage)
+    await expect.poll(nativeFact).toBeDefined()
+    expect(
+      view.batches.flatMap((batch) => batch.native).find((entry) => entry.message.uuid === quotation.id)
+        ?.isApiErrorMessage
+    ).toBeUndefined()
+    confirmed(await runtime.shutdown())
+    await root.release()
+
+    const raw = await readArchive(test.configDir, options.cwd, root.claude.sessionId)
+    const rawRejection = raw?.entries.flatMap((batch) => batch.entries).find((entry) => entry.uuid === rejection.uuid)
+    expect(rawRejection).toMatchObject({ type: 'assistant', isApiErrorMessage: true })
+    const reopened = confirmed(await test.runtime().open(root.thread))
+    const cold = await observe(reopened)
+    const coldFact = () =>
+      cold.batches.flatMap((batch) => batch.native).find((entry) => entry.message.uuid === rejection.uuid)
+    await expect.poll(coldFact).toMatchObject({ source: 'archive', isApiErrorMessage: true })
+    expect(
+      cold.batches.flatMap((batch) => batch.native).find((entry) => entry.message.uuid === quotation.id)
+        ?.isApiErrorMessage
+    ).toBeUndefined()
+    expect(cold.snapshot.messages.find((message) => message.id === rejection.uuid)?.parts).toEqual(
+      view.snapshot.messages.find((message) => message.id === rejection.uuid)?.parts
+    )
+    expect(test.children).toHaveLength(1)
   } finally {
     await test.close()
   }

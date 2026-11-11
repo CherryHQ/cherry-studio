@@ -7,20 +7,23 @@
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
-import { tool, zodSchema } from 'ai'
+import { jsonSchema, tool } from 'ai'
 import mime from 'mime'
 
 import type OpenAI from '@cherrystudio/openai'
+import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
-import { jsonSchemaToZod } from './jsonSchemaToZod'
 import type { ReasoningEffort } from './providerOptionsMapper'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
 import { inlineTextFileContent } from './textFileInlining'
+import { isBlankToolName } from './toolName'
+
+const logger = loggerService.withContext('OpenAiResponsesMessageConverter')
 
 let uiMessageSeq = 0
 function nextUIMessageId(): string {
@@ -289,20 +292,39 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     if (!tools || tools.length === 0) return undefined
 
     const aiSdkTools: ToolSet = {}
+    const droppedTools: Array<{ index: number; path: string; name: string; description?: string | null }> = []
 
-    for (const toolDef of tools) {
+    for (const [index, toolDef] of tools.entries()) {
       if (toolDef.type !== 'function') continue
+      if (isBlankToolName(toolDef.name)) {
+        droppedTools.push({
+          index,
+          path: `tools[${index}].name`,
+          name: toolDef.name,
+          description: toolDef.description
+        })
+        continue
+      }
 
       const funcTool = toolDef
       const rawSchema = funcTool.parameters
-      const schema = rawSchema ? jsonSchemaToZod(rawSchema) : jsonSchemaToZod({ type: 'object' })
+      const schema = rawSchema ?? { type: 'object' as const }
 
       const aiTool = tool({
         description: funcTool.description || '',
-        inputSchema: zodSchema(schema)
+        inputSchema: jsonSchema(schema),
+        ...(typeof funcTool.strict === 'boolean' ? { strict: funcTool.strict } : {})
       })
 
       aiSdkTools[funcTool.name] = aiTool
+    }
+
+    if (droppedTools.length > 0) {
+      logger.warn('Dropped tools with empty or whitespace-only names before provider request', {
+        inputFormat: 'openai-responses',
+        model: params.model,
+        droppedTools
+      })
     }
 
     return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined
@@ -326,8 +348,10 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     provider: Provider,
     model: Model,
     params: ResponsesCreateParams,
-    maxOutputTokens?: number
+    maxOutputTokens?: number,
+    overrideReasoning = false
   ): ProviderOptions | undefined {
+    if (overrideReasoning) return undefined
     return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
   }
 }

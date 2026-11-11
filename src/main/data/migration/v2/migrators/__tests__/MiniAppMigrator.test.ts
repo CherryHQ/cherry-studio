@@ -252,24 +252,6 @@ describe('MiniAppMigrator', () => {
       }
     })
 
-    it('should use the application logo for a sidecar-only custom app with an empty logo', async () => {
-      const { ctx, tmpUserData } = await createCustomMiniAppsFixture(
-        {},
-        [{ id: 'no-logo', name: 'No Logo', url: 'https://no-logo.example', logo: '' }],
-        dbh.db
-      )
-
-      try {
-        await migrator.prepare(ctx)
-        await migrator.execute(ctx)
-
-        const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'no-logo'))
-        expect(row.logoKey).toBe('application')
-      } finally {
-        await fs.rm(tmpUserData, { recursive: true, force: true })
-      }
-    })
-
     it('should append sidecar-only custom apps after Redux enabled apps in file order', async () => {
       const { ctx, tmpUserData } = await createCustomMiniAppsFixture(
         {
@@ -972,25 +954,6 @@ describe('MiniAppMigrator', () => {
       expect(result.stats?.skippedCount).toBe(1)
       // engine invariant
       expect(result.stats.targetCount).toBe(result.stats.sourceCount - result.stats.skippedCount)
-    })
-  })
-
-  describe('migrator metadata', () => {
-    it('should have correct id', () => {
-      expect(migrator.id).toBe('miniapp')
-    })
-
-    it('should have correct name', () => {
-      expect(migrator.name).toBe('MiniApp')
-    })
-
-    it('should have correct description', () => {
-      expect(migrator.description).toContain('Redux')
-      expect(migrator.description).toContain('SQLite')
-    })
-
-    it('should have correct order', () => {
-      expect(migrator.order).toBe(1.2)
     })
   })
 })

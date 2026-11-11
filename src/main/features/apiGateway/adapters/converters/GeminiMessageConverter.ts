@@ -11,16 +11,16 @@
  * the payload is loosely validated at the route and parsed defensively here.
  */
 
+import type { JSONSchema7 as JsonSchemaLike } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
-import { tool, zodSchema } from 'ai'
+import { jsonSchema, tool } from 'ai'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
-import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
 import { mapGeminiThinkingToProviderOptions } from './providerOptionsMapper'
 import { inlineTextFileContent } from './textFileInlining'
 
@@ -208,7 +208,7 @@ function takeToolOutput(call: GeminiFunctionCall, responses: CollectedToolRespon
 
 /**
  * Recursively lower-case a Gemini `Schema`'s UPPERCASE `type` enums (`STRING`,
- * `OBJECT`, …) into the JSON Schema vocabulary `jsonSchemaToZod` expects. Modern
+ * `OBJECT`, …) into the JSON Schema vocabulary the SDK expects. Modern
  * clients send `parametersJsonSchema` (already JSON Schema) and skip this.
  */
 function geminiSchemaToJsonSchema(schema: unknown): JsonSchemaLike {
@@ -386,7 +386,7 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
             : geminiSchemaToJsonSchema(declaration.parameters)
         aiSdkTools[declaration.name] = tool({
           description: declaration.description || '',
-          inputSchema: zodSchema(jsonSchemaToZod(rawSchema))
+          inputSchema: jsonSchema(rawSchema)
         })
       }
     }
@@ -415,8 +415,10 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
     provider: Provider,
     model: Model,
     params: GeminiGenerateContentRequest,
-    maxOutputTokens?: number
+    maxOutputTokens?: number,
+    overrideReasoning = false
   ): ProviderOptions | undefined {
+    if (overrideReasoning) return undefined
     const thinkingConfig = params.generationConfig?.thinkingConfig
     if (!thinkingConfig) return undefined
     return mapGeminiThinkingToProviderOptions(provider, model, thinkingConfig, maxOutputTokens)

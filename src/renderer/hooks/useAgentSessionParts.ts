@@ -20,7 +20,6 @@ import {
   useWriteInfiniteCache
 } from '@renderer/data/hooks/useDataApi'
 import type { MessageListSelectAllPagination } from '@renderer/types/message'
-import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
@@ -31,7 +30,6 @@ import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 const PAGE_SIZE = 50
 
 interface CachedAgentSessionMessage {
-  liveParts: CherryMessagePart[] | undefined
   turnOrigin: AutonomousTurnOrigin | undefined
   message: CherryUIMessage
   modelId: AgentSessionMessageEntity['modelId']
@@ -138,7 +136,6 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   // MessageVirtualList expects chronological-asc (oldest first), so reverse both
   // axes: oldest page first, and within each page reverse to ASC.
   const rows = useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true })
-  // The display projection below includes live flow parts; settlement must read the database rows.
   const persistedPartsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(
     () => Object.fromEntries(rows.map((row) => [row.id, row.data.parts ?? []])),
     [rows]
@@ -151,16 +148,6 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [rows]
   )
   const loadedMessageIds = useMemo(() => (enabled ? rows.map((row) => row.id) : []), [enabled, rows])
-  const flowPartsKeys = useMemo(
-    () => loadedMessageIds.map((messageId) => AGENT_SESSION_FLOW_PARTS_CACHE_KEY(sessionId, messageId)),
-    [loadedMessageIds, sessionId]
-  )
-  const selectFlowParts = useCallback(
-    (values: readonly (CherryMessagePart[] | undefined)[]) =>
-      Object.fromEntries(loadedMessageIds.map((messageId, index) => [messageId, values[index]])),
-    [loadedMessageIds]
-  )
-  const flowParts = useSharedCacheSelector(flowPartsKeys, selectFlowParts)
   const turnOriginKeys = useMemo(
     () => loadedMessageIds.map((messageId) => AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, messageId)),
     [loadedMessageIds, sessionId]
@@ -191,7 +178,6 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       const previousById = previousProjection?.ownerToken === projectionOwnerToken ? previousProjection.byId : undefined
       const nextById = new Map<string, CachedAgentSessionMessage>()
       const nextMessages = sourceRows.map((row) => {
-        const liveParts = flowParts[row.id]
         const turnOrigin = turnOrigins[row.id]
         const cached = previousById?.get(row.id)
         if (
@@ -200,7 +186,6 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
           cached.role === row.role &&
           cached.status === row.status &&
           cached.modelId === row.modelId &&
-          cached.liveParts === liveParts &&
           cached.turnOrigin === turnOrigin
         ) {
           nextById.set(row.id, cached)
@@ -209,9 +194,8 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
 
         const message = toAgentSessionUIMessage(row)
         const withOrigin = turnOrigin ? { ...message, metadata: { ...message.metadata, turnOrigin } } : message
-        const projectedMessage = liveParts ? { ...withOrigin, parts: liveParts } : withOrigin
+        const projectedMessage = withOrigin
         nextById.set(row.id, {
-          liveParts,
           turnOrigin,
           message: projectedMessage,
           modelId: row.modelId,
@@ -235,7 +219,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       }
       return stableMessages
     },
-    [flowParts, turnOrigins, projectionOwnerToken]
+    [turnOrigins, projectionOwnerToken]
   )
 
   const messages = useMemo<CherryUIMessage[]>(() => {
@@ -329,8 +313,11 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [enabled, hasNext, loadAllRequested, startLoadAll, stopLoadAll]
   )
 
+  const historyActions = useMemo(() => Object.fromEntries(rows.map((row) => [row.id, row.historyActions])), [rows])
+
   return {
     messages,
+    historyActions,
     getMessageSiblings,
     setActiveBranch,
     persistedPartsByMessageId,
