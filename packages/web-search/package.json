@@ -2,7 +2,7 @@
   "name": "@cherrystudio/web-search",
   "version": "0.7.0",
   "description": "Portable web search provider protocols with host-owned transports and policies",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "author": "Cherry Studio",
   "repository": {
     "type": "git",
