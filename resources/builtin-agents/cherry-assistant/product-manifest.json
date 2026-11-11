@@ -877,8 +877,8 @@
     }
   ],
   "providers": {
-    "version": "5179a16fddc562d9",
-    "count": 68,
+    "version": "fc4a79a95035b78d",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -959,6 +959,10 @@
       {
         "id": "radeon-cloud",
         "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "acctoken",
+        "name": "ACCTOKEN"
       },
       {
         "id": "tokendance",
