@@ -14,6 +14,8 @@ The diagnostics UI runs four fixed groups through the public sandbox manager. Ma
 
 macOS proxy mode uses MXC's proxy-only egress and a separate `proxy-chain` server per instance. Each HTTP request or CONNECT tunnel checks an exact host/port grant. Domain resolutions to private or special addresses are rejected; private destinations require an explicit IP grant. Stopping revokes proxy connections. A kill error racing guest exit is accepted only after independent SDK exit confirmation; otherwise ownership remains available for cleanup retry.
 
+The HTTPS diagnostic explicitly binds Node certificate identity checks to the destination hostname or IP. `https-proxy-agent@7.0.6` otherwise falls back to localhost for IP targets; trust-chain validation remains enabled. Native guest tests accept a trusted matching IP-SAN certificate and reject a trusted localhost-only certificate, matching direct HTTPS controls.
+
 ## Alternatives considered
 
 - Raw SDK launches inside diagnostics would test a different path from product callers.

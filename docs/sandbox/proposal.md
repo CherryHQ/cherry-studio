@@ -81,7 +81,7 @@ VS Code 的 Extension Host 拥有与 VS Code 相同的权限，可以访问文�
 | --- | --- | --- |
 | 历史 [DSH composition](https://github.com/CherryHQ/cherry-studio/blob/4454c4d2e0c948c773b13471036ca58e34f8f21b/src/main/ai/runtime/dsh/compositionBuilder.ts) | 普通权限映射为 `workspace-write`，`bypassPermissions` 映射为 `danger-full-access`，按平台选择 Bash / PowerShell sandbox | 统一设计时分离审批与隔离策略；不能把现有 shell 限制扩大解释为整个 DSH 的隔离 |
 | [Pi session](../../src/main/ai/runtime/pi/PiRuntimeConnection.ts) | 在主进程中调用 SDK 创建 session，Bash spawn hook 当前主要处理执行环境 | 只包装 Bash 无法隔离 Pi 进程内扩展；需评估将不可信执行移入独立宿主 |
-| [Pi approval](../../src/main/ai/runtime/pi/approvalExtension.ts) | 明确说明审批模式不构成 sandbox，Bash 对路径检查是不可透视的 | 保留审批职责，隔离保证由执行后端提供 |
+| 历史 [Pi approval](https://github.com/CherryHQ/cherry-studio/blob/6f6a70d69390637de1cf9e84fd3761700f2f01ed/src/main/ai/runtime/pi/approvalExtension.ts) | 明确说明审批模式不构成 sandbox，Bash 对路径检查是不可透视的 | 保留审批职责，隔离保证由执行后端提供 |
 | [Claude 进程入口](../../src/main/ai/runtime/claudeCode/ClaudeCodeProcessManager.ts)及[配置](../../src/main/ai/runtime/claudeCode/settingsBuilder.ts) | 已有可控制的子进程启动入口，尚无 Cherry 统一 sandbox 策略 | 评估整体包装与 SDK 内置工具 sandbox 的关系，验证嵌套限制和通信兼容性 |
 | [Utility Process](../../src/main/core/utilityProcess/README.md) | 用于可信工作的崩溃与原生库隔离，明确不是安全 sandbox | 不能直接把 utility process 标为插件安全边界 |
 | [Code Mode](../../src/main/ai/tools/codeMode/runtime.ts) | Worker 编排明确不是安全 sandbox | 如纳入不可信代码执行，需更换实际执行边界 |

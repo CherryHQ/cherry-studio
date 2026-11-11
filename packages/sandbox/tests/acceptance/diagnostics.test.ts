@@ -1,5 +1,7 @@
-import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { createServer as createHttpsServer, get } from 'node:https'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -116,6 +118,86 @@ it.skipIf(process.platform !== 'darwin')(
     } finally {
       server.closeAllConnections()
       await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  }
+)
+
+// Trust the issuer in both cases; only the destination identity may decide acceptance.
+it.skipIf(process.platform !== 'darwin').each(['IP:127.0.0.1', 'DNS:localhost'])(
+  'validates HTTPS IP destinations against %s in the bundled native guest',
+  async (san) => {
+    const cwd = await realpath(await mkdtemp(path.join(tmpdir(), 'sandbox-tls-')))
+    const manager = new SandboxManager()
+    const certPath = path.join(cwd, 'cert.pem')
+    const keyPath = path.join(cwd, 'key.pem')
+    const server = createHttpsServer()
+    let hits = 0
+    try {
+      execFileSync(
+        'openssl',
+        [
+          'req',
+          '-x509',
+          '-newkey',
+          'rsa:2048',
+          '-nodes',
+          '-days',
+          '1',
+          '-keyout',
+          keyPath,
+          '-out',
+          certPath,
+          '-subj',
+          `/CN=${san.split(':')[1]}`,
+          '-addext',
+          `subjectAltName=${san}`
+        ],
+        { stdio: 'ignore' }
+      )
+      const cert = await readFile(certPath)
+      server.setSecureContext({ key: await readFile(keyPath), cert })
+      server.on('request', (_request, response) => {
+        hits++
+        response.end('verified')
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('Missing TLS listener')
+      const url = `https://127.0.0.1:${address.port}/`
+      const direct = new Promise<number | undefined>((resolve, reject) => {
+        get(url, { ca: cert }, (response) => {
+          response.resume()
+          resolve(response.statusCode)
+        }).on('error', reject)
+      })
+      if (san.startsWith('IP:')) await expect(direct).resolves.toBe(200)
+      else await expect(direct).rejects.toMatchObject({ code: 'ERR_TLS_CERT_ALTNAME_INVALID' })
+      hits = 0
+      const base = spec(await realpath(process.execPath))
+      base.command.cwd = cwd
+      base.command.env = { ...base.command.env, NODE_EXTRA_CA_CERTS: certPath }
+      base.filesystem.read = [path.dirname(base.command.executable), certPath]
+      const result = await runDiagnostics(manager, 'network', base, AbortSignal.timeout(20000), {
+        kind: 'network',
+        url,
+        allowedOrigins: [url]
+      })
+      if (san.startsWith('IP:')) {
+        const response = result.trace.find((entry) => entry.step === 'response')
+        expect(response, JSON.stringify(result.trace)).toBeDefined()
+        expect(JSON.parse(response!.detail)).toMatchObject({ status: 200, body: 'verified' })
+        expect(hits).toBe(1)
+      } else {
+        expect(result.trace.filter((entry) => entry.step === 'response')).toEqual([])
+        expect(result.trace.some((entry) => entry.step === 'error' && entry.detail.includes('cert'))).toBe(true)
+        expect(hits).toBe(0)
+      }
+      expect(result.removable).toBe(true)
+    } finally {
+      await manager.dispose()
+      server.closeAllConnections()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await rm(cwd, { recursive: true, force: true })
     }
   }
 )

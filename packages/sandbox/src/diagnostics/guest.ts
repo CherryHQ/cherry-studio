@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { request } from 'node:http'
 import { request as requestHttps } from 'node:https'
 import { setTimeout } from 'node:timers/promises'
+import { checkServerIdentity } from 'node:tls'
 
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
@@ -102,6 +103,7 @@ peer.handle('fetch', async ({ url }, signal) => {
         target,
         {
           agent,
+          checkServerIdentity: (_hostname, cert) => checkServerIdentity(target.hostname.replace(/^\[|\]$/g, ''), cert),
           signal: AbortSignal.any([signal, AbortSignal.timeout(8000)])
         },
         (response) => {

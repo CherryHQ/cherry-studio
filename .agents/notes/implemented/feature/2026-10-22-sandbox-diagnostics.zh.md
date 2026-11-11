@@ -14,6 +14,8 @@ Status: implemented
 
 macOS 代理模式使用 MXC 的仅代理出口和每实例独立的 `proxy-chain` 服务。每个 HTTP 请求或 CONNECT 隧道都校验精确 host/port 授权。域名解析到私网或特殊地址时拒绝；私网目标需要显式 IP 授权。停止时撤销代理连接。kill 错误与 guest 退出竞态发生时，只有 SDK 独立确认退出才能认定已停止，否则继续保留清理重试责任。
 
+HTTPS 诊断显式将 Node 证书身份校验绑定到目标主机名或 IP。`https-proxy-agent@7.0.6` 对 IP 目标会退回校验 localhost；证书信任链校验保持开启。原生 guest 测试接受受信任且匹配的 IP-SAN 证书，拒绝受信任但仅包含 localhost 的证书，与直连 HTTPS 对照结果一致。
+
 ## 考虑过的替代方案
 
 - 诊断直接调用原始 SDK 会测试与产品调用方不同的路径。

@@ -99,7 +99,8 @@ or an HTTP(S) URL and up to 64 origin URLs. URL credentials are rejected; execut
 owner, host method names and filesystem grants remain host-owned. Interactive RPC runs
 `compute(value) → host.double(value) → +1`. Network requests execute GET inside the guest
 using the instance proxy, with normal TLS certificate verification, a 4 KiB response
-preview and no automatic redirects. Host/port grants ignore the origin URL's scheme.
+preview and no automatic redirects. Certificate identity is checked against the destination
+hostname or IP, including when the proxy supplies the underlying socket. Host/port grants ignore the origin URL's scheme.
 An empty allowlist denies all targets. A manual response is not an isolation verdict;
 unreachable external services can fail independently of sandbox policy.
 
@@ -115,7 +116,8 @@ Network diagnostics use two reachable, host-owned HTTP fixtures. macOS tests an
 allowed HTTP target, rejected host/port, CONNECT admission, redirects to an
 unlisted target, and direct TCP bypass denial. Destination counters and host
 positive controls distinguish policy denial from an unreachable service. This is
-HTTP/CONNECT acceptance, not end-to-end HTTPS certificate validation. Windows
+HTTP/CONNECT acceptance. Separate native guest tests verify HTTPS IP identity using
+trusted IP-SAN and localhost-only certificates, with direct HTTPS controls. Windows
 proxy mode is currently unsupported and reported as such. These results do not
 certify hard-link isolation or complete descendant cleanup.
 
