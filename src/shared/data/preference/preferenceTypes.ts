@@ -381,7 +381,8 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'github-copilot-cli',
   'pi',
   'hermes',
-  'minimax-code'
+  'minimax-code',
+  'letta'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]

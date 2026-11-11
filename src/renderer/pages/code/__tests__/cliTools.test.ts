@@ -74,6 +74,22 @@ describe('MiniMax Code provider support', () => {
   })
 })
 
+describe('Letta provider support', () => {
+  const provider = (partial: Record<string, unknown>): Provider =>
+    ({ id: 'provider', name: 'Provider', endpointConfigs: {}, ...partial }) as unknown as Provider
+
+  it('is fully provider-less: no Cherry providers, own-login, or gateway', () => {
+    expect(PROVIDERLESS_CLI_TOOLS.has(CodeCli.LETTA)).toBe(true)
+    expect(LOGIN_CAPABLE_CLI_TOOLS.has(CodeCli.LETTA)).toBe(false)
+    expect(GATEWAY_CAPABLE_CLI_TOOLS.has(CodeCli.LETTA)).toBe(false)
+    expect(
+      CLI_TOOL_PROVIDER_MAP[CodeCli.LETTA]([
+        provider({ id: 'anthropic', endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.example' } } })
+      ])
+    ).toEqual([])
+  })
+})
+
 describe('GATEWAY_CAPABLE_CLI_TOOLS', () => {
   it('covers exactly the tools that can launch through the Unified Gateway', () => {
     expect([...GATEWAY_CAPABLE_CLI_TOOLS].sort()).toEqual(

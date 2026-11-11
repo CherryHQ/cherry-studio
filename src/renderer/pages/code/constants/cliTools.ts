@@ -11,7 +11,11 @@ export { CLI_TOOLS }
  * device code) rather than a Cherry provider + model. They launch with a
  * working directory only — no provider config or model selection is offered.
  */
-export const PROVIDERLESS_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([CodeCli.QODER_CLI, CodeCli.GITHUB_COPILOT_CLI])
+export const PROVIDERLESS_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
+  CodeCli.QODER_CLI,
+  CodeCli.GITHUB_COPILOT_CLI,
+  CodeCli.LETTA
+])
 
 /** Aggregators fronting Gemini behind a non-Gemini provider type, surfaced
  * here so Gemini-compatible CLIs can select them despite lacking a Gemini endpoint. */
@@ -47,6 +51,7 @@ const filterGeminiProviders = (providers: Provider[]): Provider[] =>
  * - Hermes: injects Anthropic or OpenAI-compatible endpoints into its custom runtime.
  * - MiniMax Code: injects Anthropic or OpenAI-compatible endpoints into `custom_provider`.
  * - Qoder CLI / GitHub Copilot CLI: provider-less (authenticate via CLI login).
+ * - Letta Code: provider-less (agents authenticate through the user's Letta account).
  */
 export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli, (providers: Provider[]) => Provider[]> = {
   [CodeCli.CLAUDE_CODE]: (providers) => providers.filter(hasAnthropic),
@@ -69,5 +74,6 @@ export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli, (providers: Provider[]) => P
   [CodeCli.GITHUB_COPILOT_CLI]: () => [],
   [CodeCli.PI]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
   [CodeCli.HERMES]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
-  [CodeCli.MINIMAX_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p))
+  [CodeCli.MINIMAX_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  [CodeCli.LETTA]: () => []
 }
