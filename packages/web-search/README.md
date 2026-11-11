@@ -110,5 +110,4 @@ pnpm --filter @cherrystudio/web-search test:package
 These are opt-in development commands. `test:package` includes compilation and network-backed
 installation. Follow the current task's authorization rules before running either command.
 
-License: AGPL-3.0-only, preserving the source repository license. Confirm licensing and maintainers
-before the initial public release.
+License: MIT. See [LICENSE](./LICENSE).
