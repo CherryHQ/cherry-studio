@@ -30,11 +30,14 @@ export function ConversationStatus({
       data-testid={testId}
       className={cn('flex size-3 shrink-0 items-center justify-center', className)}>
       {status === 'pending' ? (
-        <Loader2 aria-hidden className="size-3 animate-spin text-foreground-tertiary motion-reduce:animate-none" />
+        <Loader2 aria-hidden className="size-full animate-spin text-foreground-tertiary motion-reduce:animate-none" />
       ) : status === 'done' ? (
         <span aria-hidden className="size-1.25 rounded-full bg-success" />
       ) : (
-        <CircleAlert aria-hidden className={status === 'approval' ? 'size-3 text-warning' : 'size-3 text-error'} />
+        <CircleAlert
+          aria-hidden
+          className={status === 'approval' ? 'size-full text-warning' : 'size-full text-error'}
+        />
       )}
     </span>
   )

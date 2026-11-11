@@ -36,11 +36,25 @@ function topicIdFor(target: ConversationNavigationTarget) {
   return target.conversationType === 'agent' ? buildAgentSessionTopicId(target.conversationId) : target.conversationId
 }
 
-function Status({ target, isActive }: { target: ConversationNavigationTarget; isActive: boolean }) {
+function Status({
+  target,
+  isActive,
+  compact
+}: {
+  target: ConversationNavigationTarget
+  isActive: boolean
+  compact: boolean
+}) {
   const stream = useTopicStreamStatus(topicIdFor(target))
   return (
-    <span className="flex size-3 shrink-0 items-center justify-center">
+    <span
+      className={
+        compact
+          ? 'flex size-2.5 shrink-0 items-center justify-center'
+          : 'flex size-3 shrink-0 items-center justify-center'
+      }>
       <ConversationStatus
+        className={compact ? 'size-2.5' : undefined}
         status={getConversationStatus({
           ...stream,
           isAwaitingApproval:
@@ -55,7 +69,7 @@ function Status({ target, isActive }: { target: ConversationNavigationTarget; is
 
 export function ConversationTabStatus({ tab, isActive }: { tab: Tab; isActive: boolean }) {
   const target = getTabConversation(tab)
-  return target ? <Status target={target} isActive={isActive} /> : null
+  return target ? <Status target={target} isActive={isActive} compact={!!tab.isPinned} /> : null
 }
 
 type Props = { tab: Tab; isActive: boolean; disabled: boolean; onSelect: () => void; children: ReactElement }

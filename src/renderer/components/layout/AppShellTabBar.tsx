@@ -94,7 +94,6 @@ const Separator = ({ hidden }: { hidden?: boolean }) => (
 type PinnedTabButtonProps = {
   tab: Tab
   shortcutHint?: string
-  iconSize: number
   isActive: boolean
   onSelect: () => void
   drag: DragItemProps
@@ -105,7 +104,6 @@ type PinnedTabButtonProps = {
 const PinnedTabButton = ({
   tab,
   shortcutHint,
-  iconSize,
   isActive,
   onSelect,
   drag,
@@ -140,19 +138,19 @@ const PinnedTabButton = ({
           opacity: drag.isGhost ? 0.3 : 1
         }}
         className={cn(
-          'shell-navigation-item nodrag flex h-7 w-7 items-center justify-center rounded-full [-webkit-app-region:no-drag]',
+          'shell-navigation-item nodrag flex h-[30px] w-11 shrink-0 items-center justify-center gap-1 rounded-[9px] [-webkit-app-region:no-drag]',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           rest.className
         )}>
         {shortcutHint ? (
           <Kbd className="rounded-full bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">{shortcutHint}</Kbd>
         ) : (
-          <span className="relative">
-            <TabIcon tab={tab} size={iconSize} />
-            <span className="absolute -right-1 -bottom-1">
+          <>
+            <TabIcon tab={tab} size={16} className="shrink-0" />
+            <span className="flex size-2.5 shrink-0 items-center justify-center">
               <ConversationTabStatus tab={tab} isActive={isActive} />
             </span>
-          </span>
+          </>
         )}
       </button>
     </ConversationTabPreview>
@@ -990,7 +988,6 @@ export const AppShellTabBar = ({
                     <PinnedTabButton
                       tab={tab}
                       shortcutHint={shortcutHints?.get(tab.id)}
-                      iconSize={getTabIconSize(tab)}
                       isActive={tab.id === activeTabId}
                       onSelect={() => handleSelectTab(tab)}
                       drag={{
