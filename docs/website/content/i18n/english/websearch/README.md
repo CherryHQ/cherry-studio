@@ -33,7 +33,7 @@ This switch determines which route is used for **web search from the chat input 
 
 **Agent conversations** (Claude Code, pi, pi durable) currently **always** use the search and URL fetch services you configure in `Settings → Web Search`, so they still consume the corresponding providers' quotas.
 
-This is because Agent runtimes forward model requests through the local gateway, which currently does not carry declarations for the model provider's server-side native web tools, and the runtimes have no path for injecting these tools.
+There are two reasons. Agent sessions that forward model requests through the local gateway (pi, pi durable, and Claude Code on an API key) get no provider-side native web tool declarations from the gateway, and their runtimes have no path for injecting those tools. Subscription-backed Claude Code sessions do not go through the gateway at all: their native `WebSearch` / `WebFetch` tools are disabled for that runtime separately.
 {% endhint %}
 
 Rely on the 🌐 icon next to the model name to tell whether native search is supported, rather than a fixed list of models. Common cases today include:
