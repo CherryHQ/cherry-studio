@@ -11,6 +11,7 @@ import { getDefaultGroupName } from '@renderer/utils/naming'
 import type { UpdateModelDto } from '@shared/data/api/schemas/models'
 import { type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import { getDeliverableWebSearchEndpointTypes, isBuiltinWebSearchAvailable } from '@shared/utils/provider'
 
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard'
 import ProviderActions from '../../primitives/ProviderActions'
@@ -21,6 +22,7 @@ import {
   areModelClassificationsEqual,
   buildModelCapabilities,
   buildModelInputModalities,
+  buildServerToolOverrides,
   getInitialModelClassification,
   getModelApiId
 } from './helpers'
@@ -42,7 +44,8 @@ import type {
   ModelClassificationState,
   ModelDrawerMode,
   ModelInputModality,
-  ModelPrimaryType
+  ModelPrimaryType,
+  ModelWebSearchOverride
 } from './types'
 
 interface EditModelDrawerProps {
@@ -140,7 +143,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const buildPatch = useCallback(
     (overrides?: BuildPatchOverrides): UpdateModelDto => {
-      if (!model) {
+      if (!model || !provider) {
         return {}
       }
 
@@ -157,6 +160,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextMaxOutputTokens = hasMaxOutputTokensOverride ? overrides?.maxOutputTokens : maxOutputTokens
       const nextPurposeFields = overrides?.purposeFields ?? purposeFields
       const nextClassification = overrides?.classification
+      const shouldRebuildServerToolOverrides =
+        hasEndpointTypesOverride || hasPurposeFieldsOverride || nextClassification != null
       const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
       const effectiveClassification = nextClassification ?? classification
       const classifiedCapabilities =
@@ -215,7 +220,21 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         ...(hasMaxOutputTokensOverride && nextMaxOutputTokens !== undefined
           ? { maxOutputTokens: nextMaxOutputTokens }
           : {}),
-        ...(hasPricingOverride ? { pricing: overrides.pricing } : {})
+        ...(hasPricingOverride ? { pricing: overrides.pricing } : {}),
+        ...(shouldRebuildServerToolOverrides
+          ? {
+              serverToolOverrides: buildServerToolOverrides(
+                effectiveClassification,
+                hasPurposeFieldsOverride && resolvedPurposeFields
+                  ? resolvedPurposeFields.endpointTypes
+                  : hasEndpointTypesOverride
+                    ? (overrides?.endpointTypes ?? endpointTypes)
+                    : (model.endpointTypes ?? endpointTypes),
+                provider,
+                defaultChatEndpoint
+              )
+            }
+          : {})
       }
     },
     [
@@ -225,10 +244,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       maxOutputTokens,
       mode,
       model,
+      provider,
       name,
       purposeFields,
       classification,
       defaultChatEndpoint,
+      endpointTypes,
       supportsStreaming
     ]
   )
@@ -313,6 +334,37 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     },
     [classification, commitClassification]
   )
+
+  const registryWebSearchAvailable = useMemo(() => {
+    if (!model || !provider) return false
+    return isBuiltinWebSearchAvailable({ ...model, endpointTypes, serverToolOverrides: undefined }, provider)
+  }, [endpointTypes, model, provider])
+
+  const webSearchEnableAllowed = useMemo(() => {
+    if (!provider) return false
+    const activeEndpoint = endpointTypes[0]
+    return (
+      getDeliverableWebSearchEndpointTypes(activeEndpoint ? [activeEndpoint] : undefined, provider, defaultChatEndpoint)
+        .length > 0
+    )
+  }, [defaultChatEndpoint, endpointTypes, provider])
+
+  const webSearchSelected =
+    (classification.webSearch === 'enabled' && webSearchEnableAllowed) ||
+    (classification.webSearch === 'inherit' && registryWebSearchAvailable)
+
+  const handleToggleWebSearch = useCallback(() => {
+    let next: ModelWebSearchOverride
+    if (webSearchSelected) {
+      next = registryWebSearchAvailable ? 'disabled' : 'inherit'
+    } else if (!webSearchEnableAllowed && !registryWebSearchAvailable) {
+      toast.error(t('settings.models.add.web_search.endpoint_required'))
+      return
+    } else {
+      next = registryWebSearchAvailable ? 'inherit' : 'enabled'
+    }
+    commitClassification({ ...classification, webSearch: next })
+  }, [classification, commitClassification, registryWebSearchAvailable, t, webSearchEnableAllowed, webSearchSelected])
 
   const handleToggleInputModality = useCallback(
     (modality: ModelInputModality) => {
@@ -448,8 +500,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 <ModelClassificationControls
                   value={classification}
                   hasChanges={hasClassificationChanges}
+                  webSearchSelected={webSearchSelected}
                   onPrimaryTypeChange={handlePrimaryTypeChange}
                   onCapabilityToggle={handleToggleCapability}
+                  onWebSearchToggle={handleToggleWebSearch}
                   onInputModalityToggle={handleToggleInputModality}
                   onReset={handleResetClassification}
                 />

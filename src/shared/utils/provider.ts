@@ -1,3 +1,4 @@
+import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import {
   isServerToolModelEligible as isRegistryServerToolModelEligible,
   isWebSearchEffortUnsupported,
@@ -220,6 +221,102 @@ export const DASHSCOPE_HOSTED_WEB_SEARCH_MODELS = [
   { canonicalId: 'kimi-k3', wireIds: ['kimi-k3', 'kimi/kimi-k3'] }
 ] as const
 
+// App extensions register in the main process only. Their webSearch factories are real,
+// but the renderer registry never loads them, so the override gate names them here.
+const APP_EXTENSION_WEB_SEARCH_ENDPOINTS: Partial<Record<string, readonly EndpointType[]>> = {
+  bedrock: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+  'google-vertex': [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+  'google-vertex-anthropic': [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+}
+
+function resolveRegisteredAdapterId(adapterFamily: string, endpointType: EndpointType): string {
+  if (!extensionRegistry.has(adapterFamily) || extensionRegistry.isVariant(adapterFamily)) return adapterFamily
+
+  const baseId = extensionRegistry.getBaseProviderId(adapterFamily) ?? adapterFamily
+  const variants = extensionRegistry.getVariants(baseId)
+  if (
+    (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS || endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) &&
+    variants.includes(`${baseId}-chat`)
+  ) {
+    return `${baseId}-chat`
+  }
+  if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES && variants.includes(`${baseId}-responses`)) {
+    return `${baseId}-responses`
+  }
+  return baseId
+}
+
+/** `provider` string stamped on endpoint-routed gateway language models. */
+function endpointRoutedGatewayModelProvider(adapterFamily: string, endpointType: EndpointType): string | undefined {
+  if (adapterFamily === 'newapi') {
+    switch (endpointType) {
+      case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
+        return 'newapi.anthropic'
+      case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
+        return 'newapi.google'
+      case ENDPOINT_TYPE.OPENAI_RESPONSES:
+        return 'newapi.openai-response'
+      case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
+        return 'newapi.chat'
+      default:
+        return undefined
+    }
+  }
+
+  if (adapterFamily === 'cherryin') {
+    switch (endpointType) {
+      case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
+        return 'cherryin.anthropic'
+      case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
+        return 'cherryin.google'
+      case ENDPOINT_TYPE.OPENAI_RESPONSES:
+        return 'cherryin.openai'
+      case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
+        return 'cherryin.openai-chat'
+      default:
+        return undefined
+    }
+  }
+
+  return undefined
+}
+
+/** Whether this endpoint's actual runtime adapter can inject native search. */
+export function isWebSearchDeliveryEndpoint(
+  endpointType: EndpointType | undefined,
+  provider: Pick<Provider, 'endpointConfigs'>
+): boolean {
+  if (!endpointType) return false
+
+  const adapterFamily = provider.endpointConfigs?.[endpointType]?.adapterFamily
+  if (adapterFamily && APP_EXTENSION_WEB_SEARCH_ENDPOINTS[adapterFamily]?.includes(endpointType)) {
+    return true
+  }
+
+  const gatewayModelProvider = adapterFamily
+    ? endpointRoutedGatewayModelProvider(adapterFamily, endpointType)
+    : undefined
+  const runtimeId =
+    adapterFamily && (extensionRegistry.has(adapterFamily) || gatewayModelProvider)
+      ? resolveRegisteredAdapterId(adapterFamily, endpointType)
+      : endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
+        ? 'open-responses'
+        : 'openai-compatible'
+  const modelProvider = gatewayModelProvider ?? (runtimeId === 'open-responses' ? 'openai.responses' : undefined)
+
+  return extensionRegistry.hasResolvableToolFactory(runtimeId, 'webSearch', modelProvider)
+}
+
+/** Deliverable web-search endpoints from a model/provider endpoint set. */
+export function getDeliverableWebSearchEndpointTypes(
+  endpointTypes: readonly EndpointType[] | undefined,
+  provider: Pick<Provider, 'endpointConfigs'>,
+  fallback?: EndpointType
+): EndpointType[] {
+  const candidates = endpointTypes?.length ? endpointTypes : fallback ? [fallback] : []
+  return candidates.filter((endpointType) => isWebSearchDeliveryEndpoint(endpointType, provider))
+}
+
 /** Whether the host serves this tool for the model's vendor family (declaration `vendors` narrowing). */
 function serverToolServesModelVendor(tool: ServerToolConfig, model: Model): boolean {
   if (!tool.vendors?.length) return true
@@ -269,9 +366,21 @@ export function isServerToolModelEligible(
  */
 export function isBuiltinWebSearchAvailable(
   model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
+  const override = model.serverToolOverrides?.[SERVER_TOOL.WEB_SEARCH]
+  if (override) {
+    if (isNonChatModel(model) || override.state === 'disabled') return false
+    const effectiveEndpoint = resolveServerToolEndpoint(model, provider, endpointType)
+    return (
+      effectiveEndpoint !== undefined &&
+      override.endpointTypes.includes(effectiveEndpoint) &&
+      (!model.endpointTypes?.length || model.endpointTypes.includes(effectiveEndpoint)) &&
+      isWebSearchDeliveryEndpoint(effectiveEndpoint, provider)
+    )
+  }
+
   return isBuiltinServerToolAvailable(model, provider, SERVER_TOOL.WEB_SEARCH, endpointType)
 }
 

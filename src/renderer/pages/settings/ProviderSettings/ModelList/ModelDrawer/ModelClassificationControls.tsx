@@ -1,4 +1,4 @@
-import { ArrowUpDown, Boxes, BrainCircuit, Ear, Eye, Image, RotateCcw, Type, Video, Wrench } from 'lucide-react'
+import { ArrowUpDown, Boxes, BrainCircuit, Ear, Eye, Globe, Image, RotateCcw, Type, Video, Wrench } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,8 +12,11 @@ import type { ModelCapabilityToggle, ModelClassificationState, ModelInputModalit
 interface ModelClassificationControlsProps {
   value: ModelClassificationState
   hasChanges?: boolean
+  /** Whether the web-search control should render as selected (override or registry inherit). */
+  webSearchSelected?: boolean
   onPrimaryTypeChange: (type: ModelPrimaryType) => void
   onCapabilityToggle: (capability: ModelCapabilityToggle) => void
+  onWebSearchToggle?: () => void
   onInputModalityToggle: (modality: ModelInputModality) => void
   onReset?: () => void
 }
@@ -73,12 +76,19 @@ function OptionButton<T extends string>({
 export function ModelClassificationControls({
   value,
   hasChanges = false,
+  webSearchSelected = false,
   onPrimaryTypeChange,
   onCapabilityToggle,
+  onWebSearchToggle,
   onInputModalityToggle,
   onReset
 }: ModelClassificationControlsProps) {
   const { t } = useTranslation()
+  const webSearchOption = {
+    value: 'web-search' as const,
+    label: 'models.type.websearch',
+    icon: Globe
+  }
 
   return (
     <div className="space-y-4">
@@ -122,6 +132,9 @@ export function ModelClassificationControls({
               onClick={() => onCapabilityToggle(option.value)}
             />
           ))}
+          {onWebSearchToggle ? (
+            <OptionButton option={webSearchOption} selected={webSearchSelected} onClick={onWebSearchToggle} />
+          ) : null}
         </div>
       </div>
 
