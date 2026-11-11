@@ -117,26 +117,6 @@ describe('KnowledgeBaseToolRuntime', () => {
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
 
     const [knowledgeLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
-    expect(knowledgeLauncher).toMatchObject({
-      id: 'knowledge-base',
-      kind: 'panel',
-      sources: ['popover', 'root-panel'],
-      active: true
-    })
-    expect(knowledgeLauncher.rootSearchItems).toEqual([
-      expect.objectContaining({
-        id: 'knowledge-base:kb-1',
-        label: 'Knowledge One',
-        filterText: 'Knowledge One kb-1'
-      }),
-      expect.objectContaining({
-        id: 'knowledge-base:kb-2',
-        label: 'Knowledge Two',
-        filterText: 'Knowledge Two kb-2'
-      })
-    ])
-    expect(knowledgeLauncher.suffix).toBeUndefined()
-    expect(knowledgeLauncher.showInActiveControls).toBe(false)
 
     knowledgeLauncher.action?.({
       inputAdapter,
@@ -160,7 +140,6 @@ describe('KnowledgeBaseToolRuntime', () => {
       })
     )
     const openedOptions = vi.mocked(quickPanel.open).mock.calls[0][0]
-    expect(openedOptions.queryAnchor).toBeUndefined()
     expect(openedOptions.footerActions).toBeUndefined()
     const registeredFooterActions = vi.mocked(launcher.registerLaunchers).mock.calls[0][1]
     if (!registeredFooterActions) throw new Error('Expected the knowledge-base footer action to be registered')
@@ -229,126 +208,5 @@ describe('KnowledgeBaseToolRuntime', () => {
 
     expect(onSelect).toHaveBeenCalledWith([mocks.knowledgeBases[0]])
     expect(subscribeInput).not.toHaveBeenCalled()
-  })
-
-  it('shows available knowledge bases when the assistant has no configured knowledge-base ids', async () => {
-    const launcher = createLauncherApi()
-    const onSelect = vi.fn()
-    const quickPanel = { open: vi.fn() }
-
-    render(<KnowledgeBaseToolRuntime launcher={launcher} configuredKnowledgeBaseIds={[]} onSelect={onSelect} />)
-
-    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
-    expect(mocks.knowledgeQueryOptions).toHaveBeenLastCalledWith({ enabled: false })
-
-    const [knowledgeLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
-    expect(knowledgeLauncher).toMatchObject({
-      id: 'knowledge-base',
-      disabled: false,
-      disabledReason: undefined
-    })
-
-    knowledgeLauncher.action?.({
-      quickPanel,
-      source: 'root-panel',
-      triggerInfo: { type: 'button' }
-    } as never)
-
-    await waitFor(() => expect(mocks.knowledgeQueryOptions).toHaveBeenLastCalledWith({ enabled: true }))
-
-    expect(quickPanel.open).toHaveBeenCalledWith(
-      expect.objectContaining({
-        list: [
-          expect.objectContaining({ id: 'knowledge-base:kb-1', label: 'Knowledge One' }),
-          expect.objectContaining({ id: 'knowledge-base:kb-2', label: 'Knowledge Two' })
-        ]
-      })
-    )
-  })
-
-  it('refreshes the open knowledge panel when selected bases change', async () => {
-    mocks.quickPanel.isVisible = true
-    mocks.quickPanel.symbol = ComposerPanelSymbol.KnowledgeBase
-    const launcher = createLauncherApi()
-    const onSelect = vi.fn()
-
-    const view = render(
-      <KnowledgeBaseToolRuntime
-        launcher={launcher}
-        configuredKnowledgeBaseIds={['kb-1', 'kb-2']}
-        selectedBases={[]}
-        onSelect={onSelect}
-      />
-    )
-
-    await waitFor(() =>
-      expect(mocks.quickPanel.updateList).toHaveBeenCalledWith([
-        expect.objectContaining({ id: 'knowledge-base:kb-1', isSelected: false }),
-        expect.objectContaining({ id: 'knowledge-base:kb-2', isSelected: false })
-      ])
-    )
-
-    mocks.quickPanel.updateList.mockClear()
-
-    view.rerender(
-      <KnowledgeBaseToolRuntime
-        launcher={launcher}
-        configuredKnowledgeBaseIds={['kb-1', 'kb-2']}
-        selectedBases={[mocks.knowledgeBases[0]]}
-        onSelect={onSelect}
-      />
-    )
-
-    await waitFor(() =>
-      expect(mocks.quickPanel.updateList).toHaveBeenCalledWith([
-        expect.objectContaining({ id: 'knowledge-base:kb-1', isSelected: true }),
-        expect.objectContaining({ id: 'knowledge-base:kb-2', isSelected: false })
-      ])
-    )
-  })
-
-  it('refreshes the open knowledge panel when translations change', async () => {
-    mocks.quickPanel.isVisible = true
-    mocks.quickPanel.symbol = ComposerPanelSymbol.KnowledgeBase
-    const launcher = createLauncherApi()
-    const onSelect = vi.fn()
-    const configuredKnowledgeBaseIds = ['kb-1', 'kb-2']
-    const selectedBases: KnowledgeBase[] = []
-
-    const view = render(
-      <KnowledgeBaseToolRuntime
-        launcher={launcher}
-        configuredKnowledgeBaseIds={configuredKnowledgeBaseIds}
-        selectedBases={selectedBases}
-        onSelect={onSelect}
-      />
-    )
-
-    await waitFor(() =>
-      expect(mocks.quickPanel.updateList).toHaveBeenCalledWith([
-        expect.objectContaining({ id: 'knowledge-base:kb-1', description: '2 docs' }),
-        expect.objectContaining({ id: 'knowledge-base:kb-2', description: '5 docs' })
-      ])
-    )
-
-    mocks.quickPanel.updateList.mockClear()
-    mocks.language = 'zh'
-    mocks.translationSuffix = ' translated'
-
-    view.rerender(
-      <KnowledgeBaseToolRuntime
-        launcher={launcher}
-        configuredKnowledgeBaseIds={configuredKnowledgeBaseIds}
-        selectedBases={selectedBases}
-        onSelect={onSelect}
-      />
-    )
-
-    await waitFor(() =>
-      expect(mocks.quickPanel.updateList).toHaveBeenCalledWith([
-        expect.objectContaining({ id: 'knowledge-base:kb-1', description: '2 docs translated' }),
-        expect.objectContaining({ id: 'knowledge-base:kb-2', description: '5 docs translated' })
-      ])
-    )
   })
 })

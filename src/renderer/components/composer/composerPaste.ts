@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
+import { AllSelection, type EditorState } from '@tiptap/pm/state'
 
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
@@ -11,6 +12,7 @@ import {
   createComposerTokenMarkerInlineContent
 } from './composerTokenMarkers'
 import { createComposerLinkToken } from './linkToken'
+import { findFencedCodeLines, TOKEN_PLACEHOLDER } from './markdownLivePreview/markdownSession'
 import { createPromptVariableMarkerRule } from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
 
@@ -20,6 +22,8 @@ export const PASTED_TEXT_FILE_EXTENSION = '.txt'
 
 interface ComposerPlainTextPasteOptions {
   inlineLongText?: boolean
+  literalFencedCode?: boolean
+  insertionState?: EditorState
   promptVariableStartIndex?: number
   resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
   resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
@@ -187,6 +191,19 @@ function createComposerLinkPasteContent(text: string): JSONContent[] | null {
   ]
 }
 
+function findPastedFencedCodeLines(text: string, state?: EditorState): ReadonlySet<number> {
+  const insertedLines = text.split(/\r\n?|\n/)
+  if (!state || state.selection instanceof AllSelection) return findFencedCodeLines(insertedLines)
+
+  const { $from, $to } = state.selection
+  const lines: string[] = []
+  state.doc.forEach((node) => lines.push(node.textBetween(0, node.content.size, undefined, TOKEN_PLACEHOLDER)))
+  insertedLines[0] = lines[$from.index(0)].slice(0, $from.parentOffset) + insertedLines[0]
+  insertedLines[insertedLines.length - 1] += lines[$to.index(0)].slice($to.parentOffset)
+  lines.splice($from.index(0), $to.index(0) - $from.index(0) + 1, ...insertedLines)
+  return new Set([...findFencedCodeLines(lines)].map((line) => line - $from.index(0)))
+}
+
 export function getComposerPlainTextPasteOverride(text: string, options: ComposerPlainTextPasteOptions) {
   if (!text) return null
 
@@ -194,10 +211,13 @@ export function getComposerPlainTextPasteOverride(text: string, options: Compose
     return null
   }
 
-  const linkContent = createComposerLinkPasteContent(text)
+  const fencedLines = options.literalFencedCode ? findPastedFencedCodeLines(text, options.insertionState) : undefined
+  const linkContent = fencedLines?.has(0) ? null : createComposerLinkPasteContent(text)
   if (linkContent) return linkContent
 
-  const markedTextContent = createComposerTokenMarkerInlineContent(text, createPlainTextPasteMarkerRules(options))
+  const markedTextContent = createComposerTokenMarkerInlineContent(text, createPlainTextPasteMarkerRules(options), {
+    fencedLines
+  })
   if (markedTextContent.hasToken) return markedTextContent.content
 
   return createComposerPlainTextPasteContent(text)

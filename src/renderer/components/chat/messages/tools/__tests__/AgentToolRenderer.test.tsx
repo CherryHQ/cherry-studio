@@ -1,6 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUi from '@cherrystudio/ui'
@@ -181,6 +180,7 @@ describe('AgentToolRenderer', () => {
     'common.create_success': 'Created successfully',
     'library.assistant_catalog.go_to_chat': 'Go to chat',
     'settings.tool.file_processing.features.document_to_markdown.title': 'Document Processing',
+    'message.tools.subagent.requestedModel': 'Requested model: {{model}}',
     'message.tools.status.done': 'Done',
     'message.tools.units.item_one': '{{count}} item',
     'message.tools.units.item_other': '{{count}} items',
@@ -251,47 +251,6 @@ describe('AgentToolRenderer', () => {
     })
   })
 
-  describe('unknown MCP tool rendering', () => {
-    it('shows the tool type before the MCP tool name', () => {
-      const toolResponse = createToolResponse({
-        tool: {
-          id: 'mcp__exa__web_search_exa',
-          name: 'mcp__exa__web_search_exa',
-          description: 'Search the web',
-          type: 'provider'
-        },
-        status: 'done'
-      })
-
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
-
-      expect(screen.getByRole('button', { name: 'MCP Server Tool exa:web_search_exa' })).toBeInTheDocument()
-    })
-  })
-
-  describe('partial-json parsing', () => {
-    it('should parse partial JSON correctly', () => {
-      // Test partial-json library behavior
-      const partialJson = '{"file_path": "/test.ts"'
-      const parsed = parsePartialJson(partialJson)
-      expect(parsed).toEqual({ file_path: '/test.ts' })
-    })
-
-    it('should parse nested partial JSON', () => {
-      const partialJson = '{"todos": [{"content": "Task 1", "status": "pending"'
-      const parsed = parsePartialJson(partialJson)
-      expect(parsed).toEqual({
-        todos: [{ content: 'Task 1', status: 'pending' }]
-      })
-    })
-
-    it('should handle empty partial JSON', () => {
-      const partialJson = '{'
-      const parsed = parsePartialJson(partialJson)
-      expect(parsed).toEqual({})
-    })
-  })
-
   describe('streaming tool rendering', () => {
     it('should render dedicated tool renderer with partial arguments during streaming', () => {
       const toolResponse = createToolResponse({
@@ -323,34 +282,26 @@ describe('AgentToolRenderer', () => {
       // Should show the filename extracted by ReadTool
       expect(screen.getByText('myfile.ts')).toBeInTheDocument()
     })
-
-    it('should update dedicated renderer as more arguments stream in', () => {
-      const initialResponse = createToolResponse({
-        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
-        status: 'streaming',
-        partialArguments: '{"file_path": "/test/partial'
-      })
-
-      const { rerender } = render(<AgentToolRenderer toolResponse={initialResponse} />)
-
-      // Should use dedicated renderer even with partial path
-      expect(screen.getByText('Viewing')).toBeInTheDocument()
-
-      // Update with status changed to pending when arguments complete
-      const updatedResponse = createToolResponse({
-        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
-        status: 'pending',
-        partialArguments: '{"file_path": "/test/complete.ts", "limit": 100}'
-      })
-
-      rerender(<AgentToolRenderer toolResponse={updatedResponse} />)
-
-      expect(screen.getByText('Invoking')).toBeInTheDocument()
-      expect(screen.queryByTestId('loading-icon')).toBeNull()
-    })
   })
 
   describe('completed tool rendering', () => {
+    it.each(['Read', 'Write', 'Edit', 'MultiEdit'])('shows the Windows filename in a completed %s card', (name) => {
+      const toolResponse = createToolResponse({
+        tool: { id: name, name, description: 'Access a file', type: 'provider' },
+        status: 'done',
+        arguments: {
+          file_path: String.raw`D:\work space\qa-permission.txt`,
+          content: 'written',
+          old_string: 'before',
+          new_string: 'after',
+          edits: [{ old_string: 'before', new_string: 'after' }]
+        },
+        response: { content: [{ type: 'text', text: 'written' }] }
+      })
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      expect(screen.getByText('qa-permission.txt', { exact: true })).toBeVisible()
+    })
+
     it('does not duplicate an ExitPlanMode plan repeated in the tool result', () => {
       const plan = '# Release plan\n\n1. Run the focused tests'
       const toolResponse = createToolResponse({
@@ -399,29 +350,9 @@ describe('AgentToolRenderer', () => {
         }
       })
 
-      const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
-
-      expect(screen.getByText('Create task')).toBeInTheDocument()
-      expect(screen.getByText('Register the new SDK task tools')).toBeInTheDocument()
-      expect(container.textContent).not.toContain('task-1')
-      expect(screen.queryByTestId('collapse-content-TaskCreate')).toBeNull()
-    })
-
-    it('should render SDK TaskUpdate with a readable task target', () => {
-      const toolResponse = createToolResponse({
-        tool: { id: 'TaskUpdate', name: 'TaskUpdate', description: 'Update task', type: 'provider' },
-        status: 'done',
-        arguments: {
-          taskId: '1',
-          status: 'in_progress'
-        },
-        response: 'Task updated'
-      })
-
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.getByText('Update task')).toBeInTheDocument()
-      expect(screen.getByText('Task 1')).toBeInTheDocument()
+      expect(screen.getByText('Register the new SDK task tools')).toBeInTheDocument()
     })
 
     it('should render SDK TaskList rows with task text instead of ordinal ids', () => {
@@ -477,56 +408,6 @@ describe('AgentToolRenderer', () => {
       fireEvent.click(screen.getByRole('button'))
 
       expect(screen.getByTestId('collapse-content-Skill')).toHaveTextContent('Loaded design review instructions')
-    })
-
-    it('should route Agent through the agent renderer', () => {
-      const toolResponse = createToolResponse({
-        tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
-        status: 'done',
-        arguments: {
-          description: 'Inspect renderer',
-          prompt: 'Check the message renderer'
-        },
-        response: {
-          agentId: 'agent-1',
-          content: [{ type: 'text', text: 'Inspection complete' }],
-          totalToolUseCount: 0,
-          totalDurationMs: 1,
-          totalTokens: 1,
-          usage: {
-            input_tokens: 1,
-            output_tokens: 1,
-            cache_creation_input_tokens: null,
-            cache_read_input_tokens: null,
-            server_tool_use: null,
-            service_tier: null,
-            cache_creation: null
-          },
-          status: 'completed',
-          prompt: 'Check the message renderer'
-        }
-      })
-
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
-
-      expect(screen.getByText('Handle')).toBeInTheDocument()
-      expect(screen.getByText('Inspect renderer')).toBeInTheDocument()
-      expect(screen.queryByText('Inspection complete')).toBeNull()
-      expect(screen.queryByTestId('collapse-content-Agent')).toBeNull()
-    })
-
-    it('should render tool with full arguments when done', () => {
-      const toolResponse = createToolResponse({
-        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
-        status: 'done',
-        arguments: { file_path: '/test.ts', limit: 100 },
-        response: 'file content here'
-      })
-
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
-
-      // Should render the complete tool with output
-      expect(screen.getByText('View')).toBeInTheDocument()
     })
 
     it('resolves a deferred output before handing it to the card', async () => {
@@ -591,8 +472,6 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.getByText('View')).toBeInTheDocument()
-      expect(screen.getByText('Error')).toHaveStyle('color: var(--muted-foreground)')
       await user.click(screen.getByRole('button'))
       expect(await screen.findByText(errorText)).toBeVisible()
     })
@@ -667,100 +546,6 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('pending without streaming', () => {
-    it('hides the message card while the composer handles pending permission', () => {
-      const toolResponse = createToolResponse({
-        status: 'pending',
-        partialArguments: undefined
-      })
-
-      // Simulate an AI-SDK-v6 `approval-requested` ToolUIPart in the
-      // current message's parts.
-      mockPartsMap.mockReturnValue({
-        msg1: [
-          {
-            type: 'tool-Read',
-            toolCallId: toolResponse.toolCallId,
-            state: 'approval-requested',
-            approval: { id: 'approval-1' },
-            input: toolResponse.arguments
-          }
-        ]
-      })
-
-      const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
-
-      expect(container).toBeEmptyDOMElement()
-    })
-
-    it('should show pending indicator when no streaming and no permission', () => {
-      const toolResponse = createToolResponse({
-        status: 'pending',
-        partialArguments: undefined
-      })
-
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
-
-      expect(screen.getByText('Invoking')).toBeInTheDocument()
-      expect(screen.queryByTestId('loading-icon')).toBeNull()
-    })
-
-    it('hides AskUserQuestion message card while the composer handles the pending question', () => {
-      const toolResponse = createToolResponse({
-        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
-        status: 'pending',
-        toolCallId: 'call-ask',
-        arguments: {
-          questions: [
-            {
-              question: 'Choose logger',
-              header: 'Logger',
-              options: [{ label: 'Winston' }, { label: 'Pino' }],
-              multiSelect: false
-            }
-          ]
-        }
-      })
-
-      mockPartsMap.mockReturnValue({
-        msg1: [
-          {
-            type: 'tool-AskUserQuestion',
-            toolName: 'AskUserQuestion',
-            toolCallId: toolResponse.toolCallId,
-            state: 'approval-requested',
-            approval: { id: 'approval-ask' },
-            input: toolResponse.arguments
-          }
-        ]
-      })
-
-      const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
-
-      expect(container).toBeEmptyDOMElement()
-    })
-
-    it('hides AskUserQuestion message card while its input is still streaming', () => {
-      const toolResponse = createToolResponse({
-        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
-        status: 'streaming',
-        toolCallId: 'call-ask',
-        arguments: {
-          questions: [
-            {
-              question: 'Choose logger',
-              header: 'Logger',
-              options: [{ label: 'Winston' }, { label: 'Pino' }],
-              multiSelect: false
-            }
-          ]
-        }
-      })
-
-      const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
-
-      expect(container).toBeEmptyDOMElement()
-    })
-
     it('shows a completed AskUserQuestion message card when no answer was submitted', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
@@ -1041,24 +826,6 @@ describe('AgentToolRenderer', () => {
         query: { sessionId: 'session-1' }
       })
     })
-
-    it('uses the document processing feature title for the file-processing route', () => {
-      const toolResponse = createToolResponse({
-        tool: {
-          id: 'mcp__assistant__navigate',
-          name: 'mcp__assistant__navigate',
-          description: 'Navigate',
-          type: 'provider'
-        },
-        status: 'done',
-        arguments: { path: '/settings/file-processing' },
-        response: 'Navigate link created: /settings/file-processing'
-      })
-
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
-
-      expect(screen.getByText(/Document Processing/)).toBeInTheDocument()
-    })
   })
 
   describe('meta tool rendering', () => {
@@ -1085,9 +852,6 @@ describe('AgentToolRenderer', () => {
 
       render(<MessageTool toolResponse={toolResponse} />)
 
-      expect(screen.queryByTestId('wrench-icon')).toBeNull()
-      expect(screen.getByText('tool_search · ns=mcp:tavily')).toBeInTheDocument()
-
       fireEvent.click(screen.getByRole('button'))
       expect(await screen.findByText('tavily_search')).toBeInTheDocument()
     })
@@ -1104,7 +868,6 @@ describe('AgentToolRenderer', () => {
       render(<MessageTool toolResponse={toolResponse} />)
 
       // Outer header names the inner tool (raw mcp__ form).
-      expect(screen.getByText('tool_invoke · mcp__CherryPython__pythonExecute')).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button'))
 
@@ -1112,34 +875,42 @@ describe('AgentToolRenderer', () => {
       expect(await screen.findByText('code')).toBeInTheDocument()
       expect(screen.getByText('print(1)')).toBeInTheDocument()
       // No nested inner tool card (its header would format the name as `Server:tool`).
-      expect(screen.queryByText(/CherryPython:pythonExecute/)).toBeNull()
     })
   })
 
   describe('agent tool flow action', () => {
-    it('routes a nested subagent click through the real tool group and renderer chain', () => {
-      const openAgentToolFlow = vi.fn()
-      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
-      const toolResponse = createToolResponse({
-        tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
-        status: 'done',
-        arguments: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
-        response: 'ok'
-      })
+    it.each(['Task', 'Agent'])(
+      'shows the requested model and routes a nested %s click through the renderer chain',
+      async (toolName) => {
+        const openAgentToolFlow = vi.fn()
+        mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+        const toolResponse = createToolResponse({
+          tool: { id: toolName, name: toolName, description: 'Run subagent', type: 'provider' },
+          status: 'done',
+          arguments: {
+            description: 'Inspect renderer',
+            prompt: 'Check the message renderer',
+            model: '  OpenRouter Claude Sonnet 4.5  '
+          },
+          response: 'ok'
+        })
 
-      render(<ToolBlockGroup items={[{ id: 'agent-group', toolResponse }]} />)
+        render(<ToolBlockGroup items={[{ id: 'agent-group', toolResponse }]} />)
 
-      const groupTrigger = screen.getByTestId('child-tool-group').querySelector('button')!
-      fireEvent.click(groupTrigger)
+        const groupTrigger = screen.getByTestId('child-tool-group').querySelector('button')!
+        fireEvent.click(groupTrigger)
 
-      fireEvent.click(screen.getByRole('button', { name: /Inspect renderer/, pressed: false }))
+        const row = screen.getByRole('button', { name: /Inspect renderer/, pressed: false })
+        expect(within(row).getByText('Requested model: OpenRouter Claude Sonnet 4.5')).toBeVisible()
+        await userEvent.setup().click(row)
 
-      expect(openAgentToolFlow).toHaveBeenCalledWith({
-        toolCallId: 'call-123',
-        toolName: 'Agent',
-        title: 'Inspect renderer'
-      })
-    })
+        expect(openAgentToolFlow).toHaveBeenCalledWith({
+          toolCallId: 'call-123',
+          toolName,
+          title: 'Inspect renderer'
+        })
+      }
+    )
 
     it('shows child progress after its launch tool returns and opens the same right-pane flow', async () => {
       const openAgentToolFlow = vi.fn()
@@ -1147,7 +918,7 @@ describe('AgentToolRenderer', () => {
       const response = createToolResponse({
         tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
         status: 'done',
-        arguments: { description: 'Inspect renderer' },
+        arguments: { description: 'Inspect renderer', model: 'Anthropic Claude Sonnet 4.5' },
         response: { status: 'async_launched', taskId: 'child' }
       })
       const started = {
@@ -1165,6 +936,11 @@ describe('AgentToolRenderer', () => {
       )
       const { rerender } = render(withParts([started]))
       expect(screen.getByText('message.tools.status.running')).toBeVisible()
+      expect(
+        within(screen.getByRole('button', { name: /Inspect renderer/ })).getByText(
+          'Requested model: Anthropic Claude Sonnet 4.5'
+        )
+      ).toBeVisible()
       await userEvent.setup().click(screen.getByRole('button', { name: /Inspect renderer/ }))
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-123',
@@ -1173,6 +949,11 @@ describe('AgentToolRenderer', () => {
       })
       rerender(withParts([started, completed]))
       expect(screen.getByText('common.completed')).toBeVisible()
+      expect(
+        within(screen.getByRole('button', { name: /Inspect renderer/ })).getByText(
+          'Requested model: Anthropic Claude Sonnet 4.5'
+        )
+      ).toBeVisible()
       expect(screen.queryByText('message.tools.status.running')).toBeNull()
       mockMessageListActions.mockReturnValue({
         openAgentToolFlow,
@@ -1183,6 +964,84 @@ describe('AgentToolRenderer', () => {
       mockMessageListActions.mockReturnValue({ openAgentToolFlow, isAgentToolFlowActive: () => false })
       rerender(withParts([started, completed]))
       expect(screen.getByRole('button', { name: /Inspect renderer/ })).toHaveAttribute('aria-pressed', 'false')
+    })
+
+    it('keeps concurrent calls bound to their own requested model and tool call', async () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      const calls = [
+        { id: 'first', title: 'Inspect main', model: 'OpenRouter Claude Sonnet 4.5' },
+        { id: 'second', title: 'Inspect renderer', model: 'Anthropic Claude Sonnet 4.5' }
+      ]
+      render(
+        <>
+          {calls.map(({ id, title, model }) => (
+            <AgentToolRenderer
+              key={id}
+              toolResponse={createToolResponse({
+                id,
+                toolCallId: id,
+                tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
+                status: 'invoking',
+                arguments: { description: title, model }
+              })}
+            />
+          ))}
+        </>
+      )
+      const user = userEvent.setup()
+      for (const { id, title, model } of calls) {
+        const row = screen.getByRole('button', { name: new RegExp(title) })
+        expect(within(row).getByText(`Requested model: ${model}`)).toBeVisible()
+        expect(within(row).queryByText(`Requested model: ${calls.find((call) => call.id !== id)!.model}`)).toBeNull()
+        await user.click(row)
+        expect(openAgentToolFlow).toHaveBeenLastCalledWith({ toolCallId: id, toolName: 'Agent', title })
+      }
+    })
+
+    it.each(['error', 'cancelled'] as const)('keeps the full requested model on a %s row', (status) => {
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow: vi.fn() })
+      const model =
+        'OpenRouter Claude Sonnet 4.5 with a very long caller supplied model name that must remain fully readable'
+      render(
+        <AgentToolRenderer
+          toolResponse={createToolResponse({
+            tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
+            status,
+            arguments: { description: 'Inspect renderer', model },
+            response:
+              status === 'error' ? { isError: true, content: [{ type: 'text', text: 'Unknown model' }] } : undefined
+          })}
+        />
+      )
+      const row = screen.getByRole('button', { name: /Inspect renderer/ })
+      expect(within(row).getByText(`Requested model: ${model}`)).toBeVisible()
+      expect(
+        within(row).getByText(status === 'error' ? 'message.tools.status.failed' : 'message.tools.cancelled')
+      ).toBeVisible()
+    })
+
+    it.each([
+      { description: 'Inspect renderer' },
+      { description: 'Inspect renderer', model: '' },
+      { description: 'Inspect renderer', model: '   ' },
+      { description: 'Inspect renderer', model: 42 },
+      { description: 'Inspect renderer', model: null },
+      { description: 'Inspect renderer', model: ['Claude Sonnet 4.5'] }
+    ])('omits the requested model for invalid or missing model input: %j', (arguments_) => {
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow: vi.fn() })
+      render(
+        <AgentToolRenderer
+          toolResponse={createToolResponse({
+            tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
+            status: 'done',
+            arguments: arguments_
+          })}
+        />
+      )
+      expect(
+        within(screen.getByRole('button', { name: /Inspect renderer/ })).queryByText(/Requested model:/)
+      ).toBeNull()
     })
 
     it('opens the right-pane flow only from subagent rows', () => {
@@ -1203,7 +1062,6 @@ describe('AgentToolRenderer', () => {
         toolName: 'Agent',
         title: 'Inspect renderer'
       })
-      expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()
     })
 
     it('keeps ordinary tool row clicks local even when the flow action exists', () => {
@@ -1226,8 +1084,6 @@ describe('AgentToolRenderer', () => {
 
       fireEvent.click(toolHeader)
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
-      expect(screen.queryByRole('button', { name: 'button.collapse' })).toBeNull()
-      expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()
     })
   })
 

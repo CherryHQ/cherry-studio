@@ -1,23 +1,47 @@
 import { randomUUID } from 'node:crypto'
 
-import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import {
+  sessionEntryToContextMessages,
+  type AgentSession,
+  type AgentSessionEvent
+} from '@earendil-works/pi-coding-agent'
 
+import { ENTRY_KINDS, type SubagentResults } from '@cherrystudio/agent-behavior'
 import {
   runtimeId,
   ThreadFeed,
   RuntimeMessageStream,
   type RuntimeMessage,
+  type InputId,
+  type InputState,
   type ItemRef,
+  type Observation,
+  type ObservationPayload,
+  type OperationResult,
   type Thread
 } from '@cherrystudio/agent-runtime'
 
+import { readContextUsage } from './contextUsage'
+
 type PiMessage = AgentSession['messages'][number]
 type PiContext = { message: PiMessage; id: string }[]
+
+export interface PiObservation {
+  readonly backgroundResults?: OperationResult<SubagentResults>
+  readonly events: readonly ObservationPayload[]
+  readonly aliases: Readonly<Record<string, string>>
+  readonly live: readonly string[]
+  readonly settled: boolean
+  readonly outcomes: readonly InputState[]
+  readonly children: readonly { thread: Thread; outcome: string }[]
+}
 
 export class PiProjection {
   readonly feed: ThreadFeed
   private ids = new WeakMap<object, string>()
   private originals = new WeakMap<object, PiMessage>()
+  private readonly aliases: Record<string, string> = {}
+  private inputIds = new WeakMap<object, InputId>()
   private active = new Map<string, string>()
   private calls = new Map<string, string>()
   private snapshotMessages: RuntimeMessage[] | undefined
@@ -29,6 +53,8 @@ export class PiProjection {
     }
   >()
   private pending = Promise.resolve()
+  private backgroundResults?: OperationResult<SubagentResults>
+  private settled = false
   private generation = 0
   private unsubscribe: () => void = () => {}
 
@@ -41,16 +67,87 @@ export class PiProjection {
     this.feed = new ThreadFeed(
       {
         type: 'snapshot',
-        coverage: 'current-view',
         messages: [],
         inputs: [],
-        ...(children ? { delegations: [] } : {}),
-        activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
+        ...(children ? { subagents: [] } : {}),
+        activity: { state: session.isIdle ? 'idle' : 'active' }
       },
       report
     )
     this.bind(session)
-    for (const message of session.messages) this.write(message, this.id(message), 'complete')
+    this.feed.publish({ type: 'context.changed', result: readContextUsage(session) })
+    for (const message of this.currentMessages()) this.write(message, this.id(message), 'complete')
+  }
+
+  observe(sink: (batch: PiObservation) => void | Promise<void>): Observation {
+    const historical = new Set(this.feed.snapshot.messages.map((message) => message.id))
+    let children: { thread: Thread; outcome: string }[] = []
+    let outcomes: readonly InputState[] = []
+    const completedCalls = new Set<string>()
+    return this.feed.observeCaptured(sink, (event, delivery) => {
+      for (const [committed, preview] of Object.entries(this.aliases))
+        if (historical.has(preview)) historical.add(committed)
+      const messages =
+        event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+      if (delivery !== 'recovery') {
+        children = []
+        outcomes = event.type === 'input.changed' && event.input.outcome ? [event.input] : []
+      }
+      for (const message of delivery === 'update' && event.type === 'message.upsert' ? messages : [])
+        for (const part of message.parts) {
+          if (part.type !== 'dynamic-tool' || part.toolName !== 'subagent' || completedCalls.has(part.toolCallId))
+            continue
+          const output =
+            part.state === 'output-error'
+              ? part.resultProviderMetadata?.pi?.result
+              : part.state === 'output-available' && !part.preliminary
+                ? part.output
+                : undefined
+          if (!output || typeof output !== 'object' || Array.isArray(output) || !('details' in output)) continue
+          const details = output.details
+          if (!details || typeof details !== 'object' || Array.isArray(details)) continue
+          if (
+            'background' in details &&
+            details.background === false &&
+            'sessionId' in details &&
+            typeof details.sessionId === 'string' &&
+            'outcome' in details &&
+            typeof details.outcome === 'string'
+          ) {
+            children.push({
+              thread: { backendId: this.ref.backendId, id: runtimeId(details.sessionId) },
+              outcome: details.outcome
+            })
+            completedCalls.add(part.toolCallId)
+          }
+        }
+      const settled = delivery !== 'baseline' && this.settled
+      return {
+        value: {
+          events: [event],
+          backgroundResults: this.backgroundResults,
+          aliases: this.aliases,
+          live:
+            delivery === 'baseline'
+              ? []
+              : messages.filter((message) => !historical.has(message.id)).map((message) => message.id),
+          settled,
+          children,
+          outcomes
+        },
+        retain: settled || children.length > 0 || outcomes.length > 0
+      }
+    })
+  }
+
+  results(result: OperationResult<SubagentResults>): void {
+    const captured = structuredClone(result)
+    this.pending = this.pending
+      .then(() => {
+        this.backgroundResults = captured
+        this.feed.publish(this.feed.snapshot)
+      })
+      .catch((error) => this.report(error))
   }
 
   rebind(session: AgentSession): void {
@@ -65,6 +162,7 @@ export class PiProjection {
   private reset(session: AgentSession, context?: PiContext): void {
     this.session = session
     this.ids = new WeakMap()
+    this.inputIds = new WeakMap()
     this.active.clear()
     this.calls.clear()
     this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
@@ -73,17 +171,76 @@ export class PiProjection {
     this.feed.publish({
       ...this.feed.snapshot,
       messages: this.snapshotMessages,
-      activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
+      activity: { state: session.isIdle ? 'idle' : 'active' }
     })
     this.snapshotMessages = undefined
+    this.feed.publish({ type: 'context.changed', result: readContextUsage(session) })
   }
 
   private captureContext(): PiContext {
+    const own = this.ownEntryIds()
     return this.session.sessionManager
       .buildSessionProjection()
-      .entries.flatMap(({ sourceEntry, messages }) =>
+      .entries.filter(({ sourceEntry }) => !own || own.has(sourceEntry.id))
+      .flatMap(({ sourceEntry, messages }) =>
         messages.map((message) => ({ message: structuredClone(message), id: sourceEntry.id }))
       )
+  }
+
+  private currentMessages(): PiMessage[] {
+    const own = this.ownEntryIds()
+    return own ? this.session.messages.filter((message) => own.has(this.entryId(message) ?? '')) : this.session.messages
+  }
+
+  private ownEntryIds(): Set<string> | undefined {
+    const branch = this.session.sessionManager.getBranch()
+    const origin = branch.findLastIndex(
+      (entry) => entry.type === 'custom' && entry.customType === ENTRY_KINDS.subagentOrigin
+    )
+    return origin < 0 ? undefined : new Set(branch.slice(origin + 1).map((entry) => entry.id))
+  }
+
+  /** Committed native entries and their proven live identities; copied parent context is excluded. */
+  archive(): {
+    messages: RuntimeMessage[]
+    responseIds: Record<string, string>
+    aliases: Record<string, string>
+    legacy: Record<string, { messageId: string; parts: number[] }>
+  } {
+    const branch = this.session.sessionManager.getBranch()
+    const start = branch.findLastIndex(
+      (entry) => entry.type === 'custom' && entry.customType === ENTRY_KINDS.subagentOrigin
+    )
+    const calls = this.calls
+    this.calls = new Map()
+    this.snapshotMessages = []
+    const aliases: Record<string, string> = {}
+    const responseIds: Record<string, string> = {}
+    try {
+      for (const entry of branch.slice(start + 1)) {
+        if (entry.type !== 'message' && entry.type !== 'custom_message') continue
+        const message = sessionEntryToContextMessages(entry)[0]
+        if (message.role === 'assistant' && message.responseId) responseIds[message.responseId] = entry.id
+        const offset = this.snapshotMessages.length
+        this.write(message, entry.id, 'complete')
+        const live = this.ids.get(message)
+        if (live) for (const message of this.snapshotMessages.slice(offset)) aliases[message.id] = live
+      }
+      const legacy: Record<string, { messageId: string; parts: number[] }> = {}
+      for (const message of this.snapshotMessages) {
+        const parts: number[] = []
+        message.parts.forEach((part, index) => {
+          if (part.type === 'dynamic-tool')
+            legacy[`${message.id}:call:${part.toolCallId}`] = { messageId: message.id, parts: [index] }
+          else parts.push(index)
+        })
+        legacy[message.id] = { messageId: message.id, parts }
+      }
+      return { messages: this.snapshotMessages, responseIds, aliases: { ...aliases, ...this.aliases }, legacy }
+    } finally {
+      this.snapshotMessages = undefined
+      this.calls = calls
+    }
   }
 
   private bind(session: AgentSession): void {
@@ -98,6 +255,11 @@ export class PiProjection {
         this.originals.set(event.message, message)
         if (native.type === 'message_start') this.active.set(slot, id)
         if (native.type === 'message_end') this.active.delete(slot)
+        if (native.type === 'input_placed') {
+          const inputId = runtimeId<'input'>(native.inputId)
+          this.inputIds.set(message, inputId)
+          this.inputIds.set(event.message, inputId)
+        }
       }
       const context =
         event.type === 'entry_appended' &&
@@ -124,6 +286,14 @@ export class PiProjection {
     for (const { reader } of this.readers.values()) await reader.close()
     this.readers.clear()
     this.feed.close('shutdown')
+  }
+
+  recordInput(input: InputState & { readonly inputId: InputId }): void {
+    const previous = this.feed.snapshot.inputs.find((known) => known.inputId === input.inputId)
+    this.feed.publish({
+      type: 'input.changed',
+      input: { ...previous, ...input, facts: [...new Set([...(previous?.facts ?? []), ...input.facts])] }
+    })
   }
 
   private id(message: PiMessage): string {
@@ -193,14 +363,18 @@ export class PiProjection {
   private write(message: PiMessage, id: string, completeness: 'partial' | 'complete'): void {
     if (!('content' in message)) return
     if (message.role === 'toolResult') {
-      this.result(message.toolCallId, { content: message.content, details: message.details }, message.isError)
+      this.result(
+        message.toolCallId,
+        { content: message.content, details: message.details, structuredContent: message.structuredContent },
+        message.isError
+      )
       return
     }
     if (
       message.role !== 'user' &&
       message.role !== 'assistant' &&
       message.role !== 'system' &&
-      !(message.role === 'custom' && message.display)
+      !(message.role === 'custom' && (message.display || message.customType === ENTRY_KINDS.subagentMessage))
     )
       return
     const liveId = id
@@ -211,13 +385,18 @@ export class PiProjection {
         id = entryId
         this.ids.set(message, id)
         this.ids.set(original, id)
+        if (id !== liveId) this.aliases[id] = liveId
       }
     }
     const value: RuntimeMessage = {
       id,
       role: message.role === 'custom' ? 'user' : message.role,
       parts: [],
-      metadata: { completeness }
+      metadata: {
+        completeness,
+        inputId:
+          this.inputIds.get(message) ?? this.feed.snapshot.messages.find((known) => known.id === id)?.metadata?.inputId
+      }
     }
     const state = completeness === 'complete' ? 'done' : 'streaming'
     if (typeof message.content === 'string') value.parts.push({ type: 'text', text: message.content, state })
@@ -305,6 +484,62 @@ export class PiProjection {
 
   private async event(event: AgentSessionEvent, context?: PiContext): Promise<void> {
     if (
+      event.type === 'message_end' ||
+      event.type === 'compaction_end' ||
+      event.type === 'agent_settled' ||
+      event.type === 'model_select'
+    )
+      this.feed.publish({ type: 'context.changed', result: readContextUsage(this.session) })
+    if (event.type === 'input_settled') {
+      const reason = event.aborted ? 'aborted' : event.message.stopReason
+      const completed = reason === 'stop' && !event.message.content.some((part) => part.type === 'toolCall')
+      for (const inputId of event.inputIds) {
+        this.recordInput({
+          inputId: runtimeId(inputId),
+          facts: [],
+          outcome: completed
+            ? 'completed'
+            : reason === 'aborted'
+              ? 'aborted'
+              : reason === 'error'
+                ? 'failed'
+                : 'unanswered',
+          ...(!completed && {
+            error: {
+              operation: 'input',
+              code:
+                reason === 'length'
+                  ? 'output-truncated'
+                  : reason === 'error'
+                    ? 'model-error'
+                    : reason === 'aborted'
+                      ? 'aborted'
+                      : 'no-final-answer',
+              message: event.message.errorMessage ?? `Pi response ended: ${reason}`
+            }
+          })
+        })
+      }
+    }
+    if (event.type === 'input_placed') {
+      const inputId = runtimeId<'input'>(event.inputId)
+      this.inputIds.set(event.message, inputId)
+      this.write(event.message, this.id(event.message), 'complete')
+      this.recordInput({ inputId, facts: ['placed'] })
+    }
+    if (event.type === 'input_handled') {
+      this.recordInput({
+        inputId: runtimeId(event.inputId),
+        facts: ['locally-handled'],
+        ...(event.errorMessage === undefined
+          ? {}
+          : {
+              outcome: 'failed',
+              error: { operation: 'input', code: 'command-failed', message: event.errorMessage }
+            })
+      })
+    }
+    if (
       (event.type === 'compaction_end' && event.result) ||
       (event.type === 'entry_appended' && (event.entry.type === 'compaction' || event.entry.type === 'context_edit'))
     )
@@ -326,10 +561,12 @@ export class PiProjection {
     }
     if (event.type === 'tool_execution_update') this.result(event.toolCallId, event.partialResult, false, true)
     if (event.type === 'agent_start' || event.type === 'agent_settled') {
+      this.settled = event.type === 'agent_settled'
       this.feed.publish({
         type: 'activity.changed',
-        activity: { scope: 'foreground', state: event.type === 'agent_start' ? 'active' : 'idle' }
+        activity: { state: event.type === 'agent_start' ? 'active' : 'idle' }
       })
+      this.settled = false
     }
   }
 }

@@ -34,6 +34,20 @@ describe('createComposerInputAdapter', () => {
     return editor
   }
 
+  it('prefixes a native command without replacing a selected draft or its file chips', () => {
+    const editor = createEditor()
+    const adapter = createComposerInputAdapter(editor)
+    adapter.insertToken!({ id: 'file-1', kind: 'file', label: 'attached.txt' }, { insertSeparator: false })
+    adapter.insertText('Review this file', { tokenizeVariables: false })
+    editor.commands.selectAll()
+
+    adapter.insertText('/goal ', { position: 'start' })
+
+    const draft = serializeComposerDocument(editor)
+    expect(draft.text).toBe('/goal Review this file')
+    expect(draft.tokens).toMatchObject([{ id: 'file-1', kind: 'file', textOffset: 6 }])
+  })
+
   it('preserves unselected file chips when replacing text immediately after them', () => {
     const editor = createEditor()
     const adapter = createComposerInputAdapter(editor)
@@ -67,6 +81,24 @@ describe('createComposerInputAdapter', () => {
       original[1],
       { type: 'text', text: 'After\nExplain ${this}' }
     ])
+  })
+
+  it('writes multi-line text as one paragraph per line on every adapter path', () => {
+    const current = createEditor()
+    const adapter = createComposerInputAdapter(current)
+    const paragraphCount = () => current.getJSON().content?.length
+
+    adapter.insertText('one\ntwo', { tokenizeVariables: false })
+    expect(serializeComposerDocument(current).text).toBe('one\ntwo')
+    expect(paragraphCount()).toBe(2)
+
+    expect(appendComposerText(current, 'three\nfour')).toBe(true)
+    expect(serializeComposerDocument(current).text).toBe('one\ntwo\nthree\nfour')
+    expect(paragraphCount()).toBe(4)
+
+    expect(adapter.replaceRange!({ from: 2, to: 3 }, 'x\ny')).toBe(true)
+    expect(serializeComposerDocument(current).text).toBe('ox\nye\ntwo\nthree\nfour')
+    expect(paragraphCount()).toBe(5)
   })
 
   it('appends text beyond the former input limit without truncating the draft', () => {
