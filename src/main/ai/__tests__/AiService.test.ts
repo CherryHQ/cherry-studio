@@ -28,11 +28,17 @@ type AiServicePrivate = {
 const mockGenerateImage = vi.fn()
 const mockAgentGenerate = vi.fn()
 const mockCreateAgent = vi.fn()
-const mockExecutorStreamText = vi.fn(async (..._args: any[]) => ({
-  toUIMessageStream: () => new ReadableStream({ start: (controller) => controller.close() }),
-  steps: Promise.resolve([])
-}))
-const mockExecutorGenerateText = vi.fn(async (..._args: any[]) => ({ text: '', steps: [] }))
+const mockExecutorStreamText = vi.fn(async (...args: any[]) => {
+  void args
+  return {
+    toUIMessageStream: () => new ReadableStream({ start: (controller) => controller.close() }),
+    steps: Promise.resolve([])
+  }
+})
+const mockExecutorGenerateText = vi.fn(async (...args: any[]) => {
+  void args
+  return { text: '', steps: [] }
+})
 const mockRerank = vi.fn()
 const mockEmbedMany = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
