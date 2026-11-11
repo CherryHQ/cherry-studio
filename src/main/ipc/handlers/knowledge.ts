@@ -1,9 +1,11 @@
 import { application } from '@application'
+import { t } from '@main/i18n'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
 import type { knowledgeRequestSchemas } from '@shared/ipc/schemas/knowledge'
 import type { IpcHandlersFor } from '@shared/ipc/types'
+import { isHttpUrl } from '@shared/utils/url'
 
 /**
  * Thin adapters for the knowledge request routes: each one translates a parsed route
@@ -20,8 +22,12 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
   'knowledge.delete_base': async ({ baseId }) => {
     await application.get('KnowledgeService').deleteBase(baseId)
   },
-  'knowledge.add_items': async ({ baseId, items, conflictStrategy }) =>
-    application.get('KnowledgeService').addItems(baseId, items, conflictStrategy),
+  'knowledge.add_items': async ({ baseId, items, conflictStrategy }) => {
+    if (items.some((item) => item.type === 'url' && !isHttpUrl(item.data.url))) {
+      throw new IpcError(knowledgeErrorCodes.INVALID_SOURCE_URL, t('knowledge.source.invalid_url'))
+    }
+    return application.get('KnowledgeService').addItems(baseId, items, conflictStrategy)
+  },
   'knowledge.delete_items': async ({ baseId, itemIds }) => {
     await application.get('KnowledgeService').deleteItems(baseId, itemIds)
   },

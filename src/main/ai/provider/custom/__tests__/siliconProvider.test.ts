@@ -104,5 +104,38 @@ describe('createSiliconProvider', () => {
     expect(sent.image2).toBe('https://x/in2.png')
     expect(sent).not.toHaveProperty('image3')
     expect(sent).not.toHaveProperty('batch_size')
+    expect(sent).not.toHaveProperty('image_size')
+  })
+
+  it.each([
+    { size: undefined, expectedSize: '1024x1024' },
+    { size: '832x1216' as const, expectedSize: '832x1216' }
+  ])('sends a valid MOSS image size when the requested size is $size', async ({ size, expectedSize }) => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ images: [{ b64_json: 'aW1hZ2U=' }] }), {
+        headers: { 'content-type': 'application/json' },
+        status: 200
+      })
+    )
+    const provider = createSiliconProvider({ apiKey: 'sk-test', fetch })
+
+    await provider.imageModel('OpenMOSS-Team/MOSS-Image').doGenerate({
+      prompt: 'a fox',
+      n: 1,
+      size,
+      aspectRatio: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerOptions: {}
+    })
+
+    expect(fetch.mock.calls[0][0]).toBe('https://api.siliconflow.cn/v1/images/generations')
+    const sent = JSON.parse((fetch.mock.calls[0][1] as RequestInit).body as string)
+    expect(sent).toEqual({
+      model: 'OpenMOSS-Team/MOSS-Image',
+      prompt: 'a fox',
+      image_size: expectedSize
+    })
   })
 })

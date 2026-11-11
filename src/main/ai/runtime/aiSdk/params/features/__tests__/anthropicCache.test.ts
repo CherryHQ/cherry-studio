@@ -772,3 +772,40 @@ describe('serialized adapter cache markers', () => {
     expect(await transformAnthropicCacheParams(input, provider, undefined)).toBe(input)
   })
 })
+
+describe('caller-owned cache policy', () => {
+  const cache = { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } }
+  it.each(['request', 'tool', 'system', 'part'] as const)(
+    'preserves explicit %s breakpoints and tool order',
+    async (location) => {
+      const params: LanguageModelV3CallOptions = {
+        prompt: [textMessage('system', 'system'), textMessage('user', 'hello')],
+        tools: [makeTool('z'), makeTool('a')]
+      }
+      if (location === 'request') params.providerOptions = cache
+      if (location === 'tool') (params.tools![0] as LanguageModelV3FunctionTool).providerOptions = cache
+      if (location === 'system') params.prompt[0].providerOptions = cache
+      if (location === 'part')
+        params.prompt[1] = { role: 'user', content: [{ type: 'text', text: 'hello', providerOptions: cache }] }
+      const original = structuredClone(params)
+      const result = await transformAnthropicCacheParams(
+        params,
+        makeProvider({ enabled: true, tokenThreshold: 1 }),
+        undefined,
+        true
+      )
+      expect(result).toEqual(original)
+      expect(params).toEqual(original)
+    }
+  )
+
+  it('still adds automatic cache markers when the caller supplies no policy', async () => {
+    const result = await transformAnthropicCacheParams(
+      { prompt: [textMessage('system', 'system'), textMessage('user', 'hello')] },
+      makeProvider({ enabled: true, tokenThreshold: 1 }),
+      undefined,
+      true
+    )
+    expect(countCacheMarkers(result)).toBeGreaterThan(0)
+  })
+})

@@ -64,7 +64,18 @@ export const DIFFUSION_WIRE_PROFILE: WireProfile = {
  * profile). Dual-keyed under `openai` + the provider id by the registry.
  */
 export const OPENAI_WIRE_PROFILE: WireProfile = {
-  forward: ['quality', 'background', 'moderation', 'style']
+  forward: ['quality', 'background', 'moderation', 'style', 'complexity'],
+  fields: {
+    outputFormat: { to: 'outputFormat' },
+    frameCount: {
+      contribute: (value, all): Record<string, JSONValue> =>
+        all.outputFormat === 'gif' ? { frameCount: value as JSONValue } : {}
+    },
+    frameDurationMs: {
+      contribute: (value, all): Record<string, JSONValue> =>
+        all.outputFormat === 'gif' ? { frameDurationMs: value as JSONValue } : {}
+    }
+  }
 }
 
 /**

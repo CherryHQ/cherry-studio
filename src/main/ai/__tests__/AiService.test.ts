@@ -584,27 +584,28 @@ describe('AiService', () => {
     }
   })
 
-  it('routes agent-session runtime requests directly to the runtime service', async () => {
+  it('forwards the runtime message source without converting it into chunks', async () => {
     const service = createService()
-    const stream = new ReadableStream()
-    const openTurnStream = vi.fn(() => stream)
-    mockApplicationGet.mockReturnValue({ openTurnStream })
-
-    await expect(
-      service.streamText({
-        conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
-        trigger: 'submit-message',
-        runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
-        requestOptions: { signal: new AbortController().signal }
+    const source = {
+      kind: 'messages' as const,
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
+          controller.close()
+        }
       })
-    ).resolves.toBe(stream)
-
-    expect(mockApplicationGet).toHaveBeenCalledWith('AgentSessionRuntimeService')
-    expect(openTurnStream).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      turnId: 'turn-1',
-      signal: expect.any(AbortSignal)
+    }
+    mockApplicationGet.mockReturnValue({ openTurnStream: () => source })
+    const result = await service.streamText({
+      conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
+      trigger: 'submit-message',
+      runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
+      requestOptions: { signal: new AbortController().signal }
     })
+    expect(result.kind).toBe('messages')
+    const reader = result.stream.getReader()
+    expect((await reader.read()).value).toEqual({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
+    expect((await reader.read()).done).toBe(true)
   })
 
   it('rejects agent-session streams that do not carry a runtime request', async () => {
@@ -1249,7 +1250,7 @@ describe('AiService tool approval', () => {
   })
 
   it('takes the Claude-Agent fast-path when the live registry dispatches the decision', async () => {
-    const respondToolApproval = vi.fn(() => true)
+    const respondToolApproval = vi.fn(() => ({ ok: true }))
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1272,6 +1273,7 @@ describe('AiService tool approval', () => {
         reason: undefined,
         updatedInput: undefined
       },
+      undefined,
       undefined
     )
     // Fast-path short-circuits before any DB read or continue dispatch.
@@ -1279,8 +1281,22 @@ describe('AiService tool approval', () => {
     expect(dispatch).not.toHaveBeenCalled()
   })
 
+  it.each(['undelivered', 'rejected'] as const)('preserves the agent approval outcome: %s', async (reason) => {
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'AgentSessionRuntimeService' ? { respondToolApproval: () => ({ ok: false, reason }) } : undefined
+    )
+    expect(
+      await getApprovalHandler()(fakeEvent(), {
+        approvalId: 'approval-1',
+        approved: true,
+        topicId: 'agent-session:session-1',
+        anchorId: 'message-1'
+      })
+    ).toEqual({ ok: false, reason })
+  })
+
   it('returns { ok: false } when there is no live entry and no anchor context', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'AgentSessionRuntimeService' ? { respondToolApproval } : undefined
     )
@@ -1293,12 +1309,12 @@ describe('AiService tool approval', () => {
       // no topicId / anchorId
     })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'rejected' })
     expect(getById).not.toHaveBeenCalled()
   })
 
   it('applies the decision atomically and dispatches continue-conversation when nothing is left pending', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1343,7 +1359,7 @@ describe('AiService tool approval', () => {
   })
 
   it('skips the continuation (ok:false) when there is no caller window to stream it to', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1364,7 +1380,7 @@ describe('AiService tool approval', () => {
       anchorId: 'anchor-1'
     })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'rejected' })
     expect(dispatch).not.toHaveBeenCalled()
   })
 
@@ -1373,7 +1389,7 @@ describe('AiService tool approval', () => {
     // land while a sibling exec / another continuation is still live. Dispatching continue-conversation
     // then would hit send()'s inject path and silently swallow the approved turn. Gate it: refuse
     // before touching the row, so the card stays actionable and the renderer can retry post-settle.
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     const hasLiveStream = vi.fn(() => true)
     mockApplicationGet.mockImplementation((name: string) => {
@@ -1391,7 +1407,7 @@ describe('AiService tool approval', () => {
       anchorId: 'anchor-1'
     })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'rejected' })
     expect(hasLiveStream).toHaveBeenCalledWith('topic-1')
     // Row is NOT mutated and no continuation is dispatched.
     expect(apply).not.toHaveBeenCalled()
@@ -1399,7 +1415,7 @@ describe('AiService tool approval', () => {
   })
 
   it('still dispatches when the committed parts report nothing pending (overlay-only decision)', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1433,7 +1449,7 @@ describe('AiService tool approval', () => {
   })
 
   it('does not finalize while another approval on the turn is still pending', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1466,7 +1482,7 @@ describe('AiService tool approval', () => {
   })
 
   it('ignores duplicate already-settled approval responses without dispatching another continuation', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1498,7 +1514,7 @@ describe('AiService tool approval', () => {
   })
 
   it('returns { ok: false } when the anchor message is missing or deleted', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
@@ -1518,7 +1534,7 @@ describe('AiService tool approval', () => {
     })
 
     // Resolves gracefully through the documented result shape instead of throwing.
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'rejected' })
     expect(apply).toHaveBeenCalledWith('deleted-anchor', [{ approvalId: 'mcp-approval-1', approved: true }])
     expect(dispatch).not.toHaveBeenCalled()
   })
