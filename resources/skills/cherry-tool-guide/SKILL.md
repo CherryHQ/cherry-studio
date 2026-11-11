@@ -1,13 +1,13 @@
 ---
 name: cherry-tool-guide
 description: 'Cherry tool routing: bun, uv, rg, knowledge, memory, schedules, skills, MCP, web. Read before shell workarounds.'
-version: 1.8.0
+version: 1.8.1
 ---
 
 # Cherry Tool Guide
 
-Cherry Studio injects first-party tools into your session over four MCP servers
-(`mcp__cherry-tools__*`, `mcp__agent-memory__*`, `mcp__skills__*`, `mcp__mcp-manager__*`)
+Cherry Studio injects first-party tools into your session over three MCP servers
+(`mcp__cherry-tools__*`, `mcp__skills__*`, `mcp__mcp-manager__*`)
 and gives shell-capable general agents bundled runtimes for local execution. The MCP
 tools act on the running app — the user's knowledge bases, IM channels, schedules,
 managed CLIs, skill library, and MCP server registry — through boundaries only Cherry
@@ -57,8 +57,8 @@ parameter names, enums, and required fields. Read it before every call.
 | Answer from the user's own documents | `mcp__cherry-tools__kb_list` → `mcp__cherry-tools__kb_search` → `mcp__cherry-tools__kb_read` | [knowledge.md](references/knowledge.md) |
 | Add / delete / re-index knowledge | `mcp__cherry-tools__kb_manage` (resolve IDs first; needs approval) | [knowledge.md](references/knowledge.md) |
 | Read or convert a local document | `mcp__cherry-tools__to_markdown` → read the returned temporary Markdown path as needed | [documents.md](references/documents.md) |
-| Recall a past fact, correction, or preference | `mcp__agent-memory__memory` (`search`) before re-asking | [memory.md](references/memory.md) |
-| Save durable knowledge vs. a one-off event | `mcp__agent-memory__memory` (`update` vs. `append`) | [memory.md](references/memory.md) |
+| Recall a past fact, correction, or preference | Latest `<cherry_memory>` reference; controlled Pi `read` for eligible files | [memory.md](references/memory.md) |
+| Save durable knowledge | Controlled Pi `read` → `write` / `edit` with the returned `memoryReceipt` | [memory.md](references/memory.md) |
 | Schedule a recurring / future task | `mcp__cherry-tools__cron` (Cherry scheduling only) | [autonomy.md](references/autonomy.md) |
 | Proactively message the user or send a file | `mcp__cherry-tools__notify` (needs configured recipients) | [autonomy.md](references/autonomy.md) |
 | Inspect / connect / repair IM channels, rename agent | `mcp__cherry-tools__config` | [autonomy.md](references/autonomy.md) |
@@ -90,7 +90,7 @@ approval**, stop and report — never re-attempt the mutation through a differen
 
 ## Out of scope
 
-Not covered here: SDK-native `Read`/`Edit`/`Bash` and orchestration tools; *calling* the
+Not covered here: general SDK-native file/shell and orchestration tools (managed memory is covered above); *calling* the
 tools of a third-party (user-configured) MCP server — only registering one is in scope,
 see [mcp.md](references/mcp.md); the AI-SDK chat `read_file` attachment reader (a
 chat-path tool, not exposed on this MCP surface); and the role-specific

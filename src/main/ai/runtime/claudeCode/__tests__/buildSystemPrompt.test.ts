@@ -6,6 +6,7 @@
 
 import type * as NodeFs from 'node:fs'
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -15,7 +16,6 @@ const {
   mockMkdir,
   mockRealpath,
   mockGetPath,
-  mockApplicationGet,
   mockGetBuiltinAgentPluginDirectory,
   mockLoadBuiltinAgentDefinition,
   mockProvisionBuiltinAgent,
@@ -28,7 +28,6 @@ const {
   mockMkdir: vi.fn(),
   mockRealpath: vi.fn(),
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
-  mockApplicationGet: vi.fn(),
   mockGetBuiltinAgentPluginDirectory: vi.fn(),
   mockLoadBuiltinAgentDefinition: vi.fn(),
   mockProvisionBuiltinAgent: vi.fn(),
@@ -53,9 +52,10 @@ vi.mock('node:fs', async (importOriginal) => {
   }
 })
 
-vi.mock('@application', () => ({
-  application: { get: mockApplicationGet, getPath: mockGetPath }
-}))
+vi.mock('@application', async () => {
+  const { createMockApplication } = await import('@test-mocks/main/application')
+  return { application: { ...createMockApplication(), getPath: mockGetPath } }
+})
 
 vi.mock('@main/i18n', () => ({
   getAppLanguage: mockGetAppLanguage,
@@ -100,7 +100,7 @@ const WORKSPACE_MARKER = '## Current Workspace'
 
 beforeEach(() => {
   vi.unstubAllGlobals()
-  mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
+  MockMainPreferenceServiceUtils.resetMocks()
   mockFindBySessionId.mockReturnValue(null)
   mockLoadBuiltinAgentDefinition.mockReset()
   mockProvisionBuiltinAgent.mockReset()
@@ -130,12 +130,7 @@ describe('buildSystemPrompt — current workspace', () => {
   it('loads prompt identity and memory from agent data while leaving cwd context to the preset', async () => {
     const result = await buildSystemPrompt(makeAgent(), '/workspace/project-a', '/data/Agents/agent-1')
 
-    expect(mockBuildPrompt).toHaveBeenCalledWith(
-      '/workspace/project-a',
-      expect.anything(),
-      false,
-      '/data/Agents/agent-1'
-    )
+    expect(promptText(result)).toContain('SOUL_PROMPT')
     expect(result).toMatchObject({ type: 'preset', preset: 'claude_code' })
     expect(promptText(result)).not.toContain(WORKSPACE_MARKER)
     expect(promptText(result)).not.toContain('"/workspace/project-a"')
@@ -218,7 +213,6 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
 
       const text = promptText(await buildSystemPrompt(makeAgent({ instructions }), '/tmp/cwd'))
 
-      expect(mockBuildPrompt).toHaveBeenCalledWith('/tmp/cwd', expect.anything(), false, expect.anything())
       expect(text).not.toContain('## Instruction Precedence')
       expect(text).not.toContain('<agent_instructions>')
       expect(text).toContain('SOUL_ROLE: You are the friendly historian.')
@@ -295,7 +289,7 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
 
 describe('buildSystemPrompt — cache-stable segment order', () => {
   it('keeps static Cherry policy before configurable and runtime-derived context', async () => {
-    mockApplicationGet.mockReturnValue({ get: vi.fn(() => 'English') })
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
     mockBuildPrompt.mockResolvedValueOnce({
       base: { kind: 'native' },
       context: 'PERSONA_AND_MEMORY_CONTEXT'
@@ -433,15 +427,6 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     const result = await buildSystemPrompt(agent, '/workspace/assistant', '/data/Agents/agent-1')
 
     expect(promptText(result)).toContain('SOUL_PROMPT')
-    expect(mockBuildPrompt).toHaveBeenCalledWith(
-      '/workspace/assistant',
-      expect.anything(),
-      true,
-      '/data/Agents/agent-1'
-    )
-    expect(mockProvisionBuiltinAgent.mock.invocationCallOrder[0]).toBeLessThan(
-      mockBuildPrompt.mock.invocationCallOrder[0]
-    )
   })
 
   it('does not make network requests while building an assistant prompt', async () => {

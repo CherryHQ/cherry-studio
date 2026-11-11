@@ -84,6 +84,7 @@ describe('Agent prompt onboarding', () => {
     const soul = 'My name is Cedar. I communicate warmly, give direct answers, and keep explanations concise.'
     await writeFile(path.join(agentDataPath, 'SOUL.md'), soul)
     await writeFile(path.join(agentDataPath, 'USER.md'), 'Call the user Lin. They prefer Chinese.')
+    await mkdir(path.join(agentDataPath, 'memory'))
     await writeFile(path.join(agentDataPath, 'memory', 'FACT.md'), 'The project is called Orchard.')
     await writeFile(path.join(workspacePath, 'SOUL.md'), 'Unrelated workspace identity')
     const agent = agentService.createAgentWithId(id, {

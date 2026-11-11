@@ -139,6 +139,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   constructor(private readonly input: AgentRuntimeConnectInput) {}
 
   async start(): Promise<this> {
+    await application.get('MemoryMigrationService').ensureSession(this.input.sessionId)
     const discovery = await capturePiConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
