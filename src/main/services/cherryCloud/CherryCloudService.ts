@@ -845,7 +845,7 @@ export class CherryCloudService extends BaseService {
   }
 
   private async startSubscriptionOnce(
-    { source, flowId }: InputFor<'cherry_cloud.subscription.start'>,
+    { source, via, flowId }: InputFor<'cherry_cloud.subscription.start'>,
     senderId: WindowId | null,
     status: CherryCloudStatus
   ): Promise<void> {
@@ -885,12 +885,12 @@ export class CherryCloudService extends BaseService {
       const result = await this.openAccountPortal({ scopeId: status.scopeId, entrySource: source, flowId }, senderId)
       if (result.outcome === 'opened')
         void trackCherryCloudAnalyticsEvent(
-          { event: 'subscription_portal_open', source, flowId, result: 'success' },
+          { event: 'subscription_portal_open', source, via, flowId, result: 'success' },
           status.scopeId
         ).catch(() => undefined)
     } catch (error) {
       void trackCherryCloudAnalyticsEvent(
-        { event: 'subscription_portal_open', source, flowId, result: 'failed' },
+        { event: 'subscription_portal_open', source, via, flowId, result: 'failed' },
         status.scopeId
       ).catch(() => undefined)
       throw new CherryCloudPortalOpenError(error)

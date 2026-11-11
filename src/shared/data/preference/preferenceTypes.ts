@@ -294,6 +294,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'exa',
   'exa-mcp',
   'bocha',
+  'stepfun',
   'querit',
   'fetch',
   'jina',

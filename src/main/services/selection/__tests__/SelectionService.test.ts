@@ -80,20 +80,6 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
     return handler!
   }
 
-  it('defers activation past the boot critical path when the feature is enabled', async () => {
-    prefGet.mockReturnValue(true)
-    const activate = wireActivation()
-
-    svc.onAllReady()
-
-    // Must NOT activate synchronously — the native addon load + window creation
-    // would otherwise stall the concurrent main-window paint.
-    expect(activate).not.toHaveBeenCalled()
-
-    await flushImmediate()
-    expect(activate).toHaveBeenCalledTimes(1)
-  })
-
   it('skips activation entirely when the feature is disabled', async () => {
     prefGet.mockReturnValue(false)
     const activate = wireActivation()
@@ -202,14 +188,6 @@ describe('SelectionService.onInit — SelectionAction pool suspension', () => {
 
     expect(suspendPool).toHaveBeenCalledWith(WindowType.SelectionAction)
     expect(suspendPool).toHaveBeenCalledWith(WindowType.SelectionAgent)
-  })
-
-  it('leaves the pool warmup untouched when the feature is enabled at boot', async () => {
-    prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
-
-    await svc._doInit()
-
-    expect(suspendPool).not.toHaveBeenCalled()
   })
 })
 

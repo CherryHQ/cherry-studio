@@ -450,7 +450,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   captureAgentSessionUsage(
     sessionId: string,
-    ownerSessionId = sessionId
+    ownerSessionId = sessionId,
+    traceContext?: InProcessUsageContext['traceContext']
   ): { headers: Record<string, string>; release(): void } {
     const current = application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
     const usage =
@@ -458,7 +459,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
         ? current
         : { agentSessionId: ownerSessionId, source: current?.source ?? null }
     const key = uuidv4()
-    this.usageCaptures.set(key, usage)
+    this.usageCaptures.set(key, traceContext ? { ...usage, traceContext } : usage)
     return {
       headers: {
         ...this.getAgentSessionUsageHeaders(ownerSessionId),

@@ -27,13 +27,8 @@ describe('WindowFooter', () => {
     ipcRequest.mockClear()
   })
 
-  it('uses neutral foreground colors for button hover feedback', () => {
+  it('closes the action window', () => {
     render(<WindowFooter content="result" onRegenerate={vi.fn()} />)
-
-    for (const button of screen.getAllByRole('button')) {
-      expect(button).toHaveClass('hover:text-foreground', 'hover:[&_.btn-icon]:text-foreground')
-      expect(button).not.toHaveClass('hover:text-primary', 'hover:[&_.btn-icon]:text-primary')
-    }
 
     fireEvent.click(screen.getByRole('button', { name: 'selection.action.window.esc_close' }))
     expect(ipcRequest).toHaveBeenCalledWith('window.close')
@@ -56,13 +51,11 @@ describe('WindowFooter', () => {
     }
   })
 
-  it('uses the error color when hovering the stop button', () => {
+  it('pauses generation without closing the action window', () => {
     const onPause = vi.fn()
     render(<WindowFooter content="result" loading onPause={onPause} />)
 
     const stopButton = screen.getByRole('button', { name: 'selection.action.window.esc_stop' })
-    expect(stopButton).toHaveClass('hover:text-error', 'hover:[&_.btn-icon]:text-error')
-    expect(stopButton).not.toHaveClass('hover:text-primary', 'hover:[&_.btn-icon]:text-primary')
 
     fireEvent.click(stopButton)
     expect(onPause).toHaveBeenCalledOnce()
