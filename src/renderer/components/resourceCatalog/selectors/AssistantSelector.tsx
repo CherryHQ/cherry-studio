@@ -138,6 +138,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         id: assistant.id,
         name: assistant.name,
         emoji: assistant.emoji,
+        avatarSrc: assistant.avatarSrc,
         description: assistant.description,
         groupId: assistant.groupId ?? undefined,
         groupName: assistant.groupId ? groupById.get(assistant.groupId)?.name : undefined

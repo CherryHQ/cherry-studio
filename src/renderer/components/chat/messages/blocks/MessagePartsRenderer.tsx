@@ -1652,10 +1652,19 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     })
   }, [])
 
-  const partEntries = useMemo(
-    () => messageParts.flatMap((part, index) => (hasPartParentToolCallId(part) ? [] : [{ part, index }])),
-    [messageParts]
-  )
+  const partEntries = useMemo(() => {
+    const shownErrors = new Set<string>()
+    return messageParts.flatMap((part, index) => {
+      if (hasPartParentToolCallId(part)) return []
+      if (part.type === 'data-error') {
+        // Older builds could persist one failure twice; each distinct error gets one card.
+        const errorKey = JSON.stringify(part.data)
+        if (shownErrors.has(errorKey)) return []
+        shownErrors.add(errorKey)
+      }
+      return [{ part, index }]
+    })
+  }, [messageParts])
   const placeholderStatus = useMemo(() => getProcessingPlaceholderStatus(partEntries), [partEntries])
   const nextReportArtifactToolResponses = useMemo(
     () => getReportArtifactToolResponses(partEntries, message.id),

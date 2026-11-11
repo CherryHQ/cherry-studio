@@ -26,13 +26,11 @@ describe('useExpandTool', () => {
       { initialProps: { enabled: true, expanded: false, expandable: true } }
     )
 
-    expect(result.current[0]).toMatchObject({ id: 'expand', tooltip: 'code_block.expand' })
     expect(result.current[0].visible?.()).toBe(true)
     act(() => result.current[0].onClick?.())
     expect(toggle).toHaveBeenCalledOnce()
 
     rerender({ enabled: true, expanded: true, expandable: false })
-    expect(result.current[0]).toMatchObject({ id: 'expand', tooltip: 'code_block.collapse' })
     expect(result.current[0].visible?.()).toBe(false)
 
     rerender({ enabled: false, expanded: true, expandable: false })

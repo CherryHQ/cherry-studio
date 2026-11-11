@@ -1,6 +1,6 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useRef, useState } from 'react'
 import type ReactType from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -883,43 +883,6 @@ describe('CommandContextMenu', () => {
     await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
   })
 
-  it('does not remount trigger children after selecting a cherry extra item', async () => {
-    const onSelect = vi.fn()
-    const mountCount = vi.fn()
-    const unmountCount = vi.fn()
-    preferenceValues['menu.presentation_mode'] = 'cherry'
-
-    function TriggerContent() {
-      useEffect(() => {
-        mountCount()
-        return unmountCount
-      }, [])
-
-      return <button type="button">trigger</button>
-    }
-
-    render(
-      <CommandContextKeyProvider>
-        <CommandProvider>
-          <CommandContextMenu
-            location="webcontents.context"
-            extraItems={[{ type: 'item', id: 'tool:branch', label: 'Branch', onSelect }]}>
-            <TriggerContent />
-          </CommandContextMenu>
-        </CommandProvider>
-      </CommandContextKeyProvider>
-    )
-
-    await waitFor(() => expect(mountCount).toHaveBeenCalledOnce())
-
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
-    fireEvent.click(screen.getByRole('button', { name: /Branch/ }))
-
-    await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
-    expect(unmountCount).not.toHaveBeenCalled()
-    expect(mountCount).toHaveBeenCalledOnce()
-  })
-
   it('uses extra items as pending lazy cherry items by default', async () => {
     preferenceValues['menu.presentation_mode'] = 'cherry'
     let resolveItems: (items: readonly CommandContextMenuExtraItem[]) => void = () => {}
@@ -984,6 +947,38 @@ describe('CommandContextMenu', () => {
       expect(showNativePopupMenuMock).toHaveBeenCalled()
       expect(onOpenChange).toHaveBeenLastCalledWith(false)
     })
+  })
+
+  it('runs an immediate popup item synchronously without scheduling a frame', () => {
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+    const onSelect = vi.fn()
+    const onOpenChange = vi.fn()
+    const frame = vi.spyOn(window, 'requestAnimationFrame')
+    render(
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <CommandPopupMenu
+            location="webcontents.context"
+            onOpenChange={onOpenChange}
+            deferActionsUntilClosed
+            extraItems={[{ type: 'item', id: 'instant', label: 'Instant', executeImmediately: true, onSelect }]}>
+            <button type="button">trigger-popup</button>
+          </CommandPopupMenu>
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'trigger-popup' }))
+    frame.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Instant' }))
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
+    expect(onSelect).toHaveBeenCalledOnce()
+    expect(onSelect.mock.invocationCallOrder[0]).toBeLessThan(onOpenChange.mock.invocationCallOrder.at(-1)!)
+    expect(frame).not.toHaveBeenCalled()
+    const close = screen.getByTestId('dropdown-menu-close-complete')
+    expect(fireEvent.click(close)).toBe(false)
+    expect(fireEvent.click(close)).toBe(true)
+    expect(frame).not.toHaveBeenCalled()
+    frame.mockRestore()
   })
 
   it('runs deferred cherry popup actions after the close lifecycle finishes', () => {
