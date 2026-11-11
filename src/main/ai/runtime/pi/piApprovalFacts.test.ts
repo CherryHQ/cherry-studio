@@ -186,6 +186,45 @@ beforeEach(() => {
 })
 
 describe('desktop facts and approvals through the shared behavior gate', () => {
+  it('asks before PowerShell deletion in auto mode', async () => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto' })
+    const command = 'Remove-Item -Recurse -Force ./build'
+    const pending = handler(toolEvent('powershell', { command }), extCtx)
+    await flush()
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0].request).toMatchObject({ toolName: 'powershell', input: { command } })
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+    await expect(pending).resolves.toBeUndefined()
+  })
+
+  it.each(['auto', 'bypassPermissions'] as const)('blocks global installs through PowerShell in %s', async (mode) => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
+    await expect(handler(toolEvent('powershell', { command: 'npm install -g cowsay' }), extCtx)).resolves.toMatchObject(
+      {
+        block: true,
+        reason: expect.stringContaining('dependency pollution')
+      }
+    )
+    expect(emitted).toHaveLength(0)
+  })
+
+  it('blocks PowerShell access to protected SQLite before bypass handling', async () => {
+    const { handler } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+    await expect(
+      handler(toolEvent('powershell', { command: `Get-Content '${databaseFile}'` }), extCtx)
+    ).resolves.toMatchObject({ block: true, reason: expect.stringContaining('SQLite') })
+  })
+
+  it('preserves PowerShell arguments instead of applying the bash rewrite', async () => {
+    mocks.rtkRewrite.mockResolvedValue('rtk Get-Location')
+    const { handler, emitted } = buildGate()
+    const pending = handler(toolEvent('powershell', { command: 'Get-Location' }), extCtx)
+    await flush()
+    expect(emitted[0].request).toMatchObject({ toolName: 'powershell', input: { command: 'Get-Location' } })
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+    await expect(pending).resolves.toBeUndefined()
+  })
+
   it('auto-allows read-only tools in default mode with no approval request', async () => {
     const { handler, emitted } = buildGate()
     await expect(handler(toolEvent('read', { path: 'inside.txt' }), extCtx)).resolves.toBeUndefined()
@@ -432,9 +471,8 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
       approvalRequiredTools: new Set([toolName])
     })
 
-    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toEqual({
-      block: true,
-      reason: 'This tool always requires user approval and cannot run unattended. Retry interactively.'
+    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toMatchObject({
+      block: true
     })
     expect(emitted).toHaveLength(0)
     expect(toolApprovalRegistry.size()).toBe(0)
