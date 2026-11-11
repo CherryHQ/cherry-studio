@@ -46,7 +46,11 @@ Start with common issues and troubleshooting.
 
 ## Configuration & data
 
-[Connect a model provider](pre-basic/providers/README.md) · [App settings](pre-basic/settings/README.md) · [Back up and manage data](pre-basic/data-settings/README.md)
+[Connect a model provider](pre-basic/providers/README.md) · [API gateway](advanced-basic/developer-tools/api-gateway.md) · [App settings](pre-basic/settings/README.md) · [Back up and manage data](pre-basic/data-settings/README.md)
+
+## Choosing & reference
+
+[Choosing and using Cherry Studio](articles/README.md) · [AI basics](question-contact/knowledge.md) · [Model reference](other/models-info/README.md) · [Model leaderboards](other/model_rank/README.md)
 
 ## Troubleshooting
 
@@ -54,7 +58,11 @@ Start with common issues and troubleshooting.
 
 ## Developers & contribution
 
-[API gateway and diagnostics](advanced-basic/developer-tools/README.md) · [Contribute code](contribution/code.md) · [Improve the documentation](contribution/docs.md)
+[Development and diagnostics](advanced-basic/developer-tools/README.md) · [Contribute code](contribution/code.md) · [Improve the documentation](contribution/docs.md)
+
+## About
+
+[Business cooperation](contact-us/questions.md) · [Privacy policy](about/privacypolicy.md) · [Open source license](contact-us/questions/license.md)
 
 ***
 

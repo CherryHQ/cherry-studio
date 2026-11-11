@@ -3,7 +3,7 @@ import type * as fs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import type { TaskSelection } from '../cases'
+import * as regressionCases from '../cases'
 import { completeE2eCase, createRun, finalizeRun, getRunVerdict, readRun, updatePhase, writeRun } from '../state'
 import type { RegressionRun } from '../types'
 
@@ -11,6 +11,8 @@ vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof fs>()
   return { ...actual, renameSync: vi.fn(actual.renameSync) }
 })
+
+afterEach(() => vi.restoreAllMocks())
 
 describe('Playwright run state', () => {
   it('initializes every phase selected by a module task without selecting unrelated cases', () => {
@@ -37,17 +39,17 @@ describe('Playwright run state', () => {
       platform: 'macos',
       ref: 'main',
       runner: 'macos-latest',
-      task: 'notes-smoke'
+      task: 'code-cli'
     })
     const completed = updatePhase(
-      completeE2eCase(run, 'N-01', 'passed', 'Notes smoke run completed'),
-      'basicFeatures',
+      completeE2eCase(run, 'CODE-01', 'passed', 'CLI launch verified'),
+      'codeTools',
       'passed'
     )
     const historical = JSON.parse(
       JSON.stringify({
         ...completed,
-        metadata: { ...completed.metadata, task: 'code-cli-permissions' as TaskSelection }
+        metadata: { ...completed.metadata, task: 'codeTools' }
       })
     ) as RegressionRun
     expect(getRunVerdict(historical)).toBe('development_pass')
@@ -106,7 +108,10 @@ describe('Playwright run state', () => {
     expect(getRunVerdict(run)).toBe('development_blocked')
   })
 
-  it.skip('marks platform-scoped cases as not applicable instead of failing a Windows run', () => {
+  it('marks platform-scoped cases as not applicable instead of failing a Windows run', () => {
+    vi.spyOn(regressionCases, 'supportsPlatform').mockImplementation(
+      (id, platform) => id !== 'CODE-01' || platform !== 'windows'
+    )
     const run = createRun({
       appVersion: 'development',
       commitSha: 'sha',
@@ -117,14 +122,15 @@ describe('Playwright run state', () => {
       task: 'all'
     })
 
-    expect(run.cases['MP-133']).toMatchObject({
+    expect(run.cases['CODE-01']).toMatchObject({
       status: 'not_applicable',
       summary: 'Not supported on windows'
     })
     expect(run.cases['S-01'].status).toBe('pending')
   })
 
-  it.skip('reports a task with no applicable case on this platform as not applicable instead of blocked', () => {
+  it('reports a task with no applicable case on this platform as not applicable instead of blocked', () => {
+    vi.spyOn(regressionCases, 'supportsPlatform').mockImplementation((_id, platform) => platform !== 'windows')
     const run = finalizeRun(
       createRun({
         appVersion: 'development',
@@ -133,7 +139,7 @@ describe('Playwright run state', () => {
         platform: 'windows',
         ref: 'main',
         runner: 'windows-2022',
-        task: 'code-cli-permissions' as TaskSelection
+        task: 'code-cli'
       })
     )
 

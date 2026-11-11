@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
   Form,
-  Scrollbar
+  ScrollArea
 } from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
@@ -104,7 +104,10 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
           <DialogDescription>{t('settings.mcp.addServer.createDescription')}</DialogDescription>
         </DialogHeader>
 
-        <Scrollbar className="-m-1 max-h-[60vh] p-1 pr-3">
+        <ScrollArea
+          contentProps={{ className: 'p-1 pr-3' }}
+
+          className="-m-1 max-h-[60vh]">
           <Form {...form}>
             <form className="flex flex-col gap-7" id="mcp-quick-create-form">
               <McpIdentityFields {...fieldsProps} />
@@ -126,7 +129,7 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
               </Accordion>
             </form>
           </Form>
-        </Scrollbar>
+        </ScrollArea>
 
         <DialogFooter>
           <Button type="button" variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>

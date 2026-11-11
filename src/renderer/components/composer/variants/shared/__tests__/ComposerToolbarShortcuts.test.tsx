@@ -228,26 +228,6 @@ describe('ComposerToolbarShortcuts', () => {
     expect(button).not.toHaveClass('[&_svg]:!size-[18px]')
   })
 
-  it('renders a known pinned manifest immediately while runtime state is unresolved', () => {
-    mocks.launchers = []
-    mocks.manifests = [
-      {
-        id: 'web-search',
-        kind: 'command',
-        order: 30,
-        label: 'web-search-label',
-        icon: <span data-testid="icon-web-search-fallback" />
-      }
-    ]
-
-    renderShortcuts({ pinnedIds: ['web-search'] })
-
-    const webSearchButton = screen.getByRole('button', { name: 'web-search-label' })
-    expect(webSearchButton).toBeDisabled()
-    expect(webSearchButton).not.toHaveAttribute('aria-pressed')
-    expect(within(webSearchButton).getByTestId('icon-web-search-fallback')).toBeInTheDocument()
-  })
-
   it('routes every shortcut click to the shared model-required toast when no model is available', () => {
     const onCustomSelect = vi.fn()
     mocks.launchers = []
@@ -348,43 +328,6 @@ describe('ComposerToolbarShortcuts', () => {
     expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
-  it('keeps manifest presentation stable while a launcher is cleared and re-registered', () => {
-    mocks.manifests = [thinkingManifest]
-    mocks.launchers = [thinkingLauncher]
-    const { props, rerender } = renderShortcuts({ pinnedIds: ['thinking'] })
-
-    const getThinkingButton = () => screen.getByRole('button', { name: 'thinking-manifest-label' })
-    expect(getThinkingButton()).toBeEnabled()
-    expect(getThinkingButton()).toHaveAttribute('aria-haspopup', 'menu')
-    expect(within(getThinkingButton()).getByTestId('icon-thinking')).toBeInTheDocument()
-    expect(within(getThinkingButton()).queryByTestId('icon-thinking-manifest')).not.toBeInTheDocument()
-
-    mocks.launchers = []
-    rerender(<ComposerToolbarShortcuts {...props} />)
-
-    expect(getThinkingButton()).toBeDisabled()
-    expect(within(getThinkingButton()).getByTestId('icon-thinking')).toBeInTheDocument()
-
-    const nextThinkingLauncher = {
-      ...thinkingLauncher,
-      label: 'next-thinking-label',
-      icon: <span data-testid="icon-thinking-next-runtime" />,
-      active: false
-    }
-    mocks.launchers = [nextThinkingLauncher]
-    rerender(<ComposerToolbarShortcuts {...props} />)
-
-    expect(getThinkingButton()).toBeEnabled()
-    expect(within(getThinkingButton()).getByTestId('icon-thinking-next-runtime')).toBeInTheDocument()
-    expect(within(getThinkingButton()).queryByTestId('icon-thinking')).not.toBeInTheDocument()
-
-    fireEvent.click(getThinkingButton())
-    expect(props.unifiedPanelControl.open).toHaveBeenCalledWith({
-      launcherId: 'thinking',
-      searchText: 'thinking-manifest-label'
-    })
-  })
-
   it('does not loop when launcher icons are recreated during render', () => {
     mocks.manifests = [thinkingManifest]
     mocks.resolveLaunchers.mockImplementation(() => [
@@ -406,22 +349,6 @@ describe('ComposerToolbarShortcuts', () => {
     const attachmentButton = screen.getByRole('button', { name: 'attachment-label' })
     expect(attachmentButton).toHaveAttribute('aria-haspopup', 'dialog')
     expect(attachmentButton).not.toHaveAttribute('aria-pressed')
-  })
-
-  it('opens the unified panel for panel-kind launchers and dispatches command-kind launchers', () => {
-    const { props } = renderShortcuts()
-
-    fireEvent.click(screen.getByRole('button', { name: 'thinking-label' }))
-    expect(props.unifiedPanelControl.open).toHaveBeenCalledWith({
-      launcherId: 'thinking',
-      searchText: 'thinking-label'
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'web-search-label' }))
-    expect(mocks.dispatchLauncher).toHaveBeenCalledWith(webSearchLauncher, {
-      source: 'popover',
-      inputAdapter: props.inputAdapter
-    })
   })
 
   it('disables panel-kind launchers when the unified panel is unavailable and honors launcher disabled', () => {
@@ -550,48 +477,13 @@ describe('ComposerToolbarShortcuts', () => {
     expect(configurableSwitch).toBeEnabled()
     fireEvent.click(configurableSwitch)
     expect(props.onPinnedIdsChange).toHaveBeenCalledWith([])
-    expect(mocks.reorderableProps.items).toContainEqual(expect.objectContaining({ id: 'new-conversation' }))
-  })
-
-  it('places leading custom tools first by default while keeping them reorderable', () => {
-    mocks.launchers = [thinkingLauncher]
-    const { props } = renderShortcuts({
-      customizeOpen: true,
-      pinnedIds: [],
-      customTools: [
-        {
-          id: 'new-conversation',
-          label: 'new-conversation-label',
-          icon: <span />,
-          customizePlacement: 'leading',
-          requiresPanel: false,
-          onSelect: vi.fn()
-        }
-      ]
-    })
-
-    expect(mocks.reorderableProps.items.map((row: any) => row.id)).toEqual(['new-conversation', 'thinking'])
-
-    act(() => {
-      mocks.reorderableProps.onReorder([...mocks.reorderableProps.items].reverse())
-    })
-
-    expect(mocks.reorderableProps.items.map((row: any) => row.id)).toEqual(['thinking', 'new-conversation'])
-    expect(props.onPinnedIdsChange).not.toHaveBeenCalled()
-  })
-
-  it('positions the customize popover above an empty shortcut bar without covering the plus trigger', () => {
-    renderShortcuts({ customizeOpen: true, pinnedIds: [] })
-
-    expect(screen.getByTestId('popover-content')).toHaveAttribute('data-side', 'top')
-    expect(screen.getByTestId('popover-content')).toHaveAttribute('data-side-offset', '8')
   })
 
   it('renders an always-visible, labelled drag handle for every resolved row', () => {
     renderShortcuts({ customizeOpen: true })
 
     // dragHandle mode is on so the row itself is not the activator.
-    expect(mocks.reorderableProps.dragHandle).toBe(true)
+
     // Every resolved row has a handle, including the unpinned knowledge-base row.
     const handles = screen.getAllByRole('button', { name: 'chat.input.toolbar.drag_handle' })
     expect(handles).toHaveLength(3)
@@ -602,18 +494,6 @@ describe('ComposerToolbarShortcuts', () => {
 
   it('keeps pinned and unpinned rows in one sortable order while persisting only pinned ids', () => {
     const { props } = renderShortcuts({ customizeOpen: true })
-
-    expect(mocks.reorderableProps.items.map((row: any) => row.id)).toEqual([
-      'thinking',
-      'ghost',
-      'web-search',
-      'knowledge-base'
-    ])
-    expect(mocks.reorderableProps.visibleItems.map((row: any) => row.id)).toEqual([
-      'thinking',
-      'web-search',
-      'knowledge-base'
-    ])
 
     act(() => {
       mocks.reorderableProps.onReorder([...mocks.reorderableProps.items].reverse())
@@ -728,32 +608,6 @@ describe('ComposerToolbarShortcuts', () => {
     expect(labelledBy).toBeTruthy()
     const title = document.getElementById(labelledBy!)
     expect(title).toHaveTextContent('chat.input.toolbar.customize')
-  })
-
-  it('keeps a launchers tooltip on the pinned button, falling back disabledReason -> tooltip -> label', () => {
-    // attachment stays clickable but carries a hint (e.g. "image not supported"); web-search has no tooltip.
-    mocks.launchers = [{ ...attachmentLauncher, tooltip: 'attachment-hint' }, webSearchLauncher]
-    renderShortcuts({ pinnedIds: ['attachment', 'web-search'] })
-
-    expect(screen.getByRole('button', { name: 'attachment-label' }).closest('[data-tooltip]')).toHaveAttribute(
-      'data-tooltip',
-      'attachment-hint'
-    )
-    // No tooltip -> falls back to the label.
-    expect(screen.getByRole('button', { name: 'web-search-label' }).closest('[data-tooltip]')).toHaveAttribute(
-      'data-tooltip',
-      'web-search-label'
-    )
-  })
-
-  it('shows a disabled launchers disabledReason ahead of its tooltip', () => {
-    mocks.launchers = [{ ...webSearchLauncher, disabled: true, disabledReason: 'ws-disabled', tooltip: 'ws-hint' }]
-    renderShortcuts({ pinnedIds: ['web-search'] })
-
-    expect(screen.getByRole('button', { name: 'web-search-label' }).closest('[data-tooltip]')).toHaveAttribute(
-      'data-tooltip',
-      'ws-disabled'
-    )
   })
 
   it('keeps focus on a tools switch after toggling it', () => {

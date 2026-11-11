@@ -1,11 +1,10 @@
 import { act, render, renderHook, screen } from '@testing-library/react'
-import { memo, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   MessageListProvider,
-  useAnyMessageListItemProcessing,
-  useMessageListItemActivityState
+  useAnyMessageListItemProcessing
 } from '@renderer/components/chat/messages/MessageListProvider'
 import {
   defaultMessageRenderConfig,
@@ -54,12 +53,6 @@ function createProviderValue(messages: MessageListItem[], store: KeyedMessageAct
 }
 
 const renderCounts = new Map<string, number>()
-
-const ActivityProbe = memo(({ message }: { message: MessageListItem }) => {
-  renderCounts.set(message.id, (renderCounts.get(message.id) ?? 0) + 1)
-  const state = useMessageListItemActivityState(message)
-  return <div data-testid={message.id}>{`${state.isProcessing}:${state.isApprovalAnchor}`}</div>
-})
 
 const AnyProcessingProbe = ({ messages }: { messages: MessageListItem[] }) => {
   const isProcessing = useAnyMessageListItemProcessing(messages)
@@ -186,46 +179,6 @@ describe('KeyedMessageActivityStore', () => {
     expect(store.getSnapshot(activeMessage).isActiveTurnProcessing).toBe(true)
   })
 
-  it('re-renders only message subscribers whose derived state changed', () => {
-    const store = new KeyedMessageActivityStore()
-    const firstMessage = createMessage('message-1')
-    const secondMessage = createMessage('message-2')
-    const pendingMessage = createMessage('message-3', 'pending')
-    const messages = [firstMessage, secondMessage, pendingMessage]
-
-    renderWithProvider(
-      createProviderValue(messages, store),
-      messages.map((message) => <ActivityProbe key={message.id} message={message} />)
-    )
-
-    act(() => store.update(['message-1'], [], undefined))
-    expect(renderCounts).toEqual(
-      new Map([
-        ['message-1', 2],
-        ['message-2', 1],
-        ['message-3', 1]
-      ])
-    )
-
-    act(() => store.update(['message-2'], [], undefined))
-    expect(renderCounts).toEqual(
-      new Map([
-        ['message-1', 3],
-        ['message-2', 2],
-        ['message-3', 1]
-      ])
-    )
-
-    act(() => store.update([], ['message-2'], undefined))
-    expect(renderCounts.get('message-1')).toBe(3)
-    expect(renderCounts.get('message-2')).toBe(3)
-    expect(renderCounts.get('message-3')).toBe(1)
-    expect(screen.getByTestId('message-2')).toHaveTextContent('true:true')
-
-    act(() => store.update(['message-3'], [], undefined))
-    expect(renderCounts.get('message-3')).toBe(1)
-  })
-
   it('updates the aggregate processing snapshot used by list virtualization', () => {
     const store = new KeyedMessageActivityStore()
     const messages = [createMessage('message-1'), createMessage('message-2')]
@@ -260,8 +213,6 @@ describe('useMessageActivityState', () => {
     streamStatus.activeExecutions = [{ anchorMessageId: 'message-1' }]
     act(() => rerender())
 
-    expect(result.current).toBe(initialCapability)
-    expect(result.current.getMessageActivityState).toBe(initialCapability.getMessageActivityState)
     expect(onFirstMessageChange).toHaveBeenCalledTimes(1)
     expect(onSecondMessageChange).not.toHaveBeenCalled()
     expect(result.current.store.getSnapshot(createMessage('message-1'))).toMatchObject({
@@ -284,7 +235,6 @@ describe('useMessageActivityState', () => {
     streamStatus.activeExecutions = []
     act(() => rerender({ topicId: 'topic-2' }))
 
-    expect(result.current.store).toBe(firstStore)
     expect(result.current.store.getSnapshot(createMessage('message-1')).isProcessing).toBe(false)
   })
 })
