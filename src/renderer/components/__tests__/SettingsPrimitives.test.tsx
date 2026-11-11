@@ -17,9 +17,13 @@ describe('settings page containers', () => {
     render(<Component data-testid="settings-content">Content</Component>)
 
     const content = screen.getByTestId('settings-content')
-    const paddedContent = content.querySelector('[data-slot=scroll-area-viewport]') ?? content
+    // Padding belongs to content so the viewport and scrollbar retain the full boundary.
+    const paddedContent = content.querySelector('[data-slot=scroll-area-content]') ?? content
     expect(paddedContent).toHaveClass('p-6')
-    expect(paddedContent).not.toHaveClass('pt-3', 'py-4')
+    if (Component === SettingsContentColumn) {
+      expect(content).not.toHaveClass('p-6')
+      expect(content.querySelector('[data-slot=scroll-area-viewport]')).not.toHaveClass('p-6')
+    }
   })
 })
 

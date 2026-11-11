@@ -766,13 +766,14 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
         return (
           <ScrollArea
+            contentProps={{ className: 'px-1 py-1' }}
             viewportProps={{
               ref: listRef,
               id: listboxId,
               role: 'listbox',
               'aria-multiselectable': multiEnabled,
               tabIndex: -1,
-              className: 'scroll-pt-1.5 px-1 py-1 outline-none'
+              className: 'scroll-pt-1.5 outline-none'
             }}
             className="min-h-0 flex-1"
             style={{ height: listHeight }}>

@@ -125,6 +125,7 @@ export function AgentContextUsageSummary({
       emptyLabel={t('common.unknown')}
       data={data}
       className={className}
+      summaryClassName={showCategories ? 'px-3' : undefined}
       collapsible={showCategories}
       description={[
         usage?.breakdown?.coverage === 'partial' && t('agent.right_pane.info.context_details.partial'),
@@ -134,39 +135,41 @@ export function AgentContextUsageSummary({
         .join(' · ')}
       isBusy={isCompacting}>
       {categories.length > 0 && (
-        <table
-          className="w-full table-fixed border-separate border-spacing-y-1 text-muted-foreground"
-          aria-label={t('agent.right_pane.info.context_usage')}>
-          <tbody>
-            {categories.map((category) => (
-              <tr key={category.id}>
-                <th scope="row" className="w-1/2 pr-2 text-left font-normal">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="size-2 shrink-0 rounded-xs" style={{ background: category.color }} />
-                    <span className="truncate" title={category.label}>
-                      {category.label}
+        <div className="px-3">
+          <table
+            className="w-full table-fixed border-separate border-spacing-y-1 text-muted-foreground"
+            aria-label={t('agent.right_pane.info.context_usage')}>
+            <tbody>
+              {categories.map((category) => (
+                <tr key={category.id}>
+                  <th scope="row" className="w-1/2 pr-2 text-left font-normal">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="size-2 shrink-0 rounded-xs" style={{ background: category.color }} />
+                      <span className="truncate" title={category.label}>
+                        {category.label}
+                      </span>
                     </span>
-                  </span>
-                </th>
-                <td
-                  className="text-right tabular-nums"
-                  title={[
-                    formatExact(category.tokens),
-                    category.precision === 'estimated' && t('chat.message.token_details.cost_estimated')
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}>
-                  {formatTokens(category.tokens)}
-                </td>
-                <td className="text-right text-foreground tabular-nums">
-                  {category.kind === 'deferred' || windowTokens <= 0
-                    ? '—'
-                    : `${((category.tokens / windowTokens) * 100).toLocaleString(i18n.resolvedLanguage, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </th>
+                  <td
+                    className="text-right tabular-nums"
+                    title={[
+                      formatExact(category.tokens),
+                      category.precision === 'estimated' && t('chat.message.token_details.cost_estimated')
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}>
+                    {formatTokens(category.tokens)}
+                  </td>
+                  <td className="text-right text-foreground tabular-nums">
+                    {category.kind === 'deferred' || windowTokens <= 0
+                      ? '—'
+                      : `${((category.tokens / windowTokens) * 100).toLocaleString(i18n.resolvedLanguage, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {showCategories && groups.some((group) => group.rows?.length) && (
         <Accordion type="multiple">
@@ -174,7 +177,7 @@ export function AgentContextUsageSummary({
             .filter((group) => group.rows?.length)
             .map((group) => (
               <AccordionItem key={group.id} value={group.id} className="border-0 first:border-t-0">
-                <AccordionTrigger className="group gap-2 py-2 text-xs font-normal text-muted-foreground [&>svg]:hidden">
+                <AccordionTrigger className="group gap-2 px-3 py-2 text-xs font-normal text-muted-foreground [&>svg]:hidden">
                   <span className="flex min-w-0 flex-1 items-center gap-2">
                     <ChevronRight
                       aria-hidden
@@ -187,8 +190,8 @@ export function AgentContextUsageSummary({
                 <AccordionContent className="pt-0 pb-2 text-xs">
                   <ScrollArea
                     className="max-h-60"
-                    viewportProps={{ className: 'overflow-x-hidden pl-5', tabIndex: 0 }}
-                    contentProps={{ role: 'list', 'aria-label': label(group.id) }}>
+                    viewportProps={{ className: 'overflow-x-hidden', tabIndex: 0 }}
+                    contentProps={{ className: 'pl-8 pr-3', role: 'list', 'aria-label': label(group.id) }}>
                     {group.rows?.map((row) => (
                       <div
                         key={row.id}
