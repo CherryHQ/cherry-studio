@@ -1,0 +1,24 @@
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1495,7 +1495,7 @@
+ var BedrockToolUseSchema = import_v43.z.object({
+   toolUseId: import_v43.z.string(),
+   name: import_v43.z.string(),
+-  input: import_v43.z.unknown()
++  input: import_v43.z.unknown().optional()
+ });
+ var BedrockReasoningTextSchema = import_v43.z.object({
+   signature: import_v43.z.string().nullish(),
+diff --git a/dist/index.mjs b/dist/index.mjs
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1495,7 +1495,7 @@
+ var BedrockToolUseSchema = z3.object({
+   toolUseId: z3.string(),
+   name: z3.string(),
+-  input: z3.unknown()
++  input: z3.unknown().optional()
+ });
+ var BedrockReasoningTextSchema = z3.object({
+   signature: z3.string().nullish(),

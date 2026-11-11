@@ -1,4 +1,5 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createAzure } from '@ai-sdk/azure'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
@@ -107,6 +108,28 @@ const ANTHROPIC_PROVIDER_CASES = [
 ]
 
 describe('toolSchemaCompatibilityFeature', () => {
+  it('removes invalid null required lists without losing references or similarly named properties', async () => {
+    const schema = {
+      type: 'object',
+      required: null,
+      properties: { required: { type: 'string' }, value: { $ref: '#/$defs/value' } },
+      $defs: { value: { anyOf: [{ type: 'object', required: null }, { type: 'string' }] } }
+    }
+    const result = await transform({
+      prompt: [],
+      tools: [{ type: 'function', name: 'lookup', inputSchema: schema as never }]
+    })
+    expect(result.tools?.[0]).toMatchObject({
+      inputSchema: {
+        type: 'object',
+        properties: schema.properties,
+        $defs: { value: { anyOf: [{ type: 'object' }, { type: 'string' }] } }
+      }
+    })
+    expect(JSON.stringify(result.tools)).not.toContain('"required":null')
+    expect(schema.required).toBeNull()
+  })
+
   it.each(ANTHROPIC_PROVIDER_CASES)(
     'applies the $provider input examples policy with built-in meta tools',
     async ({ provider, modelId, createModel, omitExamples }) => {
@@ -543,6 +566,76 @@ describe('toolSchemaCompatibilityFeature', () => {
     const sent = readTool(capturedBody)
     expect(sent.strict).toBe(true)
     expect(JSON.stringify(sent.input_schema)).not.toMatch(/"(minimum|maximum|minLength)"/)
+  })
+
+  // Responses (incl. Azure OpenAI) treat a tool without `strict` as strict and
+  // mark every property required, so the model invents optional MCP arguments.
+  it('opts non-strict tools out of the Azure Responses default strict mode', async () => {
+    const { requests, captureFetch } = captureRequest()
+    const model = wrapLanguageModel({
+      model: createAzure({ resourceName: 'test', apiKey: 'test-key', fetch: captureFetch }).responses('gpt-5'),
+      middleware: await getMiddleware({
+        aiSdkProviderId: 'azure-responses',
+        endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        tools: {
+          sequentialthinking: tool({
+            inputSchema: jsonSchema({
+              type: 'object',
+              properties: { thought: { type: 'string' }, chainId: { type: 'string' } },
+              required: ['thought']
+            })
+          }),
+          read_file: tool({ inputSchema: readFileInputSchema, strict: true })
+        }
+      })
+    ).rejects.toBeDefined()
+
+    const sent = (
+      requests[0].body as unknown as {
+        tools: Array<{ name: string; strict?: boolean; parameters: { required?: string[] } }>
+      }
+    ).tools
+    const byName = Object.fromEntries(sent.map((entry) => [entry.name, entry]))
+    expect(byName.sequentialthinking.strict).toBe(false)
+    expect(byName.sequentialthinking.parameters.required).toEqual(['thought'])
+    expect(byName.read_file.strict).toBe(true)
+  })
+
+  // Strict-unaware upstreams such as Bedrock reject an unexpected `strict` key (issue #23378).
+  it.each([
+    {
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      createModel: (fetch: typeof globalThis.fetch) => createOpenAI({ apiKey: 'test-key', fetch }).chat('gpt-5'),
+      readTool: (body: unknown) => (body as { tools: Array<{ function: object }> }).tools[0].function
+    },
+    {
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      createModel: (fetch: typeof globalThis.fetch) => createAnthropic({ apiKey: 'test-key', fetch })('claude-opus-5'),
+      readTool: (body: unknown) => (body as { tools: object[] }).tools[0]
+    }
+  ])('sends no strict key for a non-strict tool on $endpointType', async ({ endpointType, createModel, readTool }) => {
+    const { requests, captureFetch } = captureRequest()
+    const model = wrapLanguageModel({
+      model: createModel(captureFetch),
+      middleware: await getMiddleware({ endpointType })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        tools: { lookup: tool({ inputSchema: z.object({ query: z.string(), limit: z.number().optional() }) }) }
+      })
+    ).rejects.toBeDefined()
+
+    expect(readTool(requests[0].body)).not.toHaveProperty('strict')
   })
 
   // Gemini's Schema proto types `enum` as string lists; a numeric or boolean

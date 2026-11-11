@@ -18,7 +18,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 describe('ProviderSettings ModelTagsWithLabel', () => {
-  it('renders embedding, rerank, and free tags as icons', () => {
+  it('renders embedding and rerank as icons and free as a text tag', () => {
     const { container } = render(
       <ModelTagsWithLabel
         model={
@@ -37,8 +37,8 @@ describe('ProviderSettings ModelTagsWithLabel', () => {
 
     expect(screen.queryByText('models.type.embedding')).not.toBeInTheDocument()
     expect(screen.queryByText('models.type.rerank')).not.toBeInTheDocument()
-    expect(screen.queryByText('models.type.free')).not.toBeInTheDocument()
-    expect(container.querySelectorAll('svg')).toHaveLength(3)
+    expect(screen.getByText('models.type.free')).toBeInTheDocument()
+    expect(container.querySelectorAll('svg')).toHaveLength(2)
   })
 
   it('renders image, audio, and video input-modality tags', () => {

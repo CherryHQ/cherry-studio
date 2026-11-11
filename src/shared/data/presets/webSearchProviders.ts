@@ -110,7 +110,7 @@ const DESKTOP_REMOTE_CAPABILITIES: Record<RemoteProviderId, readonly WebSearchCa
   zhipu: ['searchKeywords'],
   tavily: ['searchKeywords'],
   searxng: ['searchKeywords'],
-  exa: ['searchKeywords'],
+  exa: ['searchKeywords', 'fetchUrls'],
   'exa-mcp': ['searchKeywords'],
   bocha: ['searchKeywords'],
   querit: ['searchKeywords', 'fetchUrls'],

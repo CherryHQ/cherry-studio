@@ -6,10 +6,8 @@ import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { setBackupSyncState } from '@renderer/services/BackupService'
-import { notificationService } from '@renderer/services/notification'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
-import { uuid } from '@renderer/utils/uuid'
 import { AUTO_BACKUP_TYPES, type AutoBackupEvent } from '@shared/types/backup'
 
 const logger = loggerService.withContext('useAutoBackupEvents')
@@ -47,7 +45,7 @@ export function useAutoBackupEvents(): void {
     }
   })
 
-  const notify = useEffectEvent((event: AutoBackupEvent) => {
+  const notify = (event: AutoBackupEvent) => {
     const cacheKey = notificationCacheKey(event)
     if ((event.status === 'warning' || event.status === 'failed') && !cacheService.hasCasual(cacheKey)) {
       cacheService.setCasual(cacheKey, true, 24 * 60 * 60 * 1000) // 24 hours
@@ -62,31 +60,22 @@ export function useAutoBackupEvents(): void {
       void ipcApi
         .request('backup.acknowledge_auto_sync_notification', { type: event.type, id: event.id })
         .catch((error) => logger.error('Failed to acknowledge automatic backup notification', error as Error))
-    } else if (event.status === 'succeeded' && (event.type === 'webdav' || event.type === 's3')) {
-      void notificationService.send({
-        id: uuid(),
-        type: 'success',
-        title: t('common.success'),
-        message: t('message.backup.success'),
-        silent: false,
-        timestamp: event.timestamp,
-        source: 'backup'
-      })
     }
-  })
+  }
+  const notifyPending = useEffectEvent(notify)
 
   useEffect(() => {
     events.forEach((event) => {
       if (event) applyState(event)
     })
-  }, [applyState, events])
+  }, [events])
 
   useIpcOn('backup.auto_sync_state_changed', notify)
 
   useEffect(() => {
     void ipcApi
       .request('backup.get_auto_sync_state')
-      .then(({ pendingNotifications }) => pendingNotifications.forEach(notify))
+      .then(({ pendingNotifications }) => pendingNotifications.forEach(notifyPending))
       .catch((error) => logger.error('Failed to load automatic backup notifications', error as Error))
-  }, [notify])
+  }, [])
 }
