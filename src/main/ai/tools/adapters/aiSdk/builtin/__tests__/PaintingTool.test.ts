@@ -46,7 +46,11 @@ vi.mock('@logger', () => ({
 
 import { ImageResponseContractError } from '@main/ai/imageResponseContractError'
 
-import { generateImageFromPrompt, PAINTING_UNUSABLE_RESPONSE_NOTE, PAINTING_MODEL_NOT_CONFIGURED_NOTE } from '../../../../painting'
+import {
+  generateImageFromPrompt,
+  PAINTING_UNUSABLE_RESPONSE_NOTE,
+  PAINTING_MODEL_NOT_CONFIGURED_NOTE
+} from '../../../../painting'
 import { createGenerateImageToolEntry } from '../PaintingTool'
 
 const entry = createGenerateImageToolEntry()
