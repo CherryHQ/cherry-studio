@@ -1,6 +1,6 @@
 # Pi Durable agent runtime
 
-`createPiDurableRuntime` adapts Pi Durable 1.5.0 to the
+`createPiDurableRuntime` adapts Pi Durable 1.5.2 to the
 [agent runtime contracts](../agent-runtime/README.md). It owns one native `Harness`,
 its storage, conversation views, and commit observation. It does not implement
 another scheduler, submission queue, or agent loop. The

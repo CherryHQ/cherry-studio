@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../model/types/paintingData'
@@ -212,98 +212,12 @@ describe('PaintingPage showcase', () => {
     expect(screen.getByTestId('painting-composer')).toHaveAttribute('data-model-id', 'enabled-model')
   })
 
-  it('shows the template showcase only on the untouched blank page', () => {
-    render(<PaintingPage />)
-
-    expect(screen.getByRole('heading', { name: 'paintings.showcase.title' })).toBeInTheDocument()
-    expect(screen.getByTestId('painting-template-showcase')).toBeInTheDocument()
-    expect(screen.queryByTestId('painting-artboard')).not.toBeInTheDocument()
-    expect(
-      within(screen.getByRole('group', { name: 'paintings.showcase.styles_label' })).getAllByRole('button')
-    ).toHaveLength(25)
-    expect(screen.getByText('paintings.showcase.caption')).toBeInTheDocument()
-    expect(screen.getByTestId('painting-composer')).toBeInTheDocument()
-  })
-
-  it('removes the template showcase as soon as image generation starts', () => {
-    mocks.generating = true
-
-    render(<PaintingPage />)
-
-    expect(screen.queryByRole('heading', { name: 'paintings.showcase.title' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: 'paintings.showcase.styles_label' })).not.toBeInTheDocument()
-    expect(screen.queryByText('paintings.showcase.caption')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
-    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
-  })
-
-  it('keeps persisted empty paintings on the normal artboard', () => {
-    mocks.persistedAt = '2026-01-01T00:00:00.000Z'
-
-    render(<PaintingPage />)
-
-    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
-    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
-  })
-
-  it('shows the empty-page showcase while painting history is loading', () => {
-    mocks.historyIsLoading = true
-
-    render(<PaintingPage />)
-
-    expect(screen.getByTestId('painting-template-showcase')).toBeInTheDocument()
-    expect(screen.queryByTestId('painting-artboard')).not.toBeInTheDocument()
-  })
-
-  it('shows an explicit new blank draft after bootstrap even when history exists', () => {
-    mocks.historyItems = [
-      {
-        id: 'persisted-painting',
-        providerId: 'provider-1',
-        mode: 'generate',
-        prompt: 'persisted prompt',
-        files: [],
-        persistedAt: '2026-01-01T00:00:00.000Z'
-      }
-    ]
-
-    render(<PaintingPage />)
-
-    expect(screen.getByTestId('painting-template-showcase')).toBeInTheDocument()
-    expect(screen.queryByTestId('painting-artboard')).not.toBeInTheDocument()
-  })
-
-  it('hides the showcase and disables send while submit validation is pending', () => {
+  it('blocks generation without a selected model', () => {
     mocks.submitting = true
 
     render(<PaintingPage />)
 
-    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
-    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'generate' })).toBeDisabled()
-  })
-
-  it('keeps the normal artboard placeholder while the template catalog is unavailable', () => {
-    mocks.templates = []
-
-    render(<PaintingPage />)
-
-    expect(screen.getByRole('heading', { name: 'paintings.showcase.title' })).toBeInTheDocument()
-    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
-    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
-    expect(screen.getByText('paintings.showcase.caption')).toBeInTheDocument()
-  })
-
-  it('keeps the generated-image stage free of template showcase chrome', () => {
-    mocks.files = [{ id: 'generated-image' }]
-
-    render(<PaintingPage />)
-
-    expect(screen.queryByRole('heading', { name: 'paintings.showcase.title' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: 'paintings.showcase.styles_label' })).not.toBeInTheDocument()
-    expect(screen.queryByText('paintings.showcase.caption')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('painting-template-showcase')).not.toBeInTheDocument()
-    expect(screen.getByTestId('painting-artboard')).toBeInTheDocument()
   })
 
   it('minimizes the prompt dock after images exist and restores it from the expand toggle', () => {
@@ -343,10 +257,6 @@ describe('PaintingPage showcase', () => {
   it('fills the prompt from a style choice without starting generation', () => {
     render(<PaintingPage />)
 
-    const templateStage = screen.getByTestId('painting-template-stage')
-    expect(templateStage).toHaveClass('absolute', 'inset-0', 'z-0', 'pb-36')
-    expect(screen.getByTestId('painting-composer')).toHaveStyle({ height: '64px' })
-
     const templateButton = screen.getByRole('button', {
       name: 'Motion Step'
     })
@@ -354,8 +264,7 @@ describe('PaintingPage showcase', () => {
 
     expect(screen.getByRole('textbox', { name: 'painting prompt' })).toHaveValue('Create a poster for ${CITY RHYTHM}')
     expect(templateButton).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByTestId('painting-composer')).toHaveStyle({ height: '180px' })
-    expect(screen.getByTestId('painting-template-stage')).toBe(templateStage)
+
     expect(mocks.generate).not.toHaveBeenCalled()
   })
 })

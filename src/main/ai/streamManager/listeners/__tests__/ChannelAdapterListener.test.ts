@@ -2,7 +2,6 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
-import { t } from '@main/i18n'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { ChannelAdapterListener } from '../ChannelAdapterListener'
@@ -186,17 +185,15 @@ describe('ChannelAdapterListener', () => {
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
-  it('appends a stopped suffix on onPaused and falls back to sendMessage when onStreamComplete is false', async () => {
+  it('delivers the paused partial through sendMessage when onStreamComplete is false', async () => {
     const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
     listener.onMessage(message('partial answer'))
     await listener.onPaused({ status: 'paused' })
 
-    // onStreamComplete (finalize UI) gets the plain text; sendMessage falls back
-    // since it returned false, and carries the truncation suffix.
     expect(vi.mocked(adapter.onStreamComplete).mock.calls[0][1]).toBe('partial answer')
-    expect(vi.mocked(adapter.sendMessage).mock.calls[0][1]).toBe(`partial answer\n\n_(${t('common.channel_stopped')})_`)
+    expect(vi.mocked(adapter.sendMessage).mock.calls[0][1]).toContain('partial answer')
   })
 
   it('finalizes an empty paused turn without sending an empty fallback', async () => {

@@ -113,6 +113,7 @@ const DESKTOP_REMOTE_CAPABILITIES: Record<RemoteProviderId, readonly WebSearchCa
   exa: ['searchKeywords', 'fetchUrls'],
   'exa-mcp': ['searchKeywords'],
   bocha: ['searchKeywords'],
+  stepfun: ['searchKeywords'],
   querit: ['searchKeywords', 'fetchUrls'],
   jina: ['searchKeywords', 'fetchUrls'],
   firecrawl: ['searchKeywords', 'fetchUrls'],
