@@ -239,9 +239,10 @@ export function AssistantLibraryDialog({
           </div>
 
           <ScrollArea
+            contentProps={{ className: 'px-5 pt-4 pb-1' }}
             type="auto"
             className="min-h-0 flex-1"
-            viewportProps={{ ref: listScrollRef, 'aria-busy': isLoading || undefined, className: 'px-5 pt-4 pb-1' }}>
+            viewportProps={{ ref: listScrollRef, 'aria-busy': isLoading || undefined }}>
             {isLoading ? (
               <AssistantLibraryPresetListSkeleton />
             ) : visiblePresets.length === 0 ? (
