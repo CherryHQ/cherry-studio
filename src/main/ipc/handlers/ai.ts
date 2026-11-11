@@ -4,6 +4,7 @@ import { application } from '@application'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
@@ -365,5 +366,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       const approved = application.get('AgentJobsService').approveTaskGuardCommand(agentId, taskId, expectedCommand)
       if (!approved) throw agentTaskNotFound(taskId)
       return approved
-    })
+    }),
+  'ai.temporary_topic.create': async (dto) => temporaryChatService.createTopic(dto),
+  'ai.temporary_topic.delete': async ({ id }) => {
+    temporaryChatService.deleteTopic(id)
+  },
+  'ai.temporary_topic.persist': async ({ id }) => {
+    temporaryChatService.persist(id)
+  }
 }

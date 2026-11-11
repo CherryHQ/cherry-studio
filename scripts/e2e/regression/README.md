@@ -53,6 +53,8 @@ pipe before falling back to verified process-tree termination.
 macOS multi-file selection uses the same version-aware panel driver as single-file
 selection. It accepts only the complete contents of one isolated fixture directory,
 so Select All cannot import an unrequested file. Native fixtures verify the returned paths.
+Both supported macOS panel layouts use bounded stage checks and one Enter to commit
+the path; the adapter waits for the sheet to close before accepting the panel.
 
 Windows development notification checks keep `APPDATA` isolated. The controller prepares
 the required shell directories and copies the SDK-generated shortcut into the real Start Menu
@@ -95,6 +97,8 @@ do not need it. Restarting preserves the owned application's profile. On Windows
 for normal shutdown so persistence tests do not simulate a forced crash. A shutdown
 timeout fails the stop or restart; it does not force termination and launch a replacement.
 An already-exited launch is cleaned up with the same ownership checks before its replacement starts.
+On macOS, unidentified shutdown helpers receive up to 30 seconds to exit naturally;
+the controller never signals an unverified process to make cleanup pass.
 Branch launches invoke the checkout's dotenv and electron-vite entry points through Node,
 so package-manager subprocesses cannot escape the owned process group. Each profile sets
 `CS_DEV_PROFILE_ROOT` inside the run directory to isolate boot configuration, migration
