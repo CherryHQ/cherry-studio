@@ -856,6 +856,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       firstDifferingIndex: 1,
       bundledTag: 'second'
     })
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
   })
 
   it('reports an extra applied migration and sanitizes untrusted metadata', async () => {
@@ -879,6 +880,54 @@ describe('BackupManager direct v2 data compatibility', () => {
       backupPlatform: null,
       backupArch: null
     })
+  })
+
+  it.each([
+    ['Unicode', '2.0.0版本', '平台', '架构'],
+    ['overlength', `2${'a'.repeat(64)}`, 'a'.repeat(33), 'a'.repeat(33)]
+  ])('removes %s metadata from the mismatch payload', async (_name, appVersion, platform, arch) => {
+    arrangeDirectRestore({
+      ...metadata,
+      appVersion,
+      platform: platform as typeof process.platform,
+      arch: arch as typeof process.arch
+    })
+    vi.mocked(readMigrationFiles).mockReturnValueOnce([{ folderMillis: 1, hash: 'a' }] as never)
+    const error = await (backupManager as any).restoreDirect('/extract').catch((e: Error) => e)
+    expect(JSON.parse(error.message.slice('BACKUP_MIGRATION_MISMATCH:'.length))).toMatchObject({
+      backupAppVersion: null,
+      backupPlatform: null,
+      backupArch: null,
+      appliedCount: 1,
+      bundledCount: 1,
+      firstDifferingIndex: 0,
+      reason: 'hash'
+    })
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+  })
+
+  it.each(['unreadable', 'invalid'])('preserves mismatch details when the bundled tag is %s', async (condition) => {
+    arrangeDirectRestore()
+    vi.mocked(readMigrationFiles).mockReturnValueOnce([{ folderMillis: 1, hash: 'a' }] as never)
+    if (condition === 'unreadable') {
+      vi.mocked(fs.readJsonSync).mockImplementationOnce(() => {
+        throw new Error('unreadable')
+      })
+    } else {
+      vi.mocked(fs.readJsonSync).mockReturnValueOnce({ entries: [{ when: 1, tag: 'invalid tag' }] })
+    }
+    const error = await (backupManager as any).restoreDirect('/extract').catch((e: Error) => e)
+    expect(JSON.parse(error.message.slice('BACKUP_MIGRATION_MISMATCH:'.length))).toMatchObject({
+      backupAppVersion: metadata.appVersion,
+      backupPlatform: metadata.platform,
+      backupArch: metadata.arch,
+      appliedCount: 1,
+      bundledCount: 1,
+      firstDifferingIndex: 0,
+      reason: 'hash',
+      bundledTag: null
+    })
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
   })
 
   it.each([1, 2])('admits a matching chain of %i bundled entries', async (count) => {

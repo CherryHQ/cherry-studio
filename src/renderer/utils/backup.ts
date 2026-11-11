@@ -11,7 +11,9 @@ import {
   BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE
 } from '@shared/types/backup'
 
-const mismatchMarker = new RegExp(`(?<![A-Za-z0-9_])${BACKUP_MIGRATION_MISMATCH_ERROR_CODE}(?![A-Za-z0-9_])`)
+const mismatchMarker = new RegExp(
+  `^(?:Error invoking remote method(?: '[^']*')?: (?:Error: )?)?${BACKUP_MIGRATION_MISMATCH_ERROR_CODE}(?![A-Za-z0-9_])`
+)
 const mismatchKeys = [
   'v',
   'backupAppVersion',
@@ -32,7 +34,9 @@ function parseMismatch(message: string): BackupMigrationMismatchDetails | null {
   const end = tail.indexOf('}')
   if (!tail.startsWith(':') || end < 0) return null
   try {
-    const value: unknown = JSON.parse(tail.slice(1, end + 1))
+    const payload = tail.slice(1, end + 1)
+    if (new TextEncoder().encode(payload).length > 2048) return null
+    const value: unknown = JSON.parse(payload)
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null
     const data = value as Record<string, unknown>
     if (Object.keys(data).length !== mismatchKeys.length || !mismatchKeys.every((key) => Object.hasOwn(data, key)))
@@ -132,6 +136,10 @@ function resolveBackupErrorKey(error: unknown): string | null {
   return null
 }
 
+export function isBackupMigrationMismatch(error: unknown): boolean {
+  return error instanceof Error && mismatchMarker.test(error.message)
+}
+
 export function getLocalizedBackupErrorMessage(
   error: unknown,
   fallbackKey: BackupErrorFallbackKey = 'message.backup.failed',
@@ -143,7 +151,7 @@ export function getLocalizedBackupErrorMessage(
       ? error.code
       : undefined
 
-  if (mismatchMarker.test(errorMessage)) {
+  if (isBackupMigrationMismatch(error)) {
     const details = parseMismatch(errorMessage)
     if (!details) return i18n.t('backup.error.migration_mismatch')
     const unknown = i18n.t('common.unknown')
@@ -201,6 +209,6 @@ export function getLocalizedBackupErrorMessage(
 }
 
 export function getBackupErrorTitleKey(error: unknown): string {
-  if (error instanceof Error && mismatchMarker.test(error.message)) return 'backup.error.migration_mismatch_title'
+  if (isBackupMigrationMismatch(error)) return 'backup.error.migration_mismatch_title'
   return resolveBackupErrorKey(error) ?? 'error.backup.file_format'
 }

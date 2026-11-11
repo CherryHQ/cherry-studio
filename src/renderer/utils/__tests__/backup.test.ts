@@ -8,7 +8,7 @@ import {
   BACKUP_DISK_FULL_ERROR_CODE
 } from '@shared/types/backup'
 
-import { getBackupErrorTitleKey, getLocalizedBackupErrorMessage } from '../backup'
+import { getBackupErrorTitleKey, getLocalizedBackupErrorMessage, isBackupMigrationMismatch } from '../backup'
 
 const mocks = vi.hoisted(() => ({
   t: vi.fn((key: string, options?: { available?: string }) =>
@@ -246,6 +246,44 @@ describe('migration mismatch diagnostics', () => {
     const error = new Error(`${marker}${suffix} BACKUP_NEWER_VERSION`)
     expect(getLocalizedBackupErrorMessage(error)).toBe('localized:backup.error.migration_mismatch')
     expect(getBackupErrorTitleKey(error)).toBe('backup.error.migration_mismatch_title')
+  })
+
+  it('recognizes only a mismatch code at the start or immediately after the IPC wrapper', () => {
+    const mismatch = new Error(`Error invoking remote method 'backup:restore': ${marker}:${JSON.stringify(payload)}`)
+    expect(isBackupMigrationMismatch(mismatch)).toBe(true)
+    expect(getBackupErrorTitleKey(mismatch)).toBe('backup.error.migration_mismatch_title')
+
+    const pathError = new Error("ENOENT: no such file or directory, open '/tmp/BACKUP_MIGRATION_MISMATCH.zip'")
+    const newer = new Error(
+      'BACKUP_NEWER_VERSION: This backup was created by a newer version of Cherry Studio (backup version BACKUP_MIGRATION_MISMATCH) ...'
+    )
+    expect(isBackupMigrationMismatch(pathError)).toBe(false)
+    expect(getLocalizedBackupErrorMessage(pathError)).toBe('localized:message.backup.failed')
+    expect(isBackupMigrationMismatch(newer)).toBe(false)
+    expect(getLocalizedBackupErrorMessage(newer)).toBe('localized:backup.error.newer_version')
+  })
+
+  it('rejects a payload exceeding the UTF-8 byte budget even when it fits in the character limit', () => {
+    const json = `{"backupArch":"${'界'.repeat(700)}",${JSON.stringify(payload).slice(1)}`
+    expect(json.length).toBeLessThan(2048)
+    expect(new TextEncoder().encode(json).length).toBeGreaterThan(2048)
+    expect(getLocalizedBackupErrorMessage(new Error(`${marker}:${json}`))).toBe(
+      'localized:backup.error.migration_mismatch'
+    )
+  })
+
+  it('renders an unknown bundled tag when all other details are valid', async () => {
+    const instance = createInstance()
+    await instance.init({
+      lng: 'en',
+      resources: { en: { translation: en } },
+      keySeparator: false,
+      interpolation: { escapeValue: false }
+    })
+    mocks.t.mockImplementation(instance.t.bind(instance))
+    expect(getLocalizedBackupErrorMessage(wrapped({ ...payload, bundledTag: null }))).toContain(
+      "First difference: entry 2, this build's migration Unknown; SQL checksum differs"
+    )
   })
 
   it('does not recognize a lookalike marker', () => {
