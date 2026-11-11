@@ -42,7 +42,7 @@ import { getFileTypeByExt } from '@shared/utils/file'
 import type { AttachmentBudget } from './attachmentBudget'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
 import { runAttachmentWorker } from './attachmentWorkerClient'
-import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
+import { collectComposerFileTokenIds, getNoteSourcePath, isActiveManagedFilePart } from './composerFileParts'
 import { materializeNativeFilePart } from './fileProcessor'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
@@ -114,12 +114,12 @@ export function collectFileAttachments(messages: UIMessage[] | undefined): FileA
       if (!isActiveManagedFilePart(part, composerFileTokenIds)) continue
       const displayName = part.filename ?? 'file'
       const handle = uniqueHandle(displayName.trim() || 'file', used)
-      const meta = readCherryMeta(part)
+      const noteSourcePath = getNoteSourcePath(part)
       refs.push({
         fileEntryId,
         handle,
         displayName,
-        ...(meta?.noteReference === true && meta.originalPath ? { noteSourcePath: meta.originalPath } : {})
+        ...(noteSourcePath ? { noteSourcePath } : {})
       })
     }
   }
@@ -271,7 +271,14 @@ async function prepareChatMessage<T extends UIMessage>(
       continue
     }
 
-    if (readCherryMeta(part)?.noteReference === true) continue
+    if (readCherryMeta(part)?.noteReference === true) {
+      const handle = ctx.attachments.find((a) => a.fileEntryId === fileEntryId)?.handle ?? part.filename ?? 'file'
+      kept.push({
+        type: 'text',
+        text: `Referenced note ${JSON.stringify(handle)} (source file; current content is provided in the latest turn)`
+      })
+      continue
+    }
 
     // This is the eager (every-turn, whole-history) path, so any failure here —
     // missing/deleted entry, parse error, failed native

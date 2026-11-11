@@ -39,6 +39,7 @@ vi.mock('@main/ai/messages/attachmentTextExtraction', () => ({
 
 import type { UIMessage } from 'ai'
 
+import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { ReadFileInput } from '@shared/ai/builtinTools'
@@ -265,4 +266,39 @@ it('paginates rewritten bytes from a real marked note', async () => {
       nextOffset: 5
     })
   }
+})
+
+it('reads the live note through the native assistant attachment allow-list and reports deletion', async () => {
+  notesRoot = await mkdtemp(path.join(tmpdir(), 'assistant-note-read-'))
+  const source = path.join(notesRoot, 'note.md')
+  vi.mocked(application.getPath).mockReturnValue(notesRoot)
+  const actual = await vi.importActual<typeof NotesDirectory>('@main/services/notesDirectory')
+  readNoteMock.mockImplementation(actual.readNoteSource)
+  const messages = [
+    {
+      id: 'm',
+      role: 'user',
+      parts: [
+        {
+          type: 'file',
+          url: 'file:///snapshot/note.md',
+          filename: 'note.md',
+          mediaType: 'text/markdown',
+          providerMetadata: { cherry: { fileEntryId: 'e1', noteReference: true, originalPath: source } }
+        }
+      ]
+    }
+  ] as UIMessage[]
+  const attachments = collectAssistantFileAttachments(messages)
+  const handle = attachments[0].handle
+  await writeFile(source, 'updated source')
+  expect(await readFile(input({ filename: handle }), ctx(attachments))).toEqual({
+    text: 'updated source',
+    totalChars: 14
+  })
+  await rm(source)
+  expect(await readFile(input({ filename: handle }), ctx(attachments))).toEqual({
+    text: `Could not read note "${handle}": missing`,
+    totalChars: `Could not read note "${handle}": missing`.length
+  })
 })

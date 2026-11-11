@@ -151,7 +151,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.sending = true
     this.failure = undefined
     this.turnUsage.reset()
-    const text = buildAgentUserContent(input.message)
+    const text = await buildAgentUserContent(input.message)
     if (!input.systemReminder && /^\/compact(?:\s|$)/.test(text.trim())) {
       this.compacting = true
       this.events.push({ type: 'compaction-start', trigger: 'manual' })
@@ -194,9 +194,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   redirect(input: AgentRuntimeCommand): boolean {
     if (!this.active || this.closing) return false
     this.steers.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message)), 'steer').catch((error) =>
-      this.fail(error)
-    )
+    void buildAgentUserContent(input.message)
+      .then((content) => this.submit(input, wrapSteerReminder(content), 'steer'))
+      .catch((error) => this.fail(error))
     return true
   }
 

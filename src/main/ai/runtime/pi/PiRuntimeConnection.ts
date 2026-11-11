@@ -385,7 +385,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.sending = true
     this.failure = undefined
     this.turnUsage.reset()
-    const content = buildAgentUserContent(input.message)
+    const content = await buildAgentUserContent(input.message)
     const command = input.systemReminder ? undefined : parseManualCompactCommand(content)
     if (command) {
       this.manualCompactInFlight = true
@@ -411,11 +411,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   redirect(input: AgentRuntimeCommand): boolean {
     if (!this.active || this.closing) return false
     this.pendingSteers.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message)), 'steer').catch((error) => {
-      this.pendingSteers.delete(input.message.id)
-      this.failure = error
-      this.eventQueue.push({ type: 'error', error })
-    })
+    void buildAgentUserContent(input.message)
+      .then((content) => this.submit(input, wrapSteerReminder(content), 'steer'))
+      .catch((error) => {
+        this.pendingSteers.delete(input.message.id)
+        this.failure = error
+        this.eventQueue.push({ type: 'error', error })
+      })
     return true
   }
 

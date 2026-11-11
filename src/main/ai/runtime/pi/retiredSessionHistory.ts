@@ -94,7 +94,7 @@ async function importHistory(sessionId: string): Promise<void> {
       excludedMessageIds.push(row.id)
       continue
     }
-    const content = buildAgentUserContent({
+    const content = await buildAgentUserContent({
       ...row,
       role: row.role as AgentSessionMessageEntity['role'],
       status: row.status as AgentSessionMessageEntity['status'],

@@ -535,3 +535,22 @@ it('reads rewritten note bytes from the real notes directory on each request', a
     expect(textOf(out.parts).join('\n')).toContain(content)
   }
 })
+
+it('keeps a note-only historical turn nonempty and places current content only in the latest turn', async () => {
+  const note = {
+    ...fileWithEntry('e1', 'note.md', 'text/markdown'),
+    providerMetadata: { cherry: { fileEntryId: 'e1', noteReference: true, originalPath: '/notes/note.md' } }
+  }
+  const messages = [userMessage([note]), userMessage([{ type: 'text', text: 'next' }])] as UIMessage[]
+  readNoteMock.mockResolvedValueOnce({ ok: true, path: '/notes/note.md', text: 'CURRENT BODY' })
+  const out = await prepareChatMessages(messages, {
+    attachments: collectFileAttachments(messages),
+    nativeSupport: NONE,
+    isToolCapable: true
+  })
+  expect(out[0].parts).toEqual([
+    { type: 'text', text: 'Referenced note "note.md" (source file; current content is provided in the latest turn)' }
+  ])
+  expect(JSON.stringify(out[0].parts)).not.toContain('CURRENT BODY')
+  expect(JSON.stringify(out[1].parts)).toContain('CURRENT BODY')
+})
