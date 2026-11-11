@@ -1,3 +1,4 @@
+import i18next from 'i18next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
@@ -5,9 +6,16 @@ import enUS from '@renderer/i18n/locales/en-us.json'
 vi.mock('@renderer/services/toast', (importOriginal) => importOriginal())
 vi.mock('@cherrystudio/ui', async () => import('@cherrystudio/ui/components/primitives/toast'))
 
-vi.mock('@renderer/i18n/resolver', () => ({
-  default: { t: (key: string) => enUS[key as keyof typeof enUS] ?? key }
-}))
+vi.mock('@renderer/i18n/resolver', async () => {
+  const instance = i18next.createInstance()
+  await instance.init({
+    lng: 'en-US',
+    resources: { 'en-US': { translation: enUS } },
+    keySeparator: false,
+    interpolation: { escapeValue: false }
+  })
+  return { default: instance }
+})
 
 import { toast } from '../toast'
 
@@ -66,4 +74,62 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
   expect(shown.action?.label).toBe(enUS['toast.error.retry'])
   await shown.action!.onClick()
   expect(retry).toHaveBeenCalledOnce()
+})
+
+const mismatch = {
+  name: 'ClaudeCodeBranchRuntimeMismatchError',
+  message: 'The selected branch belongs to another runtime backend',
+  stack: 'at prepareClaudeBranch',
+  i18nKey: 'claude_code_branch_runtime_mismatch',
+  detailI18nKey: 'claude_code_branch_runtime_mismatch_detail',
+  streamStage: 'response-stream'
+}
+
+it('shows the localized branch mismatch without a retry or internal details', () => {
+  const key = toast.errorFromException(mismatch, {
+    provider: { id: 'test', name: 'Provider' },
+    modelName: 'Model',
+    actions: { retry: vi.fn() }
+  })
+  const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+  expect(shown).toMatchObject({
+    type: 'error',
+    title: 'This conversation branch cannot continue with the current agent settings.',
+    details:
+      'This branch was created with a different agent type or settings. Start a new conversation, or restore the original agent and settings. This is not a network problem.',
+    description: 'Provider · Model',
+    action: undefined
+  })
+  expect(shown.title).not.toBe(enUS['error.diagnosis.stream'])
+  expect(shown.title).not.toBe(enUS['error.diagnosis.network'])
+  expect(JSON.stringify([shown.title, shown.description, shown.details])).not.toMatch(
+    /another runtime backend|ClaudeCodeBranchRuntimeMismatchError|at prepareClaudeBranch/
+  )
+})
+
+it('does not expose raw details when the detail key is missing', () => {
+  const key = toast.errorFromException({ ...mismatch, detailI18nKey: 'nonexistent_detail' })
+  expect(toast.getToastQueue().toasts.find((item) => item.key === key)?.details).toBeUndefined()
+})
+
+it.each([
+  'nonexistent_key',
+  '',
+  'claude_code_session_bus_missing',
+  'missing_finish_reason',
+  'image_unreadable_for_non_vision_model'
+])('preserves existing toast behavior for %s', (i18nKey) => {
+  const key = toast.errorFromException({ ...mismatch, i18nKey })
+  const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+  expect(shown.title).toBe(i18nKey ? mismatch.message : enUS['error.diagnosis.stream'])
+  expect(shown.details).toBe(i18nKey ? undefined : mismatch.message)
+  expect(shown.action).toBeUndefined()
+})
+
+it('preserves existing behavior for a non-string i18n key', () => {
+  const key = toast.errorFromException({ ...mismatch, i18nKey: 42 }, { actions: { retry: vi.fn() } })
+  const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+  expect(shown.title).toBe(mismatch.message)
+  expect(shown.details).toBeUndefined()
+  expect(shown.action).toBeUndefined()
 })

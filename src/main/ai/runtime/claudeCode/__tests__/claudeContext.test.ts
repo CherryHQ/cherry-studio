@@ -13,7 +13,9 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 
-import { prepareClaudeBranch, reserveClaudeBranchTx } from '../claudeContext'
+import { preparePiBranch } from '../../pi/piContext'
+import { prepareDurableBranch } from '../../piDurable/durableContext'
+import { ClaudeCodeBranchRuntimeMismatchError, prepareClaudeBranch, reserveClaudeBranchTx } from '../claudeContext'
 
 const dbh = setupTestDatabase()
 let sessionId: string
@@ -34,7 +36,17 @@ it('reuses a reserved Claude identity only within its captured backend', () => {
   expect(context.bindingState).toBe('pending')
   expect(context.nativeThreadId).toBeTruthy()
   expect(prepareClaudeBranch(sessionId, '/test/claude').id).toBe(context.id)
-  expect(() => prepareClaudeBranch(sessionId, '/test/another-config')).toThrow('another runtime backend')
+  try {
+    prepareClaudeBranch(sessionId, '/test/another-config')
+    expect.fail('Expected a runtime mismatch')
+  } catch (error) {
+    expect(error).toBeInstanceOf(ClaudeCodeBranchRuntimeMismatchError)
+    expect(error).toMatchObject({
+      name: 'ClaudeCodeBranchRuntimeMismatchError',
+      i18nKey: 'claude_code_branch_runtime_mismatch',
+      detailI18nKey: 'claude_code_branch_runtime_mismatch_detail'
+    })
+  }
   expect(sessionContexts().map((row) => row.id)).toEqual([context.id])
   expect(
     dbh.db
@@ -77,4 +89,22 @@ it('rolls back an edit binding with its message metadata and then captures the s
     bindingState: 'pending'
   })
   expect(contexts.context(original.id).nativeThreadId).toBe(original.nativeThreadId)
+})
+
+it.each([
+  ['Pi', preparePiBranch],
+  ['Pi durable', prepareDurableBranch]
+])('rejects a %s branch without changing its ownership', (_kind, prepare) => {
+  const context = prepare(sessionId)
+  const beforeContexts = sessionContexts()
+  const beforeBackends = dbh.db.select().from(agentRuntimeBackendTable).all()
+  try {
+    prepareClaudeBranch(sessionId, '/test/claude')
+    expect.fail('Expected a runtime mismatch')
+  } catch (error) {
+    expect(error).toBeInstanceOf(ClaudeCodeBranchRuntimeMismatchError)
+  }
+  expect(sessionContexts()).toEqual(beforeContexts)
+  expect(dbh.db.select().from(agentRuntimeBackendTable).all()).toEqual(beforeBackends)
+  expect(contexts.context(context.id).backendId).toBe(context.backendId)
 })

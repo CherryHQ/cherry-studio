@@ -1504,6 +1504,8 @@
   "error.chat.no_api_key": "Sie haben keinen API-Schlüssel konfiguriert. Bitte gehen Sie zu <provider>{{provider}}</provider>, um einen API-Schlüssel zu erhalten",
   "error.chat.quota_exceeded": "Ihr tägliches kostenloses Kontingent von {{quota}} ist aufgebraucht. Rufen Sie <provider>{{provider}}</provider> auf, beziehen Sie einen API-Schlüssel und konfigurieren Sie ihn, um den Dienst weiter zu nutzen.",
   "error.chat.response": "Ein Fehler ist aufgetreten. Falls kein API-Schlüssel konfiguriert ist, gehen Sie bitte zu Einstellungen > Modellanbieter, um einen Schlüssel zu konfigurieren",
+  "error.claude_code_branch_runtime_mismatch": "Dieser Gesprächszweig kann mit den aktuellen Agenteneinstellungen nicht fortgesetzt werden.",
+  "error.claude_code_branch_runtime_mismatch_detail": "Dieser Zweig wurde mit einem anderen Agententyp oder anderen Einstellungen erstellt. Starten Sie eine neue Unterhaltung oder stellen Sie den ursprünglichen Agenten und seine Einstellungen wieder her. Dies ist kein Netzwerkproblem.",
   "error.claude_code_exit.code": "Claude Code wurde unerwartet beendet (Code {{code}}). Diagnosereferenz: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code wurde unerwartet gestoppt (Signal {{signal}}). Diagnosereferenz: {{reference}}",
   "error.claude_code_exit.start": "Claude Code konnte nicht gestartet werden. Diagnosereferenz: {{reference}}",

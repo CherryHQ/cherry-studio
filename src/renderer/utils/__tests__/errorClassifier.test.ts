@@ -926,3 +926,12 @@ it('uses the terminal structured quota identity ahead of copied retry text, pres
   ])
   expect(classifyError(unmarkedTerminal).category).toBe('rate_limit')
 })
+
+it('classifies the app-owned mismatch separately from a response stream interruption', () => {
+  const error = makeError({
+    message: 'The selected branch belongs to another runtime backend',
+    streamStage: 'response-stream'
+  })
+  expect(classifyError({ ...error, i18nKey: 'claude_code_branch_runtime_mismatch' }).category).toBe('unknown')
+  expect(classifyError(error).category).toBe('stream')
+})

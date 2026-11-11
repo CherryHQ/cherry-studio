@@ -1504,6 +1504,8 @@
   "error.chat.no_api_key": "Vous n'avez pas configuré de clé API. Veuillez vous rendre sur <provider>{{provider}}</provider> pour obtenir une clé API.",
   "error.chat.quota_exceeded": "Votre quota gratuit quotidien de {{quota}} tokens a été épuisé. Veuillez vous rendre sur <provider>{{provider}}</provider> pour obtenir une clé API et configurer la clé API pour continuer à utiliser.",
   "error.chat.response": "Une erreur s'est produite, si l'API n'est pas configurée, veuillez aller dans Paramètres > Fournisseurs de modèles pour configurer la clé",
+  "error.claude_code_branch_runtime_mismatch": "Cette branche de conversation ne peut pas continuer avec les paramètres actuels de l’agent.",
+  "error.claude_code_branch_runtime_mismatch_detail": "Cette branche a été créée avec un autre type d’agent ou d’autres paramètres. Démarrez une nouvelle conversation ou restaurez l’agent et les paramètres d’origine. Ce n’est pas un problème de réseau.",
   "error.claude_code_exit.code": "Claude Code s'est arrêté de manière inattendue (code {{code}}). Référence de diagnostic : {{reference}}",
   "error.claude_code_exit.signal": "Claude Code a été interrompu de manière inattendue (signal {{signal}}). Référence de diagnostic : {{reference}}",
   "error.claude_code_exit.start": "Claude Code n'a pas pu démarrer. Référence de diagnostic : {{reference}}",

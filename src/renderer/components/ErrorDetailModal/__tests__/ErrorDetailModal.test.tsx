@@ -112,6 +112,10 @@ const translations: Record<string, string> = {
   'common.none': 'None',
   'common.retry': 'Retry',
   'error.detail': 'Error Details',
+  'error.claude_code_branch_runtime_mismatch':
+    'This conversation branch cannot continue with the current agent settings.',
+  'error.claude_code_branch_runtime_mismatch_detail':
+    'This branch was created with a different agent type or settings. Start a new conversation, or restore the original agent and settings. This is not a network problem.',
   'error.diagnosis.view_details': 'View Details',
   'error.diagnostic_report.action': 'Report a problem',
   'error.diagnostic_report.location': 'Location',
@@ -346,6 +350,46 @@ describe('ErrorDetailContent diagnostics', () => {
     const trigger = button.closest('[data-slot="tooltip-trigger"]')
     fireEvent.pointerMove(trigger as HTMLElement, { pointerType: 'mouse' })
     expect(await screen.findByRole('tooltip', { name: label })).toHaveTextContent(label)
+  })
+
+  it('keeps branch mismatch internals out of details, copies and the report', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+    const onOpenDiagnosticReport = vi.fn()
+    const raw = 'The selected branch belongs to another runtime backend'
+    const stack = 'at prepareClaudeBranch'
+    const title = translations['error.claude_code_branch_runtime_mismatch']
+    const detail = translations['error.claude_code_branch_runtime_mismatch_detail']
+    renderErrorDetailContent({
+      error: {
+        name: 'ClaudeCodeBranchRuntimeMismatchError',
+        message: raw,
+        stack,
+        i18nKey: 'claude_code_branch_runtime_mismatch',
+        detailI18nKey: 'claude_code_branch_runtime_mismatch_detail'
+      },
+      localizedErrorMessage: raw,
+      diagnosticReport: { location: 'home' },
+      onOpenDiagnosticReport
+    })
+    expect(document.body).toHaveTextContent(title)
+    expect(document.body).toHaveTextContent(detail)
+    expect(document.body).not.toHaveTextContent(raw)
+    expect(screen.queryByRole('region', { name: 'Diagnostic result' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'AI consultation' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
+    expect(onOpenDiagnosticReport.mock.calls[0][0]).toContain(title)
+    expect(onOpenDiagnosticReport.mock.calls[0][0]).not.toMatch(/another runtime backend|at prepareClaudeBranch/)
+    await user.click(screen.getByRole('button', { name: 'Copy' }))
+    expect(writeText.mock.calls[0][0]).toContain(detail)
+    expect(writeText.mock.calls[0][0]).not.toMatch(/another runtime backend|at prepareClaudeBranch/)
+    await user.click(screen.getByRole('button', { name: 'View Details' }))
+    expect(document.body).not.toHaveTextContent(raw)
+    expect(document.body).not.toHaveTextContent(stack)
+    const buttons = screen.getAllByRole('button', { name: 'Copy' })
+    await user.click(buttons[buttons.length - 1])
+    expect(writeText.mock.calls[1][0]).toContain(detail)
+    expect(writeText.mock.calls[1][0]).not.toMatch(/another runtime backend|at prepareClaudeBranch/)
   })
 
   it('shows compact basic information and copies the unchanged error text', async () => {

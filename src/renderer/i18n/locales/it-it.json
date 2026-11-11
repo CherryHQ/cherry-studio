@@ -1504,6 +1504,8 @@
   "error.chat.no_api_key": "Non hai configurato una chiave API. Vai su <provider>{{provider}}</provider> per ottenerne una.",
   "error.chat.quota_exceeded": "Hai esaurito la quota gratuita giornaliera di {{quota}}. Vai su <provider>{{provider}}</provider> per ottenere e configurare una chiave API e continuare a usare il servizio.",
   "error.chat.response": "Si è verificato un errore. Verifica di aver impostato la chiave API in Impostazioni > Fornitori",
+  "error.claude_code_branch_runtime_mismatch": "Questo ramo della conversazione non può continuare con le impostazioni attuali dell’agente.",
+  "error.claude_code_branch_runtime_mismatch_detail": "Questo ramo è stato creato con un tipo di agente o impostazioni diversi. Avvia una nuova conversazione oppure ripristina l’agente e le impostazioni originali. Non si tratta di un problema di rete.",
   "error.claude_code_exit.code": "Claude Code si è chiuso in modo imprevisto (codice {{code}}). Riferimento diagnostico: {{reference}}",
   "error.claude_code_exit.signal": "Claude Code si è arrestato in modo imprevisto (segnale {{signal}}). Riferimento diagnostico: {{reference}}",
   "error.claude_code_exit.start": "Impossibile avviare Claude Code. Riferimento diagnostico: {{reference}}",

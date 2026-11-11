@@ -1504,6 +1504,8 @@
   "error.chat.no_api_key": "您未配置 API 密钥，请前往 <provider>{{provider}}</provider> 获取API密钥",
   "error.chat.quota_exceeded": "您今日的 {{quota}} 免费配额已用尽，请前往 <provider>{{provider}}</provider> 获取并配置 API 密钥后继续使用",
   "error.chat.response": "出错了，如果没有配置 API 密钥，请前往设置 > 模型提供商中配置密钥",
+  "error.claude_code_branch_runtime_mismatch": "当前智能体设置无法继续此会话分支。",
+  "error.claude_code_branch_runtime_mismatch_detail": "此分支由其他类型的智能体或不同设置创建。请新建会话，或恢复原来的智能体和设置。这不是网络问题。",
   "error.claude_code_exit.code": "Claude Code 意外退出（代码 {{code}}）。诊断参考号：{{reference}}",
   "error.claude_code_exit.signal": "Claude Code 意外停止（信号 {{signal}}）。诊断参考号：{{reference}}",
   "error.claude_code_exit.start": "Claude Code 无法启动。诊断参考号：{{reference}}",

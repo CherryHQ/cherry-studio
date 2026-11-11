@@ -55,8 +55,8 @@ vi.mock('react-i18next', () => ({
         React.cloneElement(components.provider, undefined, values?.provider)}
     </>
   ),
-  useTranslation: () => ({
-    t: (key: string, options?: Record<string, string>) => {
+  useTranslation: () => {
+    const t = (key: string, options?: Record<string, string>) => {
       let translation = mocks.translations.get(key) ?? key
       if (options) {
         for (const [k, v] of Object.entries(options)) {
@@ -64,12 +64,16 @@ vi.mock('react-i18next', () => ({
         }
       }
       return translation
-    },
-    i18n: {
-      language: mocks.language,
-      exists: (key: string) => mocks.i18nKeys.has(key)
     }
-  })
+    return {
+      t,
+      i18n: {
+        language: mocks.language,
+        exists: (key: string) => mocks.i18nKeys.has(key),
+        t
+      }
+    }
+  }
 }))
 
 vi.mock('../../MessageListProvider', () => ({
@@ -763,4 +767,42 @@ required service tier.`
     fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
+})
+
+it.each([
+  [
+    'en-US',
+    enUS,
+    'This conversation branch cannot continue with the current agent settings.',
+    'This branch was created with a different agent type or settings. Start a new conversation, or restore the original agent and settings. This is not a network problem.'
+  ],
+  [
+    'zh-CN',
+    zhCN,
+    '当前智能体设置无法继续此会话分支。',
+    '此分支由其他类型的智能体或不同设置创建。请新建会话，或恢复原来的智能体和设置。这不是网络问题。'
+  ]
+] as const)('shows the localized branch mismatch in %s', (language, catalog, title, detail) => {
+  mocks.language = language
+  mocks.translations = new Map(Object.entries(catalog))
+  mocks.i18nKeys = new Set(Object.keys(catalog))
+  const raw = 'The selected branch belongs to another runtime backend'
+  const { container } = render(
+    <ErrorBlock
+      partId="part"
+      message={message}
+      error={{
+        name: 'ClaudeCodeBranchRuntimeMismatchError',
+        message: raw,
+        stack: null,
+        providerId: 'openai',
+        streamStage: 'response-stream',
+        i18nKey: 'claude_code_branch_runtime_mismatch',
+        detailI18nKey: 'claude_code_branch_runtime_mismatch_detail'
+      }}
+    />
+  )
+  expect(container).toHaveTextContent(title)
+  expect(container).toHaveTextContent(detail)
+  expect(container).not.toHaveTextContent(raw)
 })
