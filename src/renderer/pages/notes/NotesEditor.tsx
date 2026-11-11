@@ -15,6 +15,8 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { toast } from '@renderer/services/toast'
 import { readTextAloud, voiceTargetManager } from '@renderer/services/voice'
 import type { EditorView } from '@renderer/types/app'
+import { resolveNoteImageSrc } from '@renderer/utils/filePath'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const logger = loggerService.withContext('NotesEditor')
 // Hides the toolbar button and the slash-menu entry only. Image *paste* stays enabled: notes have
@@ -40,6 +42,8 @@ export function NotesEditorLoading({ label }: { label: string }) {
 
 interface NotesEditorProps {
   activeNodeId?: string
+  /** File the note is read from; relative image destinations resolve against its folder. */
+  notePath?: AbsoluteFilePath
   voiceNoteId?: string
   currentContent: string
   readOnly?: boolean
@@ -54,6 +58,7 @@ interface NotesEditorProps {
 const NotesEditor: FC<NotesEditorProps> = memo(
   ({
     activeNodeId,
+    notePath,
     voiceNoteId,
     currentContent,
     readOnly = false,
@@ -75,6 +80,10 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       }
     }, [settings.defaultEditMode, settings.defaultViewMode])
     const [tmpViewMode, setTmpViewMode] = useState(currentViewMode)
+    const resolveImageSrc = useMemo(
+      () => (notePath ? (src: string) => resolveNoteImageSrc(notePath, src) : undefined),
+      [notePath]
+    )
     const binding = useMemo(() => ({ mode: tmpViewMode }), [tmpViewMode])
     const bindingRef = useRef(binding)
     useLayoutEffect(() => {
@@ -279,6 +288,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   fontSize={settings.fontSize}
                   enableSpellCheck={enableSpellCheck}
                   disabledCommands={DISABLED_RICH_EDITOR_COMMANDS}
+                  resolveImageSrc={resolveImageSrc}
                 />
               )}
             </Suspense>
