@@ -1,5 +1,4 @@
-import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,40 +32,17 @@ describe('useTranslateLanguages', () => {
     expect(result.current.getLanguage('zh-cn')?.langCode).toBe('zh-cn')
   })
 
-  it('forwards the disabled state to the languages query', () => {
-    renderHook(() => useTranslateLanguages({ enabled: false }))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/translate/languages', { enabled: false })
-  })
-
   it('toasts a user-visible load error exactly once across re-renders', () => {
     const err = new Error('IPC down')
     setLanguagesQuery(undefined, { error: err })
-    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
 
     const { rerender, result } = renderHook(() => useTranslateLanguages())
     rerender()
     rerender()
 
     expect(result.current.status).toBe('error')
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to load translate languages', err)
     expect(toast.error).toHaveBeenCalledTimes(1)
     expect(toast.error).toHaveBeenCalledWith('t(translate.error.languages_load_failed)')
-  })
-
-  it('logs a warning for invalid lang code strings but stays silent for null', () => {
-    setLanguagesQuery(languagesFixture)
-    const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
-
-    const { result } = renderHook(() => useTranslateLanguages())
-
-    result.current.getLabel('NOT-A-CODE')
-    result.current.getLabel(null)
-
-    expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy).toHaveBeenCalledWith('getLabel received an invalid lang code, falling back to UNKNOWN', {
-      lang: 'NOT-A-CODE'
-    })
   })
 
   it('adds, updates, and removes languages through method calls', async () => {

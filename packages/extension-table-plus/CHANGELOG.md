@@ -1,5 +1,11 @@
 # @cherrystudio/extension-table-plus
 
+## Unreleased
+
+### Patch Changes
+
+- Include the existing MIT license terms with the upstream Tiptap copyright notice and Cherry Studio contributor attribution.
+
 ## 3.0.13
 
 ### Patch Changes

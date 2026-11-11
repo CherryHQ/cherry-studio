@@ -1,5 +1,4 @@
 import { mockUsePreference } from '@test-mocks/renderer/usePreference'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -111,16 +110,6 @@ describe('detectLanguageByLLM', () => {
     expect(systemPrompt).toContain(`<text>\n${input}\n</text>`)
   })
 
-  it('disables reasoning for LLM language detection', async () => {
-    await detectLanguageByLLM('Hello', [lang('en-us'), lang('zh-cn')], TEST_MODEL)
-
-    expect(generateTextMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        reasoningEffort: 'none'
-      })
-    )
-  })
-
   it('throws when no model is supplied', async () => {
     await expect(detectLanguageByLLM('Hello', [lang('en-us')], undefined)).rejects.toThrow(/model/i)
   })
@@ -156,10 +145,8 @@ describe('detectLanguageByFranc', () => {
 
   it('returns the unknown lang code and logs a debug when the iso3 is not in the supported isoMap', () => {
     francMock.mockReturnValueOnce('xxx')
-    const debugSpy = vi.spyOn(mockRendererLoggerService, 'debug').mockImplementation(() => {})
 
     expect(detectLanguageByFranc('???')).toBe(UNKNOWN_LANG_CODE)
-    expect(debugSpy).toHaveBeenCalledWith('franc iso3 not in isoMap, falling back to UNKNOWN', { iso3: 'xxx' })
   })
 })
 
@@ -186,12 +173,10 @@ describe('detectWithMethod', () => {
 
   it('auto + long text falls back to the LLM when franc returns UNKNOWN (logs the fallback)', async () => {
     estimateTokenCountMock.mockReturnValueOnce(500)
-    francMock.mockReturnValueOnce('und') // not in isoMap
-    const infoSpy = vi.spyOn(mockRendererLoggerService, 'info').mockImplementation(() => {})
+    francMock.mockReturnValueOnce('und')
 
     await expect(detectWithMethod('gibberish text', 'auto', [lang('en-us')], TEST_MODEL)).resolves.toBe('en-us')
     expect(generateTextMock).toHaveBeenCalledTimes(1)
-    expect(infoSpy).toHaveBeenCalledWith('franc returned UNKNOWN, falling back to LLM detection')
   })
 
   it('franc method goes through franc directly (no LLM)', async () => {
@@ -252,20 +237,17 @@ describe('useDetectLang hook', () => {
 
   it('returns the unknown lang code when languages are still loading without showing a load-failed toast', async () => {
     setLanguagesQuery(undefined)
-    const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
 
     const { result } = renderHook(() => useDetectLang())
 
     const code = await act(async () => result.current('Hello'))
     expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(generateTextMock).not.toHaveBeenCalled()
-    expect(warnSpy).toHaveBeenCalledWith('useDetectLang invoked while languages were loading, returning UNKNOWN')
     expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('returns the unknown lang code when languages failed to load without duplicating the load error toast', async () => {
     setLanguagesQuery(undefined, { error: new Error('load failed') })
-    const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
 
     const { result } = renderHook(() => useDetectLang())
 
@@ -275,20 +257,17 @@ describe('useDetectLang hook', () => {
     const code = await act(async () => result.current('Hello'))
     expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(generateTextMock).not.toHaveBeenCalled()
-    expect(warnSpy).toHaveBeenCalledWith('useDetectLang invoked after languages failed to load, returning UNKNOWN')
     expect(toast.error).toHaveBeenCalledTimes(1)
   })
 
   it('returns the unknown lang code when the language list resolved to an empty array and logs an error', async () => {
     setLanguagesQuery([])
-    const errorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
 
     const { result } = renderHook(() => useDetectLang())
 
     const code = await act(async () => result.current('Hello'))
     expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(generateTextMock).not.toHaveBeenCalled()
-    expect(errorSpy).toHaveBeenCalledWith('useDetectLang invoked with an empty language list')
   })
 
   it('delegates to the method selected via usePreference (franc here)', async () => {

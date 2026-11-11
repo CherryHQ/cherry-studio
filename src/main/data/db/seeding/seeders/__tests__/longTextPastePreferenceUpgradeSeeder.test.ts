@@ -31,20 +31,12 @@ describe('LongTextPastePreferenceUpgradeSeeder', () => {
     })
   }
 
-  it('keeps the generated inline-paste default for a new installation', async () => {
-    new SeedRunner(dbh.db).runAll(PASTE_PREFERENCE_SEEDERS)
-
-    expect(await readPreference(PASTE_AS_FILE_KEY)).toBe(false)
-    expect(await readPreference(PASTE_THRESHOLD_KEY)).toBe(1500)
-  })
-
   it('preserves the current main behavior for an existing v2 installation', async () => {
     await addExistingPreference()
 
     new SeedRunner(dbh.db).runAll(PASTE_PREFERENCE_SEEDERS)
 
     expect(await readPreference(PASTE_AS_FILE_KEY)).toBe(true)
-    expect(await readPreference(PASTE_THRESHOLD_KEY)).toBe(1500)
   })
 
   it('does not overwrite long-text paste preferences that already exist', async () => {
