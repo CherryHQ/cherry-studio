@@ -127,6 +127,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private disabledTools = new Set<string>()
   private reconcileChain: Promise<unknown> = Promise.resolve()
   private mcpServerSnapshots: PiConnectionSnapshot['mcpServerSnapshots'] = new Map()
+  private steerChain: Promise<void> = Promise.resolve()
   private readonly pendingSteers = new Set<string>()
   private readonly pendingBindings = new Map<string, InputState>()
   private checkpoint?: string
@@ -411,8 +412,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   redirect(input: AgentRuntimeCommand): boolean {
     if (!this.active || this.closing) return false
     this.pendingSteers.add(input.message.id)
-    void buildAgentUserContent(input.message)
-      .then((content) => this.submit(input, wrapSteerReminder(content), 'steer'))
+    this.steerChain = this.steerChain
+      .then(async () => {
+        const content = await buildAgentUserContent(input.message)
+        await this.submit(input, wrapSteerReminder(content), 'steer')
+      })
       .catch((error) => {
         this.pendingSteers.delete(input.message.id)
         this.failure = error

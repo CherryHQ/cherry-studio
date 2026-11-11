@@ -25,6 +25,7 @@ import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
+import * as notesDirectory from '@main/services/notesDirectory'
 import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
@@ -1142,6 +1143,51 @@ describe('desktop Pi root connection', () => {
     })
     await expect(connect()).rejects.toThrow('configuration changed')
   })
+  it('delivers steers in redirect order while a note source read is pending', async () => {
+    holdResponse('waiting')
+    const { connection, events } = await connect()
+    const handle = (connection as unknown as { handle: PiThreadHandle }).handle
+    await connection.send({ message: message('first') })
+    await expect.poll(() => text(events)).toBe('waiting')
+
+    let resolveRead!: (result: Awaited<ReturnType<typeof notesDirectory.readNoteSource>>) => void
+    const read = vi.spyOn(notesDirectory, 'readNoteSource').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve
+        })
+    )
+    const submit = vi.spyOn(handle.input, 'submit')
+    const first = messages.saveMessage({
+      sessionId: input.sessionId,
+      message: {
+        id: uuid(),
+        role: 'user',
+        data: {
+          parts: [
+            { type: 'text', text: 'steer A' },
+            {
+              type: 'file',
+              mediaType: 'text/markdown',
+              url: 'file:///managed/note.md',
+              filename: 'note.md',
+              providerMetadata: { cherry: { noteReference: true, originalPath: '/notes/note.md' } }
+            }
+          ]
+        }
+      }
+    })
+    const second = message('steer B')
+    expect(connection.redirect({ message: first })).toBe(true)
+    expect(connection.redirect({ message: second })).toBe(true)
+    await expect.poll(() => read.mock.calls.length).toBe(1)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(submit.mock.calls.map(([draft]) => draft.inputId)).toEqual([])
+
+    resolveRead({ ok: true, path: '/notes/note.md', text: 'note' })
+    await expect.poll(() => submit.mock.calls.map(([draft]) => draft.inputId)).toEqual([first.id, second.id])
+  })
+
   it('orders steer before final input outcomes and preserves both response associations', async () => {
     const release = holdResponse('before steer')
     let reserved = false

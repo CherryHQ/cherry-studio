@@ -78,6 +78,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private providerSessionId?: string
   private readonly turnUsage = new PiTurnUsage()
   private reconcileChain: Promise<unknown> = Promise.resolve()
+  private steerChain: Promise<void> = Promise.resolve()
   private readonly steers = new Set<string>()
   private readonly children = new Map<
     string,
@@ -194,8 +195,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   redirect(input: AgentRuntimeCommand): boolean {
     if (!this.active || this.closing) return false
     this.steers.add(input.message.id)
-    void buildAgentUserContent(input.message)
-      .then((content) => this.submit(input, wrapSteerReminder(content), 'steer'))
+    this.steerChain = this.steerChain
+      .then(async () => {
+        const content = await buildAgentUserContent(input.message)
+        await this.submit(input, wrapSteerReminder(content), 'steer')
+      })
       .catch((error) => this.fail(error))
     return true
   }
