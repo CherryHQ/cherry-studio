@@ -8,7 +8,8 @@
  * same reason deterministically that the SDK's parallel severity fold produced by race before.
  * `bypassBehavior` is the single authority on what bypassPermissions lifts: it skips the
  * interactive effect of 'skipInteractiveEffect' rules and nothing else — headless denials hold in
- * every mode (approval-required's explicit opt-out excepted). A rule whose only decision is a headless
+ * every mode except approval-required and global-install, whose `skipHeadlessDenyInBypass`
+ * opt-outs allow unattended Full Access. A rule whose only decision is a headless
  * denial declares no `bypassBehavior`; there is no effect for bypass to skip.
  */
 
@@ -23,7 +24,7 @@ import {
   resolveDelegationApproval,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
-import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
+import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { isDecodableImage } from '@main/utils/image'
@@ -37,6 +38,10 @@ import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependenc
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
 export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+export const GLOBAL_INSTALL_PLAN_DENIAL =
+  'Plan mode is read-only: global package installation is not allowed. Exit plan mode before retrying.'
+export const GLOBAL_INSTALL_UNATTENDED_DENIAL =
+  'Global package installation requires approval and cannot run without a responder. Retry interactively or use Full Access.'
 export const WORKSPACE_PATH_FIELDS = {
   Edit: 'file_path',
   Glob: 'path',
@@ -65,6 +70,13 @@ const globalInstallCommand = (ctx: ToolGuardContext): GuardHit | null => {
   const command = bashCommand(ctx)
   if (!command) return null
   const reason = detectGlobalInstall(command)
+  return reason ? { evidence: reason } : null
+}
+
+const miseMutationCommand = (ctx: ToolGuardContext): GuardHit | null => {
+  const command = bashCommand(ctx)
+  if (!command) return null
+  const reason = detectMiseMutation(command)
   return reason ? { evidence: reason } : null
 }
 
@@ -201,14 +213,32 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
       `Read cannot open ${hit.evidence}: the file is not a decodable image (it may be truncated or corrupt). Regenerate it or inspect it without loading it as an image.`
   },
   {
-    // Global/shared installs leak into ~/.bun, ~/.local/share/uv, … shared by every agent, so this
-    // is a safety block, not an approval — bypassPermissions does not lift it.
-    id: 'global-install',
+    // Global installs are default-blocking via approval; Full Access opts out;
+    // direct mise mutations remain blocked in every mode.
+    id: 'mise-mutation',
     bypassBehavior: 'enforce',
-    match: { tool: 'Bash', when: globalInstallCommand },
+    match: { tool: 'Bash', when: miseMutationCommand },
     effect: 'deny',
-    reason: (hit) =>
-      `Blocked to avoid cross-agent dependency pollution: ${hit.evidence}. Install project dependencies in the current workspace (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\`; for persistent CLIs use \`cli_search\` then \`cli_install\`.`
+    reason: 'Blocked: direct mise mutation (use cli_search / cli_install).'
+  },
+  {
+    id: 'global-install-plan',
+    bypassBehavior: 'enforce',
+    match: { tool: 'Bash', when: (ctx) => (ctx.permissionMode === 'plan' ? globalInstallCommand(ctx) : null) },
+    effect: 'deny',
+    reason: GLOBAL_INSTALL_PLAN_DENIAL
+  },
+  {
+    id: 'global-install',
+    bypassBehavior: 'skipInteractiveEffect',
+    match: { tool: 'Bash', when: globalInstallCommand },
+    effect: 'ask',
+    reason: (hit) => `Global package installation requires user approval: ${hit.evidence}.`,
+    headless: {
+      predicate: 'responder-unavailable',
+      reason: GLOBAL_INSTALL_UNATTENDED_DENIAL,
+      skipHeadlessDenyInBypass: true
+    }
   },
   {
     // The SDK forks a skill whether or not its declared subagent exists, degrading into unrelated

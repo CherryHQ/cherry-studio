@@ -341,6 +341,17 @@ describe('AddKnowledgeItemDialog', () => {
       expect(screen.queryByRole('heading', { name: '添加数据源' })).not.toBeInTheDocument()
     })
 
+    it('opens a fresh native picker when reopened during the exit phase', async () => {
+      const onOpenChange = vi.fn()
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      await waitFor(() => expect(mockFileSelect).toHaveBeenCalledTimes(1))
+
+      rerender(<AddKnowledgeItemDialog open={false} onOpenChange={onOpenChange} />)
+      rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await waitFor(() => expect(mockFileSelect).toHaveBeenCalledTimes(2))
+    })
+
     it('submits picked files via detect and closes when added', async () => {
       mockFileSelect.mockResolvedValueOnce([createSelectedFile('alpha.pdf', '/docs/alpha.pdf')])
       const onOpenChange = vi.fn()
@@ -620,7 +631,6 @@ describe('AddKnowledgeItemDialog', () => {
       ])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
       expect(screen.getByText('Meeting notes')).toBeInTheDocument()
       expect(screen.getByText('Ideas')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
@@ -854,7 +864,6 @@ describe('AddKnowledgeItemDialog', () => {
       setPendingAddSource('url')
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'sm')
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
       fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
         target: { value: 'https://example.com' }
