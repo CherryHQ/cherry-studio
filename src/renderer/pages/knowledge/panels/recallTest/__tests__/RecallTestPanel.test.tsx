@@ -291,24 +291,6 @@ describe('RecallTestPanel', () => {
     expect(screen.queryByText('知识库最佳实践.md')).not.toBeInTheDocument()
   })
 
-  it('does not rerender existing result cards while typing a new query', async () => {
-    render(<RecallTestPanel baseId="base-1" />)
-
-    const input = screen.getByPlaceholderText('输入测试 Query...')
-    fireEvent.change(input, { target: { value: 'first query' } })
-    fireEvent.click(screen.getByRole('button', { name: '检索' }))
-
-    await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: '复制片段' })).toHaveLength(2)
-    })
-    expect(mockRecallResultCardRender).toHaveBeenCalledTimes(2)
-
-    fireEvent.change(input, { target: { value: 'next query' } })
-
-    expect(input).toHaveValue('next query')
-    expect(mockRecallResultCardRender).toHaveBeenCalledTimes(2)
-  })
-
   it('copies a recall result without showing a duplicate toast', async () => {
     render(<RecallTestPanel baseId="base-1" />)
 

@@ -687,7 +687,11 @@ const AgentChatSessionCenter = ({
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
-            avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+            avatar={
+              activeAgent
+                ? getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
+                : undefined
+            }
             title={homeWelcomeText ?? ''}
           />
         </div>
@@ -751,7 +755,9 @@ function AgentChatLayout({
       agentId={sessionSnapshot?.agentId ?? undefined}
       agentName={activeAgent?.name}
       runtimeType={activeAgent?.type}
-      agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+      agentAvatar={
+        activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc) : undefined
+      }
       present={!centerSurface}
       revealRequest={resourcePaneRevealRequest}>
       <ConversationShell

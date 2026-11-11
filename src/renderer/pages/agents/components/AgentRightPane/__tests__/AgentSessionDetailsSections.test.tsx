@@ -1,8 +1,10 @@
 import { act, fireEvent, render as renderView, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
+import { SWRConfig } from 'swr'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { ComputerUseAppIcons } from '@renderer/components/chat/messages/tools/automation/ComputerUseAppIcons'
 import { ipcApi } from '@renderer/ipc'
 
 import type { AgentRightPaneStatus, AgentRunTask } from '../agentRightPaneProjection'
@@ -172,4 +174,51 @@ it('does not render a group for empty or owner-only snapshots', () => {
     />
   )
   expect(screen.queryByRole('button', { name: /agent.right_pane.info.desktop_control.title/ })).toBeNull()
+})
+
+it('shares native app icons between session details and the tool card', async () => {
+  class LoadedImage {
+    complete = true
+    naturalWidth = 64
+    src = ''
+    addEventListener() {}
+    removeEventListener() {}
+  }
+  vi.stubGlobal('Image', LoadedImage)
+  let queries = 0
+  const app = { id: 'finder', name: 'Finder', identity: 'com.apple.finder' }
+  vi.spyOn(ipcApi, 'request').mockImplementation(async (route) => {
+    if (route === 'computer_use.get_call_apps') return [app]
+    queries++
+    return { status: 'available', icon: { mimeType: 'image/png', dataBase64: 'aWNvbg==' } }
+  })
+  try {
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <AgentSessionDetailsSections
+          status={status([])}
+          desktopControls={[
+            {
+              ownerId: 'agent:s:a',
+              label: 'Agent',
+              appId: app.id,
+              appName: app.name,
+              appIdentity: app.identity,
+              status: 'active'
+            }
+          ]}
+        />
+        <ComputerUseAppIcons cell="12345678-1234-4234-8234-123456789abc" />
+      </SWRConfig>
+    )
+    fireEvent.click(screen.getByRole('button', { name: /agent.right_pane.info.desktop_control.title/ }))
+    await waitFor(() => {
+      const icons = screen.getAllByRole('img', { name: 'Finder' })
+      expect(icons).toHaveLength(2)
+      for (const icon of icons) expect(icon).toHaveAttribute('src', 'data:image/png;base64,aWNvbg==')
+    })
+    expect(queries).toBe(1)
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })

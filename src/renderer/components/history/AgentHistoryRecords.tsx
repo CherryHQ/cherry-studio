@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { EmojiIcon } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
 import { permanentDeletePopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
@@ -436,10 +437,18 @@ const AgentHistoryRecords = ({
       renderAvatar: (session: SessionListItem) => {
         const agent = session.agentId ? agentById.get(session.agentId) : undefined
         return (
-          <EmojiIcon
-            emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
+          <AssistantAvatarImage
+            src={agent?.avatarSrc}
+            alt=""
             size={20}
-            className="text-foreground"
+            className="rounded-full object-cover"
+            fallback={
+              <EmojiIcon
+                emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
+                size={20}
+                className="text-foreground"
+              />
+            }
           />
         )
       },
@@ -505,10 +514,18 @@ const AgentHistoryRecords = ({
               source?.icon ? (
                 source.icon
               ) : (
-                <EmojiIcon
-                  emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
+                <AssistantAvatarImage
+                  src={agent?.avatarSrc}
+                  alt=""
                   size={16}
-                  className="text-foreground"
+                  className="rounded-full object-cover"
+                  fallback={
+                    <EmojiIcon
+                      emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
+                      size={16}
+                      className="text-foreground"
+                    />
+                  }
                 />
               )
             ) : undefined

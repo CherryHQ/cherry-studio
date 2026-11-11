@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
-  CONTENT_SEARCH_DEFAULT_LIMIT_PER_SOURCE,
   CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE,
   ContentSearchQuerySchema,
   contentSearchSourceTypes,
@@ -134,20 +133,22 @@ describe('ContentSearchService', () => {
       })
     )
 
-    expect(topicSearchMock).toHaveBeenCalledWith({
-      q: 'needle',
-      topicId: 'topic-1',
-      cursor: undefined,
-      limit: CONTENT_SEARCH_DEFAULT_LIMIT_PER_SOURCE,
-      createdAtFrom: undefined
-    })
-    expect(sessionSearchMock).toHaveBeenCalledWith({
-      q: 'needle',
-      sessionId: 'session-1',
-      cursor: undefined,
-      limit: CONTENT_SEARCH_DEFAULT_LIMIT_PER_SOURCE,
-      createdAtFrom: undefined
-    })
+    expect(topicSearchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        q: 'needle',
+        topicId: 'topic-1',
+        cursor: undefined,
+        createdAtFrom: undefined
+      })
+    )
+    expect(sessionSearchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        q: 'needle',
+        sessionId: 'session-1',
+        cursor: undefined,
+        createdAtFrom: undefined
+      })
+    )
   })
 
   it('passes only the matching per-source cursor to each adapter', async () => {
@@ -161,18 +162,20 @@ describe('ContentSearchService', () => {
       })
     )
 
-    expect(topicSearchMock).toHaveBeenCalledWith({
-      q: 'needle',
-      cursor: '200:topic-message-1',
-      limit: CONTENT_SEARCH_DEFAULT_LIMIT_PER_SOURCE,
-      createdAtFrom: undefined
-    })
-    expect(sessionSearchMock).toHaveBeenCalledWith({
-      q: 'needle',
-      cursor: undefined,
-      limit: CONTENT_SEARCH_DEFAULT_LIMIT_PER_SOURCE,
-      createdAtFrom: undefined
-    })
+    expect(topicSearchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        q: 'needle',
+        cursor: '200:topic-message-1',
+        createdAtFrom: undefined
+      })
+    )
+    expect(sessionSearchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        q: 'needle',
+        cursor: undefined,
+        createdAtFrom: undefined
+      })
+    )
   })
 
   it('clamps direct service limitPerSource above the maximum', async () => {

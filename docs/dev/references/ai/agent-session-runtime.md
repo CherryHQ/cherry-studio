@@ -444,6 +444,10 @@ a reference-only result: Agent Session messages are editable and deletable, Sess
 cascades their messages, and FTS/UI/export read row-local data. A source reference would therefore
 make historical results mutable or missing and require a second cross-Session hydration path.
 
+These product storage operations do not grant UI permissions: in Agent/Work, assistant replies
+offer no Delete action. User-message deletion retains its existing guards, including the native
+input binding lock. Deleting a product record does not rewind native history.
+
 Only safe deliverables are copied: terminal text and managed file references. Reasoning, tool
 calls/results, approval state, hidden prompts, and unmanaged local paths are not result content.
 
@@ -862,6 +866,14 @@ Allowed in v1:
   execution environments behind the user's back; an absent one falls back to
   Cherry's own Git Bash discovery.
 
+On Windows, Pi and Pi Durable also expose the native `powershell` tool. Pi searches
+for `pwsh.exe` before Windows PowerShell; Durable tries `pwsh`, then `powershell`
+when the executable cannot start. PowerShell runs independently of Bash discovery.
+The edit dialog shows its enable/disable control only on Windows. Both shell tools
+share Cherry's binary execution environment, approval gate, global-install restriction
+and user-data SQLite guard; only Bash commands use RTK rewriting. A failed command
+is not retried under a different shell.
+
 Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 
 - User-global pi resources under the standalone pi home (`~/.pi/agent`) other
@@ -1018,7 +1030,7 @@ foreground child is rejected because native tool ownership is immutable. Success
 ### Pi code mode
 
 Pi 1.0 supplies the native `codemode`, `tool_search`, and MCP extensions. Cherry
-injects only its managed Bash definition and mounts the session's complete MCP
+injects its managed Bash definition, adds PowerShell on Windows, and mounts the session's complete MCP
 server set through an in-memory transport. Pi owns discovery, tool definitions,
 structured results, cancellation, and MCP connection teardown. Disk-discovered
 Pi MCP configuration stays disabled; Cherry remains the configuration owner.

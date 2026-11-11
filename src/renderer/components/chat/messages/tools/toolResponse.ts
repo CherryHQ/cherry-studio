@@ -1,3 +1,4 @@
+import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
@@ -263,13 +264,19 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     (status === 'streaming' || status === 'invoking') && typeof toolPart.input === 'string' ? toolPart.input : undefined
 
   if (toolType === 'mcp') {
+    const piResult = toolPart.state === 'output-error' ? toolPart.resultProviderMetadata?.pi?.result : toolPart.output
+    const mcpResult = CallToolResultSchema.safeParse(
+      toolPart.callProviderMetadata?.cherry?.transport === PI_AGENT_TRANSPORT && isRecord(piResult)
+        ? piResult.structuredContent
+        : undefined
+    )
     const tool = buildMcpToolDescriptor(toolName, metadata)
     const mcpResponse: McpToolResponse = {
       id: toolCallId,
       tool,
       arguments: toolPart.input as McpToolResponse['arguments'],
       status,
-      response,
+      response: mcpResult.success ? mcpResult.data : response,
       ...(approval ? { approval } : {}),
       toolCallId,
       ...(parentToolUseId ? { parentToolUseId } : {}),
