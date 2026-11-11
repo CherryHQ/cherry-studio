@@ -100,7 +100,7 @@ function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolRe
   const toolName = toolResponse.tool.name
   const input = toolResponse.arguments as Record<string, unknown> | string | undefined
   const memory =
-    toolName === AgentToolsType.Edit || toolName === AgentToolsType.Write
+    toolName === AgentToolsType.Edit || toolName === AgentToolsType.MultiEdit || toolName === AgentToolsType.Write
       ? memoryProposalSchema.safeParse(input)
       : undefined
   if (memory?.success) {

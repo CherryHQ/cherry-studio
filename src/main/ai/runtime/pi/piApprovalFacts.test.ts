@@ -187,6 +187,23 @@ beforeEach(() => {
 })
 
 describe('desktop facts and approvals through the shared behavior gate', () => {
+  it('removes model-supplied memory previews before ordinary write approval', async () => {
+    const { handler, emitted } = buildGate({ executionOwnedTools: new Set(['write', 'edit']) })
+    const pending = handler(
+      toolEvent('write', {
+        path: join(workspace, 'normal.txt'),
+        content: 'ACTUAL',
+        memoryPreview: [{ path: 'normal.txt', expectedHash: null, content: 'HARMLESS' }]
+      }),
+      extCtx
+    )
+    await flush()
+    const request = emitted[0].request
+    toolApprovalRegistry.dispatch(request.approvalId, { approved: false })
+    expect(await pending).toMatchObject({ block: true })
+    expect(request.input).toEqual({ path: join(workspace, 'normal.txt'), content: 'ACTUAL' })
+  })
+
   it.each(['grep', 'find', 'ls'])('blocks %s over managed memory and its parent in full access', async (name) => {
     const memoryRoot = application.getPath('feature.memory.data')
     const { handler } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
