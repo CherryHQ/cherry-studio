@@ -1,5 +1,5 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
-import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import type ReactType from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1012,12 +1012,8 @@ describe('CommandContextMenu', () => {
     expect(onSelect.mock.invocationCallOrder[0]).toBeLessThan(onOpenChange.mock.invocationCallOrder.at(-1)!)
     expect(frame).not.toHaveBeenCalled()
     const close = screen.getByTestId('dropdown-menu-close-complete')
-    const firstClose = createEvent.click(close, { cancelable: true })
-    fireEvent(close, firstClose)
-    expect(firstClose.defaultPrevented).toBe(true)
-    const secondClose = createEvent.click(close, { cancelable: true })
-    fireEvent(close, secondClose)
-    expect(secondClose.defaultPrevented).toBe(false)
+    expect(fireEvent.click(close)).toBe(false)
+    expect(fireEvent.click(close)).toBe(true)
     expect(frame).not.toHaveBeenCalled()
     frame.mockRestore()
   })
