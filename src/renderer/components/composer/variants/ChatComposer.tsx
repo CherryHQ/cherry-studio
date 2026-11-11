@@ -1058,7 +1058,7 @@ const ChatComposerInner = ({
     setSelectedKnowledgeBases(getEditableKnowledgeBases(editableDraft.draftTokens, selectableKnowledgeBases))
   })
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!editingMessageForCurrentTopic) {
       restoredEditingSessionIdRef.current = null
       editingOriginalFilePartsByTokenIdRef.current = new Map()
