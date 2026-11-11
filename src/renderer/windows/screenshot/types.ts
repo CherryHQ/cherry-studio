@@ -1,3 +1,5 @@
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+
 /**
  * Geometry, annotation and state-machine types for the screenshot overlay.
  *
@@ -105,3 +107,33 @@ export type OverlayAction =
   | { type: 'POINTER_MOVE'; x: number; y: number; viewportWidth?: number; viewportHeight?: number }
   | { type: 'POINTER_UP' }
   | { type: 'RESET' }
+
+// Translation geometry and drawing data use physical crop pixels.
+export interface PhysicalBox {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export type TranslationBlockStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'skipped'
+export type TranslationWorkState = 'idle' | 'preparing' | 'translating' | 'done' | 'partial-failure' | 'empty' | 'error'
+export type TranslationView = 'original' | 'translated'
+
+export interface TranslationBlock {
+  id: number
+  sourceText: string
+  originalBox: PhysicalBox
+  box: PhysicalBox | null
+  detectedLanguage: TranslateLangCode
+  status: TranslationBlockStatus
+  reason?: string
+  failureStage?: 'translation' | 'rendering'
+  translatedText?: string
+  drawing?: {
+    background: { r: number; g: number; b: number }
+    fontSizePx: number
+    baselineX: number
+    baselineY: number
+  }
+}

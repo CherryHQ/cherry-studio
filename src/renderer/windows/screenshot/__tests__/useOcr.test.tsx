@@ -64,6 +64,20 @@ describe('useOcr', () => {
     expect(result.current.status).toBe('done')
   })
 
+  it('binds a result to its selection and clears ownership on reset', async () => {
+    ipc.request.mockResolvedValue({ status: 'ok', lines: [line('recognized', 0, 0)] })
+    const { result, rerender } = renderOcr()
+    await settleRecognition()
+    const key = result.current.selectionKey
+    expect(key).not.toBeNull()
+    expect(result.current.resultKey).toBe(key)
+    rerender({ selection: { ...SELECTION, x: 11 } })
+    expect(result.current.selectionKey).not.toBe(key)
+    expect(result.current.resultKey).not.toBe(result.current.selectionKey)
+    act(() => result.current.resetOcr())
+    expect(result.current.resultKey).toBeNull()
+  })
+
   it('keeps crop-relative glyph bounds unchanged for the selectable text layer', async () => {
     ipc.request.mockResolvedValue({
       status: 'ok',

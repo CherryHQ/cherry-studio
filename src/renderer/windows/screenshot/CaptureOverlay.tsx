@@ -1,6 +1,7 @@
 import type { Dispatch, FC, MouseEvent as ReactMouseEvent, RefObject } from 'react'
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
+import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
@@ -17,10 +18,13 @@ import { PropertyPanel } from './components/PropertyPanel'
 import { SelectionHandles } from './components/SelectionHandles'
 import { TextInput } from './components/TextInput'
 import { Toolbar } from './components/Toolbar'
+import { TranslationCanvas } from './components/TranslationCanvas'
+import { TranslationControls } from './components/TranslationControls'
 import { BORDER_WIDTH } from './constants'
 import { useAnnotation } from './hooks/useAnnotation'
 import { useMagnifierFocus } from './hooks/useMagnifierFocus'
 import { useOcr } from './hooks/useOcr'
+import { useScreenshotTranslation } from './hooks/useScreenshotTranslation'
 import { useTextInput } from './hooks/useTextInput'
 import { initialState, overlayReducer } from './reducer'
 import type { OverlayAction, OverlayState, SelectionRect } from './types'
@@ -35,6 +39,7 @@ const logger = loggerService.withContext('CaptureOverlay')
  * tools, and the paths that hand the result back to the main process.
  */
 const CaptureOverlay: FC = () => {
+  const { t } = useTranslation()
   const initData = useWindowInitData<ScreenshotInitData>()
   const [imageLoaded, setImageLoaded] = useState(false)
   /** Pushed by main once the enumeration finishes; empty until then, which snaps to the display. */
@@ -44,6 +49,7 @@ const CaptureOverlay: FC = () => {
   /** Held outside the load effect so the session-ended handler can revoke it too. */
   const objectUrlRef = useRef<string | null>(null)
   const annotationCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const translationCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const readyReportedRef = useRef(false)
   const exportRef = useRef<{ mediaId: string } | null>(null)
 
@@ -66,6 +72,38 @@ const CaptureOverlay: FC = () => {
     initData?.autoOcr ?? false
   )
   const { resetOcr } = ocr
+  const translation = useScreenshotTranslation({
+    mediaId: mediaId ?? null,
+    image: imageRef.current,
+    selection: state.selection,
+    phase: state.phase,
+    scaleFactor: initData?.display.scaleFactor ?? 1,
+    annotationActive,
+    ocr
+  })
+
+  const exportIdentity = useMemo(
+    () => ({
+      selection: state.selection,
+      view: translation.view,
+      blocks: translation.blocks,
+      workState: translation.workState,
+      modelId: translation.modelId,
+      targetLangCode: translation.targetLangCode
+    }),
+    [
+      state.selection,
+      translation.view,
+      translation.blocks,
+      translation.workState,
+      translation.modelId,
+      translation.targetLangCode
+    ]
+  )
+  const currentExportIdentity = useRef(exportIdentity)
+  useLayoutEffect(() => {
+    currentExportIdentity.current = exportIdentity
+  }, [exportIdentity])
 
   // Fetch and decode share one effect so a session change disposes both in a single step;
   // split across two, the previous capture could win its decode race and paint the wrong bitmap.
@@ -136,6 +174,7 @@ const CaptureOverlay: FC = () => {
     dispatch({ type: 'RESET' })
     resetAnnotations()
     resetOcr()
+    translation.clear()
   })
 
   /**
@@ -169,6 +208,8 @@ const CaptureOverlay: FC = () => {
     exportRef.current = null
     dispatch({ type: 'RESET' })
     resetAnnotations()
+    translation.clear()
+    resetOcr()
   })
 
   // The magnifier follows the cursor across displays; entering must also claim the keyboard,
@@ -216,6 +257,10 @@ const CaptureOverlay: FC = () => {
 
   const handleExport = useCallback(
     async (action: 'commit' | 'copy' | 'save' | 'result', text = '') => {
+      if (translation.workState === 'preparing' || translation.workState === 'translating') {
+        if (action === 'result') throw new Error(t('screenshot.translate.export_wait'))
+        return
+      }
       if (!imageRef.current || !state.selection || !initData) return
       if (exportRef.current?.mediaId === initData.mediaId) {
         if (action === 'result') throw new Error('A screenshot export is already pending')
@@ -228,9 +273,10 @@ const CaptureOverlay: FC = () => {
           imageRef.current,
           state.selection,
           initData.display.scaleFactor,
-          annotationCanvasRef.current
+          annotationCanvasRef.current,
+          translation.view === 'translated' ? translationCanvasRef.current : undefined
         )
-        if (exportRef.current !== token) return
+        if (exportRef.current !== token || currentExportIdentity.current !== exportIdentity) return
         const result = { pngBytes, mediaId: token.mediaId }
         if (action === 'result') await ipcApi.request('screenshot.submit_result', { ...result, text })
         else {
@@ -245,7 +291,7 @@ const CaptureOverlay: FC = () => {
         if (exportRef.current === token) exportRef.current = null
       }
     },
-    [state.selection, initData]
+    [state.selection, initData, translation.workState, translation.view, exportIdentity, t]
   )
 
   const handleOk = useCallback(() => void handleExport('commit'), [handleExport])
@@ -307,6 +353,8 @@ const CaptureOverlay: FC = () => {
           windows={snapTargets}
           annotation={annotation}
           annotationCanvasRef={annotationCanvasRef}
+          translation={translation}
+          translationCanvasRef={translationCanvasRef}
           ocr={ocr}
           autoOcr={initData.autoOcr}
           onFirstPaint={handleFirstPaint}
@@ -333,6 +381,8 @@ function OverlayContent({
   windows,
   annotation,
   annotationCanvasRef,
+  translation,
+  translationCanvasRef,
   ocr,
   autoOcr,
   onFirstPaint,
@@ -352,6 +402,8 @@ function OverlayContent({
   windows: DetectedWindow[]
   annotation: ReturnType<typeof useAnnotation>
   annotationCanvasRef: RefObject<HTMLCanvasElement | null>
+  translation: ReturnType<typeof useScreenshotTranslation>
+  translationCanvasRef: RefObject<HTMLCanvasElement | null>
   ocr: ReturnType<typeof useOcr>
   autoOcr: boolean
   onFirstPaint: () => void
@@ -361,6 +413,7 @@ function OverlayContent({
   onSubmitResult?: (text: string) => Promise<void>
   onCancel: () => void
 }) {
+  const { t } = useTranslation()
   const fullDisplayRect = useMemo<SelectionRect>(
     () => ({ x: 0, y: 0, width: logicalWidth, height: logicalHeight }),
     [logicalWidth, logicalHeight]
@@ -393,10 +446,10 @@ function OverlayContent({
   )
 
   useHotkeys('mod+z', () => annotation.undo(), {
-    enabled: state.phase === 'selected' && annotation.state.annotations.length > 0
+    enabled: state.phase === 'selected' && translation.workState === 'idle' && annotation.state.annotations.length > 0
   })
   useHotkeys('mod+shift+z', () => annotation.redo(), {
-    enabled: state.phase === 'selected' && annotation.state.redoStack.length > 0
+    enabled: state.phase === 'selected' && translation.workState === 'idle' && annotation.state.redoStack.length > 0
   })
 
   const showMagnifier =
@@ -467,6 +520,16 @@ function OverlayContent({
         />
       )}
 
+      {state.selection && translation.workState !== 'idle' && (
+        <TranslationCanvas
+          selection={state.selection}
+          scaleFactor={scaleFactor}
+          blocks={translation.blocks}
+          visible={translation.view === 'translated'}
+          ref={translationCanvasRef}
+        />
+      )}
+
       {settled && state.selection && (hasAnnotationTool || annotation.state.annotations.length > 0) && (
         <AnnotationCanvas
           ref={annotationCanvasRef}
@@ -503,6 +566,15 @@ function OverlayContent({
           onSubmitResult={onSubmitResult}
           onCancel={onCancel}
           onLayout={setToolbarLayout}
+          translationSlot={
+            <TranslationControls
+              translation={translation}
+              disabled={hasAnnotations}
+              disabledReason={t('screenshot.translate.disabled_while_annotating')}
+            />
+          }
+          toolsDisabled={translation.workState !== 'idle'}
+          exportDisabled={translation.workState === 'preparing' || translation.workState === 'translating'}
           ocrSlot={
             // Nothing to say while idle — but the greyed-out annotating state still
             // has to be shown, so it cannot be folded into the status check.
@@ -566,7 +638,7 @@ function OverlayContent({
         />
       )}
 
-      {ocr.status === 'done' && state.selection && ocr.lines.length > 0 && (
+      {translation.view === 'original' && ocr.status === 'done' && state.selection && ocr.lines.length > 0 && (
         <OcrTextOverlay
           bounds={state.selection}
           lines={ocr.lines}
