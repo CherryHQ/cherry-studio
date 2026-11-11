@@ -304,6 +304,13 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation']
   },
   {
+    id: 'MP-152',
+    title: 'Agent step panel ends a turn without a stale running task',
+    tasks: ['agents', 'agent-basic-task'],
+    phase: 'agentRuntimes',
+    capabilities: []
+  },
+  {
     id: 'MP-58',
     title: 'Scheduled tasks (create, run now, pause, history)',
     tasks: ['scheduled-tasks'],
