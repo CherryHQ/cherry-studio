@@ -39,6 +39,7 @@ import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
 import { type AgentLanguageMode, resolveAgentLanguagePreview } from '@renderer/utils/agent/agentLanguage'
+import { platform } from '@renderer/utils/platform'
 import {
   type AgentFormState,
   applyAgentFormPatch,
@@ -1158,7 +1159,7 @@ function AgentToolsFields({
   const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
   const builtinSections = useMemo(() => {
     const tools = caps
-      .builtinTools()
+      .builtinTools(platform)
       .filter((tool) => !caps.knowledgeBases || hasKnowledgeScope || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
     return CLAUDE_TOOL_CATEGORIES.map((category) => ({
       category,

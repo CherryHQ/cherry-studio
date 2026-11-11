@@ -1,5 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
@@ -224,8 +225,10 @@ describe('desktop Pi root connection', () => {
     })()
     return { connection, events, consuming, nativeInputs }
   }
-  async function done(events: AgentRuntimeEvent[]) {
-    await expect.poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error')).toBe(true)
+  async function done(events: AgentRuntimeEvent[], timeout?: number) {
+    await expect
+      .poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error'), { timeout })
+      .toBe(true)
   }
   function projected(events: AgentRuntimeEvent[]) {
     const messages = new Map<
@@ -249,6 +252,80 @@ describe('desktop Pi root connection', () => {
     const directory = application.getPath('feature.agents.pi.sessions')
     return existsSync(directory) ? readdirSync(directory) : []
   }
+
+  it.each([false, true])('limits PowerShell exposure to Windows and honors disabledTools (%s)', async (disabled) => {
+    snapshot.agent.disabledTools = disabled ? ['PowerShell'] : []
+    const { connection, events } = await connect()
+    await connection.send({ message: message('List available tools') })
+    await done(events)
+    const names = script.calls[0].tools.map((tool) => tool.name)
+    if (process.platform === 'win32' && !disabled) expect(names).toContain('powershell')
+    else expect(names).not.toContain('powershell')
+  })
+
+  it.runIf(process.platform === 'win32')(
+    'runs PowerShell file commands with Unicode and space-containing paths',
+    async () => {
+      setScript([
+        assistantReply(
+          [
+            {
+              type: 'toolCall',
+              id: 'powershell-file',
+              name: 'powershell',
+              arguments: {
+                command:
+                  "Set-Content -LiteralPath './报告 with spaces.txt' -Value 'PowerShell 正常' -Encoding utf8; Get-Content -LiteralPath './报告 with spaces.txt'"
+              }
+            }
+          ],
+          'toolUse'
+        ),
+        assistantReply('PowerShell finished')
+      ])
+      const { connection, events } = await connect()
+      await connection.send({ message: message('Write and read the PowerShell fixture') })
+      await done(events, 10_000)
+      expect(
+        readFileSync(join(directory, '报告 with spaces.txt'), 'utf8')
+          .replace(/^\uFEFF/, '')
+          .trim()
+      ).toBe('PowerShell 正常')
+      const output = projected(events)
+        .flatMap((entry) => entry.parts)
+        .find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'powershell-file')
+      expect(output).toMatchObject({ state: 'output-available' })
+      expect(JSON.stringify(output)).toContain('PowerShell 正常')
+    }
+  )
+
+  it('lets subagents write without approval when the root uses default permissions', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        if (!call.messages.some((entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-write'))
+          return assistantReply(
+            [toolCallPart('child-write', 'write', { path: 'child-result.txt', content: 'child completed' })],
+            'toolUse'
+          )
+        return assistantReply('child done')
+      }
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'write', prompt: 'write result', fork: false })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await done(events)
+    expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
+    expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
 
   it.each(['auto', 'bypassPermissions'] as const)(
     'preserves live delegation approval in %s mode after connecting through the Runtime',
@@ -1138,6 +1215,7 @@ describe('desktop Pi root connection', () => {
   })
 
   it('forwards attachment paths through the input boundary while keeping input identities private', async () => {
+    const attachmentPath = join(directory, 'note.txt')
     const user = messages.saveMessage({
       sessionId: input.sessionId,
       message: {
@@ -1146,7 +1224,7 @@ describe('desktop Pi root connection', () => {
         data: {
           parts: [
             { type: 'text', text: 'read the attachment' },
-            { type: 'file', filename: 'note.txt', mediaType: 'text/plain', url: 'file:///tmp/note.txt' }
+            { type: 'file', filename: 'note.txt', mediaType: 'text/plain', url: pathToFileURL(attachmentPath).href }
           ]
         }
       }
@@ -1155,7 +1233,7 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: user })
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
-    expect(JSON.stringify(script.calls[0].messages)).toContain('/tmp/note.txt')
+    expect(JSON.stringify(script.calls[0].messages)).toContain(JSON.stringify(attachmentPath).slice(1, -1))
     expect(messages.inputBinding(input.sessionId, user.id)?.nativeInputId).toBeDefined()
     const saved = messages.getSessionMessage(input.sessionId, user.id)
     expect(saved).not.toHaveProperty('inputContextId')
