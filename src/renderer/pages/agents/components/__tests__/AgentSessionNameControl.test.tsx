@@ -25,7 +25,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 vi.mock('@renderer/hooks/agent/useSession', () => ({ useUpdateSession: () => ({ updateSession: mocks.update }) }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  mocks.update.mockResolvedValue({ id: 'session-a', name: 'Renamed' })
+})
 
 it('trims the edited name and targets the current session with the manual-name flag', async () => {
   const user = userEvent.setup()
@@ -66,5 +69,77 @@ it('closes an unfinished rename when the active session changes', async () => {
   expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   expect(mocks.update).not.toHaveBeenCalled()
   await user.click(screen.getByRole('button', { name: 'Second' }))
+  expect(screen.getByRole('textbox')).toHaveValue('Second')
+})
+
+it('keeps the draft open after a failed save and permits a successful retry', async () => {
+  const user = userEvent.setup()
+  mocks.update.mockResolvedValueOnce(undefined)
+  render(<AgentSessionNameControl sessionId="session-a" sessionName="Original" />)
+  await user.click(screen.getByRole('button', { name: 'Original' }))
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Retry this draft' } })
+  await user.click(screen.getByRole('button', { name: 'common.save' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).toBeEnabled())
+  expect(screen.getByRole('textbox')).toHaveValue('Retry this draft')
+  await user.click(screen.getByRole('button', { name: 'common.save' }))
+  await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument())
+  expect(mocks.update).toHaveBeenCalledTimes(2)
+})
+
+it('rejects a 256-character name and accepts the schema boundary of 255', async () => {
+  const user = userEvent.setup()
+  render(<AgentSessionNameControl sessionId="session-a" sessionName="Original" />)
+  await user.click(screen.getByRole('button', { name: 'Original' }))
+  const input = screen.getByRole('textbox')
+  expect(input).toHaveAttribute('maxlength', '255')
+  fireEvent.change(input, { target: { value: 'x'.repeat(256) } })
+  expect(screen.getByRole('button', { name: 'common.save' })).toBeDisabled()
+  fireEvent.submit(input.closest('form')!)
+  expect(mocks.update).not.toHaveBeenCalled()
+  fireEvent.change(input, { target: { value: 'x'.repeat(255) } })
+  await user.click(screen.getByRole('button', { name: 'common.save' }))
+  expect(mocks.update).toHaveBeenCalledWith(
+    { id: 'session-a', name: 'x'.repeat(255), isNameManuallyEdited: true },
+    { showSuccessToast: false }
+  )
+  await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument())
+})
+
+it('waits for persistence and prevents duplicate submits', async () => {
+  let resolve!: (value: unknown) => void
+  mocks.update.mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done
+    })
+  )
+  const user = userEvent.setup()
+  render(<AgentSessionNameControl sessionId="session-a" sessionName="Original" />)
+  await user.click(screen.getByRole('button', { name: 'Original' }))
+  const input = screen.getByRole('textbox')
+  fireEvent.change(input, { target: { value: 'Pending name' } })
+  await user.click(screen.getByRole('button', { name: 'common.save' }))
+  expect(input).toBeDisabled()
+  fireEvent.submit(input.closest('form')!)
+  expect(mocks.update).toHaveBeenCalledOnce()
+  resolve({ id: 'session-a', name: 'Pending name' })
+  await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument())
+})
+
+it('does not close a new session rename when an old save finishes', async () => {
+  let resolve!: (value: unknown) => void
+  mocks.update.mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done
+    })
+  )
+  const user = userEvent.setup()
+  const view = render(<AgentSessionNameControl sessionId="session-a" sessionName="Original" />)
+  await user.click(screen.getByRole('button', { name: 'Original' }))
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Pending A' } })
+  await user.click(screen.getByRole('button', { name: 'common.save' }))
+  view.rerender(<AgentSessionNameControl sessionId="session-b" sessionName="Second" />)
+  await user.click(screen.getByRole('button', { name: 'Second' }))
+  resolve({ id: 'session-a', name: 'Pending A' })
+  await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled())
   expect(screen.getByRole('textbox')).toHaveValue('Second')
 })

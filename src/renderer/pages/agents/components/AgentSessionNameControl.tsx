@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { SessionNameEntitySchema } from '@shared/data/api/schemas/agentSessions'
 
 interface AgentSessionNameControlProps {
   sessionId: string
@@ -14,20 +15,37 @@ export function AgentSessionNameControl({ sessionId, sessionName, onCloseAutoFoc
   const { t } = useTranslation()
   const { updateSession } = useUpdateSession()
   const interactedOutside = useRef(false)
+  const currentSessionId = useRef(sessionId)
+  currentSessionId.current = sessionId
+  const [saving, setSaving] = useState(false)
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(sessionName)
   const [draftSessionId, setDraftSessionId] = useState(sessionId)
   if (draftSessionId !== sessionId) {
+    setSaving(false)
     setDraftSessionId(sessionId)
     setDraft(sessionName)
     setOpen(false)
   }
 
+  const name = draft.trim()
+  const validName = Boolean(name) && SessionNameEntitySchema.safeParse(name).success
   const submit = async () => {
-    const name = draft.trim()
-    setOpen(false)
-    if (!name || name === sessionName) return
-    await updateSession({ id: sessionId, name, isNameManuallyEdited: true }, { showSuccessToast: false })
+    if (saving || !validName) return
+    if (name === sessionName) {
+      setOpen(false)
+      return
+    }
+    setSaving(true)
+    try {
+      const updated = await updateSession(
+        { id: sessionId, name, isNameManuallyEdited: true },
+        { showSuccessToast: false }
+      )
+      if (currentSessionId.current === sessionId && updated) setOpen(false)
+    } finally {
+      if (currentSessionId.current === sessionId) setSaving(false)
+    }
   }
 
   return (
@@ -67,10 +85,12 @@ export function AgentSessionNameControl({ sessionId, sessionName, onCloseAutoFoc
           <Input
             aria-label={t('agent.session.edit.title')}
             autoFocus
+            maxLength={255}
+            disabled={saving}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
           />
-          <Button type="submit" size="sm" disabled={!draft.trim()}>
+          <Button type="submit" size="sm" disabled={saving || !validName}>
             {t('common.save')}
           </Button>
         </form>
