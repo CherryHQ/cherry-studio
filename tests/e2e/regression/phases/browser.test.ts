@@ -36,7 +36,8 @@ test(...caseDefinition('MP-122'), async ({ mainWindow: page }, testInfo) => {
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
-  const guest = () => page.getByTestId('webview-browser-guest').filter({ visible: true }).last()
+  const content = page.locator('[data-ui~="app.content"]')
+  const guest = () => content.getByTestId('webview-browser-guest').filter({ visible: true })
   const readGuest = () =>
     guest().evaluate(async (element) => {
       const webview = element as WebviewTag
@@ -46,8 +47,7 @@ test(...caseDefinition('MP-122'), async ({ mainWindow: page }, testInfo) => {
         text: await webview.executeJavaScript('document.body.innerText')
       }
     })
-  const address = () =>
-    page.getByRole('combobox', { name: 'Web address', exact: true }).filter({ visible: true }).last()
+  const address = () => content.getByRole('combobox', { name: 'Web address', exact: true }).filter({ visible: true })
   const navigate = async (url: string) => {
     await address().fill(url)
     await address().press('Enter')
@@ -345,11 +345,12 @@ test(...caseDefinition('MP-125'), async ({ mainWindow: page }, testInfo) => {
   await listen(0)
   const port = (server.address() as AddressInfo).port
   const url = `http://127.0.0.1:${port}/local-service`
-  const address = page.getByRole('combobox', { name: 'Web address', exact: true }).filter({ visible: true }).last()
-  const reload = page.getByRole('button', { name: 'Reload', exact: true }).filter({ visible: true }).last()
-  const failure = page.getByRole('alert').filter({ hasText: 'This page could not be loaded' })
-  const loading = page.getByRole('status').filter({ hasText: 'Loading page' })
-  const guest = page.getByTestId('webview-browser-guest').filter({ visible: true }).last()
+  const content = page.locator('[data-ui~="app.content"]')
+  const address = content.getByRole('combobox', { name: 'Web address', exact: true }).filter({ visible: true })
+  const reload = content.getByRole('button', { name: 'Reload', exact: true }).filter({ visible: true })
+  const failure = content.getByRole('alert').filter({ hasText: 'This page could not be loaded' })
+  const loading = content.getByRole('status').filter({ hasText: 'Loading page' })
+  const guest = content.getByTestId('webview-browser-guest').filter({ visible: true })
   const readGuest = () =>
     guest.evaluate(async (element) => {
       const webview = element as WebviewTag

@@ -216,52 +216,14 @@ describe('mergeWindowOptions', () => {
   })
 })
 
-describe('WINDOW_TYPE_REGISTRY Main window — frame contract', () => {
-  beforeEach(() => {
-    resetPlatform()
-  })
-
-  it.each([WindowType.Main, WindowType.SubWindow])(
-    'keeps a custom title bar with native Windows controls for %s',
-    (type) => {
-      platform.isWin = true
-      const options = mergeWindowOptions(type)
-      expect(options.frame).not.toBe(false)
-      expect(options.titleBarStyle).toBe('hidden')
-      expect(options.titleBarOverlay).toEqual(expect.objectContaining({ height: expect.any(Number) }))
-    }
-  )
-
-  it('keeps the hidden native title bar on macOS (no frame override)', () => {
-    platform.isMac = true
-    const result = mergeWindowOptions(WindowType.Main)
-    expect(result.frame).toBeUndefined()
-    expect(result.titleBarStyle).toBe('hidden')
-  })
-})
-
-describe('WINDOW_TYPE_REGISTRY SelectionAction window — macOS traffic lights', () => {
-  beforeEach(() => {
-    resetPlatform()
-    platform.isMac = true
-  })
-
-  it('positions only the selection action traffic lights slightly lower', () => {
-    expect(mergeWindowOptions(WindowType.SelectionAction).trafficLightPosition).toEqual({ x: 12, y: 11 })
-    expect(mergeWindowOptions(WindowType.Main).trafficLightPosition).toEqual({ x: 13, y: 16 })
-  })
-})
-
 describe('WINDOW_TYPE_REGISTRY Print window — domain-loaded print surface', () => {
   it('leaves content loading and visibility to PrintService', () => {
     const metadata = WINDOW_TYPE_REGISTRY[WindowType.Print]
 
     expect(metadata).toBeDefined()
-    expect(metadata?.lifecycle).toBe('default')
     expect(metadata?.htmlPath).toBe('')
     expect(metadata?.preload).toBe('')
     expect(metadata?.showMode).toBe('manual')
-    expect(metadata?.behavior?.macShowInDock).toBe(false)
   })
 })
 

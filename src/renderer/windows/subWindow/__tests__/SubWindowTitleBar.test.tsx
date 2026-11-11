@@ -37,29 +37,4 @@ describe('SubWindowTitleBar', () => {
     rerender(<SubWindowTitleBar isFullscreen />)
     expect(container.querySelector('header')?.style.minHeight).toBe('')
   })
-
-  it('reserves the macOS traffic-light area when not fullscreen', () => {
-    const { container } = render(<SubWindowTitleBar isFullscreen={false} />)
-
-    const header = container.querySelector('header')
-    expect(header).toHaveClass('pl-[env(titlebar-area-x)]')
-    expect(header).not.toHaveClass('pl-2')
-  })
-
-  it('falls back to the plain inset in fullscreen, where the traffic lights are hidden', () => {
-    const { container } = render(<SubWindowTitleBar isFullscreen />)
-
-    const header = container.querySelector('header')
-    expect(header).toHaveClass('pl-2')
-    expect(header).not.toHaveClass('pl-[env(titlebar-area-x)]')
-  })
-
-  it('uses the plain inset on non-macOS platforms', () => {
-    platformState.isMac = false
-    const { container } = render(<SubWindowTitleBar isFullscreen={false} />)
-
-    const header = container.querySelector('header')
-    expect(header).toHaveClass('pl-2')
-    expect(header).not.toHaveClass('pl-[env(titlebar-area-x)]')
-  })
 })

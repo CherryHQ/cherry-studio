@@ -247,7 +247,10 @@ function extractPreview(message: Message): string {
 
 type ChatMessageFileRefEntry = { fileEntryId: string; role: (typeof chatMessageRoles)[number] }
 
-function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatMessageFileRefEntry[] {
+function extractChatMessageFileRefs(
+  data: MessageData | null | undefined,
+  snapshot: Message['messageSnapshot']
+): ChatMessageFileRefEntry[] {
   const refs: ChatMessageFileRefEntry[] = []
   const seen = new Set<string>()
   const add = (fileEntryId: string | undefined, role: ChatMessageFileRefEntry['role']) => {
@@ -264,6 +267,7 @@ function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatM
       for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
     }
   }
+  add(snapshot?.avatarFileId, 'author_avatar')
   return refs
 }
 
@@ -281,10 +285,15 @@ function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<s
   return existing
 }
 
-function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
+function replaceChatMessageFileRefsTx(
+  tx: DbOrTx,
+  messageId: string,
+  data: MessageData,
+  snapshot: Message['messageSnapshot']
+): void {
   tx.delete(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, messageId)).run()
 
-  const refs = extractChatMessageFileRefs(data)
+  const refs = extractChatMessageFileRefs(data, snapshot)
   if (refs.length === 0) return
 
   const existingIds = selectExistingFileEntryIdsTx(
@@ -861,6 +870,11 @@ export class MessageService {
     })
   }
 
+  insertPromotedMessageTx(tx: DbOrTx, row: typeof messageTable.$inferInsert & { id: string }): void {
+    tx.insert(messageTable).values(row).run()
+    replaceChatMessageFileRefsTx(tx, row.id, row.data, row.messageSnapshot ?? null)
+  }
+
   /**
    * Create a new sibling of an existing message.
    *
@@ -914,7 +928,7 @@ export class MessageService {
         })
         .returning()
         .all()
-      replaceChatMessageFileRefsTx(tx, row.id, data)
+      replaceChatMessageFileRefsTx(tx, row.id, data, row.messageSnapshot)
 
       const topicService = getDataService('TopicService')
       topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })
@@ -1034,7 +1048,7 @@ export class MessageService {
         })
         .returning()
         .all()
-      replaceChatMessageFileRefsTx(tx, row.id, dto.data)
+      replaceChatMessageFileRefsTx(tx, row.id, dto.data, row.messageSnapshot)
 
       const topicService = getDataService('TopicService')
 
@@ -1177,7 +1191,7 @@ export class MessageService {
           })
           .returning()
           .all()
-        replaceChatMessageFileRefsTx(tx, row.id, dto.data)
+        replaceChatMessageFileRefsTx(tx, row.id, dto.data, row.messageSnapshot)
         userMessage = rowToMessage(row)
         if (isConversationActivityRole(dto.role)) latestActivityAt = createdAt
       } else if (input.userMessage.mode === 'existing') {
@@ -1218,7 +1232,7 @@ export class MessageService {
           .where(eq(messageTable.id, row.id))
           .returning()
           .all()
-        replaceChatMessageFileRefsTx(tx, row.id, input.userMessage.data)
+        replaceChatMessageFileRefsTx(tx, row.id, input.userMessage.data, row.messageSnapshot)
         userMessage = rowToMessage(updatedRow)
         latestActivityAt = activityTimestamp
       }
@@ -1253,7 +1267,7 @@ export class MessageService {
           })
           .returning()
           .all()
-        replaceChatMessageFileRefsTx(tx, row.id, p.data)
+        replaceChatMessageFileRefsTx(tx, row.id, p.data, row.messageSnapshot)
         placeholders.push(rowToMessage(row))
         if (isConversationActivityRole(p.role)) {
           latestActivityAt = latestActivityAt === null ? createdAt : Math.max(latestActivityAt, createdAt)
@@ -1388,7 +1402,7 @@ export class MessageService {
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
       if (updates.data !== undefined) {
-        replaceChatMessageFileRefsTx(tx, id, updates.data)
+        replaceChatMessageFileRefsTx(tx, id, updates.data, row.messageSnapshot)
       }
       if (activityTransitionAt !== null) {
         getDataService('TopicService').advanceLastActivityAtTx(tx, existingRow.topicId, activityTransitionAt)
@@ -1440,7 +1454,7 @@ export class MessageService {
         })
         .where(eq(messageTable.id, id))
         .run()
-      replaceChatMessageFileRefsTx(tx, id, input.data)
+      replaceChatMessageFileRefsTx(tx, id, input.data, row.messageSnapshot)
       if (activityTimestamp !== null) {
         getDataService('TopicService').advanceLastActivityAtTx(tx, row.topicId, activityTimestamp)
         activityTopicId = row.topicId
@@ -1494,7 +1508,7 @@ export class MessageService {
         .where(eq(messageTable.id, id))
         .returning()
         .all()
-      replaceChatMessageFileRefsTx(tx, id, data)
+      replaceChatMessageFileRefsTx(tx, id, data, row.messageSnapshot)
 
       logger.info('Reset assistant message for retry', { id, topicId: row.topicId })
       return {
