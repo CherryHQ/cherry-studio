@@ -289,6 +289,21 @@
       },
       "default": "./dist/providers/desearch.mjs"
     },
+    "./providers/sofya": {
+      "react-native": {
+        "types": "./dist/providers/sofya.d.mts",
+        "default": "./dist/providers/sofya.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/sofya.d.mts",
+        "default": "./dist/providers/sofya.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/sofya.d.cts",
+        "default": "./dist/providers/sofya.cjs"
+      },
+      "default": "./dist/providers/sofya.mjs"
+    },
     "./tools/config": {
       "react-native": {
         "types": "./dist/tools/config.d.mts",

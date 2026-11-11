@@ -6097,6 +6097,7 @@
   "settings.tool.websearch.provider_description.searchapi": "API de căutare în timp real SearchApi care returnează rezultatele Google ca JSON structurat.",
   "settings.tool.websearch.provider_description.searxng": "Motor de metacăutare gratuit pe internet, auto-găzduibil, care caută în multe surse.",
   "settings.tool.websearch.provider_description.serply": "API de căutare Serply care returnează rezultatele Google ca JSON structurat pentru aplicații AI.",
+  "settings.tool.websearch.provider_description.sofya": "API de căutare web Sofya pentru aplicații AI, care returnează fiecare rezultat împreună cu textul paginii.",
   "settings.tool.websearch.provider_description.tavily": "Motor de căutare optimizat pentru LLM-uri.",
   "settings.tool.websearch.provider_description.yuanbao": "API de căutare Tencent Yuanbao. Necesită o cheie API de serviciu. Numărul de rezultate este o limită maximă; serviciul poate returna mai puține.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Căutare Web pentru recuperare în timp real și informații actualizate.",

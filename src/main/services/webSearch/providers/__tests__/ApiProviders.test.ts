@@ -56,6 +56,7 @@ import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { SerplyProvider } from '../api/SerplyProvider'
+import { SofyaProvider } from '../api/SofyaProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { YuanbaoProvider } from '../api/YuanbaoProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
@@ -755,6 +756,43 @@ describe('main web search API providers', () => {
         url: 'https://desearch.example/result'
       },
       { content: '', sourceInput: 'latest web research', title: '', url: 'https://desearch.example/second' }
+    ])
+  })
+
+  it('matches the Sofya search request and normalizes fixture results', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('sofya-response.json')))
+
+    const provider = createProviderDriver(
+      SofyaProvider,
+      createProvider({
+        id: 'sofya',
+        name: 'Sofya',
+        apiKeys: ['sofya-key'],
+        apiHost: 'https://sofya.co'
+      })
+    )
+
+    const result = await provider.searchKeywords('latest web research', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: { query: 'latest web research', max_results: 4, search_depth: 'basic' },
+      headers: {
+        authorization: 'Bearer sofya-key',
+        'content-type': 'application/json',
+        'http-referer': 'https://cherry-ai.com',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'POST',
+      url: 'https://sofya.co/v1/search'
+    })
+    expect(result.results).toEqual([
+      {
+        content: 'Sofya page text',
+        sourceInput: 'latest web research',
+        title: 'Sofya Title',
+        url: 'https://sofya.example/result'
+      },
+      { content: 'Second Snippet', sourceInput: 'latest web research', title: '', url: 'https://sofya.example/second' }
     ])
   })
 
