@@ -286,7 +286,7 @@ describe('Pi reasoning selection SDK contract', () => {
   })
 
   it.each(['max', undefined] as const)(
-    'resumes high history with explicit %s precedence while preserving historical bookkeeping',
+    'persists explicit %s precedence across resumes without overwriting high history',
     async (selection) => {
       const directory = await mkdtemp(path.join(tmpdir(), 'cherry-pi-thinking-resume-'))
       directories.push(directory)
@@ -294,6 +294,8 @@ describe('Pi reasoning selection SDK contract', () => {
       const original = await createThinkingSession('high', manager)
       await original.session.prompt('persist high history')
       original.session.dispose()
+      const historicalThinking = manager.getBranch().filter((entry) => entry.type === 'thinking_level_change')
+      expect(historicalThinking).toMatchObject([{ thinkingLevel: 'high' }])
       const resumed = await createThinkingSession(
         selection,
         SessionManager.open(manager.getSessionFile()!, directory, directory)
@@ -302,11 +304,24 @@ describe('Pi reasoning selection SDK contract', () => {
         await resumed.session.prompt('continue')
         expect(resumed.session.thinkingLevel).toBe(selection ?? 'high')
         expect(resumed.efforts).toEqual([selection ?? 'high'])
-        expect(resumed.manager.getBranch().filter((entry) => entry.type === 'thinking_level_change')).toMatchObject([
-          { thinkingLevel: 'high' }
-        ])
+        const thinkingHistory = resumed.manager.getBranch().filter((entry) => entry.type === 'thinking_level_change')
+        expect(thinkingHistory.slice(0, historicalThinking.length)).toEqual(historicalThinking)
+        expect(thinkingHistory.map((entry) => entry.thinkingLevel)).toEqual(
+          selection === 'max' ? ['high', 'max'] : ['high']
+        )
       } finally {
         resumed.session.dispose()
+      }
+      const reopened = await createThinkingSession(
+        undefined,
+        SessionManager.open(manager.getSessionFile()!, directory, directory)
+      )
+      try {
+        expect(reopened.session.thinkingLevel).toBe(selection ?? 'high')
+        await reopened.session.prompt('continue after reopening')
+        expect(reopened.efforts).toEqual([selection ?? 'high'])
+      } finally {
+        reopened.session.dispose()
       }
     }
   )
