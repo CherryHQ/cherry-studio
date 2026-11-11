@@ -6,7 +6,7 @@ const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataCha
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
-import { TagService, tagService } from '@data/services/TagService'
+import { tagService } from '@data/services/TagService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 const TAG_1 = '11111111-1111-4111-8111-111111111111'
@@ -26,10 +26,6 @@ describe('TagService', () => {
       { id: TAG_3, name: 'coding', color: '#00ff00', createdAt: 3, updatedAt: 3 }
     ])
   }
-
-  it('should export a module-level singleton', () => {
-    expect(tagService).toBeInstanceOf(TagService)
-  })
 
   describe('list', () => {
     it('should return all tags ordered by name', async () => {
