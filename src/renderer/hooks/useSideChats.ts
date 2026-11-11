@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from 'react'
 
 import { ipcApi } from '@renderer/ipc'
-import { SideChatState } from '@renderer/services/SideChatState'
+import { SideChatState, type PendingSideChatDraft } from '@renderer/services/SideChatState'
+import type { SideChatSource } from '@shared/data/types/sideChat'
 import type { SideChatView } from '@shared/ipc/schemas/sideChat'
 
 const state = new SideChatState()
@@ -33,3 +34,11 @@ export const clearSubmittedSideChatDraft = (topicId: string, submitted: string) 
 
 export const readSideChatComposerDraft = state.getComposerDraft
 export const writeSideChatComposerDraft = state.setComposerDraft.bind(state)
+
+export function usePendingSideChatDraft(source: SideChatSource, create: () => PendingSideChatDraft) {
+  state.initializePendingDraft(source, create)
+  const draft = useSyncExternalStore(state.subscribe, () => state.getPendingDraft(source)!)
+  return [draft, (patch: Partial<PendingSideChatDraft>) => state.updatePendingDraft(source, patch)] as const
+}
+
+export const clearPendingSideChatDraft = (source: SideChatSource) => state.clearPendingDraft(source)

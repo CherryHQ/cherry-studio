@@ -19,7 +19,7 @@ import {
 } from '@renderer/components/chat/messages/types'
 import { useRightPanelActions, useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import { createComposerMessageSnapshot } from '@renderer/components/composer/composerDraft'
-import type { ComposerSerializedDraft, ComposerSerializedToken } from '@renderer/components/composer/tokens'
+import type { ComposerSerializedDraft } from '@renderer/components/composer/tokens'
 import { createQuoteToken } from '@renderer/components/composer/variants/shared/composerQuote'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -28,10 +28,12 @@ import {
   clearSubmittedSideChatDraft,
   connectSideChats,
   useSideChatDraft,
+  usePendingSideChatDraft,
   useSideChats
 } from '@renderer/hooks/useSideChats'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
+import type { PendingSideChatDraft } from '@renderer/services/SideChatState'
 import { toast } from '@renderer/services/toast'
 import type { SerializedError } from '@renderer/types/error'
 import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
@@ -173,16 +175,6 @@ export function SideChatPanel() {
   )
 }
 
-interface PendingDraft {
-  source: SideChatSource
-  key: string
-  text: string
-  tokens: readonly ComposerSerializedToken[]
-  topicId?: string
-  busy: boolean
-  error?: SerializedError
-}
-
 function PendingSideChat({ source }: { source: SideChatSource }) {
   const { t } = useTranslation()
   const context = useSideChatContext()!
@@ -190,21 +182,18 @@ function PendingSideChat({ source }: { source: SideChatSource }) {
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [expanded, setExpanded] = useState(false)
   const [saveHistory] = usePreference('chat.side_chat.save_history')
-  const createDraft = (): PendingDraft => {
+  const createDraft = (): PendingSideChatDraft => {
     const quote = createQuoteToken(source.selection!, t('selection.action.builtin.quote'))
     return {
-      source,
+      files: [],
+      knowledgeBaseIds: [],
       key: quote.id,
       text: `${quote.promptText} `,
       tokens: [{ ...quote, index: 0, textOffset: 0 }],
       busy: false
     }
   }
-  const [draft, setDraft] = useState(createDraft)
-  // A new selection gets its own editor, including when the same text is selected again.
-  if (draft.source !== source) setDraft(createDraft())
-  const update = (patch: Partial<PendingDraft>) =>
-    setDraft((current) => (current.source === source ? { ...current, ...patch } : current))
+  const [draft, update] = usePendingSideChatDraft(source, createDraft)
   const send = async (
     submitted: ComposerSerializedDraft,
     parts: CherryMessagePart[],
@@ -254,7 +243,7 @@ function PendingSideChat({ source }: { source: SideChatSource }) {
         text={draft.text}
         onTextChange={(text) => update({ text })}
         draftTokens={draft.tokens}
-        onTokensChange={(tokens) => update({ tokens })}
+        onTokensChange={(tokens) => update({ tokens: [...tokens] })}
         placeholder={t('side_chat.question')}
         sendDisabled={draft.busy || !context.modelId}
         sendBlockedReason={!context.modelId ? t('code.model_required') : undefined}

@@ -1,6 +1,11 @@
 import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { mockUseSharedCacheSelector } from '@test-mocks/renderer/useCache'
-import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import {
+  mockUseInfiniteFlatItems,
+  mockUseInfiniteQuery,
+  mockUseMutation,
+  mockUseQuery
+} from '@test-mocks/renderer/useDataApi'
 import { mockUsePreference } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -9,7 +14,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import type * as CherryUi from '@cherrystudio/ui'
 import type * as VirtualList from '@renderer/components/chat/messages/list/MessageVirtualList'
+import { readSideChatComposerDraft, writeSideChatComposerDraft } from '@renderer/hooks/useSideChats'
+import { FILE_TYPE } from '@renderer/types/file'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { KnowledgeBaseSchema } from '@shared/data/types/knowledge'
 import { ModelSchema, type UniqueModelId } from '@shared/data/types/model'
 import type { SideChatSource } from '@shared/data/types/sideChat'
 import type { SideChatEventSchemas, SideChatView } from '@shared/ipc/schemas/sideChat'
@@ -47,11 +55,13 @@ vi.mock('@renderer/components/chat/messages/list/MessageVirtualList', async (imp
 }))
 
 const listeners = new Map<string, (event: never) => void>()
+const defaultInfiniteQuery = mockUseInfiniteQuery.getMockImplementation()!
 const defaultQuery = mockUseQuery.getMockImplementation()!
 const defaultMutation = mockUseMutation.getMockImplementation()!
 const defaultPreference = mockUsePreference.getMockImplementation()!
 const defaultSelector = mockUseSharedCacheSelector.getMockImplementation()!
 const rangeRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects')
+const originalFileApi = { ...window.api.file }
 const rangeBounds = Object.getOwnPropertyDescriptor(Range.prototype, 'getBoundingClientRect')
 beforeEach(() => {
   Object.defineProperties(Range.prototype, {
@@ -111,6 +121,10 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  for (const key of ['getPathForFile', 'get'] as const) {
+    if (originalFileApi[key]) window.api.file[key] = originalFileApi[key] as never
+    else Reflect.deleteProperty(window.api.file, key)
+  }
   for (const [key, descriptor] of [
     ['getClientRects', rangeRects],
     ['getBoundingClientRect', rangeBounds]
@@ -147,6 +161,23 @@ async function typeQuestion(user: ReturnType<typeof userEvent.setup>, text: stri
     document.getSelection()!.addRange(range)
   })
   await user.paste(text)
+}
+
+function SaveKnowledgeDraft() {
+  const { pending } = useSideChatContext()!
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (pending)
+          writeSideChatComposerDraft(pending, {
+            ...readSideChatComposerDraft(pending)!,
+            knowledgeBaseIds: ['11111111-1111-4111-8111-111111111111']
+          })
+      }}>
+      Save knowledge draft
+    </button>
+  )
 }
 
 function SelectQuote({ source }: { source: SideChatSource }) {
@@ -285,28 +316,106 @@ it('keeps the quoted question after a failed first send and reuses the created c
       snapshot: { messageId: 'answer', selection: 'selected words', answer: '', question: '', prefix: '', suffix: '' }
     }
   }
+  let knowledgeLoading = false
+  const knowledgePage = [
+    {
+      items: [
+        {
+          ...KnowledgeBaseSchema.parse({
+            id: '11111111-1111-4111-8111-111111111111',
+            name: 'Knowledge One',
+            orderKey: 'a0',
+            groupId: null,
+            embeddingModelId: null,
+            dimensions: null,
+            status: 'completed',
+            error: null,
+            chunkSize: 1000,
+            chunkOverlap: 100,
+            chunkStrategy: 'structured',
+            chunkSeparator: '',
+            createdAt: '2026-11-11T00:00:00.000Z',
+            updatedAt: '2026-11-11T00:00:00.000Z'
+          }),
+          itemCount: 0
+        }
+      ],
+      total: 1
+    }
+  ]
+  // Match the real flattening hook's memoized result so draft effects can settle.
+  const emptyKnowledge: (typeof knowledgePage)[0]['items'] = []
+  mockUseInfiniteFlatItems.mockImplementation((pages) =>
+    pages?.[0] === knowledgePage[0] ? knowledgePage[0].items : emptyKnowledge
+  )
+  const infiniteResult = defaultInfiniteQuery('/knowledge-bases')
+  mockUseInfiniteQuery.mockImplementation((path, options) =>
+    path === '/knowledge-bases'
+      ? { ...infiniteResult, pages: knowledgeLoading ? [] : knowledgePage, isLoading: knowledgeLoading }
+      : defaultInfiniteQuery(path, options)
+  )
+  mockPreferenceState.set('chat.side_chat.save_history', false)
+  window.api.file.getPathForFile = vi.fn().mockReturnValue('E:/draft.png')
+  window.api.file.get = vi.fn().mockResolvedValue({
+    id: 'draft-file',
+    name: 'draft.png',
+    origin_name: 'draft.png',
+    path: 'E:/draft.png',
+    size: 4,
+    ext: '.png',
+    type: FILE_TYPE.IMAGE,
+    created_at: '',
+    count: 1
+  })
   let failSend = true
   const request = vi.mocked(window.api.ipcApi.request).mockImplementation(async (name) => {
     if (name === 'side_chat.list') return { ok: true, data: [] }
+    if (name === 'file.get_metadata') return { ok: true, data: { kind: 'file', mime: 'image/png' } }
     if (name === 'side_chat.submit' && failSend)
       return { ok: false, error: { code: 'side_chat_model_unavailable', message: 'unavailable' } }
     return { ok: true, data: view }
   })
   const user = userEvent.setup()
-  const { container } = render(
-    <SideChatProvider sourceTopicId={source.topicId} modelId="provider::current">
-      <SelectQuote source={source} />
-      <SideChatPanel />
+  const content = (topicId: string) => (
+    <SideChatProvider sourceTopicId={topicId} modelId="provider::current">
+      <SelectQuote source={{ ...source, topicId }} />
+      <SaveKnowledgeDraft />
+      <SideChatPanel key={topicId} />
     </SideChatProvider>
   )
+  const { container, rerender } = render(content(source.topicId))
   await user.click(screen.getByRole('button', { name: 'Select quote' }))
   await waitFor(() => expect(container.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument())
   const editor = container.querySelector<HTMLElement>('[contenteditable="true"]')!
+  await user.click(screen.getByRole('button', { name: 'Save knowledge draft' }))
+  rerender(content('other-source'))
+  knowledgeLoading = true
+  rerender(content(source.topicId))
   await typeQuestion(user, 'Explain this')
+  fireEvent.paste(composerInput(), {
+    clipboardData: { files: [new File(['test'], 'draft.png', { type: 'image/png' })], getData: () => '' }
+  })
+  await waitFor(() => expect(container.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument())
+  rerender(content('other-source'))
+  expect(document.contains(editor)).toBe(false)
+  await user.click(screen.getByRole('button', { name: 'Select quote' }))
+  await typeQuestion(user, 'other question')
+  expect(container.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+  knowledgeLoading = false
+  rerender(content(source.topicId))
+  await waitFor(() =>
+    expect(container.querySelector('[data-composer-token-kind="knowledge"]')).toHaveTextContent('Knowledge One')
+  )
+  await waitFor(() => expect(composerInput()).toHaveTextContent('Explain this'))
+  expect(container.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('common.detail')
-  expect(editor).toHaveTextContent('Explain this')
+  expect(composerInput()).toHaveTextContent('Explain this')
   expect(container.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument()
+  rerender(content('other-source'))
+  rerender(content(source.topicId))
+  await waitFor(() => expect(composerInput()).toHaveTextContent('Explain this'))
+  expect(container.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
   failSend = false
   await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
@@ -316,10 +425,16 @@ it('keeps the quoted question after a failed first send and reuses the created c
     expect.objectContaining({
       topicId: view.topicId,
       modelId: 'provider::current',
-      text: 'Explain this<blockquote>\n\nselected words\n</blockquote> ',
+      text: expect.stringContaining('Explain this<blockquote>\n\nselected words\n</blockquote>'),
+      parts: expect.arrayContaining([
+        expect.objectContaining({ type: 'file', mediaType: 'image/png', url: 'file:///E:/draft.png' }),
+        { type: 'data-knowledge-scope', data: { baseIds: ['11111111-1111-4111-8111-111111111111'] } }
+      ]),
       composer: {
         version: 1,
-        tokens: [expect.objectContaining({ kind: 'quote', description: 'selected words', textOffset: 12 })]
+        tokens: expect.arrayContaining([
+          expect.objectContaining({ kind: 'quote', description: 'selected words', textOffset: 12 })
+        ])
       }
     })
   )

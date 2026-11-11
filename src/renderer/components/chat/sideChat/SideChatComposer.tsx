@@ -93,9 +93,8 @@ type Props = Omit<
 
 export function SideChatComposer(props: Props) {
   const context = useSideChatContext()!
-  const [initialDraft] = useState(() =>
-    context.selectedId ? readSideChatComposerDraft(context.selectedId) : undefined
-  )
+  const identity = context.pending ?? context.selectedId
+  const [initialDraft] = useState(() => (identity ? readSideChatComposerDraft(identity) : undefined))
   return (
     <QuickPanelProvider>
       <ComposerToolRuntimeProvider
@@ -184,18 +183,31 @@ function SideChatComposerInput({
     setSelectedKnowledgeBases,
     initialKnowledgeBaseIds: initialDraft?.knowledgeBaseIds ?? []
   })
+  const { isKnowledgeBaseDraftHydrated, syncKnowledgeBaseIds, knowledgeBaseIdsRef } = knowledge
   const pinned = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
   const actions = useRef<ProviderActionHandlers>({ ...emptyActions })
   const [draftTokens, setDraftTokens] = useState(props.draftTokens)
   useEffect(() => {
-    if (!context.selectedId) return
-    writeSideChatComposerDraft(context.selectedId, {
+    const identity = context.pending ?? context.selectedId
+    if (!identity) return
+    // Save new text and files during loading without overwriting unresolved knowledge selections.
+    if (isKnowledgeBaseDraftHydrated) syncKnowledgeBaseIds()
+    writeSideChatComposerDraft(identity, {
       text: props.text,
       tokens: [...(draftTokens ?? [])],
       files,
-      knowledgeBaseIds: knowledge.selectedKnowledgeBasesInScope.map((base) => base.id)
+      knowledgeBaseIds: [...knowledgeBaseIdsRef.current]
     })
-  }, [context.selectedId, props.text, draftTokens, files, knowledge.selectedKnowledgeBasesInScope])
+  }, [
+    context.pending,
+    context.selectedId,
+    props.text,
+    draftTokens,
+    files,
+    isKnowledgeBaseDraftHydrated,
+    syncKnowledgeBaseIds,
+    knowledgeBaseIdsRef
+  ])
   const [sending, setSending] = useState(false)
   const sendingRef = useRef(false)
   const storedFiles = useRef(new WeakMap<ComposerAttachment, FileUIPart>())
