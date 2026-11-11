@@ -1,0 +1,241 @@
+---
+description: Operational checklist for adding an agent runtime via a capability descriptor and a main-process driver package
+sources:
+  - src/shared/ai/agentRuntimeCapabilities.ts
+  - src/main/ai/runtime/types.ts
+  - src/main/ai/runtime/registerDrivers.ts
+---
+
+# Adding an Agent Runtime
+
+How to add another agent runtime alongside `claude-code`, `pi` and `pi-durable`. For the
+host/driver architecture itself (turn lifecycle, resume tokens, follow-up
+queue) read [Agent Session Runtime](./agent-session-runtime.md) first — this
+document is the operational checklist.
+
+The host (`AgentSessionRuntimeService`) is type-agnostic: it dispatches on
+`agent.type` through `runtimeDriverRegistry` and never branches on a concrete
+runtime. Renderer UI is descriptor-driven: it reads
+`AGENT_RUNTIME_CAPABILITIES[agent.type]` and never branches on a concrete
+runtime either. Adding a runtime therefore means **one shared descriptor
+entry plus one main-process driver package** — no host or renderer rewrites.
+
+## What the compiler and tests enforce
+
+Most registration points fail loudly if you miss them:
+
+| Point | Enforced by |
+|---|---|
+| `AGENT_RUNTIME_CAPABILITIES` entry | `satisfies Record<AgentType, AgentRuntimeCapabilities>` — compile error on a missing key |
+| Driver registration in `registerDrivers.ts` | `src/main/ai/runtime/__tests__/registerDrivers.test.ts` — every `AgentType` must resolve to a registered agent-session driver |
+| Descriptor structural invariants | `src/shared/ai/__tests__/agentRuntimeCapabilities.test.ts` |
+| i18n keys present and translated in all locales | `pnpm lint` in pull request CI |
+
+The only registration points *nothing* enforces are the design rules at the
+bottom of this document — read them.
+
+## Step 1 — shared layer
+
+1. **Extend the type.** Add the literal to `AGENT_TYPES` in
+   `src/shared/data/api/schemas/agents.ts`. `AgentTypeSchema` and `AgentType`
+   derive from that tuple; `src/shared/data/types/agent.ts` only re-exports the
+   inferred type.
+
+2. **Add the capability descriptor** in
+   `src/shared/ai/agentRuntimeCapabilities.ts`. This single entry drives all
+   generic renderer behavior — the runtime selector option, the
+   permission-mode choices, whether the edit dialog shows model tiers / Soul /
+   MCP / skills, the create-dialog defaults, builtin slash commands, the model
+   picker filter, the transport tag, and the builtin-tools catalog:
+
+   - `permissionModes` — only modes the runtime actually honors. Don't list
+     `plan` if the runtime has no plan mode.
+   - `createDefaults.permissionMode` — choose from the runtime's actual trust
+     roots and approval policy; see the permission rule below.
+   - `isModelCompatible(provider, model)` — `provider` is `undefined` for
+     orphan models (provider deleted / not yet loaded); decide fail-open vs
+     fail-closed explicitly and say why in a comment. A runtime that needs
+     provider endpoint config to drive the model must fail closed.
+   - `transport` — a unique tag stamped on every tool part by your stream
+     adapter (`providerMetadata.cherry.transport`); the renderer uses it to
+     route tool parts to the right card renderer.
+   - `builtinTools(platform?)` — the edit-dialog catalog, filtered for the supplied
+     platform. Omit the platform when resolving tool identities in historical messages.
+     If the runtime ships its own
+     tool set, define the descriptors in one shared module (pattern:
+     `src/shared/ai/piBuiltinTools.ts`) carrying name, category, **and**
+     approval default, and derive everything else from it.
+
+3. **Add i18n keys** for the runtime option label (`labelKey`) and
+   `agent.tools.builtin.<id>.*` entries for each builtin tool. Add the canonical English
+   and Chinese reference values to `src/renderer/i18n/locales/{en-us,zh-cn}.json`, run
+   `pnpm i18n:sync`, then translate every remaining locale manually or with an available
+   translation tool. Finish with `pnpm lint`.
+
+## Step 2 — main-process driver package
+
+Create `src/main/ai/runtime/<name>/` implementing the contract in
+`src/main/ai/runtime/types.ts`:
+
+1. **Driver** (`AgentSessionRuntimeDriver`) — required members:
+   - `type` (the `AgentType` literal)
+   - `validateSession(session)` — throw if the session can't be served
+     (missing workspace, agent, model, unusable provider). Must be
+     **side-effect free**: it runs on every dispatch, so it must not consume
+     API-key rotation, open connections, or write state.
+   - `connect(input)` — build an `AgentRuntimeConnection`.
+   - `workspaceRelocation`, when the runtime persists workspace-dependent history:
+     own native validation and opaque checkpoint remapping here, stage artifacts through
+     the host, and declare the artifact paths the runtime owns. See
+     [Managed workspace relocation](./agent-session-runtime.md#managed-workspace-relocation).
+   - Optional desktop history: implement `fork` and a synchronous, side-effect-free
+     `isForkCheckpoint(value)` using the adapter's native checkpoint schema. Message
+     listing uses this predicate without loading the SDK, opening storage or starting
+     execution. The fork operation still verifies native history before publication.
+   - Optional: `prewarmSession` / `closeSessionWarm` / `onSessionIdle` for
+     runtimes that benefit from idle warmup (see the Claude driver).
+
+2. **Connection** (`AgentRuntimeConnection`) — required members:
+   - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Minimum viable event
+     mapping: `message-projection` for authoritative Agent content, `chunk` for
+     host controls and display metadata, `turn-complete` to settle the
+     host turn (the host closes the UI turn on this event — a runtime that
+     never emits it strands the turn), `resume-token` whenever the runtime
+     learns a recovery handle, `error` on failure.
+   - `send(input)` — deliver a user message; `input.systemReminder` marks a
+     steer, wrap it with `wrapSteerReminder(...)`.
+   - `reconcile(input)` — re-derive the desired connection state. Serialize concurrent
+     calls per connection; hot-apply safe policy facts before returning `rebuild` for
+     spawn-frozen differences, apply permission-mode changes even during an active turn
+     (from its next tool call), and return `failed` when a live tightening cannot be applied
+     so the host fails closed.
+   - `close()` — seal admission, stop native production, await observation delivery and callbacks,
+     flush committed archives, then detach and release. A failed final flush retains a retryable writer.
+     Durable runtimes may preserve unfinished work.
+   - Optional `contextId` identifies the bound product context. Expose it before controls
+     that may precede the first native message so Main can attach them to the reserved reply.
+   - Optional, with host fallbacks when omitted:
+     - `interrupt()` — cancel foreground work for user Stop before the host closes the
+       connection. Keep this separate from durable shutdown and recovery.
+     - `redirect(input)` — native mid-turn steering; without it the host
+       queues follow-ups as the next turn. If implemented, you must emit
+       `steer-boundary` with input IDs when native placement is evidenced. Keep original product
+       snapshots/headless policy on the existing session entry, including unknown admission across
+       replacement. Prepare the native binding before dispatch, fence stale callbacks by generation,
+       and reconcile retained inputs without automatically resending. Pi/Durable reserve the reply
+       synchronously before the next provider request; Claude command-start alone is not placement. A driver that returns unplaced inputs
+       for the next turn emits `steer-undelivered`; Pi instead records native queued
+       inputs as aborted when execution ends without placing them, without automatic resend.
+       Claude uses native next-priority admission across the turn boundary and never
+       returns an accepted input for host resend.
+     - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
+       explicit retirement and service shutdown still close it.
+     - `background-work-state` — retain the connection while native background work exists.
+       It does not determine product reply completion. `background-results` reports native triggering
+       tool-call IDs whose child result or parent notification generation has not drained; only a
+       confirmed empty set proves drainage. Publish these facts after their observed content.
+       `autonomous-turn-state: started` carries `sourceToolCallIds` for a background notification.
+       Main resumes the reply owning those calls; an independent native turn keeps its own reply.
+       Resident commands may retain the connection without holding a product reply open.
+     - `childProjection(toolCallId)` — expose a child snapshot and subscription
+       through the root owner. `messageChild(contextId, text)` dispatches child input
+       through that owner. These optional desktop facets do not add native history
+       methods to the common Runtime contract; see [Pi child projection](./agent-session-runtime.md#pi-behavior-host).
+       A connection with independent child writes also provides `drainChildWrites()`:
+       after input admission drains, wait for native work, queued observation delivery and in-flight
+       callbacks before the final archive flush. Keep the write boundary sealed until resume.
+       Reject on a failed flush so backup cannot accept an unconfirmed boundary.
+     - `getContextUsage()` — live context-window stats; without it the UI
+       simply has no usage meter.
+     - `compaction-start` / `compaction-complete` / `compaction-error`
+       events if the runtime compacts its own history.
+
+3. **System prompt adapter** — call the runtime-neutral
+   `buildAgentRuntimePrompt()` from `src/main/ai/runtime/agentPrompt.ts`, then map its
+   `{ base, append }` result into the SDK's native prompt representation. Pass resolved
+   channel state and capability-gated citation guidance into the common materializer.
+   Do not copy instruction precedence, built-in Agent fallback/provisioning, prompt-variable
+   resolution, channel security, artifact reporting, or language guidance into the driver.
+   Keep only native mechanics in the adapter: the SDK base prompt, cwd/project-context
+   carrier, tool snippets, skills transport, and the representation of base/append.
+   See [System prompt ownership](./agent-session-runtime.md#system-prompt-ownership).
+
+4. **Content producer** — choose one source per execution. Common runtime adapters
+   expose AI SDK `RuntimeMessage` values through observation. Native deltas use
+   `RuntimeMessageStream` before observer fanout; authoritative native snapshots
+   can produce messages directly. Main uses `ThreadMessageProjection` and product
+   decorators such as `pi/PiMessageMetadata.ts` and `claudeCode/ClaudeMessageMetadata.ts`,
+   then publishes replacement-aware product views. Keep lifecycle/approval controls separate;
+   do not produce the same text and tools through both sources. Import the transport
+   constant from the descriptor rather than re-declaring its string.
+
+5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
+   (called from `AgentSessionRuntimeService.onInit`). Do **not** create a
+   side-effect `register.ts` module — an unimported side-effect module is
+   how pi's registration was silently lost in a merge.
+
+6. **Path keys** — if the runtime needs disk state (config home, session
+   files), add `feature.agents.<name>.*` keys to the path registry
+   (`src/main/core/paths/`) instead of building paths ad hoc.
+
+## Step 3 — renderer
+
+Usually **nothing**. Selector options, edit/create dialogs, slash commands,
+model filtering, and transport routing all derive from the descriptor. The
+known exceptions, only if you need them:
+
+- Bespoke tool-card rendering: `src/renderer/components/chat/messages/tools/`
+  keys card renderers by transport tag; a new runtime's tool parts render
+  with the generic card until you add specific ones.
+
+## Design rules (learned from the pi integration)
+
+These are the choices nothing enforces:
+
+- **Cherry prompt policy is runtime-neutral.** Every driver must consume
+  `buildAgentRuntimePrompt()` rather than assembling its own Cherry policy. A runtime may
+  supply native workspace/context mechanics, but it may not omit or fork instruction authority,
+  built-in Agent resolution, channel security, citation/artifact guidance, or response language.
+  Add common policy in the materializer and test that each driver carries it.
+- **Runtime-native tool identity.** Keep the runtime's own tool names and
+  casing everywhere (catalog ids, `disabledTools` write-back, approval
+  lookups). Renaming to another runtime's convention corrupts policy lookups.
+- **Approval defaults live with the tool descriptor.** One table carrying
+  name + category + approval; a side lookup with a `?? 'auto'` fallback means
+  a newly added tool silently becomes auto-approved (fail-open).
+- **Credentials never enter runtime config.** If the runtime persists or
+  interpolates its config (env expansion, `$VAR` syntax), write a placeholder
+  and inject the real key at runtime through the SDK's auth API. Rotate keys
+  when dispatching native requests, never during validation. Pi's native provider uses
+  an internal gateway credential; the gateway resolves upstream credentials per model
+  invocation. Subprocess runtimes may bind credentials per connection.
+- **Fail-closed resource discovery, by trust class.** Do not let the runtime
+  auto-import user-global resources or workspace **executable/code** resources
+  (extensions, skills, prompt files) until Cherry has an explicit trust flow.
+  Workspace **text** the user already vouched for by hand-picking the workspace
+  (context files like `AGENTS.md`/`CLAUDE.md`) may load — pi does, matching the
+  claude driver's `project` source. Draw the line at the trust class, not at
+  "all workspace resources": widening the runtime's `no*` flags wholesale is the
+  regression to guard against. See
+  [pi driver resource boundary](./agent-session-runtime.md#pi-driver-resource-boundary)
+  for the concrete enforcement pattern.
+- **Permission posture matches the trust roots.** `claude-code` defaults to
+  `auto`, with its SDK brokering tool execution. An in-process
+  runtime may default to `acceptEdits` only when automatic writes are confined
+  to canonical user-selected roots; shell, external paths, third-party tools,
+  symlink escapes, and Cherry approval-required mutations must remain gated.
+- **Resume tokens are opaque to the host but not to you.** Persist a stable
+  runtime id as the resume handle and resolve it under the Cherry-owned session
+  directory at open time; never persist absolute paths, because DB-stored paths
+  pin that directory forever. Validate the handle before using it to locate a
+  session file.
+
+## Verification
+
+- `pnpm test` — includes the registry-pairing and descriptor-invariant tests.
+- `pnpm lint` — format, typecheck, and i18n checks.
+- `pnpm build:check` for this broad cross-process change.
+- Manual smoke: create an agent of the new type (selector shows the label),
+  open a session, run a turn with a mutating tool (approval prompt
+  appears), send a mid-turn follow-up (steers or queues per your `redirect`
+  support), restart the app and resume the session.

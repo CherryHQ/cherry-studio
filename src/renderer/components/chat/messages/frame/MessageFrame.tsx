@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Scrollbar } from '@cherrystudio/ui'
+import { ScrollArea } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -35,7 +35,7 @@ import MessageMenuBar from './MessageMenuBar'
 import { MessageUserLayout } from './MessageUserLayout'
 
 const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
-  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
+  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 has-[[data-slot=dropdown-menu-trigger][data-state=open]]:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
 interface Props {
   message: MessageListItem
@@ -122,7 +122,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
   const assistantFooterVisibilityClass = keepAssistantFooterVisible
     ? 'opacity-100'
-    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
+    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 has-[[data-slot=dropdown-menu-trigger][data-state=open]]:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -207,21 +207,34 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     )
   }
 
+  const messageContentClassName = 'message-content-container mt-0 min-h-0 max-w-full pl-0'
+  const messageContentStyle = {
+    fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+    fontSize
+  }
+  const messageBody = (
+    <MessageErrorBoundary>
+      <MessageContent message={message} />
+    </MessageErrorBoundary>
+  )
   const plainMessageContent = (
     <>
-      <Scrollbar
-        data-ui="part:message-content"
-        className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
-        tabIndex={isHorizontalMultiModelLayout ? 0 : undefined}
-        style={{
-          fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-          fontSize,
-          overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
-        }}>
-        <MessageErrorBoundary>
-          <MessageContent message={message} />
-        </MessageErrorBoundary>
-      </Scrollbar>
+      {isHorizontalMultiModelLayout ? (
+        <ScrollArea
+          data-ui="part:message-content"
+          className={messageContentClassName}
+          style={messageContentStyle}
+          viewportProps={{ tabIndex: 0, style: { overflowY: 'auto' } }}>
+          {messageBody}
+        </ScrollArea>
+      ) : (
+        <div
+          data-ui="part:message-content"
+          className={messageContentClassName}
+          style={{ ...messageContentStyle, overflowY: 'visible' }}>
+          {messageBody}
+        </div>
+      )}
       {isAssistantMessage ? messageTail : undefined}
     </>
   )
@@ -381,9 +394,10 @@ const UserBubbleMessage = ({
             ))}
           </div>
         )}
-        <Scrollbar
+        <div
           data-ui="part:message-content"
-          className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
+
+          className="message-content-container mt-0 max-w-full rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
           style={{
             fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
             fontSize,
@@ -392,7 +406,7 @@ const UserBubbleMessage = ({
           <MessageErrorBoundary>
             <MessageContent message={message} hoistAttachments />
           </MessageErrorBoundary>
-        </Scrollbar>
+        </div>
       </MessageUserLayout>
       {!isEditing && (
         <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-xs leading-none text-foreground-tertiary">

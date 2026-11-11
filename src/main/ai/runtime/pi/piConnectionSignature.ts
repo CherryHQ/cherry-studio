@@ -8,7 +8,6 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { resolveAutomationAccess } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
-import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
 import {
   type McpServerSnapshotMap,
   type NotifyChannel,
@@ -22,9 +21,9 @@ import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 
-import { usesPiGateway } from './modelInjection'
+import { gatewayCredentialsFingerprint } from '../agentApiGateway'
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -42,7 +41,6 @@ export interface PiConnectionSnapshot {
   session: AgentSessionEntity
   provider: Provider
   model: Model
-  enabledApiKeys: readonly ApiKeyEntry[]
   additionalSkillPaths: readonly string[]
   mcpServerSnapshots: McpServerSnapshotMap
   linkedChannel: NotifyChannel | null
@@ -108,7 +106,6 @@ export async function capturePiConnectionSnapshot(
   const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
-  const gatewayCredentials = usesPiGateway(provider, model) ? gatewayCredentialsFingerprint() : null
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const signature = createHash('sha256')
     .update(
@@ -131,7 +128,7 @@ export async function capturePiConnectionSnapshot(
           computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           effectiveLanguage,
-          gatewayCredentials
+          gateway: gatewayCredentialsFingerprint()
         })
       )
     )
@@ -142,7 +139,6 @@ export async function capturePiConnectionSnapshot(
     session,
     provider,
     model,
-    enabledApiKeys: apiKeys,
     effectiveLanguage,
     mcpInstructions,
     additionalSkillPaths: [
