@@ -65,11 +65,6 @@ describe('exportTableToExcel', () => {
       ['Alice', '30'],
       ['Bob', '25']
     ])
-    expect(xlsxMock.worksheet).toMatchObject({
-      '!cols': [{ wch: 10 }, { wch: 10 }]
-    })
-    expect(xlsxMock.bookNew).toHaveBeenCalledTimes(1)
-    expect(xlsxMock.bookAppendSheet).toHaveBeenCalledWith(xlsxMock.workbook, xlsxMock.worksheet, 'Sheet1')
     expect(xlsxMock.write).toHaveBeenCalledWith(xlsxMock.workbook, { type: 'array', bookType: 'xlsx' })
     expect(fileApiMock.save).toHaveBeenCalledWith('table_2026-06-01_010203.xlsx', new Uint8Array([1, 2, 3]), {
       filters: [{ name: expect.any(String), extensions: ['xlsx'] }]

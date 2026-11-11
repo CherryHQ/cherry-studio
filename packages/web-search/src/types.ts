@@ -5,6 +5,7 @@ export const REMOTE_PROVIDER_IDS = Object.freeze([
   'exa',
   'exa-mcp',
   'bocha',
+  'stepfun',
   'querit',
   'jina',
   'firecrawl',

@@ -13,6 +13,7 @@ import {
 } from '@cherrystudio/computer-use'
 import { loggerService } from '@logger'
 import { BaseService, Emitter, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { computerUseAppIconSchema, type ComputerUseControl, type ControlStatus } from '@shared/ipc/schemas/computerUse'
 
 const logger = loggerService.withContext('ComputerUseService')
 
@@ -22,16 +23,6 @@ export interface ComputerUseTask {
   readonly label: string
   readonly signal?: AbortSignal
   closed: boolean
-}
-
-type ControlStatus = 'opening' | 'active' | 'stopping' | 'stopped' | 'unconfirmed'
-
-export interface ComputerUseControl {
-  ownerId: string
-  label: string
-  appId?: string
-  appName?: string
-  status: ControlStatus
 }
 
 interface AppControl {
@@ -98,6 +89,11 @@ export class ComputerUseService extends BaseService {
 
   protected onInit(): void {
     this.shutdown = new AbortController()
+    this.registerDisposable(
+      this.onControlsChanged(() => {
+        application.get('IpcApiService').broadcast('computer_use.controls_changed', this.getControls())
+      })
+    )
     this.registerDisposable(
       application.get('PreferenceService').subscribeChange('app.computer_use.agent_control.enabled', (enabled) => {
         if (!enabled) void this.stopAll()
@@ -276,7 +272,14 @@ export class ComputerUseService extends BaseService {
     for (const [ownerId, owner] of this.owners) {
       const apps = new Map<string, ComputerUseControl>()
       for (const app of owner.blockedApps.values())
-        apps.set(app.id, { ownerId, label: owner.label, appId: app.id, appName: app.name, status: 'stopped' })
+        apps.set(app.id, {
+          ownerId,
+          label: owner.label,
+          appId: app.id,
+          appName: app.name,
+          appIdentity: app.identity,
+          status: 'stopped'
+        })
       for (const task of this.tasks.values()) {
         if (task.context.ownerId !== ownerId) continue
         for (const control of task.apps.values())
@@ -285,6 +288,7 @@ export class ComputerUseService extends BaseService {
             label: owner.label,
             appId: control.app.id,
             appName: control.app.name,
+            appIdentity: control.app.identity,
             status: control.status
           })
       }
@@ -311,7 +315,10 @@ export class ComputerUseService extends BaseService {
     const task = this.appOwners.get(appId)
     const control = task?.context.ownerId === ownerId ? task.apps.get(appId) : undefined
     owner.blockedApps.set(appId, control?.app ?? { id: appId, name: appId })
-    if (!task || !control) return
+    if (!task || !control) {
+      this.changed.fire()
+      return
+    }
     if (control.stopping) return control.stopping
     control.status = 'stopping'
     this.changed.fire()
@@ -336,7 +343,11 @@ export class ComputerUseService extends BaseService {
 
   async stopAll(): Promise<void> {
     const tasks = [...this.tasks.values()]
-    for (const task of tasks) this.owners.get(task.context.ownerId)!.stopped = true
+    for (const task of tasks) {
+      const owner = this.owners.get(task.context.ownerId)!
+      for (const [appId, control] of task.apps) owner.blockedApps.set(appId, control.app)
+      owner.stopped = true
+    }
     await Promise.all(tasks.map((task) => this.finishTask(task.context)))
     this.changed.fire()
   }
@@ -484,12 +495,19 @@ export class ComputerUseService extends BaseService {
     this.changed.fire()
   }
 
+  getAppIcon(identity: string) {
+    return this.withStandaloneClient(async (client) => {
+      const result: unknown = await client.getAppIcon({ identity }, { signal: this.shutdown.signal })
+      return computerUseAppIconSchema.parse(result)
+    })
+  }
+
   getPermissionStatus(): Promise<PermissionStatus> {
-    return this.withPermissionSession((client) => client.getPermissionStatus({ signal: this.shutdown.signal }))
+    return this.withStandaloneClient((client) => client.getPermissionStatus({ signal: this.shutdown.signal }))
   }
 
   requestPermissions(ids: [string, ...string[]]): Promise<PermissionStatus> {
-    return this.withPermissionSession((client) => client.requestPermissions({ ids }, { signal: this.shutdown.signal }))
+    return this.withStandaloneClient((client) => client.requestPermissions({ ids }, { signal: this.shutdown.signal }))
   }
 
   protected async onStop(): Promise<void> {
@@ -501,9 +519,7 @@ export class ComputerUseService extends BaseService {
     this.changed.dispose()
   }
 
-  private withPermissionSession(
-    run: (client: ComputerUseClient) => Promise<PermissionStatus>
-  ): Promise<PermissionStatus> {
+  private withStandaloneClient<T>(run: (client: ComputerUseClient) => Promise<T>): Promise<T> {
     return this.permissionMutex.runExclusive(async () => {
       this.shutdown.signal.throwIfAborted()
       // Requests retain the helper until onboarding closes; later queries use fresh permission preflight.

@@ -3,6 +3,7 @@ import { type KeyboardEvent, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge, Button, Label, Switch, Tooltip } from '@cherrystudio/ui'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
@@ -115,7 +116,16 @@ export function ResourceCard({
               isSkillGrid && 'self-center',
               showTypeIcon ? cfg.color : 'bg-secondary text-secondary-foreground'
             )}>
-            {showTypeIcon ? <TypeIcon size={20} aria-hidden className="lucide-custom" /> : r.avatar}
+            {showTypeIcon ? (
+              <TypeIcon size={20} aria-hidden className="lucide-custom" />
+            ) : (
+              <AssistantAvatarImage
+                src={r.avatarSrc}
+                alt={r.name}
+                className="size-10 rounded-lg object-cover"
+                fallback={r.avatar}
+              />
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">

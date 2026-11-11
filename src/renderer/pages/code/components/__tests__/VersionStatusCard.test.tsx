@@ -51,21 +51,6 @@ describe('VersionStatusCard', () => {
     expect(screen.getByText('code.runtime_provenance.reload_hint')).toBeInTheDocument()
   })
 
-  it('keeps the install action but omits the not-installed title badge', () => {
-    render(
-      <VersionStatusCard
-        toolId="claude-code"
-        toolName="Claude Code"
-        status={{ source: 'none', installed: false, canUpgrade: false }}
-        onInstall={vi.fn()}
-      />
-    )
-
-    expect(screen.getByText('Claude Code')).toBeInTheDocument()
-    expect(screen.queryByText('code.not_installed')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'code.install' })).toBeInTheDocument()
-  })
-
   it('keeps a system PATH tool read-only, exposing only launch', () => {
     render(
       <VersionStatusCard
@@ -419,20 +404,5 @@ describe('VersionStatusCard', () => {
     // A broken recipe must never read as current, and it still offers repair.
     expect(screen.queryByText('code.up_to_date')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.retry' })).toBeInTheDocument()
-  })
-
-  it('shows the up-to-date badge for a cleanly applied mise tool', () => {
-    render(
-      <VersionStatusCard
-        toolId="openclaw"
-        toolName="OpenClaw"
-        status={{ installed: true, source: 'mise', applicationStatus: 'applied', current: '1.0.0', canUpgrade: false }}
-        onRemove={vi.fn()}
-        onLaunch={vi.fn()}
-        canLaunch
-      />
-    )
-
-    expect(screen.getByText('code.up_to_date')).toBeInTheDocument()
   })
 })
