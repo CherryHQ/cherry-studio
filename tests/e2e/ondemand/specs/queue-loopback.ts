@@ -17,7 +17,7 @@ export default async function queueLoopback(context: ScenarioContext): Promise<v
   const { page } = context
   const server = await startMockChatServer()
   try {
-    await prepareAuthenticatedProfile(page, {
+    const providerId = await prepareAuthenticatedProfile(page, {
       baseUrl: server.baseUrl,
       apiKey: 'local-fixture-not-a-secret',
       model: server.modelId
@@ -31,7 +31,13 @@ export default async function queueLoopback(context: ScenarioContext): Promise<v
       })
     )
     await page.reload()
-    await createAgent(page, { name: 'Loopback Queue Probe', runtime: 'Pi', model: server.modelId })
+    await createAgent(page, {
+      name: 'Loopback Queue Probe',
+      runtime: 'Pi',
+      providerId,
+      model: server.modelId,
+      permission: 'Full Access'
+    })
     await selectSidebarApp(page, 'Work')
     const view = page.locator('[data-ui~="agent.view"]:visible').first()
     await view.getByText('Loopback Queue Probe', { exact: true }).first().click()
