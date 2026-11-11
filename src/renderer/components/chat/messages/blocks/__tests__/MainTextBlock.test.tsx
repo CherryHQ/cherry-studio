@@ -8,6 +8,7 @@ import type * as CherryUI from '@cherrystudio/ui'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
+import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import type * as CitationUtils from '@renderer/utils/citation'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
 
@@ -272,9 +273,14 @@ vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
 }))
 
 describe('MainTextBlock', () => {
+  let mockWithCitationTags: any
+
   beforeEach(async () => {
     vi.clearAllMocks()
     capturedChatMarkdownProps.length = 0
+
+    const { withCitationTags } = await import('@renderer/utils/citation')
+    mockWithCitationTags = withCitationTags as any
 
     mockRenderConfig.renderInputMessageAsMarkdown = false
     mockRenderConfig.showCitationMarkers = true
