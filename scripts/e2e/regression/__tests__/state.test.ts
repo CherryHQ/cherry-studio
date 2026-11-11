@@ -39,10 +39,10 @@ describe('Playwright run state', () => {
       platform: 'macos',
       ref: 'main',
       runner: 'macos-latest',
-      task: 'code-cli'
+      task: 'code-cli-permissions'
     })
     const completed = updatePhase(
-      completeE2eCase(run, 'CODE-01', 'passed', 'CLI launch verified'),
+      completeE2eCase(run, 'MP-97', 'passed', 'Permission modes verified'),
       'codeTools',
       'passed'
     )
@@ -110,7 +110,7 @@ describe('Playwright run state', () => {
 
   it('marks platform-scoped cases as not applicable instead of failing a Windows run', () => {
     vi.spyOn(regressionCases, 'supportsPlatform').mockImplementation(
-      (id, platform) => id !== 'CODE-01' || platform !== 'windows'
+      (id, platform) => id !== 'MP-133' || platform !== 'windows'
     )
     const run = createRun({
       appVersion: 'development',
@@ -122,7 +122,7 @@ describe('Playwright run state', () => {
       task: 'all'
     })
 
-    expect(run.cases['CODE-01']).toMatchObject({
+    expect(run.cases['MP-133']).toMatchObject({
       status: 'not_applicable',
       summary: 'Not supported on windows'
     })
@@ -139,7 +139,7 @@ describe('Playwright run state', () => {
         platform: 'windows',
         ref: 'main',
         runner: 'windows-2022',
-        task: 'code-cli'
+        task: 'code-cli-permissions'
       })
     )
 

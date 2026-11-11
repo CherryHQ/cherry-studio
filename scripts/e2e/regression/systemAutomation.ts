@@ -821,6 +821,9 @@ export function readWindowsExternalText(): {
     '$ErrorActionPreference = "Stop"',
     'Add-Type -AssemblyName UIAutomationClient',
     'Add-Type -AssemblyName UIAutomationTypes',
+    // A compiled caller gives the framework's proxy loader a concrete declaring type when it inspects its stack.
+    'Add-Type -ReferencedAssemblies ([Windows.Automation.ClientSettings].Assembly.Location) -TypeDefinition \'public static class OwnedTextProviders { [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)] public static void Register() { var name = typeof(System.Windows.Automation.ClientSettings).Assembly.GetName(); name.Name = "UIAutomationClientsideProviders"; System.Windows.Automation.ClientSettings.RegisterClientSideProviderAssembly(name); } }\'',
+    '[OwnedTextProviders]::Register()',
     `$condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, ${activeWindowsTextFixturePid})`,
     '$window = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children, $condition)',
     'if (-not $window) { throw "Owned external text window is unavailable" }',

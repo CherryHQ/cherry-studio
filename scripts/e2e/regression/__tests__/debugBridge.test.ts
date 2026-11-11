@@ -171,7 +171,7 @@ describe('owned application debug bridge', () => {
     ['macos', false],
     ['macos', true]
   ] as const)(
-    'sets %s main-window focus to %s when another owned window is listed first',
+    'sets %s main-window focus to %s when empty and invalid URL windows are listed first',
     async (platform, focused) => {
       const record = ownedApp(platform)
       mainInspector()
@@ -205,7 +205,14 @@ describe('owned application debug bridge', () => {
                   applicationActive = true
                 }
               },
-              BrowserWindow: { getAllWindows: () => [secondary, main] }
+              BrowserWindow: {
+                getAllWindows: () => [
+                  { webContents: { getURL: () => '' } },
+                  { webContents: { getURL: () => 'not a URL' } },
+                  secondary,
+                  main
+                ]
+              }
             })
           }
         }
@@ -217,6 +224,31 @@ describe('owned application debug bridge', () => {
       expect(mainFocused).toBe(focused)
     }
   )
+
+  it('rejects focus when empty and invalid URL windows have no valid main window', async () => {
+    const record = ownedApp('macos')
+    mainInspector()
+    const context = createVmContext({
+      URL,
+      process: {
+        mainModule: {
+          require: () => ({
+            BrowserWindow: {
+              getAllWindows: () =>
+                ['', 'not a URL', 'http://localhost:5173/windows/selection/index.html'].map((url) => ({
+                  webContents: { getURL: () => url }
+                }))
+            }
+          })
+        }
+      }
+    })
+    evaluateCdpExpressionMock.mockImplementation(async (_url: string, expression: string) =>
+      runInContext(expression, context)
+    )
+
+    await expect(setOwnedMainWindowFocus(record, true)).rejects.toThrow('Owned main window is unavailable')
+  })
 
   it.each(['macos', 'windows'] as const)(
     'accepts profile-owned %s paths before connecting the UI',

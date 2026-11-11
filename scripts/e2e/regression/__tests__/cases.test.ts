@@ -124,8 +124,8 @@ describe('regression execution plan', () => {
   it.each([
     ['notes', ['N-01', 'MP-11', 'MP-74', 'MP-75', 'MP-76', 'MP-77', 'MP-78', 'MP-79']],
     ['knowledge', ['K-01', 'MP-59', 'MP-60', 'MP-61', 'MP-62', 'MP-63', 'MP-64', 'MP-65', 'MP-66', 'MP-67']],
-    ['code-tools', ['CODE-01', 'CODE-03']],
-    ['paintings', ['P-01', 'MP-90', 'MP-91']],
+    ['code-tools', ['CODE-01', 'CODE-03', 'MP-97']],
+    ['paintings', ['P-01', 'MP-90', 'MP-91', 'MP-92']],
     ['translation', ['T-01', 'T-02', 'MP-81', 'MP-82', 'MP-83', 'MP-85', 'MP-86']]
   ] as const)('includes existing scenarios as well as case-library scenarios in %s', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
@@ -138,7 +138,10 @@ describe('regression execution plan', () => {
     ['marketplace-smoke', ['MARKET-01']],
     ['scheduled-tasks', ['MP-58']],
     ['chat-error-recovery', ['MP-17']],
-    ['native-recovery', ['MP-110', 'MP-116']],
+    ['code-cli-permissions', ['MP-97']],
+    ['native-recovery', ['MP-97', 'MP-41', 'MP-110', 'MP-111', 'MP-116']],
+    ['scheduled-task-conversation', ['MP-145']],
+    ['html-artifact-preview', ['MP-41']],
     ['native-notifications', ['MP-110']]
   ] as const)('keeps the focused task %s limited to its intended scenarios', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
@@ -191,7 +194,7 @@ describe('regression execution plan', () => {
   })
 })
 
-it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'native-recovery'] as const)(
+it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'code-cli-permissions'] as const)(
   'discovers the selected %s cases through Playwright without matching another task prefix',
   (task) => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-enumeration-'))

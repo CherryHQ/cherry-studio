@@ -206,6 +206,13 @@ export const REGRESSION_CASES = [
     tasks: ['code-tools', 'openclaw']
   },
   {
+    id: 'MP-97',
+    title: 'Advanced parameters and permission modes',
+    tasks: ['code-tools', 'code-cli-permissions', 'native-recovery'],
+    phase: 'codeTools',
+    capabilities: ['desktopAutomation']
+  },
+  {
     id: 'M-01',
     capabilities: [],
     phase: 'cherryIn',
@@ -229,6 +236,13 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-91',
     title: 'Prompt templates and enhancement',
+    tasks: ['paintings'],
+    phase: 'images',
+    capabilities: []
+  },
+  {
+    id: 'MP-92',
+    title: 'Image generation errors and quota alerts',
     tasks: ['paintings'],
     phase: 'images',
     capabilities: []
@@ -260,6 +274,13 @@ export const REGRESSION_CASES = [
     tasks: ['agents'],
     phase: 'agentRuntimes',
     capabilities: ['desktopAutomation']
+  },
+  {
+    id: 'MP-145',
+    title: 'Create scheduled tasks in Agent chat and view or trigger task cards',
+    tasks: ['agents', 'scheduled-task-conversation'],
+    phase: 'agentRuntimes',
+    capabilities: []
   },
   {
     id: 'MP-19',
@@ -304,6 +325,20 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation']
   },
   {
+    id: 'MP-56',
+    title: 'Interrupt tasks and clean up background processes',
+    tasks: ['agents'],
+    phase: 'agentRuntimes',
+    capabilities: []
+  },
+  {
+    id: 'MP-57',
+    title: 'Agent memory and context sources',
+    tasks: ['agents'],
+    phase: 'agentRuntimes',
+    capabilities: []
+  },
+  {
     id: 'MP-58',
     title: 'Scheduled tasks (create, run now, pause, history)',
     tasks: ['scheduled-tasks'],
@@ -331,6 +366,7 @@ export const REGRESSION_CASES = [
     phase: 'topics',
     capabilities: []
   },
+  { id: 'MP-45', title: 'Topic group display modes', tasks: ['topics'], phase: 'topics', capabilities: [] },
   { id: 'MP-46', title: 'Bulk delete and move topics', tasks: ['topics'], phase: 'topics', capabilities: [] },
   {
     id: 'MP-47',
@@ -348,6 +384,13 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation', 'screenCapture']
   },
   { id: 'MP-10', title: 'Web search', tasks: ['chat-core'], phase: 'chatCore', capabilities: [] },
+  {
+    id: 'MP-149',
+    title: 'Copy and quote popover for selected message text',
+    tasks: ['chat-core'],
+    phase: 'chatCore',
+    capabilities: []
+  },
   {
     id: 'MP-16',
     title: 'Polish prompts',
@@ -411,6 +454,13 @@ export const REGRESSION_CASES = [
     phase: 'chatCore',
     capabilities: []
   },
+  {
+    id: 'MP-34',
+    title: 'Mutual exclusion of knowledge references and attachments',
+    tasks: ['chat-core'],
+    phase: 'chatCore',
+    capabilities: ['desktopAutomation']
+  },
   { id: 'MP-35', title: 'Web search and URL fetching', tasks: ['chat-core'], phase: 'chatCore', capabilities: [] },
   {
     id: 'MP-36',
@@ -434,6 +484,20 @@ export const REGRESSION_CASES = [
     tasks: ['chat-core'],
     phase: 'chatCore',
     capabilities: ['desktopAutomation']
+  },
+  {
+    id: 'MP-41',
+    title: 'Preview HTML Artifacts',
+    tasks: ['chat-core', 'html-artifact-preview', 'native-recovery'],
+    phase: 'chatCore',
+    capabilities: []
+  },
+  {
+    id: 'MP-02',
+    title: 'Streaming, stop, continue, and restart persistence',
+    tasks: ['chat-core'],
+    phase: 'chatCore',
+    capabilities: []
   },
   { id: 'MP-11', title: 'Notes and export', tasks: ['notes'], phase: 'notes', capabilities: ['desktopAutomation'] },
   {
@@ -502,6 +566,13 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
+    id: 'MP-06',
+    title: 'Change settings and preserve them after restart',
+    tasks: ['settings'],
+    phase: 'settings',
+    capabilities: []
+  },
+  {
     id: 'MP-104',
     capabilities: [],
     phase: 'settings',
@@ -545,6 +616,13 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation']
   },
   {
+    id: 'MP-111',
+    capabilities: ['desktopAutomation'],
+    phase: 'settings',
+    title: 'Startup and tray behavior',
+    tasks: ['settings', 'native-settings', 'native-recovery']
+  },
+  {
     id: 'MP-112',
     title: 'Network proxy settings',
     tasks: ['settings'],
@@ -554,6 +632,13 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-151',
     title: 'Channels: Feishu bot and group mentions-only toggle',
+    tasks: ['settings'],
+    phase: 'settings',
+    capabilities: []
+  },
+  {
+    id: 'MP-113',
+    title: 'Privacy settings and error reporting toggle',
     tasks: ['settings'],
     phase: 'settings',
     capabilities: []
@@ -573,6 +658,13 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
+    id: 'MP-20',
+    title: 'Create a chat from the home page and send a message',
+    tasks: ['assistants'],
+    phase: 'assistants',
+    capabilities: []
+  },
+  {
     id: 'MP-22',
     title: 'Edit, sort, pin, and delete assistants',
     tasks: ['assistants'],
@@ -586,6 +678,7 @@ export const REGRESSION_CASES = [
     phase: 'assistants',
     capabilities: ['desktopAutomation']
   },
+  { id: 'MP-24', title: 'Manage assistant groups', tasks: ['assistants'], phase: 'assistants', capabilities: [] },
   {
     id: 'MP-25',
     title: 'Move chats to other assistants',
@@ -666,6 +759,13 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation']
   },
   {
+    id: 'MP-121',
+    title: 'Reset application data (run last)',
+    tasks: ['data-backup'],
+    phase: 'dataManagement',
+    capabilities: ['desktopAutomation']
+  },
+  {
     id: 'MP-122',
     title: 'Open and navigate web pages in the built-in browser',
     tasks: ['browser'],
@@ -674,10 +774,38 @@ export const REGRESSION_CASES = [
   },
   { id: 'MP-123', title: 'Annotate web pages', tasks: ['browser'], phase: 'browser', capabilities: [] },
   {
+    id: 'MP-124',
+    title: 'Open chat links and tool results in the built-in browser',
+    tasks: ['browser'],
+    phase: 'browser',
+    capabilities: []
+  },
+  {
     id: 'MP-125',
     title: 'Page load failures and local service disconnections',
     tasks: ['browser'],
     phase: 'browser',
+    capabilities: []
+  },
+  {
+    id: 'MP-127',
+    capabilities: ['desktopAutomation', 'externalSelection', 'globalShortcut'],
+    phase: 'system',
+    title: 'Selection Assistant (capture, explain, translate, copy)',
+    tasks: ['system-integration']
+  },
+  {
+    id: 'MP-128',
+    title: 'Screenshot tool (region, annotate, copy, OCR, add to chat)',
+    tasks: ['system-integration'],
+    phase: 'system',
+    capabilities: ['desktopAutomation', 'screenCapture']
+  },
+  {
+    id: 'MP-129',
+    title: 'Global search across types and jump to messages',
+    tasks: ['system-integration'],
+    phase: 'system',
     capabilities: []
   },
   {
@@ -693,6 +821,27 @@ export const REGRESSION_CASES = [
     tasks: ['system-integration'],
     phase: 'system',
     capabilities: []
+  },
+  {
+    id: 'MP-132',
+    title: 'System tray menu',
+    tasks: ['system-integration'],
+    phase: 'system',
+    capabilities: ['desktopAutomation']
+  },
+  {
+    id: 'MP-133',
+    title: 'Deep links, single instance, and relaunch',
+    tasks: ['system-integration'],
+    phase: 'system',
+    capabilities: ['desktopAutomation']
+  },
+  {
+    id: 'MP-140',
+    title: 'Computer Use permissions and desktop control toggle',
+    tasks: ['system-integration'],
+    phase: 'system',
+    capabilities: ['desktopAutomation']
   },
   {
     id: 'MP-141',
