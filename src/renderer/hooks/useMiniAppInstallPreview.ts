@@ -56,6 +56,7 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
   const [error, setError] = useState<PreviewError | null>(null)
   // The install token main is holding for this host; cleared once consumed or released.
   const tokenRef = useRef<string | null>(null)
+  const generationRef = useRef(0)
   // Set on unmount so a preview that settles late is released, not shown.
   const closedRef = useRef(false)
   const expectAppId = options.expectAppId
@@ -64,6 +65,7 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
     closedRef.current = false
     return () => {
       closedRef.current = true
+      generationRef.current += 1
       if (tokenRef.current) {
         void releasePending(tokenRef.current)
         tokenRef.current = null
@@ -78,6 +80,7 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
    */
   const settle = useCallback(
     async (run: () => Promise<InstallPreview | null>, errorKey: string) => {
+      const generation = ++generationRef.current
       setBusy(true)
       setError(null)
       try {
@@ -86,7 +89,7 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
         const release = () => {
           if (result.kind === 'install') void releasePending(result.installToken)
         }
-        if (closedRef.current) {
+        if (closedRef.current || generation !== generationRef.current) {
           release()
           return
         }
@@ -98,27 +101,31 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
         tokenRef.current = result.kind === 'install' ? result.installToken : null
         setPreview(result)
       } catch (e) {
-        if (closedRef.current || /superseded/i.test(errorMessage(e))) return
+        if (closedRef.current || generation !== generationRef.current || /superseded/i.test(errorMessage(e))) return
         logger.error('Failed to preview mini app', e as Error)
         setError({ key: errorKey, params: { message: errorMessage(e) } })
       } finally {
-        if (!closedRef.current) setBusy(false)
+        if (!closedRef.current && generation === generationRef.current) setBusy(false)
       }
     },
     [expectAppId]
   )
 
   /** Back to the host: the consent is withdrawn, the host stays open. */
-  const cancelPreview = () => {
+  const cancelPreview = useCallback(() => {
+    generationRef.current += 1
     if (tokenRef.current) {
       void releasePending(tokenRef.current)
       tokenRef.current = null
     }
     setPreview(null)
-  }
+    setBusy(false)
+    setError(null)
+  }, [])
 
   const confirm = async (decision: InstallDecision) => {
     if (!preview) return
+    const generation = generationRef.current
     const name = resolveLocalizedText(preview.manifest.name, language)
     setBusy(true)
     setError(null)
@@ -144,14 +151,16 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
         })
         toast.success(t(preview.installed ? 'miniApp.install.reinstall_success' : 'miniApp.install.success', { name }))
       }
+      if (closedRef.current || generation !== generationRef.current) return
       setPreview(null)
       onDone()
     } catch (e) {
       logger.error('Failed to install mini app package', e as Error)
+      if (closedRef.current || generation !== generationRef.current) return
       setPreview(null)
       setError({ key: 'miniApp.install.install_error', params: { message: errorMessage(e) } })
     } finally {
-      if (!closedRef.current) setBusy(false)
+      if (!closedRef.current && generation === generationRef.current) setBusy(false)
     }
   }
 

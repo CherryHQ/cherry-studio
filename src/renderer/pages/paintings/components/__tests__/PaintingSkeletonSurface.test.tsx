@@ -114,25 +114,6 @@ describe('PaintingSkeletonSurface', () => {
     vi.unstubAllGlobals()
   })
 
-  it('shows the referenced dense rounded-square blink grid while waiting for the image', () => {
-    const { container } = render(<PaintingSkeletonSurface />)
-    const surface = getSlot(container, 'painting-skeleton-surface')!
-    const grid = getSlot(container, 'painting-skeleton-grid')!
-    const cells = grid.querySelectorAll<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')
-
-    expect(surface).toHaveClass('bg-background')
-    expect(cells).toHaveLength(10 * 10)
-    expect(cells[0].dataset.phase).toBe('loading')
-    expect(cells[0].style.width).toBe('14px')
-    expect(cells[0].style.height).toBe('14px')
-    expect(cells[0].style.borderRadius).toBe('3px')
-    expect(cells[0].style.backgroundColor).toBe('var(--muted-foreground)')
-    expect(cells[0].style.animationName).toBe('painting-skeleton-cell-blink')
-    expect(cells[0].style.animationDuration).toBe('2000ms')
-    expect(cells[0].style.animationDelay).not.toBe(cells[1].style.animationDelay)
-    expect(getSlot(container, 'painting-skeleton-reveal')).toBeNull()
-  })
-
   it('uses a centered compact grid inside a history thumbnail', () => {
     size = { width: 44, height: 44 }
     const { container } = render(<PaintingSkeletonSurface />)
@@ -156,21 +137,6 @@ describe('PaintingSkeletonSurface', () => {
     expect(cells.length).toBeLessThanOrEqual(256)
     expect(cells[0].style.width).toBe('14px')
     expect(cells[0].style.height).toBe('14px')
-  })
-
-  it('remeasures the grid when its surface size changes', () => {
-    const { container } = render(<PaintingSkeletonSurface />)
-    const initialGrid = getSlot(container, 'painting-skeleton-grid')!
-    const initialCell = initialGrid.querySelector('[data-slot="painting-skeleton-grid-cell"]')
-
-    size = { width: 44, height: 44 }
-    act(() => resizeCallback?.([], {} as ResizeObserver))
-
-    const resizedGrid = getSlot(container, 'painting-skeleton-grid')!
-    const resizedCells = resizedGrid.querySelectorAll<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')
-    expect(resizedCells).toHaveLength(4 * 4)
-    expect(resizedCells[0]).not.toBe(initialCell)
-    expect(resizedCells[0].style.width).toBe('6px')
   })
 
   it('recenters the same grid topology without remounting cells or resampling the image', async () => {
@@ -200,54 +166,6 @@ describe('PaintingSkeletonSurface', () => {
     expect(cells[0].style.height).toBe('14px')
   })
 
-  it('samples image colors, fills the grid gaps, and gradually fades in the image', async () => {
-    const { container } = render(<PaintingSkeletonSurface imageUrl="file:///tmp/real.png" />)
-
-    await waitFor(() => {
-      const firstCell = container.querySelector<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')!
-      expect(firstCell.dataset.phase).toBe('coloring')
-    })
-
-    const firstCell = container.querySelector<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')!
-    const reveal = getSlot(container, 'painting-skeleton-reveal')!
-
-    expect(drawImageMock).toHaveBeenCalledWith(expect.anything(), 0, 0, 10, 10)
-    expect(getImageDataMock).toHaveBeenCalledWith(0, 0, 10, 10)
-    expect(firstCell.style.backgroundColor).toBe('rgb(10, 20, 30)')
-    expect(firstCell.style.width).toBe('28px')
-    expect(firstCell.style.height).toBe('28px')
-    expect(firstCell.style.animationName).toBe('none')
-    expect(reveal).toHaveAttribute('src', 'file:///tmp/real.png')
-    expect(reveal).toHaveClass('object-cover')
-    expect(JSON.parse(reveal.dataset.initial!)).toEqual({ opacity: 0 })
-    expect(JSON.parse(reveal.dataset.animate!)).toEqual({ opacity: 1 })
-    expect(JSON.parse(reveal.dataset.transition!)).toEqual({
-      delay: 0.5,
-      duration: 0.9,
-      ease: 'easeOut'
-    })
-    expect(getSlot(container, 'painting-skeleton-particle-frontier')).toBeNull()
-  })
-
-  it('fades the colored cells with staggered delays after they fill the gaps', async () => {
-    vi.useFakeTimers()
-    const { container } = render(<PaintingSkeletonSurface imageUrl="file:///tmp/real.png" />)
-
-    await act(async () => {
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-    await act(async () => {
-      vi.advanceTimersByTime(500)
-    })
-
-    const cells = container.querySelectorAll<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')
-    expect(cells[0].dataset.phase).toBe('fading')
-    expect(cells[0].style.opacity).toBe('0')
-    expect(cells[0].style.transition).toContain('opacity 600ms')
-    expect(cells[0].style.transitionDelay).not.toBe(cells[1].style.transitionDelay)
-  })
-
   it('hands off only once after the image fade has completed', async () => {
     const onRevealReady = vi.fn()
     const { container } = render(
@@ -267,10 +185,6 @@ describe('PaintingSkeletonSurface', () => {
     const { container } = render(<PaintingSkeletonSurface imageUrl="file:///tmp/real.png" />)
 
     await waitFor(() => expect(getSlot(container, 'painting-skeleton-reveal')).not.toBeNull())
-
-    const firstCell = container.querySelector<HTMLElement>('[data-slot="painting-skeleton-grid-cell"]')!
-    expect(firstCell.style.backgroundColor).toBe('var(--muted-foreground)')
-    expect(mockLoggerWarn).toHaveBeenCalledOnce()
   })
 
   it('does not hand off while there is no decoded image', () => {

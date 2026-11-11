@@ -1,11 +1,12 @@
 import type { AssistantMessage, JsonObject } from '@earendil-works/pi-ai'
-import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent'
+import { obj } from '@earendil-works/pi-schema'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { createScriptedHost, install } from '@cherrystudio/agent-behavior'
 
-import { type AgentRuntimeEvent, createPiBehavior } from '../src'
+import { type AgentRuntimeEvent } from '../src'
+import { createPiBehavior } from '../src/behavior/harness'
 import type { TestSessionOptions } from './sessionSupport'
 import { respondingModel } from './sessionSupport'
 import { assistantReply, createTestSession, hostStore, plain, tempDir } from './sessionSupport'
@@ -137,7 +138,7 @@ describe('vcc_recall', () => {
       name: 'lookup_order',
       label: 'Order',
       description: 'Look up an order',
-      parameters: Type.Object({}),
+      parameters: obj({}),
       async execute() {
         return { content: [{ type: 'text', text: 'ORDER-7731 shipped' }], details: undefined }
       }

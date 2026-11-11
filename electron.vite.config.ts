@@ -157,6 +157,7 @@ export const mainResolveAlias = {
   '@cherrystudio/web-search/providers/exa': resolve('packages/web-search/src/providers/exa.ts'),
   '@cherrystudio/web-search/providers/exa-mcp': resolve('packages/web-search/src/providers/exaMcp.ts'),
   '@cherrystudio/web-search/providers/bocha': resolve('packages/web-search/src/providers/bocha.ts'),
+  '@cherrystudio/web-search/providers/stepfun': resolve('packages/web-search/src/providers/stepfun.ts'),
   '@cherrystudio/web-search/providers/querit': resolve('packages/web-search/src/providers/querit.ts'),
   '@cherrystudio/web-search/providers/jina': resolve('packages/web-search/src/providers/jina.ts'),
   '@cherrystudio/web-search/providers/firecrawl': resolve('packages/web-search/src/providers/firecrawl.ts'),
@@ -247,6 +248,8 @@ export default defineConfig({
       }
     },
     build: {
+      externalizeDeps: false,
+      isolatedEntries: true,
       sourcemap: sentrySourceMap,
       rolldownOptions: {
         // Unlike renderer which auto-discovers entries from HTML files,
@@ -306,6 +309,7 @@ export default defineConfig({
         '@cherrystudio/web-search/providers/exa': resolve('packages/web-search/src/providers/exa.ts'),
         '@cherrystudio/web-search/providers/exa-mcp': resolve('packages/web-search/src/providers/exaMcp.ts'),
         '@cherrystudio/web-search/providers/bocha': resolve('packages/web-search/src/providers/bocha.ts'),
+        '@cherrystudio/web-search/providers/stepfun': resolve('packages/web-search/src/providers/stepfun.ts'),
         '@cherrystudio/web-search/providers/querit': resolve('packages/web-search/src/providers/querit.ts'),
         '@cherrystudio/web-search/providers/jina': resolve('packages/web-search/src/providers/jina.ts'),
         '@cherrystudio/web-search/providers/firecrawl': resolve('packages/web-search/src/providers/firecrawl.ts'),

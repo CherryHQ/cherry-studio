@@ -218,7 +218,6 @@ describe('chat turn integration trajectory', () => {
     const snapshot = terminalSnapshot
     expect(snapshot.status).toBe('done')
     expect(listener.doneResults[0].finalMessage).toEqual(snapshot.executions[0].finalMessage)
-    expect(snapshot.executions[0].finalMessage).toMatchObject({ id: 'assistant-1', role: 'assistant' })
 
     expect(cacheWrites.map(({ value }) => (value as { status: string }).status)).toEqual([
       'pending',

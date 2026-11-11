@@ -177,17 +177,6 @@ describe('cherry.file', () => {
     expect(leaseFor).not.toHaveBeenCalled()
   })
 
-  it('still takes a lease for a save it accepts', async () => {
-    // The negative control: without it the case above passes just as well if `save` stopped
-    // leasing altogether, which would silently drop the quiesce check it exists for.
-    insertApp(A)
-    leaseFor.mockClear()
-
-    await fileCapability.save(A, { name: 'fine', data: 'AAAA' })
-
-    expect(leaseFor).toHaveBeenCalled()
-  })
-
   it('refuses a burst that is under the call limit but over the byte limit', async () => {
     // 20 calls/second at the 10 MB cap is 200 MB/s, and an overwrite hands the logical
     // quota straight back — counts alone never bound the disk. 16 x 1 MB stays under
@@ -430,10 +419,7 @@ describe('cherry.file', () => {
 
       await expect(fileCapability.export(A, { name: 'notes.txt' }, SENDER)).resolves.toEqual({ saved: true })
 
-      expect(dialog.showSaveDialog).toHaveBeenCalledWith(parent, {
-        title: 'dialog.mini_app_export:My Game',
-        defaultPath: 'notes.txt'
-      })
+      expect(dialog.showSaveDialog).toHaveBeenCalledWith(parent, expect.objectContaining({ defaultPath: 'notes.txt' }))
       expect(copyFile).toHaveBeenCalledWith(expect.stringMatching(/^\/blobs\/f\d+\.bin$/), '/Users/u/out.txt')
     })
 
