@@ -2684,6 +2684,7 @@
   "message.tools.status.running": "執行中",
   "message.tools.status.success": "成功",
   "message.tools.streaming": "串流",
+  "message.tools.subagent.requestedModel": "請求的模型：{{model}}",
   "message.tools.thinkingHeader": "思考",
   "message.tools.truncated": "輸出已截斷（原始大小：{{size}}）",
   "message.tools.units.char_one": "{{count}} 字元",

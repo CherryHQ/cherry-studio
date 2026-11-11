@@ -2684,6 +2684,7 @@
   "message.tools.status.running": "Alergare",
   "message.tools.status.success": "Succes",
   "message.tools.streaming": "Transmitere în flux",
+  "message.tools.subagent.requestedModel": "Model solicitat: {{model}}",
   "message.tools.thinkingHeader": "Se analizează",
   "message.tools.truncated": "Ieșire trunchiată (original: {{size}})",
   "message.tools.units.char_one": "{{count}} caractere",

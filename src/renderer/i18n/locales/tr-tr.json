@@ -2684,6 +2684,7 @@
   "message.tools.status.running": "Çalışıyor",
   "message.tools.status.success": "Başarılı",
   "message.tools.streaming": "Akış halinde",
+  "message.tools.subagent.requestedModel": "İstenen model: {{model}}",
   "message.tools.thinkingHeader": "Üzerinde düşünülüyor",
   "message.tools.truncated": "Çıktı kısaltıldı (orijinal: {{size}})",
   "message.tools.units.char_one": "{{count}} karakter",

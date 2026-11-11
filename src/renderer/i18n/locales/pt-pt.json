@@ -2684,6 +2684,7 @@
   "message.tools.status.running": "A executar",
   "message.tools.status.success": "Sucesso",
   "message.tools.streaming": "Transmissão",
+  "message.tools.subagent.requestedModel": "Modelo solicitado: {{model}}",
   "message.tools.thinkingHeader": "A pensar",
   "message.tools.truncated": "Saída truncada (original: {{size}})",
   "message.tools.units.char_one": "{{count}} caractere",

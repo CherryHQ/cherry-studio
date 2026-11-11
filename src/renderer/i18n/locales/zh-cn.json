@@ -2684,6 +2684,7 @@
   "message.tools.status.running": "运行中",
   "message.tools.status.success": "成功",
   "message.tools.streaming": "流式传输中",
+  "message.tools.subagent.requestedModel": "请求的模型：{{model}}",
   "message.tools.thinkingHeader": "思路梳理",
   "message.tools.truncated": "输出已截断（原始大小：{{size}}）",
   "message.tools.units.char_one": "{{count}} 字符",

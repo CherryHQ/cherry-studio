@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -180,6 +180,7 @@ describe('AgentToolRenderer', () => {
     'common.create_success': 'Created successfully',
     'library.assistant_catalog.go_to_chat': 'Go to chat',
     'settings.tool.file_processing.features.document_to_markdown.title': 'Document Processing',
+    'message.tools.subagent.requestedModel': 'Requested model: {{model}}',
     'message.tools.status.done': 'Done',
     'message.tools.units.item_one': '{{count}} item',
     'message.tools.units.item_other': '{{count}} items',
@@ -878,29 +879,38 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('agent tool flow action', () => {
-    it('routes a nested subagent click through the real tool group and renderer chain', () => {
-      const openAgentToolFlow = vi.fn()
-      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
-      const toolResponse = createToolResponse({
-        tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
-        status: 'done',
-        arguments: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
-        response: 'ok'
-      })
+    it.each(['Task', 'Agent'])(
+      'shows the requested model and routes a nested %s click through the renderer chain',
+      async (toolName) => {
+        const openAgentToolFlow = vi.fn()
+        mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+        const toolResponse = createToolResponse({
+          tool: { id: toolName, name: toolName, description: 'Run subagent', type: 'provider' },
+          status: 'done',
+          arguments: {
+            description: 'Inspect renderer',
+            prompt: 'Check the message renderer',
+            model: '  OpenRouter Claude Sonnet 4.5  '
+          },
+          response: 'ok'
+        })
 
-      render(<ToolBlockGroup items={[{ id: 'agent-group', toolResponse }]} />)
+        render(<ToolBlockGroup items={[{ id: 'agent-group', toolResponse }]} />)
 
-      const groupTrigger = screen.getByTestId('child-tool-group').querySelector('button')!
-      fireEvent.click(groupTrigger)
+        const groupTrigger = screen.getByTestId('child-tool-group').querySelector('button')!
+        fireEvent.click(groupTrigger)
 
-      fireEvent.click(screen.getByRole('button', { name: /Inspect renderer/, pressed: false }))
+        const row = screen.getByRole('button', { name: /Inspect renderer/, pressed: false })
+        expect(within(row).getByText('Requested model: OpenRouter Claude Sonnet 4.5')).toBeVisible()
+        await userEvent.setup().click(row)
 
-      expect(openAgentToolFlow).toHaveBeenCalledWith({
-        toolCallId: 'call-123',
-        toolName: 'Agent',
-        title: 'Inspect renderer'
-      })
-    })
+        expect(openAgentToolFlow).toHaveBeenCalledWith({
+          toolCallId: 'call-123',
+          toolName,
+          title: 'Inspect renderer'
+        })
+      }
+    )
 
     it('shows child progress after its launch tool returns and opens the same right-pane flow', async () => {
       const openAgentToolFlow = vi.fn()
@@ -908,7 +918,7 @@ describe('AgentToolRenderer', () => {
       const response = createToolResponse({
         tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
         status: 'done',
-        arguments: { description: 'Inspect renderer' },
+        arguments: { description: 'Inspect renderer', model: 'Anthropic Claude Sonnet 4.5' },
         response: { status: 'async_launched', taskId: 'child' }
       })
       const started = {
@@ -926,6 +936,11 @@ describe('AgentToolRenderer', () => {
       )
       const { rerender } = render(withParts([started]))
       expect(screen.getByText('message.tools.status.running')).toBeVisible()
+      expect(
+        within(screen.getByRole('button', { name: /Inspect renderer/ })).getByText(
+          'Requested model: Anthropic Claude Sonnet 4.5'
+        )
+      ).toBeVisible()
       await userEvent.setup().click(screen.getByRole('button', { name: /Inspect renderer/ }))
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-123',
@@ -934,6 +949,11 @@ describe('AgentToolRenderer', () => {
       })
       rerender(withParts([started, completed]))
       expect(screen.getByText('common.completed')).toBeVisible()
+      expect(
+        within(screen.getByRole('button', { name: /Inspect renderer/ })).getByText(
+          'Requested model: Anthropic Claude Sonnet 4.5'
+        )
+      ).toBeVisible()
       expect(screen.queryByText('message.tools.status.running')).toBeNull()
       mockMessageListActions.mockReturnValue({
         openAgentToolFlow,
@@ -944,6 +964,84 @@ describe('AgentToolRenderer', () => {
       mockMessageListActions.mockReturnValue({ openAgentToolFlow, isAgentToolFlowActive: () => false })
       rerender(withParts([started, completed]))
       expect(screen.getByRole('button', { name: /Inspect renderer/ })).toHaveAttribute('aria-pressed', 'false')
+    })
+
+    it('keeps concurrent calls bound to their own requested model and tool call', async () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      const calls = [
+        { id: 'first', title: 'Inspect main', model: 'OpenRouter Claude Sonnet 4.5' },
+        { id: 'second', title: 'Inspect renderer', model: 'Anthropic Claude Sonnet 4.5' }
+      ]
+      render(
+        <>
+          {calls.map(({ id, title, model }) => (
+            <AgentToolRenderer
+              key={id}
+              toolResponse={createToolResponse({
+                id,
+                toolCallId: id,
+                tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
+                status: 'invoking',
+                arguments: { description: title, model }
+              })}
+            />
+          ))}
+        </>
+      )
+      const user = userEvent.setup()
+      for (const { id, title, model } of calls) {
+        const row = screen.getByRole('button', { name: new RegExp(title) })
+        expect(within(row).getByText(`Requested model: ${model}`)).toBeVisible()
+        expect(within(row).queryByText(`Requested model: ${calls.find((call) => call.id !== id)!.model}`)).toBeNull()
+        await user.click(row)
+        expect(openAgentToolFlow).toHaveBeenLastCalledWith({ toolCallId: id, toolName: 'Agent', title })
+      }
+    })
+
+    it.each(['error', 'cancelled'] as const)('keeps the full requested model on a %s row', (status) => {
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow: vi.fn() })
+      const model =
+        'OpenRouter Claude Sonnet 4.5 with a very long caller supplied model name that must remain fully readable'
+      render(
+        <AgentToolRenderer
+          toolResponse={createToolResponse({
+            tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
+            status,
+            arguments: { description: 'Inspect renderer', model },
+            response:
+              status === 'error' ? { isError: true, content: [{ type: 'text', text: 'Unknown model' }] } : undefined
+          })}
+        />
+      )
+      const row = screen.getByRole('button', { name: /Inspect renderer/ })
+      expect(within(row).getByText(`Requested model: ${model}`)).toBeVisible()
+      expect(
+        within(row).getByText(status === 'error' ? 'message.tools.status.failed' : 'message.tools.cancelled')
+      ).toBeVisible()
+    })
+
+    it.each([
+      { description: 'Inspect renderer' },
+      { description: 'Inspect renderer', model: '' },
+      { description: 'Inspect renderer', model: '   ' },
+      { description: 'Inspect renderer', model: 42 },
+      { description: 'Inspect renderer', model: null },
+      { description: 'Inspect renderer', model: ['Claude Sonnet 4.5'] }
+    ])('omits the requested model for invalid or missing model input: %j', (arguments_) => {
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow: vi.fn() })
+      render(
+        <AgentToolRenderer
+          toolResponse={createToolResponse({
+            tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
+            status: 'done',
+            arguments: arguments_
+          })}
+        />
+      )
+      expect(
+        within(screen.getByRole('button', { name: /Inspect renderer/ })).queryByText(/Requested model:/)
+      ).toBeNull()
     })
 
     it('opens the right-pane flow only from subagent rows', () => {

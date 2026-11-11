@@ -2684,6 +2684,7 @@
   "message.tools.status.running": "Chạy",
   "message.tools.status.success": "Thành công",
   "message.tools.streaming": "Đang truyền",
+  "message.tools.subagent.requestedModel": "Mô hình được yêu cầu: {{model}}",
   "message.tools.thinkingHeader": "Suy nghĩ",
   "message.tools.truncated": "Đã cắt bớt đầu ra (bản gốc: {{size}})",
   "message.tools.units.char_one": "{{count}} ký tự",
