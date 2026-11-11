@@ -158,6 +158,7 @@ const container = vi.hoisted(() => {
   const openCalls: Array<{ id: string; args: any }> = []
   const windowManager = {
     onWindowDestroyed: vi.fn(() => ({ dispose: vi.fn() })),
+    onWindowReleasedToPool: vi.fn(() => ({ dispose: vi.fn() })),
     // Keyed on the display origin, so the same display hands back the same window
     // on a later session — the pooled-recycle behaviour this service must survive.
     open: vi.fn((type: string, args: any) => {
