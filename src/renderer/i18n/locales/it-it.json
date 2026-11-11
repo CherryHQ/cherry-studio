@@ -5888,6 +5888,7 @@
   "settings.shortcuts.prev_topic": "Conversazione precedente",
   "settings.shortcuts.print": "Stampa",
   "settings.shortcuts.quick_assistant": "Assistente rapido",
+  "settings.shortcuts.registration_failed_in_wayland_session": "Impossibile registrare questa scorciatoia in questa sessione Wayland. Prova una sessione Xorg.",
   "settings.shortcuts.rename_topic": "Rinomina conversazione",
   "settings.shortcuts.reset": "Reimposta",
   "settings.shortcuts.reset_defaults_confirm": "Vuoi davvero reimpostare tutte le scorciatoie?",
