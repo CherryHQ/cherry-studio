@@ -85,6 +85,7 @@ export function useResourceLibrary({
         name: a.name,
         description: a.description || '',
         avatar: a.emoji || '💬',
+        avatarSrc: a.avatarSrc,
         // Embedded by AssistantService.list through ModelService; null when the
         // bound model row was removed.
         model: a.modelName ?? undefined,

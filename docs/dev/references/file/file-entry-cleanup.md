@@ -123,7 +123,7 @@ LIMIT 100;
 ```
 
 The current registry includes chat messages, agent-session messages, paintings, jobs, translation
-history, provider logos, and mini-app logos. Do not copy that list into query code; extend
+history, provider logos, mini-app logos, and assistant avatars. Do not copy that list into query code; extend
 `persistentFileRefTablesBySourceType` and its exhaustive consumers instead.
 
 ### 5.2 Grace Window
@@ -216,6 +216,14 @@ errors that can include private file content or database parameters.
 Follow [File Module Architecture §5.2](./architecture.md#52-adding-a-new-reference-source): add
 the source-owned FK table, source type, registry entry, exhaustive `FileRefService` mappings, and
 tests. The cleanup anti-join then includes the source automatically.
+
+Assistant images use a roleless `assistant_avatar_file_ref` owner slot. Frozen message
+snapshots store only `avatarFileId`, with an `author_avatar` chat-message ref keeping
+the image alive independently of its assistant. Replacing or resetting the owner slot
+never deletes the old file directly. Soft deletion retains the slot; permanent owner
+deletion cascades it. Temporary topics retain captured avatar entries before dispatch
+yields, release them on deletion, and hand them off to persistent message refs only
+after promotion commits. Failed promotion keeps the runtime retention for retry.
 
 ### 7.2 Migration Classification
 
