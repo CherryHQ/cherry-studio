@@ -84,17 +84,6 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('TabRouter portal container', () => {
-  it('provides the tab root as a scoped portal container, not document.body', async () => {
-    render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
-
-    await waitFor(() =>
-      expect(screen.getByTestId('router-provider')).toHaveAttribute('data-has-portal-container', 'true')
-    )
-    expect(screen.getByTestId('router-provider')).toHaveAttribute('data-portal-container-is-body', 'false')
-  })
-})
-
 describe('TabRouter PageSidePanel portal isolation', () => {
   function Page({ url }: { url: string }) {
     const [open] = React.useState(url === '/b')

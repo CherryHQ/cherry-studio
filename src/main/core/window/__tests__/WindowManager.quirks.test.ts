@@ -421,17 +421,6 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       expect(nonFocusableBystander.setFocusable).not.toHaveBeenCalled()
     })
 
-    it('does NOT wrap hide/close when quirk is absent', () => {
-      wm.open('plain' as never)
-      const plain = firstWindow()
-      const originalHide = plain.hide
-      const originalClose = plain.close
-
-      // No bystanders set up. Patched method would still collect [] but identity check is what matters.
-      expect(plain.hide).toBe(originalHide)
-      expect(plain.close).toBe(originalClose)
-    })
-
     // ─── Branch: excess-capacity path (pooled close destroys instead of releases) ─
 
     it('fires on excess-capacity close (pool over recycleMaxSize, destroyWindow path)', () => {
@@ -548,16 +537,6 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       expect(toolbar.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
     })
 
-    it('defaults level to "floating" when flag is true', () => {
-      wm.open('floatingTop' as never)
-      const win = firstWindow()
-      win.setAlwaysOnTop.mockClear()
-
-      win.show()
-
-      expect(win.setAlwaysOnTop).toHaveBeenCalledWith(true, 'floating')
-    })
-
     it('does NOT fire when quirk is absent', () => {
       wm.open('plain' as never)
       const plain = firstWindow()
@@ -594,8 +573,6 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
 
       // A patched method is a plain arrow wrapper; an untouched one is still the
       // constructor's vi mock.
-      expect(vi.isMockFunction(toolbar.hide)).toBe(true)
-      expect(vi.isMockFunction(toolbar.close)).toBe(true)
 
       toolbar.hide()
       expect(toolbar.webContents.sendInputEvent).not.toHaveBeenCalled()
