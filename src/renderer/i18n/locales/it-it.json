@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.start": "Impossibile avviare Claude Code. Riferimento diagnostico: {{reference}}",
   "error.claude_code_session_bus_missing": "Claude Code richiede un bus di sessione Linux attivo.",
   "error.claude_code_session_bus_missing_detail": "Imposta DBUS_SESSION_BUS_ADDRESS nell'ambiente desktop che avvia Cherry Studio, quindi riavvia l'app. Claude Code non è stato avviato.",
+  "error.claude_code_storage_open_failed": "Impossibile aprire l’archivio della sessione Claude Code. Riavvia l’app e verifica che la cartella dei dati dell’agente sia leggibile e disponga di spazio libero.",
   "error.content": "Contenuto",
   "error.data": "Dati",
   "error.detail": "Dettagli dell'errore",
