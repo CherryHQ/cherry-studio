@@ -158,12 +158,16 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
  * surfaces upstream failures so the UI can show a real reason rather than
  * a silent empty list.
  */
-export async function fetchResolvedProviderModels(providerId: string): Promise<ListedModels<Model>> {
+export async function fetchResolvedProviderModels(
+  providerId: string,
+  options?: { requestContext?: 'provider-setup' }
+): Promise<ListedModels<Model>> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
     const { models: fetched, skippedModels } = await ipcApi.request('ai.provider.model.list', {
       providerId,
-      throwOnError: true
+      throwOnError: true,
+      ...(options?.requestContext ? { requestContext: options.requestContext } : {})
     })
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
     // Enrichment rebuilds the array, so the notice main reported alongside the

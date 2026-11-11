@@ -87,6 +87,12 @@ export const mockJobManager = {
   enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
 }
 
+/** Minimal ProxyService mock for consumers that register scoped Electron sessions. */
+export const mockProxyService = {
+  registerProxySession: vi.fn().mockResolvedValue(undefined),
+  unregisterProxySession: vi.fn()
+}
+
 export const mockNotificationService = {
   publishTaskResult: vi.fn(async (_input: TaskResultNotificationInput) => true),
   publish: vi.fn(
@@ -120,6 +126,7 @@ export const defaultServiceInstances = {
   IpcApiService: mockIpcApiService,
   NotificationService: mockNotificationService,
   JobManager: mockJobManager,
+  ProxyService: mockProxyService,
   PowerService: {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))

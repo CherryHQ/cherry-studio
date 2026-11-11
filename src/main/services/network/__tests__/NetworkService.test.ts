@@ -14,7 +14,7 @@ vi.mock('../endpoints', () => ({ builtinEndpoints: () => [] }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ ProxyService: proxyService } as never)
+  return mockApplicationFactory({ ProxyService: proxyService })
 })
 
 const { NetworkService } = await import('../NetworkService')

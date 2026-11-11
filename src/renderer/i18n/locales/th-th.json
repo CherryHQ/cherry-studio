@@ -5434,6 +5434,8 @@
   "settings.provider.add.name.required": "กรุณาป้อนชื่อผู้ให้บริการ",
   "settings.provider.add.title": "เพิ่มผู้ให้บริการ",
   "settings.provider.add.type": "ประเภทผู้ให้บริการ",
+  "settings.provider.allow_self_signed_tls.help": "ปิดไว้โดยค่าเริ่มต้น: ใบรับรอง TLS ของผู้ให้บริการนี้จะได้รับการตรวจสอบ เมื่อเปิดใช้งาน จะข้ามการตรวจสอบใบรับรองสำหรับโฮสต์ API แบบ HTTPS ของผู้ให้บริการนี้ โดยจะยอมรับใบรับรองที่ลงนามด้วยตนเอง ออกโดย CA ส่วนตัว หมดอายุ หรือชื่อโฮสต์ไม่ตรงกันทั้งหมด และผู้โจมตีแบบ man-in-the-middle อาจดักฟังทราฟฟิก API ไปยังโฮสต์เหล่านั้นได้",
+  "settings.provider.allow_self_signed_tls.title": "อนุญาตใบรับรองที่ลงนามด้วยตนเอง",
   "settings.provider.anthropic_api_host": "โฮสต์ API ของ Anthropic",
   "settings.provider.anthropic_api_host_preview": "ตัวอย่าง Anthropic: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "ใช้เฉพาะเมื่อผู้ให้บริการเสนอ base URL ที่เข้ากันได้กับ Claude",

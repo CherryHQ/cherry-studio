@@ -1,3 +1,5 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 
 /**
@@ -25,13 +27,16 @@ export const DEFAULT_OVMS_BASE_URL = 'http://localhost:8000'
 
 export interface OvmsTransportSettings {
   baseURL?: string
+  fetch?: FetchFunction
 }
 
 class OvmsTransport implements ImageGenerationTransport {
   private baseURL: string
+  private readonly fetchFn: FetchFunction | undefined
 
   constructor(settings: OvmsTransportSettings) {
     this.baseURL = settings.baseURL || DEFAULT_OVMS_BASE_URL
+    this.fetchFn = settings.fetch
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
@@ -48,7 +53,7 @@ class OvmsTransport implements ImageGenerationTransport {
       rng_seed: input.seed ?? 0
     }
 
-    const response = await fetch(`${this.baseURL}/images/generations`, {
+    const response = await (this.fetchFn ?? globalThis.fetch)(`${this.baseURL}/images/generations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),

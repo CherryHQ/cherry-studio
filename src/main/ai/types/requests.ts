@@ -121,6 +121,7 @@ export interface ListModelsRequest {
   providerId?: string
   assistantId?: string
   throwOnError?: boolean
+  requestContext?: 'provider-setup'
 }
 
 export type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trigger']

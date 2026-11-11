@@ -220,7 +220,9 @@ describe('ProviderApiSetupDialog', () => {
 
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={onClose} />)
 
-    await waitFor(() => expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai'))
+    await waitFor(() =>
+      expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai', { requestContext: 'provider-setup' })
+    )
     const cancelButton = screen.getByRole('button', { name: 'settings.provider.api_setup.skip' })
     expect(cancelButton).toBeEnabled()
 
@@ -244,7 +246,7 @@ describe('ProviderApiSetupDialog', () => {
     await screen.findAllByText('alpha')
     expect(screen.getByRole('heading', { name: /settings\.provider\.api_setup\.models_title/ })).toBeInTheDocument()
     expect(updateApiKeysMock).toHaveBeenCalledWith([{ id: expect.any(String), key: 'sk-valid', isEnabled: true }])
-    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
+    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai', { requestContext: 'provider-setup' })
     expect(screen.getAllByLabelText('settings.provider.api_setup.select_model')).toHaveLength(2)
     expect(
       screen.getAllByLabelText('settings.provider.api_setup.select_model').every((item) => !item.matches(':checked'))
@@ -363,7 +365,11 @@ describe('ProviderApiSetupDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
 
     await waitFor(() =>
-      expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', { apiKey: 'sk-fresh', timeout: 15000 })
+      expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', {
+        apiKey: 'sk-fresh',
+        requestContext: 'provider-setup',
+        timeout: 15000
+      })
     )
     expect(checkApiMock).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(enableProviderMock).toHaveBeenCalledTimes(1))
@@ -423,7 +429,10 @@ describe('ProviderApiSetupDialog', () => {
     })
     expect(activeCheckStep).toHaveAttribute('aria-current', 'step')
     expect(within(activeCheckStep).getByRole('status')).toHaveTextContent('common.loading')
-    expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', { timeout: 15000 })
+    expect(checkApiMock).toHaveBeenCalledWith('openai::alpha', {
+      requestContext: 'provider-setup',
+      timeout: 15000
+    })
     expect(enableProviderMock).not.toHaveBeenCalled()
     resolveCheck?.({ latency: 12 })
     expect(
@@ -482,7 +491,9 @@ describe('ProviderApiSetupDialog', () => {
     storedApiKeysLoading = false
     rerender(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
 
-    await waitFor(() => expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai'))
+    await waitFor(() =>
+      expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai', { requestContext: 'provider-setup' })
+    )
   })
 
   it('returns to key entry when the saved keys are all disabled', async () => {

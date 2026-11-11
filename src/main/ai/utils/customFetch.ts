@@ -128,6 +128,55 @@ async function fetchFollowingRedirects(
 }
 
 /**
+ * Electron request sender this provider fetch delegates to.
+ *
+ * `net.fetch` issues on `session.defaultSession`. A scoped session passes
+ * `(input, init) => targetSession.fetch(input, init)` and must install
+ * {@link installProviderUserAgentInterceptor} on that same session.
+ */
+export type ProviderRequestSender = (input: string | Request, init?: RequestInit) => Promise<Response>
+
+/**
+ * Provider `fetch` with manual redirects, cross-origin credential stripping,
+ * {@link HTTP_TRACE_FINAL_BODY_SLOT} recording, and the User-Agent sentinel.
+ *
+ * `send` performs the Electron request. Redirect policy, the trace slot, and the
+ * sentinel stay here so every session binding shares one implementation.
+ */
+export function createProviderFetch(send: ProviderRequestSender): FetchFunction {
+  return (input: RequestInfo | URL, init?: RequestInit) => {
+    // `net.fetch` / `session.fetch` accept only `string | Request`; FetchFunction may hand us a URL.
+    const target = input instanceof URL ? input.href : input
+
+    // Record the post-transform on-wire body in HTTP_TRACE_FINAL_BODY_SLOT so the
+    // trace span matches what this request actually sent.
+    const finalBodySlot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
+      HTTP_TRACE_FINAL_BODY_SLOT
+    ]
+    const sendRequest = (requestTarget: string | Request, requestInit?: RequestInit) => {
+      if (finalBodySlot) finalBodySlot.body = requestInit?.body ?? null
+      return send(requestTarget, requestInit)
+    }
+
+    // Chromium overwrites `User-Agent`, so carry it on PROVIDER_USER_AGENT_HEADER for the
+    // session interceptor. Only the (string, init) shape has headers; the AI SDK always uses it.
+    const userAgent = init?.headers ? resolveUserAgent(init.headers) : null
+    if (userAgent) {
+      const headers = new Headers(init?.headers)
+      headers.set(PROVIDER_USER_AGENT_HEADER, userAgent)
+      const requestInit = { ...init, headers }
+      return typeof target === 'string' && (!init?.redirect || init.redirect === 'follow')
+        ? fetchFollowingRedirects(target, requestInit, sendRequest)
+        : sendRequest(target, requestInit)
+    }
+
+    return typeof target === 'string' && (!init?.redirect || init.redirect === 'follow')
+      ? fetchFollowingRedirects(target, init, sendRequest)
+      : sendRequest(target, init)
+  }
+}
+
+/**
  * Base `fetch` for AI provider HTTP calls.
  *
  * Proxy policy is applied centrally by `ProxyService`
@@ -142,54 +191,24 @@ async function fetchFollowingRedirects(
  * request signing) take an inner `FetchFunction` and delegate the actual network
  * call to this one.
  */
-export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: RequestInit) => {
-  // `net.fetch` accepts only `string | Request`; FetchFunction may hand us a URL.
-  const target = input instanceof URL ? input.href : input
-
-  // Record the final on-wire body for the HTTP-trace layer (see
-  // HTTP_TRACE_FINAL_BODY_SLOT). Innermost means the body here is the one really
-  // sent — after every provider transform — so the trace can correct its span.
-  const finalBodySlot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
-    HTTP_TRACE_FINAL_BODY_SLOT
-  ]
-  const sendRequest = (requestTarget: string | Request, requestInit?: RequestInit) => {
-    if (finalBodySlot) finalBodySlot.body = requestInit?.body ?? null
-    return net.fetch(requestTarget, requestInit)
-  }
-
-  // A custom `User-Agent` in the request headers is overwritten by Chromium's net
-  // stack, so smuggle it through PROVIDER_USER_AGENT_HEADER and let the default-session
-  // interceptor restore it. Only the (string, init) call shape carries headers here;
-  // the AI SDK always uses it, so the Request-input path needs no handling.
-  const userAgent = init?.headers ? resolveUserAgent(init.headers) : null
-  if (userAgent) {
-    const headers = new Headers(init?.headers)
-    headers.set(PROVIDER_USER_AGENT_HEADER, userAgent)
-    const requestInit = { ...init, headers }
-    return typeof target === 'string' && (!init?.redirect || init.redirect === 'follow')
-      ? fetchFollowingRedirects(target, requestInit, sendRequest)
-      : sendRequest(target, requestInit)
-  }
-
-  return typeof target === 'string' && (!init?.redirect || init.redirect === 'follow')
-    ? fetchFollowingRedirects(target, init, sendRequest)
-    : sendRequest(target, init)
-}
+export const customFetch: FetchFunction = createProviderFetch((input, init) => net.fetch(input, init))
 
 /**
- * Install the default-session `onBeforeSendHeaders` interceptor that restores a
- * provider `User-Agent` smuggled through {@link PROVIDER_USER_AGENT_HEADER}.
+ * Install the `onBeforeSendHeaders` interceptor that restores a provider
+ * `User-Agent` smuggled through {@link PROVIDER_USER_AGENT_HEADER}.
  *
- * `net.fetch` issues on `session.defaultSession`, so this is where its requests
- * pass through. The hook is a pass-through for every other request; it only
- * rewrites headers carrying the sentinel. Returns a disposer that removes the
- * interceptor.
+ * Defaults to `session.defaultSession`, the session `net.fetch` uses. A fetch
+ * bound to another session must install on that same session. The hook is a
+ * pass-through for every other request; it only rewrites headers carrying the
+ * sentinel. Returns a disposer that removes the interceptor.
  *
- * Owns the default session's single `onBeforeSendHeaders` slot — nothing else may
- * register one on `defaultSession` (Electron keeps only the latest listener).
+ * Owns the target session's single `onBeforeSendHeaders` slot — nothing else may
+ * register one on it (Electron keeps only the latest listener).
  */
-export function installProviderUserAgentInterceptor(): () => void {
-  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+export function installProviderUserAgentInterceptor(
+  targetSession: Electron.Session = session.defaultSession
+): () => void {
+  targetSession.webRequest.onBeforeSendHeaders((details, callback) => {
     const sentinelKey = Object.keys(details.requestHeaders).find(
       (key) => key.toLowerCase() === PROVIDER_USER_AGENT_HEADER
     )
@@ -210,5 +229,5 @@ export function installProviderUserAgentInterceptor(): () => void {
     callback({ requestHeaders })
   })
 
-  return () => session.defaultSession.webRequest.onBeforeSendHeaders(null)
+  return () => targetSession.webRequest.onBeforeSendHeaders(null)
 }

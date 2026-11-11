@@ -264,7 +264,8 @@ export const aiRequestSchemas = {
     input: z.strictObject({
       providerId: z.string().optional(),
       assistantId: z.string().optional(),
-      throwOnError: z.boolean().optional()
+      throwOnError: z.boolean().optional(),
+      requestContext: z.literal('provider-setup').optional()
     }),
     // A listing, not a bare array: a provider whose "models" are its own files
     // (ComfyUI) holds some back, and the caller has to be able to say which.
@@ -277,6 +278,7 @@ export const aiRequestSchemas = {
     input: z.strictObject({
       ...aiRequestShape,
       apiKeyOverride: z.string().optional(),
+      requestContext: z.literal('provider-setup').optional(),
       timeout: z.number().optional()
     }),
     output: z.object({ latency: z.number() })

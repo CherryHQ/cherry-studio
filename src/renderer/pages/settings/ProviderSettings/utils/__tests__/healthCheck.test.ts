@@ -8,6 +8,7 @@ import type { ApiKeyEntry } from '@shared/data/types/provider'
 import type { ApiKeyWithStatus, ModelWithStatus } from '../../types/healthCheck'
 import { HealthStatus } from '../../types/healthCheck'
 import {
+  checkApi,
   checkModelWithMultipleKeys,
   getModelCheckCredentialPolicy,
   getModelHealthCheckSkipReason,
@@ -67,6 +68,25 @@ describe('checkModelWithMultipleKeys', () => {
       timeout: 9000
     })
     expect(results).toEqual([expect.objectContaining({ kind: 'ok', credential, latency: 12 })])
+  })
+})
+
+describe('checkApi', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('forwards provider setup context to the model probe', async () => {
+    ipcRequestMock.mockResolvedValueOnce({ latency: 12 })
+
+    await checkApi('openai::chat', { requestContext: 'provider-setup' })
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.provider.model.check', {
+      apiKeyOverride: undefined,
+      requestContext: 'provider-setup',
+      uniqueModelId: 'openai::chat',
+      timeout: 15000
+    })
   })
 })
 
