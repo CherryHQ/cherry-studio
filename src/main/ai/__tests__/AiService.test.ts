@@ -28,6 +28,11 @@ type AiServicePrivate = {
 const mockGenerateImage = vi.fn()
 const mockAgentGenerate = vi.fn()
 const mockCreateAgent = vi.fn()
+const mockExecutorStreamText = vi.fn(async () => ({
+  toUIMessageStream: () => new ReadableStream({ start: (controller) => controller.close() }),
+  steps: Promise.resolve([])
+}))
+const mockExecutorGenerateText = vi.fn(async () => ({ text: '', steps: [] }))
 const mockRerank = vi.fn()
 const mockEmbedMany = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
@@ -176,6 +181,10 @@ vi.mock('../messages/attachmentRouting', async (importOriginal) => ({
 
 vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: (...args: unknown[]) => mockCreateAgent(...args),
+  createExecutor: async () => ({
+    streamText: (...args: unknown[]) => mockExecutorStreamText(...args),
+    generateText: (...args: unknown[]) => mockExecutorGenerateText(...args)
+  }),
   definePlugin: (plugin: unknown) => plugin,
   embedMany: async (...args: unknown[]) => {
     const params = args[2] as { onProviderCallStart?: () => (event: unknown) => void }
@@ -1907,6 +1916,13 @@ describe('AiService tool approval', () => {
         ...(request.request as Record<string, unknown>)
       } as never)
       // Agent.stream builds the AI SDK agent inside its async pump, after streamText returns.
+      const callerOwned = (request.request as Record<string, unknown> | undefined)?.contextOwner === 'caller'
+      if (callerOwned) {
+        // Main's caller path (#24037) streams through a single-step executor instead of createAgent.
+        await vi.waitFor(() => expect(mockExecutorStreamText).toHaveBeenCalled())
+        const payload = mockExecutorStreamText.mock.calls[0][0] as { tools?: Record<string, unknown> }
+        return Object.keys(payload.tools ?? {})
+      }
       await vi.waitFor(() => expect(mockCreateAgent).toHaveBeenCalled())
       const agentOptions = mockCreateAgent.mock.calls[0][0] as {
         agentSettings: { tools?: Record<string, unknown> }
