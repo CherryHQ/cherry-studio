@@ -1,4 +1,4 @@
-import { classifyErrorCategory, type ErrorCategory } from '@shared/utils/errorCategory'
+import { classifyErrorCategory, extractHttpStatus, type ErrorCategory } from '@shared/utils/errorCategory'
 
 export type PiObservationFailureKind = 'gap' | 'closed' | 'diagnostic' | 'outcome'
 export type PiObservationRuntime = 'pi' | 'pi-durable'
@@ -49,7 +49,8 @@ export class PiObservationError extends Error {
   readonly nativeThreadId?: string
   readonly causeMessage?: string
   readonly isRetryable: boolean
-  readonly providerErrorCategory: ErrorCategory
+  readonly providerErrorCategory?: ErrorCategory
+  readonly statusCode?: number
   readonly i18nKey?: string
   readonly detailI18nKey?: string
   readonly detailI18nValues?: Record<string, string>
@@ -74,10 +75,14 @@ export class PiObservationError extends Error {
       this.detailI18nKey = 'pi_observation_interrupted_detail'
       this.detailI18nValues = { reason: details.reason }
     } else {
-      const category = classifyErrorCategory({
-        text: [details.causeMessage, details.reason].filter(Boolean).join('\n')
-      })
-      this.providerErrorCategory = category
+      const combinedText = [details.causeMessage, details.reason].filter(Boolean).join('\n')
+      const status = extractHttpStatus(combinedText)
+      if (status !== undefined) this.statusCode = status
+      const category = classifyErrorCategory({ text: combinedText, status })
+      // Leave `unknown` unset so downstream (`toExecutionFailure`, renderer
+      // `classifyError`) can still recover via its own status/text fallback
+      // instead of being suppressed by an explicit `unknown`.
+      if (category !== 'unknown') this.providerErrorCategory = category
       this.isRetryable = RETRYABLE_OBSERVATION_CATEGORIES.has(category)
     }
   }
@@ -88,6 +93,8 @@ export class PiObservationError extends Error {
       kind: this.kind,
       reason: this.reason,
       sessionId: this.sessionId,
+      ...(this.statusCode !== undefined ? { statusCode: this.statusCode } : {}),
+      ...(this.providerErrorCategory ? { providerErrorCategory: this.providerErrorCategory } : {}),
       ...(this.backendId ? { backendId: this.backendId } : {}),
       ...(this.nativeThreadId ? { nativeThreadId: this.nativeThreadId } : {}),
       ...(this.causeMessage ? { causeMessage: this.causeMessage } : {})

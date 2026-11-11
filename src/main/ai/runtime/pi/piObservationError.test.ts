@@ -66,6 +66,49 @@ describe('PiObservationError', () => {
     expect(error.toLogContext()).toMatchObject({ runtime: 'pi', kind: 'outcome' })
   })
 
+  it('preserves HTTP-status diagnosis when the provider text carries only a status code', () => {
+    const auth = new PiObservationError({
+      runtime: 'pi',
+      kind: 'diagnostic',
+      reason: 'failed',
+      sessionId: 'session-status-auth',
+      causeMessage: '401: {"message":"Access denied"}'
+    })
+
+    expect(auth.providerErrorCategory).toBe('auth')
+    expect(auth.statusCode).toBe(401)
+    expect(auth.isRetryable).toBe(false)
+
+    const unavailable = new PiObservationError({
+      runtime: 'pi',
+      kind: 'outcome',
+      reason: 'failed',
+      sessionId: 'session-status-server',
+      causeMessage: '503: {"message":"Temporary maintenance"}'
+    })
+
+    expect(unavailable.providerErrorCategory).toBe('server')
+    expect(unavailable.statusCode).toBe(503)
+    expect(unavailable.isRetryable).toBe(true)
+  })
+
+  it('leaves unknown provider failures unset so downstream status fallback still applies', () => {
+    const error = new PiObservationError({
+      runtime: 'pi',
+      kind: 'diagnostic',
+      reason: 'weird-unknown-xyz',
+      sessionId: 'session-unknown',
+      causeMessage: 'Something totally unrelated failure'
+    })
+
+    expect(error.providerErrorCategory).toBeUndefined()
+    expect(error.statusCode).toBeUndefined()
+    expect(error.isRetryable).toBe(false)
+
+    const serialized = serializeError(error)
+    expect(serialized.providerErrorCategory).toBeUndefined()
+  })
+
   it('survives main-process serialization with retry and stream diagnosis intact', () => {
     const error = new PiObservationError({
       runtime: 'pi',
