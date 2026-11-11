@@ -19,6 +19,7 @@ const unknown: PermissionStatus = {
 
 function client(overrides: Partial<ComputerUseClient> = {}): ComputerUseClient {
   return {
+    getAppIcon: async () => ({ status: 'unavailable' }),
     getCapabilities: vi.fn(),
     listApps: vi.fn(),
     openAppSession: vi.fn(),
@@ -158,15 +159,12 @@ it('queries icons without app control and closes the presentation client', async
   expect(service.getControls()).toEqual([])
 })
 
-it('keeps older SDKs compatible and rejects invalid icon payloads', async () => {
-  vi.mocked(ComputerUse.start)
-    .mockResolvedValueOnce(client())
-    .mockResolvedValueOnce(
-      Object.assign(client(), {
-        getAppIcon: async () => ({ status: 'available', icon: { mimeType: 'image/svg+xml', dataBase64: 'YQ==' } })
-      })
-    )
+it('rejects invalid icon payloads', async () => {
+  vi.mocked(ComputerUse.start).mockResolvedValueOnce(
+    Object.assign(client(), {
+      getAppIcon: async () => ({ status: 'available', icon: { mimeType: 'image/svg+xml', dataBase64: 'YQ==' } })
+    })
+  )
   const service = new TestService()
-  expect(await service.getAppIcon('com.apple.finder')).toEqual({ status: 'unavailable' })
   await expect(service.getAppIcon('com.apple.finder')).rejects.toThrow()
 })

@@ -220,7 +220,7 @@
     "@cherrystudio/agent-runtime": "workspace:*",
     "@cherrystudio/ai-core": "workspace:*",
     "@cherrystudio/analytics-client": "1.4.0",
-    "@cherrystudio/computer-use": "0.1.10",
+    "@cherrystudio/computer-use": "0.1.11",
     "@cherrystudio/extension-table-plus": "workspace:^",
     "@cherrystudio/file-preview": "workspace:*",
     "@cherrystudio/openai": "6.15.0",

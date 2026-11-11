@@ -32,6 +32,7 @@ const computerUseControlSchema = z.object({
   label: z.string(),
   appId: z.string().optional(),
   appName: z.string().optional(),
+  appIdentity: z.string().min(1).max(512).optional(),
   status: z.enum(['opening', 'active', 'stopping', 'stopped', 'unconfirmed'])
 })
 

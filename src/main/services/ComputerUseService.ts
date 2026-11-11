@@ -272,7 +272,14 @@ export class ComputerUseService extends BaseService {
     for (const [ownerId, owner] of this.owners) {
       const apps = new Map<string, ComputerUseControl>()
       for (const app of owner.blockedApps.values())
-        apps.set(app.id, { ownerId, label: owner.label, appId: app.id, appName: app.name, status: 'stopped' })
+        apps.set(app.id, {
+          ownerId,
+          label: owner.label,
+          appId: app.id,
+          appName: app.name,
+          appIdentity: app.identity,
+          status: 'stopped'
+        })
       for (const task of this.tasks.values()) {
         if (task.context.ownerId !== ownerId) continue
         for (const control of task.apps.values())
@@ -281,6 +288,7 @@ export class ComputerUseService extends BaseService {
             label: owner.label,
             appId: control.app.id,
             appName: control.app.name,
+            appIdentity: control.app.identity,
             status: control.status
           })
       }
@@ -489,9 +497,6 @@ export class ComputerUseService extends BaseService {
 
   getAppIcon(identity: string) {
     return this.withStandaloneClient(async (client) => {
-      // The published SDK predates the read-only icon API; older installations retain the named fallback.
-      if (!('getAppIcon' in client) || typeof client.getAppIcon !== 'function')
-        return { status: 'unavailable' as const }
       const result: unknown = await client.getAppIcon({ identity }, { signal: this.shutdown.signal })
       return computerUseAppIconSchema.parse(result)
     })
