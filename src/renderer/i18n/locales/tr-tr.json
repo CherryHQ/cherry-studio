@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.start": "Claude Code başlatılamadı. Tanılama referansı: {{reference}}",
   "error.claude_code_session_bus_missing": "Claude Code için etkin bir Linux oturum veriyolu gerekir.",
   "error.claude_code_session_bus_missing_detail": "Cherry Studio'yu başlatan masaüstü ortamında DBUS_SESSION_BUS_ADDRESS değişkenini ayarlayın ve ardından uygulamayı yeniden başlatın. Claude Code başlatılmadı.",
+  "error.claude_code_storage_open_failed": "Claude Code oturum depolama alanı açılamadı. Uygulamayı yeniden başlatın ve aracı veri klasörünün okunabilir olduğunu ve boş alanı bulunduğunu kontrol edin.",
   "error.content": "İçerik",
   "error.data": "Veri",
   "error.detail": "Hata Ayrıntıları",
