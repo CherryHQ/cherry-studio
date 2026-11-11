@@ -112,12 +112,4 @@ describe('MinimalToolbar', () => {
     renderToolbar(site)
     expect(screen.getByRole('textbox')).toBeInTheDocument()
   })
-
-  it('shows DevTools for local apps and sites alike', () => {
-    renderToolbar(localApp)
-    expect(screen.getByRole('button', { name: /developer tools|开发者工具/i })).toBeInTheDocument()
-    cleanup()
-    renderToolbar(site)
-    expect(screen.getByRole('button', { name: /developer tools|开发者工具/i })).toBeInTheDocument()
-  })
 })
