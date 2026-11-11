@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.start": "ไม่สามารถเริ่ม Claude Code ได้ เอกสารอ้างอิง: {{reference}}",
   "error.claude_code_session_bus_missing": "Claude Code ต้องใช้บัสเซสชัน Linux ที่ทำงานอยู่",
   "error.claude_code_session_bus_missing_detail": "ตั้งค่า DBUS_SESSION_BUS_ADDRESS ในสภาพแวดล้อมเดสก์ท็อปที่ใช้เปิด Cherry Studio แล้วรีสตาร์ตแอป Claude Code ยังไม่ได้เริ่มทำงาน",
+  "error.claude_code_storage_open_failed": "ไม่สามารถเปิดพื้นที่จัดเก็บเซสชัน Claude Code ได้ โปรดเริ่มแอปใหม่และตรวจสอบว่าโฟลเดอร์ข้อมูลของเอเจนต์อ่านได้และมีพื้นที่ว่าง",
   "error.content": "เนื้อหา",
   "error.data": "ข้อมูล",
   "error.detail": "รายละเอียดข้อผิดพลาด",
