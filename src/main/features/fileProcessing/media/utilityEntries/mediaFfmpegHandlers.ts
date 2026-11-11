@@ -35,6 +35,7 @@ type Logger = { warn: (message: string) => void }
 
 const MAX_STDIO_CHARS = 8_000
 const COMMAND_TIMEOUT_MS = 120_000
+const COMMAND_TIMEOUT_MESSAGE = 'Media processing timed out'
 const WAV_HEADER_BUDGET_BYTES = 4_096
 const LOCAL_PROTOCOL_WHITELIST = 'file,pipe,crypto'
 
@@ -194,7 +195,7 @@ async function runCommand(
       killProcessTree(child, logger)
     }
     const onAbort = () => requestKill(signal.reason ?? new Error('Aborted'))
-    const timer = setTimeout(() => requestKill(new Error('Media processing timed out')), COMMAND_TIMEOUT_MS)
+    const timer = setTimeout(() => requestKill(new Error(COMMAND_TIMEOUT_MESSAGE)), COMMAND_TIMEOUT_MS)
 
     if (!childStdout || !childStderr) {
       finish(new Error('Media tool stdio pipes unavailable'))
@@ -553,29 +554,36 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     // First frame of each floor(t*fps) bucket keeps its source PTS. scale stays before rgb24.
     // rgb24 stays before scene: the built-in score ignores same-luma color cuts.
     const filter = `select='isnan(prev_selected_t)+gt(floor(t*${fps}),floor(prev_selected_t*${fps}))',scale=${edge}:-2,format=rgb24,select='gt(scene,${scoreThreshold.toString()})',metadata=print`
-    await runCommand(
-      ffmpegPath,
-      ['-y', '-i', filePath, '-map', '0:V:0', '-an', '-vf', filter, '-f', 'null', '-'],
-      signal,
-      logger,
-      {
-        ffmpeg: true,
-        pidRegistryPath,
-        onStderrLine: (line) => {
-          const time = /pts_time:\s*([0-9]*\.?[0-9]+)/.exec(line)
-          if (time?.[1]) {
-            // Floor so a seek cannot start after the frame that produced this PTS.
-            // No -copyts: FFmpeg already removed the format start, so this matches input -ss.
-            timestampMs = Math.floor(Number(time[1]) * 1000)
-            return
+    try {
+      await runCommand(
+        ffmpegPath,
+        ['-y', '-i', filePath, '-map', '0:V:0', '-an', '-vf', filter, '-f', 'null', '-'],
+        signal,
+        logger,
+        {
+          ffmpeg: true,
+          pidRegistryPath,
+          onStderrLine: (line) => {
+            const time = /pts_time:\s*([0-9]*\.?[0-9]+)/.exec(line)
+            if (time?.[1]) {
+              // Floor so a seek cannot start after the frame that produced this PTS.
+              // No -copyts: FFmpeg already removed the format start, so this matches input -ss.
+              timestampMs = Math.floor(Number(time[1]) * 1000)
+              return
+            }
+            const score = /lavfi\.scene_score=\s*([0-9]*\.?[0-9]+)/.exec(line)
+            if (!score?.[1] || timestampMs == null) return
+            buckets.add({ timestampMs, score: Number(score[1]) })
+            timestampMs = undefined
           }
-          const score = /lavfi\.scene_score=\s*([0-9]*\.?[0-9]+)/.exec(line)
-          if (!score?.[1] || timestampMs == null) return
-          buckets.add({ timestampMs, score: Number(score[1]) })
-          timestampMs = undefined
         }
-      }
-    )
+      )
+    } catch (error) {
+      signal.throwIfAborted()
+      if (!(error instanceof Error) || error.message !== COMMAND_TIMEOUT_MESSAGE) throw error
+      // Long or high-resolution video can outlast the budget; keep the cuts already found.
+      logger.warn(`scene scan timed out; keeping ${buckets.list().length} cuts found so far`)
+    }
     return { changes: buckets.list() }
   }
 }
