@@ -8,7 +8,7 @@ import LegacyUpgradeApp from '../LegacyUpgradeApp'
 
 const copy: LegacyUpgradeScreen = {
   title: 'Upgrade safely',
-  message: 'Install 2.1.0 first',
+  olderVersions: 'Older version upgrade instructions',
   detail: 'Keep your existing data',
   prerequisite: 'Run 1.9.12 if the old version is earlier or unknown',
   download: 'Download 2.1.0',
@@ -24,6 +24,8 @@ it.each([
   ['Download 1.9.12', 'prerequisite']
 ])('routes %s to its fixed installer choice and prevents duplicate actions', (label, target) => {
   render(<LegacyUpgradeApp screen={copy} />)
+  expect(screen.queryByText(copy.prerequisite)).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: copy.olderVersions }))
   expect(screen.getByText(copy.prerequisite)).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: label }))
   expect(window.electron.ipcRenderer.invoke).toHaveBeenCalledWith('legacy-upgrade:download', target)

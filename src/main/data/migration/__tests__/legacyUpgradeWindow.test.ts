@@ -12,7 +12,7 @@ vi.mock('@main/core/security/validateSender', () => ({ validateSender: vi.fn(() 
 
 const screen: Omit<LegacyUpgradeScreen, 'dark'> = {
   title: 'Upgrade',
-  message: 'Install 2.1.0',
+  olderVersions: 'Older version upgrade instructions',
   detail: 'Keep your data',
   prerequisite: 'Run 1.9.12 first',
   download: 'Download 2.1.0',

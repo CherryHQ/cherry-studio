@@ -13,11 +13,12 @@ export function showLegacyUpgradeWindow(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const window = new BrowserWindow({
-      width: 640,
-      height: 700,
-      minWidth: 560,
-      minHeight: 660,
+      width: 520,
+      height: 420,
+      minWidth: 440,
+      minHeight: 380,
       show: false,
+      frame: false,
       autoHideMenuBar: true,
       title: 'Cherry Studio',
       backgroundColor: nativeTheme.shouldUseDarkColors ? '#18181b' : '#ffffff',

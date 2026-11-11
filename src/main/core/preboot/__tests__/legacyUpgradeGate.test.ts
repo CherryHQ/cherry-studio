@@ -36,7 +36,8 @@ describe('legacy upgrade gate', () => {
   it('offers fixed installers and prerequisites before quitting without bootstrap', async () => {
     expect(await runLegacyUpgradeGate()).toBe('handled')
     const [screen, downloads] = vi.mocked(showLegacyUpgradeWindow).mock.calls[0]
-    expect(screen.detail).toContain('/legacy/profile')
+    expect(screen.detail).toContain('2.1.0')
+    expect(screen.detail).not.toContain('/legacy/profile')
     expect(screen.prerequisite).toContain('1.9.12')
     expect(downloads.bridge).toContain('/releases/download/v2.1.0/Cherry-Studio-2.1.0-')
     expect(downloads.prerequisite).toContain('/releases/download/v1.9.12/Cherry-Studio-1.9.12-')

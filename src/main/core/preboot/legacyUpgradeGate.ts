@@ -43,8 +43,8 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
     await showLegacyUpgradeWindow(
       {
         title: t('dialog.legacy_upgrade.title', undefined, language),
-        message: t('dialog.legacy_upgrade.message', { version: LEGACY_UPGRADE_VERSION }, language),
-        detail: t('dialog.legacy_upgrade.detail', { version: LEGACY_UPGRADE_VERSION, path: profile.path }, language),
+        olderVersions: t('dialog.legacy_upgrade.older_versions', undefined, language),
+        detail: t('dialog.legacy_upgrade.detail', { version: LEGACY_UPGRADE_VERSION }, language),
         prerequisite: t('dialog.legacy_upgrade.prerequisite', undefined, language),
         download: t('dialog.legacy_upgrade.download', { version: LEGACY_UPGRADE_VERSION }, language),
         downloadPrerequisite: t('dialog.legacy_upgrade.download', { version: '1.9.12' }, language),

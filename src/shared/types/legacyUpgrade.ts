@@ -6,7 +6,7 @@ export const LegacyUpgradeChannels = {
 
 export interface LegacyUpgradeScreen {
   title: string
-  message: string
+  olderVersions: string
   detail: string
   prerequisite: string
   download: string
