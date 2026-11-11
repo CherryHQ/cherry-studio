@@ -10,6 +10,7 @@ export interface ClaudeCodeProcessDiagnostics {
   exitCode?: number
   exitSignal?: NodeJS.Signals
   spawnFailed?: true
+  spawnErrorCode?: string
 }
 
 export function createClaudeCodeProcessDiagnostics(reference: string = randomUUID()): ClaudeCodeProcessDiagnostics {
@@ -22,6 +23,7 @@ export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcess
   delete diagnostics.exitCode
   delete diagnostics.exitSignal
   delete diagnostics.spawnFailed
+  delete diagnostics.spawnErrorCode
 }
 
 /** CLI stderr carries no structured status, so the status is recovered from the text itself. */
@@ -47,6 +49,8 @@ export function recordClaudeCodeSpawnError(diagnostics: ClaudeCodeProcessDiagnos
   diagnostics.terminalReason = `Failed to spawn Claude Code process: ${error.message}`
   diagnostics.category = classifyClaudeCodeTerminalReason(diagnostics.terminalReason)
   diagnostics.spawnFailed = true
+  const code = (error as NodeJS.ErrnoException).code
+  if (typeof code === 'string' && /^E[A-Z0-9_]{1,63}$/.test(code)) diagnostics.spawnErrorCode = code
 }
 
 export function isClaudeCodeProcessFailure(error: unknown, diagnostics?: ClaudeCodeProcessDiagnostics): error is Error {
@@ -74,6 +78,7 @@ export function createClaudeCodeProcessExitError(
     claudeCodeExitCategory:
       diagnostics.category ?? classifyClaudeCodeTerminalReason(diagnostics.terminalReason ?? originalError.message),
     diagnosticReference: diagnostics.reference,
+    ...(diagnostics.spawnFailed && diagnostics.spawnErrorCode ? { code: diagnostics.spawnErrorCode } : {}),
     ...(diagnostics.exitCode !== undefined ? { processExitCode: diagnostics.exitCode } : {}),
     ...(diagnostics.exitSignal ? { processExitSignal: diagnostics.exitSignal } : {})
   })

@@ -6,6 +6,7 @@ import {
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
   recordClaudeCodeProcessExit,
+  recordClaudeCodeSpawnError,
   resetClaudeCodeProcessDiagnostics
 } from '../processExitDiagnostics'
 
@@ -92,13 +93,48 @@ describe('Claude Code process exit diagnostics', () => {
     expect(diagnostics.terminalReason).toContain('exited with code 429')
   })
 
+  it.each(['EPERM', 'EACCES', 'ENOENT', 'ENAMETOOLONG', 'EFTYPE'])(
+    'preserves native spawn %s without exposing paths or stderr',
+    (code) => {
+      const diagnostics = createClaudeCodeProcessDiagnostics('spawn-ref')
+      const error = Object.assign(new Error('spawn /Users/alice/private EPERM api_key=private'), { code })
+      recordClaudeCodeSpawnError(diagnostics, error)
+      const serialized = serializeError(
+        createClaudeCodeProcessExitError(new Error('wrapped spawn failure'), diagnostics)
+      )
+      expect(serialized).toMatchObject({ code, name: 'ClaudeCodeProcessExitError', diagnosticReference: 'spawn-ref' })
+      expect(JSON.stringify(serialized)).not.toContain('/Users/alice/private')
+      expect(JSON.stringify(serialized)).not.toContain('api_key=private')
+    }
+  )
+
+  it.each([undefined, 42, '/Users/alice/private', 'EPERM api_key=private'])(
+    'does not project an absent or unstructured spawn code %s',
+    (code) => {
+      const diagnostics = createClaudeCodeProcessDiagnostics('spawn-ref')
+      recordClaudeCodeSpawnError(diagnostics, Object.assign(new Error('spawn failed'), { code }))
+      expect(serializeError(createClaudeCodeProcessExitError(new Error('wrapped'), diagnostics))).not.toHaveProperty(
+        'code'
+      )
+    }
+  )
+
+  it('does not mistake a normal process exit for a native spawn failure', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('exit-ref')
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'failed')
+    expect(
+      serializeError(createClaudeCodeProcessExitError(Object.assign(new Error('exit'), { code: 'EPERM' }), diagnostics))
+    ).not.toHaveProperty('code')
+  })
+
   it('clears a prior process result before a resume recovery spawns again', () => {
     const diagnostics = createClaudeCodeProcessDiagnostics('retry-ref')
     Object.assign(diagnostics, {
       terminalReason: 'first process failed',
       category: 'auth',
       exitCode: 1,
-      spawnFailed: true
+      spawnFailed: true,
+      spawnErrorCode: 'EPERM'
     })
 
     resetClaudeCodeProcessDiagnostics(diagnostics)
