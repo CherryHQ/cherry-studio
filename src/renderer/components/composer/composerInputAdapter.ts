@@ -117,12 +117,13 @@ export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapt
       return true
     },
     insertText: (insertedText, options) => {
-      editor
+      const chain = editor
         .chain()
         .focus()
         .setMeta(PROMPT_VARIABLE_TOKENIZATION_META, options?.tokenizeVariables !== false)
-        .insertContent(buildInsertedInlineContent(editor, insertedText, options))
-        .run()
+      const content = buildInsertedInlineContent(editor, insertedText, options)
+      if (options?.position === 'start') chain.insertContentAt(1, content).run()
+      else chain.insertContent(content).run()
     },
     insertToken: (token, options) => {
       insertComposerTokenAtCursor(editor, token as ComposerDraftToken, options)

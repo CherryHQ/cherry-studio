@@ -1,7 +1,7 @@
-import { useEffect, useMemo } from 'react'
+import { use, useEffect, useMemo, useRef } from 'react'
 
-import { useCommandRuntime } from '@renderer/hooks/command'
-import { useIsActiveTab } from '@renderer/hooks/tab'
+import { CommandFocusHostContext, CommandFocusScopeContext } from '@renderer/hooks/command'
+import { useIsActiveTab, useTabCommandRuntime } from '@renderer/hooks/tab'
 import { useNumberShortcutHints } from '@renderer/hooks/useNumberShortcutHints'
 import { CONVERSATION_NUMBER_COMMANDS as CONVERSATION_COMMANDS } from '@renderer/utils/numberShortcuts'
 
@@ -11,7 +11,11 @@ export function useConversationListShortcuts<T extends ResourceListItemBase>(onO
   const view = useResourceListView<T>()
   const { status } = useResourceListControlsState()
   const active = useIsActiveTab()
-  const runtime = useCommandRuntime()
+  const listScope = use(CommandFocusScopeContext)
+  const host = use(CommandFocusHostContext)
+  const tabRuntime = useTabCommandRuntime()
+  // Conversation navigation must survive the composer unmount returning focus to document.body.
+  const runtime = useMemo(() => (host ? host.forScope(host.rootScope) : tabRuntime), [host, tabRuntime])
   const items = useMemo(() => {
     const groups =
       view.sections.length > 0
@@ -21,23 +25,27 @@ export function useConversationListShortcuts<T extends ResourceListItemBase>(onO
         : view.groups
     return groups.flatMap((group) => group.items).slice(0, CONVERSATION_COMMANDS.length)
   }, [view])
+  const stateRef = useRef({ items, onOpen })
+  stateRef.current = { items, onOpen }
+  const itemCount = items.length
   const enabled = active && status === 'idle'
   const commandHints = useNumberShortcutHints(CONVERSATION_COMMANDS, enabled)
 
   useEffect(() => {
     if (!enabled) return
     const dispose = CONVERSATION_COMMANDS.map((command, index) => {
-      const item = items[index]
       return runtime.registerHandler(
         command,
         () => {
+          const { items, onOpen } = stateRef.current
+          const item = items[index]
           if (item) onOpen(item)
         },
-        { enabled: !!item }
+        { enabled: () => index < itemCount && (listScope?.isActive() ?? true) }
       )
     })
     return () => dispose.forEach((remove) => remove())
-  }, [enabled, items, onOpen, runtime])
+  }, [enabled, itemCount, listScope, runtime])
 
   return useMemo(() => {
     const hints = new Map<string, string>()

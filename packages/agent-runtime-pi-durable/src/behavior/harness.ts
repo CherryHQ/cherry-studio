@@ -1,6 +1,5 @@
 import { copyJson, type JsonRepresentation, type JsonValue as NativeJson } from '@earendil-works/chord'
 import { BACKGROUND_CONTEXT, awaitWithContext, withAbortSignal, type Context } from '@earendil-works/chord/context'
-import { Type } from '@earendil-works/pi-ai'
 import {
   AssistantEntry,
   CompactionEntry,
@@ -50,6 +49,8 @@ import { conversationId, pages, readFacts, threadId, runIds, taskRun } from './h
 export interface PiDurableBehaviorOptions {
   readonly onError?: (error: unknown) => void
   readonly install: (ports: HarnessPorts) => void
+  readonly owns?: (thread: ThreadId) => boolean
+  readonly configureRoot?: (thread: ThreadId) => AgentChange | Promise<AgentChange>
   readonly configureChild: (
     child: ThreadId,
     parent: ThreadId,
@@ -62,7 +63,9 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
   const abandoned = new Set<TaskId>()
   const admissions = new Map<ThreadId, Promise<unknown>>()
   const messages = new Map<TaskId, Set<Promise<unknown>>>()
+  const stopWaiting = new AbortController()
   let unsubscribe: (() => void) | undefined
+  let unsubscribeClose: (() => void) | undefined
   let harness: Harness
   let closed = false
   let recovering = true
@@ -182,23 +185,20 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
   }
 
   async function waitFor<T>(read: () => Promise<T | undefined>, callContext: Context): Promise<T> {
+    const waiting = withAbortSignal(stopWaiting.signal, callContext)
     for (;;) {
       let changed!: () => void
       const update = new Promise<void>((resolve) => {
         changed = resolve
       })
-      const off = harness.subscribeCommits(changed)
-      const signal = callContext.abortSignal
-      const cancel = () => changed()
-      signal?.addEventListener('abort', cancel, { once: true })
+      const off = harness.observeCommits({ advance: changed, end: changed }).detach
       try {
-        signal?.throwIfAborted()
+        waiting.abortSignal?.throwIfAborted()
         const value = await read()
         if (value !== undefined) return value
-        await update
+        await awaitWithContext(update, waiting)
       } finally {
         off()
-        signal?.removeEventListener('abort', cancel)
       }
     }
   }
@@ -713,7 +713,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       defineTool({
         name: tool.name,
         description: tool.description,
-        parameters: Type.Unsafe(tool.schema as Record<string, unknown>),
+        parameters: tool.schema as object,
         replay: tool.replay,
         executionMode: tool.executionMode,
         callers: ['model'],
@@ -858,6 +858,10 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     providerThread,
     async bind(value: Harness) {
       harness = value
+      unsubscribeClose = harness.subscribeClose(() => {
+        closed = true
+        stopWaiting.abort()
+      })
       recovering = true
       const tasks = await harness.commit((tx) => pages((cursor) => tx.scanTasks({}, 256, cursor)), context)
       for (const task of tasks) if (task.abandonOnRestart && task.state.status !== 'terminal') abandoned.add(task.id)
@@ -867,23 +871,30 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       )
       for (const conversation of conversations) {
         const thread = threadId(conversation.id)
+        if (options.owns && !options.owns(thread)) continue
         const facts = await read(thread)
         if (facts.lineage.kind === 'subagent') {
           const change = await options.configureChild(thread, facts.lineage.parent, facts.lineage.origin)
+          await harness.commit((tx) => configure(tx, conversation.id, change), context)
+        } else if (options.configureRoot) {
+          const change = await options.configureRoot(thread)
           await harness.commit((tx) => configure(tx, conversation.id, change), context)
         }
         await withCall(thread, (ports) => lifecycle?.onOpen(thread, { reopened: true }, ports) ?? Promise.resolve())
       }
       recovering = false
-      unsubscribe = harness.subscribeCommits((publication) => {
-        for (const change of publication.changes) {
-          if (change.type !== 'entry' || !CompactionEntry.is(change.value)) continue
-          const thread = threadId(change.value.conversationId)
-          void withCall(thread, (ports) => lifecycle?.onCompacted(thread, ports) ?? Promise.resolve()).catch(
-            options.onError ?? (() => {})
-          )
-        }
-      })
+      unsubscribe = harness.observeCommits({
+        advance(publication) {
+          for (const change of publication.changes) {
+            if (change.type !== 'entry' || !CompactionEntry.is(change.value)) continue
+            const thread = threadId(change.value.conversationId)
+            void withCall(thread, (ports) => lifecycle?.onCompacted(thread, ports) ?? Promise.resolve()).catch(
+              options.onError ?? (() => {})
+            )
+          }
+        },
+        end() {}
+      }).detach
     },
     async open(thread: ThreadId) {
       await withCall(thread, (ports) => lifecycle?.onOpen(thread, { reopened: false }, ports) ?? Promise.resolve())
@@ -894,12 +905,15 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
         (tx) => pages((cursor) => tx.scanConversations({}, 256, cursor)),
         context
       )
-      for (const conversation of conversations)
-        await withCall(
-          threadId(conversation.id),
-          (ports) => lifecycle?.onClose(threadId(conversation.id), ports) ?? Promise.resolve()
-        )
+      for (const conversation of conversations) {
+        const thread = threadId(conversation.id)
+        if (options.owns && !options.owns(thread)) continue
+        await withCall(thread, (ports) => lifecycle?.onClose(thread, ports) ?? Promise.resolve())
+      }
       closed = true
+      await Promise.all([...admissions.values()])
+      stopWaiting.abort()
+      unsubscribeClose?.()
     }
   }
 }
