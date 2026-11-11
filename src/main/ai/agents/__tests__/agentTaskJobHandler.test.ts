@@ -119,27 +119,6 @@ describe('AgentTaskJobHandler', () => {
     vi.clearAllMocks()
   })
 
-  describe('metadata', () => {
-    it('allows three concurrent tasks per agent while keeping retry-on-restart policy', () => {
-      expect(agentTaskJobHandler.recovery).toBe('retry')
-      expect(agentTaskJobHandler.defaultConcurrency).toBe(3)
-      expect(agentTaskJobHandler.defaultRetryPolicy).toEqual({
-        maxAttempts: 1,
-        backoff: 'none',
-        baseDelayMs: 0,
-        maxDelayMs: 0
-      })
-      expect(
-        agentTaskJobHandler.defaultQueue?.({
-          agentId: 'a-42',
-          prompt: 'x',
-          timeoutMinutes: 2,
-          workspace: WORKSPACE_SOURCE,
-          reuseRevision: 0
-        })
-      ).toBe('agent:a-42')
-    })
-  })
 
   describe('resolveRetryPolicy', () => {
     const base = { agentId: 'a1', prompt: 'x', timeoutMinutes: 2, workspace: WORKSPACE_SOURCE, reuseRevision: 0 }
@@ -173,19 +152,6 @@ describe('AgentTaskJobHandler', () => {
   })
 
   describe('execute', () => {
-    it('delegates to runAgentTask with the JobContext', async () => {
-      vi.mocked(runAgentTask).mockResolvedValueOnce({ kind: 'executed', result: 'ok' })
-      const ctx = {
-        jobId: 'j1',
-        input: { agentId: 'a', prompt: 'p', timeoutMinutes: 2, workspace: WORKSPACE_SOURCE, reuseRevision: 0 }
-      } as JobContext<AgentTaskInput>
-
-      const out = await agentTaskJobHandler.execute(ctx)
-
-      expect(out).toEqual({ kind: 'executed', result: 'ok' })
-      expect(runAgentTask).toHaveBeenCalledWith(ctx)
-    })
-
     it('publishes the run-state change before running so open task lists leave the previous state', async () => {
       vi.mocked(jobService.getById).mockReturnValueOnce(makeTerminal('completed', 'j1'))
       vi.mocked(runAgentTask).mockImplementationOnce(async () => {

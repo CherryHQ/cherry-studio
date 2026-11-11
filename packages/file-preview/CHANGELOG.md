@@ -1,5 +1,11 @@
 # @cherrystudio/file-preview
 
+## 0.2.6
+
+### Patch Changes
+
+- [#24226](https://github.com/CherryHQ/cherry-studio/pull/24226) [`c6a70f5`](https://github.com/CherryHQ/cherry-studio/commit/c6a70f5325f7f4784da0bc691c43a5ad087aaf29) Thanks [@DeJeune](https://github.com/DeJeune)! - Keep preview scroll boundaries unpadded and reserve bottom clearance after long content while preserving full-height internally scrolling previews.
+
 ## 0.2.5
 
 ### Patch Changes

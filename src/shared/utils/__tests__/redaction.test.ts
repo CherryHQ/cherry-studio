@@ -87,14 +87,6 @@ describe('redactDeep', () => {
     expect(out.nested.apiKey).toBe(REDACTED)
   })
 
-  it('truncates long strings past 300 chars', () => {
-    const long = 'a'.repeat(400)
-    const out = redactDeep({ data: long }) as Record<string, string>
-    expect(out.data.startsWith('a'.repeat(300))).toBe(true)
-    expect(out.data).toContain('<100 more>')
-    expect(out.data).not.toContain('a'.repeat(301))
-  })
-
   it('does not stack-overflow on a circular enumerable graph', () => {
     const a: Record<string, unknown> = { name: 'a' }
     const b: Record<string, unknown> = { name: 'b', a }

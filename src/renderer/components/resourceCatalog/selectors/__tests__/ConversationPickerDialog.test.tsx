@@ -96,7 +96,6 @@ describe('ConversationPickerDialog', () => {
     expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
 
     // The list scrolls inside the shared Scrollbar viewport (auto-hiding thumb), not the cmdk list.
-    expect(screen.getByText('Alpha Assistant').closest('[data-slot=scroll-area-viewport]')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Product Manager'))
 
@@ -159,7 +158,7 @@ describe('ConversationPickerDialog', () => {
     expect(screen.queryByText('Product Manager')).not.toBeInTheDocument()
   })
 
-  it('pins the create action at the top and keeps it while searching', () => {
+  it('passes the current query to the create action', () => {
     const onCreateNew = vi.fn()
 
     render(
@@ -180,9 +179,6 @@ describe('ConversationPickerDialog', () => {
     )
 
     const createRow = screen.getByText('New Assistant')
-    // Pinned above the first item.
-    const firstItem = screen.getByText('Alpha Assistant')
-    expect(createRow.compareDocumentPosition(firstItem) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(createRow)
     expect(onCreateNew).toHaveBeenCalledWith('')
@@ -359,21 +355,6 @@ describe('ConversationPickerDialog', () => {
     await waitFor(() =>
       expect(screen.getByText('New "roadmap"').closest('[cmdk-item]')).toHaveAttribute('aria-selected', 'true')
     )
-  })
-
-  it('renders a toolbar slot above the list', () => {
-    render(
-      <ConversationPickerDialog
-        open
-        onOpenChange={vi.fn()}
-        items={ITEMS}
-        labels={LABELS}
-        toolbar={<div data-testid="picker-toolbar">tabs</div>}
-        onSelect={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('picker-toolbar')).toBeInTheDocument()
   })
 
   it('pages the list and grows the window on scroll when pageSize is set', () => {

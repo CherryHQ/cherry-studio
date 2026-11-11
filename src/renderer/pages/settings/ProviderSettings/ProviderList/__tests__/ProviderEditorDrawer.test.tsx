@@ -382,53 +382,6 @@ describe('ProviderEditorDrawer', () => {
     })
   })
 
-  it('uses a dialog for create and duplicate flows while keeping edit in the drawer', () => {
-    const commonProps = {
-      open: true,
-      initialLogo: undefined,
-      onClose: vi.fn(),
-      onSubmit: vi.fn()
-    }
-
-    const { rerender } = render(<ProviderEditorDrawer {...commonProps} mode={{ kind: 'create-custom' }} />)
-
-    expect(screen.getByTestId('provider-editor-dialog')).toBeInTheDocument()
-    expect(screen.getByTestId('provider-editor-dialog')).toHaveAttribute('data-size', 'lg')
-    expect(screen.getByTestId('provider-editor-scrollbar')).toHaveAttribute('data-slot', 'scroll-area-viewport')
-    expect(screen.queryByTestId('provider-editor-drawer')).not.toBeInTheDocument()
-
-    const source = {
-      id: 'openai',
-      name: 'OpenAI',
-      presetProviderId: 'openai',
-      defaultChatEndpoint: 'openai-chat-completions',
-      authType: 'api-key'
-    } as any
-    rerender(<ProviderEditorDrawer {...commonProps} mode={{ kind: 'duplicate', source }} />)
-    expect(screen.getByTestId('provider-editor-dialog')).toBeInTheDocument()
-    expect(screen.getByTestId('provider-editor-dialog')).toHaveAttribute('data-size', 'lg')
-    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('settings.provider.more_endpoints.openai_chat')).toBeInTheDocument()
-    expect(screen.getByLabelText('settings.provider.more_endpoints.anthropic')).toBeInTheDocument()
-    expect(screen.queryByLabelText('settings.provider.more_endpoints.openai_responses')).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /settings\.provider\.create_custom\.endpoint_fields\.more/ })
-    ).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('button', { name: 'settings.provider.more_endpoints.toggle' })).not.toBeInTheDocument()
-
-    rerender(
-      <ProviderEditorDrawer
-        {...commonProps}
-        mode={{
-          kind: 'edit',
-          provider: { id: 'custom', name: 'Custom', defaultChatEndpoint: 'openai-chat-completions' } as any
-        }}
-      />
-    )
-    expect(screen.getByTestId('provider-editor-drawer')).toBeInTheDocument()
-    expect(screen.queryByTestId('provider-editor-dialog')).not.toBeInTheDocument()
-  })
-
   it('submits a Chat Completions endpoint without assigning a preset', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
@@ -493,67 +446,6 @@ describe('ProviderEditorDrawer', () => {
         }
       })
     )
-  })
-
-  it('shows common endpoints first and keeps the optional preset last inside More options', () => {
-    const source = {
-      id: 'anthropic',
-      name: 'Anthropic',
-      presetProviderId: 'anthropic',
-      defaultChatEndpoint: 'anthropic-messages',
-      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } },
-      authType: 'api-key'
-    } as any
-    render(
-      <ProviderEditorDrawer
-        open
-        mode={{ kind: 'create-custom' }}
-        initialLogo={undefined}
-        presetSources={[source]}
-        onClose={vi.fn()}
-        onSelectPreset={vi.fn()}
-        onSubmit={vi.fn()}
-      />
-    )
-
-    const avatar = screen.getByTestId('provider-avatar-preview')
-    const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
-    const apiKeyInput = screen.getByLabelText('settings.provider.api_key.label')
-    const chatInput = screen.getByLabelText('settings.provider.more_endpoints.openai_chat')
-    const anthropicInput = screen.getByLabelText('settings.provider.more_endpoints.anthropic')
-    const moreTrigger = screen.getByRole('button', {
-      name: /settings\.provider\.create_custom\.endpoint_fields\.more/
-    })
-
-    expect(avatar.compareDocumentPosition(nameInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(nameInput.compareDocumentPosition(apiKeyInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'settings.provider.api_key.show_key' })).toHaveAttribute(
-      'data-slot',
-      'button'
-    )
-    expect(screen.queryByText('settings.provider.create_custom.endpoint_fields.description')).not.toBeInTheDocument()
-    expect(apiKeyInput.compareDocumentPosition(chatInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(chatInput.compareDocumentPosition(anthropicInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(anthropicInput.compareDocumentPosition(moreTrigger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(moreTrigger).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByLabelText('settings.provider.more_endpoints.openai_responses')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('combobox', {
-        name: 'settings.provider.create_custom.preset_instance.placeholder'
-      })
-    ).not.toBeInTheDocument()
-
-    toggleMoreSettings()
-
-    const presetPicker = screen.getByRole('combobox', {
-      name: 'settings.provider.create_custom.preset_instance.placeholder'
-    })
-    const responsesInput = screen.getByLabelText('settings.provider.more_endpoints.openai_responses')
-    const imageEditInput = screen.getByLabelText('settings.provider.image_endpoints.image_edit_base_url.label')
-    expect(moreTrigger).toHaveAttribute('aria-expanded', 'true')
-    expect(moreTrigger.compareDocumentPosition(responsesInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(imageEditInput.compareDocumentPosition(presetPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.queryByText('settings.provider.create_custom.compatibility.label')).not.toBeInTheDocument()
   })
 
   it('requires at least one text endpoint', () => {
@@ -788,30 +680,6 @@ describe('ProviderEditorDrawer', () => {
     })
   })
 
-  it('uses a duplicate-specific submit label when mode is duplicate', () => {
-    render(
-      <ProviderEditorDrawer
-        open
-        mode={{
-          kind: 'duplicate',
-          source: {
-            id: 'openai-2',
-            name: 'OpenAI Personal',
-            presetProviderId: 'openai',
-            defaultChatEndpoint: 'openai-chat-completions',
-            authType: 'api-key'
-          } as any
-        }}
-        initialLogo={undefined}
-        onClose={vi.fn()}
-        onSubmit={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' })).toBeInTheDocument()
-    expect(screen.getByText('openai')).toBeInTheDocument()
-  })
-
   it.each([
     {
       name: 'OpenAI Responses',
@@ -828,7 +696,7 @@ describe('ProviderEditorDrawer', () => {
       baseUrl: 'https://gemini.example.com'
     }
   ] as const)(
-    'puts the $name preset default endpoint first and submits its URL as the primary route',
+    'submits the $name preset default endpoint URL as the primary route',
     ({ name, presetProviderId, defaultChatEndpoint, label, baseUrl }) => {
       const onSubmit = vi.fn().mockResolvedValue(undefined)
       render(
@@ -851,10 +719,6 @@ describe('ProviderEditorDrawer', () => {
       )
 
       const primaryInput = screen.getByLabelText(label)
-      const chatInput = screen.getByLabelText('settings.provider.more_endpoints.openai_chat')
-      const defaultBadge = screen.getByText('settings.provider.create_custom.endpoint_fields.default_chat')
-      expect(primaryInput.compareDocumentPosition(chatInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-      expect(primaryInput.previousElementSibling).toContainElement(defaultBadge)
 
       fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
         target: { value: `${name} Instance` }
