@@ -904,15 +904,14 @@ describe('AgentRightPane', () => {
     'hides a settled task plan without inventing completion (%s)',
     (scenario) => {
       uiMockState.useRealHoverCard = true
-      const tool = (id: string, toolName: string, input: unknown, output: unknown): CherryMessagePart =>
-        ({
-          type: 'dynamic-tool',
-          toolCallId: id,
-          toolName,
-          state: 'output-available',
-          input,
-          output
-        }) as CherryMessagePart
+      const tool = (id: string, toolName: string, input: unknown, output: unknown): CherryMessagePart => ({
+        type: 'dynamic-tool',
+        toolCallId: id,
+        toolName,
+        state: 'output-available',
+        input,
+        output
+      })
       const initial =
         scenario === 'no-tools'
           ? []
