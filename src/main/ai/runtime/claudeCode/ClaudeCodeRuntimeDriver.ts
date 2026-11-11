@@ -476,7 +476,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       await this.parkedQuery.processDiagnostics.exited
       this.parkedQuery = undefined
     }
-    const closed = await this.runtime?.shutdown()
+    let closed = await this.runtime?.shutdown()
+    if (
+      closed?.status === 'unknown' &&
+      closed.error.operation === 'shutdown' &&
+      closed.error.code === 'process-exit-unconfirmed' &&
+      this.processDiagnostics?.exited
+    ) {
+      await this.processDiagnostics.exited
+      closed = await this.runtime!.shutdown()
+    }
     if (closed && closed.status !== 'confirmed') {
       this.closePromise = undefined
       throw new Error(closed.error.message)
