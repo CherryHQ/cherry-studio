@@ -172,8 +172,6 @@ export class TopicService {
       { endpoint: '/topics', kind, entityIds },
       { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
       ...byIdEffects,
-      { endpoint: '/side-chats/:topicId' },
-      { endpoint: '/topics/:sourceTopicId/side-chats' },
       { endpoint: '/topics/latest' }
     ])
   }
