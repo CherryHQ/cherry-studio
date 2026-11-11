@@ -1,12 +1,24 @@
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
+import { useSelectionAgents } from '@renderer/hooks/useSelectionAgents'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import {
+  getSelectionActionAgent,
+  parseSelectionActions,
+  SELECTION_AGENT_ISSUE_LABEL_KEYS
+} from '@renderer/utils/selectionAction'
+import {
+  isAgentSelectionAction,
+  SELECTION_BUILTIN_ACTION_ID,
+  type SearchSelectionAction,
+  type SelectionAction
+} from '@shared/types/selection'
 
 const logger = loggerService.withContext('SelectionToolbar')
 
@@ -52,10 +64,26 @@ const SelectionToolbar: FC = () => {
   const toolbarRef = useRef<HTMLDivElement>(null)
 
   const realActionItems = useMemo(() => {
-    return actionItems?.filter((item) => item.enabled)
+    return parseSelectionActions(actionItems ?? []).filter((item) => item.enabled)
   }, [actionItems])
 
+  const agents = useSelectionAgents(
+    realActionItems.filter(isAgentSelectionAction).map((action) => action.agentId ?? null)
+  )
+  const { t } = useTranslation()
+  const unavailableReasons = useMemo(() => {
+    // Until agents load, leave every action usable rather than flash it disabled.
+    if (!agents) return undefined
+    const reasons: Record<string, string> = {}
+    for (const action of realActionItems) {
+      const issue = getSelectionActionAgent(action, agents)?.issue
+      if (issue) reasons[action.id] = t(SELECTION_AGENT_ISSUE_LABEL_KEYS[issue])
+    }
+    return reasons
+  }, [agents, realActionItems, t])
+
   const selectedText = useRef('')
+  const programName = useRef('')
   // [macOS] only macOS has the fullscreen mode
   const isFullScreen = useRef(false)
 
@@ -68,6 +96,7 @@ const SelectionToolbar: FC = () => {
   // listen to selection events pushed from main (useIpcOn self-cleans on unmount)
   useIpcOn('selection.text_selected', (selectionData) => {
     selectedText.current = selectionData.text
+    programName.current = selectionData.programName
     isFullScreen.current = selectionData.isFullscreen ?? false
   })
 
@@ -78,10 +107,10 @@ const SelectionToolbar: FC = () => {
     }
   })
 
-  //make sure the toolbar size is updated when the compact mode/actionItems is changed
+  //make sure the toolbar size is updated when the compact mode/actionItems/availability is changed
   useEffect(() => {
     updateWindowSize(toolbarRef.current)
-  }, [isCompact, actionItems])
+  }, [isCompact, actionItems, unavailableReasons])
 
   /**
    * Check if text is a valid URI or file path
@@ -124,7 +153,7 @@ const SelectionToolbar: FC = () => {
     }
   }, [setTimeoutTimer])
 
-  const handleSearch = useCallback((action: SelectionActionItem) => {
+  const handleSearch = useCallback((action: SearchSelectionAction) => {
     if (!action.selectedText) return
 
     const selectedText = action.selectedText.trim()
@@ -148,38 +177,38 @@ const SelectionToolbar: FC = () => {
   /**
    * Quote the selected text to the inputbar of the main window
    */
-  const handleQuote = (action: SelectionActionItem) => {
+  const handleQuote = (action: SelectionAction) => {
     if (action.selectedText) {
       void window.api?.quoteToMainWindow(action.selectedText)
       void ipcApi.request('selection.hide_toolbar')
     }
   }
 
-  const handleDefaultAction = (action: SelectionActionItem) => {
+  const handleDefaultAction = (action: SelectionAction) => {
     // [macOS] only macOS has the available isFullscreen mode
     void ipcApi.request('selection.process_action', { actionItem: action, isFullScreen: isFullScreen.current })
     void ipcApi.request('selection.hide_toolbar')
   }
 
   const handleAction = useCallback(
-    (action: SelectionActionItem) => {
+    (action: SelectionAction) => {
       /** avoid mutating the original action, it will cause syncing issue */
-      const newAction = { ...action, selectedText: selectedText.current }
+      const newAction = { ...action, selectedText: selectedText.current, programName: programName.current }
 
-      switch (action.id) {
-        case 'copy':
-          void handleCopy()
-          break
-        case 'search':
-          handleSearch(newAction)
-          break
-        case 'quote':
-          handleQuote(newAction)
-          break
-        default:
-          handleDefaultAction(newAction)
-          break
+      if (newAction.isBuiltIn) {
+        switch (newAction.id) {
+          case SELECTION_BUILTIN_ACTION_ID.COPY:
+            void handleCopy()
+            return
+          case SELECTION_BUILTIN_ACTION_ID.SEARCH:
+            handleSearch(newAction)
+            return
+          case SELECTION_BUILTIN_ACTION_ID.QUOTE:
+            handleQuote(newAction)
+            return
+        }
       }
+      handleDefaultAction(newAction)
     },
     [handleCopy, handleSearch]
   )
@@ -192,6 +221,7 @@ const SelectionToolbar: FC = () => {
       handleAction={handleAction}
       copyIconStatus={copyIconStatus}
       copyIconAnimation={copyIconAnimation}
+      unavailableReasons={unavailableReasons}
       draggable
     />
   )

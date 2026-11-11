@@ -101,7 +101,7 @@ if (projects.length) {
     values.group === 'platform'
       ? execFileSync(
           'git',
-          ['ls-files', '-z', '--', 'src/main', 'src/shared', 'packages/system-speech', 'packages/sandbox/tests'],
+          ['ls-files', '-z', '--', 'src/main', 'src/shared', 'native/system-speech', 'packages/sandbox/tests'],
           {
             cwd: root,
             encoding: 'utf8'

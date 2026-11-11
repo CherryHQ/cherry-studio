@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -7,7 +8,14 @@ import { vi } from 'vitest'
 const { execFileSync, spawn } = vi.hoisted(() => ({ execFileSync: vi.fn(), spawn: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFileSync, spawn }))
 
-import { ensureProfile, launchApp, readAppRecord, stopOwnedApp } from '../lifecycle'
+import {
+  AppExitedBeforeReadyError,
+  ensureProfile,
+  launchApp,
+  readAppRecord,
+  restartApp,
+  stopOwnedApp
+} from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 beforeEach(() => vi.clearAllMocks())
@@ -19,6 +27,7 @@ it.each(['macos', 'windows'] as const)(
     const paths = getRunPaths(directory)
     ensureRunDirectories(paths)
     vi.stubEnv('CS_DEV_PROFILE_ROOT', '/unrelated/developer-profile')
+    vi.stubEnv('npm_config_cache', '/unrelated/npm-cache')
     for (const key of ['HOME', 'USERPROFILE', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'APPDATA', 'LOCALAPPDATA']) {
       vi.stubEnv(key, `/unrelated/developer-${key}`)
     }
@@ -31,7 +40,11 @@ it.each(['macos', 'windows'] as const)(
     vi.spyOn(process, 'kill').mockReturnValue(true)
     vi.stubGlobal('fetch', async () => ({
       ok: true,
-      json: async () => [{ type: 'page', title: 'Cherry Studio', url: 'http://localhost:5173/windows/main/index.html' }]
+      json: async () => [
+        { type: 'page', title: 'Starting pooled window', url: '' },
+        { type: 'page', title: 'Unready window', url: 'not a URL' },
+        { type: 'page', title: 'Cherry Studio', url: 'http://localhost:5173/windows/main/index.html' }
+      ]
     }))
     try {
       const record = await launchApp(paths, {
@@ -40,7 +53,8 @@ it.each(['macos', 'windows'] as const)(
         profile: 'authenticated',
         targetRoot: directory,
         runKey: 'prepared',
-        restartCount: 1
+        restartCount: 1,
+        readyTimeoutMs: 25
       })
       const [command, args, options] = spawn.mock.calls[0]
       expect(command).toBe(process.execPath)
@@ -49,6 +63,8 @@ it.each(['macos', 'windows'] as const)(
         '--',
         process.execPath,
         join(directory, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
+        'preview',
+        '--skipBuild',
         '--',
         '--inspect=9229',
         '--sourcemap',
@@ -66,6 +82,9 @@ it.each(['macos', 'windows'] as const)(
       expect(existsSync(options.env.TEMP)).toBe(true)
       expect(options.env.CLAUDE_CONFIG_DIR).toBe(join(isolatedHome, '.claude'))
       expect(options.env.CODEX_HOME).toBe(join(isolatedHome, '.codex'))
+      expect(options.env.NPM_CONFIG_CACHE).toBe(join(paths.private, 'npm-cache'))
+      expect(options.env.npm_config_cache).toBe(join(paths.private, 'npm-cache'))
+      expect(existsSync(options.env.npm_config_cache)).toBe(true)
       expect(existsSync(isolatedHome)).toBe(true)
       if (process.platform === 'win32') {
         expect(options.env.APPDATA).toBe(join(isolatedHome, 'AppData', 'Roaming'))
@@ -76,8 +95,28 @@ it.each(['macos', 'windows'] as const)(
       expect(options.cwd).toBe(directory)
       expect(process.env.CODEX_HOME).toBe('/unrelated/developer-CODEX_HOME')
       expect(process.env.USERPROFILE).toBe('/unrelated/developer-USERPROFILE')
+      expect(process.env.npm_config_cache).toBe('/unrelated/npm-cache')
       expect(options.env.CS_DEV_USER_DATA_SUFFIX).toBe('Regression-prepared-authenticated')
-      expect(record).toMatchObject({ electronPid: 42001, restartCount: 1, profile: 'authenticated' })
+      // The app writes CLI provider config against `sys.home`; it must point into the run directory
+      // so CLI provider configuration cannot rewrite the machine owner's real credentials.
+      expect(options.env.XDG_CONFIG_HOME).toBe(join(isolatedHome, '.config'))
+      expect(options.env.HERMES_HOME).toBe(join(isolatedHome, '.hermes'))
+      expect(options.env.LOCALAPPDATA).toBe(join(isolatedHome, 'AppData', 'Local'))
+      for (const directory of [
+        options.env.CODEX_HOME,
+        options.env.CLAUDE_CONFIG_DIR,
+        options.env.XDG_CONFIG_HOME,
+        options.env.HERMES_HOME,
+        options.env.LOCALAPPDATA
+      ]) {
+        expect(existsSync(directory)).toBe(true)
+      }
+      expect(record).toMatchObject({
+        electronPid: 42001,
+        restartCount: 1,
+        profile: 'authenticated',
+        targetUrl: 'http://localhost:5173/windows/main/index.html'
+      })
     } finally {
       vi.restoreAllMocks()
       vi.unstubAllGlobals()
@@ -308,7 +347,7 @@ it.each([
     })
     vi.spyOn(process, 'kill').mockImplementation((pid) => {
       if (pid === 42001) return true
-      throw new Error('Process not found')
+      throw Object.assign(new Error('Process not found'), { code: 'ESRCH' })
     })
     vi.stubGlobal('fetch', async () => ({
       ok: true,
@@ -367,6 +406,86 @@ it('blocks a recorded recovery failure and clears a failure recorded during a su
   } finally {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+it('restarts the isolated profile after an owned pre-main launch has exited', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-pending-restart-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  writeFileSync(
+    paths.appRecord,
+    JSON.stringify({
+      schemaVersion: 1,
+      ownership: 'regression-driver',
+      policy: 'ephemeral',
+      mode: 'branch',
+      platform: 'macos',
+      profile: 'authenticated',
+      runKey: 'promotion',
+      targetRoot: directory,
+      runnerPid: 42000,
+      cdpPort: 9222,
+      logPath: join(paths.logs, 'electron.log'),
+      restartCount: 1
+    })
+  )
+  let launched = false
+  execFileSync.mockImplementation(() => (launched ? '42001' : ''))
+  spawn.mockImplementation(() => {
+    launched = true
+    return { pid: 42001, unref() {} }
+  })
+  vi.spyOn(process, 'kill').mockImplementation((pid) => {
+    if (pid === 42001) return true
+    throw new Error('Process not found')
+  })
+  vi.stubGlobal('fetch', async () => ({
+    ok: true,
+    json: async () => [{ type: 'page', title: 'Cherry Studio', url: 'http://localhost:5173/windows/main/index.html' }]
+  }))
+  try {
+    expect(() => readAppRecord(paths)).toThrow('has not finished launching')
+    const ready = await restartApp(paths)
+    expect(ready).toMatchObject({ electronPid: 42001, profile: 'authenticated', runKey: 'promotion', restartCount: 2 })
+    expect(spawn.mock.calls[0][2].env.CS_DEV_PROFILE_ROOT).toBe(join(paths.profiles, 'authenticated'))
+  } finally {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+// A synchronous process probe can observe exit before Node delivers the child's exit event.
+it('preserves the natural exit code when the OS probe wins the child event race', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-preboot-exit-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  const child = Object.assign(new EventEmitter(), { pid: 42000, exitCode: null as number | null, unref() {} })
+  spawn.mockImplementation(() => {
+    setImmediate(() => {
+      child.exitCode = 0
+      child.emit('exit', 0, null)
+    })
+    return child
+  })
+  execFileSync.mockReturnValue('')
+  vi.spyOn(process, 'kill').mockImplementation(() => {
+    throw new Error('Process not found')
+  })
+  try {
+    const error = await launchApp(paths, {
+      mode: 'branch',
+      platform: 'macos',
+      profile: 'clean',
+      targetRoot: directory,
+      runKey: 'preboot-exit'
+    }).catch((error: unknown) => error)
+    expect(error).toBeInstanceOf(AppExitedBeforeReadyError)
+    expect(error).toMatchObject({ exitCode: 0 })
+  } finally {
+    vi.restoreAllMocks()
     rmSync(directory, { recursive: true, force: true })
   }
 })

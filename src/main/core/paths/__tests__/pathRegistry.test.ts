@@ -1,14 +1,17 @@
+import { accessSync, constants, existsSync, readFileSync, statSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse } from 'yaml'
 
 const packagedState = vi.hoisted(() => ({ value: false }))
 const getPathMock = vi.hoisted(() => vi.fn((key: string) => `/mock/${key}`))
+const getAppPathMock = vi.hoisted(() => vi.fn(() => '/mock/app'))
 
 vi.mock('electron', () => ({
   app: {
-    getAppPath: vi.fn(() => '/mock/app'),
+    getAppPath: getAppPathMock,
     getPath: getPathMock,
     get isPackaged() {
       return packagedState.value
@@ -29,6 +32,7 @@ import { buildPathRegistry, shouldAutoEnsure } from '../pathRegistry'
 // local Electron mock also lets the path-layout test exercise the real registry.
 
 beforeEach(() => {
+  getAppPathMock.mockReset().mockReturnValue('/mock/app')
   getPathMock.mockReset().mockImplementation((key: string) => `/mock/${key}`)
 })
 
@@ -38,6 +42,38 @@ afterEach(() => {
 })
 
 describe('buildPathRegistry', () => {
+  it('uses the installed native Computer Use runtime without a manual development binary', () => {
+    getAppPathMock.mockReturnValue(path.resolve(import.meta.dirname, '../../../../..'))
+    const runtime = buildPathRegistry()['feature.computer_use.runtime']
+    const executable = process.platform === 'darwin' ? path.join(runtime, 'Contents/MacOS/OpenComputerUse') : runtime
+
+    expect(statSync(executable).isFile()).toBe(true)
+    expect(() => accessSync(executable, process.platform === 'win32' ? constants.F_OK : constants.X_OK)).not.toThrow()
+    expect(shouldAutoEnsure('feature.computer_use.runtime')).toBe(false)
+  })
+
+  it('does not require optional Computer Use packages until the feature is used', () => {
+    const registry = buildPathRegistry()
+    expect(registry['app.root']).toBe('/mock/app')
+    expect(() => registry['feature.computer_use.runtime']).toThrow()
+  })
+
+  it.each([
+    ['darwin', 'Cherry Computer Use.app'],
+    ['win32', 'open-computer-use.exe'],
+    ['linux', 'open-computer-use']
+  ])('reads the packaged %s Computer Use runtime from extraResources', (platform, name) => {
+    packagedState.value = true
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: platform },
+        resourcesPath: { value: '/mock/resources' }
+      })
+    )
+    expect(buildPathRegistry()['feature.computer_use.runtime']).toBe(path.join('/mock/resources', 'computer-use', name))
+  })
+
   it.each(['darwin', 'win32', 'linux'] as const)(
     'locates the %s addon in target-specific unpackable resources',
     (platform) => {
@@ -57,6 +93,27 @@ describe('buildPathRegistry', () => {
     }
   )
 
+  it.each(['feature.pdfjs.cmaps', 'feature.pdfjs.standard_fonts'] as const)(
+    'reads %s from the extraResources directory electron-builder ships',
+    (key) => {
+      const repoRoot = path.resolve(import.meta.dirname, '../../../../..')
+      const { extraResources } = parse(readFileSync(path.join(repoRoot, 'electron-builder.yml'), 'utf8')) as {
+        extraResources: { from: string; to: string }[]
+      }
+      vi.stubGlobal(
+        'process',
+        Object.defineProperties(Object.create(process), { resourcesPath: { value: '/mock/resources' } })
+      )
+      packagedState.value = true
+      const shipped = path.relative('/mock/resources', buildPathRegistry()[key]).split(path.sep).join('/')
+      packagedState.value = false
+      const source = path.relative('/mock/app', buildPathRegistry()[key]).split(path.sep).join('/')
+
+      expect(extraResources).toContainEqual({ from: source, to: shipped })
+      expect(existsSync(path.join(repoRoot, source))).toBe(true)
+    }
+  )
+
   it('isolates voice scratch directories for profiles sharing the same basename', () => {
     const voiceTemp = (profile: string) => {
       getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))
@@ -69,9 +126,9 @@ describe('buildPathRegistry', () => {
   })
 
   it.each([
-    ['win32', 'x64', false, '/mock/app/packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe'],
+    ['win32', 'x64', false, '/mock/app/native/system-speech/dist/native/win32-x64/cherry-system-speech.exe'],
     ['win32', 'x64', true, '/mock/resources/system-speech/cherry-system-speech.exe'],
-    ['darwin', 'arm64', false, '/mock/app/packages/system-speech/dist/native/darwin-arm64/cherry-system-speech'],
+    ['darwin', 'arm64', false, '/mock/app/native/system-speech/dist/native/darwin-arm64/cherry-system-speech'],
     ['darwin', 'x64', true, '/mock/Cherry Studio.app/Contents/Helpers/cherry-system-speech'],
     ['darwin', 'arm64', true, '/mock/Cherry Studio.app/Contents/Helpers/cherry-system-speech']
   ] as const)('resolves the %s/%s packaged=%s system speech helper', (platform, arch, packaged, expected) => {
@@ -137,8 +194,8 @@ describe('buildPathRegistry', () => {
 
     expect(registry['feature.agents.pi.root']).toBe(piRoot)
     expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
-    expect(registry['feature.agents.pi.vcc_file']).toBe(path.join('/mock/app', 'out', 'main', 'pi-vcc.mjs'))
-    expect(shouldAutoEnsure('feature.agents.pi.vcc_file')).toBe(false)
+    expect(registry['feature.agents.outputs']).toBe(path.join('/mock/userData', 'Data', 'Agents', '.outputs'))
+    expect(shouldAutoEnsure('feature.agents.outputs')).toBe(true)
   })
 
   it('keeps the provider registry override under userData Runtime', () => {

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-09-attachment-preparation-workers.md
+2026-11-09-attachment-preparation-workers.md: 759eec2e880b40ff3d84b90cfe686da280de35c7
+2026-11-09-attachment-preparation-workers.zh.md: cc9109bb6a61ced0dc6b6bd53fa412b67365d0e3

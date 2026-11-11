@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -13,6 +14,8 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
+import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { forkPiSession } from '@main/ai/runtime/pi/piFork'
 import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile'
@@ -32,7 +35,7 @@ describe('Pi branch publication with native files', () => {
     if (directory) await rm(directory, { recursive: true, force: true })
   })
 
-  it('retains both native histories, reopens each branch, and forks the shared prefix again', async () => {
+  it('replaces the product tail while preserving native history and the shared prefix', async () => {
     directory = await mkdtemp(path.join(tmpdir(), 'pi-product-branches-'))
     const sessions = path.join(directory, 'sessions')
     await mkdir(sessions)
@@ -53,12 +56,9 @@ describe('Pi branch publication with native files', () => {
       .run()
     runtimeDriverRegistry.register({
       type: 'pi',
-      capabilities: ['agent-session'],
       fork: forkPiSession,
+      isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
       validateSession() {},
-      async listAvailableTools() {
-        return []
-      },
       async connect() {
         throw new Error('Browsing and fork must not run a model')
       }
@@ -107,7 +107,9 @@ describe('Pi branch publication with native files', () => {
     const shared = answer('Shared answer', source)
     const old = input('Old question', source)
     answer('Old answer', source)
-    const originalFile = await readFile(source.getSessionFile()!, 'utf8')
+    const sourceFile = source.getSessionFile()
+    assert(sourceFile)
+    const originalFile = await readFile(sourceFile, 'utf8')
     const originalRow = dbh.db
       .select()
       .from(agentSessionMessageTable)
@@ -132,21 +134,25 @@ describe('Pi branch publication with native files', () => {
         }
       )
     }
+    const originalContext = preparePiBranch('product', old.id, source.getSessionId())
+    prepareNativeSubmission('product', old.id, originalContext.id, 'reject')
     const first = await edit(old.id)
+    expect(messages.inputBinding('product', old.id)).toBeUndefined()
+    expect(messages.inputBinding('product', first.row.id)).toBeUndefined()
     const child = SessionManager.open(resolveResumeTokenSessionFile(first.nativeId, sessions)!, sessions, directory)
     expect(JSON.stringify(child.buildSessionContext().messages)).toContain('Shared answer')
     expect(JSON.stringify(child.buildSessionContext().messages)).not.toContain('Old question')
     child.appendMessage({ role: 'user', content: 'Edited question', timestamp: Date.now() })
+    const childContext = preparePiBranch('product', first.row.id, first.nativeId)
+    prepareNativeSubmission('product', first.row.id, childContext.id, 'reject')
     const childAnswer = answer('Edited answer', child)
-    messages.selectBranch('product', old.id)
-    expect(messages.getLastRuntimeResumeToken('product')).toBe(source.getSessionId())
-    expect(messages.listSessionMessages('product').items[0].data.parts).toEqual([{ type: 'text', text: 'Old answer' }])
-    messages.selectBranch('product', first.row.id)
     expect(messages.getLastRuntimeResumeToken('product')).toBe(first.nativeId)
     expect(messages.listSessionMessages('product').items[0].id).toBe(childAnswer.id)
     const second = await edit(first.row.id)
     expect(second.nativeId).not.toBe(first.nativeId)
-    expect(await readFile(source.getSessionFile()!, 'utf8')).toBe(originalFile)
+    expect(messages.inputBinding('product', first.row.id)).toBeUndefined()
+    expect(messages.inputBinding('product', second.row.id)).toBeUndefined()
+    expect(await readFile(sourceFile, 'utf8')).toBe(originalFile)
     expect(
       dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, shared.id)).get()
     ).toEqual(originalRow)

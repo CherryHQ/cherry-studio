@@ -17,7 +17,11 @@ retains full checks. Skill files select the skill gate as well. Unknown inputs,
 root configuration, workflow changes, and the planner itself select all tasks.
 
 Source changes select their project and known consumers. Shared changes select all
-projects. Source changes retain full lint and i18n scans because imports and translation
+projects. Renderer `.ts`, `.tsx`, and `.css` changes, including colocated tests, select
+the existing UI `theme:check` command in the repository group. This runs in `basic-checks`
+without selecting the UI test project or a package-test job. Renderer JSON, test setup,
+and mock files outside `src/renderer/` do not add this check. UI package changes retain
+their existing project and consumer tests. Source changes retain full lint and i18n scans because imports and translation
 references cross file boundaries. Test-only changes omit only scanners that exclude
 those paths: catalog coverage ignores `__tests__` but still reads adjacent main tests;
 hardcoded detection ignores `__tests__` and `.test.ts(x)`, but not adjacent `.spec.ts(x)`.
@@ -46,8 +50,20 @@ cancelled, missing, or unexpectedly skipped jobs selected by the plan.
 
 PRs compare the checked-out merge commit with its first parent, so earlier commits
 remain covered. Pushes compare the event's before/after range. A daily schedule and
-manual dispatch run the full plan. PR concurrency cancels superseded runs; pushes
-are not cancelled. Pull requests targeting a parent stack branch also run CI.
+manual dispatch run the full plan. Concurrency groups are isolated by event and
+PR number or full ref. New PR runs replace earlier runs for that PR; new manual
+runs replace earlier manual runs for the same ref. Pushes are not cancelled,
+because a later push's affected plan does not cover the earlier push's range.
+Scheduled full validation remains independent. Pull requests targeting a parent
+stack branch also run CI.
+
+`Cancel closed PR CI` requests cancellation of unfinished PR and feature-branch
+manual CI after a PR closes. It reads current PR state and runs only trusted
+inline API calls, without checking out PR code. Cleanup matches the head repository
+and branch, considers runs created during the PR's lifetime, and stops if the PR
+reopens or another PR on that head remains open. Pushes, schedules, completed runs,
+reruns started after closure, and manual runs on the default or `release/v*`
+branches remain untouched.
 
 Repository, typecheck, lint and i18n groups share one dependency installation in
 `basic-checks`, with separate plan conditions and step outcomes; later groups still
