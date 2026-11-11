@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -184,6 +184,44 @@ describe('evaluateTaskGuard', () => {
         expect(findOwnedShell()).toBe(false)
       },
       45_000
+    )
+
+    it.skipIf(process.platform === 'win32')(
+      'bounds cancellation of a resistant shell and its descendant',
+      async () => {
+        const pidFile = join(dir, 'guard-pids')
+        const controller = new AbortController()
+        const reason = new Error('cancel resistant tree')
+        const promise = evaluateTaskGuard(
+          { type: 'command', command: `trap "" TERM; sleep 60 & echo "$$ $!" > ${pidFile}; wait` },
+          { lastRunStartedAt: null, signal: controller.signal }
+        )
+        // Attach the rejection handler before delivering cancellation.
+        const rejected = expect(promise).rejects.toBe(reason)
+        let pids: number[] = []
+        for (let i = 0; i < 100; i++) {
+          try {
+            pids = (await readFile(pidFile, 'utf8')).trim().split(' ').map(Number)
+            if (pids.length === 2) break
+          } catch {}
+          await new Promise((resolve) => setTimeout(resolve, 10))
+        }
+        expect(pids).toHaveLength(2)
+        controller.abort(reason)
+        await rejected
+        const isTerminated = (pid: number) => {
+          const state = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)])
+            .stdout.toString()
+            .trim()
+          return state === '' || state.startsWith('Z')
+        }
+        const deadline = Date.now() + 10_000
+        while (!pids.every(isTerminated) && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
+        expect(pids.every(isTerminated)).toBe(true)
+      },
+      15_000
     )
 
     it('rejects on cancellation instead of resolving a guard skip', async () => {
