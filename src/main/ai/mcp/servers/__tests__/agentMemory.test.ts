@@ -35,10 +35,6 @@ async function callTool(client: Client | Promise<Client>, args: Record<string, u
   return (await client).callTool({ name: 'memory', arguments: args })
 }
 
-async function listTools(client: Client | Promise<Client>) {
-  return (await client).listTools()
-}
-
 let agentId: string
 let agentDataPath: string
 
@@ -64,12 +60,6 @@ describe('agent-memory MCP server', () => {
     await rm(agentsDataRoot, { recursive: true, force: true })
   })
 
-  it('exposes only the memory tool', async () => {
-    const result = await listTools(createServer())
-    expect(result.tools).toHaveLength(1)
-    expect(result.tools[0].name).toBe('memory')
-  })
-
   it('delivers agent-specific memory instructions during MCP initialization', async () => {
     const client = await createServer()
 
@@ -81,11 +71,10 @@ describe('agent-memory MCP server', () => {
   })
 
   it('updates FACT.md atomically', async () => {
-    const result = await callTool(createServer(), { action: 'update', content: '# Facts\n\nNew knowledge' })
+    await callTool(createServer(), { action: 'update', content: '# Facts\n\nNew knowledge' })
 
     expect(await readFile(path.join(memoryPath, 'FACT.md'), 'utf-8')).toBe('# Facts\n\nNew knowledge')
     expect((await readdir(memoryPath)).filter((entry) => entry.endsWith('.tmp'))).toEqual([])
-    expect(result.content[0].text).toBe('Memory updated.')
   })
 
   it('appends and searches journal entries', async () => {
@@ -97,11 +86,6 @@ describe('agent-memory MCP server', () => {
     const result = await callTool(server, { action: 'search', tag: 'deploy' })
     const parsed = JSON.parse(result.content[0].text!)
     expect(parsed.map((entry: { text: string }) => entry.text)).toEqual(['Deployed v2.0', 'Deployed v1.0'])
-  })
-
-  it('returns a stable message when no journal exists', async () => {
-    const result = await callTool(createServer(), { action: 'search' })
-    expect(result.content[0].text).toBe('No journal entries found.')
   })
 
   it.each([

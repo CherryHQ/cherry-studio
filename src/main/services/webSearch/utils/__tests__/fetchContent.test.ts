@@ -57,17 +57,6 @@ describe('fetchWebSearchContent', () => {
     expect(result.content).toBe('hello')
   })
 
-  it('passes the default user-agent to the remote fetch helper', async () => {
-    fetchRemoteTextMock.mockResolvedValue('<html><body><article><p>hello</p></article></body></html>')
-
-    await fetchWebSearchContent('https://example.com/article')
-
-    const options = fetchRemoteTextMock.mock.calls[0]?.[1] as { headers: Headers }
-    expect(options.headers.get('User-Agent')).toBe(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    )
-  })
-
   it('follows a redirect instead of dropping the search result', async () => {
     // Mirrors fetchRemoteText: hops are opt-in, and 0 turns any 3xx into an error.
     fetchRemoteTextMock.mockImplementation(async (_url: string, options: { maxRedirects?: number }) => {

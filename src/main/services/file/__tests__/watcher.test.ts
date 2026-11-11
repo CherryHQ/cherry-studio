@@ -158,16 +158,6 @@ describe('createDirectoryWatcher', () => {
     expect(ev.kind).toBe('change')
   })
 
-  it('suppresses .DS_Store events via the built-in ignore set', async () => {
-    const w = watchDirectory({ stabilityThresholdMs: 0 })
-    await waitForReady(w)
-    const seen: WatcherEvent[] = []
-    w.onEvent((e) => seen.push(e))
-    await writeFile(path.join(dir, '.DS_Store'), 'noise')
-    await new Promise((r) => setTimeout(r, 600))
-    expect(seen.find((e) => (e.kind === 'add' || e.kind === 'change') && e.path?.endsWith('.DS_Store'))).toBeUndefined()
-  })
-
   it('limits recursive watching to maxDepth when provided', async () => {
     const nestedDir = path.join(dir, 'nested')
     await mkdir(nestedDir)

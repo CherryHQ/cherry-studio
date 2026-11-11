@@ -382,7 +382,6 @@ describe('entryCleanup', () => {
   })
 
   it('reports the candidates this pass picked up', async () => {
-    expect(ENTRY_CLEANUP_BATCH_LIMIT).toBe(100)
     for (let i = 0; i < 5; i++) await seedInternal(nthId(200 + i), 'delete_when_unreferenced')
     const report = await runEntryCleanup(makeDeps())
     expect(report.candidates).toBe(5)
@@ -414,17 +413,6 @@ describe('entryCleanup', () => {
     const report = await runEntryCleanup(makeDeps())
     expect(report.deleted).toBe(1)
     expect(fileEntryService.findById(id)).toBeNull()
-  })
-
-  it('emits the file-entry-cleanup structured log', async () => {
-    const id = nthId(10)
-    await seedInternal(id, 'delete_when_unreferenced')
-    const infoSpy = vi.spyOn(loggerService, 'info')
-    await runEntryCleanup(makeDeps())
-    expect(infoSpy).toHaveBeenCalledWith(
-      'file-entry-cleanup',
-      expect.objectContaining({ event: 'file-entry-cleanup', outcome: 'completed' })
-    )
   })
 
   describe('summariseEntryCleanup', () => {

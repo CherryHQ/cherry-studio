@@ -257,9 +257,12 @@ shown: `ensureInternalGateway` returns one unrestricted key, and
 `createScopedCredential({ path, model })` issues a key for a single consumer run
 that only calls that path with that model and is revoked by `dispose`. The
 internal listener accepts only those keys, sent in a header, and the public
-listener accepts only the user's key. Cherry Cloud models are served only to
-internal requests; which Cloud models a feature may use is decided where the
-model is chosen, not here. Gateway requests run without Cherry's retries or
+listener accepts only the user's key. Enabled CherryAI subscription chat models
+are listed and served by the public gateway as `cherryai-subscription:<apiModelId>`,
+including in Code Mate's gateway model picker. Requests use the signed-in CherryAI
+account and its subscription quota; the provider refreshes model entitlements
+before sending, and the server enforces quota. Internal consumers still apply
+their feature-specific model selection rules. Gateway requests run without Cherry's retries or
 fallback models, so a request is served only by the model it named.
 
 Internal Anthropic requests prefer Anthropic Messages when the model declares

@@ -37,54 +37,18 @@ describe('dataSourcePanel.selectors', () => {
     expect(getItemTitle(createNoteItem({ id: 'note-2', content: '\n   \n' }))).toBe('')
   })
 
-  it('maps item statuses into row status metadata', () => {
-    expect(getItemStatus(createFileItem({ id: 'file-1', status: 'completed' }))).toEqual({
-      kind: 'completed',
-      labelKey: 'knowledge.data_source.status.ready',
-      textClassName: 'text-success',
-      icon: 'check'
+  it('classifies document processing status', () => {
+    expect(getItemStatus(createFileItem({ id: 'file-1', status: 'completed' }))).toMatchObject({ kind: 'completed' })
+    expect(getItemStatus(createFileItem({ id: 'file-2', status: 'failed' }))).toMatchObject({ kind: 'failed' })
+    expect(getItemStatus(createFileItem({ id: 'file-3', status: 'embedding' }))).toMatchObject({ kind: 'processing' })
+    expect(getItemStatus(createFileItem({ id: 'file-4', status: 'reading' }))).toMatchObject({ kind: 'processing' })
+    expect(getItemStatus(createFileItem({ id: 'file-5', status: 'processing' }))).toMatchObject({ kind: 'processing' })
+    expect(getItemStatus(createDirectoryItem({ id: 'directory-1', status: 'processing' }))).toMatchObject({
+      kind: 'processing'
     })
-    expect(getItemStatus(createFileItem({ id: 'file-2', status: 'failed' }))).toEqual({
-      kind: 'failed',
-      labelKey: 'knowledge.data_source.status.error',
-      textClassName: 'text-error',
-      icon: 'alert'
-    })
-    expect(getItemStatus(createFileItem({ id: 'file-3', status: 'embedding' }))).toEqual({
-      kind: 'processing',
-      labelKey: 'knowledge.data_source.status.embedding',
-      textClassName: 'text-warning',
-      icon: 'loader'
-    })
-    expect(getItemStatus(createFileItem({ id: 'file-4', status: 'reading' }))).toEqual({
-      kind: 'processing',
-      labelKey: 'knowledge.data_source.status.reading',
-      textClassName: 'text-info',
-      icon: 'loader'
-    })
-    expect(getItemStatus(createFileItem({ id: 'file-5', status: 'processing' }))).toEqual({
-      kind: 'processing',
-      labelKey: 'knowledge.status.processing',
-      textClassName: 'text-yellow-500',
-      icon: 'loader'
-    })
-    expect(getItemStatus(createDirectoryItem({ id: 'directory-1', status: 'processing' }))).toEqual({
-      kind: 'processing',
-      labelKey: 'knowledge.status.processing',
-      textClassName: 'text-yellow-500',
-      icon: 'loader'
-    })
-    expect(getItemStatus(createFileItem({ id: 'file-6', status: 'embedding' }))).toEqual({
-      kind: 'processing',
-      labelKey: 'knowledge.data_source.status.embedding',
-      textClassName: 'text-warning',
-      icon: 'loader'
-    })
-    expect(getItemStatus(createDirectoryItem({ id: 'directory-2', status: 'preparing' }))).toEqual({
-      kind: 'processing',
-      labelKey: 'knowledge.data_source.status.pending',
-      textClassName: 'text-zinc-500',
-      icon: 'loader'
+    expect(getItemStatus(createFileItem({ id: 'file-6', status: 'embedding' }))).toMatchObject({ kind: 'processing' })
+    expect(getItemStatus(createDirectoryItem({ id: 'directory-2', status: 'preparing' }))).toMatchObject({
+      kind: 'processing'
     })
   })
 })

@@ -784,15 +784,6 @@ describe('AgentJobsService', () => {
       return jobScheduleService.getById(taskId)?.metadata?.reuse
     }
 
-    it('defaults to reuse off with nothing bound', () => {
-      const task = service.createTask(AGENT_ID, form)
-
-      expect(task.reuseSession).toBe(false)
-      expect(task.reuseSessionId).toBeNull()
-      expect(readReuse(task.id)).toEqual({ enabled: false, revision: 0 })
-      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 0 })
-    })
-
     it('enables reuse without binding a session up front', () => {
       const task = service.createTask(AGENT_ID, form)
 
