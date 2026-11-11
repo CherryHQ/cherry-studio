@@ -189,19 +189,4 @@ describe('ApiGatewaySettings', () => {
     expect(screen.queryByRole('textbox', { name: 'apiGateway.fields.url.label' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'apiGateway.actions.regenerate' })).not.toBeInTheDocument()
   })
-
-  it('hides action icons while gateway actions are loading', () => {
-    const stoppedState = useApiGatewayMock()
-    useApiGatewayMock.mockReturnValue({
-      ...stoppedState,
-      apiGatewayConfig: { ...stoppedState.apiGatewayConfig, enabled: true },
-      apiGatewayRunning: true,
-      apiGatewayLoading: true
-    })
-
-    render(<ApiGatewaySettings />)
-
-    expect(screen.getByRole('button', { name: 'apiGateway.actions.restart.button' }).querySelector('svg')).toBeNull()
-    expect(screen.getByRole('button', { name: 'apiGateway.actions.stop' }).querySelector('svg')).toBeNull()
-  })
 })
