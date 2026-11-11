@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.start": "Không thể khởi động Claude Code. Mã tham chiếu chẩn đoán: {{reference}}",
   "error.claude_code_session_bus_missing": "Claude Code cần một bus phiên Linux đang hoạt động.",
   "error.claude_code_session_bus_missing_detail": "Hãy đặt DBUS_SESSION_BUS_ADDRESS trong môi trường desktop khởi chạy Cherry Studio, sau đó khởi động lại ứng dụng. Claude Code chưa được khởi chạy.",
+  "error.claude_code_storage_open_failed": "Không thể mở bộ lưu trữ phiên Claude Code. Hãy khởi động lại ứng dụng và kiểm tra thư mục dữ liệu của tác nhân có thể đọc được và còn dung lượng trống.",
   "error.content": "Nội dung",
   "error.data": "Dữ liệu",
   "error.detail": "Chi tiết lỗi",
