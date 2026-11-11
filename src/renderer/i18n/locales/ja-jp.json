@@ -2464,6 +2464,7 @@
   "message.download.failed": "ダウンロードに失敗しました",
   "message.download.success": "ダウンロードに成功しました",
   "message.empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
+  "message.error.agent_session_message_protected": "このメッセージは、セッション履歴または保留中の返信を保持するために保護されています。「新しいタスク」を選択して新しいセッションを開始するか、利用可能な場合は、以前の完了した返信で「分岐」を使用してください。どちらの方法でも、元のセッションとこのメッセージは保持されます。",
   "message.error.avatar_image_too_large": "画像が大きすぎます（最大 {{limit}}）",
   "message.error.dimension_too_large": "内容のサイズが大きすぎます",
   "message.error.dismiss_failed": "エラーメッセージを閉じることができませんでした",

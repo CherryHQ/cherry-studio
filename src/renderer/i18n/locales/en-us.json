@@ -2464,6 +2464,7 @@
   "message.download.failed": "Download failed",
   "message.download.success": "Download successfully",
   "message.empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
+  "message.error.agent_session_message_protected": "This message is protected to preserve session history or a pending reply. Choose New task to start a new session, or use Fork on an earlier completed reply if available. Both options keep the original session and this message.",
   "message.error.avatar_image_too_large": "Image is too large (max {{limit}})",
   "message.error.dimension_too_large": "Content size is too large",
   "message.error.dismiss_failed": "Failed to dismiss error message",

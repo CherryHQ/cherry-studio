@@ -2464,6 +2464,7 @@
   "message.download.failed": "Échec du téléchargement",
   "message.download.success": "Téléchargement réussi",
   "message.empty_url": "Impossible de télécharger l'image, il est possible que le prompt contienne du contenu sensible ou des mots interdits",
+  "message.error.agent_session_message_protected": "Ce message est protégé pour préserver l’historique de la session ou une réponse en attente. Choisissez « Nouvelle tâche » pour démarrer une nouvelle session, ou utilisez « Bifurquer » sur une réponse antérieure terminée si cette action est disponible. Les deux options conservent la session d’origine et ce message.",
   "message.error.avatar_image_too_large": "L'image est trop grande (max {{limit}})",
   "message.error.dimension_too_large": "Les dimensions du contenu sont trop grandes",
   "message.error.dismiss_failed": "Échec de la fermeture du message d'erreur",

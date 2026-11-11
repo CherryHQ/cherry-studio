@@ -448,6 +448,13 @@ These product storage operations do not grant UI permissions: in Agent/Work, ass
 offer no Delete action. User-message deletion retains its existing guards, including the native
 input binding lock. Deleting a product record does not rewind native history.
 
+A retained `inputContextId`, retained `data.nativeSessionId`, or pending outgoing reply
+anchored to the message (including in another Session) produces the same protection
+refusal. The UI classifies it into recovery guidance: **New task** starts a fresh Session
+without changing the source; **Fork** on an earlier completed reply, when available,
+keeps the original Session and message too. Edit-and-resend and Archive have different
+scopes.
+
 Only safe deliverables are copied: terminal text and managed file references. Reasoning, tool
 calls/results, approval state, hidden prompts, and unmanaged local paths are not result content.
 

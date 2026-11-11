@@ -2464,6 +2464,7 @@
   "message.download.failed": "Descarga fallida",
   "message.download.success": "Descarga exitosa",
   "message.empty_url": "No se puede descargar la imagen, es posible que la descripción contenga contenido sensible o palabras prohibidas",
+  "message.error.agent_session_message_protected": "Este mensaje está protegido para conservar el historial de la sesión o una respuesta pendiente. Elige «Nueva tarea» para iniciar una nueva sesión, o usa «Bifurcar» en una respuesta anterior completada si está disponible. Ambas opciones conservan la sesión original y este mensaje.",
   "message.error.avatar_image_too_large": "La imagen es demasiado grande (máx {{limit}})",
   "message.error.dimension_too_large": "La dimensión del contenido es demasiado grande",
   "message.error.dismiss_failed": "Error al descartar el mensaje de error",

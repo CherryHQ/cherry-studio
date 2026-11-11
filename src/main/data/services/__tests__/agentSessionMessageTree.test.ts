@@ -11,6 +11,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { agentSessionMessageService as service } from '@data/services/AgentSessionMessageService'
 import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
+import { ErrorCode } from '@shared/data/api/errors'
 
 // Catch lost branches, orphaned descendants, and output retargeted by a later UI selection.
 describe('Agent message tree', () => {
@@ -210,7 +211,15 @@ describe('Agent message tree', () => {
       expected: ['accepted'],
       turnRef: response.id
     })
-    expect(() => service.deleteSessionMessage(sessionId, senderHead.id)).toThrow()
+    expect(() => service.deleteSessionMessage(sessionId, senderHead.id)).toThrow(
+      expect.objectContaining({
+        code: ErrorCode.RESOURCE_LOCKED,
+        status: 423,
+        details: { resource: 'Message', id: senderHead.id, lockedBy: 'native input binding' }
+      })
+    )
+    expect(service.getSessionMessage(sessionId, senderHead.id).id).toBe(senderHead.id)
+    expect(service.getSessionMessage('receiver', request.id).id).toBe(request.id)
     const result = service.finalizeSessionDelivery({
       requestSessionId: 'receiver',
       requestMessageId: request.id,

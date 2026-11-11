@@ -2464,6 +2464,7 @@
   "message.download.failed": "Tải xuống thất bại",
   "message.download.success": "Tải xuống thành công",
   "message.empty_url": "Không tải được hình ảnh, có thể do lời nhắc chứa nội dung nhạy cảm hoặc từ ngữ bị cấm",
+  "message.error.agent_session_message_protected": "Tin nhắn này được bảo vệ để giữ lại lịch sử phiên hoặc một phản hồi đang chờ xử lý. Chọn «Nhiệm vụ mới» để bắt đầu phiên mới, hoặc dùng «Phân nhánh» trên một phản hồi đã hoàn tất trước đó nếu có tùy chọn này. Cả hai tùy chọn đều giữ lại phiên gốc và tin nhắn này.",
   "message.error.avatar_image_too_large": "Hình ảnh quá lớn (tối đa {{limit}})",
   "message.error.dimension_too_large": "Kích thước nội dung quá lớn",
   "message.error.dismiss_failed": "Không thể bỏ qua thông báo lỗi",

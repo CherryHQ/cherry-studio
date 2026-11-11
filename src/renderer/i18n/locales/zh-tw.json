@@ -2464,6 +2464,7 @@
   "message.download.failed": "下載失敗",
   "message.download.success": "下載成功",
   "message.empty_url": "無法下載圖片，可能是提示詞包含敏感內容或違禁詞彙",
+  "message.error.agent_session_message_protected": "此訊息受到保護，以保留工作階段歷史或待處理的回覆。請選擇「新任務」開始新的工作階段，或在更早的一則已完成回覆上使用「分叉」（若此操作可用）。這兩種方式都會保留原工作階段和此訊息。",
   "message.error.avatar_image_too_large": "圖片過大（上限 {{limit}}）",
   "message.error.dimension_too_large": "內容尺寸過大",
   "message.error.dismiss_failed": "無法關閉錯誤訊息",

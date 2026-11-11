@@ -2464,6 +2464,7 @@
   "message.download.failed": "Falha no download",
   "message.download.success": "Download bem-sucedido",
   "message.empty_url": "Não foi possível descarregar a imagem, possivelmente porque o prompt contém conteúdo sensível ou palavras proibidas",
+  "message.error.agent_session_message_protected": "Esta mensagem está protegida para preservar o histórico da sessão ou uma resposta pendente. Escolha «Nova tarefa» para iniciar uma nova sessão ou utilize «Bifurcar» numa resposta anterior concluída, se disponível. Ambas as opções mantêm a sessão original e esta mensagem.",
   "message.error.avatar_image_too_large": "A imagem é muito grande (máx. {{limit}})",
   "message.error.dimension_too_large": "Dimensão do conteúdo muito grande",
   "message.error.dismiss_failed": "Falha ao descartar a mensagem de erro",

@@ -2464,6 +2464,7 @@
   "message.download.failed": "下载失败",
   "message.download.success": "下载成功",
   "message.empty_url": "无法下载图片，可能是提示词包含敏感内容或违禁词汇",
+  "message.error.agent_session_message_protected": "此消息受到保护，以保留会话历史或待处理的回复。请选择“新任务”开始新会话，或在更早的一条已完成回复上使用“分叉”（如果该操作可用）。这两种方式都会保留原会话和此消息。",
   "message.error.avatar_image_too_large": "图片过大（上限 {{limit}}）",
   "message.error.dimension_too_large": "内容尺寸过大",
   "message.error.dismiss_failed": "关闭错误消息失败",

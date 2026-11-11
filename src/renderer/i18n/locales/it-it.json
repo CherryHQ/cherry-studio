@@ -2464,6 +2464,7 @@
   "message.download.failed": "Download non riuscito",
   "message.download.success": "Download riuscito",
   "message.empty_url": "Impossibile scaricare l'immagine, forse perché il prompt contiene contenuti sensibili o parole vietate",
+  "message.error.agent_session_message_protected": "Questo messaggio è protetto per preservare la cronologia della sessione o una risposta in sospeso. Scegli «Nuova attività» per avviare una nuova sessione oppure usa «Crea diramazione» su una risposta precedente completata, se disponibile. Entrambe le opzioni mantengono la sessione originale e questo messaggio.",
   "message.error.avatar_image_too_large": "Immagine troppo grande (massimo {{limit}})",
   "message.error.dimension_too_large": "Dimensioni del contenuto eccessive",
   "message.error.dismiss_failed": "Impossibile chiudere il messaggio di errore",

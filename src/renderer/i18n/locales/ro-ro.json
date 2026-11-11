@@ -2464,6 +2464,7 @@
   "message.download.failed": "Descărcare eșuată",
   "message.download.success": "Descărcare reușită",
   "message.empty_url": "Nu s-a putut descărca imaginea, posibil din cauza promptului care conține conținut sensibil sau cuvinte interzise",
+  "message.error.agent_session_message_protected": "Acest mesaj este protejat pentru a păstra istoricul sesiunii sau un răspuns în așteptare. Alegeți „Sarcină nouă” pentru a începe o sesiune nouă sau folosiți „Ramifică” pe un răspuns anterior finalizat, dacă opțiunea este disponibilă. Ambele opțiuni păstrează sesiunea originală și acest mesaj.",
   "message.error.avatar_image_too_large": "Imaginea este prea mare (maxim {{limit}})",
   "message.error.dimension_too_large": "Dimensiunea conținutului este prea mare",
   "message.error.dismiss_failed": "Nu s-a reușit închiderea mesajului de eroare",

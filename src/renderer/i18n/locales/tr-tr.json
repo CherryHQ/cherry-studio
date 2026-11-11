@@ -2464,6 +2464,7 @@
   "message.download.failed": "İndirme başarısız",
   "message.download.success": "Başarıyla indirildi",
   "message.empty_url": "İstem hassas içerik veya yasaklanmış sözcükler içerdiğinden görüntü indirilememiş olabilir",
+  "message.error.agent_session_message_protected": "Bu mesaj, oturum geçmişini veya bekleyen bir yanıtı korumak için koruma altındadır. Yeni bir oturum başlatmak için «Yeni görev» seçeneğini seçin veya kullanılabiliyorsa daha önce tamamlanmış bir yanıtta «Dallandır» seçeneğini kullanın. Her iki seçenek de orijinal oturumu ve bu mesajı korur.",
   "message.error.avatar_image_too_large": "Görüntü çok büyük (en fazla {{limit}})",
   "message.error.dimension_too_large": "İçerik boyutu çok büyük",
   "message.error.dismiss_failed": "Hata mesajı kapatılamadı",
