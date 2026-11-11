@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
@@ -13,6 +13,7 @@ interface AgentSessionNameControlProps {
 export function AgentSessionNameControl({ sessionId, sessionName, onCloseAutoFocus }: AgentSessionNameControlProps) {
   const { t } = useTranslation()
   const { updateSession } = useUpdateSession()
+  const interactedOutside = useRef(false)
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(sessionName)
   const [draftSessionId, setDraftSessionId] = useState(sessionId)
@@ -33,18 +34,29 @@ export function AgentSessionNameControl({ sessionId, sessionName, onCloseAutoFoc
     <Popover
       open={open}
       onOpenChange={(next) => {
-        if (next) setDraft(sessionName)
+        if (next) {
+          interactedOutside.current = false
+          setDraft(sessionName)
+        }
         setOpen(next)
       }}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="sm" title={t('common.rename')} className="min-w-0 shrink text-xs">
-          <span className="max-w-40 truncate">{sessionName}</span>
+          <span className="max-w-40 truncate">{sessionName || t('message.tools.sessionCreate.untitled')}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
         className="w-64 p-2"
-        onCloseAutoFocus={onCloseAutoFocus}
+        onInteractOutside={() => {
+          interactedOutside.current = true
+        }}
+        onCloseAutoFocus={(event) => {
+          if (!interactedOutside.current && onCloseAutoFocus) {
+            event.preventDefault()
+            onCloseAutoFocus()
+          }
+        }}
         onOpenAutoFocus={(event) => event.preventDefault()}>
         <form
           className="flex items-center gap-2"
@@ -52,7 +64,12 @@ export function AgentSessionNameControl({ sessionId, sessionName, onCloseAutoFoc
             event.preventDefault()
             void submit()
           }}>
-          <Input autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} />
+          <Input
+            aria-label={t('agent.session.edit.title')}
+            autoFocus
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+          />
           <Button type="submit" size="sm" disabled={!draft.trim()}>
             {t('common.save')}
           </Button>

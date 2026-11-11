@@ -94,7 +94,7 @@ function AgentTopBarControls({ session, ...props }: AgentTopBarControlsProps) {
         iconOnly={iconOnly}
         showWorkspace={!!props.onWorkspaceChange}
       />
-      {session?.name && !iconOnly ? (
+      {session && !iconOnly ? (
         <AgentSessionNameControl
           sessionId={session.id}
           sessionName={session.name}
