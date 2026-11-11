@@ -10,7 +10,7 @@ Cherry Studio 会把内置技能和用户安装的技能镜像到 `~/.agents/ski
 
 ## Decision
 
-应用级偏好 `agent.skills.external_export.enabled`（布尔，默认 `false`）控制技能导出操作。全新安装默认不导出；启动前用户数据搬迁仍可能改写已有导出链接。
+应用级偏好 `agent.skills.external_export.enabled`（布尔，默认 `false`）控制技能导出操作。全新安装默认不导出；保留已有偏好的安装升级时，若新键缺失则继续开启导出，已有选择保持不变。门禁覆盖安装、重新安装、reconcile、单技能开关、远程更新和内置技能。启动前用户数据搬迁不读取该偏好，仍可能重定向本应用残留的旧链接。
 
 偏好关闭期间，技能导出操作不创建或恢复链接，并移除名称和目标与本应用技能匹配的链接，保留其他条目。偏好重新打开时按每个技能保存的 `mirror_enabled` 恢复，因此单技能选择在应用级开关之间被保留，而不是被压平。技能详情页保留自己的勾选框，应用级关闭时它处于禁用状态并给出说明。
 
@@ -20,7 +20,7 @@ Cherry Studio 会把内置技能和用户安装的技能镜像到 `~/.agents/ski
 
 ## Consequences
 
-全新安装默认不向 `~/.agents/skills` 导出，开启开关后才会导出。开关关闭时，本应用拥有的链接消失，外部条目保留。如果在移除链接与更新目录行之间崩溃，没有需要修复的残留，因为 reconcile 只移除本应用能证明由自己创建的条目。旧版本创建的链接可通过目标路径识别为本应用所有，因此升级不会留下孤儿。
+保留偏好的老用户升级后继续导出，已有开关选择保持不变。全新安装默认不向 `~/.agents/skills` 导出，开启开关后才会导出。开关关闭时，本应用拥有的链接消失，外部条目保留。如果在移除链接与更新目录行之间崩溃，没有需要修复的残留，因为 reconcile 只移除本应用能证明由自己创建的条目。旧版本创建的链接可通过目标路径识别为本应用所有，因此升级不会留下孤儿。
 
 ## Verification
 
@@ -28,3 +28,5 @@ Cherry Studio 会把内置技能和用户安装的技能镜像到 `~/.agents/ski
 - Regression — 偏好关闭时 `setMirrorEnabled(id, true)` 正常 resolve 且不触碰外部目录；`reconcile` 移除本应用链接，同时保留用户创建的文件与目录。
 - Regression — `src/renderer/pages/settings/__tests__/SkillsSettings.test.tsx` 与 `SkillDetails.test.tsx` 覆盖开关行与禁用且被覆盖的单技能勾选框（3 个文件、24 条测试）。
 - Regression — 此前使用旧版开启默认值和隔离 `HOME` 的真实 Electron 运行：启动时有 10 条本应用拥有的链接；在设置页关闭开关后全部移除，用户文件与目录保留；重启后不回填；重新打开开关后恢复同样 10 条链接。
+
+- Regression — `ExternalSkillExportUpgradeSeeder.test.ts` 和 `PreferencesMigrator.test.ts` 覆盖全新安装、保留已有选择、注册顺序及 v1 导入。
