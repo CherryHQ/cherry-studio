@@ -69,7 +69,7 @@ import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
-import { createPiMemoryTools } from './memoryTools'
+import { createPiMemoryTools, PI_MEMORY_FILE_TOOLS } from './memoryTools'
 import { createPiBehaviorHost } from './piBehaviorHost'
 import { PiChildTasks } from './PiChildTasks'
 import {
@@ -200,7 +200,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
       getPermissionMode: () => this.permissionMode,
       isDisabled: (toolName: string) => this.isToolDisabled(toolName),
-      additionalReadOnlyRoots: [...additionalSkillPaths, application.getPath('feature.agents.outputs'), application.getPath('feature.memory.data')],
+      executionOwnedTools: PI_MEMORY_FILE_TOOLS,
+      additionalReadOnlyRoots: [
+        ...additionalSkillPaths,
+        application.getPath('feature.agents.outputs'),
+        application.getPath('feature.memory.data')
+      ],
       // Approval follows the mounted server set; disabledTools still blocks at fire-time.
       autoApprovedTools: new Set(
         mountedPolicies
@@ -324,7 +329,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         return child.projection.context.sessionId
       }
     })
-    const memoryTools = createPiMemoryTools(pi, approvalContext)
+    const memoryTools = createPiMemoryTools(pi, approvalContext, true)
     this.memoryTools = memoryTools
     const options = {
       ...binding,
@@ -344,7 +349,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         ...(loginPathPrefix ? { shellCommandPrefix: loginPathPrefix } : {})
       },
       extensionFactories: [
-        memoryTools.extension,        createPiIdentityExtension(agentDataPath, this.input.sessionId),
+        memoryTools.extension,
+        createPiIdentityExtension(agentDataPath, this.input.sessionId),
         pi.createCodemodeExtension({ models: false }),
         pi.createToolSearchExtension(),
         createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log'))
