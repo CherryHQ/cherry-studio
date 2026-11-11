@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { createToolInvokeTool, TOOL_INVOKE_TOOL_NAME } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { classifyErrorCategory } from '@shared/utils/errorCategory'
 
 import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
@@ -171,6 +172,12 @@ describe('resolveContentFilterTerminalError', () => {
     expect(error).toBeDefined()
     const serialized = serializeError(error) as { finishReason?: string; message?: string }
     expect(classifyErrorCategory({ text: serialized.message, finishReason: serialized.finishReason })).toBe('content')
+  })
+
+  it('stores the empty filtered turn as a content-filter failure, not an unknown one', () => {
+    const serialized = serializeError(resolveContentFilterTerminalError([step({})]))
+
+    expect(toExecutionFailure(serialized as never).failure.reasonCode).toBe('content_filter')
   })
 
   it('carries an i18nKey the renderer catalog defines, so the card never falls back to the English message', () => {
