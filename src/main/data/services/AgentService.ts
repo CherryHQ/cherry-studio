@@ -40,8 +40,8 @@ import {
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
-import { sessionFollowupScopePrefix } from '@shared/data/types/followupQueue'
 import type { FileEntryId } from '@shared/data/types/file'
+import { sessionFollowupScopePrefix } from '@shared/data/types/followupQueue'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 

@@ -27,8 +27,8 @@ import type {
 } from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { buildTopicFollowupScopeKey } from '@shared/data/types/followupQueue'
 import type { FileEntryId } from '@shared/data/types/file'
+import { buildTopicFollowupScopeKey } from '@shared/data/types/followupQueue'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { followupQueueService } from './FollowupQueueService'
