@@ -1059,6 +1059,54 @@ describe('Sessions', () => {
     windowFrameMocks.mode = 'embedded'
   })
 
+  it.each(['workdir', 'agent'] as const)('moves pinned %s groups and their tasks into Pinned and back', (mode) => {
+    preferenceMocks.values.set('agent.session.display_mode', mode)
+    dataApiMocks.workspaces.push(makeWorkspace('/Users/jd/project-c', { id: 'ws-c', name: 'Project C Workspace' }))
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', name: 'Alpha agent' },
+        { id: 'agent-b', name: 'Beta agent' },
+        { id: 'agent-c', name: 'Gamma agent' }
+      ],
+      isLoading: false,
+      refetch: dataApiMocks.refetchAgents
+    })
+    let pinnedIds = mode === 'workdir' ? ['ws-a', 'ws-b'] : ['agent-a', 'agent-b']
+    pinMocks.usePins.mockImplementation((entityType: string) => ({
+      isLoading: false,
+      isRefreshing: false,
+      isMutating: false,
+      pinnedIds: entityType === (mode === 'workdir' ? 'workspace' : 'agent') ? pinnedIds : [],
+      togglePin: vi.fn()
+    }))
+    setupSessions({
+      sessions: [createSession(), createSession({ id: 'session-pinned', name: 'Individually pinned task' })],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session']])
+    })
+    const view = render(<SessionsForTest />)
+    const groupName = mode === 'workdir' ? 'Project A Workspace' : 'Alpha agent'
+    const emptyGroupName = mode === 'workdir' ? 'Project B Workspace' : 'Beta agent'
+    const ordinaryGroupName = mode === 'workdir' ? 'Project C Workspace' : 'Gamma agent'
+    expect(screen.getAllByText(groupName)).toHaveLength(1)
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(screen.getByText(emptyGroupName)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
+    view.rerender(<SessionsForTest key="collapsed" />)
+    expect(screen.queryByText(groupName)).not.toBeInTheDocument()
+    expect(screen.queryByText(emptyGroupName)).not.toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+    expect(screen.queryByText('Individually pinned task')).not.toBeInTheDocument()
+    expect(screen.getByText(ordinaryGroupName)).toBeInTheDocument()
+
+    pinnedIds = []
+    view.rerender(<SessionsForTest key="unpinned" />)
+    expect(screen.getByText(groupName)).toBeInTheDocument()
+    expect(screen.getByText(emptyGroupName)).toBeInTheDocument()
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(screen.queryByText('Individually pinned task')).not.toBeInTheDocument()
+  })
+
   it('loads agent session export code only when an export action runs', async () => {
     expect(agentSessionExportMocks.moduleLoads).toBe(0)
 
