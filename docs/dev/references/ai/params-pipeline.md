@@ -87,6 +87,7 @@ export const INTERNAL_FEATURES = [
   openrouterReasoningFeature,
   noThinkFeature,
   qwenThinkingFeature,
+  geminiThoughtSignatureReplayFeature,
   skipGeminiThoughtSignatureFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
@@ -232,3 +233,5 @@ parameters.
 - Tool defer: [Tool Registry](./tool-registry.md)
 - Endpoint routing: [Adapter Family](./adapter-family.md)
 - Hooks: [Agent Loop](./agent-loop.md)
+
+For generic OpenAI-compatible chat completions on Gemini 3/4, signature replay preserves real tool signatures before the skip feature supplies its fallback.
