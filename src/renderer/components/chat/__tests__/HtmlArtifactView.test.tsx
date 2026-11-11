@@ -242,6 +242,27 @@ describe('HtmlArtifactView', () => {
     expect(iframe.nextElementSibling).toBeNull()
   })
 
+  it('offsets the full snapshot to the scrolled viewport inside the existing zoom layer', async () => {
+    vi.mocked(captureScrollableIframeAsDataUrl).mockResolvedValueOnce('data:image/png;base64,AAAA')
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    Object.defineProperty(iframe.contentWindow, 'scrollX', { configurable: true, value: 40 })
+    Object.defineProperty(iframe.contentWindow, 'scrollY', { configurable: true, value: 400 })
+    Object.defineProperty(iframe.contentDocument!.documentElement, 'scrollWidth', { configurable: true, value: 1200 })
+    const event = new ImageCaptureEvent()
+    screen.getByTestId('adaptive-html-preview').dispatchEvent(event)
+    const restore = await event.preparations[0]
+    const snapshot = iframe.nextElementSibling as HTMLImageElement
+    expect(snapshot.style.width).toBe('1200px')
+    expect(snapshot.style.maxWidth).toBe('none')
+    expect(snapshot.style.transform).toBe('translate(-40px, -400px)')
+    expect(screen.getByTestId('adaptive-html-zoom-layer').style.transform).toBe('scale(1.1)')
+    await restore()
+    expect(iframe.nextElementSibling).toBeNull()
+    expect(iframe.contentWindow!.scrollY).toBe(400)
+  })
+
   it('switches directly between HTML and code in the message surface', () => {
     render(<HtmlArtifactView html="<h1>Hello</h1>" title="Preview" />)
 

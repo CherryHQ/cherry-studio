@@ -379,6 +379,15 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
     const prepare = async () => {
       const iframe = iframeRef.current
       if (!iframe) return () => {}
+      const frameDocument = iframe.contentDocument
+      const frameWindow = iframe.contentWindow
+      const scrollLeft = frameWindow?.scrollX ?? 0
+      const scrollTop = frameWindow?.scrollY ?? 0
+      const documentWidth = Math.max(
+        frameDocument?.body?.scrollWidth ?? 0,
+        frameDocument?.documentElement.scrollWidth ?? 0,
+        iframe.clientWidth
+      )
       const dataUrl = await captureScrollableIframeAsDataUrl(iframeRef, { restrictToLocalResources: true })
       // Both outer export entry points abort on a rejected preparation. Never leave the
       // live iframe for an unrestricted retry: the parent clone is outside its CSP.
@@ -386,7 +395,13 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       const snapshot = document.createElement('img')
       snapshot.src = dataUrl
       snapshot.alt = ''
-      snapshot.style.cssText = 'display:block;width:100%;height:auto'
+      // The full-document raster replaces a viewport. Offset in document CSS pixels here;
+      // the existing zoom layer scales both the image and the offsets exactly once.
+      snapshot.style.display = 'block'
+      snapshot.style.maxWidth = 'none'
+      snapshot.style.width = documentWidth > 0 ? `${documentWidth}px` : '100%'
+      snapshot.style.height = 'auto'
+      snapshot.style.transform = `translate(${-scrollLeft}px, ${-scrollTop}px)`
       const previousDisplay = iframe.style.display
       iframe.style.display = 'none'
       iframe.after(snapshot)
