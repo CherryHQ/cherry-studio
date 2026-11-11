@@ -960,9 +960,9 @@ describe('writeCliConfigDraft', () => {
           throw new Error('unavailable')
         }
       })
-      await expect(writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model' })).rejects.toThrow(
-        'credential selection'
-      )
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model' })
+      ).rejects.toThrow('credential selection')
       expect(writes).toEqual([])
     })
 
