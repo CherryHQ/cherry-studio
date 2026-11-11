@@ -1190,9 +1190,42 @@ export class AgentSessionRuntimeService extends BaseService {
     const completedTurn = expectedTurnId
       ? getAgentSessionRuntimeTurns(entry.runtimeState).find((turn) => turn.turnId === expectedTurnId)
       : this.currentTurn(entry)
-    if (!completedTurn || entry.closing) return
+    const logIgnored = (reason: string) => {
+      const execution = entry.runtimeState.execution
+      logger.info('Ignored agent session terminal callback', {
+        sessionId,
+        topicId: entry.topicId,
+        status,
+        expectedTurnId,
+        completedTurnId: completedTurn?.turnId,
+        reason,
+        executionKind: execution.kind,
+        ownership: execution.kind === 'autonomous-turn' ? execution.ownership : undefined,
+        connectionGeneration: entry.connectionGeneration,
+        queueLength: entry.runtimeState.queue.length,
+        launchKind: entry.runtimeState.launch.kind,
+        replies: getAgentSessionRuntimeTurns(entry.runtimeState).map((turn) => {
+          const ownedReply = getAgentSessionRuntimeReply(entry.runtimeState, turn)
+          return {
+            turnId: turn.turnId,
+            assistantMessageId: turn.assistantMessageId,
+            deliveryKind: ownedReply?.delivery.kind,
+            admission: ownedReply?.admission,
+            terminalStatus: ownedReply?.terminal?.status,
+            pendingResultCount: ownedReply?.pendingResultToolCallIds?.length ?? null
+          }
+        })
+      })
+    }
+    if (!completedTurn || entry.closing) {
+      logIgnored(!completedTurn ? 'turn-not-found' : 'closing')
+      return
+    }
     const reply = getAgentSessionRuntimeReply(entry.runtimeState, completedTurn)
-    if (!reply || ['suspending', 'settled', 'failed'].includes(reply.delivery.kind)) return
+    if (!reply || ['suspending', 'settled', 'failed'].includes(reply.delivery.kind)) {
+      logIgnored(reply?.delivery.kind ?? 'reply-not-found')
+      return
+    }
     const isRowRoll =
       entry.runtimeState.execution.kind === 'steer-transition' &&
       entry.runtimeState.execution.source.turn === completedTurn
