@@ -10,7 +10,7 @@ import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
@@ -95,6 +95,9 @@ vi.mock('@main/utils/shellEnv', () => ({
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 describe('desktop Pi Durable connection', () => {
+  // These multi-turn flows run several times slower on the Windows CI runner than the 1 s poll default allows.
+  beforeAll(() => vi.setConfig({ expect: { poll: { timeout: 10_000 } } }))
+  afterAll(() => vi.resetConfig())
   const dbh = setupTestDatabase()
   let directory: string
   let input: AgentRuntimeConnectInput
@@ -1248,8 +1251,7 @@ describe('desktop Pi Durable connection', () => {
     })
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
-    // Parent, child and the child's write run in sequence; Windows CI can exceed the 1 s default.
-    await done(events, 10_000)
+    await done(events)
     expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
     expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
     expect(events.filter((event) => event.type === 'error')).toEqual([])
