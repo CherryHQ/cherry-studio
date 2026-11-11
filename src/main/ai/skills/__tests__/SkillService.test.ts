@@ -174,6 +174,113 @@ describe('SkillService', () => {
     ])
   }
 
+  describe('external export preference', () => {
+    let root: string
+    let storage: string
+    let mirror: string
+    let external: string
+    let service: SkillService
+
+    beforeEach(async () => {
+      root = await createTempDir('external-skill-')
+      storage = path.join(root, 'storage')
+      mirror = path.join(root, 'mirror')
+      external = path.join(root, 'external')
+      vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base =
+          key === 'feature.agents.skills'
+            ? storage
+            : key === 'feature.agents.claude.skills'
+              ? mirror
+              : key === 'external.agents.skills'
+                ? external
+                : path.join(root, key)
+        return filename ? path.join(base, filename) : base
+      })
+      for (const name of ['skill-one', 'skill-two']) {
+        await fs.promises.mkdir(path.join(storage, name), { recursive: true })
+        await fs.promises.writeFile(path.join(storage, name, 'SKILL.md'), '# Skill')
+      }
+      await dbh.db.insert(agentGlobalSkillTable).values([
+        {
+          id: SKILL_ID_1,
+          name: 'One',
+          folderName: 'skill-one',
+          source: 'local',
+          contentHash: 'hash-one',
+          mirrorEnabled: true
+        },
+        {
+          id: SKILL_ID_2,
+          name: 'Two',
+          folderName: 'skill-two',
+          source: 'local',
+          contentHash: 'hash-two',
+          mirrorEnabled: false
+        }
+      ])
+      service = new SkillService()
+    })
+    afterEach(() => vi.mocked(application.getPath).mockRestore())
+
+    it('preserves per-skill choices while disabling exports and restores only enabled skills', async () => {
+      await service.syncExternalExports()
+      expect((await fs.promises.lstat(path.join(external, 'skill-one'))).isSymbolicLink()).toBe(true)
+      await expect(fs.promises.lstat(path.join(external, 'skill-two'))).rejects.toMatchObject({ code: 'ENOENT' })
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', false)
+      await service.syncExternalExports()
+      await expect(fs.promises.lstat(path.join(external, 'skill-one'))).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(agentGlobalSkillService.getById(SKILL_ID_1)?.mirrorEnabled).toBe(true)
+      expect(agentGlobalSkillService.getById(SKILL_ID_2)?.mirrorEnabled).toBe(false)
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
+      await service.syncExternalExports()
+      expect((await fs.promises.lstat(path.join(external, 'skill-one'))).isSymbolicLink()).toBe(true)
+      await expect(fs.promises.lstat(path.join(external, 'skill-two'))).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    it('removes owned orphan and broken links while preserving user entries', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', false)
+      await fs.promises.mkdir(external, { recursive: true })
+      await fs.promises.symlink(path.join(mirror, 'orphan'), path.join(external, 'orphan'), 'dir')
+      await fs.promises.writeFile(path.join(external, 'skill-one'), 'user file')
+      await fs.promises.mkdir(path.join(external, 'skill-two'))
+      await fs.promises.symlink(root, path.join(external, 'user-link'), 'dir')
+      await service.syncExternalExports()
+      await expect(service.setMirrorEnabled(SKILL_ID_1, true)).resolves.toMatchObject({ mirrorEnabled: true })
+      await expect(fs.promises.lstat(path.join(external, 'orphan'))).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(await fs.promises.readFile(path.join(external, 'skill-one'), 'utf8')).toBe('user file')
+      expect((await fs.promises.stat(path.join(external, 'skill-two'))).isDirectory()).toBe(true)
+      expect(await fs.promises.readlink(path.join(external, 'user-link'))).toBe(root)
+    })
+
+    it('does not create an export root when disabled and permits saving an enabled choice', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', false)
+      await service.syncExternalExports()
+      await service.setMirrorEnabled(SKILL_ID_2, true)
+      expect(agentGlobalSkillService.getById(SKILL_ID_2)?.mirrorEnabled).toBe(true)
+      await expect(fs.promises.lstat(external)).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    it('continues pruning other links when one unlink fails and reports the failure', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', false)
+      await fs.promises.mkdir(external, { recursive: true })
+      const bad = path.join(external, 'bad')
+      const good = path.join(external, 'good')
+      await fs.promises.symlink(path.join(mirror, 'bad'), bad, 'dir')
+      await fs.promises.symlink(path.join(mirror, 'good'), good, 'dir')
+      const unlink = fs.promises.unlink.bind(fs.promises)
+      const spy = vi
+        .spyOn(fs.promises, 'unlink')
+        .mockImplementation((target) => (target === bad ? Promise.reject(new Error('denied')) : unlink(target)))
+      try {
+        await expect(service.syncExternalExports()).rejects.toThrow(/1.*denied/)
+        await expect(fs.promises.lstat(good)).rejects.toMatchObject({ code: 'ENOENT' })
+      } finally {
+        spy.mockRestore()
+      }
+    })
+  })
+
   describe('exportArchive', () => {
     afterEach(() => vi.mocked(findSkillMdPath).mockReset())
 
