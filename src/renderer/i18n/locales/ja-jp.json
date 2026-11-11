@@ -3112,6 +3112,7 @@
   "notes.upload_success": "ノートのアップロードが成功しました",
   "notification.assistant": "アシスタントの応答",
   "notification.center.activation_failed": "この通知を開けませんでした。リンク先がすでに存在しない可能性があります。",
+  "notification.center.clear_read": "既読を削除",
   "notification.center.dismiss": "この通知を削除",
   "notification.center.empty": "通知はありません",
   "notification.center.error": "通知を読み込めませんでした",

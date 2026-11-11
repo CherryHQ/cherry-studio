@@ -3112,6 +3112,7 @@
   "notes.upload_success": "Note téléchargée avec succès",
   "notification.assistant": "Réponse de l'assistant",
   "notification.center.activation_failed": "Impossible d’ouvrir cette notification. Sa destination n’existe peut-être plus.",
+  "notification.center.clear_read": "Effacer les lues",
   "notification.center.dismiss": "Supprimer cette notification",
   "notification.center.empty": "Aucune notification",
   "notification.center.error": "Impossible de charger les notifications",

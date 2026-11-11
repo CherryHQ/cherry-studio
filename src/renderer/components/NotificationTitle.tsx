@@ -4,7 +4,7 @@ import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { NotificationRecord } from '@shared/data/types/notification'
 
-import { notificationPreview } from './notificationPresentation'
+import { notificationPreview, TruncatedLabel } from './notificationPresentation'
 
 function NotificationIdentity({ name, emoji }: { name: string; emoji: string }) {
   return (
@@ -47,18 +47,19 @@ function AssistantNotificationLabel({ topicId }: { topicId: string }) {
   return <NotificationIdentity name={assistant.name} emoji={assistant.emoji?.trim() || DEFAULT_ASSISTANT_EMOJI} />
 }
 
-export function NotificationTitle({ record }: { record: NotificationRecord }) {
+export function NotificationTitle({ record, tooltip = false }: { record: NotificationRecord; tooltip?: boolean }) {
+  const title = tooltip ? <TruncatedLabel text={record.title} /> : notificationPreview(record.title, true)
   const result = record.target?.result
   const target =
     (record.kind === 'task-completion' || record.kind === 'queue-completion' || result) &&
     record.target?.kind === 'conversation'
       ? record.target
       : undefined
-  if (!target && !result?.actor) return notificationPreview(record.title, true)
+  if (!target && !result?.actor) return title
 
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <span className="min-w-0 truncate">{notificationPreview(record.title, true)}</span>
+      <span className="min-w-0 truncate">{title}</span>
       {result?.actor ? (
         <NotificationIdentity {...result.actor} />
       ) : target?.conversationType === 'agent' ? (

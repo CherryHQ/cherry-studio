@@ -13,6 +13,7 @@ export const notificationHandlers: HandlersFor<NotificationSchemas> = {
   '/notifications': { GET: async ({ query }) => notificationRecordService.list(query) },
   '/notifications/unread-count': { GET: async () => ({ count: notificationRecordService.unreadCount() }) },
   '/notifications/read-all': { POST: async () => notificationRecordService.markAllRead() },
+  '/notifications/dismiss-read': { POST: async () => notificationRecordService.dismissRead() },
   '/notifications/read-conversation': {
     POST: async ({ body }) =>
       notificationRecordService.markConversationRead(ReadConversationNotificationsSchema.parse(body))
