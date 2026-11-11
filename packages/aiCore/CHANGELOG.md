@@ -1,5 +1,11 @@
 # @cherrystudio/ai-core
 
+## Unreleased
+
+### Patch Changes
+
+- Include a package-local MIT license file and correct the README license link.
+
 ## 2.4.8
 
 ### Patch Changes
