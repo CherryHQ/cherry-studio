@@ -37,6 +37,7 @@ const providerKeyMap = {
   deepseek: 'provider.deepseek',
   dmxapi: 'provider.dmxapi',
   doubao: 'provider.doubao',
+  ezkielyna: 'provider.ezkielyna',
   fireworks: 'provider.fireworks',
   gemini: 'provider.gemini',
   'gitee-ai': 'provider.gitee-ai',

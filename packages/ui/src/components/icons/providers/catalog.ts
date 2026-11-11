@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-11-04T07:38:09.129Z
- * Total icons: 173
+ * Generated at: 2026-11-11T17:13:52.261Z
+ * Total icons: 174
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -61,6 +61,7 @@ import { DuckIcon } from './duck'
 import { ElevenlabsIcon } from './elevenlabs'
 import { EssentialAiIcon } from './essential-ai'
 import { ExaIcon } from './exa'
+import { EzkielynaIcon } from './ezkielyna/ezkielyna'
 import { FeloIcon } from './felo'
 import { FirecrawlIcon } from './firecrawl'
 import { FireworksIcon } from './fireworks'
@@ -238,6 +239,7 @@ export const PROVIDER_ICON_CATALOG = {
   elevenlabs: ElevenlabsIcon,
   'essential-ai': EssentialAiIcon,
   exa: ExaIcon,
+  ezkielyna: EzkielynaIcon,
   felo: FeloIcon,
   firecrawl: FirecrawlIcon,
   fireworks: FireworksIcon,

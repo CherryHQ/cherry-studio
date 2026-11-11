@@ -8,6 +8,10 @@ describe('resolveProviderIconRef', () => {
     expect(resolveProviderIconRef('claude')).toEqual(expect.objectContaining({ kind: 'model', key: 'claude' }))
   })
 
+  it('resolves the Ezkielyna provider icon from the provider catalog', () => {
+    expect(resolveProviderIconRef('ezkielyna')).toEqual(expect.objectContaining({ kind: 'provider', key: 'ezkielyna' }))
+  })
+
   it('returns undefined for unknown provider IDs', () => {
     expect(resolveProviderIconRef('definitely-not-a-provider')).toBeUndefined()
     expect(resolveProviderIconRef('')).toBeUndefined()

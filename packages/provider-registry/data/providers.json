@@ -2935,7 +2935,32 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Ezkielyna - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.ezkielyna.store"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.ezkielyna.store"
+        }
+      },
+      "id": "ezkielyna",
+      "metadata": {
+        "website": {
+          "apiKey": "https://api.ezkielyna.store/console/token",
+          "docs": "https://ezkielyna.store/panduan/cherry-studio",
+          "models": "https://ezkielyna.store/models",
+          "official": "https://ezkielyna.store"
+        }
+      },
+      "name": "Ezkielyna"
     }
   ],
-  "version": "7b17f7706c07b778"
+  "version": "581937d069f510b1"
 }
