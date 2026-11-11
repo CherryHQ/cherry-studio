@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.start": "Δεν ήταν δυνατή η εκκίνηση του Claude Code. Αναφορά διαγνωστικών: {{reference}}",
   "error.claude_code_session_bus_missing": "Το Claude Code χρειάζεται ενεργό δίαυλο συνεδρίας Linux.",
   "error.claude_code_session_bus_missing_detail": "Ορίστε το DBUS_SESSION_BUS_ADDRESS στο περιβάλλον επιφάνειας εργασίας που εκκινεί το Cherry Studio και, στη συνέχεια, επανεκκινήστε την εφαρμογή. Το Claude Code δεν εκκινήθηκε.",
+  "error.claude_code_storage_open_failed": "Δεν ήταν δυνατό το άνοιγμα του χώρου αποθήκευσης συνεδρίας Claude Code. Επανεκκινήστε την εφαρμογή και ελέγξτε ότι ο φάκελος δεδομένων του πράκτορα είναι αναγνώσιμος και διαθέτει ελεύθερο χώρο.",
   "error.content": "Περιεχόμενο",
   "error.data": "δεδομένα",
   "error.detail": "Λεπτομέρειες σφάλματος",
