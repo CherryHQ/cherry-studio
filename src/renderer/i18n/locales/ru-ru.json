@@ -2699,6 +2699,7 @@
   "message.tools.status.running": "Выполняется",
   "message.tools.status.success": "Успех",
   "message.tools.streaming": "Стриминг",
+  "message.tools.subagent.requestedModel": "Запрошенная модель: {{model}}",
   "message.tools.thinkingHeader": "Мышление",
   "message.tools.truncated": "Вывод усечён (оригинал: {{size}})",
   "message.tools.units.char_one": "{{count}} симв",

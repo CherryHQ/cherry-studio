@@ -2699,6 +2699,7 @@
   "message.tools.status.running": "กำลังทำงาน",
   "message.tools.status.success": "สำเร็จ",
   "message.tools.streaming": "กำลังสตรีม",
+  "message.tools.subagent.requestedModel": "โมเดลที่ร้องขอ: {{model}}",
   "message.tools.thinkingHeader": "กำลังคิด",
   "message.tools.truncated": "เอาต์พุตถูกตัดทอน (ต้นฉบับ: {{size}})",
   "message.tools.units.char_one": "{{count}} ตัวอักษร",

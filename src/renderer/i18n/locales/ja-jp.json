@@ -2699,6 +2699,7 @@
   "message.tools.status.running": "走っている",
   "message.tools.status.success": "成功",
   "message.tools.streaming": "ストリーミング",
+  "message.tools.subagent.requestedModel": "リクエストされたモデル: {{model}}",
   "message.tools.thinkingHeader": "考える",
   "message.tools.truncated": "出力が切り捨てられました（元のサイズ: {{size}}）",
   "message.tools.units.char_one": "{{count}} 文字",

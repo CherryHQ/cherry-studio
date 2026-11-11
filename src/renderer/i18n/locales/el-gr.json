@@ -2699,6 +2699,7 @@
   "message.tools.status.running": "Τρέξιμο",
   "message.tools.status.success": "Επιτυχία",
   "message.tools.streaming": "Ροή",
+  "message.tools.subagent.requestedModel": "Ζητούμενο μοντέλο: {{model}}",
   "message.tools.thinkingHeader": "Σκέψη",
   "message.tools.truncated": "Η έξοδος περικόπηκε (πρωτότυπο: {{size}})",
   "message.tools.units.char_one": "{{count}} χαρακτήρας",

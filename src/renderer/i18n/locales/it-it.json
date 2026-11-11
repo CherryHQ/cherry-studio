@@ -2699,6 +2699,7 @@
   "message.tools.status.running": "In esecuzione",
   "message.tools.status.success": "Riuscito",
   "message.tools.streaming": "Trasmissione in streaming",
+  "message.tools.subagent.requestedModel": "Modello richiesto: {{model}}",
   "message.tools.thinkingHeader": "Riflessione in corso",
   "message.tools.truncated": "Output troncato (originale: {{size}})",
   "message.tools.units.char_one": "{{count}} carattere",
