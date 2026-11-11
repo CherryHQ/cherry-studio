@@ -471,7 +471,7 @@ export function AgentSessionDetailsSections({
         </ul>
       </DetailsSection>
     ),
-    context: contextUsage && <div className="border-t border-border-subtle p-3">{contextUsage}</div>
+    context: contextUsage && <div className="border-t border-border-subtle py-3">{contextUsage}</div>
   }
   return (
     <>

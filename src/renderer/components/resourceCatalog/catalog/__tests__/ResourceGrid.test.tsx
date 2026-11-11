@@ -527,6 +527,26 @@ describe('ResourceGrid empty state copy', () => {
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
   })
 
+  it('uses the card content width rather than the wider scroll viewport for columns', async () => {
+    const width = vi
+      .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+      .mockImplementation(function (this: HTMLElement) {
+        return this.querySelector('[data-testid="resource-grid-loading"]') && !this.hasAttribute('data-slot')
+          ? 618
+          : 658
+      })
+    try {
+      renderResourceGrid({ activeResourceType: 'skill', isLoading: true })
+      await waitFor(() =>
+        expect(screen.getByTestId('resource-grid-loading')).toHaveStyle({
+          gridTemplateColumns: 'repeat(1, minmax(0, 1fr))'
+        })
+      )
+    } finally {
+      width.mockRestore()
+    }
+  })
+
   it('keeps the layout control aligned with the visible columns after resizing', async () => {
     const user = userEvent.setup()
     let width = 900
