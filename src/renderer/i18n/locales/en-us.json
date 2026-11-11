@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.start": "Claude Code could not start. Diagnostic reference: {{reference}}",
   "error.claude_code_session_bus_missing": "Claude Code needs an active Linux session bus.",
   "error.claude_code_session_bus_missing_detail": "Set DBUS_SESSION_BUS_ADDRESS in the desktop environment that starts Cherry Studio, then restart the app. Claude Code was not launched.",
+  "error.claude_code_storage_open_failed": "Claude Code session storage could not be opened. Restart the app and check that the agent data folder is readable and has free space.",
   "error.content": "Content",
   "error.data": "Data",
   "error.detail": "Error Details",
