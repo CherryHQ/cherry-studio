@@ -5987,8 +5987,8 @@ describe('ChatComposer', () => {
       }
     )
   })
-  // TODO: main's composer suite targets the cache-based hook; adapt this
-  // scenario to the API-backed follow-up queue.
+  // TODO: main's composer suite targets the cache-based hook; the
+  // adapted API-backed version of this scenario lands with the composer wiring.
   it.skip.each([false, true])(
     'submits captured targets without deciding quota in the queue (captured exhausted=%s)',
     async (capturedExhausted) => {
@@ -6022,8 +6022,8 @@ describe('ChatComposer', () => {
     }
   )
 
-  // TODO: main's composer suite targets the cache-based hook; adapt this
-  // scenario to the API-backed follow-up queue.
+  // TODO: main's composer suite targets the cache-based hook; the
+  // adapted API-backed version of this scenario lands with the composer wiring.
   it.skip('submits every captured target without blocking healthy models on another target quota', async () => {
     const a = { ...model, id: createUniqueModelId('cherryai-subscription', 'a'), providerId: 'cherryai-subscription' }
     mocks.topicPending = true
@@ -6041,8 +6041,8 @@ describe('ChatComposer', () => {
     expect(getCapturedQueueDock()?.props.items ?? []).toEqual([])
   })
 
-  // TODO: main's composer suite targets the cache-based hook; adapt this
-  // scenario to the API-backed follow-up queue.
+  // TODO: main's composer suite targets the cache-based hook; the
+  // adapted API-backed version of this scenario lands with the composer wiring.
   it.skip('keeps an unaccepted draft paused when quota recovers until an explicit retry', async () => {
     const a = { ...model, id: createUniqueModelId('cherryai-subscription', 'a'), providerId: 'cherryai-subscription' }
     mocks.topicPending = true

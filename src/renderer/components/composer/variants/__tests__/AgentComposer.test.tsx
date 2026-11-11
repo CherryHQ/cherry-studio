@@ -6259,8 +6259,8 @@ describe('AgentComposer', () => {
       expect(mocks.surfaceProps?.text, 'draining A must preserve B in the editor').toBe('B')
     })
   })
-  // TODO: main's composer suite targets the cache-based hook; adapt this
-  // scenario to the API-backed follow-up queue.
+  // TODO: main's composer suite targets the cache-based hook; the
+  // adapted API-backed version of this scenario lands with the composer wiring.
   it.skip.each([false, true])(
     'submits a queued Agent turn for launch without client quota advice (latest exhausted=%s)',
     async (latestExhausted) => {
