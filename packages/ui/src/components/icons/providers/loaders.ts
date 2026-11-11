@@ -147,6 +147,7 @@ export const PROVIDER_ICON_LOADERS = {
   runway: () => import('./runway').then(({ RunwayIcon }) => RunwayIcon),
   searxng: () => import('./searxng').then(({ SearxngIcon }) => SearxngIcon),
   sensetime: () => import('./sensetime').then(({ SensetimeIcon }) => SensetimeIcon),
+  serpkite: () => import('./serpkite/serpkite').then(({ SerpKiteIcon }) => SerpKiteIcon),
   serply: () => import('./serply').then(({ SerplyIcon }) => SerplyIcon),
   silicon: () => import('./silicon').then(({ SiliconIcon }) => SiliconIcon),
   skywork: () => import('./skywork').then(({ SkyworkIcon }) => SkyworkIcon),
