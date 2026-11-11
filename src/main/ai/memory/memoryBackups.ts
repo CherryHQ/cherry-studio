@@ -30,7 +30,7 @@ const batchSchema = z.strictObject({
   version: z.literal(1),
   id: z.uuid(),
   createdAt: z.number().int().nonnegative(),
-  source: z.enum(['controlled', 'dreaming', 'recovery', 'clear', 'migration']),
+  source: z.enum(['controlled', 'dreaming', 'recovery', 'clear', 'migration', 'extraction']),
   status: z.enum(['pending', 'completed', 'partial']),
   legacy: z
     .strictObject({

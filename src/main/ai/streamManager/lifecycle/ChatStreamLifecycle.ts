@@ -87,7 +87,11 @@ export function createChatStreamLifecycle(
               .trim()
           )
           .find((text) => text)
+        const memoryResponseIds = [...stream.executions.values()].flatMap((execution) =>
+          execution.anchorMessageId ? [execution.anchorMessageId] : []
+        )
         onConversationCompleted({
+          ...(memoryResponseIds.length ? { memoryResponseIds } : {}),
           topicId: stream.topicId,
           turnId: stream.turnId,
           ...(stream.completedTaskCount && stream.completedTaskCount > 1

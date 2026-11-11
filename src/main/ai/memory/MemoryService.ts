@@ -57,7 +57,10 @@ export class MemoryService extends BaseService {
   }
 
   /** Authority objects are created only by main-process runtime/editor owners. */
-  open(authority: MemoryAuthority, source: 'controlled' | 'dreaming' | 'migration' = 'controlled'): MemorySession {
+  open(
+    authority: MemoryAuthority,
+    source: 'controlled' | 'dreaming' | 'migration' | 'extraction' = 'controlled'
+  ): MemorySession {
     authority.assertAuthorized()
     const scope = Object.freeze({ ...authority.scope })
     const generation = this.generation

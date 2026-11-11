@@ -196,6 +196,8 @@ export interface ConversationUnsuccessfulEvent {
 }
 
 export interface ConversationCompletedEvent {
+  /** Persisted response anchors; memory admission resolves their authorized user parents. */
+  memoryResponseIds?: string[]
   completedTaskCount?: number
   responseText?: string
   topicId: string
