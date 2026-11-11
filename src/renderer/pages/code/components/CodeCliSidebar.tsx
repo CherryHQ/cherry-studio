@@ -65,7 +65,10 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
 
   return (
     <div data-ui="code.navigation" className="flex h-full min-h-0 w-66 shrink-0 flex-col border-border-subtle border-r">
-      <ScrollArea viewportProps={{ className: 'overflow-x-hidden p-2.5' }} className="min-h-0 flex-1">
+      <ScrollArea
+        contentProps={{ className: 'p-2.5' }}
+        viewportProps={{ className: 'overflow-x-hidden' }}
+        className="min-h-0 flex-1">
         {tools.length === 0 ? (
           <div className="py-8 text-center text-foreground-tertiary text-xs">{t('code.no_tools')}</div>
         ) : (

@@ -46,6 +46,7 @@
       "@cherrystudio/web-search/providers/exa": ["./packages/web-search/src/providers/exa.ts"],
       "@cherrystudio/web-search/providers/exa-mcp": ["./packages/web-search/src/providers/exaMcp.ts"],
       "@cherrystudio/web-search/providers/bocha": ["./packages/web-search/src/providers/bocha.ts"],
+      "@cherrystudio/web-search/providers/stepfun": ["./packages/web-search/src/providers/stepfun.ts"],
       "@cherrystudio/web-search/providers/querit": ["./packages/web-search/src/providers/querit.ts"],
       "@cherrystudio/web-search/providers/jina": ["./packages/web-search/src/providers/jina.ts"],
       "@cherrystudio/web-search/providers/firecrawl": ["./packages/web-search/src/providers/firecrawl.ts"],

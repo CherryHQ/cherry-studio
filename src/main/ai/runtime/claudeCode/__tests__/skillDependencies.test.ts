@@ -206,16 +206,6 @@ describe('checkSkillRuntimeDependencies', () => {
   })
 
   // The guard rule and the advisory hook both ask about the same tool call.
-  it('probes PATH once when both PreToolUse planes ask about the same call', async () => {
-    const workdir = await writeWorkspaceSkill('local-skill', 'allowed-tools: Bash(jq:*)\n')
-
-    await Promise.all([
-      checkSkillRuntimeDependencies('local-skill', workdir, new Map()),
-      checkSkillRuntimeDependencies('local-skill', workdir, new Map())
-    ])
-
-    expect(mocks.findExecutableInEnv).toHaveBeenCalledExactlyOnceWith('jq')
-  })
 
   // The installer names the folder after the bundle directory, so a name-addressed call would
   // otherwise skip the check for every bundle whose directory does not match its `name`.

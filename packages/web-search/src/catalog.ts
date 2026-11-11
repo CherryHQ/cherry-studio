@@ -23,7 +23,10 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
     ]),
     tavily: provider('tavily', 'Tavily', [capability('searchKeywords', 'required', 'https://api.tavily.com')]),
     searxng: provider('searxng', 'Searxng', [capability('searchKeywords', 'unused')]),
-    exa: provider('exa', 'Exa', [capability('searchKeywords', 'required', 'https://api.exa.ai')]),
+    exa: provider('exa', 'Exa', [
+      capability('searchKeywords', 'required', 'https://api.exa.ai'),
+      capability('fetchUrls', 'required', 'https://api.exa.ai')
+    ]),
     'exa-mcp': provider('exa-mcp', 'ExaMCP', [
       capability('searchKeywords', 'optional', 'https://mcp.exa.ai/mcp'),
       capability('fetchUrls', 'optional', 'https://mcp.exa.ai/mcp')
@@ -31,6 +34,7 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
     yuanbao: provider('yuanbao', 'Yuanbao', [
       capability('searchKeywords', 'required', 'https://api.wsa.cloud.tencent.com')
     ]),
+    stepfun: provider('stepfun', 'StepFun', [capability('searchKeywords', 'required', 'https://api.stepfun.com')]),
     bocha: provider('bocha', 'Bocha', [capability('searchKeywords', 'required', 'https://api.bochaai.com')]),
     querit: provider('querit', 'Querit', [
       capability('searchKeywords', 'required', 'https://api.querit.ai'),

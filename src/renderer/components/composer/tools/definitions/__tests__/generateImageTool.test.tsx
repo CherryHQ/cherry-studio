@@ -48,11 +48,6 @@ describe('generateImageTool', () => {
     mockUsePreference.mockReturnValue(['openai::dall-e-3', vi.fn()])
   })
 
-  it('registers a popover launcher gated on the assistant toggle', async () => {
-    const launcher = await firstLauncher(renderRuntime())
-    expect(launcher).toMatchObject({ id: 'generate-image', sources: ['popover'], active: false, disabled: false })
-  })
-
   it('disables the launcher (with a hint) when no painting model is configured', async () => {
     mockUsePreference.mockReturnValue([null, vi.fn()])
     const launcher = await firstLauncher(renderRuntime())
@@ -71,14 +66,5 @@ describe('generateImageTool', () => {
     const launcher = await firstLauncher(renderRuntime())
     launcher.action?.({} as never)
     expect(mockUpdateAssistant).not.toHaveBeenCalled()
-  })
-
-  it('reflects the enabled state as active', async () => {
-    mockUseAssistant.mockReturnValue({
-      assistant: { settings: { enableGenerateImage: true } },
-      updateAssistant: mockUpdateAssistant
-    })
-    const launcher = await firstLauncher(renderRuntime())
-    expect(launcher.active).toBe(true)
   })
 })

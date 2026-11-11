@@ -1,4 +1,3 @@
-import type { Element, Root } from 'hast'
 import rehypeParse from 'rehype-parse'
 import rehypeStringify from 'rehype-stringify'
 import { unified } from 'unified'
@@ -42,36 +41,15 @@ describe('rehypePrefixSvgReferences', () => {
     expect(output).not.toContain('user-content-icon')
   })
 
-  it('rewrites array-valued SVG properties', () => {
-    const tree: Root = {
-      type: 'root',
-      children: [
-        {
-          type: 'element',
-          tagName: 'svg',
-          properties: {},
-          children: [
-            {
-              type: 'element',
-              tagName: 'linearGradient',
-              properties: { id: 'user-content-gradient' },
-              children: []
-            },
-            {
-              type: 'element',
-              tagName: 'rect',
-              properties: { values: ['url(#gradient)', '#gradient'] },
-              children: []
-            }
-          ]
-        }
-      ]
-    }
+  it('rewrites references in SVG animation values', () => {
+    const output = processHtml(`
+      <svg>
+        <defs><linearGradient id="user-content-gradient"></linearGradient></defs>
+        <rect><animate attributeName="fill" values="url(#gradient);url(#gradient)"></animate></rect>
+      </svg>
+    `)
 
-    rehypePrefixSvgReferences()(tree)
-
-    const rect = (tree.children[0] as Element).children[1] as Element
-    expect(rect.properties.values).toEqual(['url(#user-content-gradient)', '#user-content-gradient'])
+    expect(output).toContain('values="url(#user-content-gradient);url(#user-content-gradient)"')
   })
 
   it('keeps same-id SVG references scoped to each SVG subtree', () => {

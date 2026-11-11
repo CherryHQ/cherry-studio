@@ -10,6 +10,7 @@ export default defineConfig({
     'providers/exa': 'src/providers/exa.ts',
     'providers/exa-mcp': 'src/providers/exaMcp.ts',
     'providers/bocha': 'src/providers/bocha.ts',
+    'providers/stepfun': 'src/providers/stepfun.ts',
     'providers/querit': 'src/providers/querit.ts',
     'providers/jina': 'src/providers/jina.ts',
     'providers/firecrawl': 'src/providers/firecrawl.ts',
