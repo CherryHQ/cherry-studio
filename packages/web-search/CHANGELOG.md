@@ -6,6 +6,12 @@
 
 - Change the package license from AGPL-3.0-only to MIT and update the README license statement.
 
+## 0.7.0
+
+### Minor Changes
+
+- [#24181](https://github.com/CherryHQ/cherry-studio/pull/24181) [`5313170`](https://github.com/CherryHQ/cherry-studio/commit/53131700862e0b357530935cfcc1a9e83544f2fa) Thanks [@404-Page-Found](https://github.com/404-Page-Found)! - Add a portable StepFun keyword-search provider with host-owned transport and credentials.
+
 ## 0.6.0
 
 ### Minor Changes
