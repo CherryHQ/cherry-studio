@@ -54,6 +54,7 @@ import {
   CLAUDE_MANAGED_ENV_KEYS,
   CLAUDE_MANAGED_PERMISSION_KEYS,
   CLAUDE_MANAGED_TOP_LEVEL_KEYS,
+  CODEX_CHERRY_MODEL_KEYS,
   QWEN_MANAGED_SETTINGS_KEYS
 } from './managedKeys'
 import { buildCodexOwnLoginConfig, buildKimiOwnLoginConfig, buildQwenOwnLoginConfig } from './ownLogin'
@@ -456,6 +457,7 @@ const codexAdapter: CliConfigAdapter = {
           next[key] = value
         }
       }
+      for (const key of CODEX_CHERRY_MODEL_KEYS) delete next[key]
       if (next.model_providers && typeof next.model_providers === 'object') {
         next.model_providers = omitKeysByPrefix(next.model_providers as Record<string, any>, CHERRY_PROVIDER_PREFIX)
       }

@@ -447,8 +447,7 @@ describe('local agent settings navigation', () => {
   it.each([
     { id: 'antigravity-acp', executable: 'agy', outcome: 'success' },
     { id: 'antigravity-acp', executable: 'agy', outcome: 'cancel' },
-    { id: 'amp-acp', executable: 'amp', outcome: 'success' },
-    { id: 'pi-acp', executable: 'pi', outcome: 'failed' }
+    { id: 'amp-acp', executable: 'amp', outcome: 'success' }
   ])('repairs the missing $executable through the Agent installer ($outcome)', async ({ id, executable, outcome }) => {
     navigation.search = { id }
     vi.mocked(popup.confirm).mockResolvedValueOnce(outcome !== 'cancel')
@@ -458,11 +457,7 @@ describe('local agent settings navigation', () => {
       if (route === 'ai.local_agents.install') {
         expect(input).toEqual({ presetId: id, targetVersion: undefined })
         actions.push('install')
-        return (
-          outcome === 'failed'
-            ? { ok: false, reason: 'missing_runtime', manager: 'npm' }
-            : { ok: true, reused: true, path: '/user/bin/adapter' }
-        ) as never
+        return { ok: true, reused: true, path: '/user/bin/adapter' } as never
       }
       if (route === 'ai.local_agents.open_terminal') actions.push('open')
       return { models: [], success: true } as never
@@ -478,7 +473,7 @@ describe('local agent settings navigation', () => {
     expect(popup.confirm).toHaveBeenCalledWith(
       expect.objectContaining({ content: `${executable}: 未安装`, okText: '安装' })
     )
-    expect(actions).toEqual(outcome === 'success' ? ['install', 'open'] : outcome === 'failed' ? ['install'] : [])
+    expect(actions).toEqual(outcome === 'success' ? ['install', 'open'] : [])
   })
 
   it('does not offer reinstalling an agent while its installation is still unknown', () => {

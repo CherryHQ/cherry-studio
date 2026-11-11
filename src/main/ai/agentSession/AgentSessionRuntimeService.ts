@@ -433,9 +433,6 @@ export class AgentSessionRuntimeService extends BaseService {
     const snapshot = application
       .get('DbService')
       .withWriteTx((tx) => agentSessionMessageService.readEditSnapshotTx(tx, sessionId, messageId))
-    const agent = snapshot.session.agentId ? agentService.getAgent(snapshot.session.agentId) : undefined
-    if (agent && !runtimeDriverRegistry.getAgentSessionDriver(agent.type)?.fork)
-      throw new AgentSessionEditError('runtime_unsupported')
     const actions = this.getHistoryActions(sessionId, [messageId]).get(messageId)
     if (!actions || actions.edit) throw new AgentSessionEditError(actions?.edit ?? 'checkpoint_unsupported')
     const parts = snapshot.user.data.parts ?? []

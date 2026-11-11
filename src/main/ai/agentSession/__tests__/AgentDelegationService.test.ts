@@ -59,7 +59,9 @@ describe('delegation ownership and terminal results', () => {
     MockApplicationUtils.setService('AgentSessionRuntimeService', {
       getLiveAssistantMessageId: () => liveTurn,
       respondToolApproval: (id: string, decision: { approved: boolean }) =>
-        !!toolApprovalRegistry.dispatch(id, decision)
+        toolApprovalRegistry.dispatch(id, decision)
+          ? ({ ok: true } as const)
+          : ({ ok: false, reason: 'undelivered' } as const)
     })
     MockApplicationUtils.setService('AiStreamManager', {
       isWriteQuiesced: false,

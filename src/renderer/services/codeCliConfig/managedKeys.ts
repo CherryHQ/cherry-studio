@@ -45,6 +45,9 @@ export const CLAUDE_MANAGED_ENV_KEYS = [
 
 export const OPEN_CODE_WRITABLE_TOP_LEVEL_KEYS = ['autoCompact', 'permissionMode'] as const
 
+/** Codex keys Cherry writes for its own model connection, not for the user's account. */
+export const CODEX_CHERRY_MODEL_KEYS = ['model_context_window', 'model_auto_compact_token_limit'] as const
+
 export const QWEN_WRITABLE_SETTINGS_KEYS = {
   general: ['vimMode', 'enableAutoUpdate'] as const,
   ui: ['hideBanner'] as const,

@@ -21,7 +21,7 @@ export function AgentDelegationCard({ output }: { output: unknown }) {
   const actions = useOptionalMessageListActions()
   const [submitting, setSubmitting] = useState(false)
   const [actionError, setActionError] = useState<string>()
-  const originSessionId = receipt?.originSessionId
+  const originSessionId = receipt?.originSessionId ?? receipt?.delivery?.sender?.sessionId
   const requestId = receipt?.requestId
   const { data, error, mutate } = useSWR(
     originSessionId && requestId ? ['agent-delegation', originSessionId, requestId] : null,

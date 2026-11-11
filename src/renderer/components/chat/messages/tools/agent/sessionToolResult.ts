@@ -16,7 +16,7 @@ export interface SessionCreateResult {
   originSessionId?: string
   delivery?: {
     status?: string
-    sender?: { agentId?: string }
+    sender?: { agentId?: string; sessionId?: string }
     receiver?: { agentId?: string }
     receiverSnapshot?: { agentName?: string }
   }
@@ -117,7 +117,12 @@ export function parseSessionCreateResult(value: unknown): SessionCreateResult | 
     delivery: delivery
       ? {
           status: typeof delivery.status === 'string' ? delivery.status : undefined,
-          sender: sender ? { agentId: typeof sender.agentId === 'string' ? sender.agentId : undefined } : undefined,
+          sender: sender
+            ? {
+                agentId: typeof sender.agentId === 'string' ? sender.agentId : undefined,
+                sessionId: typeof sender.sessionId === 'string' ? sender.sessionId : undefined
+              }
+            : undefined,
           receiver: receiver
             ? { agentId: typeof receiver.agentId === 'string' ? receiver.agentId : undefined }
             : undefined,

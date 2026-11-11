@@ -2,13 +2,13 @@ import { CHERRY_PROVIDER_PREFIX, OPENCODE_SCHEMA } from './constants'
 import {
   applyManagedJsonSettings,
   applyWritableTomlSettings,
+  applyCodexOptions,
   CLAUDE_MANAGED_ENV_KEYS,
   CLAUDE_MANAGED_PERMISSION_KEYS,
   CLAUDE_MANAGED_TOP_LEVEL_KEYS,
   applyOpenCodeOptions,
   QWEN_WRITABLE_SETTINGS_KEYS
 } from './managedKeys'
-import { codexPermissionModeToConfig, isCodexPermissionMode, isCodexReasoningEffort } from './permissionModes'
 import type { OpenCodeNpmInfo, PiApi } from './resolvers'
 import { sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import { asRecord, cliProviderKeyName, isCherryManagedModel, normalizeUrl, omitKeysByPrefix } from './values'
@@ -100,17 +100,10 @@ export function buildCodexConfig(
   }
   if (isValidTokenCount(options.contextWindow)) merged.model_context_window = options.contextWindow
   else if (isValidTokenCount(existingWindow)) merged.model_context_window = existingWindow
+  else delete merged.model_context_window
   if (isValidTokenCount(existingCompaction)) merged.model_auto_compact_token_limit = existingCompaction
-  if (options.disableResponseStorage === true) merged.disable_response_storage = true
-  if (options.goalMode === true) {
-    const features = asRecord(merged.features)
-    features.goals = true
-    merged.features = features
-  }
-  if (isCodexPermissionMode(options.permissionMode)) {
-    Object.assign(merged, codexPermissionModeToConfig(options.permissionMode))
-  }
-  if (isCodexReasoningEffort(options.reasoningEffort)) merged.model_reasoning_effort = options.reasoningEffort
+  else delete merged.model_auto_compact_token_limit
+  applyCodexOptions(merged, options)
   return merged
 }
 
