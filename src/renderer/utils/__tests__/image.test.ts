@@ -62,6 +62,20 @@ const readBlobBytes = (blob: Blob) =>
     reader.readAsArrayBuffer(blob)
   })
 
+// jsdom does not decode images: start loaded, then emit load after each data-URL swap.
+const armJsdomImageSettle = (root: HTMLElement) => {
+  for (const img of root.querySelectorAll('img')) {
+    Object.defineProperty(img, 'complete', { value: true, configurable: true })
+    const observer = new MutationObserver(() => {
+      if ((img.getAttribute('src') ?? '').startsWith('data:')) {
+        observer.disconnect()
+        setTimeout(() => img.dispatchEvent(new Event('load')), 0)
+      }
+    })
+    observer.observe(img, { attributes: true, attributeFilter: ['src'] })
+  }
+}
+
 describe('utils/image', () => {
   describe('transformImageToPng', () => {
     const sourcePixels = [
@@ -374,6 +388,7 @@ describe('utils/image', () => {
       image.src = 'file:///tmp/avatar.webp'
       image.srcset = 'file:///tmp/avatar@2x.webp 2x'
       div.appendChild(image)
+      armJsdomImageSettle(div)
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
@@ -402,6 +417,7 @@ describe('utils/image', () => {
       firstImage.src = 'file:///tmp/avatar.webp'
       secondImage.src = 'file:///tmp/avatar.webp'
       div.append(firstImage, secondImage)
+      armJsdomImageSettle(div)
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
@@ -455,6 +471,7 @@ describe('utils/image', () => {
       image.src = 'file:///tmp/avatar.webp'
       image.srcset = 'file:///tmp/avatar@2x.webp 2x'
       div.appendChild(image)
+      armJsdomImageSettle(div)
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
@@ -580,20 +597,6 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       div.appendChild(img)
       return div
-    }
-
-    // jsdom never decodes images, so the settle wait would ride its timeout cap;
-    // settle each swapped-in src on the next macrotask the way a browser decode would.
-    const armJsdomImageSettle = (root: HTMLElement) => {
-      for (const img of root.querySelectorAll('img')) {
-        const observer = new MutationObserver(() => {
-          if ((img.getAttribute('src') ?? '').startsWith('data:')) {
-            observer.disconnect()
-            setTimeout(() => img.dispatchEvent(new Event('load')), 0)
-          }
-        })
-        observer.observe(img, { attributes: true, attributeFilter: ['src'] })
-      }
     }
 
     const captureWithRasterSpy = async (root: HTMLDivElement) => {
@@ -914,7 +917,6 @@ describe('utils/image', () => {
       visible.setAttribute('src', 'https://icon.horse/icon/visible.example')
       root.appendChild(hiddenWrapper)
       root.appendChild(visible)
-      armJsdomImageSettle(root)
 
       await captureWithRasterSpy(root)
 
