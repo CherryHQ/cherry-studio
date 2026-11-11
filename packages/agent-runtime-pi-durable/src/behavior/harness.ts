@@ -1,5 +1,5 @@
-import { copyJson, type JsonRepresentation, type JsonValue as NativeJson } from '@earendil-works/chord'
 import { BACKGROUND_CONTEXT, awaitWithContext, withAbortSignal, type Context } from '@earendil-works/chord/context'
+import { copyJson, type JsonRepresentation, type JsonValue as NativeJson } from '@earendil-works/chord/json'
 import {
   AssistantEntry,
   CompactionEntry,

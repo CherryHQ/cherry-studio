@@ -1109,6 +1109,7 @@ export function ModelSelector(props: ModelSelectorProps) {
                 keepMountedIndexes={keepMountedIndexes}
                 scrollPaddingStart={ITEM_HEIGHT}
                 onScroll={handleListScroll}
+                autoHideScrollbar
                 overscan={6}>
                 {(item) => rowRenderer(item, detailPortalContainer)}
               </DynamicVirtualList>

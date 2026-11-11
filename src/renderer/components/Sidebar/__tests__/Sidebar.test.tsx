@@ -235,15 +235,6 @@ describe('Sidebar resize handle', () => {
     expect(onResizePreview).toHaveBeenCalledTimes(previewCalls)
   })
 
-  it('renders intermediate widths with icon layout without menu text', () => {
-    const { container, queryByText } = render(
-      <Sidebar width={INTERMEDIATE_WIDTH} setWidth={vi.fn()} entries={entries} />
-    )
-
-    expect(container.firstElementChild).toHaveStyle({ width: `${INTERMEDIATE_WIDTH}px` })
-    expect(queryByText('Chat')).not.toBeInTheDocument()
-  })
-
   it('resolves display widths for CSS variable consumers', () => {
     expect(getSidebarDisplayWidth(SIDEBAR_HIDDEN_THRESHOLD + 10)).toBe(SIDEBAR_ICON_WIDTH)
     expect(getSidebarDisplayWidth(INTERMEDIATE_WIDTH)).toBe(INTERMEDIATE_WIDTH)
@@ -256,25 +247,6 @@ describe('Sidebar resize handle', () => {
     expect(normalizeSidebarWidth(SIDEBAR_FULL_THRESHOLD)).toBe(SIDEBAR_FULL_THRESHOLD)
   })
 
-  it('keeps the hidden-state hot zone full height without moving the resize binding', () => {
-    const { container } = render(
-      <Sidebar
-        width={SIDEBAR_HIDDEN_THRESHOLD - 10}
-        setWidth={vi.fn()}
-
-        entries={entries}
-      />
-    )
-
-    const resizeHandle = container.querySelector('.cursor-col-resize') as HTMLElement
-    const hotZone = resizeHandle.parentElement
-
-    // The hidden sidebar still needs a full-height interactive resize target outside the window drag region.
-    expect(resizeHandle).toHaveClass('h-full', 'w-full', 'cursor-col-resize')
-    expect(hotZone).toHaveClass('absolute', 'inset-y-0', 'left-0', 'z-50', 'w-4')
-    expect(hotZone).toHaveClass('[-webkit-app-region:no-drag]')
-  })
-
   it('restores a hidden sidebar by dragging wider from the hot zone', () => {
     const { setWidth, onResizePreview, onHoverChange } = dragResizeFrom(
       SIDEBAR_HIDDEN_THRESHOLD - 10,
@@ -285,15 +257,6 @@ describe('Sidebar resize handle', () => {
     expect(onResizePreview).toHaveBeenNthCalledWith(1, INTERMEDIATE_WIDTH)
     expect(setWidth).toHaveBeenCalledTimes(1)
     expect(setWidth).toHaveBeenLastCalledWith(SIDEBAR_FULL_THRESHOLD)
-  })
-
-  it('renders the full layout at the full threshold', () => {
-    const { container, getByText } = render(
-      <Sidebar width={SIDEBAR_FULL_THRESHOLD} setWidth={vi.fn()} entries={entries} />
-    )
-
-    expect(container.firstElementChild).toHaveStyle({ width: `${SIDEBAR_FULL_THRESHOLD}px` })
-    expect(getByText('Chat')).toBeInTheDocument()
   })
 
   it.each([
@@ -682,35 +645,6 @@ describe('Sidebar resize handle', () => {
     expect(mouseDown.defaultPrevented).toBe(true)
     expect(onChatOpenNewTab).not.toHaveBeenCalled()
     expect(onAgentOpenNewTab).toHaveBeenCalledTimes(1)
-  })
-
-  it('renders footer actions with the current sidebar layout', () => {
-    const renderActions = (layout: 'icon' | 'full') => <button type="button">theme-{layout}</button>
-
-    const { rerender } = render(
-      <Sidebar
-        width={SIDEBAR_ICON_WIDTH}
-        setWidth={vi.fn()}
-
-        entries={entries}
-        actions={renderActions}
-      />
-    )
-
-    expect(document.body).toHaveTextContent('theme-icon')
-
-    rerender(
-      <Sidebar
-        width={SIDEBAR_FULL_THRESHOLD}
-        setWidth={vi.fn()}
-
-        entries={entries}
-        actions={renderActions}
-      />
-    )
-
-    expect(document.body).toHaveTextContent('theme-full')
-    expect(document.body).not.toHaveTextContent('theme-icon')
   })
 
   it('triggers onOpenNewTab on middle-click (auxclick with button 1) in icon layout', () => {

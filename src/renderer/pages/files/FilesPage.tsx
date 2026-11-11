@@ -159,6 +159,7 @@ function toFileItem(
   const createdAt = metadata?.createdAt ?? entry.createdAt
   const updatedAt = metadata?.modifiedAt ?? entry.updatedAt
   const physicalPath = physicalPathById[entry.id]
+  const sourcePath = (entry.origin === 'external' ? entry.externalPath : physicalPath) ?? undefined
   const danglingState = entry.origin === 'external' ? danglingStateById[entry.id] : undefined
   const isMissing = danglingState === 'missing'
 
@@ -172,16 +173,18 @@ function toFileItem(
     updatedAt: formatDateTime(updatedAt),
     trashed: entry.origin === 'internal' && entry.deletedAt !== undefined,
     danglingState,
-    isMissing
+    isMissing,
+    ...(sourcePath ? { sourcePath } : {})
   }
   const originFields = entry.origin === 'external' ? { origin: 'external' as const } : { origin: 'internal' as const }
 
   if (type === 'image') {
+    const imagePath = entry.origin === 'external' ? entry.externalPath : physicalPath
     return {
       ...base,
       ...originFields,
       type,
-      previewUrl: physicalPath ? toSafeFileUrl(physicalPath, entry.ext) : undefined
+      previewUrl: imagePath ? toSafeFileUrl(imagePath, entry.ext) : undefined
     }
   }
 
