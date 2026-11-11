@@ -161,3 +161,37 @@ it('uses the selected model compaction policy for thresholds and revisions', asy
     await native.close(context)
   }
 })
+
+it('reflects conversation compaction overrides without changing sibling policies', async () => {
+  const models = createModels()
+  models.setProvider(fauxProvider({ models: [{ id: 'faux-1', contextWindow: 128_000 }] }).provider)
+  const native = await Harness.open(
+    new MemoryStorage(),
+    {
+      models,
+      registry: createRegistry(),
+      settings: { compaction: { enabled: true, reserveTokens: 10_000 } }
+    },
+    context
+  )
+  try {
+    const root = await native.createConversation(
+      { ownership: { kind: 'ownerless' }, agent: { model: { provider: 'faux', modelId: 'faux-1' } } },
+      context
+    )
+    const sibling = await native.createConversation(
+      { ownership: { kind: 'ownerless' }, agent: { model: { provider: 'faux', modelId: 'faux-1' } } },
+      context
+    )
+    expect((await root.contextUsage(context))?.compactionThreshold).toBe(118_000)
+    await root.configure({ compaction: { reserveTokens: 30_000 } }, context)
+    expect((await root.contextUsage(context))?.compactionThreshold).toBe(98_000)
+    expect((await sibling.contextUsage(context))?.compactionThreshold).toBe(118_000)
+    await root.configure({ compaction: { enabled: false } }, context)
+    expect((await root.contextUsage(context))?.compactionThreshold).toBeUndefined()
+    await root.configure({ compaction: null }, context)
+    expect((await root.contextUsage(context))?.compactionThreshold).toBe(118_000)
+  } finally {
+    await native.close(context)
+  }
+})
