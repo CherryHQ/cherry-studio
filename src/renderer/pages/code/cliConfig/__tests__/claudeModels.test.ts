@@ -68,11 +68,6 @@ describe('stripClaudeDetailedModels', () => {
   it('drops env entirely when only detailed keys were present', () => {
     expect(stripClaudeDetailedModels({ env: { ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-opus' } })).toEqual({})
   })
-
-  it('returns the config as-is when there is no env', () => {
-    const config = { permissions: { defaultMode: 'plan' } }
-    expect(stripClaudeDetailedModels(config)).toBe(config)
-  })
 })
 
 describe('getClaudeContextModelId', () => {

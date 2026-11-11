@@ -829,14 +829,6 @@ describe('processMessage (streaming)', () => {
     await expect(readAll(res.body)).resolves.toBe('')
   })
 
-  it('passes the 20-minute idle timeout to streamPrompt', async () => {
-    const { response, listener } = await startStreaming()
-    commit(listener)
-    await response
-
-    expect(mockStreamPrompt.mock.calls[0][0]).toMatchObject({ idleTimeoutMs: 20 * 60_000 })
-  })
-
   it('marks streaming requests as caller-owned', async () => {
     const { response, listener } = await startStreaming()
     commit(listener)

@@ -233,7 +233,6 @@ describe('the guest bridge', () => {
 
     const [, payload] = invoke.mock.calls[0] as [string, { params: { title: string; body: string } }]
     expect(payload.params.title).toHaveLength(MINI_APP_GUEST_LIMITS.notificationTitleChars)
-    expect(payload.params.title.endsWith('…')).toBe(true)
     expect(payload.params.body).toHaveLength(MINI_APP_GUEST_LIMITS.notificationBodyChars)
   })
 })

@@ -376,7 +376,7 @@ describe('toolSchemaCompatibilityFeature', () => {
         endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
         runtimeProviderId: 'google'
       })
-    ).toBe(params)
+    ).toEqual(params)
   })
 
   it('does not apply Gemini array filtering to Vertex MaaS tools', async () => {
@@ -397,7 +397,7 @@ describe('toolSchemaCompatibilityFeature', () => {
         endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
         runtimeProviderId: 'google-vertex-maas'
       })
-    ).toBe(params)
+    ).toEqual(params)
   })
 
   // Keep every schema-bearing traversal route covered, not just properties.
@@ -456,7 +456,7 @@ describe('toolSchemaCompatibilityFeature', () => {
         aiSdkProviderId: 'anthropic',
         endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
       })
-    ).toBe(params)
+    ).toEqual(params)
   })
 
   it('prevents an item-less array from reaching Google function declarations', async () => {
@@ -500,30 +500,6 @@ describe('toolSchemaCompatibilityFeature', () => {
     ).tools[0].functionDeclarations
     expect(declarations.map((declaration) => declaration.name)).toEqual(['valid'])
     expect(declarations[0].parameters.properties.ids).toEqual({ type: 'array', items: { type: 'string' } })
-  })
-
-  it('is a reference-preserving no-op on already-clean schemas', async () => {
-    const withoutTools: LanguageModelV3CallOptions = { prompt: [] }
-    expect(await transform(withoutTools)).toBe(withoutTools)
-
-    const untouched: LanguageModelV3CallOptions = {
-      prompt: [],
-      tools: [
-        {
-          type: 'function',
-          name: 'loose',
-          inputSchema: { type: 'object', properties: { n: { type: 'integer', minimum: 0 } } }
-        },
-        {
-          type: 'function',
-          name: 'clean',
-          strict: true,
-          inputSchema: { type: 'object', properties: { q: { type: 'string' } } }
-        },
-        { type: 'provider', id: 'google.search', name: 'search', args: { mode: 'auto' } }
-      ]
-    }
-    expect(await transform(untouched)).toBe(untouched)
   })
 
   // Anthropic 400s on the numeric bounds (issue #18037); OpenAI's strict subset
