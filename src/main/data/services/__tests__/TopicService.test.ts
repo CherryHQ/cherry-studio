@@ -1,7 +1,8 @@
-// Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
-import '@data/services/MessageService'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+
+// Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
+import '@data/services/MessageService'
 import { describe, expect, it, type Mock, vi } from 'vitest'
 
 import { assistantTable } from '@data/db/schemas/assistant'
@@ -11,6 +12,8 @@ import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
+import { fileRefService } from '@data/services/FileRefService'
+import { messageService } from '@data/services/MessageService'
 import { TopicService, topicService } from '@data/services/TopicService'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -2382,5 +2385,33 @@ describe('TopicService', () => {
       expect(first.created).toBe(true)
       expect(second).toMatchObject({ topic: { id: first.topic.id }, created: false })
     })
+  })
+
+  it('copies frozen author snapshots and references independently of the source topic', () => {
+    const fileId = '019606a0-0000-7000-8000-00000000aa03' as FileEntryId
+    dbh.db.insert(fileEntryTable).values({ id: fileId, origin: 'internal', name: 'avatar', ext: 'webp', size: 1 }).run()
+    const topic = topicService.create({ name: 'Source' })
+    const snapshot = {
+      id: 'author',
+      name: 'Author',
+      emoji: '🌟',
+      avatarFileId: fileId,
+      model: { id: 'm', name: 'M', provider: 'p' }
+    }
+    const message = messageService.create(topic.id, {
+      role: 'assistant',
+      data: { parts: [] },
+      status: 'success',
+      messageSnapshot: snapshot
+    })
+    const copy = topicService.duplicate(topic.id, { nodeId: message.id })
+    topicService.delete(topic.id)
+    topicService.delete(topic.id, { permanent: true })
+    const refs = fileRefService.findByEntryId(fileId)
+    expect(refs).toHaveLength(1)
+    expect(refs[0]).toMatchObject({ role: 'author_avatar', sourceType: 'chat_message' })
+    const copied = messageService.getById(refs[0].sourceId)
+    expect(copied.topicId).toBe(copy.id)
+    expect(copied.messageSnapshot).toEqual(snapshot)
   })
 })

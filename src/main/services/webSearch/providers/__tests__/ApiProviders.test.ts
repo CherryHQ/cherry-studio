@@ -396,6 +396,45 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it('sends an Exa Contents request and normalizes the fetched page', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('exa-contents-response.json')))
+
+    const provider = createProviderDriver(
+      ExaProvider,
+      createProvider({
+        id: 'exa',
+        name: 'Exa',
+        apiKeys: ['exa-key'],
+        capabilities: [
+          { feature: 'searchKeywords', apiHost: 'https://api.exa.ai' },
+          { feature: 'fetchUrls', apiHost: 'https://api.exa.ai' }
+        ]
+      })
+    )
+
+    const result = await provider.fetchUrls('https://exa.example/article', runtimeConfig)
+    const request = toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])
+
+    expect(request.url).toBe('https://api.exa.ai/contents')
+    expect(request.method).toBe('POST')
+    expect(request.headers['x-api-key']).toBe('exa-key')
+    expect(request.body).toEqual({ urls: ['https://exa.example/article'], text: true })
+    expect(result).toEqual({
+      query: 'https://exa.example/article',
+      providerId: 'exa',
+      capability: 'fetchUrls',
+      inputs: ['https://exa.example/article'],
+      results: [
+        {
+          title: 'Exa Article',
+          content: 'Exa crawled article body.',
+          url: 'https://exa.example/article',
+          sourceInput: 'https://exa.example/article'
+        }
+      ]
+    })
+  })
+
   it('matches Tavily request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('tavily-response.json')))
 
