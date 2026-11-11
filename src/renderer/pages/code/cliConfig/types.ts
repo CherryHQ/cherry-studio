@@ -16,6 +16,14 @@ export interface CliConfigConnection {
   baseUrl?: string
   apiKey?: string
   model?: string
+  /**
+   * Cherry-managed provider key the config file itself identifies with
+   * (`cherry-<providerId>` / `cherry-gateway`). Not a secret. Carried by
+   * adapters whose config never holds a usable key (Command Code writes only
+   * the env reference), where the managed key is the only stable identity a
+   * match can be checked against.
+   */
+  providerKey?: string
 }
 
 /**
