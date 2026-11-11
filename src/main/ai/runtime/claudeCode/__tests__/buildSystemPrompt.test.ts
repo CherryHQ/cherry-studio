@@ -205,6 +205,7 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
     await buildSystemPrompt(agent, '/tmp/cwd', undefined, [], [], undefined, 'Claude Opus')
 
     expect(mockReplacePromptVariables).toHaveBeenCalledWith('Use {{model_name}}.', 'Claude Opus')
+  })
 
   it('preserves agent instructions, workspace instructions, and persona as distinct sources', async () => {
     mockBuildPrompt.mockResolvedValueOnce({
