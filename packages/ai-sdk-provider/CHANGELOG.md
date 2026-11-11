@@ -1,5 +1,11 @@
 # @cherrystudio/ai-sdk-provider
 
+## Unreleased
+
+### Patch Changes
+
+- Include a package-local MIT license file.
+
 ## 0.1.11
 
 ### Patch Changes

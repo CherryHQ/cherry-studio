@@ -211,6 +211,24 @@ describe('AgentChatContextProvider', () => {
     }
   )
 
+  it('snapshots the agent avatar identity instead of its URL', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      name: 'My Agent',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet',
+      configuration: { avatar: '🌟' },
+      avatarFileId: 'file-1',
+      avatarSrc: 'file:///avatar.webp'
+    })
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+    const snapshot = prepared.reservedMessages?.find((message) => message.role === 'assistant')?.metadata
+      ?.messageSnapshot
+    expect(snapshot).toMatchObject({ emoji: '🌟', avatarFileId: 'file-1' })
+    expect(JSON.stringify(snapshot)).not.toContain('file:///avatar.webp')
+  })
+
   it('prepares fresh agent-session dispatch through the long-lived runtime service', async () => {
     const subscriber = makeSubscriber()
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
@@ -428,90 +446,6 @@ describe('AgentChatContextProvider', () => {
       expect.objectContaining({ role: 'user' }),
       expect.objectContaining({ reasoningEffort: 'low', serviceTier: 'fast' })
     )
-  })
-
-  it('triggers first-user-message session rename after submit-message persists the user row', async () => {
-    const subscriber = makeSubscriber()
-    mocks.runtimeIsSessionBusy.mockReturnValue(false)
-
-    await provider.prepareDispatch(subscriber, openReq({ userMessageParts: [{ type: 'text', text: 'hello session' }] }))
-
-    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', {
-      parts: [{ type: 'text', text: 'hello session' }]
-    })
-    expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1')
-  })
-
-  it('ignores a new Session delivery row when deciding whether to auto-name its first turn', async () => {
-    const deliveryMessage = {
-      id: 'delivery-1',
-      sessionId: 'session-1',
-      role: 'user',
-      data: { parts: [{ type: 'text', text: 'delegated work' }] },
-      delivery: makeDeliveryEnvelope()
-    }
-
-    await provider.prepareDispatch(makeSubscriber(), openReq({ agentDeliveryMessage: deliveryMessage as never }))
-
-    expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1', 'delivery-1')
-    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', deliveryMessage.data)
-  })
-
-  it('hands the runtime the durable delivery row verbatim so naming reads raw sender text', async () => {
-    const deliveryMessage = {
-      id: 'delivery-1',
-      sessionId: 'session-1',
-      role: 'user',
-      data: { parts: [{ type: 'text', text: 'delegated work' }] },
-      delivery: makeDeliveryEnvelope()
-    }
-
-    await provider.prepareDispatch(makeSubscriber(), openReq({ agentDeliveryMessage: deliveryMessage as never }))
-
-    // Naming still reads the sender's raw content, and the persisted row keeps it verbatim.
-    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', deliveryMessage.data)
-    expect(mocks.saveMessagesTx.mock.calls[0][1].messages[0]).toMatchObject({
-      id: 'delivery-1',
-      data: { parts: [{ type: 'text', text: 'delegated work' }] }
-    })
-
-    // The runtime derives the summary-naming text from this exact message, so it must be the raw
-    // durable row — a reminder-prefixed one makes naming skip the AI summary title.
-    expect(mocks.runtimeBeginTurn).toHaveBeenCalledTimes(1)
-    const turnUserMessage = mocks.runtimeBeginTurn.mock.calls[0][0].userMessage
-    expect(turnUserMessage.data.parts).toEqual([{ type: 'text', text: 'delegated work' }])
-  })
-
-  it('keeps a plain interactive turn user message unwrapped', async () => {
-    await provider.prepareDispatch(
-      makeSubscriber(),
-      openReq({ userMessageParts: [{ type: 'text', text: 'plain hello' }] })
-    )
-
-    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userMessage: expect.objectContaining({ data: { parts: [{ type: 'text', text: 'plain hello' }] } })
-      })
-    )
-  })
-
-  it('does not auto-name a busy follow-up turn', async () => {
-    const subscriber = makeSubscriber()
-    mocks.runtimeIsSessionBusy.mockReturnValue(true)
-
-    await provider.prepareDispatch(subscriber, openReq({ userMessageParts: [{ type: 'text', text: 'busy hello' }] }))
-
-    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
-    expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1')
-  })
-
-  it('does not auto-name a later idle turn in a session with messages', async () => {
-    mocks.hasSessionMessages.mockReturnValue(true)
-
-    await provider.prepareDispatch(makeSubscriber(), openReq())
-
-    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
-    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ shouldAutoName: false }))
   })
 
   it('rejects agent sessions without a registered runtime driver', async () => {

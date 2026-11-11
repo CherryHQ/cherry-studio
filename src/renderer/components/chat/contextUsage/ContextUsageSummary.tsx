@@ -22,6 +22,7 @@ interface ContextUsageSummaryProps {
   emptyLabel: string
   data: ContextUsageSummaryData | null
   className?: string
+  summaryClassName?: string
   isBusy?: boolean
   collapsible?: boolean
   description?: string
@@ -33,6 +34,7 @@ export function ContextUsageSummary({
   emptyLabel,
   data,
   className,
+  summaryClassName,
   isBusy = false,
   collapsible = false,
   description,
@@ -52,56 +54,58 @@ export function ContextUsageSummary({
   const content =
     data && percentage !== null ? (
       <div className="space-y-2">
-        {collapsible && (
-          <div className="flex items-center justify-between gap-2 tabular-nums">
-            <span>{t('agent.right_pane.info.context_used', { percent: percentage })}</span>
-            <span
-              className="text-muted-foreground"
-              title={`${exact(data.usedTokens)} / ${exact(data.maxTokens)}${details ? ` · ${details}` : ''}`}>
-              {compact(data.usedTokens)} / {compact(data.maxTokens)}
-            </span>
-          </div>
-        )}
-        <div
-          role="meter"
-          aria-label={title}
-          title={details || undefined}
-          aria-valuemin={0}
-          aria-valuemax={data.maxTokens}
-          aria-valuenow={Math.min(data.maxTokens, Math.max(0, data.usedTokens))}
-          className="flex h-1.5 w-full overflow-hidden rounded-full bg-background-subtle">
-          {data.segments?.length ? (
-            data.segments.map((segment) => (
+        <div className={cn('space-y-2', summaryClassName)}>
+          {collapsible && (
+            <div className="flex items-center justify-between gap-2 tabular-nums">
+              <span>{t('agent.right_pane.info.context_used', { percent: percentage })}</span>
+              <span
+                className="text-muted-foreground"
+                title={`${exact(data.usedTokens)} / ${exact(data.maxTokens)}${details ? ` · ${details}` : ''}`}>
+                {compact(data.usedTokens)} / {compact(data.maxTokens)}
+              </span>
+            </div>
+          )}
+          <div
+            role="meter"
+            aria-label={title}
+            title={details || undefined}
+            aria-valuemin={0}
+            aria-valuemax={data.maxTokens}
+            aria-valuenow={Math.min(data.maxTokens, Math.max(0, data.usedTokens))}
+            className="flex h-1.5 w-full overflow-hidden rounded-full bg-background-subtle">
+            {data.segments?.length ? (
+              data.segments.map((segment) => (
+                <div
+                  key={segment.label}
+                  title={segment.label}
+                  className={cn('h-full shrink-0', isBusy && 'animate-pulse')}
+                  style={{
+                    width: `${Math.min(100, Math.max(0, (segment.tokens / data.maxTokens) * 100))}%`,
+                    background: segment.color
+                  }}
+                />
+              ))
+            ) : (
               <div
-                key={segment.label}
-                title={segment.label}
-                className={cn('h-full shrink-0', isBusy && 'animate-pulse')}
-                style={{
-                  width: `${Math.min(100, Math.max(0, (segment.tokens / data.maxTokens) * 100))}%`,
-                  background: segment.color
-                }}
+                className={cn('h-full rounded-full', isBusy && 'animate-pulse')}
+                style={{ width: `${percentage}%`, background: collapsible ? 'var(--chart-1)' : color }}
               />
-            ))
-          ) : (
-            <div
-              className={cn('h-full rounded-full', isBusy && 'animate-pulse')}
-              style={{ width: `${percentage}%`, background: collapsible ? 'var(--chart-1)' : color }}
-            />
+            )}
+          </div>
+          {!collapsible && (
+            <div className="flex items-center justify-between gap-3 text-muted-foreground">
+              <span className="shrink-0" title={details || undefined}>
+                {data.usedTokens.toLocaleString(i18n.resolvedLanguage)} /{' '}
+                {data.maxTokens.toLocaleString(i18n.resolvedLanguage)} ({percentage}%)
+              </span>
+              <span className="min-w-0 truncate">{data.modelName}</span>
+            </div>
           )}
         </div>
-        {!collapsible && (
-          <div className="flex items-center justify-between gap-3 text-muted-foreground">
-            <span className="shrink-0" title={details || undefined}>
-              {data.usedTokens.toLocaleString(i18n.resolvedLanguage)} /{' '}
-              {data.maxTokens.toLocaleString(i18n.resolvedLanguage)} ({percentage}%)
-            </span>
-            <span className="min-w-0 truncate">{data.modelName}</span>
-          </div>
-        )}
         {children}
       </div>
     ) : (
-      <p className="text-muted-foreground">{emptyLabel}</p>
+      <p className={cn('text-muted-foreground', summaryClassName)}>{emptyLabel}</p>
     )
 
   return (
@@ -116,7 +120,7 @@ export function ContextUsageSummary({
             <AccordionTrigger
               aria-label={title}
               aria-describedby={open ? undefined : summaryId}
-              className="group gap-2 py-1 text-xs font-normal text-foreground [&>svg]:hidden">
+              className={cn('group gap-2 py-1 text-xs font-normal text-foreground [&>svg]:hidden', summaryClassName)}>
               <span className="flex items-center gap-1">
                 {title}
                 <ChevronRight

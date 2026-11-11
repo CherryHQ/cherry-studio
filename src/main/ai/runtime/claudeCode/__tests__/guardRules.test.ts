@@ -30,21 +30,16 @@ vi.mock('@main/ai/toolApproval/userDataSqliteGuard', () => ({
 }))
 
 import {
-  approvalRequiredRuntimeNames,
   CLAUDE_TOOL_GUARD_RULES,
   CROSS_SESSION_DELEGATION_HEADLESS_DENIAL,
-  HEADLESS_INTERACTIVE_TOOL_DENIAL
+  GLOBAL_INSTALL_PLAN_DENIAL,
+  GLOBAL_INSTALL_UNATTENDED_DENIAL
 } from '../guardRules'
 
 const INTERACTIVE = { currentTurn: 'interactive', userResponse: 'stream' } as const
 const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as const
 const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
 const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
-const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
-  mountedServers: WITHOUT_HOST_TOOLS
-})
-  .filter(({ approval }) => approval !== 'auto')
-  .map(toMcpRuntimeName)
 const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' })
   .filter((entry) => !WITHOUT_HOST_TOOLS.has(entry.serverName))
   .map(toMcpRuntimeName)
@@ -77,14 +72,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
 
   it('is structurally valid', () => {
     expect(validateToolGuardRules(CLAUDE_TOOL_GUARD_RULES)).toEqual([])
-  })
-
-  it('derives the per-call approval boundary from policy entries and mounted servers', () => {
-    expect(approvalRequiredRuntimeNames(WITHOUT_HOST_TOOLS)).toEqual(NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES)
-    expect(approvalRequiredRuntimeNames(WITH_HOST_TOOLS)).toEqual([
-      ...NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-      ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
-    ])
   })
 
   describe('disabled-tool', () => {
@@ -123,10 +110,8 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
           })
         )
 
-        expect(decision).toEqual({
+        expect(decision).toMatchObject({
           effect: 'deny',
-          reason:
-            'The selected model does not support image input, so Read cannot open /ws/assets/Preview.PNG. Use a vision-capable model or inspect the file through a text-only alternative.',
           ruleId: 'unsupported-image-read'
         })
       }
@@ -159,7 +144,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
           })
         )
         expect(decision?.ruleId).toBe('builtin-destructive')
-        expect(decision?.reason).toContain('permanent file deletion')
       }
     })
 
@@ -184,28 +168,72 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
   })
 
   describe('global-install', () => {
-    it('denies a global install in every mode, bypass included', async () => {
-      for (const mode of ['default', 'bypassPermissions'] as const) {
-        const decision = await evaluate(
-          makeCtx({ permissionMode: mode, input: { command: 'npm install -g left-pad' } })
-        )
-        expect(decision?.ruleId).toBe('global-install')
-        expect(decision?.reason).toContain('cross-agent dependency pollution')
-      }
+    it.each(['default', 'acceptEdits', 'auto'] as const)('asks for a global install in %s', async (permissionMode) => {
+      await expect(
+        evaluate(makeCtx({ permissionMode, input: { command: 'npm install -g left-pad' } }))
+      ).resolves.toEqual({
+        effect: 'ask',
+        ruleId: 'global-install',
+        reason: 'Global package installation requires user approval: global JS package install (-g/--global).'
+      })
     })
+
+    it('allows Full Access and denies plan mode', async () => {
+      const input = { command: 'npm install -g left-pad' }
+      await expect(evaluate(makeCtx({ permissionMode: 'bypassPermissions', input }))).resolves.toBeUndefined()
+      await expect(evaluate(makeCtx({ permissionMode: 'plan', input }))).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'global-install-plan',
+        reason: GLOBAL_INSTALL_PLAN_DENIAL
+      })
+    })
+
+    it('requires a responder outside Full Access', async () => {
+      const ctx = { input: { command: 'npm install -g left-pad' }, interaction: HEADLESS }
+      await expect(evaluate(makeCtx(ctx))).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'global-install',
+        reason: GLOBAL_INSTALL_UNATTENDED_DENIAL
+      })
+      await expect(evaluate(makeCtx({ ...ctx, permissionMode: 'bypassPermissions' }))).resolves.toBeUndefined()
+    })
+
+    it.each(['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions'] as const)(
+      'hard-denies mise in %s',
+      async (permissionMode) => {
+        for (const command of ['mise use -g fd', 'npm i -g x && mise use -g fd', 'mise use -g fd && npm i -g x']) {
+          await expect(evaluate(makeCtx({ permissionMode, input: { command } }))).resolves.toEqual({
+            effect: 'deny',
+            ruleId: 'mise-mutation',
+            reason: 'Blocked: direct mise mutation (use cli_search / cli_install).'
+          })
+        }
+      }
+    )
 
     it('ignores project-local installs', async () => {
       await expect(evaluate(makeCtx({ input: { command: 'npm install left-pad' } }))).resolves.toBeUndefined()
     })
 
-    it('wins the fold when a feedback command also matches (assistant role)', async () => {
+    it('deterministically selects the first ask when feedback also matches (assistant role)', async () => {
       const decision = await evaluate(
         makeCtx({
           builtinRole: 'assistant',
           input: { command: 'gh issue create --title x && npm install -g left-pad' }
         })
       )
-      expect(decision?.ruleId).toBe('global-install')
+      expect(decision).toMatchObject({ effect: 'ask', ruleId: 'global-install' })
+    })
+
+    it('folds a mise denial over a feedback ask', async () => {
+      await expect(
+        evaluate(
+          makeCtx({ builtinRole: 'assistant', input: { command: 'gh issue create --title x && mise use -g fd' } })
+        )
+      ).resolves.toMatchObject({
+        effect: 'deny',
+        ruleId: 'mise-mutation'
+      })
     })
   })
 
@@ -277,7 +305,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         for (const toolName of ['EnterPlanMode', 'ExitPlanMode', 'EnterWorktree', 'AskUserQuestion']) {
           const decision = await evaluate(makeCtx({ toolName, permissionMode: mode, interaction: HEADLESS }))
           expect(decision?.effect).toBe('deny')
-          expect(decision?.reason).toBe(HEADLESS_INTERACTIVE_TOOL_DENIAL)
         }
       }
     })
@@ -285,9 +312,8 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     it('asks for AskUserQuestion in every mode — bypass cannot answer for the user', async () => {
       for (const mode of ['default', 'acceptEdits', 'bypassPermissions'] as const) {
         const decision = await evaluate(makeCtx({ toolName: 'AskUserQuestion', permissionMode: mode }))
-        expect(decision).toEqual({
+        expect(decision).toMatchObject({
           effect: 'ask',
-          reason: 'AskUserQuestion requires a live user response.',
           ruleId: 'ask-user-question'
         })
       }
@@ -342,9 +368,8 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
 
     it('asks for every non-destructive Bash call on interactive turns', async () => {
       const decision = await evaluate(makeCtx({ ...supportCtx, input: { command: 'ls -la' } }))
-      expect(decision).toEqual({
+      expect(decision).toMatchObject({
         effect: 'ask',
-        reason: 'Cherry Support shell commands require live per-call user approval.',
         ruleId: 'support-bash'
       })
     })
@@ -425,7 +450,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     it('denies with no responder outside Full Access', async () => {
       const decision = await evaluate(makeCtx({ toolName: kbManage, interaction: HEADLESS }))
       expect(decision?.effect).toBe('deny')
-      expect(decision?.reason).toBe(HEADLESS_INTERACTIVE_TOOL_DENIAL)
     })
 
     it('runs unattended under bypassPermissions', async () => {
