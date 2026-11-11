@@ -47,6 +47,9 @@ export async function readPiApprovalFacts(
   name: string,
   input: Record<string, JsonValue>
 ): Promise<ApprovalHostFacts> {
+  const untrustedPreview = (name === 'write' || name === 'edit') && 'memoryPreview' in input
+  const sanitizedInput = { ...input }
+  if (untrustedPreview) delete sanitizedInput.memoryPreview
   const browser = resolveBrowserToolPermission(name)
   const permissionClass = PI_BUILTIN_TOOLS.find((tool) => tool.name === name)?.permissionClass
   const category = BEHAVIOR_META_TOOLS.has(name)
@@ -98,7 +101,11 @@ export async function readPiApprovalFacts(
     sqliteGuard: sqlite?.reason,
     globalInstall,
     destructive: Boolean(command && detectDestructiveCommand(command)),
-    ...(rewritten ? { rewrittenArgs: { ...input, command: rewritten } } : {}),
+    ...(rewritten
+      ? { rewrittenArgs: { ...sanitizedInput, command: rewritten } }
+      : untrustedPreview
+        ? { rewrittenArgs: sanitizedInput }
+        : {}),
     ...(ctx.delegationTools.has(name)
       ? {
           delegation:
