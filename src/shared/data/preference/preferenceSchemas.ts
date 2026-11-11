@@ -37,6 +37,8 @@ import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
 export interface PreferenceSchemas {
   default: {
     // target-key-definitions/complex/complex
+    'agent.builtin.hidden_roles': string[]
+    // target-key-definitions/complex/complex
     'agent.commit_attribution.enabled': boolean
     // target-key-definitions/complex/complex
     'agent.details.sections': PreferenceTypes.AgentDetailsSectionConfig[]
@@ -720,6 +722,7 @@ export interface PreferenceSchemas {
 /* eslint sort-keys: ["error", "asc", {"caseSensitive": true, "natural": false}] */
 export const DefaultPreferences: PreferenceSchemas = {
   default: {
+    'agent.builtin.hidden_roles': [],
     'agent.commit_attribution.enabled': true,
     'agent.details.sections': [{ id: 'workspace', visible: true }, { id: 'desktop_control', visible: true }, { id: 'plan', visible: true }, { id: 'subagents', visible: true }, { id: 'workflows', visible: true }, { id: 'shells', visible: true }, { id: 'other', visible: true }, { id: 'artifacts', visible: true }, { id: 'context', visible: true }],
     'agent.icon_type': 'emoji',
@@ -1067,7 +1070,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 339
+ * - 总配置项: 340
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0

@@ -16,3 +16,14 @@ export function isProtectedBuiltinAgentRole(role: unknown): role is BuiltinAgent
 export function isSealedBuiltinAgentRole(role: unknown): boolean {
   return role === BUILTIN_AGENT_ROLE.SUPPORT || role === BUILTIN_AGENT_ROLE.DOCTOR
 }
+
+export const PROTECTED_BUILTIN_AGENT_ROLES: readonly BuiltinAgentRole[] = Object.values(BUILTIN_AGENT_ROLE)
+
+/** True when `role` is a protected built-in role that the user chose to hide from the Agents list. */
+export function isHiddenBuiltinAgentRole(hiddenRoles: readonly string[] | undefined, role: unknown): boolean {
+  return isProtectedBuiltinAgentRole(role) && (hiddenRoles ?? []).includes(role)
+}
+
+export function sanitizeHiddenBuiltinRoles(roles: readonly string[] | undefined): BuiltinAgentRole[] {
+  return [...new Set((roles ?? []).filter(isProtectedBuiltinAgentRole))]
+}

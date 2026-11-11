@@ -488,6 +488,72 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
   }
 }
 
+describe('hidden built-in Agents', () => {
+  it('offers hide only for protected agents and closes the menu', async () => {
+    const user = userEvent.setup()
+    const resource = createAgentResource()
+    if (resource.type !== 'agent') throw new Error('Expected agent')
+    resource.raw.configuration = { builtin_role: 'support' }
+    const onHide = vi.fn()
+    const onClose = vi.fn()
+    const { unmount } = render(
+      <ResourceCardMenu resource={resource} {...getResourceCardProps({ onHide })} onClose={onClose} />
+    )
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    expect(screen.getByTestId('menu-divider')).toBeInTheDocument()
+    await user.click(screen.getByRole('menuitem', { name: 'agent.builtin.hide' }))
+    await waitFor(() => expect(onHide).toHaveBeenCalledWith(resource))
+    expect(onClose).toHaveBeenCalled()
+    unmount()
+    render(<ResourceCardMenu resource={createAgentResource()} {...getResourceCardProps({ onHide })} />)
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    expect(screen.queryByRole('menuitem', { name: 'agent.builtin.hide' })).not.toBeInTheDocument()
+  })
+
+  it('offers restoration when search returns no resources', () => {
+    renderResourceGrid({ activeResourceType: 'agent', hasHiddenBuiltinAgents: true, resources: [], search: 'missing' })
+    expect(screen.getByRole('button', { name: 'agent.builtin.show_hidden' })).toBeInTheDocument()
+  })
+
+  it('offers restoration only when agents are hidden', async () => {
+    const onRestoreHiddenBuiltins = vi.fn()
+    const { rerender } = renderResourceGrid({
+      activeResourceType: 'agent',
+      hasHiddenBuiltinAgents: true,
+      onRestoreHiddenBuiltins
+    })
+    expect(screen.getByRole('button', { name: 'agent.builtin.show_hidden' })).toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'agent.builtin.show_hidden' }))
+    expect(onRestoreHiddenBuiltins).toHaveBeenCalledOnce()
+    rerender(
+      <ResourceGrid
+        {...{
+          resources: [],
+          activeResourceType: 'agent',
+          search: '',
+          onSearchChange: vi.fn(),
+          onEdit: vi.fn(),
+          onDuplicate: vi.fn(),
+          onDelete: vi.fn(),
+          onExport: vi.fn(),
+          onCreate: vi.fn(),
+          onImportAssistant: vi.fn(),
+          onExportAssistants: vi.fn(),
+          onOpenSkillMarketplace: vi.fn(),
+          groups: [],
+          activeGroupId: null,
+          onGroupFilter: vi.fn(),
+          onAddGroup: vi.fn(),
+          allGroups: [],
+          hasHiddenBuiltinAgents: false,
+          onRestoreHiddenBuiltins
+        }}
+      />
+    )
+    expect(screen.queryByRole('button', { name: 'agent.builtin.show_hidden' })).not.toBeInTheDocument()
+  })
+})
+
 describe('ResourceGrid empty state copy', () => {
   it('keeps search in the library toolbar and places a local search beside the settings title', () => {
     const { unmount } = renderResourceGrid()

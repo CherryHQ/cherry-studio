@@ -1,4 +1,4 @@
-import { Archive, Copy, Download, MoreHorizontal, Tag, Trash2 } from 'lucide-react'
+import { Archive, Copy, Download, EyeOff, MoreHorizontal, Tag, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,6 +20,7 @@ function canDuplicateResource(resource: ResourceItem) {
 interface ResourceCardMenuProps {
   resource: ResourceItem
   onClose?: () => void
+  onHide?: (r: ResourceItem) => void
   onDuplicate: (r: ResourceItem) => void
   onDelete: (r: ResourceItem) => void
   onExport: (r: ResourceItem) => void
@@ -30,6 +31,7 @@ interface ResourceCardMenuProps {
 function useResourceCardMenuItems({
   resource,
   onClose,
+  onHide,
   onDuplicate,
   onDelete,
   onExport,
@@ -47,7 +49,11 @@ function useResourceCardMenuItems({
   const canAssignGroup = resource.type === 'assistant'
   const canDuplicate = canDuplicateResource(resource)
   const canExport = resource.type === 'assistant'
-  const hasActionsBeforeDelete = canAssignGroup || canDuplicate || canExport
+  const canHide =
+    Boolean(onHide) &&
+    resource.type === 'agent' &&
+    isProtectedBuiltinAgentRole(resource.raw.configuration?.builtin_role)
+  const hasActionsBeforeDelete = canAssignGroup || canDuplicate || canExport || canHide
 
   useEffect(() => {
     if (bindingPendingRef.current) return
@@ -150,6 +156,19 @@ function useResourceCardMenuItems({
       })
     }
 
+    if (canHide) {
+      items.push({
+        type: 'item',
+        id: 'hide-builtin',
+        label: t('agent.builtin.hide'),
+        icon: <EyeOff size={14} />,
+        onSelect: () => {
+          onHide?.(resource)
+          onClose?.()
+        }
+      })
+    }
+
     if (hasActionsBeforeDelete) {
       items.push({ type: 'separator' })
     }
@@ -188,12 +207,14 @@ function useResourceCardMenuItems({
     canAssignGroup,
     canDuplicate,
     canExport,
+    canHide,
     hasActionsBeforeDelete,
     localGroupId,
     onClose,
     onDelete,
     onDuplicate,
     onExport,
+    onHide,
     resource,
     t,
     selectGroup

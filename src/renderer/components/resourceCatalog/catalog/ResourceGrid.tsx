@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Eye,
   FolderSearch,
   Import,
   LayoutGrid,
@@ -69,6 +70,9 @@ interface Props {
   activeResourceType: ResourceType
   search: string
   onSearchChange: (v: string) => void
+  onHide?: (resource: ResourceItem) => void
+  hasHiddenBuiltinAgents?: boolean
+  onRestoreHiddenBuiltins?: () => void
   onEdit: (r: ResourceItem) => void
   onDuplicate: (r: ResourceItem) => void
   onDelete: (r: ResourceItem) => void
@@ -226,6 +230,9 @@ export const ResourceGrid: FC<Props> = ({
   activeResourceType,
   search,
   onSearchChange,
+  onHide,
+  hasHiddenBuiltinAgents,
+  onRestoreHiddenBuiltins,
   onEdit,
   onDuplicate,
   onDelete,
@@ -425,6 +432,16 @@ export const ResourceGrid: FC<Props> = ({
           <div className="flex h-12 shrink-0 items-center gap-2 px-5">
             {toolbarLeading && <div className="flex shrink-0 items-center">{toolbarLeading}</div>}
             {searchInput}
+            {activeResourceType === 'agent' && hasHiddenBuiltinAgents && (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={t('agent.builtin.show_hidden')}
+                onClick={() => onRestoreHiddenBuiltins?.()}>
+                <Eye size={14} />
+                {t('agent.builtin.show_hidden')}
+              </Button>
+            )}
 
             <div className="flex-1" />
 
@@ -592,6 +609,7 @@ export const ResourceGrid: FC<Props> = ({
               resources={resources}
               variant={variant}
               allGroups={allGroups}
+              onHide={onHide}
               onDelete={onDelete}
               onDuplicate={onDuplicate}
               onEdit={onEdit}
@@ -643,6 +661,7 @@ interface VirtualizedResourceGridProps {
   onDuplicate: (r: ResourceItem) => void
   onEdit: (r: ResourceItem) => void
   onExport: (r: ResourceItem) => void
+  onHide?: (r: ResourceItem) => void
   onLaunchSkill?: (r: ResourceItem) => void
 }
 
@@ -656,6 +675,7 @@ function VirtualizedResourceGrid({
   onDuplicate,
   onEdit,
   onExport,
+  onHide,
   onLaunchSkill
 }: VirtualizedResourceGridProps) {
   const rows = useMemo(() => {
@@ -698,6 +718,7 @@ function VirtualizedResourceGrid({
                 variant={variant}
                 columnCount={columnCount}
                 allGroups={allGroups}
+                onHide={onHide}
                 onDelete={onDelete}
                 onDuplicate={onDuplicate}
                 onEdit={onEdit}

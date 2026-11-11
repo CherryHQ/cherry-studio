@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations } from '@renderer/hooks/useAssistant'
@@ -20,7 +21,7 @@ import type {
 } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport, serializeAssistantsForExport } from '@renderer/utils/assistantTransfer'
 import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
-import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { isProtectedBuiltinAgentRole, sanitizeHiddenBuiltinRoles } from '@shared/ai/builtinAgent'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import { ASSISTANTS_MAX_LIMIT } from '@shared/data/api/schemas/assistants'
 import type { InstalledSkill } from '@shared/data/types/agent'
@@ -71,6 +72,9 @@ export function useResourceCatalogController(
 ) {
   const { t } = useTranslation()
   const { onConfirmArchiveAgentSessions, onLaunchSkill, onOpenSkill } = options
+  const [hiddenBuiltinRoles, setHiddenBuiltinRoles] = usePreference('agent.builtin.hidden_roles')
+  // Preference has no atomic set operations, so cross-window writes remain last-write-wins; this guards only controller reentry and duplicate submits.
+  const hiddenWritePendingRef = useRef(false)
   const [search, setSearch] = useState('')
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
@@ -104,6 +108,7 @@ export function useResourceCatalogController(
     refetch
   } = useResourceLibrary({
     resourceType,
+    hiddenBuiltinRoles: sanitizeHiddenBuiltinRoles(hiddenBuiltinRoles),
     activeGroupId: isAssistantLibrary ? activeGroupId : null,
     search,
     sort: 'name'
@@ -421,6 +426,34 @@ export function useResourceCatalogController(
     refetch,
     gridProps: {
       resources,
+      hasHiddenBuiltinAgents: sanitizeHiddenBuiltinRoles(hiddenBuiltinRoles).length > 0,
+      onHide: async (resource: ResourceItem) => {
+        if (hiddenWritePendingRef.current) return
+        if (resource.type !== 'agent') return
+        const role = resource.raw.configuration?.builtin_role
+        if (!isProtectedBuiltinAgentRole(role)) return
+        const roles = sanitizeHiddenBuiltinRoles(hiddenBuiltinRoles)
+        if (roles.includes(role)) return
+        hiddenWritePendingRef.current = true
+        try {
+          await setHiddenBuiltinRoles([...roles, role])
+        } catch (error) {
+          logger.error('Failed to hide built-in Agent', error instanceof Error ? error : new Error(String(error)))
+        } finally {
+          hiddenWritePendingRef.current = false
+        }
+      },
+      onRestoreHiddenBuiltins: async () => {
+        if (hiddenWritePendingRef.current) return
+        hiddenWritePendingRef.current = true
+        try {
+          await setHiddenBuiltinRoles([])
+        } catch (error) {
+          logger.error('Failed to restore built-in Agents', error instanceof Error ? error : new Error(String(error)))
+        } finally {
+          hiddenWritePendingRef.current = false
+        }
+      },
       isLoading,
       activeResourceType: resourceType,
       search,

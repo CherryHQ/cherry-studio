@@ -16,6 +16,8 @@
   "agent.builtin.cherry_support.description": "Agent oficial de asistență Cherry Studio pentru configurare, diagnosticare, întrebări frecvente și feedback",
   "agent.builtin.cherry_support.diagnostics.prepared": "Serviciul de asistență Cherry a pregătit o descriere editabilă. Verificați-o înainte de a alege datele de diagnosticare și de a trimite raportul.",
   "agent.builtin.cherry_support.diagnostics.review": "Revizuiește raportarea problemei",
+  "agent.builtin.hide": "Ascunde din listă",
+  "agent.builtin.show_hidden": "Afișează agenții încorporați ascunși",
   "agent.channels.add": "Adaugă",
   "agent.channels.bindAgent": "Conectează agentul",
   "agent.channels.chatIdsAutoTrackHint": "Când este lăsat gol, sistemul va urmări automat: trebuie să trimiți mai întâi un mesaj Bot-ului pe platformă, apoi sistemul va înregistra ID-ul conversației pentru notificările viitoare.",

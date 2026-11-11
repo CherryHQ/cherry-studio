@@ -19,6 +19,8 @@ type ControllerResourceType = Parameters<typeof useResourceCatalogController>[0]
 const archiveSessionsPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
 
 const controllerMocks = vi.hoisted(() => ({
+  hiddenRoles: [] as string[],
+  setHiddenRoles: vi.fn(),
   createAgent: vi.fn(),
   createAssistant: vi.fn(),
   createGroup: vi.fn(),
@@ -61,6 +63,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: () => [controllerMocks.hiddenRoles, controllerMocks.setHiddenRoles]
+}))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => controllerMocks.invalidate
@@ -206,6 +212,8 @@ function createSkillResource(id: string, folderName: string, source: string): Ex
 describe('useResourceCatalogController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    controllerMocks.hiddenRoles = []
+    controllerMocks.setHiddenRoles.mockResolvedValue(undefined)
     archiveSessionsPopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
       await action()
       return true
@@ -671,6 +679,62 @@ describe('useResourceCatalogController', () => {
         expect.objectContaining({ activeGroupId: null, resourceType: 'assistant' })
       )
     })
+  })
+
+  it('shows the restoration action only for valid hidden roles', () => {
+    const { result, rerender } = renderHook(() => useResourceCatalogController('agent'))
+    expect(result.current.gridProps.hasHiddenBuiltinAgents).toBe(false)
+    controllerMocks.hiddenRoles = ['support']
+    rerender()
+    expect(result.current.gridProps.hasHiddenBuiltinAgents).toBe(true)
+    controllerMocks.hiddenRoles = ['nope']
+    rerender()
+    expect(result.current.gridProps.hasHiddenBuiltinAgents).toBe(false)
+  })
+
+  it('blocks overlapping hidden-role writes and permits writes after completion', async () => {
+    let resolveWrite!: () => void
+    controllerMocks.setHiddenRoles.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveWrite = resolve
+      })
+    )
+    const support = { type: 'agent', raw: { configuration: { builtin_role: 'support' } } } as ResourceItem
+    const assistant = { type: 'agent', raw: { configuration: { builtin_role: 'assistant' } } } as ResourceItem
+    const { result } = renderHook(() => useResourceCatalogController('agent'))
+    let firstWrite!: Promise<void>
+    act(() => {
+      firstWrite = result.current.gridProps.onHide(support)
+      void result.current.gridProps.onHide(assistant)
+      void result.current.gridProps.onRestoreHiddenBuiltins()
+    })
+    expect(controllerMocks.setHiddenRoles).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      resolveWrite()
+      await firstWrite
+    })
+    await act(async () => result.current.gridProps.onHide(assistant))
+    expect(controllerMocks.setHiddenRoles).toHaveBeenCalledTimes(2)
+    expect(controllerMocks.setHiddenRoles).toHaveBeenLastCalledWith(['assistant'])
+  })
+
+  it('hides protected roles once and restores all hidden roles', async () => {
+    const protectedAgent = { type: 'agent', raw: { configuration: { builtin_role: 'support' } } } as ResourceItem
+    const ordinaryAgent = { type: 'agent', raw: { configuration: {} } } as ResourceItem
+    const { result, rerender } = renderHook(() => useResourceCatalogController('agent'))
+    await act(async () => {
+      await result.current.gridProps.onHide(protectedAgent)
+    })
+    expect(controllerMocks.setHiddenRoles).toHaveBeenCalledWith(['support'])
+    controllerMocks.hiddenRoles = ['support', 'support', 'nope']
+    rerender()
+    await act(async () => {
+      await result.current.gridProps.onHide(protectedAgent)
+      await result.current.gridProps.onHide(ordinaryAgent)
+    })
+    expect(controllerMocks.setHiddenRoles).toHaveBeenCalledTimes(1)
+    await act(async () => result.current.gridProps.onRestoreHiddenBuiltins())
+    expect(controllerMocks.setHiddenRoles).toHaveBeenLastCalledWith([])
   })
 
   it('confirms before archiving protected Agent sessions without opening the owner confirmation', async () => {

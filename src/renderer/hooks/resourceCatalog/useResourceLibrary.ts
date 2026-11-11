@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useGroups } from '@renderer/hooks/useGroups'
 import type { AgentDetail, ResourceItem, ResourceType, SortKey } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
+import { isHiddenBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
@@ -21,6 +22,7 @@ function compareItems(a: ResourceItem, b: ResourceItem, sort: SortKey): number {
 }
 
 export interface UseResourceLibraryOptions {
+  hiddenBuiltinRoles?: readonly string[]
   resourceType: ResourceType
   activeGroupId: string | null
   search: string
@@ -38,6 +40,7 @@ export interface UseResourceLibraryResult {
 
 export function useResourceLibrary({
   resourceType,
+  hiddenBuiltinRoles = [],
   activeGroupId,
   search,
   sort
@@ -146,7 +149,10 @@ export function useResourceLibrary({
 
   const allResources = useMemo<ResourceItem[]>(() => {
     if (isAssistant) return baseAssistants.data.map(buildAssistantItem)
-    if (isAgent) return agents.data.map(buildAgentItem)
+    if (isAgent)
+      return agents.data
+        .filter((a) => !isHiddenBuiltinAgentRole(hiddenBuiltinRoles, a.configuration?.builtin_role))
+        .map(buildAgentItem)
     if (isPrompt) return prompts.data.map(buildPromptItem)
     return baseSkills.data.map(buildSkillItem)
   }, [
@@ -155,6 +161,7 @@ export function useResourceLibrary({
     isPrompt,
     baseAssistants.data,
     agents.data,
+    hiddenBuiltinRoles,
     baseSkills.data,
     prompts.data,
     buildAssistantItem,
@@ -167,7 +174,13 @@ export function useResourceLibrary({
     () => filteredAssistants.data.map(buildAssistantItem),
     [filteredAssistants.data, buildAssistantItem]
   )
-  const agentItems = useMemo(() => agents.data.map(buildAgentItem), [agents.data, buildAgentItem])
+  const agentItems = useMemo(
+    () =>
+      agents.data
+        .filter((a) => !isHiddenBuiltinAgentRole(hiddenBuiltinRoles, a.configuration?.builtin_role))
+        .map(buildAgentItem),
+    [agents.data, hiddenBuiltinRoles, buildAgentItem]
+  )
   const skillItems = useMemo(() => skills.data.map(buildSkillItem), [skills.data, buildSkillItem])
   const promptItems = useMemo(() => prompts.data.map(buildPromptItem), [prompts.data, buildPromptItem])
 

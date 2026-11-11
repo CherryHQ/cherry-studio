@@ -16,6 +16,8 @@
   "agent.builtin.cherry_support.description": "เอเจนต์สนับสนุนอย่างเป็นทางการของ Cherry Studio สำหรับคำแนะนำการตั้งค่า การแก้ไขปัญหา FAQ และข้อเสนอแนะ",
   "agent.builtin.cherry_support.diagnostics.prepared": "Cherry Support เตรียมคำอธิบายที่แก้ไขได้แล้ว โปรดตรวจสอบก่อนเลือกรายงานและส่ง",
   "agent.builtin.cherry_support.diagnostics.review": "ตรวจสอบรายงานวินิจฉัย",
+  "agent.builtin.hide": "ซ่อนจากรายการ",
+  "agent.builtin.show_hidden": "แสดงเอเจนต์ในตัวที่ซ่อนอยู่",
   "agent.channels.add": "เพิ่ม",
   "agent.channels.bindAgent": "ผูกเอเจนต์",
   "agent.channels.chatIdsAutoTrackHint": "เมื่อปล่อยว่าง ระบบจะติดตามอัตโนมัติ: คุณต้องส่งข้อความถึงบอทบนแพลตฟอร์มก่อน ระบบจะบันทึก Chat ID สำหรับการแจ้งเตือนในอนาคต",

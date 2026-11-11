@@ -16,6 +16,8 @@
   "agent.builtin.cherry_support.description": "Επίσημος Agent υποστήριξης του Cherry Studio για ρυθμίσεις, διάγνωση, FAQ και σχόλια",
   "agent.builtin.cherry_support.diagnostics.prepared": "Η υποστήριξη Cherry ετοίμασε μια επεξεργάσιμη περιγραφή. Ελέγξτε την πριν επιλέξετε διαγνωστικά δεδομένα και υποβάλετε την αναφορά.",
   "agent.builtin.cherry_support.diagnostics.review": "Έλεγχος αναφοράς προβλήματος",
+  "agent.builtin.hide": "Απόκρυψη από τη λίστα",
+  "agent.builtin.show_hidden": "Εμφάνιση κρυφών ενσωματωμένων πρακτόρων",
   "agent.channels.add": "Προσθήκη",
   "agent.channels.bindAgent": "Σύνδεση Πράκτορα",
   "agent.channels.chatIdsAutoTrackHint": "Όταν μείνει κενό, το σύστημα θα παρακολουθεί αυτόματα: πρέπει πρώτα να στείλετε ένα μήνυμα στο Bot στην πλατφόρμα, τότε το σύστημα θα καταγράψει το Chat ID για μελλοντικές ειδοποιήσεις.",
