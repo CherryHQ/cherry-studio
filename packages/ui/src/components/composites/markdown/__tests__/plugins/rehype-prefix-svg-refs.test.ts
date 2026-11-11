@@ -60,7 +60,7 @@ describe('rehypePrefixSvgReferences', () => {
             {
               type: 'element',
               tagName: 'rect',
-              properties: { values: ['url(#gradient)', '#gradient'] },
+              properties: { dataReferences: ['url(#gradient)', '#gradient'] },
               children: []
             }
           ]
@@ -71,7 +71,7 @@ describe('rehypePrefixSvgReferences', () => {
     rehypePrefixSvgReferences()(tree)
 
     const rect = (tree.children[0] as Element).children[1] as Element
-    expect(rect.properties.values).toEqual(['url(#user-content-gradient)', '#user-content-gradient'])
+    expect(rect.properties.dataReferences).toEqual(['url(#user-content-gradient)', '#user-content-gradient'])
   })
 
   it('keeps same-id SVG references scoped to each SVG subtree', () => {
