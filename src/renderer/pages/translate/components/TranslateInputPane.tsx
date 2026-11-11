@@ -16,6 +16,7 @@ import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import type { VoiceReplaceRange } from '@renderer/services/voice'
 import { cn } from '@renderer/utils/style'
 
+import type { TranslateClipboardImage } from '../clipboardImagePaste'
 import IconButton from './IconButton'
 
 const TARGET_ID = 'translate-page-source'
@@ -29,6 +30,9 @@ type Props = {
   onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onDrop: (event: React.DragEvent<HTMLDivElement>) => void
   onSelectFile: () => void
+  clipboardImage: TranslateClipboardImage | null
+  onRemoveClipboardImage: () => void
+  onReplaceClipboardImage: () => void
   copied: boolean
   onCopy: () => void
   onCancelOcr: () => void
@@ -46,6 +50,9 @@ const TranslateInputPane = ({
   onPaste,
   onDrop,
   onSelectFile,
+  clipboardImage,
+  onRemoveClipboardImage,
+  onReplaceClipboardImage,
   copied,
   onCopy,
   onCancelOcr,
@@ -110,6 +117,8 @@ const TranslateInputPane = ({
   }, [text, isDictationIdle])
 
   const uploadIcons = [uploadImageIcon, uploadPdfIcon, uploadWordIcon, uploadPptIcon, uploadTextIcon, uploadExcelIcon]
+  const showUploadArea = !text && !clipboardImage
+  const previewUrl = clipboardImage?.previewUrl ?? null
 
   return (
     <div
@@ -137,6 +146,42 @@ const TranslateInputPane = ({
           viewportProps={{ ref, onScroll, className: 'overflow-x-hidden' }}
           contentProps={{ className: 'h-full' }}
           className="h-full">
+          {clipboardImage && previewUrl && (
+            <div
+              data-testid="translate-clipboard-image-preview"
+              className="flex items-start gap-3 border-border-subtle border-b px-4 pt-4 pb-3">
+              <img
+                src={previewUrl}
+                alt={clipboardImage.name}
+                className="size-16 shrink-0 rounded-md border border-border-subtle object-cover"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-foreground text-sm" title={clipboardImage.name}>
+                  {clipboardImage.name}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={disabled || selecting}
+                    onClick={onReplaceClipboardImage}
+                    aria-label={t('translate.image.replace')}>
+                    {t('translate.image.replace')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={onRemoveClipboardImage}
+                    aria-label={t('translate.image.remove')}>
+                    {t('translate.image.remove')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             data-voice-target-id={TARGET_ID}
@@ -156,7 +201,7 @@ const TranslateInputPane = ({
           />
         </ScrollArea>
       </div>
-      {!text && (
+      {showUploadArea && (
         <button
           type="button"
           onClick={onSelectFile}
