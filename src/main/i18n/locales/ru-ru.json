@@ -83,6 +83,8 @@
   "common.channel_session_compacted": "Сеанс сжат.",
   "common.channel_session_resolution_error": "⚠️ Не удалось определить сеанс для этого агента. Повторите попытку позже.",
   "common.channel_stopped": "Остановлено",
+  "common.channel_topics_none": "Агенты для тем не настроены. Все темы используют агента этого канала.",
+  "common.channel_topics_title": "Агенты для тем:",
   "common.channel_voice_transcription_missing": "Расшифровка голосового сообщения не получена. Отправьте сообщение повторно в виде текста.",
   "common.copy": "Копировать",
   "common.cut": "Вырезать",

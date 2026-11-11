@@ -83,6 +83,8 @@
   "common.channel_session_compacted": "บีบอัดเซสชันแล้ว",
   "common.channel_session_resolution_error": "⚠️ ไม่สามารถแก้ไขเซสชันสำหรับเอเจนต์นี้ได้ โปรดลองอีกครั้งภายหลัง",
   "common.channel_stopped": "หยุดแล้ว",
+  "common.channel_topics_none": "ยังไม่ได้ตั้งค่าเอเจนต์ตามหัวข้อ ทุกหัวข้อใช้เอเจนต์ของช่องนี้",
+  "common.channel_topics_title": "เอเจนต์ตามหัวข้อ:",
   "common.channel_voice_transcription_missing": "ไม่ได้รับข้อความแปลงเสียงเป็นตัวอักษร โปรดส่งข้อความของคุณใหม่เป็นข้อความธรรมดา",
   "common.copy": "คัดลอก",
   "common.cut": "ตัด",

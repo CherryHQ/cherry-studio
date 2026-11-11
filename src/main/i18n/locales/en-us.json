@@ -83,6 +83,8 @@
   "common.channel_session_compacted": "Session compacted.",
   "common.channel_session_resolution_error": "⚠️ Failed to resolve a session for this agent. Please try again later.",
   "common.channel_stopped": "Stopped",
+  "common.channel_topics_none": "No topic agents are configured. Every topic uses this channel's agent.",
+  "common.channel_topics_title": "Topic agents:",
   "common.channel_voice_transcription_missing": "No speech transcription was received. Please resend your message as text.",
   "common.copy": "Copy",
   "common.cut": "Cut",

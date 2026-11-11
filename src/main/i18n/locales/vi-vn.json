@@ -83,6 +83,8 @@
   "common.channel_session_compacted": "Đã thu gọn phiên.",
   "common.channel_session_resolution_error": "⚠️ Không thể phân giải phiên cho tác nhân này. Vui lòng thử lại sau.",
   "common.channel_stopped": "Đã dừng",
+  "common.channel_topics_none": "Chưa cấu hình agent theo chủ đề. Mọi chủ đề đều dùng agent của kênh này.",
+  "common.channel_topics_title": "Agent theo chủ đề:",
   "common.channel_voice_transcription_missing": "Không nhận được bản chép lời. Vui lòng gửi lại tin nhắn dưới dạng văn bản.",
   "common.copy": "Sao chép",
   "common.cut": "Cắt",

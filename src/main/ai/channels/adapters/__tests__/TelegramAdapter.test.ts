@@ -448,7 +448,7 @@ describe('TelegramAdapter', () => {
     await adapter.connect()
     await adapter.sendTypingIndicator('123')
 
-    expect(mockBot.api.sendChatAction).toHaveBeenCalledWith('123', 'typing')
+    expect(mockBot.api.sendChatAction).toHaveBeenCalledWith('123', 'typing', {})
   })
 
   it('auth middleware blocks unauthorized chats', async () => {
@@ -537,5 +537,54 @@ describe('TelegramAdapter', () => {
       userName: 'TestUser',
       text: 'Hello bot'
     })
+  })
+
+  it('a forum topic message carries its thread so each topic gets its own conversation', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const messageSpy = vi.fn()
+    adapter.on('message', messageSpy)
+    const messageHandler = mockBot.on.mock.calls[0][1] as (ctx: any) => void
+
+    messageHandler({
+      chat: { id: 123 },
+      from: { id: 456, first_name: 'TestUser' },
+      message: { text: 'Research this', message_thread_id: 7 }
+    })
+
+    expect(messageSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ chatId: '123', conversationId: '123:7', threadId: '7' })
+    )
+  })
+
+  it('sendMessage() posts into the forum topic it was asked in', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    await adapter.sendMessage('123', 'Hello', { threadId: '7' })
+
+    expect(mockBot.api.sendMessage).toHaveBeenCalledWith('123', 'Hello', {
+      parse_mode: 'MarkdownV2',
+      message_thread_id: 7
+    })
+  })
+
+  it('/topics command emits a topics command carrying its thread', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const commandSpy = vi.fn()
+    adapter.on('command', commandSpy)
+    const [, topicsHandler] = mockBot.command.mock.calls.find(([name]) => name === 'topics')!
+
+    ;(topicsHandler as (ctx: any) => void)({
+      chat: { id: 123 },
+      from: { id: 456, first_name: 'TestUser' },
+      message: { message_thread_id: 7 }
+    })
+
+    expect(commandSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ chatId: '123', command: 'topics', threadId: '7', conversationId: '123:7' })
+    )
   })
 })

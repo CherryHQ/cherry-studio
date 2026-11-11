@@ -5,7 +5,8 @@ import * as z from 'zod'
 export const TelegramChannelConfigSchema = z.object({
   type: z.literal('telegram'),
   bot_token: z.string(),
-  allowed_chat_ids: z.array(z.string()).default([])
+  allowed_chat_ids: z.array(z.string()).default([]),
+  topic_agents: z.record(z.string().regex(/^\d+$/), z.string().min(1)).default({})
 })
 
 export type TelegramChannelConfig = z.infer<typeof TelegramChannelConfigSchema>

@@ -83,6 +83,8 @@
   "common.channel_session_compacted": "会话已压缩。",
   "common.channel_session_resolution_error": "⚠️ 无法解析此智能体的会话，请稍后重试。",
   "common.channel_stopped": "已停止",
+  "common.channel_topics_none": "尚未配置话题智能体。所有话题都使用此渠道的智能体。",
+  "common.channel_topics_title": "话题智能体：",
   "common.channel_voice_transcription_missing": "未收到语音转写结果，请改用文字重新发送。",
   "common.copy": "复制",
   "common.cut": "剪切",

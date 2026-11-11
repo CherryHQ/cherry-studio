@@ -83,6 +83,8 @@
   "common.channel_session_compacted": "Sesión compactada.",
   "common.channel_session_resolution_error": "⚠️ No se pudo resolver una sesión para este agente. Inténtalo de nuevo más tarde.",
   "common.channel_stopped": "Detenido",
+  "common.channel_topics_none": "No hay agentes por tema configurados. Todos los temas usan el agente de este canal.",
+  "common.channel_topics_title": "Agentes por tema:",
   "common.channel_voice_transcription_missing": "No se recibió la transcripción de voz. Vuelva a enviar su mensaje como texto.",
   "common.copy": "Copiar",
   "common.cut": "Cortar",

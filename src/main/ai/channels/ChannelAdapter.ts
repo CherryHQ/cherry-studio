@@ -21,6 +21,8 @@ export type ChannelMessageEvent = {
   messageId?: string
   /** Keep a response to this message inside its platform thread when supported. */
   replyInThread?: boolean
+  /** Platform thread (Telegram forum topic) the message was posted in; replies target it. */
+  threadId?: string
   /** Pre-downloaded base64 images attached to the message. */
   images?: ImageAttachment[]
   /** Pre-downloaded base64 files attached to the message. */
@@ -33,12 +35,14 @@ export type ChannelCommandEvent = {
   conversationId?: string
   userId: string
   userName: string
-  command: 'new' | 'compact' | 'help' | 'whoami'
+  command: 'new' | 'compact' | 'help' | 'whoami' | 'topics'
   args?: string
   /** Platform message id of the command message, so the reply can target it. See `ChannelMessageEvent.messageId`. */
   messageId?: string
   /** Keep a response to this command inside its platform thread when supported. */
   replyInThread?: boolean
+  /** Platform thread the command was sent in. See `ChannelMessageEvent.threadId`. */
+  threadId?: string
 }
 
 export type SendMessageOptions = {
@@ -47,6 +51,8 @@ export type SendMessageOptions = {
   replyToMessageId?: string | number
   /** Keep the reply inside the inbound message's thread when the platform supports it. */
   replyInThread?: boolean
+  /** Platform thread to post into (Telegram forum topic). Adapters without threads ignore it. */
+  threadId?: string
 }
 
 export type ChannelStreamOutcome = { status: 'success' | 'paused' }
