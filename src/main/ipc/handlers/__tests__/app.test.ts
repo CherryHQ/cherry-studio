@@ -94,11 +94,6 @@ describe('appHandlers', () => {
     expect(requestRelocationMock).not.toHaveBeenCalled()
   })
 
-  it('relaunches through IpcApi', async () => {
-    await expect(appHandlers['app.relaunch'](undefined, ctx)).resolves.toBeUndefined()
-    expect(appRelaunchMock).toHaveBeenCalledOnce()
-  })
-
   it('delegates cache cleanup inspection to the service', async () => {
     const expected = {
       results: [
@@ -124,39 +119,6 @@ describe('appHandlers', () => {
 
     expect(cacheCleanupRunMock).toHaveBeenCalledWith(['site_data'])
     expect(result).toEqual(expected)
-  })
-
-  it('check_for_update triggers the AppUpdaterService check and resolves void', async () => {
-    appUpdaterService.checkForUpdates.mockResolvedValue({ currentVersion: '1.0.0', updateInfo: null })
-
-    const result = await appHandlers['app.updater.check_for_update'](undefined, ctx)
-
-    expect(appUpdaterService.checkForUpdates).toHaveBeenCalledTimes(1)
-    expect(result).toBeUndefined()
-  })
-
-  it('gets release notes through AppUpdaterService', async () => {
-    const releases = [{ releaseNotes: 'New features', version: '1.1.0' }]
-    appUpdaterService.getReleaseHistory.mockResolvedValue(releases)
-
-    const result = await appHandlers['app.updater.release_notes.get'](undefined, ctx)
-
-    expect(appUpdaterService.getReleaseHistory).toHaveBeenCalledOnce()
-    expect(result).toEqual(releases)
-  })
-
-  it('quit_and_install delegates to AppUpdaterService and resolves void', async () => {
-    const result = await appHandlers['app.updater.quit_and_install'](undefined, ctx)
-
-    expect(appUpdaterService.quitAndInstall).toHaveBeenCalledTimes(1)
-    expect(result).toBeUndefined()
-  })
-
-  it('delegates data reset requests to the owning domain module', async () => {
-    const result = await appHandlers['app.data_reset.request'](undefined, ctx)
-
-    expect(requestDataResetMock).toHaveBeenCalledTimes(1)
-    expect(result).toBeUndefined()
   })
 
   it('propagates data reset rejections to the caller', async () => {

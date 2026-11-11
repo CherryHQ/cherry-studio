@@ -71,7 +71,7 @@ resets the mocks.
 ### Do use it for
 
 - Service tests that touch SQLite (`MessageService`, `AssistantService`, …).
-- Handler integration tests where the real DB matters (e.g. `temporaryChats.integration.test.ts`).
+- Integration tests where the real DB matters (e.g. `TemporaryChatService.integration.test.ts`).
 - Seeder tests.
 - Anything that exercises FK cascades, FTS5, `RETURNING` semantics, or
   transactions — because those are exactly where Drizzle-chain mocks lie.

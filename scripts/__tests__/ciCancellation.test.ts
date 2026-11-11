@@ -3,6 +3,38 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
+const ci = parse(readFileSync('.github/workflows/ci.yml', 'utf8'))
+const expression = (value: string, github: unknown) =>
+  new Function('github', `return (${value.replace(/^\$\{\{\s*|\s*\}\}$/g, '')})`)(github)
+const group = (event: string, ref = 'refs/heads/feature', number = 12) =>
+  ci.concurrency.group.replace(/\$\{\{(.*?)\}\}/g, (_match: string, value: string) =>
+    expression(value, {
+      workflow: 'CI',
+      event_name: event,
+      ref,
+      event: { pull_request: event === 'pull_request' ? { number } : {} }
+    })
+  )
+
+describe('CI supersession', () => {
+  it('replaces superseded PR and manual runs while preserving push ranges and scheduled full checks', () => {
+    for (const event of ['pull_request', 'workflow_dispatch']) {
+      expect(expression(ci.concurrency['cancel-in-progress'], { event_name: event })).toBe(true)
+    }
+    for (const event of ['push', 'schedule']) {
+      expect(expression(ci.concurrency['cancel-in-progress'], { event_name: event })).toBe(false)
+    }
+  })
+
+  it('isolates manual full validation from PR merge checks, pushes and daily validation', () => {
+    const events = ['pull_request', 'workflow_dispatch', 'push', 'schedule']
+    expect(new Set(events.map((event) => group(event))).size).toBe(events.length)
+    expect(group('pull_request', 'refs/pull/12/merge', 12)).not.toBe(group('pull_request', 'refs/pull/13/merge', 13))
+    expect(group('workflow_dispatch', 'refs/heads/first')).not.toBe(group('workflow_dispatch', 'refs/heads/second'))
+    expect(group('workflow_dispatch', 'refs/heads/feature')).not.toBe(group('workflow_dispatch', 'refs/tags/feature'))
+  })
+})
+
 const closedPr = {
   number: 12,
   state: 'closed',

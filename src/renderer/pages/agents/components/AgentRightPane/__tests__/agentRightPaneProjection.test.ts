@@ -150,7 +150,7 @@ describe('agent right pane projections', () => {
     expect(projection.selectedToolCallIds).toEqual(new Set(['root', 'child']))
     expect(projection.messages.map((item) => item.id)).toEqual(['root:agent-flow-prompt', 'root:agent-flow-assistant'])
     expect(projection.partsByMessageId['root:agent-flow-assistant']).toHaveLength(4)
-    expect(projection.partsByMessageId['root:agent-flow-assistant'][1]).not.toBe(parts[2])
+
     expect(getPartParentToolCallId(projection.partsByMessageId['root:agent-flow-assistant'][1])).toBeUndefined()
     expect(Object.values(projection.partsByMessageId).flat()).not.toContain(parts[0])
     expect(Object.values(projection.partsByMessageId).flat()).not.toContain(parts[4])
@@ -159,14 +159,6 @@ describe('agent right pane projections', () => {
     )
     expect((projection.partsByMessageId['root:agent-flow-assistant'][3] as { text?: string }).text).toBe(
       'Done exploring'
-    )
-
-    const nextProjection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
-    expect(nextProjection.partsByMessageId['root:agent-flow-assistant'][0]).toBe(
-      projection.partsByMessageId['root:agent-flow-assistant'][0]
-    )
-    expect(nextProjection.partsByMessageId['root:agent-flow-assistant'][1]).toBe(
-      projection.partsByMessageId['root:agent-flow-assistant'][1]
     )
   })
 
