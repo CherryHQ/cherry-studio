@@ -9,7 +9,7 @@ const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 let userDataDir: string
 let recordFile: string
 
-async function loadModule(_dir: string = userDataDir) {
+async function loadModule() {
   vi.resetModules()
   vi.doMock('@logger', () => ({ loggerService: { withContext: () => logger } }))
   return import('../exitRecord')
@@ -87,7 +87,7 @@ describe('exitRecord', () => {
     try {
       // A second packaged copy with its own userData (and its own
       // single-instance lock) sees no previous exit and writes its own record.
-      const other = await loadModule(otherDir)
+      const other = await loadModule()
       other.trackProcessExit(otherDir)
 
       expect(logger.info).not.toHaveBeenCalled()
