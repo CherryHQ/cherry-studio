@@ -1197,6 +1197,11 @@
       "label": "Français"
     },
     {
+      "value": "pl-PL",
+      "flag": "🇵🇱",
+      "label": "Polski"
+    },
+    {
       "value": "pt-PT",
       "flag": "🇵🇹",
       "label": "Português"
