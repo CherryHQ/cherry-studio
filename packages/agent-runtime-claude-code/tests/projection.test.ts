@@ -5,7 +5,7 @@ import { expect, it } from 'vitest'
 
 import { runtimeId, type ObservationPayload } from '@cherrystudio/agent-runtime'
 
-import { claudeThread } from '../src'
+import { claudeThread, type ClaudeObservation } from '../src'
 import { ClaudeProjection } from '../src/projection'
 import { assistantMessage } from './wireFixture'
 
@@ -203,7 +203,6 @@ it('does not interpret unknown archive blocks as tool results or discard their v
   expect(archive.content[0].parts[0]).not.toHaveProperty('output')
   expect(archive.content[1].parts).toEqual([{ type: 'text', text: 'Still readable', state: 'done' }])
   expect(archive.legacy?.[`${mixed.uuid}:4`]).toEqual({ messageId: mixed.uuid, parts: [0] })
-  expect(archive.messages[1]).toEqual(mixed)
 })
 
 it.each([false, true])('keeps omitted tool output retracted after archive reconciliation (error: %s)', (isError) => {
@@ -238,7 +237,6 @@ it.each([false, true])('keeps omitted tool output retracted after archive reconc
   const archive = projection.restore([summary], [{ type: 'assistant', retracted_message_uuids: [result.uuid] }])
   expect(archive.retracted).toEqual([result.uuid])
   expect(archive.content.map((message) => message.id)).toEqual([summary.uuid])
-  expect(projection.feed.snapshot.coverage).toBe('retained-view')
   expect(projection.feed.snapshot.messages.map((message) => message.id)).toEqual([call.uuid, summary.uuid])
   expect(projection.feed.snapshot.messages[0].parts[0]).toMatchObject({
     type: 'dynamic-tool',
@@ -254,3 +252,47 @@ it.each([false, true])('keeps omitted tool output retracted after archive reconc
   expect(projection.feed.snapshot.messages[0].parts[0]).not.toHaveProperty('output')
   expect(projection.feed.snapshot.messages[0].parts[0]).not.toHaveProperty('errorText')
 })
+
+it.each([true, false, 'true', 1, undefined, 'other-uuid'])(
+  'only restores a matching assistant native boolean rejection marker (%s)',
+  async (marker) => {
+    const sessionId = randomUUID()
+    const source = assistantMessage(sessionId, [
+      { type: 'text', text: 'API Error: Request rejected (429) · quoted', citations: null }
+    ])
+    const projection = new ClaudeProjection(claudeThread(runtimeId('backend'), sessionId), (error) => {
+      throw error
+    })
+    projection.restore(
+      [
+        {
+          type: 'assistant',
+          uuid: source.uuid,
+          session_id: sessionId,
+          parent_tool_use_id: null,
+          parent_agent_id: null,
+          message: source.message
+        }
+      ],
+      [
+        {
+          type: 'assistant',
+          uuid: marker === 'other-uuid' ? randomUUID() : source.uuid,
+          isApiErrorMessage: marker === 'other-uuid' ? true : marker
+        }
+      ]
+    )
+    const batches: ClaudeObservation[] = []
+    const observation = projection.feed.observe((batch) => {
+      batches.push(batch)
+    })
+    await observation.drain()
+    expect(
+      batches.flatMap((batch) => batch.native).find((entry) => entry.message.uuid === source.uuid)?.isApiErrorMessage
+    ).toBe(marker === true ? true : undefined)
+    expect(projection.feed.snapshot.messages[0].parts).toMatchObject([
+      { type: 'text', text: 'API Error: Request rejected (429) · quoted' }
+    ])
+    await observation.stop()
+  }
+)

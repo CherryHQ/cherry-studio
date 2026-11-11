@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { ArrowUpRight, Bot, MousePointerClick, Sparkle, Target } from 'lucide-react'
+import { ArrowUpRight, MousePointerClick, Sparkle, Target } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,7 +11,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
-import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 
 import {
   useMessageListActions,
@@ -35,18 +34,13 @@ interface Props {
   footerSlot?: ReactNode
 }
 
-/** Why a runtime opened an assistant turn with no user message; the transcript's only explanation. */
-export const AutonomousTurnOriginBadge: FC<{ origin: AutonomousTurnOrigin }> = ({ origin }) => {
+const GoalRoundBadge: FC<{ round: number }> = ({ round }) => {
   const { t } = useTranslation()
-  const label =
-    origin.kind === 'goal-round'
-      ? t('agent.session_turn_origin.goal_round', { round: origin.round })
-      : t('agent.session_turn_origin.background_work')
-  const Icon = origin.kind === 'goal-round' ? Target : Bot
+  const label = t('agent.session_turn_origin.goal_round', { round })
   return (
     <Tooltip content={label}>
       <span className="flex h-5 min-w-0 max-w-[min(18rem,45vw)] items-center gap-1 text-foreground-tertiary text-xs">
-        <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+        <Target aria-hidden="true" className="size-3.5 shrink-0" />
         <span className="min-w-0 truncate">{label}</span>
       </span>
     </Tooltip>
@@ -196,7 +190,9 @@ const MessageHeader: FC<Props> = memo(
               {username}
             </span>
             {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
-            {isAssistantMessage && message.turnOrigin && <AutonomousTurnOriginBadge origin={message.turnOrigin} />}
+            {isAssistantMessage && message.turnOrigin?.kind === 'goal-round' && (
+              <GoalRoundBadge round={message.turnOrigin.round} />
+            )}
             {isAssistantMessage && showModelIdentity && displayModelName && (
               <span className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5">
                 <span aria-hidden="true" className="shrink-0">

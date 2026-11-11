@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Button as ToolbarButton } from '@cherrystudio/ui/components/primitives/button'
 import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
 import { voiceTargetManager } from '@renderer/services/voice'
 import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
@@ -31,6 +32,8 @@ import type * as PasteHandling from '../paste/pasteHandling'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
 const mocks = vi.hoisted(() => ({
+  handleMarkdownCodeKey: vi.fn(() => false),
+  handleMarkdownFormatKey: vi.fn(() => false),
   editorOptions: undefined as any,
   editorInstance: undefined as any,
   currentView: undefined as any,
@@ -52,7 +55,7 @@ const mocks = vi.hoisted(() => ({
   deleteSelection: vi.fn(),
   setMeta: vi.fn(),
   setContent: vi.fn(),
-  setHardBreak: vi.fn(),
+  splitComposerLine: vi.fn(),
   setNodeSelection: vi.fn(),
   setTextSelection: vi.fn(),
   chainRun: vi.fn(),
@@ -60,6 +63,7 @@ const mocks = vi.hoisted(() => ({
   docDescendants: vi.fn(),
   docTextBetween: vi.fn(),
   focus: vi.fn(),
+  viewFocus: vi.fn(),
   fsReadText: vi.fn(),
   getJSON: vi.fn(),
   dispatch: vi.fn(),
@@ -196,12 +200,17 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
       commands: {
         focus: mocks.focus,
         setContent: mocks.setContent,
-        setHardBreak: mocks.setHardBreak,
+        scrollIntoView: () => true,
+        splitComposerLine: mocks.splitComposerLine,
         setNodeSelection: mocks.setNodeSelection
       },
       chain: () => {
         const chain: Record<string, (...args: unknown[]) => any> = {
           insertContent: (...args: unknown[]) => {
+            mocks.insertContent(...args)
+            return { run: mocks.chainRun }
+          },
+          insertComposerLines: (...args: unknown[]) => {
             mocks.insertContent(...args)
             return { run: mocks.chainRun }
           },
@@ -239,6 +248,7 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         return chain
       },
       view: {
+        focus: mocks.viewFocus,
         get composing() {
           return mocks.editorViewComposing
         },
@@ -300,6 +310,14 @@ vi.mock('@tiptap/react', async (importOriginal) => ({
       />
     </div>
   )
+}))
+
+vi.mock('../markdownLivePreview/codeBlockKeys', () => ({
+  handleMarkdownCodeKey: mocks.handleMarkdownCodeKey
+}))
+
+vi.mock('../markdownLivePreview/selectionFormatKeys', () => ({
+  handleMarkdownFormatKey: mocks.handleMarkdownFormatKey
 }))
 
 vi.mock('../ComposerToolRuntime', () => ({
@@ -478,7 +496,7 @@ describe('ComposerSurface', () => {
     mocks.deleteSelection.mockReset()
     mocks.setMeta.mockReset()
     mocks.setContent.mockReset()
-    mocks.setHardBreak.mockReset()
+    mocks.splitComposerLine.mockReset()
     mocks.setNodeSelection.mockReset()
     mocks.setTextSelection.mockReset()
     mocks.chainRun.mockReset()
@@ -487,6 +505,7 @@ describe('ComposerSurface', () => {
     mocks.docTextBetween.mockReset()
     mocks.docTextBetween.mockReturnValue('')
     mocks.focus.mockReset()
+    mocks.viewFocus.mockReset()
     mocks.fsReadText.mockReset()
     mocks.fsReadText.mockResolvedValue('')
     mocks.getJSON.mockReset()
@@ -540,13 +559,6 @@ describe('ComposerSurface', () => {
         error: vi.fn()
       }
     })
-  })
-
-  it('renders the editor view synchronously so the fallback swap never drops the input target', () => {
-    render(<ComposerSurface {...baseProps} />)
-
-    expect(mocks.editorOptions?.immediatelyRender).toBe(true)
-    expect(mocks.focus).toHaveBeenCalledWith('end')
   })
 
   it('keeps fallback dictation literal when the rich composer mounts', async () => {
@@ -610,7 +622,7 @@ describe('ComposerSurface', () => {
     expect(manager.captureCurrent()).toMatchObject({ targetId: 'composer', sourceEntityId: 'composer-topic' })
   })
 
-  it('replays a deferred paste on the editor view only, not through the document paste handler', async () => {
+  it('delivers a deferred paste once after a render interrupts its pending replay', async () => {
     mocks.stabilizeEditor = true
     const viewDom = mocks.editorViewDom!
     document.body.appendChild(viewDom)
@@ -623,26 +635,36 @@ describe('ComposerSurface', () => {
     }
     const originalClipboardEvent = globalThis.ClipboardEvent
     vi.stubGlobal('ClipboardEvent', FakeClipboardEvent)
-    const onView = vi.fn()
-    const onDocument = vi.fn()
+    const pasted = 'Deferred clipboard text'
+    const documentPastes: string[] = []
+    const onView = (event: Event) => {
+      viewDom.textContent += (event as ClipboardEvent).clipboardData!.getData('text/plain')
+    }
+    const onDocument = (event: Event) => {
+      documentPastes.push((event as ClipboardEvent).clipboardData!.getData('text/plain'))
+    }
     viewDom.addEventListener('paste', onView)
     document.addEventListener('paste', onDocument)
-
-    render(
-      <ComposerSurface
-        {...baseProps}
-        deferredIntent={{ transfer: { kind: 'paste', data: { files: [] } as unknown as DataTransfer } }}
-      />
-    )
-
-    // The editor's own listener sits on the view element; the document-level handler in
-    // pasteHandling would hand the same payload to this composer a second time.
-    await waitFor(() => expect(onView).toHaveBeenCalledTimes(1))
-    expect(onDocument).not.toHaveBeenCalled()
-
-    document.removeEventListener('paste', onDocument)
-    viewDom.remove()
-    vi.stubGlobal('ClipboardEvent', originalClipboardEvent)
+    vi.useFakeTimers()
+    const deferredIntent = {
+      transfer: { kind: 'paste' as const, data: { files: [], getData: () => pasted } as unknown as DataTransfer }
+    }
+    const view = render(<ComposerSurface {...baseProps} deferredIntent={deferredIntent} getToolLaunchers={() => []} />)
+    try {
+      view.rerender(<ComposerSurface {...baseProps} deferredIntent={deferredIntent} getToolLaunchers={() => []} />)
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(viewDom).toHaveTextContent(pasted)
+      view.rerender(<ComposerSurface {...baseProps} deferredIntent={deferredIntent} getToolLaunchers={() => []} />)
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(viewDom.textContent).toBe(pasted)
+      expect(documentPastes).toEqual([])
+    } finally {
+      view.unmount()
+      vi.useRealTimers()
+      document.removeEventListener('paste', onDocument)
+      viewDom.remove()
+      vi.stubGlobal('ClipboardEvent', originalClipboardEvent)
+    }
   })
 
   it('restores the caret the fallback left behind instead of collapsing to the end', () => {
@@ -653,17 +675,6 @@ describe('ComposerSurface', () => {
 
     expect(mocks.setTextSelection).toHaveBeenCalledWith({ from: 3, to: 3 })
     expect(mocks.focus).not.toHaveBeenCalled()
-  })
-
-  it('leaves focus alone when the user moved on to another input while the runtime loaded', () => {
-    const elsewhere = document.createElement('input')
-    document.body.appendChild(elsewhere)
-    elsewhere.focus()
-
-    render(<ComposerSurface {...baseProps} />)
-
-    expect(mocks.focus).not.toHaveBeenCalled()
-    elsewhere.remove()
   })
 
   it('uses the card color with a subtle shadow', () => {
@@ -732,20 +743,6 @@ describe('ComposerSurface', () => {
     } finally {
       requestAnimationFrameSpy.mockRestore()
     }
-  })
-
-  it('does not restore mount focus for an eagerly loaded draft the fallback never focused', () => {
-    mocks.stabilizeEditor = true
-    render(<ComposerSurface {...baseProps} text="draft" deferredIntent={{}} />)
-
-    expect(mocks.focus).not.toHaveBeenCalled()
-  })
-
-  it('restores mount focus when the fallback textarea held focus', () => {
-    mocks.stabilizeEditor = true
-    render(<ComposerSurface {...baseProps} text="draft" deferredIntent={{ hadFocus: true }} />)
-
-    expect(mocks.focus).toHaveBeenCalled()
   })
 
   it('applies the transferred text selection when the editor is created', async () => {
@@ -972,14 +969,300 @@ describe('ComposerSurface', () => {
     expect(inputbar?.querySelector('[data-composer-toolbar]')).not.toBeNull()
   })
 
-  it('returns to the regular presentation for an explicit hard break that does not overflow', async () => {
+  it('turns on Markdown live preview only for surfaces that ask for it', async () => {
+    const { unmount } = render(<ComposerSurface {...baseProps} />)
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+    expect(mocks.editorPresetOptions.markdownLivePreview).toBe(false)
+    unmount()
+
+    render(<ComposerSurface {...baseProps} markdownLivePreview />)
+    await waitFor(() => expect(mocks.editorPresetOptions.markdownLivePreview).toBe(true))
+  })
+
+  describe('Markdown code stays literal', () => {
+    let editor: Editor
+
+    afterEach(() => {
+      editor.destroy()
+    })
+
+    async function renderDraft(text: string, props: Partial<ComposerSurfaceProps> = {}) {
+      const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+      editor = new Editor({ extensions: createComposerEditorPreset({ markdownLivePreview: true }) })
+      mocks.stabilizeEditor = true
+      mocks.editorInstance = editor
+      render(<ComposerSurface {...baseProps} text={text} markdownLivePreview {...props} />)
+      await waitFor(() => expect(serializeComposerDocument(editor).text).toBe(text))
+    }
+
+    const caretOnLine = (line: number) => {
+      let position = 1
+      editor.state.doc.forEach((_block, offset, index) => {
+        if (index === line) position = offset + 1
+      })
+      editor.commands.setTextSelection(position)
+    }
+
+    const paste = (text: string, clipboard: Record<string, unknown> = {}) => {
+      const event = {
+        preventDefault: vi.fn(),
+        clipboardData: { getData: (type: string) => (type === 'text/plain' ? text : ''), ...clipboard }
+      }
+      return { event, handled: mocks.editorOptions.handlePaste(editor.view, event) }
+    }
+
+    const markerProps = {
+      resolveSkillMarker: (marker: string) =>
+        marker === 'pdf' ? ({ id: 'skill:pdf', kind: 'skill', label: 'PDF' } as const) : null,
+      resolveKnowledgeBaseMarker: (marker: string) =>
+        marker === 'docs' ? ({ id: 'knowledge:docs', kind: 'knowledge', label: 'Docs' } as const) : null
+    }
+
+    it.each([
+      ['a URL', 'https://example.com/a'],
+      ['a skill marker', '/pdf/ x'],
+      ['a knowledge-base marker', '#docs# x'],
+      ['a prompt variable', '${name}']
+    ])('pastes %s as plain text with the caret inside a block', async (_name, pasted) => {
+      await renderDraft('```\n\n```', markerProps)
+      caretOnLine(1)
+
+      expect(paste(pasted).handled).toBe(true)
+
+      expect(serializeComposerDocument(editor)).toEqual({ text: `\`\`\`\n${pasted}\n\`\`\``, tokens: [] })
+    })
+
+    it('restores markers when a pasted fence follows existing prose', async () => {
+      await renderDraft('intro ', markerProps)
+      editor.commands.setTextSelection(7)
+
+      paste('```\n/pdf/ #docs#\n```')
+
+      expect(serializeComposerDocument(editor).tokens.map((token) => token.id)).toEqual(['skill:pdf', 'knowledge:docs'])
+    })
+
+    it('classifies pasted markers after removing the selected fence', async () => {
+      await renderDraft('```\n```', markerProps)
+      editor.commands.selectAll()
+
+      paste('/pdf/ #docs#')
+
+      expect(serializeComposerDocument(editor).tokens.map((token) => token.id)).toEqual(['skill:pdf', 'knowledge:docs'])
+    })
+
+    it('keeps markers literal when the prefix completes a pasted opening fence', async () => {
+      await renderDraft('``', markerProps)
+      editor.commands.setTextSelection(3)
+
+      paste('`\n/pdf/ #docs#\n```')
+
+      expect(serializeComposerDocument(editor).tokens).toEqual([])
+    })
+
+    it('still turns a URL into a link token outside the block', async () => {
+      await renderDraft('plain\n```\n\n```')
+      caretOnLine(0)
+
+      paste('https://example.com/a')
+
+      expect(serializeComposerDocument(editor).tokens.map((token) => token.kind)).toEqual(['link'])
+    })
+
+    it('keeps variables literal in a pasted fenced block and tokenizes the ones around it', async () => {
+      await renderDraft('')
+
+      paste('${a}\n```\n${b}\n```')
+
+      const { text, tokens } = serializeComposerDocument(editor)
+      expect(tokens.map((token) => token.label)).toEqual(['a'])
+      expect(text.endsWith('```\n${b}\n```')).toBe(true)
+    })
+
+    it('still hands long text to the file handler inside a block', async () => {
+      mocks.preferences['chat.input.paste_long_text_as_file'] = true
+      mocks.preferences['chat.input.paste_long_text_threshold'] = 1500
+      await renderDraft('```\n\n```', { supportedExts: ['.txt'] })
+      caretOnLine(1)
+
+      const { event } = paste('a'.repeat(2001))
+
+      expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+      expect(serializeComposerDocument(editor).text).toBe('```\n\n```')
+    })
+
+    it('still attaches clipboard files inside a block', async () => {
+      await renderDraft('```\n\n```', { supportedExts: ['.png'] })
+      caretOnLine(1)
+
+      const { event } = paste('screenshot.png', { files: [{ name: 'screenshot.png', type: 'image/png' }] })
+
+      expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+      expect(serializeComposerDocument(editor).text).toBe('```\n\n```')
+    })
+
+    it('keeps dropped text literal inside a block', async () => {
+      await renderDraft('```\n\n```')
+      caretOnLine(1)
+
+      act(() => {
+        mocks.fileDragDropOptions.onTextDropped('${a}')
+      })
+
+      expect(serializeComposerDocument(editor)).toEqual({ text: '```\n${a}\n```', tokens: [] })
+    })
+
+    it('still tokenizes dropped text outside a block', async () => {
+      await renderDraft('plain\n```\n\n```')
+      caretOnLine(0)
+
+      act(() => {
+        mocks.fileDragDropOptions.onTextDropped('${a}')
+      })
+
+      expect(serializeComposerDocument(editor).tokens.map((token) => token.label)).toEqual(['a'])
+    })
+
+    it('keeps expanded file text literal inside a block', async () => {
+      const pastedFile = {
+        id: 'file-1',
+        name: 'pasted_text.txt',
+        origin_name: '已粘贴的文本.txt',
+        path: '/tmp/pasted_text.txt',
+        composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+      }
+      const pastedToken = { id: 'file:file-1', kind: 'file' as const, label: 'pasted.txt', payload: pastedFile }
+      mocks.fsReadText.mockResolvedValue('${a}')
+      await renderDraft('```\n\n```')
+      caretOnLine(1)
+      await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+
+      render(
+        <>
+          {mocks.editorPresetOptions.renderToken(pastedToken, {
+            selected: false,
+            nodeViewProps: { getPos: () => undefined, node: { nodeSize: 1 } }
+          })}
+        </>
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'chat.input.paste_text_file' }))
+
+      await waitFor(() => expect(serializeComposerDocument(editor).text).toBe('```\n${a}\n```'))
+      expect(serializeComposerDocument(editor).tokens).toEqual([])
+    })
+
+    it('restores a draft without turning fenced variables into tokens', async () => {
+      await renderDraft('```\n${a}\n```')
+
+      expect(serializeComposerDocument(editor).tokens).toEqual([])
+    })
+  })
+
+  describe('Markdown code blocks', () => {
+    const pressEnter = async (props: Partial<ComposerSurfaceProps>) => {
+      const onSendDraft = vi.fn()
+      render(<ComposerSurface {...baseProps} text="hello" {...props} onSendDraft={onSendDraft} />)
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+      const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true })
+      const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+      return { event, handled, onSendDraft }
+    }
+
+    beforeEach(() => {
+      mocks.handleMarkdownCodeKey.mockReset()
+    })
+
+    it('never sends when a code block takes Enter', async () => {
+      mocks.handleMarkdownCodeKey.mockReturnValue(true)
+
+      const { event, handled, onSendDraft } = await pressEnter({ markdownLivePreview: true })
+
+      expect(handled).toBe(true)
+      expect(event.defaultPrevented).toBe(true)
+      expect(onSendDraft).not.toHaveBeenCalled()
+    })
+
+    it('sends as configured when Enter is outside a code block', async () => {
+      const { onSendDraft } = await pressEnter({ markdownLivePreview: true })
+
+      await waitFor(() => expect(onSendDraft).toHaveBeenCalledTimes(1))
+    })
+
+    it('keeps Enter unchanged on surfaces without live preview', async () => {
+      mocks.handleMarkdownCodeKey.mockReturnValue(true)
+
+      const { onSendDraft } = await pressEnter({})
+
+      await waitFor(() => expect(onSendDraft).toHaveBeenCalledTimes(1))
+    })
+
+    describe('selection formatting keys', () => {
+      async function pressFormatKey(props: Partial<ComposerSurfaceProps>) {
+        render(<ComposerSurface {...baseProps} text="hello" {...props} />)
+        await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+        const reachedApp = vi.fn()
+        window.addEventListener('keydown', reachedApp)
+        const target = document.createElement('div')
+        target.addEventListener('keydown', (event) => mocks.editorOptions.editorProps.handleKeyDown(null, event))
+        document.body.append(target)
+        target.dispatchEvent(new KeyboardEvent('keydown', { key: 'i', metaKey: true, bubbles: true, cancelable: true }))
+        target.remove()
+        window.removeEventListener('keydown', reachedApp)
+        return reachedApp
+      }
+
+      beforeEach(() => {
+        mocks.handleMarkdownFormatKey.mockReset()
+      })
+
+      it('keeps a handled key away from the app shortcut handler', async () => {
+        mocks.handleMarkdownFormatKey.mockReturnValue(true)
+
+        expect(await pressFormatKey({ markdownLivePreview: true })).not.toHaveBeenCalled()
+      })
+
+      it('passes an unhandled key on to the app shortcut handler', async () => {
+        expect(await pressFormatKey({ markdownLivePreview: true })).toHaveBeenCalledTimes(1)
+      })
+
+      it('leaves surfaces without live preview alone', async () => {
+        mocks.handleMarkdownFormatKey.mockReturnValue(true)
+
+        expect(await pressFormatKey({})).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    it('follows the code theme palette on live-preview surfaces only', async () => {
+      const withPalette = (color: string, props: Partial<ComposerSurfaceProps>) => (
+        <CodeStyleContext value={{ codeBlockStyle: { '--code-syntax-keyword': color } } as never}>
+          <ComposerSurface {...baseProps} {...props} />
+        </CodeStyleContext>
+      )
+      const keywordColor = () =>
+        screen
+          .getByTestId('editor-content')
+          .closest<HTMLElement>('[data-slot="scroll-area"]')
+          ?.style.getPropertyValue('--code-syntax-keyword')
+
+      const { rerender, unmount } = render(withPalette('red', { markdownLivePreview: true }))
+      await waitFor(() => expect(keywordColor()).toBe('red'))
+      rerender(withPalette('blue', { markdownLivePreview: true }))
+      await waitFor(() => expect(keywordColor()).toBe('blue'))
+      unmount()
+
+      render(withPalette('red', {}))
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+      expect(keywordColor()).toBe('')
+    })
+  })
+
+  it('returns to the regular presentation for explicit multiple lines that do not overflow', async () => {
     render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
 
     const inputbar = document.getElementById('inputbar')
     const editorElement = screen.getByTestId('composer-editor')
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
 
-    editorElement.innerHTML = '<p>hello<br><br class="ProseMirror-trailingBreak"></p>'
+    editorElement.innerHTML = '<p>hello</p><p><br class="ProseMirror-trailingBreak"></p>'
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
   })
@@ -1761,6 +2044,30 @@ describe('ComposerSurface', () => {
     )
     expect(mocks.insertContent).toHaveBeenCalledWith(' ')
     expect(mocks.chainRun).toHaveBeenCalled()
+  })
+
+  it('handles Shift+Tab mode switching without intercepting modified shortcuts or composition', async () => {
+    let mode = 'ordinary'
+    render(
+      <ComposerSurface
+        {...baseProps}
+        onShiftTab={() => {
+          mode = mode === 'ordinary' ? 'plan' : 'ordinary'
+        }}
+      />
+    )
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const key = { key: 'Tab', shiftKey: true, isComposing: false, preventDefault: vi.fn(), stopPropagation: vi.fn() }
+    const handle = mocks.editorOptions.editorProps.handleKeyDown
+    expect(handle(null, key)).toBe(true)
+    expect(mode).toBe('plan')
+    handle(null, { ...key, repeat: true })
+    expect(mode).toBe('plan')
+    handle(null, { ...key, ctrlKey: true })
+    handle(null, { ...key, isComposing: true })
+    expect(mode).toBe('plan')
+    handle(null, key)
+    expect(mode).toBe('ordinary')
   })
 
   it('uses Tab to select the next prompt variable token', async () => {
@@ -4397,7 +4704,7 @@ describe('ComposerSurface', () => {
         )
       })
       expect(editor.getText({ blockSeparator: '\n' })).toBe(plainText)
-      const link = editor.state.doc.firstChild?.lastChild
+      const link = editor.state.doc.lastChild?.lastChild
       expect(link?.type.name).toBe('composerToken')
       expect(link?.attrs).toMatchObject(token)
     } finally {
@@ -4812,6 +5119,49 @@ describe('ComposerSurface', () => {
     })
   })
 
+  it('rebuilds a chip from the live token when the draft seed is empty instead of leaking its prompt text', async () => {
+    // A rebuilt editor keeps the live `text` (which already embeds the token's folded prompt text)
+    // while its token seed was only read once at mount. The chip must come back from the live
+    // token, not materialize the prompt text as plain prose.
+    const promptText = 'The user attached knowledge base "Notes" (id: kb-1).'
+    render(
+      <ComposerSurface
+        {...baseProps}
+        text={`${promptText} `}
+        tokens={[
+          {
+            id: 'knowledge:kb-1',
+            kind: 'knowledge',
+            label: 'Notes',
+            promptText
+          }
+        ]}
+        draftTokens={undefined}
+      />
+    )
+
+    expect(mocks.editorOptions.content).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: {
+                id: 'knowledge:kb-1',
+                kind: 'knowledge',
+                label: 'Notes',
+                promptText
+              }
+            },
+            { type: 'text', text: ' ' }
+          ]
+        }
+      ]
+    })
+  })
+
   it('preserves serialized file token payload when initializing draft content', async () => {
     render(
       <ComposerSurface
@@ -4932,7 +5282,7 @@ describe('ComposerSurface', () => {
       },
       chain: () => ({
         focus: () => ({
-          setMeta: () => ({ insertContent })
+          setMeta: () => ({ insertComposerLines: insertContent })
         })
       })
     }
@@ -4987,7 +5337,7 @@ describe('ComposerSurface', () => {
       },
       chain: () => ({
         focus: () => ({
-          setMeta: () => ({ insertContent })
+          setMeta: () => ({ insertComposerLines: insertContent })
         })
       })
     }
@@ -5049,7 +5399,7 @@ describe('ComposerSurface', () => {
         clipboardData: { getData: (type: string) => (type === 'text/plain' ? pastedText : ''), files: [] }
       })
       expect(editor.getText({ blockSeparator: '\n' })).toBe(draft + pastedText)
-      expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.getByRole('button', { name: 'chat.input.restore' })).toBeInTheDocument()
 
       editor.commands.selectAll()
       fireEvent.paste(editor.view.dom, {
@@ -5410,7 +5760,7 @@ describe('ComposerSurface', () => {
     const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
-    expect(mocks.setHardBreak).toHaveBeenCalledTimes(1)
+    expect(mocks.splitComposerLine).toHaveBeenCalledTimes(1)
     expect(onSendDraft).not.toHaveBeenCalled()
   })
 
@@ -5425,14 +5775,14 @@ describe('ComposerSurface', () => {
 
     const newline = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, newline)).toBe(true)
-    expect(mocks.setHardBreak).toHaveBeenCalledTimes(1)
+    expect(mocks.splitComposerLine).toHaveBeenCalledTimes(1)
     expect(onSendDraft).not.toHaveBeenCalled()
 
     // Shift+Enter is no longer the line break once the preference points elsewhere.
     const shiftEnter = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, shiftEnter)).toBe(true)
     expect(shiftEnter.defaultPrevented).toBe(true)
-    expect(mocks.setHardBreak).toHaveBeenCalledTimes(1)
+    expect(mocks.splitComposerLine).toHaveBeenCalledTimes(1)
   })
 
   it('falls back to Enter for line breaks when the send shortcut takes Shift+Enter', async () => {
@@ -5444,7 +5794,7 @@ describe('ComposerSurface', () => {
 
     const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
-    expect(mocks.setHardBreak).toHaveBeenCalledTimes(1)
+    expect(mocks.splitComposerLine).toHaveBeenCalledTimes(1)
   })
 
   it('uses Shift+Enter to send while editing when it is configured as the send shortcut', async () => {
@@ -5534,7 +5884,7 @@ describe('ComposerSurface', () => {
     // Swallowed rather than forwarded: the base keymap would otherwise split the single block.
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(onSendDraft).not.toHaveBeenCalled()
-    expect(mocks.setHardBreak).not.toHaveBeenCalled()
+    expect(mocks.splitComposerLine).not.toHaveBeenCalled()
   })
 
   it('does not restore editor focus after an async send when focus moved elsewhere', async () => {

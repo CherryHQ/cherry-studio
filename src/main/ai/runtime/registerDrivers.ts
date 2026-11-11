@@ -4,10 +4,14 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '@main/ai/runtime/fork'
-import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import { claudeWorkspaceRelocation, createClaudeCodeRuntimeDriver, readClaudeTranscriptEvidence } from './claudeCode'
+import {
+  ClaudeForkCheckpointSchema,
+  claudeWorkspaceRelocation,
+  createClaudeCodeRuntimeDriver,
+  readClaudeTranscriptEvidence
+} from './claudeCode'
 import { listEntries, reclaimStale } from './orphanSessionReclaim'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
 import { PiDurableRuntimeDriver } from './piDurable/PiDurableRuntimeDriver'
@@ -24,16 +28,15 @@ const logger = loggerService.withContext('LazyClaudeCodeRuntimeDriver')
 class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly type = 'claude-code'
-  readonly capabilities = ['agent-session'] as const
+
+  isForkCheckpoint(value: unknown): boolean {
+    return ClaudeForkCheckpointSchema.safeParse(value).success
+  }
 
   private implementationPromise: Promise<AgentSessionRuntimeDriver> | undefined
 
   validateSession(session: AgentSessionEntity): Promise<void> {
     return this.loadImplementation().then((driver) => driver.validateSession(session))
-  }
-
-  listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
-    return this.loadImplementation().then((driver) => driver.listAvailableTools(mcpIds))
   }
 
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
