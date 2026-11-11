@@ -6051,7 +6051,7 @@
   "settings.tool.websearch.errors.save_failed": "บันทึกไม่สำเร็จ",
   "settings.tool.websearch.errors.zhipu_sync_failed": "ซิงค์ Zhipu API Key ไปยัง Web Search ไม่สำเร็จ โปรดบันทึกคีย์อีกครั้งหรือตรวจสอบการตั้งค่า Web Search",
   "settings.tool.websearch.fetch_urls_provider": "ผู้ให้บริการดึง URL",
-  "settings.tool.websearch.model_tools_preferred.description": "เลือกใช้เครื่องมือค้นหาเว็บและดึง URL ของโมเดลก่อน พร้อมสำรองไปยังบริการด้านบนโดยอัตโนมัติเมื่อไม่พร้อมใช้งาน",
+  "settings.tool.websearch.model_tools_preferred.description": "เลือกใช้เครื่องมือค้นหาเว็บและดึง URL ของโมเดลก่อนสำหรับการค้นหาเว็บในแชท พร้อมสลับไปใช้บริการด้านบนโดยอัตโนมัติเมื่อไม่สามารถใช้เครื่องมือเหล่านี้ได้ การสนทนากับเอเจนต์จะใช้บริการด้านบนเสมอ",
   "settings.tool.websearch.model_tools_preferred.label": "เลือกใช้เครื่องมือเว็บของโมเดล",
   "settings.tool.websearch.provider_description.bocha": "AI search API จีนที่มีผลลัพธ์เว็บและโครงสร้างเวลาจริง",
   "settings.tool.websearch.provider_description.crawl4ai": "ใช้ Crawl4AI Cloud พร้อมคีย์ API หรือป้อนที่อยู่ Crawl4AI ที่โฮสต์เอง โดยจะระบุโทเค็นหรือไม่ก็ได้",

@@ -6051,7 +6051,7 @@
   "settings.tool.websearch.errors.save_failed": "Save failed",
   "settings.tool.websearch.errors.zhipu_sync_failed": "Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings.",
   "settings.tool.websearch.fetch_urls_provider": "URL fetch provider",
-  "settings.tool.websearch.model_tools_preferred.description": "Prefer model-native web search and URL fetching, with automatic fallback to the services above when unavailable.",
+  "settings.tool.websearch.model_tools_preferred.description": "Prefer model-native web search and URL fetching for web search in chat, with automatic fallback to the services above when unavailable. Agent conversations always use the services above.",
   "settings.tool.websearch.model_tools_preferred.label": "Prefer model-native web tools",
   "settings.tool.websearch.provider_description.bocha": "Chinese AI search API with real-time web and structured results.",
   "settings.tool.websearch.provider_description.crawl4ai": "Use Crawl4AI Cloud with an API key, or enter a self-hosted Crawl4AI address with an optional token.",
