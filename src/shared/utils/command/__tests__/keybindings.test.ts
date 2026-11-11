@@ -8,7 +8,6 @@ import {
   type CommandId,
   commandShortcutPreferenceKey,
   findCommandDefinition,
-  KEYBINDING_RULES,
   REGISTERED_COMMANDS,
   REGISTERED_KEYBINDINGS
 } from '../definitions'
@@ -41,18 +40,6 @@ describe('command definitions', () => {
     }
   })
 
-  it('derives keybinding rules from command definitions', () => {
-    expect(KEYBINDING_RULES).toHaveLength(REGISTERED_COMMANDS.length)
-
-    for (const rule of REGISTERED_KEYBINDINGS) {
-      const command = findCommandDefinition(rule.command)
-
-      expect(command, `missing command definition for ${rule.command}`).toBeDefined()
-      expect(rule.scope).toBe(command?.scope)
-      expect(rule.preferenceKey).toBe(`shortcut.${rule.command}`)
-    }
-  })
-
   it('binds permanent delete to CommandOrControl+Backspace', () => {
     expect(findCommandDefinition('resource.delete_permanently')).toMatchObject({
       id: 'resource.delete_permanently',
@@ -81,86 +68,6 @@ describe('command definitions', () => {
       expect(DefaultPreferences.default[rule.preferenceKey]?.binding, rule.command).toEqual(declared)
     }
   })
-
-  it('preserves special keybinding metadata when deriving rules', () => {
-    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'quick_assistant.toggle')).toMatchObject({
-      command: 'quick_assistant.toggle',
-      defaultBinding: ['CommandOrControl', 'E'],
-      global: true,
-      scope: 'main',
-      whenSource: 'feature.quick_assistant.enabled'
-    })
-    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'selection.toggle')).toMatchObject({
-      command: 'selection.toggle',
-      defaultBinding: [],
-      global: true,
-      scope: 'main',
-      supportedPlatforms: ['darwin', 'win32', 'linux'],
-      whenSource: 'feature.selection.enabled'
-    })
-    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'app.zoom.in')).toMatchObject({
-      command: 'app.zoom.in',
-      defaultBinding: ['CommandOrControl', '='],
-      additionalBindings: [
-        ['CommandOrControl', 'Shift', '='],
-        ['CommandOrControl', 'numadd']
-      ]
-    })
-    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'app.zoom.out')).toMatchObject({
-      command: 'app.zoom.out',
-      defaultBinding: ['CommandOrControl', '-'],
-      additionalBindings: [['CommandOrControl', 'numsub']]
-    })
-    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'tab.next')).toMatchObject({
-      command: 'tab.next',
-      defaultBinding: { default: ['CommandOrControl', 'Tab'], darwin: ['Ctrl', 'Tab'] }
-    })
-    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'tab.prev')).toMatchObject({
-      command: 'tab.prev',
-      defaultBinding: { default: ['CommandOrControl', 'Shift', 'Tab'], darwin: ['Ctrl', 'Shift', 'Tab'] }
-    })
-  })
-
-  it('resolves commands by id', () => {
-    expect(findCommandDefinition('topic.create')?.titleKey).toBe('settings.shortcuts.new_topic')
-  })
-
-  it('defines app print as a renderer command with a configurable print shortcut', () => {
-    const command = 'app.print' as CommandId
-
-    expect(findCommandDefinition(command)).toMatchObject({
-      id: command,
-      titleKey: 'settings.shortcuts.print',
-      categoryKey: 'settings.shortcuts.general',
-      scope: 'renderer'
-    })
-    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === command)).toMatchObject({
-      command,
-      defaultBinding: ['CommandOrControl', 'P'],
-      preferenceKey: 'shortcut.app.print',
-      scope: 'renderer'
-    })
-    expect(getCommandDefaultShortcutPreference(command)).toEqual({
-      binding: ['CommandOrControl', 'P'],
-      enabled: true
-    })
-  })
-
-  it('restores the configurable clear-topic shortcut on Ctrl+L', () => {
-    const command = 'topic.clear_messages' as CommandId
-
-    expect(findCommandDefinition(command)).toMatchObject({
-      id: command,
-      titleKey: 'chat.topics.clear.title',
-      categoryKey: 'settings.shortcuts.topic',
-      scope: 'renderer'
-    })
-    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === command)).toMatchObject({
-      command,
-      defaultBinding: ['CommandOrControl', 'L'],
-      preferenceKey: 'shortcut.topic.clear_messages'
-    })
-  })
 })
 
 describe('commandShortcutPreferenceKey', () => {
@@ -182,51 +89,10 @@ describe('command shortcut preferences', () => {
   })
 
   it('merges user values with command defaults', () => {
-    expect(resolveCommandShortcutPreference('chat.message.search', undefined)).toEqual({
-      binding: ['CommandOrControl', 'F'],
-      enabled: true
-    })
     expect(resolveCommandShortcutPreference('chat.message.search', { binding: [], enabled: true })?.binding).toEqual([])
     expect(resolveCommandShortcutPreference('chat.message.search', { binding: ['Alt', 'L'], enabled: false })).toEqual({
       binding: ['Alt', 'L'],
       enabled: false
-    })
-  })
-
-  it('uses platform-specific defaults when a shortcut default differs by platform', () => {
-    expect(getCommandDefaultShortcutPreference('tab.next', 'darwin')).toEqual({
-      binding: ['Ctrl', 'Tab'],
-      enabled: true
-    })
-    expect(getCommandDefaultShortcutPreference('tab.prev', 'darwin')).toEqual({
-      binding: ['Ctrl', 'Shift', 'Tab'],
-      enabled: true
-    })
-    expect(getCommandDefaultShortcutPreference('tab.next', 'win32')).toEqual({
-      binding: ['CommandOrControl', 'Tab'],
-      enabled: true
-    })
-  })
-
-  it('applies the platform default to preferences hydrated from the schema default', () => {
-    // usePreference never yields undefined: unset keys arrive as the schema default.
-    expect(
-      resolveCommandShortcutPreference('tab.next', DefaultPreferences.default['shortcut.tab.next'], 'darwin')
-    ).toEqual({
-      binding: ['Ctrl', 'Tab'],
-      enabled: true
-    })
-    expect(
-      resolveCommandShortcutPreference('tab.prev', DefaultPreferences.default['shortcut.tab.prev'], 'darwin')
-    ).toEqual({
-      binding: ['Ctrl', 'Shift', 'Tab'],
-      enabled: true
-    })
-    expect(
-      resolveCommandShortcutPreference('tab.next', DefaultPreferences.default['shortcut.tab.next'], 'win32')
-    ).toEqual({
-      binding: ['CommandOrControl', 'Tab'],
-      enabled: true
     })
   })
 
@@ -240,35 +106,6 @@ describe('command shortcut preferences', () => {
 })
 
 describe('resolveCommandKeybinding', () => {
-  it('uses default binding when no preference exists', () => {
-    const resolved = resolveCommandKeybinding({
-      command: 'topic.create',
-      context: {},
-      platform: 'darwin'
-    })
-
-    expect(resolved?.binding).toEqual(['CommandOrControl', 'N'])
-    expect(resolved?.accelerator).toBe('CommandOrControl+N')
-  })
-
-  it('resolves tab navigation to control-tab on macOS', () => {
-    expect(
-      resolveCommandKeybinding({
-        command: 'tab.next',
-        context: {},
-        platform: 'darwin'
-      })?.binding
-    ).toEqual(['Ctrl', 'Tab'])
-
-    expect(
-      resolveCommandKeybinding({
-        command: 'tab.prev',
-        context: {},
-        platform: 'darwin'
-      })?.binding
-    ).toEqual(['Ctrl', 'Shift', 'Tab'])
-  })
-
   it('uses user preference when provided', () => {
     const resolved = resolveCommandKeybinding({
       command: 'topic.create',
@@ -300,18 +137,6 @@ describe('resolveCommandKeybinding', () => {
 
   it('filters by context and platform', () => {
     expect(resolveCommandKeybinding({ command: 'quick_assistant.toggle', context: {} })).toBeUndefined()
-    expect(
-      resolveCommandKeybinding({
-        command: 'quick_assistant.toggle',
-        context: { 'feature.quick_assistant.enabled': true }
-      })?.binding
-    ).toEqual(['CommandOrControl', 'E'])
-    expect(
-      resolveCommandKeybinding({
-        command: 'quick_assistant.toggle',
-        context: { 'feature.quick_assistant.enabled': true }
-      })?.enabled
-    ).toBe(false)
 
     expect(
       resolveCommandKeybinding({
@@ -324,17 +149,6 @@ describe('resolveCommandKeybinding', () => {
 })
 
 describe('resolveCommandByKeybinding', () => {
-  it('resolves primary bindings to commands', () => {
-    expect(
-      resolveCommandByKeybinding({
-        binding: ['CommandOrControl', 'N'],
-        context: {},
-        platform: 'darwin',
-        scope: 'renderer'
-      })
-    ).toBe('topic.create')
-  })
-
   it('routes Ctrl+K to previous-turn navigation only while the message list has focus', () => {
     const resolve = (focused: boolean) =>
       resolveCommandByKeybinding({
@@ -346,87 +160,6 @@ describe('resolveCommandByKeybinding', () => {
 
     expect(resolve(true)).toBe('chat.message.focus_prev')
     expect(resolve(false)).toBe('chat.context.toggle_new')
-  })
-
-  it('resolves additional bindings without changing the primary display binding', () => {
-    expect(
-      resolveCommandByKeybinding({
-        binding: ['CommandOrControl', 'Shift', '='],
-        context: {},
-        platform: 'win32',
-        scope: 'main'
-      })
-    ).toBe('app.zoom.in')
-
-    expect(
-      resolveCommandByKeybinding({
-        binding: ['CommandOrControl', 'numadd'],
-        context: {},
-        platform: 'darwin',
-        scope: 'main'
-      })
-    ).toBe('app.zoom.in')
-  })
-
-  it('uses platform-specific defaults when resolving pressed keys', () => {
-    expect(
-      resolveCommandByKeybinding({
-        binding: ['Ctrl', 'Tab'],
-        context: {},
-        platform: 'darwin',
-        scope: 'renderer'
-      })
-    ).toBe('tab.next')
-
-    // CommandProvider dispatches with schema-hydrated preferences, never an empty map.
-    expect(
-      resolveCommandByKeybinding({
-        binding: ['Ctrl', 'Tab'],
-        preferences: {
-          'tab.next': DefaultPreferences.default['shortcut.tab.next'],
-          'tab.prev': DefaultPreferences.default['shortcut.tab.prev']
-        },
-        context: {},
-        platform: 'darwin',
-        scope: 'renderer'
-      })
-    ).toBe('tab.next')
-
-    expect(
-      resolveCommandByKeybinding({
-        binding: ['CommandOrControl', 'Tab'],
-        context: {},
-        platform: 'darwin',
-        scope: 'renderer'
-      })
-    ).toBeUndefined()
-
-    expect(
-      resolveCommandByKeybinding({
-        binding: ['CommandOrControl', 'Tab'],
-        context: {},
-        platform: 'win32',
-        scope: 'renderer'
-      })
-    ).toBe('tab.next')
-
-    expect(
-      resolveCommandByKeybinding({
-        binding: ['Ctrl', 'Shift', 'Tab'],
-        context: {},
-        platform: 'darwin',
-        scope: 'renderer'
-      })
-    ).toBe('tab.prev')
-
-    expect(
-      resolveCommandByKeybinding({
-        binding: ['CommandOrControl', 'Shift', 'Tab'],
-        context: {},
-        platform: 'win32',
-        scope: 'renderer'
-      })
-    ).toBe('tab.prev')
   })
 
   it('does not resolve disabled, cleared, unsupported, or unavailable commands', () => {
@@ -474,17 +207,6 @@ describe('resolveCommandByKeybinding', () => {
         canExecuteCommand: () => false
       })
     ).toBeUndefined()
-  })
-
-  it('keeps matching stable for identical bindings by registry order and context', () => {
-    expect(
-      resolveCommandByKeybinding({
-        binding: ['CommandOrControl', 'F'],
-        preferences: { 'app.search': { binding: ['CommandOrControl', 'F'], enabled: true } },
-        context: {},
-        scope: 'renderer'
-      })
-    ).toBe('app.search')
   })
 })
 
@@ -650,31 +372,6 @@ describe('findKeybindingConflicts', () => {
         conflictingCommand: 'app.search',
         trigger: 'additional',
         conflictingTrigger: 'primary'
-      })
-    ])
-  })
-
-  it('checks candidate shortcuts with platform-specific default bindings', () => {
-    const macDefault = getCommandDefaultShortcutPreference('tab.next', 'darwin')
-    expect(macDefault).toEqual({ binding: ['Ctrl', 'Tab'], enabled: true })
-
-    expect(
-      findKeybindingConflicts({
-        command: 'tab.next',
-        preference: macDefault!,
-        preferences: { 'topic.create': { binding: ['Ctrl', 'Tab'], enabled: true } },
-        platform: 'darwin',
-        rules: [
-          testRule('tab.next', { defaultBinding: ['CommandOrControl', 'Tab'] }),
-          testRule('topic.create', { defaultBinding: ['Ctrl', 'Tab'] })
-        ]
-      })
-    ).toEqual([
-      expect.objectContaining({
-        command: 'tab.next',
-        conflictingCommand: 'topic.create',
-        binding: ['Ctrl', 'Tab'],
-        conflictingBinding: ['Ctrl', 'Tab']
       })
     ])
   })

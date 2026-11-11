@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import { ComposerToolRuntimeProvider } from '@renderer/components/composer/ComposerToolRuntime'
 import {
@@ -77,6 +78,7 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
 }) => {
   const { t } = useTranslation()
   const [fontSize] = usePreference('chat.message.font_size')
+  const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
   const [hasQuote, setHasQuote] = useState(Boolean(selectedText))
@@ -124,7 +126,13 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
             <span
               aria-hidden="true"
               className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-sm bg-muted text-[11px] leading-none">
-              {getAgentAvatarFromConfiguration(agent.configuration)}
+              <AssistantAvatarImage
+                src={agent.avatarSrc}
+                alt=""
+                size={18}
+                className="rounded-sm object-cover"
+                fallback={getAgentAvatarFromConfiguration(agent.configuration)}
+              />
             </span>
           ) : (
             <Bot className="size-3.5 text-muted-foreground" />
@@ -177,6 +185,7 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
         </div>
         {binary.blocked && <ClaudeCodeDownloadStatus status={binary.status} onRetry={binary.retry} />}
         <ComposerSurface
+          markdownLivePreview={renderInputMessageAsMarkdown}
           text={text}
           onTextChange={onTextChange}
           tokens={[]}

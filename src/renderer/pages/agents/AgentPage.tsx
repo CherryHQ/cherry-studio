@@ -408,7 +408,7 @@ const AgentPage = () => {
   })
   const visibleAgent = conversationBootstrap.resources.agent
   // An agent avatar is an emoji glyph or an image URL; the tab renders each through its own slot.
-  const agentAvatar = visibleAgent?.configuration?.avatar || undefined
+  const agentAvatar = visibleAgent?.avatarSrc || visibleAgent?.configuration?.avatar || undefined
   const agentAvatarIsEmoji = !!agentAvatar && isEmoji(agentAvatar)
   // Label this tab with its agent emoji + session name so multiple Work tabs are distinguishable.
   const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId

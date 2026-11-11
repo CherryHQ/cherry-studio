@@ -1,0 +1,800 @@
+diff --git a/dist/entries.d.ts b/dist/entries.d.ts
+index 63eaa89..376e586 100644
+--- a/dist/entries.d.ts
++++ b/dist/entries.d.ts
+@@ -1,14 +1,14 @@
+ import type { JsonValue } from "@earendil-works/chord/json";
+ import type { CompactionReason, ToolDiagnostic } from "./harness/types.ts";
+-import type { Entry } from "./types.ts";
++import type { Entry, TaskId } from "./types.ts";
+ /** Define a typed entry kind whose `is()` guard narrows by `EntryRecord.kind`. */
+ export declare function defineEntry<D extends JsonValue = never>(kind: string): Entry<D>;
+ /** User input: `model` is `[UserMessage]`. Written by submissions. */
+ export declare const UserEntry: Entry<never>;
+ /** Provider result with any stop reason: `model` is `[AssistantMessage]`. Written by generation. */
+-export declare const AssistantEntry: Entry<never>;
++export declare const AssistantEntry: Entry<{ runId: TaskId }>;
+ /** Positional prompt and tool change: `model` is `[SystemMessage]` with empty `content`. */
+ export declare const SystemEntry: Entry<never>;
+ /**
+  * Tool result: `model` is `[ToolResultMessage]`, whose content ends with the rendered diagnostics block; `data` holds
+  * the structured diagnostics, possibly none. Written by tool tasks, and by generation for calls it did not offer.
+@@ -25,7 +25,9 @@ export declare const ResetEntry: Entry<never>;
+  * Compaction summary: `model` is `[UserMessage]` with the wrapped summary, `head` the first kept entry. Written by
+  * compaction tasks, directly or through a write submission.
+  */
+ export declare const CompactionEntry: Entry<{
+     reason: CompactionReason;
++    runId?: TaskId;
++    metadata?: JsonValue;
+ }>;
+ //# sourceMappingURL=entries.d.ts.map
+\ No newline at end of file
+diff --git a/dist/harness/compaction.d.ts b/dist/harness/compaction.d.ts
+index 02d9e3d..255e39b 100644
+--- a/dist/harness/compaction.d.ts
++++ b/dist/harness/compaction.d.ts
+@@ -2,10 +2,11 @@ import type { Message, ModelThinkingLevel } from "@earendil-works/pi-ai";
+ import type { ConversationId, EntryId, TaskId, Tx } from "../types.ts";
+ import type { CompactionHooks, CompactionPolicy, CompactionReason, CompactionResult, CompactionSettings, ContextView, ConversationStreamOptions, ModelRef, Settings } from "./types.ts";
+ export type CompactionInput = {
+     reason: CompactionReason;
+     instructions?: string;
++    runId?: TaskId;
+ };
+ /** The pinned summarization request. */
+ export type SummaryRequest = {
+     attempt: number;
+     model: ModelRef;
+diff --git a/dist/harness/compaction.js b/dist/harness/compaction.js
+index 54f3ef3..6728b9f 100644
+--- a/dist/harness/compaction.js
++++ b/dist/harness/compaction.js
+@@ -86,11 +86,11 @@ export const CompactionTask = defineTask({
+                     decision = await hook(compaction, runtime, context);
+             });
+             if (decision !== undefined && "decline" in decision)
+                 return complete(runtime, context);
+             if (decision !== undefined)
+-                return place(runtime, firstKept, decision.summary, context);
++                return place(runtime, firstKept, decision.summary, context, decision.metadata);
+             const request = {
+                 attempt: 1,
+                 model: ref,
+                 thinkingLevel: agent.thinkingLevel,
+                 streamOptions: settings.stream,
+@@ -190,13 +190,14 @@ export const CompactionTask = defineTask({
+  * compaction); without one it is conversation-owned, and `background` unless it is manual.
+  */
+ export async function createCompaction(tx, conversationId, input, owner) {
+     const ownership = owner === undefined ? { kind: "conversation" } : { kind: "task", taskId: owner };
+     const background = owner === undefined && input.reason !== "manual";
+-    const taskId = await tx.createTask(CompactionTask, input, { ownership, conversationId, background });
++    const live = await tx.doc(LiveDoc, conversationId);
++    const taskId = await tx.createTask(CompactionTask, { ...input, ...(live.run && { runId: live.run.id ?? live.run.taskId }) }, { ownership, conversationId, background });
+     const status = { taskId, trigger: input.reason, blocking: owner !== undefined, attempt: 1 };
+-    addCompactionStatus(await tx.doc(LiveDoc, conversationId), status);
++    addCompactionStatus(live, status);
+     return taskId;
+ }
+ /**
+  * The compaction policy for `model` in a conversation, field by field: the conversation's `modelOverrides` entry, the
+  * harness's, the conversation's own fields, then the harness-wide policy. A model-specific value beats a general one,
+@@ -375,28 +376,28 @@ function truncate(text, maxChars) {
+     if (text.length <= maxChars)
+         return text;
+     return `${text.slice(0, maxChars)}\n\n[... ${text.length - maxChars} more characters truncated]`;
+ }
+ /** Place a summary supplied by a hook in its own commit. */
+-async function place(runtime, firstKept, summary, context) {
+-    await runtime.commit(async (tx, current) => placeSummary(tx, runtime, current, await tx.doc(LiveDoc, runtime.conversationId), firstKept, summary), context);
++async function place(runtime, firstKept, summary, context, metadata) {
++    await runtime.commit(async (tx, current) => placeSummary(tx, runtime, current, await tx.doc(LiveDoc, runtime.conversationId), firstKept, summary, metadata), context);
+ }
+ /**
+  * Place the summary entry and complete (spec §8.7). A blocking compaction, owned by its generation, appends it: the
+  * generation holds the run and waits. A conversation-owned one admits it as a write submission, placed at once when
+  * idle, otherwise at the next boundary, or settled `stale`.
+  * REMINDER: nothing else may append to a busy conversation, so every non-blocking summary goes through admission.
+  */
+-async function placeSummary(tx, runtime, current, live, firstKept, summary) {
++async function placeSummary(tx, runtime, current, live, firstKept, summary, metadata) {
+     removeCompactionStatus(live, runtime.taskId);
+     delete live.compactionFailure;
+     const text = `${SUMMARY_PREFIX}${summary}${SUMMARY_SUFFIX}`;
+     const entry = {
+         kind: CompactionEntry.kind,
+         head: firstKept,
+         model: [{ role: "user", content: [{ type: "text", text }], timestamp: runtime.now() }],
+-        data: { reason: current.input.reason },
++        data: { reason: current.input.reason, ...(current.input.runId !== undefined && { runId: current.input.runId }), ...(metadata !== undefined && { metadata }) },
+     };
+     const result = current.owner === undefined
+         ? {
+             submissionId: (await admitSubmission(tx, runtime.conversationId, { type: "write", requestId: `compaction:${runtime.taskId}`, entry }, runtime.now(), runtime.settings)).id,
+         }
+diff --git a/dist/harness/generation.d.ts b/dist/harness/generation.d.ts
+index 840a966..0452130 100644
+--- a/dist/harness/generation.d.ts
++++ b/dist/harness/generation.d.ts
+@@ -2,11 +2,11 @@ import type { Draft } from "@earendil-works/chord/delta";
+ import type { DeferredHandle, ModelThinkingLevel } from "@earendil-works/pi-ai";
+ import type { ConversationId, EntryId, SubmissionId, Task, TaskId, Tx } from "../types.ts";
+ import { type LiveState } from "./live.ts";
+ import { type ToolTaskResult } from "./tool.ts";
+ import type { CompactionResult, ConversationStreamOptions, GenerationHooks, ModelRef, RunSummary } from "./types.ts";
+-export type GenerationInput = Record<string, never>;
++export type GenerationInput = { runId?: TaskId };
+ export type GenerationCheckpoint = {
+     phase: "prepare";
+     attempt: number;
+     /** The blocking compaction this generation waited for; it starts no other compaction (spec §8.3). */
+     compacted?: TaskId<CompactionResult>;
+diff --git a/dist/harness/generation.js b/dist/harness/generation.js
+index 27e60bb..736f145 100644
+--- a/dist/harness/generation.js
++++ b/dist/harness/generation.js
+@@ -685,11 +685,11 @@ async function answer(runtime, message, context) {
+             const user = { role: "user", content: continues, timestamp: runtime.now() };
+             await tx.appendEntry(UserEntry, conversationId, { model: [user] });
+             // The continuation starts the run's turn count over: bounding `onYield` loops is the extension's job.
+             if (live.run?.taskId === runtime.taskId)
+                 live.run.turns = 0;
+-            handOver(live, runtime.taskId, await createGeneration(tx, conversationId));
++            handOver(live, runtime.taskId, await createGeneration(tx, conversationId, live.run?.id ?? live.run?.taskId));
+             delete live.generation;
+             return result;
+         }
+         endRun(tx, live, runtime.taskId, { status: "done", answer: entry.id });
+         if (users.length > 0)
+@@ -915,13 +915,16 @@ async function finishToolRound(runtime, assistant, tools, context) {
+                 }
+             }
+             else {
+                 delete live.tools;
+                 delete live.nestedTools;
+-                if (live.run?.taskId === runtime.taskId)
++                if (live.run?.taskId === runtime.taskId) {
++                    live.run.id ??= live.run.taskId;
+                     live.run.inputs.push(...users);
+-                handOver(live, runtime.taskId, await createGeneration(tx, conversationId));
++                    for (const id of users) tx.bindSubmissionRun(id, live.run.id);
++                }
++                handOver(live, runtime.taskId, await createGeneration(tx, conversationId, live.run?.id ?? live.run?.taskId));
+             }
+         }
+         return { status: "terminal", outcome: { status: "completed", result: { entryId: assistant } } };
+     }, context);
+ }
+@@ -929,29 +932,36 @@ async function finishToolRound(runtime, assistant, tools, context) {
+  * Append a provider result and add its usage to `pi.usage` in the same commit.
+  * REMINDER: every built-in writer of assistant entries goes through here, so the usage ledger stays complete.
+  */
+ async function appendAssistant(tx, conversationId, message) {
+     await recordUsage(tx, conversationId, "models", `${message.provider}/${message.model}`, message.usage);
+-    return tx.appendEntry(AssistantEntry, conversationId, { model: [message] });
++    const live = await tx.doc(LiveDoc, conversationId);
++    const runId = live.run?.id ?? live.run?.taskId;
++    return tx.appendEntry(AssistantEntry, conversationId, {
++        model: [message], ...(runId === undefined ? {} : { data: { runId } })
++    });
+ }
+ /**
+  * Start a run for `inputs`, placed input submissions, whose first entry is `first` (`LiveRun.first`): a new generation
+  * takes `pi.live.run`. Removes `runFailure`, unless `keepFailure`: a run started in the commit that ended the failed one
+  * keeps its failure.
+  */
+ export async function startRun(tx, conversationId, live, run, options) {
+     const { inputs, first } = run;
+-    const taskId = await createGeneration(tx, conversationId, { submissionIds: inputs });
+-    live.run = { taskId, inputs, turns: 0, ...(first === undefined ? {} : { first }) };
++    const taskId = await createGeneration(tx, conversationId, undefined, { submissionIds: inputs });
++    live.run = { id: taskId, taskId, inputs, turns: 0, ...(first === undefined ? {} : { first }) };
++    for (const id of inputs) tx.bindSubmissionRun(id, taskId);
+     if (options?.keepFailure !== true)
+         delete live.runFailure;
+ }
+ /** A generation owned by its conversation. */
+-function createGeneration(tx, conversationId, telemetry = {}) {
+-    return tx.createTask(GenerationTask, {}, { ownership: { kind: "conversation" }, conversationId, ...telemetry });
++function createGeneration(tx, conversationId, runId, telemetry = {}) {
++    return tx.createTask(GenerationTask, runId === undefined ? {} : { runId }, { ownership: { kind: "conversation" }, conversationId, ...telemetry });
+ }
+ /** Hand run control from `from` to `to`; the run's inputs move with it. */
+ export function handOver(live, from, to) {
+-    if (live.run?.taskId === from)
++    if (live.run?.taskId === from) {
++        live.run.id ??= from;
+         live.run.taskId = to;
++    }
+ }
+ //# sourceMappingURL=generation.js.map
+\ No newline at end of file
+diff --git a/dist/harness/harness.js b/dist/harness/harness.js
+index e286f00..a9492d6 100644
+--- a/dist/harness/harness.js
++++ b/dist/harness/harness.js
+@@ -4,12 +4,12 @@ import { createTypedMetrics, NOOP_TELEMETRY_CONTEXT, NOOP_TELEMETRY_METRICS, } f
+ import { ResetEntry } from "../entries.js";
+ import { contained, SessionImpl } from "../session/session.js";
+ import { hostTimers } from "../timers.js";
+ import { ROOT_CONVERSATION_ID } from "../types.js";
+ import { AgentDoc, configure, createAgent, resolveAgent, resolveSettings } from "./agent.js";
+-import { createCompaction } from "./compaction.js";
+-import { readContext } from "./context.js";
++import { compactionPolicy, createCompaction, estimateContext } from "./compaction.js";
++import { readContext, readContextFrom } from "./context.js";
+ import { InboxDoc, withdrawQueuedInputs } from "./inbox.js";
+ import { LIMITS_RESTARTS, LiveDoc, settleSchedulerOutcome } from "./live.js";
+ import { ProviderDoc } from "./provider.js";
+ import { BUILTIN_TASKS } from "./registry.js";
+ import { TaskScheduler } from "./scheduler.js";
+@@ -25,10 +25,11 @@ export const SCHEDULER_INDEX_SIZES = Symbol.for("pi-durable.schedulerIndexSizes"
+ /** Key of the Harness's internal idle-state getter (kept contexts against a full recompute), for tests. */
+ export const SCHEDULER_IDLE_STATE = Symbol.for("pi-durable.schedulerIdleState");
+ class ConversationImpl {
+     id;
+     #host;
++    #contextRange;
+     constructor(id, host) {
+         this.id = id;
+         this.#host = host;
+     }
+     agent(context) {
+@@ -59,10 +60,29 @@ class ConversationImpl {
+         return this.#host.harness.commitWith(change, context, { conversationId: this.id }, options);
+     }
+     context(context, options) {
+         return readContext(this.#host.harness, this.#host.storage, this.id, context, options?.at);
+     }
++    async contextUsage(context) {
++        const before = await this.agent(context);
++        const model = before.model && this.#host.models().getModel(before.model.provider, before.model.modelId);
++        if (!model || model.contextWindow <= 0) return undefined;
++        const { view, range } = await readContextFrom(this.#host.harness, this.#host.storage, this.id, context, undefined, this.#contextRange);
++        const after = await this.agent(context);
++        if (JSON.stringify(before) !== JSON.stringify(after)) return undefined;
++        this.#contextRange = range;
++        const policy = compactionPolicy(this.#host.settings(), before.model, before.compaction);
++        return {
++            model: before.model,
++            revision: JSON.stringify([range?.bounds.head?.id, range?.bounds.tail, before, policy]),
++            contextWindow: model.contextWindow,
++            tokens: estimateContext(view, []),
++            ...(policy.enabled ? { compactionThreshold: Math.max(0, model.contextWindow - policy.reserveTokens) } : {}),
++            messages: view.messages,
++            deferred: [...before.deferred, ...before.callable.filter(tool => !before.tools.some(loaded => loaded.name === tool.name) && !before.deferred.some(deferred => deferred.name === tool.name))],
++        };
++    }
+     entries(query, limit, cursor, context) {
+         const scan = conversationEntries(this.id, query);
+         return this.#host.harness.readOnLine((storage) => storage.scanEntries(scan, limit, cursor, context));
+     }
+     fork(at, options, context) {
+@@ -116,16 +136,17 @@ class HarnessImpl extends SessionImpl {
+         const storage = this.storage;
+         this.#options = options;
+         this.#report = report;
+         this.#hostSettings = hostSettings;
+         const settings = () => resolveSettings(hostSettings());
++        const models = currentModels(options.models, options.identity);
+         this.#tasks = new TaskScheduler({
+             telemetry: options.telemetry,
+             session: this,
+             storage,
+             registry: options.registry,
+-            models: currentModels(options.models, options.identity),
++            models,
+             agent: (id, snapshot, callContext) => this.resolveAgent(id, snapshot, callContext),
+             settings,
+             env: (id, callContext) => this.buildEnv(id, callContext),
+             now,
+             onWake: options.onWake,
+@@ -151,10 +172,12 @@ class HarnessImpl extends SessionImpl {
+             harness: this,
+             storage,
+             tasks: this.#tasks,
+             submissions: this.#submissions,
+             views: new ConversationViews(this),
++            models,
++            settings,
+             now,
+             create: (target, createOptions, context) => this.#create(target, createOptions, context),
+         };
+     }
+     /** Resolve a conversation's committed `pi.agent` against `snapshot`, or the current one, and the current settings. */
+diff --git a/dist/harness/live.d.ts b/dist/harness/live.d.ts
+index f5df477..602a7e4 100644
+--- a/dist/harness/live.d.ts
++++ b/dist/harness/live.d.ts
+@@ -108,10 +108,12 @@ export type RunFailure = {
+     /** The failed run's `run.first`, so a continue's `afterRun` hooks see its history too. */
+     first?: EntryId;
+ };
+ /** Run control (spec §8.2). */
+ export type LiveRun = {
++    /** First generation task, stable across tool rounds and retries. */
++    id?: TaskId;
+     /** The task that settles the run's inputs: its generation, handed from one to the next. */
+     taskId: TaskId;
+     /** The run's placed inputs, settled when it ends; `[]` once it answered and runs only its `afterRun` tasks. */
+     inputs: SubmissionId[];
+     /** Tool rounds so far, which `AgentState.maxTurns` bounds; an `onYield` continuation starts the count over. */
+diff --git a/dist/harness/prompt.js b/dist/harness/prompt.js
+index d9433a8..fb0690c 100644
+--- a/dist/harness/prompt.js
++++ b/dist/harness/prompt.js
+@@ -1,10 +1,11 @@
+-import { declarationsEqual, getCurrentTools, toToolDeclaration } from "@earendil-works/pi-ai/utils/transcript";
++import { getCurrentSystemMessage, declarationsEqual, getCurrentTools, toToolDeclaration } from "@earendil-works/pi-ai/utils/transcript";
+ import { SystemEntry } from "../entries.js";
+ /** Sections in effect after replaying system messages in order: set in place, `null` deletes, re-adding appends. */
+ export function replaySections(messages) {
+     const shown = new Map();
++    shown.sources = getCurrentSystemMessage(messages)?.contextSources?.sections ?? {};
+     for (const message of messages) {
+         if (message.role !== "system" || message.sections === undefined)
+             continue;
+         for (const [key, value] of Object.entries(message.sections)) {
+             if (value === null)
+@@ -19,26 +20,33 @@ export function replaySections(messages) {
+  * Render the agent's sections in order. `undefined` omits a section; tagged text is wrapped as `<key>\n...\n</key>`. A
+  * section that throws keeps its shown text, if any, and is reported; errors after `context` is aborted propagate.
+  */
+ export async function renderSections(sections, input, shown, report, context) {
+     const desired = new Map();
++    desired.sources = {};
+     for (const section of sections) {
+         let text;
+         try {
+             text = await section.render(input, context);
+         }
+         catch (error) {
+             if (context.abortSignal?.aborted)
+                 throw error;
+             report(error, section);
+             const kept = shown.get(section.key);
+-            if (kept !== undefined)
++            if (kept !== undefined) {
+                 desired.set(section.key, kept);
++                if (shown.sources?.[section.key]) desired.sources[section.key] = shown.sources[section.key];
++            }
+             continue;
+         }
+         if (text === undefined)
+             continue;
++        if (typeof text === "object") {
++            desired.sources[section.key] = text.source;
++            text = text.text;
++        }
+         desired.set(section.key, section.tag === false ? text : `<${section.key}>\n${text}\n</${section.key}>`);
+     }
+     return desired;
+ }
+ /**
+@@ -52,10 +60,20 @@ export async function renderSections(sections, input, shown, report, context) {
+  * - Otherwise the minimal patch of changed values and `null` removals, or nothing.
+  *
+  * Tool changes ride on the last planned entry, or on one entry of their own.
+  */
+ export function planSystemEntries(view, desired, tools, timestamp) {
++    const entries = planEntries(view, desired, tools, timestamp);
++    const contextSources = { sections: desired.sources ?? {}, tools: Object.fromEntries(tools.map(tool => [tool.name,
++        tool.contextSource ?? { kind: "system-tools" }])) };
++    const current = getCurrentSystemMessage(view.messages)?.contextSources;
++    if (entries.length === 0 && JSON.stringify(current) !== JSON.stringify(contextSources))
++        entries.push(systemEntry(undefined, undefined, timestamp));
++    if (entries.length) entries.at(-1).model[0].contextSources = contextSources;
++    return entries;
++}
++function planEntries(view, desired, tools, timestamp) {
+     const head = view.head;
+     if (head !== undefined && !view.entries.some((entry) => SystemEntry.is(entry) && entry.id > head.id)) {
+         const edits = view.entries
+             .filter((entry) => SystemEntry.is(entry))
+             .map((entry) => ({ target: entry.id, action: "omit" }));
+diff --git a/dist/harness/types.d.ts b/dist/harness/types.d.ts
+index 7f4a0ba..48e8bb5 100644
+--- a/dist/harness/types.d.ts
++++ b/dist/harness/types.d.ts
+@@ -281,10 +281,11 @@ type IsAny<T> = boolean extends (T extends never ? true : false) ? true : false;
+  * Executable tool registered in a registry. Only pi-ai `Tool` fields enter the transcript. `args` are typed by
+  * `parameters` (any JSON Schema object; see {@link ToolArgs}), which the Harness validates them against before
+  * `execute()`; `defineTool()` infers both generics.
+  */
+ export type ToolRegistration<TParameters extends object = object, TDetails extends JsonValue = JsonValue> = Tool<TParameters> & {
++    readonly contextSource?: import("@earendil-works/pi-ai").ContextSource;
+     /** Whether an interrupted execution may rerun on recovery. Default `unsafe`. */
+     readonly replay?: "safe" | "unsafe";
+     /** Default: the settings' `toolExecution`. One sequential call makes its whole round sequential. */
+     readonly executionMode?: ToolExecutionMode;
+     /**
+@@ -326,14 +327,15 @@ export type PromptInput<Tool extends ToolRegistration = ToolRegistration> = {
+     /** Sections already in effect after replaying the active transcript. */
+     readonly shown: Readonly<Record<string, string>>;
+     /** Committed document reads. */
+     readonly read: DocumentReader;
+ };
++export type PromptSectionContent = string | undefined | { text: string; source: import("@earendil-works/pi-ai").ContextSource };
+ /** One system prompt section; the agent's sections render in order before each request. */
+ export type PromptSection<Tool extends ToolRegistration = ToolRegistration> = {
+     readonly key: string;
+-    render(input: PromptInput<Tool>, context: Context): string | undefined | Promise<string | undefined>;
++    render(input: PromptInput<Tool>, context: Context): PromptSectionContent | Promise<PromptSectionContent>;
+     /** Default true: wrap the text as `<key>\n...\n</key>`. */
+     readonly tag?: boolean;
+ };
+ /** Built by `hook()`; matches tasks by name. */
+ export type HookRegistration = {
+@@ -463,11 +465,11 @@ export type Agent<Tool extends ToolRegistration = ToolRegistration> = {
+     /** The tools a request offers, in order: enabled, callable by the model, and selected by `modelTools`. */
+     readonly tools: readonly Tool[];
+     /** The tools nested calls (`executeTool()`) resolve among, in order: enabled and callable by tools. */
+     readonly callable: readonly Tool[];
+     /** Enabled deferred tools the model may call and is not offered yet, in registry order: what `tool_search` loads. */
+-    readonly deferred: readonly Tool[];
++    readonly deferred: readonly ToolRegistration[];
+     /** Extension sections, then `instructions` when set. */
+     readonly sections: readonly PromptSection<Tool>[];
+     readonly instructions?: string;
+     readonly cwd?: string;
+     /**
+@@ -756,12 +758,23 @@ export type ContextView = {
+     readonly contributions: readonly (readonly Message[])[];
+     /** Model context for the next provider request. */
+     readonly messages: readonly Message[];
+ };
+ /** Stateless handle for one conversation, bound to the Harness that returned it. Compare handles by `id`. */
++export interface ConversationContextUsage {
++    readonly model: { readonly provider: string; readonly modelId: string };
++    readonly revision: string;
++    readonly contextWindow: number;
++    readonly tokens: number;
++    readonly compactionThreshold?: number;
++    readonly deferred: readonly ToolRegistration[];
++    readonly messages: readonly Message[];
++}
+ export interface Conversation {
+     readonly id: ConversationId;
++    /** Passive committed-context estimate, using the same accounting as threshold compaction. Does not resume tasks. */
++    contextUsage(context: Context): Promise<ConversationContextUsage | undefined>;
+     /** Resolved with the current registry snapshot and settings. */
+     agent(context: Context): Promise<Agent>;
+     /** `configure()` in its own commit. */
+     configure(change: AgentChange, context: Context): Promise<void>;
+     /**
+@@ -1003,9 +1016,11 @@ export interface CompactionHooks {
+         readonly instructions?: string;
+     }, api: HookApi, context: Context): HookResult<{
+         readonly decline: true;
+     } | {
+         readonly summary: string;
++        /** Opaque host data persisted with the summary entry. */
++        readonly metadata?: JsonValue;
+     }>;
+ }
+ export {};
+ //# sourceMappingURL=types.d.ts.map
+\ No newline at end of file
+diff --git a/dist/harness/view.d.ts b/dist/harness/view.d.ts
+index 1a20990..766560b 100644
+--- a/dist/harness/view.d.ts
++++ b/dist/harness/view.d.ts
+@@ -1,9 +1,9 @@
+ import { type Context } from "@earendil-works/chord/context";
+ import { type WatchCall, type WatchEnd, type WatchHandle } from "@earendil-works/chord/watch";
+ import { type SessionImpl } from "../session/session.ts";
+-import type { ConversationId, ConversationRecord, EntryId, EntryRecord, JsonObject, Observation, Observer } from "../types.ts";
++import type { ConversationId, ConversationRecord, EntryId, EntryRecord, JsonObject, Observation, Observer, Storage } from "../types.ts";
+ /** Structural view of one conversation: a window over its transcript and its built-in documents (spec §9.3). */
+ export type ConversationView = {
+     readonly conversation: ConversationRecord;
+     /**
+      * A window over the transcript, its fork-aware history (`Conversation.entries()`), in entry ID order. Head markers
+@@ -19,10 +19,12 @@ export type ConversationView = {
+  * Which entries a view's window holds (spec §9.3). The window holds between `min` and `max` entries: it starts with
+  * the newest `min` entries, takes appends, and once it would hold more than `max`, drops its oldest in one splice down
+  * to `min`. With `from`, it starts at `from` instead when at most `max` entries are at or after it.
+  */
+ export type ConversationWindow = {
++    /** Observe the complete active context instead of a bounded transcript window. */
++    readonly active?: boolean;
+     /**
+      * Where the first value's window starts, inclusive, such as right after the newest entry a client has
+      * (`ConversationTranscript.resume`). It selects only that first value: every entry committed after the attachment is
+      * appended, whatever its ID. A `from` past the newest entry starts the window empty, with `before` the newest entry.
+      */
+@@ -59,11 +61,11 @@ export declare class ConversationViews {
+     watch(id: ConversationId, context: Context, window?: ConversationWindow): Promise<WatchHandle<ConversationView>>;
+     /**
+      * Register an observer created from its window's first revision, atomically on the Session line: it sees every later
+      * publication and nothing earlier. `release` drops it, and the mount with its last observer.
+      */
+-    attach<O extends ViewObserver>(id: ConversationId, window: ConversationWindow | undefined, create: (value: ConversationView, release: () => void) => O, context: Context): Promise<{
++    attach<O extends ViewObserver>(id: ConversationId, window: ConversationWindow | undefined, create: (value: ConversationView, release: () => void, storage: Storage) => O | Promise<O>, context: Context): Promise<{
+         observer: O;
+         detach: () => void;
+     }>;
+ }
+ //# sourceMappingURL=view.d.ts.map
+\ No newline at end of file
+diff --git a/dist/harness/view.js b/dist/harness/view.js
+index 7b5dbf2..bead6b7 100644
+--- a/dist/harness/view.js
++++ b/dist/harness/view.js
+@@ -1,10 +1,11 @@
+ import { withoutAbortSignal } from "@earendil-works/chord/context";
+ import { applyImmutable } from "@earendil-works/chord/delta";
+ import { Watch } from "@earendil-works/chord/watch";
+ import { idFromNumber } from "../ids.js";
+ import { closeEndOf, closeEnds, contained, guardObserver, observation, } from "../session/session.js";
++import { captureContextBounds, deriveContext } from "./context.js";
+ import { AgentDoc } from "./agent.js";
+ import { InboxDoc } from "./inbox.js";
+ import { LiveDoc } from "./live.js";
+ import { ProviderDoc } from "./provider.js";
+ import { UsageDoc } from "./usage.js";
+@@ -108,25 +109,27 @@ export class ConversationViews {
+      */
+     async attach(id, window, create, context) {
+         const bounds = resolveWindow(window);
+         return this.#session.readOnLine(async (storage) => {
+             const mount = this.#mounts.get(id) ?? (await this.#build(storage, id, context));
+-            const { entries, before } = await loadWindow(storage, id, bounds, context);
++            const { entries, before } = window?.active
++                ? await deriveContext(storage, id, await captureContextBounds(this.#session, storage, id, context), context)
++                : await loadWindow(storage, id, bounds, context);
+             const value = view(mount.conversation, entries, before, mount.docs);
+             let windowed;
+             const detach = () => {
+                 if (windowed !== undefined)
+                     mount.observers.delete(windowed);
+                 if (mount.observers.size === 0 && this.#mounts.get(id) === mount)
+                     this.#mounts.delete(id);
+             };
+-            const observer = create(value, detach);
++            const observer = await create(value, detach, storage);
+             // Close or cancellation may begin while the mount hydrates; register nothing then.
+             if (this.#closed)
+                 throw closedError(this.#session);
+             context.abortSignal?.throwIfAborted();
+-            windowed = { min: bounds.min, max: bounds.max, value, observer };
++            windowed = { active: window?.active, min: bounds.min, max: bounds.max, value, observer };
+             this.#mounts.set(id, mount);
+             mount.observers.add(windowed);
+             return { observer, detach };
+         });
+     }
+@@ -214,22 +217,33 @@ function advance(id, mount, publication, context, report) {
+         else {
+             mount.incarnations.set(kind, { id: change.record.id, version: change.version });
+             docOps.push(["s", path, change.value]);
+         }
+     }
+-    if (docOps.length === 0 && appended.length === 0)
+-        return;
+     if (docOps.length > 0)
+         mount.docs = applyImmutable({ docs: mount.docs }, docOps).docs;
+     const frameContext = withoutAbortSignal(context);
+     const inserted = appended;
+     for (const windowed of [...mount.observers]) {
+         const previous = windowed.value;
+         let entries = previous.entries;
+         let before = previous.before;
+         let ops = docOps;
+-        if (appended.length > 0) {
++        if (windowed.active && appended.length > 0) {
++            ops = [...docOps];
++            for (const entry of appended) {
++                if (entry.head === undefined) {
++                    ops.push(["p", ["entries"], entries.length, 0, [entry]]);
++                    entries = [...entries, entry];
++                } else {
++                    const first = entries.findIndex((candidate) => candidate.head === undefined && candidate.id >= entry.head);
++                    const drop = first < 0 ? entries.length : first;
++                    ops.push(["p", ["entries"], 0, drop, [entry]]);
++                    entries = [entry, ...entries.slice(drop)];
++                }
++            }
++        } else if (appended.length > 0) {
+             ops = [...docOps, ["p", ["entries"], entries.length, 0, inserted]];
+             entries = entries.concat(appended);
+             if (entries.length > windowed.max) {
+                 const drop = entries.length - windowed.min;
+                 before = entries[drop - 1].id;
+@@ -237,11 +251,12 @@ function advance(id, mount, publication, context, report) {
+                 ops.push(["p", ["entries"], 0, drop, []], ["s", ["before"], before]);
+             }
+         }
+         windowed.value = view(mount.conversation, entries, before, mount.docs);
+         const call = { kind: "value", value: windowed.value, ops, retired: false };
+-        contained(() => windowed.observer.advance(call, frameContext), report);
++        if (ops.length > 0)
++            contained(() => windowed.observer.advance(call, frameContext), report);
+     }
+ }
+ /** `op` moved under `prefix`; a root replacement becomes a set of the prefix. */
+ function prefixed(op, prefix) {
+     const at = (path) => [...prefix, ...path];
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 051d498..0c9027f 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -1,5 +1,6 @@
++export { conversationViews } from "./harness/view.ts";
+ export type { NativeWatchCall, WatchCall, WatchEnd, WatchHandle } from "@earendil-works/chord/watch";
+ export { defineDoc, defineDocFamily } from "./documents.ts";
+ export { AssistantEntry, CompactionEntry, defineEntry, ResetEntry, SystemEntry, ToolResultEntry, UserEntry, } from "./entries.ts";
+ export { ConversationBusy, ConversationIdle, ReadAfterWrite, ReadOnlySession, SessionFailed, StorageRequestError, } from "./errors.ts";
+ export { AgentDoc, configure, DEFAULT_COMPACTION_POLICY, DEFAULT_PROGRESS_POLICY, DEFAULT_RESTART_LIMIT, DEFAULT_RETRY_POLICY, } from "./harness/agent.ts";
+@@ -17,11 +18,11 @@ export type { TaskGraph, TaskGraphNode, TaskGraphState, TaskGraphWatch } from ".
+ export { DURABLE_TELEMETRY_SCHEMA } from "./harness/telemetry.ts";
+ export { NestedCallDoc, type NestedCallState, ToolTask, type ToolTaskCheckpoint, type ToolTaskInput, type ToolTaskResult, } from "./harness/tool.ts";
+ export { ConversationTranscript, type ConversationTranscriptOptions, type EntryLoader, type TranscriptItem, type TranscriptView, } from "./harness/transcript.ts";
+ export type { AfterFailedRun, Agent, AgentChange, AgentState, AnyTask, CompactionHooks, CompactionPolicy, CompactionReason, CompactionResult, CompactionSettings, ContextView, Conversation, ConversationAbortOptions, ConversationCreateOptions, ConversationHandle, ConversationInit, ConversationRetryPolicy, ConversationStreamOptions, ConversationWatch, EnvTarget, Extension, GenerationHooks, HarnessInspection, HarnessOptions, HarnessSettings, HookApi, HookRegistration, HookResult, HooksOf, InputEntry, InputSubmissionDraft, ModelRef, NestedToolExecutionResult, ProgressPolicy, PromptInput, PromptSection, QueueMode, Registry, RegistryReader, RegistrySnapshot, RunEndTask, RunSummary, Settings, SettledSubmissionRecord, SettledTask, Submission, SubmissionDraft, TaskInspection, ToolControl, ToolDiagnostic, ToolExecutionApi, ToolExecutionMode, ToolExecutionResult, ToolHookCall, ToolHooks, ToolRegistration, UserInput, Wake, Wrap, } from "./harness/types.ts";
+ export { UsageDoc, type UsageState } from "./harness/usage.ts";
+-export type { ConversationView, ConversationWindow } from "./harness/view.ts";
++export type { ConversationView, ConversationWindow, ViewObserver } from "./harness/view.ts";
+ export { createSession } from "./session/session.ts";
+ export { MemoryStorage } from "./storage/memory.ts";
+ export { defineTask } from "./tasks.ts";
+ export type { CheckpointInfo, CommitChange, CommitObservation, CommitObserver, CommitOptions, CommitPersistence, CommitPublication, CommitResult, CommonDocDefinition, ContextEdit, ConversationDocFamilyToken, ConversationDocToken, ConversationId, ConversationOwnership, ConversationQuery, ConversationRecord, Cursor, DocDefinition, DocFamilyDefinition, DocFamilyToken, DocToken, DocumentAddress, DocumentCommitChange, DocumentContent, DocumentCopySource, DocumentCreate, DocumentId, DocumentObserver, DocumentPoint, DocumentQuery, DocumentReader, DocumentRecord, DocumentSemantics, DocumentWatch, Entry, EntryDraft, EntryId, EntryQuery, EntryRecord, HookRunner, HostCallback, Id, JoinPolicy, JsonObject, LatestConversationSemantics, NextTaskState, Observation, Observer, Page, PhaseHandler, Report, ReportFrom, ReportInfo, ReportTask, RewindableConversationDocFamilyToken, RewindableConversationDocToken, RewindableConversationSemantics, RunningTask, ScanOrder, Seq, Session, SessionDocFamilyToken, SessionDocToken, SessionEnd, SetTimer, Storage, StorageWrite, StoredDocument, SubmissionCreate, SubmissionId, SubmissionQuery, SubmissionRecord, SubmissionSettlement, TableCommitChange, Task, TaskDefinition, TaskDocFamilyToken, TaskDocToken, TaskId, TaskOptions, TaskOutcome, TaskOutcomeError, TaskOwnership, TaskQuery, TaskRecord, TaskRuntime, TaskState, Tx, TypedEntry, TypedEntryDraft, } from "./types.ts";
+ export { ROOT_CONVERSATION_ID } from "./types.ts";
+diff --git a/dist/index.js b/dist/index.js
+index 0f748f5..4a6a0cc 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1,5 +1,6 @@
++export { conversationViews } from "./harness/view.js";
+ export { defineDoc, defineDocFamily } from "./documents.js";
+ export { AssistantEntry, CompactionEntry, defineEntry, ResetEntry, SystemEntry, ToolResultEntry, UserEntry, } from "./entries.js";
+ export { ConversationBusy, ConversationIdle, ReadAfterWrite, ReadOnlySession, SessionFailed, StorageRequestError, } from "./errors.js";
+ export { AgentDoc, configure, DEFAULT_COMPACTION_POLICY, DEFAULT_PROGRESS_POLICY, DEFAULT_RESTART_LIMIT, DEFAULT_RETRY_POLICY, } from "./harness/agent.js";
+ export { CompactionTask, } from "./harness/compaction.js";
+diff --git a/dist/session/transaction.d.ts b/dist/session/transaction.d.ts
+index b2f88d0..ed2e142 100644
+--- a/dist/session/transaction.d.ts
++++ b/dist/session/transaction.d.ts
+@@ -125,10 +125,12 @@ export declare class Transaction implements Tx {
+      * committed state, so it is not a caller table read and works after the first table write.
+      */
+     settleSubmission(id: SubmissionId, settlement: SubmissionSettlement): void;
+     /** Place a queued submission at `entry`; resolved during assembly like `settleSubmission()`. */
+     placeSubmission(id: SubmissionId, entry: EntryId): void;
++    /** Bind a placed input to its consuming run in the same commit; settled inputs retain the identity. */
++    bindSubmissionRun(id: SubmissionId, runId: TaskId): void;
+     /** Internal: replace one task record completely. Tasks change their own state through their runtime. */
+     setTask(value: AnyTaskRecord): void;
+     /** Internal: candidate records of the tasks this transaction created or replaced so far. */
+     stagedTasks(): AnyTaskRecord[];
+     /** Internal: IDs of the tasks this transaction creates. */
+diff --git a/dist/session/transaction.js b/dist/session/transaction.js
+index 1ddb158..323b0bb 100644
+--- a/dist/session/transaction.js
++++ b/dist/session/transaction.js
+@@ -11,10 +11,17 @@ import { documentKey, incarnationKey, scopeKey, tableKeys } from "./keys.js";
+  * continue is never queued, so never placed. Only a placed input or continue can be answered. A settled record stays.
+  */
+ function applySubmissionChange(current, change) {
+     if (current.status === "done" || current.status === "unanswered")
+         return current;
++    if ("runId" in change) {
++        if (current.type !== "input" || current.status !== "placed")
++            throw new Error(`Submission ${current.id} is not a placed input`);
++        if (current.runId !== undefined && current.runId !== change.runId)
++            throw new Error(`Submission ${current.id} already belongs to another run`);
++        return { ...current, runId: change.runId };
++    }
+     if (change.status === "placed") {
+         if (current.status !== "queued")
+             throw new Error(`Submission ${current.id} is not queued`);
+         const status = current.type === "input" ? "placed" : "done";
+         return { ...current, status, entry: change.entry };
+@@ -276,10 +283,15 @@ export class Transaction {
+     placeSubmission(id, entry) {
+         this.#assertOpen();
+         this.#hasTableWrite = true;
+         this.#submissionChanges.push({ id, change: { status: "placed", entry } });
+     }
++    bindSubmissionRun(id, runId) {
++        this.#assertOpen();
++        this.#hasTableWrite = true;
++        this.#submissionChanges.push({ id, change: { runId } });
++    }
+     /** Internal: replace one task record completely. Tasks change their own state through their runtime. */
+     setTask(value) {
+         this.#assertOpen();
+         this.#hasTableWrite = true;
+         const task = this.#taskEntry(value.id);
+diff --git a/dist/storage/sqlite/storage.d.ts b/dist/storage/sqlite/storage.d.ts
+index 22a6246..beb3545 100644
+--- a/dist/storage/sqlite/storage.d.ts
++++ b/dist/storage/sqlite/storage.d.ts
+@@ -20,10 +20,12 @@ export declare class SqliteStorage implements Storage {
+     private admittedReads;
+     private readsDrained;
+     private constructor();
+     /** Initialize storage over an owned SQLite database facade. */
+     static open(db: SqliteDatabase, options?: SqliteStorageOptions): Promise<SqliteStorage>;
++    /** Open initialized storage without migrations; the database must already exist. */
++    static openExisting(db: SqliteDatabase, options?: SqliteStorageOptions): Promise<SqliteStorage>;
+     /**
+      * Commit `batches` in one SQL transaction, each with its own seq. Each batch is checked before it writes anything,
+      * against the state the earlier ones left, and the first one refused ends the batch: the transaction commits the ones
+      * before it. No savepoints, which Durable Objects do not allow: the checks run before the writes instead. The checks
+      * read the stored state of all batches up front and run in memory, and the accepted batches are written per table in
+diff --git a/dist/storage/sqlite/storage.js b/dist/storage/sqlite/storage.js
+index 6d3a6eb..f00752a 100644
+--- a/dist/storage/sqlite/storage.js
++++ b/dist/storage/sqlite/storage.js
+@@ -1,11 +1,11 @@
+ import { apply } from "@earendil-works/chord/delta";
+ import { StorageRequestError } from "../../errors.js";
+ import { idFromNumber, seqFromNumber } from "../../ids.js";
+ import { nextCursor, scanStart } from "../scan.js";
+ import { CommitState, claimOf, PendingWrites, prepareDocumentActions } from "./commit.js";
+-import { applySqliteMigrationsForSchema } from "./migrations.js";
++import { applySqliteMigrationsForSchema, CURRENT_SQLITE_SCHEMA_VERSION } from "./migrations.js";
+ import { addressParts, encodeIndexedString, isCurrentOnly, parseJson, scopeColumns } from "./rows.js";
+ import { createSqliteSchema } from "./schema.js";
+ const cursorId = (cursor) => {
+     const after = cursor?.after;
+     if (after === undefined)
+@@ -92,10 +92,27 @@ export class SqliteStorage {
+      * read the stored state of all batches up front and run in memory, and the accepted batches are written per table in
+      * multi-row statements (`commit.ts`), so a call costs a few statements whatever its number of batches. A batch with a
+      * copy reads the copy's source from the database: the batches before it are written first, so a call of many fork
+      * batches costs a few statements per fork.
+      */
++    /** Open an initialized store without schema writes or implicit creation. */
++    static async openExisting(db, options = {}) {
++        try {
++            const schema = createSqliteSchema(options.prefix);
++            const version = await db.get(`SELECT version FROM ${schema.tables.durableSchema} WHERE singleton = 1`);
++            if (version?.version !== CURRENT_SQLITE_SCHEMA_VERSION)
++                throw new Error("Durable SQLite schema requires explicit migration");
++            const metadata = await db.get(`SELECT next_id FROM ${schema.tables.durableMetadata} WHERE singleton = 1`);
++            const nextId = Number(metadata?.next_id);
++            if (!Number.isSafeInteger(nextId) || nextId < 2)
++                throw new Error("Durable SQLite metadata is invalid");
++            return new SqliteStorage(db, schema, nextId);
++        } catch (error) {
++            try { await db.close(); } catch { /* Preserve the opening failure. */ }
++            throw error;
++        }
++    }
+     async commit(batches, receive, _context) {
+         this.assertOpen();
+         const seqs = [];
+         let refused;
+         let candidateNextId = this.nextId;
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index 783d564..7328423 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -458,10 +458,12 @@ type SubmissionRecordBase = {
+     readonly requestId?: string;
+ };
+ /** Durable lifecycle of one admitted user input, passive entry write, or continue. */
+ export type SubmissionRecord = (SubmissionRecordBase & {
+     readonly type: "input";
++    /** First generation task of the consuming run; absent until placement or on pre-metadata records. */
++    readonly runId?: TaskId;
+ } & ({
+     /** Admitted but not yet represented in the transcript. */
+     readonly status: "queued";
+     readonly entry?: never;
+     readonly answer?: never;
+@@ -940,10 +942,12 @@ export interface Tx {
+     /**
+      * Place a queued submission at `entry`: an input becomes `placed`, a write `done`. Resolved like
+      * `settleSubmission()`. Inbox boundaries place the submissions they select.
+      */
+     placeSubmission(id: SubmissionId, entry: EntryId): void;
++    /** Bind a placed input to its consuming run in the same commit; settled inputs retain the identity. */
++    bindSubmissionRun(id: SubmissionId, runId: TaskId): void;
+     doc<T extends JsonObject>(token: SessionDocToken<T>): Promise<Draft<T>>;
+     doc<T extends JsonObject>(token: ConversationDocToken<T>, conversationId: ConversationId): Promise<Draft<T>>;
+     doc<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId): Promise<Draft<T>>;
+     doc<T extends JsonObject, I extends JsonValue>(token: SessionDocFamilyToken<T, I>, key: string, seed: I): Promise<Draft<T>>;
+     doc<T extends JsonObject, I extends JsonValue>(token: ConversationDocFamilyToken<T, I>, conversationId: ConversationId, key: string, seed: I): Promise<Draft<T>>;
