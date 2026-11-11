@@ -1023,6 +1023,7 @@ export class AiStreamManager extends BaseService {
     interactionWindowId?: AiStreamRequest['interactionWindowId']
     mcpToolIds?: string[]
     disabledToolNames?: string[]
+    toolApprovalMode?: AiStreamRequest['toolApprovalMode']
     automationAccess?: AiStreamRequest['automationAccess']
     /** Trusted caller's admitted model snapshot, including its selected wire endpoint. */
     resolvedModel?: AsInProcess<AiStreamRequest>['resolvedModel']
@@ -1067,6 +1068,7 @@ export class AiStreamManager extends BaseService {
       interactionWindowId: input.interactionWindowId,
       mcpToolIds: input.mcpToolIds,
       disabledToolNames: input.disabledToolNames,
+      toolApprovalMode: input.toolApprovalMode,
       automationAccess: input.automationAccess,
       ...(input.resolvedModel ? { resolvedModel: input.resolvedModel } : {}),
       messages,

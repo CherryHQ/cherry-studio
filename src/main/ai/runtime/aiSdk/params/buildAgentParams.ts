@@ -535,6 +535,15 @@ export async function resolveTools(
       webToolRoutes
     })
     .filter((entry) => !request.disabledToolNames?.includes(entry.name))
+    .map((entry): ToolEntry => {
+      if (!request.toolApprovalMode) return entry
+      // Clone per request: changing the registry would change the main conversation's permissions.
+      return {
+        ...entry,
+        defer: 'never',
+        tool: { ...entry.tool, needsApproval: request.toolApprovalMode !== 'bypassPermissions' }
+      }
+    })
   // Client tools (no `execute`) from assistant-less callers; merged below so
   // they share the registry/defer-exposition path.
   const clientTools = request.callOverrides?.tools

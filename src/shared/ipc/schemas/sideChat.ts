@@ -6,6 +6,7 @@ import {
   SideChatConfigSchema,
   SideChatSourceSchema,
   SideChatSourceIdSchema,
+  SideChatTurnSettingsSchema,
   type SavedSideChat
 } from '../../data/types/sideChat'
 import { ComposerMessageSnapshotSchema, KnowledgeScopePartDataSchema } from '../../data/types/uiParts'
@@ -59,7 +60,8 @@ export const sideChatRequestSchemas = {
           .strictObject({
             reasoningEffort: ReasoningEffortOptionSchema.optional(),
             serviceTier: ServiceTierSelectionSchema.optional(),
-            fastMode: z.boolean().optional()
+            fastMode: z.boolean().optional(),
+            sideChat: SideChatTurnSettingsSchema.optional()
           })
           .optional(),
         modelId: SideChatConfigSchema.shape.modelId.optional(),

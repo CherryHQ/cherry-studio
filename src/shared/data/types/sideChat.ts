@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import { AgentPermissionModeSchema } from '../api/schemas/agents'
 import { UniqueModelIdSchema } from './model'
 
 /** Ordinary topic UUID or the existing Agent conversation stream identity. */
@@ -33,6 +34,11 @@ export const SideChatMetadataSchema = z.strictObject({
 export type SideChatSource = z.infer<typeof SideChatSourceSchema>
 export type SideChatSnapshot = z.infer<typeof SideChatSnapshotSchema>
 export type SideChatConfig = z.infer<typeof SideChatConfigSchema>
+export const SideChatTurnSettingsSchema = z.strictObject({
+  permissionMode: AgentPermissionModeSchema.extract(['default', 'bypassPermissions']),
+  skills: z.array(z.string().min(1).max(255)).max(20)
+})
+export type SideChatTurnSettings = z.infer<typeof SideChatTurnSettingsSchema>
 export type SideChatMetadata = z.infer<typeof SideChatMetadataSchema>
 
 /** Main-owned structural data on the side topic's existing virtual root, never model history. */

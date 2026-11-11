@@ -19,6 +19,7 @@ import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
+import { SideChatTurnSettingsSchema, type SideChatTurnSettings } from './sideChat'
 import type { CherryDataPartTypes } from './uiParts'
 
 /**
@@ -141,6 +142,7 @@ export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
 
 /** Request controls frozen when an assistant turn is created. */
 export interface AssistantTurnOptions {
+  sideChat?: SideChatTurnSettings
   reasoningEffort?: ReasoningEffortOption
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
@@ -426,6 +428,8 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
       return false
     }
     if (v.turnOptions.fastMode !== undefined && typeof v.turnOptions.fastMode !== 'boolean') return false
+    if (v.turnOptions.sideChat !== undefined && !SideChatTurnSettingsSchema.safeParse(v.turnOptions.sideChat).success)
+      return false
   }
   return true
 })

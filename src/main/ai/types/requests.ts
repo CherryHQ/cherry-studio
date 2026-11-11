@@ -83,6 +83,8 @@ export interface AiChatRequest extends AiRequest {
   mcpToolIds?: string[]
   /** Main-internal restrictions inherited from an agent on a chat-style request. */
   disabledToolNames?: string[]
+  /** Isolated side-chat approval policy; omitted preserves the caller's existing tool policy. */
+  toolApprovalMode?: 'default' | 'bypassPermissions'
   /** Trusted in-process caller revalidates automation access for non-topic conversations. */
   automationAccess?: () => { browser: boolean; computer: boolean }
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
