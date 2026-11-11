@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-11-04T07:38:07.847Z
- * Total icons: 173
+ * Generated at: 2026-11-09T23:13:40.544Z
+ * Total icons: 174
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -153,6 +153,7 @@ export { StabilityIcon as Stability } from './stability'
 export { StepIcon as Step } from './step'
 export { StreamlakeIcon as Streamlake } from './streamlake'
 export { SunoIcon as Suno } from './suno'
+export { SuperbotIcon as Superbot } from './superbot/superbot'
 export { TavilyIcon as Tavily } from './tavily'
 export { TencentCloudTiIcon as TencentCloudTi } from './tencent-cloud-ti'
 export { TesseractJsIcon as TesseractJs } from './tesseract-js'
