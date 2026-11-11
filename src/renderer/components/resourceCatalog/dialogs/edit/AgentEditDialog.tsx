@@ -112,6 +112,7 @@ type AgentEditFormValues = {
   permissionMode: string
   envVarsText: string
   heartbeatEnabled: boolean
+  sharedMemoryEnabled: boolean
   heartbeatInterval: number
   heartbeatTimeoutMinutes: number
   languageMode: AgentLanguageMode
@@ -170,6 +171,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
     heartbeatEnabled: form.heartbeatEnabled,
+    sharedMemoryEnabled: form.sharedMemoryEnabled,
     heartbeatInterval: form.heartbeatInterval,
     heartbeatTimeoutMinutes: form.heartbeatTimeoutMinutes,
     languageMode: form.languageMode,
@@ -203,6 +205,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
     heartbeatEnabled: values.heartbeatEnabled,
+    sharedMemoryEnabled: values.sharedMemoryEnabled,
     heartbeatInterval: values.heartbeatInterval,
     heartbeatTimeoutMinutes: values.heartbeatTimeoutMinutes,
     languageMode: values.languageMode,
@@ -239,6 +242,7 @@ function advanceAgentFormBaseline(
     if (hasOwn(configuration, 'permission_mode')) next.permissionMode = submitted.permissionMode
     if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
     if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
+    if (hasOwn(configuration, 'shared_memory_enabled')) next.sharedMemoryEnabled = submitted.sharedMemoryEnabled
     if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
     if (hasOwn(configuration, 'heartbeat_timeout_minutes'))
       next.heartbeatTimeoutMinutes = submitted.heartbeatTimeoutMinutes
@@ -261,6 +265,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
+  form.setValue('sharedMemoryEnabled', next.sharedMemoryEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
   form.setValue('heartbeatTimeoutMinutes', next.heartbeatTimeoutMinutes, { shouldDirty: true })
   form.setValue('languageMode', next.languageMode, { shouldDirty: true })
@@ -794,6 +799,25 @@ function AgentBasicFields({
           ) : null}
         </div>
       ) : null}
+      <FormField
+        control={form.control}
+        name="sharedMemoryEnabled"
+        render={({ field }) => (
+          <FormItem className={editDialogFormRowClassName}>
+            <FormLabel className={editDialogFormRowLabelClassName}>{t('settings.memory.use')}</FormLabel>
+            <div className="flex h-9 items-center">
+              <FormControl>
+                <Switch
+                  size="sm"
+                  checked={field.value}
+                  onCheckedChange={(checked) => patchAgentForm({ sharedMemoryEnabled: checked })}
+                  aria-label={t('settings.memory.use')}
+                />
+              </FormControl>
+            </div>
+          </FormItem>
+        )}
+      />
     </div>
   )
 }

@@ -48,10 +48,7 @@ interface ReadBaseline {
   generation: number
 }
 
-export type MemoryMutation =
-  | { kind: 'write'; receipt: string; content: string }
-  | { kind: 'delete'; receipt: string }
-  | { kind: 'rename'; receipt: string; destinationReceipt: string }
+export type MemoryMutation = { kind: 'write'; receipt: string; content: string } | { kind: 'delete'; receipt: string }
 
 export interface MemoryChangePreview {
   path: string
@@ -196,14 +193,8 @@ export class MemoryStore {
       if (mutation.kind === 'write') {
         assertMemoryContent(baseline.path, mutation.content)
         changes.push({ path: baseline.path, before, after: Buffer.from(mutation.content) })
-      } else if (mutation.kind === 'delete') {
-        if (before === null) throw new MemoryError('conflict', 'Cannot delete an absent memory file')
-        changes.push({ path: baseline.path, before, after: null })
       } else {
-        if (before === null) throw new MemoryError('conflict', 'Cannot rename an absent memory file')
-        const destination = this.baseline(access, mutation.destinationReceipt)
-        assertMemoryContent(destination.path, this.decode(before))
-        changes.push({ path: destination.path, before: await this.readMatching(destination), after: before })
+        if (before === null) throw new MemoryError('conflict', 'Cannot delete an absent memory file')
         changes.push({ path: baseline.path, before, after: null })
       }
     }

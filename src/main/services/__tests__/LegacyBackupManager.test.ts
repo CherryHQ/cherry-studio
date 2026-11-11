@@ -2,6 +2,7 @@ import type * as CryptoModule from 'node:crypto'
 import { Readable, Writable } from 'node:stream'
 import type * as PathModule from 'path'
 
+import { mockMemoryService } from '@test-mocks/main/MemoryService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as FileUtils from '@main/utils/file'
@@ -267,49 +268,53 @@ vi.mock('fs-extra', () => ({
   }
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn((name: string) => {
-      if (name === 'MainWindowService') {
-        return { getMainWindow: vi.fn() }
-      }
-      if (name === 'WindowManager') {
-        return mockWindowManager
-      }
-      if (name === 'DbService') {
-        return mockDbService
-      }
-      if (name === 'CacheService') {
-        return mockCacheService
-      }
-      if (name === 'AgentLifecycleService') {
-        return mockAgentLifecycle
-      }
-      if (name === 'AgentJobsService') return mockAgentJobs
-      if (name === 'JobManager') {
-        return mockJobManager
-      }
-      if (name === 'AiStreamManager') {
-        return mockAiStreamManager
-      }
-      throw new Error(`[MockApplication] Unknown service: ${name}`)
-    }),
-    getPath: vi.fn((key: string, filename?: string) => {
-      const paths: Record<string, string> = {
-        'app.userdata': '/mock/userData',
-        'app.userdata.data': '/mock/userData/Data',
-        'app.database.file': '/mock/userData/Data/cherrystudio.sqlite',
-        'feature.backup.temp': '/mock/temp/backup',
-        'feature.backup.restore.file': '/mock/userData/Data/restore-journal.json',
-        'feature.backup.restore.staging': '/mock/userData/restore-staging',
-        'feature.agents.claude.root': '/mock/userData/Data/Agents/.claude'
-      }
-      const base = paths[key] ?? '/mock/unknown'
-      return filename ? `${base}/${filename}` : base
-    }),
-    relaunch: mockRelaunch
+vi.mock('@application', async () => {
+  const { mockMemoryService } = await import('@test-mocks/main/MemoryService')
+  return {
+    application: {
+      get: vi.fn((name: string) => {
+        if (name === 'MainWindowService') {
+          return { getMainWindow: vi.fn() }
+        }
+        if (name === 'WindowManager') {
+          return mockWindowManager
+        }
+        if (name === 'DbService') {
+          return mockDbService
+        }
+        if (name === 'CacheService') {
+          return mockCacheService
+        }
+        if (name === 'AgentLifecycleService') {
+          return mockAgentLifecycle
+        }
+        if (name === 'AgentJobsService') return mockAgentJobs
+        if (name === 'MemoryService') return mockMemoryService
+        if (name === 'JobManager') {
+          return mockJobManager
+        }
+        if (name === 'AiStreamManager') {
+          return mockAiStreamManager
+        }
+        throw new Error(`[MockApplication] Unknown service: ${name}`)
+      }),
+      getPath: vi.fn((key: string, filename?: string) => {
+        const paths: Record<string, string> = {
+          'app.userdata': '/mock/userData',
+          'app.userdata.data': '/mock/userData/Data',
+          'app.database.file': '/mock/userData/Data/cherrystudio.sqlite',
+          'feature.backup.temp': '/mock/temp/backup',
+          'feature.backup.restore.file': '/mock/userData/Data/restore-journal.json',
+          'feature.backup.restore.staging': '/mock/userData/restore-staging',
+          'feature.agents.claude.root': '/mock/userData/Data/Agents/.claude'
+        }
+        const base = paths[key] ?? '/mock/unknown'
+        return filename ? `${base}/${filename}` : base
+      }),
+      relaunch: mockRelaunch
+    }
   }
-}))
+})
 
 vi.mock('../WebDav', () => ({
   // Return a distinct object per construction so instance identity is observable.
@@ -870,6 +875,23 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockDbService.checkpointTruncate).not.toHaveBeenCalled()
     expect(mockHeartbeatHold.dispose).toHaveBeenCalledOnce()
     expect(mockCreateAtomicWriteStream).not.toHaveBeenCalled()
+  })
+
+  it('refuses backup capture while a memory editor write has not drained', async () => {
+    mockMemoryService.drainInFlight.mockResolvedValueOnce({ settled: false })
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      'Background data writes did not quiesce'
+    )
+    expect(mockCreateAtomicWriteStream).not.toHaveBeenCalled()
+  })
+
+  it('refuses restore staging while a memory editor write has not drained', async () => {
+    arrangeDirectRestore()
+    mockMemoryService.drainInFlight.mockResolvedValueOnce({ settled: false })
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
+      'Background data writes did not quiesce'
+    )
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
   })
 
   it('opens staged files with write access before fsync on Windows', () => {

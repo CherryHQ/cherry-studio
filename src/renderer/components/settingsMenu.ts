@@ -3,6 +3,7 @@ import {
   Archive,
   AudioLines,
   Bell,
+  Brain,
   Cloud,
   Command,
   Crop,
@@ -89,6 +90,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     titleKey: 'settings.prompts.title',
     icon: createElement(Zap),
     groupKey: BUILTIN_TOOLS_GROUP_KEY
+  },
+  {
+    route: '/settings/memory',
+    titleKey: 'settings.memory.title',
+    icon: createElement(Brain),
+    groupKey: 'settings.menuGroups.capabilities'
   },
   {
     route: '/settings/computer-use',
