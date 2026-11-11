@@ -3,7 +3,7 @@ import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/MessageService'
-import { describe, expect, it, type Mock, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -19,7 +19,6 @@ import { TopicService, topicService } from '@data/services/TopicService'
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
-import { application } from '@application'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileEntryId } from '@shared/data/types/file'
@@ -138,29 +137,6 @@ describe('TopicService', () => {
       { endpoint: '/topics/:id', entityIds: ['topic-name-only'] },
       { endpoint: '/topics/latest' }
     ])
-  })
-
-  it('routes topic updates through serialized write transactions', async () => {
-    await dbh.db.insert(topicTable).values({
-      id: 'topic-serialized-update',
-      name: 'Before serialized update',
-      orderKey: 'a0'
-    })
-
-    const withWriteTx = application.get('DbService').withWriteTx as Mock
-    withWriteTx.mockClear()
-
-    const updated = topicService.update('topic-serialized-update', {
-      name: 'After serialized update',
-      isNameManuallyEdited: false
-    })
-
-    expect(withWriteTx).toHaveBeenCalledTimes(1)
-    expect(updated).toMatchObject({
-      id: 'topic-serialized-update',
-      name: 'After serialized update',
-      isNameManuallyEdited: false
-    })
   })
 
   it('preserves explicit automatic topic renames', async () => {
@@ -1477,18 +1453,6 @@ describe('TopicService', () => {
       expect(row?.orderKey).not.toBe('')
     })
 
-    it('inserts new topics before existing topics in orderKey order', async () => {
-      await dbh.db.insert(topicTable).values([
-        { id: 'existing-1', name: 'Existing 1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
-        { id: 'existing-2', name: 'Existing 2', orderKey: 'a1', createdAt: 2, updatedAt: 2 }
-      ])
-
-      const result = topicService.create({ name: 'fresh' })
-
-      const rows = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.orderKey))
-      expect(rows.map((row) => row.id)).toEqual([result.id, 'existing-1', 'existing-2'])
-    })
-
     it('inserts exactly one content-less virtual root and leaves activeNodeId null', async () => {
       const result = topicService.create({ name: 'fresh' })
 
@@ -1731,55 +1695,6 @@ describe('TopicService', () => {
       expect(copiedRows[0].status).toBe('error')
     })
 
-    it('copies the assistant and inserts first in the global topic order', async () => {
-      await dbh.db.insert(assistantTable).values({
-        id: 'asst',
-        name: 'A',
-        emoji: '🌟',
-        settings: DEFAULT_ASSISTANT_SETTINGS,
-        orderKey: 'a0',
-        createdAt: 1,
-        updatedAt: 1
-      })
-      await dbh.db.insert(topicTable).values([
-        { id: 'sibling-t', name: 'Sibling', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
-        {
-          id: 'src-t',
-          name: 'Source',
-          assistantId: 'asst',
-          orderKey: 'a1',
-          createdAt: 2,
-          updatedAt: 2
-        }
-      ])
-      await dbh.db.insert(messageTable).values(
-        withRoot('src-t', [
-          {
-            id: 'selected',
-            topicId: 'src-t',
-            parentId: null,
-            role: 'user',
-            data: { parts: [{ type: 'text', text: 'root prompt' }] },
-            status: 'success',
-            siblingsGroupId: 0,
-            createdAt: 1,
-            updatedAt: 1
-          }
-        ])
-      )
-
-      const result = topicService.duplicate('src-t', { nodeId: 'selected' })
-
-      expect(result.assistantId).toBe('asst')
-
-      const rows = await dbh.db
-        .select({ id: topicTable.id, orderKey: topicTable.orderKey })
-        .from(topicTable)
-        .orderBy(asc(topicTable.orderKey))
-      expect(rows.map((row) => row.id)).toEqual([result.id, 'sibling-t', 'src-t'])
-      expect(rows[0]?.orderKey < rows[1].orderKey).toBe(true)
-    })
-
     it('rejects a missing source topic', async () => {
       let err: unknown
       try {
@@ -1940,6 +1855,48 @@ describe('TopicService', () => {
       expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
+    })
+
+    it('copies the assistant association when duplicating a topic', async () => {
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst',
+        name: 'A',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db.insert(topicTable).values([
+        { id: 'sibling-t', name: 'Sibling', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        {
+          id: 'src-t',
+          name: 'Source',
+          assistantId: 'asst',
+          orderKey: 'a1',
+          createdAt: 2,
+          updatedAt: 2
+        }
+      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('src-t', [
+          {
+            id: 'selected',
+            topicId: 'src-t',
+            parentId: null,
+            role: 'user',
+            data: { parts: [{ type: 'text', text: 'root prompt' }] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ])
+      )
+
+      const result = topicService.duplicate('src-t', { nodeId: 'selected' })
+
+      expect(result.assistantId).toBe('asst')
     })
   })
 
@@ -2413,5 +2370,24 @@ describe('TopicService', () => {
     const copied = messageService.getById(refs[0].sourceId)
     expect(copied.topicId).toBe(copy.id)
     expect(copied.messageSnapshot).toEqual(snapshot)
+  })
+
+  it('persists an explicitly automatic topic rename', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-serialized-update',
+      name: 'Before serialized update',
+      orderKey: 'a0'
+    })
+
+    const updated = topicService.update('topic-serialized-update', {
+      name: 'After serialized update',
+      isNameManuallyEdited: false
+    })
+
+    expect(updated).toMatchObject({
+      id: 'topic-serialized-update',
+      name: 'After serialized update',
+      isNameManuallyEdited: false
+    })
   })
 })

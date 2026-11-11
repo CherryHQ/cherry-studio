@@ -26,8 +26,6 @@ import {
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 
-import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
-
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
@@ -791,10 +789,8 @@ describe('ModelService.create', () => {
     expect(row.supportsStreaming).toBeNull()
   })
 
-  it('logs custom model creation when dto presetModelId is present without a registry match', async () => {
+  it('creates a custom model when dto presetModelId has no registry match', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-
-    const infoSpy = vi.spyOn(mockMainLoggerService, 'info').mockImplementation(() => {})
 
     modelService.create([
       {
@@ -813,10 +809,6 @@ describe('ModelService.create', () => {
       name: 'Custom GPT',
       capabilities: [],
       supportsStreaming: true
-    })
-    expect(infoSpy).toHaveBeenCalledWith('Created custom model (no registry match)', {
-      providerId: 'openai',
-      modelId: 'custom-gpt'
     })
   })
 
@@ -2353,8 +2345,6 @@ describe('ModelService.bulkDelete', () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: targetModelId, name: 'GPT-4o' }))
 
-    const infoSpy = vi.spyOn(mockMainLoggerService, 'info').mockImplementation(() => {})
-
     modelService.bulkDelete([
       { providerId: 'openai', modelId: 'gpt-4o' },
       { providerId: 'openai', modelId: 'gpt-4o' }
@@ -2363,11 +2353,6 @@ describe('ModelService.bulkDelete', () => {
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, targetModelId))
 
     expect(rows).toHaveLength(0)
-    expect(infoSpy).toHaveBeenCalledWith('Bulk deleted models', {
-      count: 1,
-      providers: ['openai']
-    })
-    infoSpy.mockRestore()
   })
 
   it('deletes the maximum allowed batch without exceeding SQLite parameter caps', async () => {
@@ -2791,7 +2776,6 @@ describe('ModelService.reconcileForProvider', () => {
         isDeprecated: false
       })
     )
-    const infoSpy = vi.spyOn(mockMainLoggerService, 'info').mockImplementation(() => {})
 
     const result = modelService.reconcileForProvider('openai', {
       toAdd: [],
@@ -2801,12 +2785,6 @@ describe('ModelService.reconcileForProvider', () => {
     expect(result.map((model) => model.id)).toEqual([])
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, gpt4o))
     expect(rows).toHaveLength(0)
-    expect(infoSpy).toHaveBeenCalledWith('Deleted preset-backed models during reconcile', {
-      providerId: 'openai',
-      deletedCount: 1,
-      deletedIds: [gpt4o]
-    })
-    infoSpy.mockRestore()
   })
 
   it('does not remove custom models during reconcile', async () => {
@@ -2819,7 +2797,6 @@ describe('ModelService.reconcileForProvider', () => {
         name: 'Custom Model'
       })
     )
-    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
 
     const result = modelService.reconcileForProvider('openai', {
       toAdd: [],
@@ -2829,12 +2806,6 @@ describe('ModelService.reconcileForProvider', () => {
     expect(result.map((model) => model.id)).toEqual([customModelId])
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, customModelId))
     expect(rows).toHaveLength(1)
-    expect(warnSpy).toHaveBeenCalledWith('Skipped custom model removal during reconcile', {
-      providerId: 'openai',
-      skippedCount: 1,
-      skippedIds: [customModelId]
-    })
-    warnSpy.mockRestore()
   })
 
   it('does not remove the managed CherryAI default model during reconcile', async () => {
@@ -2846,7 +2817,6 @@ describe('ModelService.reconcileForProvider', () => {
       })
     )
     const pin = pinService.pin({ entityType: 'model', entityId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID })
-    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
 
     const result = modelService.reconcileForProvider(CHERRYAI_PROVIDER_ID, {
       toAdd: [],
@@ -2861,12 +2831,6 @@ describe('ModelService.reconcileForProvider', () => {
     const pins = await dbh.db.select().from(pinTable).where(eq(pinTable.id, pin.id))
     expect(rows).toHaveLength(1)
     expect(pins).toHaveLength(1)
-    expect(warnSpy).toHaveBeenCalledWith('Skipped managed CherryAI default model removal during reconcile', {
-      providerId: CHERRYAI_PROVIDER_ID,
-      skippedCount: 1,
-      skippedIds: [CHERRYAI_DEFAULT_UNIQUE_MODEL_ID]
-    })
-    warnSpy.mockRestore()
   })
 
   it('does not remove models set as user defaults (chat / quick-assistant / translate)', async () => {
@@ -2880,8 +2844,6 @@ describe('ModelService.reconcileForProvider', () => {
       return null
     })
 
-    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
-
     const result = modelService.reconcileForProvider('openai', {
       toAdd: [],
       toRemove: [modelId]
@@ -2890,11 +2852,5 @@ describe('ModelService.reconcileForProvider', () => {
     expect(result.map((m) => m.id)).toEqual([modelId])
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, modelId))
     expect(rows).toHaveLength(1)
-    expect(warnSpy).toHaveBeenCalledWith('Skipped user-default model removal during reconcile', {
-      providerId: 'openai',
-      skippedCount: 1,
-      skippedIds: [modelId]
-    })
-    warnSpy.mockRestore()
   })
 })

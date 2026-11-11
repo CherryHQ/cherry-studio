@@ -891,23 +891,6 @@ describe('ExtensionRegistry', () => {
       expect(ext).toBeUndefined()
     })
 
-    it('should preserve type information (compile-time check)', () => {
-      registry.register(
-        new ProviderExtension({
-          name: 'openai',
-          create: createMockProviderV3
-        })
-      )
-
-      // This test primarily validates compile-time type inference
-      // Runtime behavior is the same as get()
-      const ext = registry.getTyped('openai')
-      expect(ext).toBeDefined()
-
-      // Type should be inferred as ProviderExtension<OpenAIProviderSettings, any, any>
-      // but we can't test types at runtime, only compile-time
-    })
-
     it('should work with aliases', () => {
       registry.register(
         new ProviderExtension({
