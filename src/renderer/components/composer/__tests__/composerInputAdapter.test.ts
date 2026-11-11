@@ -161,6 +161,8 @@ describe('createComposerInputAdapter', () => {
     const currentEditor = createEditor()
     document.body.append(currentEditor.view.dom)
     createComposerInputAdapter(currentEditor).insertText('Continue this prompt', { tokenizeVariables: false })
+    // Finish the initial explicit insertText focus before simulating an unrelated focused control.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
     currentEditor.commands.setTextSelection(9)
     const before = currentEditor.state.selection.from
     const pickerRow = document.createElement('button')
