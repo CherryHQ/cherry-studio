@@ -259,6 +259,18 @@ export function clearTaskAdmission(
   return next
 }
 
+/** Reconcile admissions against durable replayable rows in the same write transaction. */
+export function reconcileTaskAdmissions(
+  metadata: Record<string, unknown> | undefined,
+  liveJobIds: ReadonlySet<string>
+): Record<string, unknown> {
+  const next = { ...(isPlainRecord(metadata) ? metadata : {}) }
+  const ids = readAdmittedRunJobIds(metadata).filter((id) => liveJobIds.has(id))
+  if (ids.length) next[TASK_ADMITTED_JOB_IDS_METADATA_KEY] = ids
+  else delete next[TASK_ADMITTED_JOB_IDS_METADATA_KEY]
+  return next
+}
+
 const TASK_GUARD_APPROVAL_METADATA_KEY = 'guardApproval'
 
 /**
@@ -628,7 +640,12 @@ export class AgentTaskService {
         ([scheduleId, runState]): [string, TaskRunSummary] => {
           if (runState.kind === 'running') return [scheduleId, { status: 'running' }]
           if (runState.kind === 'unfinished') return [scheduleId, { status: 'queued' }]
-          return [scheduleId, { status: runState.status, finishedAt: timestampToISO(runState.finishedAt) }]
+          const output = runState.output as { kind?: string; skipped?: boolean } | null | undefined
+          const status =
+            runState.status === 'completed' && (output?.kind === 'skipped' || output?.skipped === true)
+              ? 'skipped'
+              : runState.status
+          return [scheduleId, { status, finishedAt: timestampToISO(runState.finishedAt) }]
         }
       )
     )

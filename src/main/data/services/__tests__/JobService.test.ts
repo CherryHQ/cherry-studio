@@ -204,6 +204,26 @@ describe('JobService.getRunStatesByScheduleIds', () => {
     )
   })
 
+  it('projects the selected terminal run output for task-specific outcomes', () => {
+    const schedule = createSchedule('guard-skipped-output')
+    const now = Date.now()
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'completed',
+        scheduleId: schedule.id,
+        finishedAt: now,
+        output: { kind: 'skipped', reason: 'guard failed' }
+      })
+    )
+    expect(jobService.getRunStatesByScheduleIds('agent.task', [schedule.id]).get(schedule.id)).toEqual({
+      kind: 'terminal',
+      status: 'completed',
+      finishedAt: now,
+      output: { kind: 'skipped', reason: 'guard failed' }
+    })
+  })
+
   it('projects cancel-requested non-terminal rows as cancelled at their cancelRequestedAt', () => {
     const now = Date.now()
     const schedules = (['running', 'pending', 'delayed'] as const).map((status) => {

@@ -231,7 +231,7 @@ export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 export type TaskRunSummary =
   | { status: 'queued' }
   | { status: 'running' }
-  | { status: 'completed' | 'failed' | 'cancelled'; finishedAt: string }
+  | { status: 'completed' | 'failed' | 'cancelled' | 'skipped'; finishedAt: string }
 export type ScheduledTaskListItem = ScheduledTaskEntity & { runSummary: TaskRunSummary | null }
 
 export const TaskRunLogEntitySchema = z.strictObject({

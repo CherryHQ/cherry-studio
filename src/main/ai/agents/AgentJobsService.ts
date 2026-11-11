@@ -1,9 +1,14 @@
+import { and, eq, inArray } from 'drizzle-orm'
+
 import { application } from '@application'
+import { jobTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
   clearTaskAdmission,
+  readAdmittedRunJobIds,
+  reconcileTaskAdmissions,
   writeLastExecutedRunStartedAt,
   writeTaskAdmission,
   agentTaskService,
@@ -29,7 +34,12 @@ import {
   type AgentSessionWorkspaceSource,
   AgentSessionWorkspaceSourceSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
-import { triggersEqual, type JobScheduleSnapshot, type UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
+import {
+  ACTIVE_JOB_STATUSES,
+  triggersEqual,
+  type JobScheduleSnapshot,
+  type UpdateJobScheduleDto
+} from '@shared/data/api/schemas/jobs'
 import type { AgentTaskForm, AgentTaskPatch, HeartbeatDocument, HeartbeatRunResult } from '@shared/ipc/schemas/ai'
 import { KeyedMutex } from '@shared/utils/async'
 
@@ -619,8 +629,29 @@ export class AgentJobsService extends BaseService {
     application.get('DbService').withWriteTx((tx) => {
       const snapshot = jobScheduleService.getByIdTx(tx, params.scheduleId)
       if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return
+      // Startup recovery can terminalize a cancelled admission without onSettled.
+      // Pruned rows cannot replay either. Keep only this schedule's durable active memberships.
+      const admittedIds = readAdmittedRunJobIds(snapshot.metadata)
+      const liveIds: string[] = []
+      // Bound SQLite parameters even when old crash loops left a large metadata set.
+      for (let offset = 0; offset < admittedIds.length; offset += 400) {
+        const rows = tx
+          .select({ id: jobTable.id })
+          .from(jobTable)
+          .where(
+            and(
+              eq(jobTable.type, AGENT_TASK_TYPE),
+              eq(jobTable.scheduleId, params.scheduleId),
+              inArray(jobTable.id, admittedIds.slice(offset, offset + 400)),
+              inArray(jobTable.status, [...ACTIVE_JOB_STATUSES])
+            )
+          )
+          .all()
+        liveIds.push(...rows.map((row) => row.id))
+      }
+      const metadata = reconcileTaskAdmissions(snapshot.metadata, new Set(liveIds))
       application.get('JobManager').updateJobScheduleTx(tx, params.scheduleId, {
-        metadata: writeTaskAdmission(snapshot.metadata, params.startedAtMs, params.jobId)
+        metadata: writeTaskAdmission(metadata, params.startedAtMs, params.jobId)
       })
     })
   }

@@ -424,6 +424,17 @@ describe('AgentJobsService', () => {
   describe('guard admission metadata', () => {
     it('records overlapping admissions with a monotone watermark and per-job membership', () => {
       const task = service.createTask(AGENT_ID, form)
+      for (const id of ['j-a', 'j-b'])
+        jobService.create({
+          id,
+          type: 'agent.task',
+          status: 'running',
+          queue: 'default',
+          scheduledAt: Date.now(),
+          input: {},
+          maxAttempts: 1,
+          scheduleId: task.id
+        })
 
       service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 1000, jobId: 'j-a' })
       service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 2000, jobId: 'j-b' })
@@ -443,6 +454,17 @@ describe('AgentJobsService', () => {
 
     it('clears membership only at durable terminal and keeps the watermark', () => {
       const task = service.createTask(AGENT_ID, form)
+      for (const id of ['j-a', 'j-b'])
+        jobService.create({
+          id,
+          type: 'agent.task',
+          status: 'running',
+          queue: 'default',
+          scheduledAt: Date.now(),
+          input: {},
+          maxAttempts: 1,
+          scheduleId: task.id
+        })
       service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 1000, jobId: 'j-a' })
       service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 2000, jobId: 'j-b' })
 
@@ -456,6 +478,41 @@ describe('AgentJobsService', () => {
       metadata = jobScheduleService.getById(task.id)?.metadata
       expect(metadata?.lastAdmittedRunJobIds).toBeUndefined()
       expect(metadata?.lastExecutedRunStartedAt).toBe(2000)
+    })
+
+    it('reconciles recovered terminal and pruned admissions while preserving replayable jobs', () => {
+      const task = service.createTask(AGENT_ID, form)
+      const now = Date.now()
+      for (const [id, status] of [
+        ['cancelled-admission', 'cancelled'],
+        ['running-admission', 'running'],
+        ['pending-admission', 'pending'],
+        ['new-admission', 'running']
+      ] as const) {
+        jobService.create({
+          id,
+          type: 'agent.task',
+          status,
+          queue: 'default',
+          scheduledAt: now,
+          input: {},
+          maxAttempts: 1,
+          scheduleId: task.id,
+          ...(status === 'cancelled' ? { finishedAt: now } : {})
+        })
+      }
+      jobScheduleService.update(task.id, {
+        metadata: {
+          lastExecutedRunStartedAt: 1000,
+          lastAdmittedRunJobIds: ['cancelled-admission', 'pruned-admission', 'running-admission', 'pending-admission']
+        }
+      })
+      service.recordTaskExecutionStart({ scheduleId: task.id, startedAtMs: 2000, jobId: 'new-admission' })
+      expect(jobScheduleService.getById(task.id)?.metadata.lastAdmittedRunJobIds).toEqual([
+        'running-admission',
+        'pending-admission',
+        'new-admission'
+      ])
     })
 
     it('persists a recovered baseline without lowering a newer watermark', () => {
