@@ -11,6 +11,7 @@ import type {
 } from '@shared/data/types/uiParts'
 import { FileTypeSchema } from '@shared/types/file'
 
+import { createComposerLineParagraphs } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import { createPromptVariableContent } from './promptVariables'
 import { getComposerInputLeafText } from './quickPanel'
@@ -123,10 +124,7 @@ function createComposerContent(
 
   if (!tokens.length) {
     appendTextContent(nodes, text)
-    return {
-      type: 'doc',
-      content: [{ type: 'paragraph', ...(nodes.length > 0 && { content: nodes }) }]
-    }
+    return { type: 'doc', content: createComposerLineParagraphs(nodes) }
   }
 
   let cursor = 0
@@ -155,10 +153,7 @@ function createComposerContent(
     appendTextContent(nodes, text.slice(cursor))
   }
 
-  return {
-    type: 'doc',
-    content: [{ type: 'paragraph', ...(nodes.length > 0 && { content: nodes }) }]
-  }
+  return { type: 'doc', content: createComposerLineParagraphs(nodes) }
 }
 
 export function createComposerDocumentContent(text: string, composer?: ComposerMessageSnapshot): JSONContent {
@@ -167,10 +162,12 @@ export function createComposerDocumentContent(text: string, composer?: ComposerM
 
 export function createComposerDraftContent(
   draft: { text: string; tokens: readonly ComposerSerializedToken[] },
-  options: { tokenizeVariables?: boolean } = {}
+  options: { tokenizeVariables?: boolean; literalFencedCode?: boolean } = {}
 ): JSONContent {
   const inputTokens = draft.tokens.filter((token) => isComposerInputTokenKind(token.kind))
-  if (!inputTokens.length && options.tokenizeVariables !== false) return createPromptVariableContent(draft.text)
+  if (!inputTokens.length && options.tokenizeVariables !== false) {
+    return createPromptVariableContent(draft.text, { literalFencedCode: options.literalFencedCode })
+  }
 
   return createComposerContent(draft.text, inputTokens, isComposerInputTokenKind)
 }

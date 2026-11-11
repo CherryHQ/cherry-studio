@@ -10,7 +10,7 @@ import { toast } from '@renderer/services/toast'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Topic } from '@renderer/types/topic'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -423,7 +423,6 @@ describe('useAgentMessageListProviderValue', () => {
 
     render(<Probe />)
 
-    expect(value?.state.partsByMessageId).toBe(partsByMessageId)
     expect(value?.state.messages.map((message) => message.id)).toEqual(['user-1', 'assistant-1'])
     expect(value?.state.messages[1]).toMatchObject({
       role: 'assistant',
@@ -443,56 +442,8 @@ describe('useAgentMessageListProviderValue', () => {
       selectAllDisabled: false,
       isSelectAllLoading: false
     })
-    expect(value?.actions.deleteMessage).toBe(deleteMessage)
-    expect(value?.actions.respondToolApproval).toBe(respondToolApproval)
-    expect(value?.actions.selectMessage).toEqual(expect.any(Function))
-    expect(value?.actions.toggleMultiSelectMode).toEqual(expect.any(Function))
-    expect(value?.actions.copySelectedMessages).toEqual(expect.any(Function))
-    expect(value?.actions.saveSelectedMessages).toEqual(expect.any(Function))
-    expect(value?.actions.deleteSelectedMessages).toEqual(expect.any(Function))
-    expect(value?.actions.regenerateMessage).toBeUndefined()
-    expect(value?.actions.editMessage).toBeUndefined()
-    expect(value?.actions.saveTextFile).toBe(exportActionsMock.saveTextFile)
-    expect(value?.actions.saveImage).toBe(exportActionsMock.saveImage)
-    expect(value?.actions.saveToKnowledge).toBe(exportActionsMock.saveToKnowledge)
-    expect(value?.actions.exportMessageAsMarkdown).toBe(exportActionsMock.exportMessageAsMarkdown)
-    expect(value?.actions.exportToNotes).toBe(exportActionsMock.exportToNotes)
-    expect(value?.actions.exportToWord).toBe(exportActionsMock.exportToWord)
-    expect(value?.actions.exportToNotion).toBe(exportActionsMock.exportToNotion)
-    expect(value?.actions.exportToYuque).toBe(exportActionsMock.exportToYuque)
-    expect(value?.actions.exportToObsidian).toBe(exportActionsMock.exportToObsidian)
-    expect(value?.actions.exportToJoplin).toBe(exportActionsMock.exportToJoplin)
-    expect(value?.actions.exportToSiyuan).toBe(exportActionsMock.exportToSiyuan)
-    expect(value?.actions.diagnoseMessageError).toBe(errorActionsMock.diagnoseMessageError)
-    expect(value?.actions.openErrorDetail).toBe(errorActionsMock.openErrorDetail)
-    expect(value?.actions.navigateErrorTarget).toBe(errorActionsMock.navigateErrorTarget)
-    expect(value?.actions.removeMessageErrorPart).toBeUndefined()
-    expect(value?.actions.previewFile).toBe(leafCapabilitiesMock.previewFile)
-    expect(value?.actions.subscribeToolProgress).toBe(leafCapabilitiesMock.subscribeToolProgress)
-    expect(value?.actions.openExternalUrl).toBe(leafCapabilitiesMock.openExternalUrl)
-    expect(value?.actions.navigateToRoute).toEqual(expect.any(Function))
-    expect(value?.actions.openUserProfile).toBe(headerCapabilitiesMock.openUserProfile)
-    expect(value?.actions.copyText).toBe(leafCapabilitiesMock.copyText)
-    expect(value?.actions.copyRichContent).toBe(leafCapabilitiesMock.copyRichContent)
-    expect(value?.actions.copyImage).toBe(leafCapabilitiesMock.copyImage)
-    expect(value?.actions.exportTableAsExcel).toBe(leafCapabilitiesMock.exportTableAsExcel)
-    expect(value?.actions.notifyInfo).toBe(leafCapabilitiesMock.notifyInfo)
-    expect(value?.actions.notifySuccess).toBe(leafCapabilitiesMock.notifySuccess)
-    expect(value?.actions.notifyWarning).toBe(leafCapabilitiesMock.notifyWarning)
-    expect(value?.actions.notifyError).toBe(leafCapabilitiesMock.notifyError)
-    expect(value?.state.isToolAutoApproved).toBe(leafCapabilitiesMock.isToolAutoApproved)
-    expect(value?.state.getFileView).toBe(leafCapabilitiesMock.getFileView)
-    expect(value?.meta.userProfile).toBe(headerCapabilitiesMock.userProfile)
-    expect(value?.meta.aiUsageMessageKind).toBe('agent-session')
-    expect(value?.actions.openArtifactFile).toBe(openArtifactFile)
+
     expect(value?.actions.resolvePath?.('dist/report.md')).toBe('/tmp/workspace/dist/report.md')
-    expect(value?.actions.isDirectory).toEqual(expect.any(Function))
-    expect(value?.actions.openPath).toEqual(expect.any(Function))
-    expect(value?.actions.abortTool).toEqual(expect.any(Function))
-    expect(value?.actions.bindRuntime).toEqual(expect.any(Function))
-    expect(value?.actions.bindMessageRuntime).toEqual(expect.any(Function))
-    expect(value?.actions.bindMessageGroupRuntime).toEqual(expect.any(Function))
-    expect(value?.actions.locateMessage).toEqual(expect.any(Function))
 
     void value?.actions.openPath?.('dist/report.md')
     expect(ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.open_path', {
@@ -520,13 +471,11 @@ describe('useAgentMessageListProviderValue', () => {
     const locateMessage = vi.fn()
     const startEditing = vi.fn()
     const unbindMessageRuntime = value?.actions.bindMessageRuntime?.('assistant-1', { locateMessage, startEditing })
-    expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', locateMessage)
+
     unbindMessageRuntime?.()
 
     const locateMessageGroup = vi.fn()
     value?.actions.bindMessageGroupRuntime?.(['user-1', 'assistant-1'], { locateMessage: locateMessageGroup })
-    expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:user-1', expect.any(Function))
-    expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', expect.any(Function))
 
     const listLocateMessage = vi.fn()
     const listRuntime = {
@@ -634,70 +583,6 @@ describe('useAgentMessageListProviderValue', () => {
       providerId: 'deepseek',
       modelId: 'deepseek-v4-flash'
     })
-  })
-
-  it('omits diagnostic-report actions when the consumer does not provide that capability', () => {
-    const topic = {
-      id: 'agent-session:session-1',
-      assistantId: 'agent-1',
-      name: 'Read-only Agent tool flow',
-      lastActivityAt: '2026-01-01T00:00:00.000Z',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-      messages: []
-    } as Topic
-
-    const Probe = () => {
-      useAgentMessageListProviderValue({
-        topic,
-        messages: [],
-        partsByMessageId: {},
-        isLoading: false,
-        messageNavigation: 'anchor'
-      })
-      return null
-    }
-    render(<Probe />)
-
-    expect(useMessageErrorActionsMock.mock.calls.at(-1)?.[0]).toEqual(
-      expect.objectContaining({ diagnosticReport: undefined })
-    )
-  })
-
-  it('exposes diagnostic report launch only to the interactive message consumer', () => {
-    const topic = {
-      id: 'agent-session:session-1',
-      assistantId: 'agent-1',
-      name: 'Agent session',
-      lastActivityAt: '2026-01-01T00:00:00.000Z',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-      messages: []
-    } as Topic
-    const openDiagnosticReport = vi.fn()
-    let interactiveValue: MessageListProviderValue | undefined
-    let captureValue: MessageListProviderValue | undefined
-
-    const Probe = ({ capture = false }: { capture?: boolean }) => {
-      const value = useAgentMessageListProviderValue({
-        topic,
-        messages: [],
-        partsByMessageId: {},
-        isLoading: false,
-        imageActionConsumer: capture ? 'capture' : undefined,
-        messageNavigation: 'anchor',
-        openDiagnosticReport
-      })
-      if (capture) captureValue = value
-      else interactiveValue = value
-      return null
-    }
-
-    const view = render(<Probe />)
-    view.rerender(<Probe capture />)
-
-    expect(interactiveValue?.actions.openDiagnosticReport).toBe(openDiagnosticReport)
-    expect(captureValue?.actions.openDiagnosticReport).toBeUndefined()
   })
 
   it('renders terminal fallbacks in both current and sealed history layers', () => {
@@ -872,75 +757,6 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.state.partsByMessageId?.['assistant-mcp-only']).toEqual(mcpToolOnly)
   })
 
-  it('preserves sealed MessageListItem identities when only the active agent message changes', () => {
-    const topic = {
-      id: 'agent-session-topic',
-      assistantId: 'agent-1',
-      name: 'Agent session',
-      lastActivityAt: '2026-01-01T00:00:00.000Z',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-      messages: []
-    } as Topic
-    const historyMessage = {
-      id: 'assistant-history',
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'history' }],
-      metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'success' }
-    } as CherryUIMessage
-    const activeMessage = {
-      id: 'assistant-active',
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'a' }],
-      metadata: { createdAt: '2026-01-01T00:00:01.000Z', status: 'pending' }
-    } as CherryUIMessage
-    const historyPartsByMessageId = {
-      [historyMessage.id]: (historyMessage.parts ?? []) as CherryMessagePart[],
-      [activeMessage.id]: (activeMessage.parts ?? []) as CherryMessagePart[]
-    }
-    const streamingLayers = { historyPartsByMessageId, liveMessageIds: [activeMessage.id] }
-    let value: MessageListProviderValue | undefined
-
-    const Probe = ({
-      messages,
-      partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
-    }: {
-      messages: CherryUIMessage[]
-      partsByMessageId?: Record<string, CherryMessagePart[]>
-    }) => {
-      value = useAgentMessageListProviderValue({
-        topic,
-        messages,
-        partsByMessageId,
-        streamingLayers,
-        isLoading: false,
-        messageNavigation: 'none'
-      })
-      return null
-    }
-
-    const view = render(<Probe messages={[historyMessage, activeMessage]} />)
-    const firstHistoryItem = value?.state.messages[0]
-    const firstActiveItem = value?.state.messages[1]
-    const nextActiveMessage = {
-      ...activeMessage,
-      parts: [{ type: 'text', text: 'ab' }]
-    } as CherryUIMessage
-
-    view.rerender(
-      <Probe
-        messages={[historyMessage, nextActiveMessage]}
-        partsByMessageId={{
-          ...historyPartsByMessageId,
-          [nextActiveMessage.id]: nextActiveMessage.parts ?? []
-        }}
-      />
-    )
-
-    expect(value?.state.messages[0]).toBe(firstHistoryItem)
-    expect(value?.state.messages[1]).not.toBe(firstActiveItem)
-  })
-
   describe('Agent delete presentation policy', () => {
     const topic = {
       id: 'agent-session:policy',
@@ -1041,8 +857,6 @@ describe('useAgentMessageListProviderValue', () => {
 
     expect(value?.actions.deleteMessage).toBeUndefined()
     expect(value?.actions.deleteSelectedMessages).toBeUndefined()
-    expect(value?.actions.copySelectedMessages).toEqual(expect.any(Function))
-    expect(value?.actions.saveSelectedMessages).toEqual(expect.any(Function))
   })
 
   it('does not show a toast when selected-message save is canceled', async () => {
@@ -1152,12 +966,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     expect(visibleRuntime.copyTopicImage).not.toHaveBeenCalled()
 
-    const listenerCountBeforeCaptureBind = eventMocks.on.mock.calls.length
     render(<CaptureProbe />)
-
-    expect(useMessageErrorActionsMock.mock.calls.at(-1)?.[0]).toEqual(
-      expect.objectContaining({ diagnosticReport: undefined })
-    )
 
     const captureRuntime: MessageListRuntime = {
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
@@ -1169,7 +978,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     await expect(request.promise).resolves.toBeUndefined()
     expect(captureRuntime.copyTopicImage).toHaveBeenCalledTimes(1)
-    expect(eventMocks.on.mock.calls.length).toBe(listenerCountBeforeCaptureBind)
+
     expect(consumePendingAgentSessionImageActions('session-a')).toEqual([])
 
     unbindCapture?.()

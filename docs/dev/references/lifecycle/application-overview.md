@@ -52,7 +52,7 @@ setupQuitHandlers()                      ← before-quit (preventQuit gate) + wi
     │                             ├──── run in parallel
     └── app.whenReady()          ─┘
             │
-            ├── setupElectronHandlers()  ← window-all-closed, preventQuit IPC
+            ├── setupElectronHandlers()  ← window-all-closed
             │
             ├── startPhase(WhenReady)    ← services requiring Electron API
             │
@@ -257,25 +257,12 @@ or an application shutdown.
 
 ### Renderer Usage
 
-The renderer relaunches through `ipcApi.request('app.relaunch')`, which takes no options. The legacy application bridge remains only for the quit-hold protocol; it does not expose a generic `quit()` method.
+The renderer relaunches through `ipcApi.request('app.relaunch')`, which takes no options. Quit holds are main-process only; the renderer has no quit or quit-hold bridge.
 
 ```typescript
 // Relaunch the app
 await ipcApi.request('app.relaunch')
-
-// Prevent quit during critical operations (returns opaque holdId)
-const holdId = await window.api.application.preventQuit('Migrating user data')
-try {
-  await performCriticalWork()
-} finally {
-  await window.api.application.allowQuit(holdId)
-}
 ```
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `preventQuit(reason)` | `Promise<string>` (holdId) | Block app quit until released |
-| `allowQuit(holdId)` | `Promise<void>` | Release a specific quit prevention hold |
 
 ## The `application` Proxy
 
