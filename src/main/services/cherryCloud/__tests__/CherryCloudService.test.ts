@@ -1719,6 +1719,24 @@ describe('CherryCloudService', () => {
     await service._doStop()
   })
 
+  it('keeps the avatar-dot credit on both the click and the portal it opens', async () => {
+    const service = await createSignedInService()
+    mocks.trackEvent.mockClear()
+
+    await service.startSubscription({ source: 'account_panel', via: 'avatar_dot', flowId: sessionId }, 'w1')
+
+    await vi.waitFor(() => {
+      const events = mocks.trackEvent.mock.calls.map(([event, properties]) => ({ event, ...properties }))
+      expect(events.filter(({ event }) => event === 'subscription_entry_clicked')).toEqual([
+        expect.objectContaining({ flow_id: sessionId, source: 'account_panel', via: 'avatar_dot' })
+      ])
+      expect(events.filter(({ event }) => event === 'subscription_portal_open')).toEqual([
+        expect.objectContaining({ flow_id: sessionId, source: 'account_panel', via: 'avatar_dot', result: 'success' })
+      ])
+    })
+    await service._doStop()
+  })
+
   it('shares authentication and the portal across windows while retaining each click event', async () => {
     mockAuthorizationFlow()
     mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
