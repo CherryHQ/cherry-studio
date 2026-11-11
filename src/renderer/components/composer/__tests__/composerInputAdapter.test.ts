@@ -160,9 +160,8 @@ describe('createComposerInputAdapter', () => {
   it('syncs a knowledge token without stealing focus or moving the mapped cursor', async () => {
     const currentEditor = createEditor()
     document.body.append(currentEditor.view.dom)
-    createComposerInputAdapter(currentEditor).insertText('Continue this prompt', { tokenizeVariables: false })
-    // Finish the initial explicit insertText focus before simulating an unrelated focused control.
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    // Seed the background draft without scheduling the explicit insertText focus/scroll RAF.
+    currentEditor.commands.setContent(createComposerDraftContent({ text: 'Continue this prompt', tokens: [] }))
     currentEditor.commands.setTextSelection(9)
     const before = currentEditor.state.selection.from
     const pickerRow = document.createElement('button')
