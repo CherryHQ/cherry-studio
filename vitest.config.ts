@@ -241,6 +241,14 @@ export default defineConfig({
     // 全局共享配置
     globals: true,
     setupFiles: [],
+    deps: {
+      optimizer: {
+        client: {
+          enabled: true,
+          include: ['@cherrystudio/ui > date-fns', '@cherrystudio/ui > react-day-picker']
+        }
+      }
+    },
     exclude: ['**/node_modules/**', '**/dist/**', '**/out/**', '**/build/**'],
     coverage: {
       provider: 'v8',

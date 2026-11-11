@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/testing/2026-11-11-ui-test-dependency-prebundling.md
+2026-11-11-ui-test-dependency-prebundling.md: 0db61500a649b8d7f2a62ea80dc46f581768e579
+2026-11-11-ui-test-dependency-prebundling.zh.md: 86bb6dcbc1fcbe96fcf940e599c3adf4c128abdb
