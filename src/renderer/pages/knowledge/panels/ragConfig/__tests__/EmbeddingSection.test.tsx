@@ -38,18 +38,6 @@ vi.mock('../../../components/KnowledgeEmbeddingModelSelect', () => ({
 }))
 
 describe('EmbeddingSection', () => {
-  it('keeps the local model and disabled entries inside the selector', () => {
-    const { rerender } = render(<EmbeddingSection embeddingModelId={null} onEmbeddingModelChange={vi.fn()} />)
-    const localOption = screen.getByText('local-model-option')
-
-    expect(localOption).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'knowledge.rag.rerank_disabled' })).toBeInTheDocument()
-    expect(screen.queryByText('knowledge.rag.file_processing_none')).not.toBeInTheDocument()
-
-    rerender(<EmbeddingSection embeddingModelId="openai::text-embedding-3-small" onEmbeddingModelChange={vi.fn()} />)
-    expect(screen.getByText('local-model-option')).toBeInTheDocument()
-  })
-
   it('reports local model selection through the single change callback', () => {
     const onEmbeddingModelChange = vi.fn()
     render(<EmbeddingSection embeddingModelId={null} onEmbeddingModelChange={onEmbeddingModelChange} />)

@@ -371,15 +371,37 @@ it('isolates a throwing observer and leaves uncorrelated commands and ambiguous 
       session_id: test.sessionId,
       content: 'Local output'
     })
+    test.send(test.assistant('Before'))
+    test.send({
+      type: 'system',
+      subtype: 'task_started',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      task_id: 'known-child',
+      run_id: '001',
+      task_type: 'local_agent',
+      description: 'Known child',
+      spawn_depth: 1
+    })
+    await expect.poll(() => test.view.snapshot.subagents?.length).toBe(1)
+    const relations = test.view.snapshot.subagents
     test.send(test.assistant('Unknown child', { parent_tool_use_id: 'unknown_parent' }))
+    test.send(test.assistant('Another unknown child', { parent_tool_use_id: 'unknown_parent' }))
     test.send(test.assistant('Root still receives'))
-    await expect.poll(() => textOf(test.view.snapshot)).toEqual(['Root still receives'])
+    await expect.poll(() => textOf(test.view.snapshot)).toEqual(['Before', 'Root still receives'])
     expect(test.view.snapshot.inputs.every((input) => input.outcome === undefined)).toBe(true)
+    expect(test.view.snapshot.subagents).toEqual(relations)
     expect(
       test.view.batches.some((batch) =>
         batch.events.some((event) => event.type === 'gap' && event.reason === 'mapping-reset')
       )
-    ).toBe(true)
+    ).toBe(false)
+    expect(
+      test.view.batches
+        .slice(1)
+        .flatMap((batch) => batch.events)
+        .some((event) => event.type === 'snapshot')
+    ).toBe(false)
     await expect
       .poll(() => test.failures.some((error) => error instanceof Error && error.message === 'Consumer failed'))
       .toBe(true)
@@ -641,6 +663,75 @@ it('routes parented child text equal to thinking through the real SDK wire', asy
         .map((p) => p.text)
     ).toEqual(['42'])
     expect(test.view.snapshot.messages.flatMap((m) => m.parts).filter((p) => p.type === 'text')).toHaveLength(0)
+  } finally {
+    await test.close()
+  }
+})
+
+it('retains root state with compacted context in the boundary publication', async () => {
+  const test = await wireFixture({ model: 'test', contextWindow: { model: 'test', tokens: 100000 } })
+  try {
+    const nativeInput = test.view.snapshot.inputs[0].nativeInput!.id
+    test.send({
+      type: 'result',
+      subtype: 'success',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      user_message_uuid: nativeInput,
+      result: '',
+      is_error: false,
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+      modelUsage: {},
+      permission_denials: []
+    } as unknown as SDKMessage)
+    await expect.poll(() => test.view.snapshot.inputs[0].outcome).toBe('completed')
+    const history = test.assistant('History')
+    test.send(history)
+    test.send({
+      type: 'system',
+      subtype: 'task_started',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      task_id: 'child',
+      run_id: '001',
+      task_type: 'local_agent',
+      description: 'Child',
+      spawn_depth: 1
+    })
+    test.send({
+      type: 'stream_event',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      parent_tool_use_id: null,
+      event: { type: 'message_start', message: { ...test.assistant('').message, content: [] } }
+    })
+    await expect.poll(() => test.view.snapshot.contextUsage?.status).toBe('confirmed')
+    const before = test.view.snapshot
+    expect(before.inputs.length).toBeGreaterThan(0)
+    expect(before.subagents).toHaveLength(1)
+    const boundary = {
+      type: 'system',
+      subtype: 'compact_boundary',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      compact_metadata: { trigger: 'manual', pre_tokens: 1 }
+    } as SDKMessage
+    test.send(boundary)
+    await test.view.event((message) => 'uuid' in message && message.uuid === boundary.uuid)
+    const batch = test.view.batches.find((entry) =>
+      entry.native.some(({ message }) => 'uuid' in message && message.uuid === boundary.uuid)
+    )!
+    expect(batch.events.map((event) => event.type).slice(-3)).toEqual(['context.changed', 'gap', 'snapshot'])
+    expect(batch.events.at(-1)).toMatchObject({
+      type: 'snapshot',
+      messages: before.messages,
+      inputs: before.inputs,
+      subagents: before.subagents,
+      activity: before.activity,
+      contextUsage: { status: 'unknown', error: { code: 'compacted' } }
+    })
+    expect(test.view.snapshot.contextUsage).toMatchObject({ status: 'unknown', error: { code: 'compacted' } })
   } finally {
     await test.close()
   }
