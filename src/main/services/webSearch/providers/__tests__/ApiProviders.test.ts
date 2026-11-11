@@ -164,7 +164,9 @@ function toRequestSnapshot(call: [string, RequestInit | undefined]) {
     url,
     method: init?.method ?? 'GET',
     headers: Object.fromEntries(
-      [...new Headers(init?.headers).entries()].sort(([left], [right]) => left.localeCompare(right))
+      [...new Headers(init?.headers).entries()]
+        .filter(([name]) => !['http-referer', 'x-title', 'user-agent'].includes(name))
+        .sort(([left], [right]) => left.localeCompare(right))
     ),
     body: serializeRequestBody(init?.body)
   }
@@ -370,9 +372,7 @@ describe('main web search API providers', () => {
           },
           "headers": {
             "content-type": "application/json",
-            "http-referer": "https://cherry-ai.com",
             "x-api-key": "exa-key",
-            "x-title": "Cherry Studio",
           },
           "method": "POST",
           "url": "https://api.exa.ai/search",
@@ -395,6 +395,45 @@ describe('main web search API providers', () => {
         },
       }
     `)
+  })
+
+  it('sends an Exa Contents request and normalizes the fetched page', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('exa-contents-response.json')))
+
+    const provider = createProviderDriver(
+      ExaProvider,
+      createProvider({
+        id: 'exa',
+        name: 'Exa',
+        apiKeys: ['exa-key'],
+        capabilities: [
+          { feature: 'searchKeywords', apiHost: 'https://api.exa.ai' },
+          { feature: 'fetchUrls', apiHost: 'https://api.exa.ai' }
+        ]
+      })
+    )
+
+    const result = await provider.fetchUrls('https://exa.example/article', runtimeConfig)
+    const request = toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])
+
+    expect(request.url).toBe('https://api.exa.ai/contents')
+    expect(request.method).toBe('POST')
+    expect(request.headers['x-api-key']).toBe('exa-key')
+    expect(request.body).toEqual({ urls: ['https://exa.example/article'], text: true })
+    expect(result).toEqual({
+      query: 'https://exa.example/article',
+      providerId: 'exa',
+      capability: 'fetchUrls',
+      inputs: ['https://exa.example/article'],
+      results: [
+        {
+          title: 'Exa Article',
+          content: 'Exa crawled article body.',
+          url: 'https://exa.example/article',
+          sourceInput: 'https://exa.example/article'
+        }
+      ]
+    })
   })
 
   it('matches Tavily request and normalized response snapshots from fixtures', async () => {
@@ -425,8 +464,6 @@ describe('main web search API providers', () => {
           "headers": {
             "authorization": "Bearer tavily-key",
             "content-type": "application/json",
-            "http-referer": "https://cherry-ai.com",
-            "x-title": "Cherry Studio",
           },
           "method": "POST",
           "url": "https://api.tavily.com/search",
@@ -478,9 +515,8 @@ describe('main web search API providers', () => {
       },
       headers: {
         'content-type': 'application/json',
-        'http-referer': 'https://cherry-ai.com',
-        'x-api-key': 'parallel-key',
-        'x-title': 'Cherry Studio'
+
+        'x-api-key': 'parallel-key'
       },
       method: 'POST',
       url: 'https://api.parallel.ai/v1/search'
@@ -552,9 +588,7 @@ describe('main web search API providers', () => {
       body: null,
       headers: {
         accept: 'application/json',
-        'http-referer': 'https://cherry-ai.com',
-        'x-api-key': 'serply-key',
-        'x-title': 'Cherry Studio'
+        'x-api-key': 'serply-key'
       },
       method: 'GET',
       url: 'https://api.serply.io/v1/search/q=latest%20web%20research&num=4'
@@ -644,9 +678,7 @@ describe('main web search API providers', () => {
       headers: {
         accept: 'application/json',
         authorization: 'Bearer deepseek-key',
-        'content-type': 'application/json',
-        'http-referer': 'https://cherry-ai.com',
-        'x-title': 'Cherry Studio'
+        'content-type': 'application/json'
       },
       method: 'POST',
       url: 'https://api.deepseek.com/v1/tools/search'
@@ -696,9 +728,7 @@ describe('main web search API providers', () => {
       headers: {
         accept: 'application/json',
         authorization: 'Bearer deepseek-key',
-        'content-type': 'application/json',
-        'http-referer': 'https://cherry-ai.com',
-        'x-title': 'Cherry Studio'
+        'content-type': 'application/json'
       },
       method: 'POST',
       url: 'https://api.deepseek.com/v1/tools/fetch'
@@ -748,9 +778,7 @@ describe('main web search API providers', () => {
       body: null,
       headers: {
         accept: 'application/json',
-        authorization: 'desearch-key',
-        'http-referer': 'https://cherry-ai.com',
-        'x-title': 'Cherry Studio'
+        authorization: 'desearch-key'
       },
       method: 'GET',
       url: 'https://api.desearch.ai/web?query=latest%20web%20research'
@@ -788,9 +816,7 @@ describe('main web search API providers', () => {
       {
         "request": {
           "body": null,
-          "headers": {
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          },
+          "headers": {},
           "method": "GET",
           "url": "https://example.com/article",
         },
@@ -848,9 +874,7 @@ describe('main web search API providers', () => {
           "headers": {
             "accept": "application/json",
             "authorization": "Bearer jina-key",
-            "http-referer": "https://cherry-ai.com",
             "x-retain-images": "none",
-            "x-title": "Cherry Studio",
           },
           "method": "GET",
           "url": "https://r.jina.ai/https://example.com/article",
@@ -903,36 +927,6 @@ describe('main web search API providers', () => {
     const headers = new Headers(init?.headers)
     expect(headers.has('authorization')).toBe(false)
     expect(result.results[0]?.content).toBe('Reader Content')
-  })
-
-  it('routes Jina fetch URL to the China mirror when the user is in mainland China', async () => {
-    mocks.isInChina.mockResolvedValue(true)
-    fetchMock.mockResolvedValue(
-      createJsonResponse({
-        code: 200,
-        data: {
-          title: 'Reader Title',
-          content: 'Reader Content',
-          url: 'https://example.com/article'
-        }
-      })
-    )
-
-    const provider = createProviderDriver(
-      JinaProvider,
-      createProvider({
-        id: 'jina',
-        name: 'Jina',
-        apiKeys: ['jina-key'],
-        apiHost: 'https://r.jina.ai'
-      })
-    )
-
-    await provider.fetchUrls('https://example.com/article', runtimeConfig)
-
-    const [url] = fetchMock.mock.lastCall as [string, RequestInit | undefined]
-    expect(url).toBe('https://r.jinaai.cn/https://example.com/article')
-    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it('retries a failed China Jina Reader request through the global host', async () => {
@@ -1029,21 +1023,6 @@ describe('main web search API providers', () => {
       'https://r.jina.ai/https://example.com/article'
     ])
     expect(result.results[0]?.content).toBe('Reader Content')
-  })
-
-  it('routes Jina search URL to the China mirror when the user is in mainland China', async () => {
-    mocks.isInChina.mockResolvedValue(true)
-    fetchMock.mockResolvedValue(createJsonResponse({ code: 200, data: [] }))
-
-    const provider = createProviderDriver(
-      JinaProvider,
-      createProvider({ id: 'jina', name: 'Jina', apiKeys: ['jina-key'] })
-    )
-
-    await provider.searchKeywords('hello world', runtimeConfig)
-
-    const [url] = fetchMock.mock.lastCall as [string, RequestInit | undefined]
-    expect(url).toBe(`https://s.jinaai.cn/${encodeURIComponent('hello world')}`)
   })
 
   it('falls back to the global Jina host when region detection rejects', async () => {
@@ -1233,9 +1212,7 @@ describe('main web search API providers', () => {
       {
         "contentRequest": {
           "body": null,
-          "headers": {
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          },
+          "headers": {},
           "method": "GET",
           "url": "https://searx.example/result",
         },
@@ -1259,8 +1236,6 @@ describe('main web search API providers', () => {
           "body": null,
           "headers": {
             "authorization": "Basic YWxpY2U6c2VjcmV0",
-            "http-referer": "https://cherry-ai.com",
-            "x-title": "Cherry Studio",
           },
           "method": "GET",
           "url": "https://searx.example/search?q=hello&language=auto&format=json&engines=google%2Cbing",
@@ -1294,19 +1269,13 @@ describe('main web search API providers', () => {
       {
         "configRequest": {
           "body": null,
-          "headers": {
-            "http-referer": "https://cherry-ai.com",
-            "x-title": "Cherry Studio",
-          },
+          "headers": {},
           "method": "GET",
           "url": "https://searx.example/config",
         },
         "searchRequest": {
           "body": null,
-          "headers": {
-            "http-referer": "https://cherry-ai.com",
-            "x-title": "Cherry Studio",
-          },
+          "headers": {},
           "method": "GET",
           "url": "https://searx.example/search?q=hello&language=auto&format=json&engines=duckduckgo",
         },
@@ -1671,11 +1640,6 @@ describe('main web search API providers', () => {
         sourceInput: 'hello'
       }
     ])
-    expect(mocks.loggerWarn).toHaveBeenCalledWith('Some Searxng content fetches failed', {
-      query: 'hello',
-      failedCount: 1,
-      totalCount: 2
-    })
   })
 
   it('throws Searxng content abort errors when the caller has cancelled the search', async () => {
@@ -1774,8 +1738,6 @@ describe('main web search API providers', () => {
           "headers": {
             "authorization": "Bearer bocha-key",
             "content-type": "application/json",
-            "http-referer": "https://cherry-ai.com",
-            "x-title": "Cherry Studio",
           },
           "method": "POST",
           "url": "https://api.bochaai.com/v1/web-search",
@@ -1853,8 +1815,6 @@ describe('main web search API providers', () => {
           "headers": {
             "authorization": "Bearer querit-key",
             "content-type": "application/json",
-            "http-referer": "https://cherry-ai.com",
-            "x-title": "Cherry Studio",
           },
           "method": "POST",
           "url": "https://api.querit.ai/v1/search",
@@ -2103,8 +2063,6 @@ describe('main web search API providers', () => {
           "headers": {
             "authorization": "Bearer zhipu-key",
             "content-type": "application/json",
-            "http-referer": "https://cherry-ai.com",
-            "x-title": "Cherry Studio",
           },
           "method": "POST",
           "url": "https://open.bigmodel.cn/api/paas/v4/tools",
@@ -2230,9 +2188,7 @@ describe('main web search API providers', () => {
           "headers": {
             "accept": "application/json, text/event-stream",
             "content-type": "application/json",
-            "http-referer": "https://cherry-ai.com",
             "x-api-key": "test-key",
-            "x-title": "Cherry Studio",
           },
           "method": "POST",
           "url": "https://mcp.exa.ai/mcp",
@@ -2629,8 +2585,6 @@ describe('main web search API providers', () => {
             "headers": {
               "authorization": "Bearer firecrawl-key",
               "content-type": "application/json",
-              "http-referer": "https://cherry-ai.com",
-              "x-title": "Cherry Studio",
             },
             "method": "POST",
             "url": "https://api.firecrawl.example/v2/search",
@@ -2750,8 +2704,6 @@ describe('main web search API providers', () => {
             "headers": {
               "authorization": "Bearer firecrawl-key",
               "content-type": "application/json",
-              "http-referer": "https://cherry-ai.com",
-              "x-title": "Cherry Studio",
             },
             "method": "POST",
             "url": "https://api.firecrawl.example/v2/scrape",

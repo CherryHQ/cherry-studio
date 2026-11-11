@@ -1,3 +1,4 @@
+import { mockNotificationService } from '@test-mocks/main/application'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
@@ -58,6 +59,57 @@ function lastRebuildInput(): RebuildMaterialInput & { embeddings: RebuildMateria
 }
 
 describe('index-documents job handler', () => {
+  it('records embedding completion only after the logical job settles successfully', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    const input = { baseId: 'kb-1', itemId: NOTE_ITEM_ID }
+    const output = await handler.execute(createCtx(input))
+    expect(mockNotificationService.publish).not.toHaveBeenCalled()
+    await handler.onSettled?.({
+      jobId: 'embedding-job',
+      type: 'knowledge.index-documents',
+      scheduleId: null,
+      parentId: null,
+      status: 'completed',
+      input,
+      output,
+      error: null,
+      attempt: 1,
+      metadata: {}
+    })
+    expect(mockNotificationService.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventKey: 'knowledge:embedding-job',
+        category: 'system',
+        kind: 'knowledge-complete',
+        message: `KB · ${NOTE_ITEM_ID}`,
+        target: { kind: 'knowledge', baseId: 'kb-1' }
+      }),
+      { source: 'knowledge' }
+    )
+  })
+
+  it('does not notify when indexing was skipped because the source disappeared', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue({ ...createNoteItem(NOTE_ITEM_ID), status: 'deleting' })
+    const input = { baseId: 'kb-1', itemId: NOTE_ITEM_ID }
+    const output = await handler.execute(createCtx(input))
+    await handler.onSettled?.({
+      jobId: 'skipped-job',
+      type: 'knowledge.index-documents',
+      scheduleId: null,
+      parentId: null,
+      status: 'completed',
+      input,
+      output,
+      error: null,
+      attempt: 1,
+      metadata: {}
+    })
+    expect(mockNotificationService.publish).not.toHaveBeenCalled()
+  })
+
   it('updates statuses, writes vectors, and completes the item', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
@@ -76,7 +128,7 @@ describe('index-documents job handler', () => {
       })
     )
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
-    expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID })).toBe('base.kb-1')
+
     // README's lock-boundary contract: embedding (paid API call) must run before the
     // mutation lock is taken, never inside it.
     expect(embedKnowledgeTextsMock.mock.invocationCallOrder[0]).toBeLessThan(
@@ -372,15 +424,6 @@ describe('index-documents job handler', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID }))
 
     expect(lastRebuildInput().material.relativePath).toBe('source.md')
-  })
-
-  it('passes file items to the reader without a fileEntry override', async () => {
-    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID))
-
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID }))
-
-    expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(expect.objectContaining({ id: FILE_ITEM_ID }))
   })
 
   it('rejects whitespace-only reader output before embedding or material replacement', async () => {

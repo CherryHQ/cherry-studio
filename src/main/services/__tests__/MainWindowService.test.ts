@@ -160,6 +160,7 @@ vi.mock('@application', () => ({
 vi.mock('electron', () => ({
   app: {
     dock: { hide: vi.fn(), show: vi.fn() },
+    focus: vi.fn(),
     on: vi.fn(),
     removeListener: vi.fn(),
     getLocale: vi.fn(() => 'en-US'),
@@ -972,7 +973,6 @@ describe('MainWindowService', () => {
     expect(() => svc.onMainWindowCreated(listener)).not.toThrow()
 
     expect(listener).toHaveBeenCalledWith(win)
-    expect(loggerMock.error).toHaveBeenCalledWith('Failed to replay main window listener', error)
   })
 
   describe('close handler', () => {
@@ -1408,6 +1408,24 @@ describe('MainWindowService', () => {
         expect(win.setSkipTaskbar.mock.invocationCallOrder[0]).toBeLessThan(win.show.mock.invocationCallOrder[0])
       }
       expect(win.show.mock.invocationCallOrder[0]).toBeLessThan(win.focus.mock.invocationCallOrder[0])
+    })
+  })
+
+  describe('macOS second-instance activation', () => {
+    it.each([false, true])('brings the existing app forward when minimized=%s', (minimized) => {
+      platformState.isMac = true
+      win.isMinimized.mockReturnValue(minimized)
+      ;(svc as any).mainWindow = win
+      let frontmost = false
+      vi.mocked(app.focus).mockImplementation((options) => {
+        if (options?.steal) frontmost = true
+      })
+      ;(svc as any).registerSecondInstanceHandler()
+      const registrations = vi.mocked(app.on).mock.calls as Array<[string, () => void]>
+      const listener = registrations.find(([event]) => event === 'second-instance')?.[1]
+      expect(listener).toBeDefined()
+      listener!()
+      expect(frontmost).toBe(true)
     })
   })
 

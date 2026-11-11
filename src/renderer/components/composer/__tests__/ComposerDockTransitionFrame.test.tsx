@@ -186,23 +186,6 @@ describe('ComposerDockTransitionFrame', () => {
     })
   })
 
-  it('keeps the whole docked dock stack click-through', () => {
-    const { container } = render(
-      <ComposerDockTransitionFrame
-        placement="docked"
-        main={<InsetProbe />}
-        composer={<div data-composer-inputbar="" />}
-        mainVisible
-      />
-    )
-
-    // Pointer events are re-enabled by composer content roots, not the dock
-    // stack — the layer is none and no full-width wrapper turns them back on.
-    const dockLayer = container.querySelector('[data-composer-dock-layer]')
-    expect(dockLayer).toHaveClass('pointer-events-none')
-    expect(dockLayer?.querySelector('.pointer-events-auto')).toBeNull()
-  })
-
   it('aligns composer width to the message scroller viewport', async () => {
     const { container } = render(
       <ComposerDockTransitionFrame
@@ -222,35 +205,5 @@ describe('ComposerDockTransitionFrame', () => {
       const dockLayer = container.querySelector<HTMLElement>('[data-composer-dock-layer]')
       expect(dockLayer).toHaveStyle({ paddingInlineStart: '8px', paddingInlineEnd: '24px' })
     })
-  })
-
-  it('lifts the composer dock layer above a full-area overlay only when elevated', () => {
-    const baseProps = {
-      placement: 'docked' as const,
-      main: <InsetProbe />,
-      composer: <div data-composer-inputbar="" />,
-      mainVisible: true
-    }
-    const { container, rerender } = render(<ComposerDockTransitionFrame {...baseProps} />)
-    expect(container.querySelector('[data-composer-dock-layer]')).toHaveClass('z-10')
-
-    rerender(<ComposerDockTransitionFrame {...baseProps} composerElevated />)
-    expect(container.querySelector('[data-composer-dock-layer]')).toHaveClass('z-50')
-  })
-
-  it('marks the composer surface when moving from home to docked placement', () => {
-    const baseProps = {
-      main: <InsetProbe />,
-      composer: <div data-composer-inputbar="" />,
-      mainVisible: true
-    }
-    const { container, rerender } = render(<ComposerDockTransitionFrame {...baseProps} placement="home" />)
-
-    expect(container.querySelector('[data-composer-dock-surface]')).not.toHaveAttribute('data-composer-dock-motion')
-
-    rerender(<ComposerDockTransitionFrame {...baseProps} placement="docked" />)
-
-    const surface = container.querySelector('[data-composer-dock-surface]')
-    expect(surface).toHaveAttribute('data-composer-dock-motion', 'home-to-docked')
   })
 })

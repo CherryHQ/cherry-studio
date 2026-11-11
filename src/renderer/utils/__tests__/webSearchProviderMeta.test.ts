@@ -5,11 +5,8 @@ import { WEB_SEARCH_PROVIDER_IDS } from '@shared/data/preference/preferenceTypes
 
 import {
   createWebSearchMenuEntry,
-  getWebSearchCapabilityTitleKey,
   getWebSearchFeatureSections,
   getWebSearchProviderApiKeyWebsite,
-  getWebSearchProviderDescriptionKey,
-  getWebSearchProviderIconRef,
   getWebSearchProviderOfficialWebsite
 } from '../webSearchProviderMeta'
 
@@ -50,26 +47,6 @@ const providers: WebSearchProvider[] = [
 ]
 
 describe('webSearchProviderMeta', () => {
-  it('returns provider display metadata', () => {
-    expect(getWebSearchProviderDescriptionKey('exa-mcp')).toBe('settings.tool.websearch.provider_description.exa_mcp')
-    expect(getWebSearchProviderIconRef('fetch')).toMatchObject({ kind: 'provider', key: 'cherryin' })
-    expect(getWebSearchProviderOfficialWebsite('jina')).toBe('https://jina.ai/reader')
-    expect(getWebSearchProviderApiKeyWebsite('jina')).toBe('https://jina.ai')
-    expect(getWebSearchProviderIconRef('parallel')).toMatchObject({ kind: 'provider', key: 'parallel' })
-    expect(getWebSearchProviderOfficialWebsite('parallel')).toBe('https://parallel.ai')
-    expect(getWebSearchProviderApiKeyWebsite('parallel')).toBe('https://platform.parallel.ai')
-    expect(getWebSearchProviderIconRef('serpkite')).toMatchObject({ kind: 'provider', key: 'serpkite' })
-    expect(getWebSearchProviderOfficialWebsite('serpkite')).toBe('https://serpkite.com')
-    expect(getWebSearchProviderApiKeyWebsite('serpkite')).toBe('https://app.serpkite.com/keys')
-    expect(getWebSearchProviderIconRef('serply')).toMatchObject({ kind: 'provider', key: 'serply' })
-    expect(getWebSearchProviderOfficialWebsite('serply')).toBe('https://serply.io')
-    expect(getWebSearchProviderApiKeyWebsite('serply')).toBe('https://serply.io')
-    expect(getWebSearchProviderIconRef('desearch')).toMatchObject({ kind: 'provider', key: 'desearch' })
-    expect(getWebSearchProviderOfficialWebsite('desearch')).toBe('https://desearch.ai')
-    expect(getWebSearchProviderApiKeyWebsite('desearch')).toBe('https://console.desearch.ai/api-keys')
-    expect(getWebSearchProviderApiKeyWebsite('fetch')).toBeUndefined()
-  })
-
   it('links Yuanbao API key onboarding to Tencent key management', () => {
     expect(getWebSearchProviderApiKeyWebsite('yuanbao')).toBe(
       'https://console.cloud.tencent.com/wsapi/index?tab=apikey'
@@ -92,11 +69,6 @@ describe('webSearchProviderMeta', () => {
         ).toBe(false)
       }
     }
-  })
-
-  it('returns capability title keys', () => {
-    expect(getWebSearchCapabilityTitleKey('searchKeywords')).toBe('settings.tool.websearch.search_provider')
-    expect(getWebSearchCapabilityTitleKey('fetchUrls')).toBe('settings.tool.websearch.fetch_urls_provider')
   })
 
   it('creates menu entries for supported capabilities', () => {

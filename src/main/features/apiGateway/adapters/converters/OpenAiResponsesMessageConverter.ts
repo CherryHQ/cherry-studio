@@ -7,7 +7,7 @@
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
-import { tool, zodSchema } from 'ai'
+import { jsonSchema, tool } from 'ai'
 import mime from 'mime'
 
 import type OpenAI from '@cherrystudio/openai'
@@ -17,7 +17,6 @@ import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
-import { jsonSchemaToZod } from './jsonSchemaToZod'
 import type { ReasoningEffort } from './providerOptionsMapper'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
 
@@ -283,11 +282,12 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
 
       const funcTool = toolDef
       const rawSchema = funcTool.parameters
-      const schema = rawSchema ? jsonSchemaToZod(rawSchema) : jsonSchemaToZod({ type: 'object' })
+      const schema = rawSchema ?? { type: 'object' as const }
 
       const aiTool = tool({
         description: funcTool.description || '',
-        inputSchema: zodSchema(schema)
+        inputSchema: jsonSchema(schema),
+        ...(typeof funcTool.strict === 'boolean' ? { strict: funcTool.strict } : {})
       })
 
       aiSdkTools[funcTool.name] = aiTool
@@ -314,8 +314,10 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     provider: Provider,
     model: Model,
     params: ResponsesCreateParams,
-    maxOutputTokens?: number
+    maxOutputTokens?: number,
+    overrideReasoning = false
   ): ProviderOptions | undefined {
+    if (overrideReasoning) return undefined
     return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
   }
 }

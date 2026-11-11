@@ -1,6 +1,7 @@
-import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall, Type } from '@earendil-works/pi-ai'
+import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai'
 import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { configure, createRegistry, defineExtension, defineTool, MemoryStorage } from '@earendil-works/pi-durable'
+import { num, obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
 import { createScriptedHost } from '@cherrystudio/agent-behavior'
@@ -214,7 +215,7 @@ it('projects a Durable parent, child and grandchild, then continues only the chi
   const delegate = defineTool({
     name: 'delegate',
     description: 'Create a native child conversation',
-    parameters: Type.Object({ depth: Type.Number() }),
+    parameters: obj({ depth: num() }),
     async execute({ depth }, api, context) {
       const child = await api.commit(async (tx) => {
         const record = await tx.createConversation({ ownership: { kind: 'task', taskId: api.taskId } })
