@@ -770,7 +770,8 @@ function buildAgentOptions(
   if (Object.keys(sanitized.bodyParams).length > 0) {
     sdkConfig.providerSettings.fetch = createCustomParamsFetch(
       sdkConfig.providerSettings.fetch ?? globalThis.fetch,
-      sanitized.bodyParams
+      sanitized.bodyParams,
+      endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     )
   }
   const hasProviderOptions = Object.values(sanitized.providerOptions).some((ns) => Object.keys(ns ?? {}).length > 0)

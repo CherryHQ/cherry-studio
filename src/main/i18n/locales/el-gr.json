@@ -150,6 +150,7 @@
   "dialog.screenshot_failed.title": "Η λήψη στιγμιότυπου οθόνης απέτυχε",
   "dialog.select_folder": "Επιλέξτε φάκελο",
   "dialog.word_document": "Έγγραφο Word",
+  "error.adaptive_thinking_budget": "Η προσαρμοστική σκέψη δεν δέχεται budget_tokens. Αφαιρέστε το thinking.budget_tokens ή χρησιμοποιήστε τη λειτουργία σκέψης enabled, εφόσον το μοντέλο την υποστηρίζει.",
   "file_processing.errors.document_size_limit_exceeded": "Η τρέχουσα υπηρεσία ανάλυσης εγγράφων απαιτεί αρχεία μικρότερα από {{maxSize}}. Συμπιέστε ή χωρίστε αυτό το αρχείο και έπειτα προσθέστε το ξανά.",
   "file_processing.errors.open_mineru_endpoint_changed": "Η διεύθυνση του διακομιστή Open MinerU άλλαξε. Επαναλάβετε την επεξεργασία του εγγράφου για να χρησιμοποιήσετε τον νέο διακομιστή.",
   "file_processing.errors.open_mineru_invalid_response": "Το Open MinerU επέστρεψε μη έγκυρη ή μη υποστηριζόμενη απόκριση.",

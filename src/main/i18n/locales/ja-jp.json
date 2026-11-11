@@ -150,6 +150,7 @@
   "dialog.screenshot_failed.title": "スクリーンショットに失敗しました",
   "dialog.select_folder": "フォルダーを選択",
   "dialog.word_document": "ワード文書",
+  "error.adaptive_thinking_budget": "適応型思考では budget_tokens を指定できません。thinking.budget_tokens を削除するか、モデルが対応している場合は enabled モードの思考を使用してください。",
   "file_processing.errors.document_size_limit_exceeded": "現在のドキュメント解析サービスでは、{{maxSize}} 未満のファイルが必要です。このファイルを圧縮または分割してから、もう一度追加してください。",
   "file_processing.errors.open_mineru_endpoint_changed": "Open MinerU のサーバーアドレスが変更されました。新しいサーバーを使用するには、文書の処理を再試行してください。",
   "file_processing.errors.open_mineru_invalid_response": "Open MinerU から無効または未対応の応答が返されました。",

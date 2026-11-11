@@ -150,6 +150,7 @@
   "dialog.screenshot_failed.title": "Не удалось сделать снимок экрана",
   "dialog.select_folder": "Выбрать папку",
   "dialog.word_document": "Документ Word",
+  "error.adaptive_thinking_budget": "Адаптивное мышление не поддерживает budget_tokens. Удалите thinking.budget_tokens или используйте режим мышления enabled, если модель его поддерживает.",
   "file_processing.errors.document_size_limit_exceeded": "Текущая служба разбора документов поддерживает файлы меньше {{maxSize}}. Сожмите или разделите этот файл, затем добавьте его снова.",
   "file_processing.errors.open_mineru_endpoint_changed": "Адрес сервера Open MinerU изменился. Повторите обработку документа, чтобы использовать новый сервер.",
   "file_processing.errors.open_mineru_invalid_response": "Open MinerU вернул недопустимый или неподдерживаемый ответ.",
