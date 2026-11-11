@@ -1631,11 +1631,15 @@
     {
       "apiModelId": "glm-5.3-flashx",
       "capabilities": {
-        "force": ["function-call", "reasoning", "image-recognition", "structured-output"]
+        "force": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"]
       },
       "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
       "family": "glm",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text", "image", "video"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 131072
+      },
       "modelId": "glm-5-3-flashx",
       "name": "GLM-5.3-FlashX",
       "outputModalities": ["text"],
@@ -45440,5 +45444,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "ccf20273ed788ba3"
+  "version": "8005ab198d9fe950"
 }
