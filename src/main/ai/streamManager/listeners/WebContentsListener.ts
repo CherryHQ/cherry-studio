@@ -33,6 +33,8 @@ interface PendingDelta {
   sourceModelId: UniqueModelId | undefined
   anchorMessageId: string | undefined
   attemptId: number | undefined
+  sequence: number | undefined
+  firstSequence: number | undefined
   text: string
 }
 
@@ -60,7 +62,13 @@ export class WebContentsListener implements StreamListener {
     this.id = `${RENDERER_LISTENER_ID_PREFIX}${wc.id}:${topicId}`
   }
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void {
+  onChunk(
+    chunk: UIMessageChunk,
+    sourceModelId?: UniqueModelId,
+    anchorMessageId?: string,
+    attemptId?: number,
+    sequence?: number
+  ): void {
     if (this.wc.isDestroyed()) {
       this.discardPending()
       return
@@ -68,7 +76,7 @@ export class WebContentsListener implements StreamListener {
 
     const coalescable = toCoalescable(chunk)
     if (coalescable) {
-      const next = normalizePending(coalescable, sourceModelId, anchorMessageId, attemptId)
+      const next = normalizePending(coalescable, sourceModelId, anchorMessageId, attemptId, sequence)
       if (
         this.pending &&
         this.pending.type === next.type &&
@@ -78,6 +86,7 @@ export class WebContentsListener implements StreamListener {
         this.pending.attemptId === next.attemptId
       ) {
         this.pending.text += next.text
+        this.pending.sequence = next.sequence
         if (
           performance.now() - this.pendingStartedAt >= MAX_COALESCE_AGE_MS ||
           this.pending.text.length >= MAX_COALESCE_CHARS
@@ -94,7 +103,7 @@ export class WebContentsListener implements StreamListener {
     }
 
     this.flushPending()
-    this.sendChunk(chunk, sourceModelId, anchorMessageId, attemptId)
+    this.sendChunk(chunk, sourceModelId, anchorMessageId, attemptId, sequence)
   }
 
   onDone(result: StreamDoneResult): void {
@@ -158,7 +167,7 @@ export class WebContentsListener implements StreamListener {
     return alive
   }
 
-  private flushPending(): void {
+  flushPending(): void {
     if (this.flushTimer !== null) {
       clearTimeout(this.flushTimer)
       this.flushTimer = null
@@ -166,7 +175,7 @@ export class WebContentsListener implements StreamListener {
     const p = this.pending
     if (!p) return
     this.pending = null
-    this.sendChunk(rebuildChunk(p), p.sourceModelId, p.anchorMessageId, p.attemptId)
+    this.sendChunk(rebuildChunk(p), p.sourceModelId, p.anchorMessageId, p.attemptId, p.sequence, p.firstSequence)
   }
 
   private discardPending(): void {
@@ -181,13 +190,17 @@ export class WebContentsListener implements StreamListener {
     chunk: UIMessageChunk,
     sourceModelId?: UniqueModelId,
     anchorMessageId?: string,
-    attemptId?: number
+    attemptId?: number,
+    sequence?: number,
+    firstSequence?: number
   ): void {
     if (this.wc.isDestroyed()) return
     this.emit('ai.stream.chunk', {
       topicId: this.topicId,
       executionId: sourceModelId,
       ...(attemptId !== undefined ? { attemptId } : {}),
+      ...(sequence !== undefined ? { sequence } : {}),
+      ...(firstSequence !== undefined ? { firstSequence } : {}),
       anchorMessageId,
       chunk: projectStreamChunkForRenderer(chunk, this.topicId, anchorMessageId)
     })
@@ -219,7 +232,8 @@ function normalizePending(
   chunk: CoalescableChunk,
   sourceModelId: UniqueModelId | undefined,
   anchorMessageId: string | undefined,
-  attemptId: number | undefined
+  attemptId: number | undefined,
+  sequence: number | undefined
 ): PendingDelta {
   if (chunk.type === 'tool-input-delta') {
     return {
@@ -228,6 +242,8 @@ function normalizePending(
       sourceModelId,
       anchorMessageId,
       attemptId,
+      sequence,
+      firstSequence: sequence,
       text: chunk.inputTextDelta
     }
   }
@@ -237,6 +253,8 @@ function normalizePending(
     sourceModelId,
     anchorMessageId,
     attemptId,
+    sequence,
+    firstSequence: sequence,
     text: chunk.delta
   }
 }

@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useLayoutEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CommandId } from '@shared/utils/command'
@@ -23,7 +23,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   useMultiplePreferences: () => [preferenceValues, vi.fn()]
 }))
 
-import { useCommandHandler, useCommandRuntime } from '@renderer/hooks/command'
+import { type CommandHandler, useCommandHandler, useCommandRuntime } from '@renderer/hooks/command'
 
 import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
 import { CommandProvider } from '../CommandProvider'
@@ -151,6 +151,32 @@ describe('CommandProvider', () => {
     expect(preventDefault).not.toHaveBeenCalled()
   })
 
+  it('reads handler availability at the key event', () => {
+    const onExecute = vi.fn()
+    let available = false
+
+    function LiveAvailability() {
+      useCommandHandler('topic.create', onExecute, { enabled: () => available })
+      return null
+    }
+
+    renderProvider(<LiveAvailability />)
+
+    const blocked = dispatchShortcut({})
+    expect(onExecute).not.toHaveBeenCalled()
+    expect(blocked).not.toHaveBeenCalled()
+
+    available = true
+    const allowed = dispatchShortcut({})
+    expect(onExecute).toHaveBeenCalledOnce()
+    expect(allowed).toHaveBeenCalledOnce()
+
+    available = false
+    const blockedAgain = dispatchShortcut({})
+    expect(onExecute).toHaveBeenCalledOnce()
+    expect(blockedAgain).not.toHaveBeenCalled()
+  })
+
   it('skips composing events', () => {
     const onExecute = vi.fn()
     renderProvider(<RegisteredCommand command="topic.create" onExecute={onExecute} />)
@@ -207,5 +233,77 @@ describe('CommandProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'execute' }))
 
     expect(loggerMock.warn).toHaveBeenCalledWith('No renderer command handler registered: topic.create')
+  })
+})
+
+describe('keyboard routing predicates', () => {
+  function PredicateCommand({ accept, onExecute }: { accept: boolean; onExecute: () => void }) {
+    useCommandHandler('topic.create', onExecute, { shouldHandleKeyEvent: () => accept })
+    return null
+  }
+
+  it('ignores the legacy IME composition key code', () => {
+    const execute = vi.fn()
+    renderProvider(<RegisteredCommand command="topic.create" onExecute={execute} />)
+    const prevented = dispatchShortcut({ keyCode: 229 })
+    expect(execute).not.toHaveBeenCalled()
+    expect(prevented).not.toHaveBeenCalled()
+  })
+
+  it('uses the latest predicate and active registration without falling back', () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const tree = (accept: boolean, showSecond: boolean) => (
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <PredicateCommand accept onExecute={first} />
+          {showSecond && <PredicateCommand accept={accept} onExecute={second} />}
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+    const { rerender } = render(tree(false, true))
+    expect(dispatchShortcut({})).not.toHaveBeenCalled()
+    expect(first).not.toHaveBeenCalled()
+    expect(second).not.toHaveBeenCalled()
+    rerender(tree(true, true))
+    expect(dispatchShortcut({})).toHaveBeenCalledOnce()
+    expect(second).toHaveBeenCalledOnce()
+    rerender(tree(false, false))
+    expect(dispatchShortcut({})).toHaveBeenCalledOnce()
+    expect(first).toHaveBeenCalledOnce()
+  })
+
+  it('dispatches a pre-cancelled event when no predicate is provided', () => {
+    const execute = vi.fn()
+    renderProvider(<RegisteredCommand command="topic.create" onExecute={execute} />)
+    const event = new KeyboardEvent('keydown', { key: 'n', code: 'KeyN', ctrlKey: true, cancelable: true })
+    event.preventDefault()
+    window.dispatchEvent(event)
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
+  it('executes the matched callback even when a predicate updates its live source', () => {
+    const first = vi.fn()
+    const replacement = vi.fn()
+    function ChangingSource() {
+      const runtime = useCommandRuntime()
+      useLayoutEffect(() => {
+        const source: { current: CommandHandler } = { current: first }
+        return runtime.registerHandler('topic.create', source, {
+          shouldHandleKeyEvent: () => {
+            source.current = replacement
+            return true
+          }
+        })
+      }, [runtime])
+      return null
+    }
+    renderProvider(<ChangingSource />)
+    dispatchShortcut({})
+    expect(first).toHaveBeenCalledOnce()
+    expect(replacement).not.toHaveBeenCalled()
+    dispatchShortcut({})
+    expect(first).toHaveBeenCalledOnce()
+    expect(replacement).toHaveBeenCalledOnce()
   })
 })

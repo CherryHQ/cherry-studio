@@ -71,14 +71,22 @@ export const EnhancedMath = Extension.create<EnhancedMathOptions>({
         addInputRules() {
           return [
             new InputRule({
-              find: /(^|[^$])(\$([^$\n]+?)\$)(?!\$)/,
-              handler: ({ state, range, match }) => {
-                const latex = match[3]
-                const { tr } = state
-                const start = range.from
-                const end = range.to
+              find: /(?<!\$)(\$([^$\n]+?)\$)(?!\$)$/,
+              handler: ({ state, range, match }): void | null => {
+                let containsNonText = false
 
-                tr.replaceWith(start, end, this.type.create({ latex }))
+                state.doc.nodesBetween(range.from, range.to, (node) => {
+                  if (node.isInline && !node.isText) {
+                    containsNonText = true
+                  }
+                })
+
+                if (containsNonText) return null
+
+                const latex = match[2]
+                const { tr } = state
+
+                tr.replaceWith(range.from, range.to, this.type.create({ latex }))
               }
             })
           ]

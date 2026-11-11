@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-06-anthropic-usage-compatibility.md
+2026-11-06-anthropic-usage-compatibility.md: 0aa01721bf5d0fbc89a1c61635ebdc3dafcdc61d
+2026-11-06-anthropic-usage-compatibility.zh.md: 45f3798e5fffc12c15ec23cf4e0b0601928c1fc4

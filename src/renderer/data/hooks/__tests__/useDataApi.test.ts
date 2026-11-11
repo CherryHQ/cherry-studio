@@ -1448,6 +1448,22 @@ describe('usePaginatedQuery reset-on-query-change', () => {
     return vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [], total: 30, page: 1 })
   }
 
+  it('can return directly to a valid page after the consumer observes a smaller total', async () => {
+    const get = spyOffsetGet()
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => usePaginatedQuery('/assistants'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    await act(async () => result.current.goToPage(3))
+    await waitFor(() => expect(result.current.page).toBe(3))
+    await act(async () => result.current.goToPage(2))
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/assistants', expect.objectContaining({ query: { page: 2, limit: 10 } }))
+    )
+    expect(result.current.page).toBe(2)
+    await act(async () => result.current.goToPage(0))
+    expect(result.current.page).toBe(2)
+  })
+
   it('does NOT reset page when query keys reorder but values are unchanged', async () => {
     spyOffsetGet()
 

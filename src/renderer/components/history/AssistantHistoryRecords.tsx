@@ -1,20 +1,26 @@
 import { Bot } from 'lucide-react'
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { TopicActionContext } from '@renderer/components/chat/actions/topicContextMenuActions'
+import { permanentDeletePopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { dataApiService } from '@renderer/data/DataApiService'
-import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
+import { useConversationExportMenuOptions } from '@renderer/hooks/chat/useConversationExportMenuOptions'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
+import { useResolvedCommand } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useCurrentDayStart } from '@renderer/hooks/useCurrentDayStart'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
@@ -38,6 +44,8 @@ import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
 import { getErrorMessage } from '@renderer/utils/error'
 import { matchesSearchText } from '@renderer/utils/pinyin'
+import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { classifyTurn } from '@shared/ai/transport'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
@@ -62,6 +70,39 @@ import { useHistoryRecordsController } from './useHistoryRecordsController'
 
 const logger = loggerService.withContext('AssistantHistoryRecords')
 
+const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as const
+
+function isHistoryTopicPermanentDeleteBusy(topicId: string): boolean {
+  const entry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
+  const flags = classifyTurn(entry?.status)
+  return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors.length ?? 0) > 0
+}
+
+function survivingHistoryNeighbor<T extends { id: string }>(
+  orderedBeforeDelete: readonly T[],
+  refreshed: readonly T[],
+  deletedId: string,
+  neighborBeforeDelete: T | undefined
+): T | undefined {
+  const remaining = refreshed.filter((item) => item.id !== deletedId)
+  if (neighborBeforeDelete) {
+    const stillThere = remaining.find((item) => item.id === neighborBeforeDelete.id)
+    if (stillThere) return stillThere
+  }
+  if (remaining.length === 0) return undefined
+
+  const remainingIds = new Set(remaining.map((item) => item.id))
+  const fallback = orderedBeforeDelete.find((item) => item.id !== deletedId && remainingIds.has(item.id))
+  return fallback ? remaining.find((item) => item.id === fallback.id) : remaining[0]
+}
+
+function historyPermanentDeleteFailureMessage(err: unknown, translate: (key: string) => string): string {
+  if (isTrashTargetNotFoundError(err)) return translate('recycle_bin.delete.stale')
+  if (isTrashTopicBusyError(err)) return translate('recycle_bin.delete.busy')
+  if (err instanceof Error && err.message) return err.message
+  return translate('chat.topics.manage.delete.error')
+}
+
 type HistoryTopicItem = ApiTopic & { assistantId: string | undefined; pinned: boolean }
 
 function AssistantHistoryRowState({
@@ -72,6 +113,7 @@ function AssistantHistoryRowState({
   children: (state: HistoryRowState) => ReactElement
 }) {
   const { isRenaming } = useTopicRenameState(topicId)
+  useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   return children({ isRenaming })
 }
 
@@ -80,6 +122,8 @@ interface AssistantHistoryRecordsProps {
   onClose: () => void
   onRecordSelect?: (topic: RendererTopic) => void
   onActiveRecordChange?: (topic: RendererTopic | null) => void
+  /** Active while this list is permanently deleting `id`; `null` when that attempt settles. */
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   toolbarLeading?: ReactNode
 }
 
@@ -88,11 +132,13 @@ const AssistantHistoryRecords = ({
   onClose,
   onRecordSelect,
   onActiveRecordChange: onActiveTopicChange,
+  onLocalPermanentDeletePendingChange,
   toolbarLeading
 }: AssistantHistoryRecordsProps) => {
   const { t } = useTranslation()
+  const { shortcutLabel: permanentDeleteShortcut } = useResolvedCommand('resource.delete_permanently')
   const clearTopicMessages = useClearTopicMessages()
-  const [groupNow] = useState(() => new Date())
+  const groupNow = useCurrentDayStart()
   const conversationNav = useConversationNavigation('assistants')
 
   const { topics: rawTopics, rendererTopics, isLoadingAll: isTopicsLoading, refetch } = useAssistantTopicsSource()
@@ -107,28 +153,23 @@ const AssistantHistoryRecords = ({
     restoreTopic,
     batchUpdateTopics
   } = useTopicMutations()
-  const [exportMenuOptions] = useMultiplePreferences({
-    docx: 'data.export.menus.docx',
-    image: 'data.export.menus.image',
-    joplin: 'data.export.menus.joplin',
-    markdown: 'data.export.menus.markdown',
-    markdown_reason: 'data.export.menus.markdown_reason',
-    notion: 'data.export.menus.notion',
-    obsidian: 'data.export.menus.obsidian',
-    plain_text: 'data.export.menus.plain_text',
-    siyuan: 'data.export.menus.siyuan',
-    yuque: 'data.export.menus.yuque'
-  })
+  const exportMenuOptions = useConversationExportMenuOptions()
   const { pinnedIds: topicPinnedIds, togglePin: toggleTopicPin } = usePins('topic')
   const { items: optimisticTopics, rename: renameTopicOptimistically } = useOptimisticResourceName(rawTopics)
 
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
+  const topicsRef = useRef<HistoryTopicItem[]>([])
+  const timeSortedTopicsRef = useRef<HistoryTopicItem[]>([])
+  const activeRecordIdRef = useRef(activeRecordId)
+  const permanentDeleteLockRef = useRef(false)
+  activeRecordIdRef.current = activeRecordId
   const isTopicPinned = useCallback((topicId: string) => topicPinnedIdSet.has(topicId), [topicPinnedIdSet])
   const topics = useMemo<HistoryTopicItem[]>(
     () =>
       optimisticTopics.map((topic) => ({ ...topic, assistantId: topic.assistantId, pinned: isTopicPinned(topic.id) })),
     [isTopicPinned, optimisticTopics]
   )
+  topicsRef.current = topics
   const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
   const assistantRankById = useMemo(
     () => new Map(assistants.map((assistant, index) => [assistant.id, index])),
@@ -140,6 +181,7 @@ const AssistantHistoryRecords = ({
     () => sortTopicsForDisplayGroups(topics, { mode: 'time', now: groupNow }),
     [groupNow, topics]
   )
+  timeSortedTopicsRef.current = timeSortedTopics
   const assistantSortedTopics = useMemo(
     () => sortTopicsForDisplayGroups(topics, { assistantRankById, mode: 'assistant', now: groupNow }),
     [assistantRankById, groupNow, topics]
@@ -262,6 +304,71 @@ const AssistantHistoryRecords = ({
       })
     },
     [activeRecordId, deleteTopicById, getRendererTopic, onActiveTopicChange, refetch, restoreTopic, t, timeSortedTopics]
+  )
+
+  const handlePermanentDeleteTopic = useCallback(
+    async (topic: RendererTopic) => {
+      if (permanentDeleteLockRef.current) return
+      permanentDeleteLockRef.current = true
+      try {
+        await permanentDeletePopup.show({
+          kind: 'conversation',
+          target: 'topic',
+          name: topic.name.trim() || t('chat.default.topic.name'),
+          action: async () => {
+            const liveTopic = topicsRef.current.find((candidate) => candidate.id === topic.id)
+            if (liveTopic?.pinned) {
+              throw new Error(t('recycle_bin.delete.pinned'))
+            }
+            if (isHistoryTopicPermanentDeleteBusy(topic.id)) {
+              throw new Error(t('recycle_bin.delete.busy'))
+            }
+
+            const orderedBeforeDelete = timeSortedTopicsRef.current
+            const neighborBeforeDelete = pickNeighbourAfterRemoval(orderedBeforeDelete, topic.id)
+            onLocalPermanentDeletePendingChange?.(topic.id)
+            try {
+              let outcome
+              try {
+                outcome = await deleteTopicById(topic.id, { permanent: true, targetState: 'active' })
+              } catch (err) {
+                logger.error('Failed to permanently delete topic from history records', { topicId: topic.id, err })
+                await refetch().catch((refreshError) => {
+                  logger.warn('Failed to refresh topics after permanent delete failed', refreshError as Error, {
+                    topicId: topic.id
+                  })
+                })
+                throw new Error(historyPermanentDeleteFailureMessage(err, t))
+              }
+
+              if (!outcome.deletedIds.includes(topic.id)) {
+                await refetch().catch((refreshError) => {
+                  logger.warn('Failed to refresh topics after stale permanent delete', refreshError as Error, {
+                    topicId: topic.id
+                  })
+                })
+                throw new Error(t('recycle_bin.delete.stale'))
+              }
+
+              if (activeRecordIdRef.current !== topic.id) return
+
+              const nextTopic = survivingHistoryNeighbor(
+                orderedBeforeDelete,
+                timeSortedTopicsRef.current,
+                topic.id,
+                neighborBeforeDelete
+              )
+              onActiveTopicChange?.(nextTopic ? getRendererTopic(nextTopic) : null)
+            } finally {
+              onLocalPermanentDeletePendingChange?.(null)
+            }
+          }
+        })
+      } finally {
+        permanentDeleteLockRef.current = false
+      }
+    },
+    [deleteTopicById, getRendererTopic, onActiveTopicChange, onLocalPermanentDeletePendingChange, refetch, t]
   )
 
   const handleBulkDeleteTopics = useCallback(
@@ -393,12 +500,14 @@ const AssistantHistoryRecords = ({
 
       return createTopicActionContext({
         exportMenuOptions,
-        isArchiveBlocked: false,
+        isArchiveBlocked: isHistoryTopicPermanentDeleteBusy(topic.id),
         isActiveInCurrentTab: false,
         isRenaming: false,
         onAutoRename: handleAutoRename,
         onClearMessages: handleClearMessages,
         onDelete: handleDeleteTopicFromMenu,
+        onDeletePermanently: handlePermanentDeleteTopic,
+        permanentDeleteShortcut,
         onPinTopic: async (topic) => {
           await handlePinTopic(topic)
         },
@@ -415,7 +524,9 @@ const AssistantHistoryRecords = ({
       handleAutoRename,
       handleClearMessages,
       handleDeleteTopicFromMenu,
+      handlePermanentDeleteTopic,
       handlePinTopic,
+      permanentDeleteShortcut,
       notesPath,
       t,
       topics.length
