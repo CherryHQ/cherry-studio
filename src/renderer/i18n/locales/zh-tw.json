@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.start": "Claude Code 無法啟動。診斷參考號：{{reference}}",
   "error.claude_code_session_bus_missing": "Claude Code 需要可用的 Linux 工作階段匯流排。",
   "error.claude_code_session_bus_missing_detail": "請在啟動 Cherry Studio 的桌面環境中設定 DBUS_SESSION_BUS_ADDRESS，然後重新啟動應用程式。Claude Code 尚未啟動。",
+  "error.claude_code_storage_open_failed": "無法開啟 Claude Code 工作階段儲存空間。請重新啟動應用程式，並確認代理程式資料資料夾可讀取且有足夠的可用空間。",
   "error.content": "內容",
   "error.data": "資料",
   "error.detail": "錯誤詳細資訊",
