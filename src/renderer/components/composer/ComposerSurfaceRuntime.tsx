@@ -73,6 +73,7 @@ import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import { handleMarkdownCodeKey } from './markdownLivePreview/codeBlockKeys'
 import { hasMarkdownLivePreview, isMarkdownFencedCodePosition } from './markdownLivePreview/livePreviewPlugin'
+import { handleMarkdownFormatKey } from './markdownLivePreview/selectionFormatKeys'
 import pasteHandling, { shouldHandleClipboardFiles } from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
@@ -1646,7 +1647,10 @@ export default function ComposerSurfaceRuntime({
           return true
         }
 
-        if (markdownLivePreviewRef.current && handleMarkdownCodeKey(view, event)) {
+        if (
+          markdownLivePreviewRef.current &&
+          (handleMarkdownCodeKey(view, event) || handleMarkdownFormatKey(view, event))
+        ) {
           event.preventDefault()
           event.stopPropagation()
           return true
