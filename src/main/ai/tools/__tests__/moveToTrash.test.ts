@@ -353,7 +353,7 @@ describe('moveWorkspaceItemToTrash', () => {
     const target = path.join(workspace, 'tasks', 'tmp.txt')
     await mkdir(path.dirname(target), { recursive: true })
     await writeFile(target, 'draft')
-    const originalGetPath = application.getPath
+    const originalGetPath = vi.mocked(application.getPath).getMockImplementation()!
     const getPath = vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
       switch (key) {
         case 'sys.home':
@@ -388,7 +388,7 @@ describe('moveWorkspaceItemToTrash', () => {
     await mkdir(path.join(workspace, '_待删'), { recursive: true })
     await writeFile(path.join(workspace, 'draft.txt'), 'draft')
     await writeFile(path.join(workspace, '_待删', 'draft.txt'), 'draft')
-    const originalGetPath = application.getPath
+    const originalGetPath = vi.mocked(application.getPath).getMockImplementation()!
     const getPath = vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
       switch (key) {
         case 'sys.home':
