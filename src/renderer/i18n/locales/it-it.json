@@ -1958,6 +1958,7 @@
   "knowledge.empty_action": "Crea base di conoscenza",
   "knowledge.empty_description": "Arricchisci le tue conoscenze con l'IA",
   "knowledge.error.directory_not_migrated": "Migrazione della cartella non riuscita. Eliminala e caricala di nuovo.",
+  "knowledge.error.empty_indexable_text": "Non è stato estratto alcun testo indicizzabile. Controlla la fonte, le impostazioni OCR o di elaborazione dei documenti, quindi reindicizza.",
   "knowledge.error.failed_base_unknown": "Migrazione di questa base di conoscenza non riuscita. Ricostruiscila e scegli un nuovo modello di embedding.",
   "knowledge.error.failed_to_create": "Impossibile creare la base di conoscenza",
   "knowledge.error.failed_to_delete": "Impossibile eliminare la base di conoscenza",

@@ -1958,6 +1958,7 @@
   "knowledge.empty_action": "Bilgi Tabanı Oluştur",
   "knowledge.empty_description": "Yapay zekâ ile bilgi birikimi oluşturun",
   "knowledge.error.directory_not_migrated": "Klasör taşıma işlemi başarısız oldu. Klasörü silip yeniden yükleyin.",
+  "knowledge.error.empty_indexable_text": "Dizine alınabilir metin çıkarılamadı. Kaynağı, OCR veya belge işleme ayarlarını kontrol edip yeniden dizinleyin.",
   "knowledge.error.failed_base_unknown": "Bu bilgi tabanı taşıma sırasında başarısız oldu. Yeniden oluşturup yeni bir gömme modeli seçin.",
   "knowledge.error.failed_to_create": "Bilgi tabanı oluşturulamadı",
   "knowledge.error.failed_to_delete": "Bilgi tabanı silinemedi",
