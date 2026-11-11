@@ -1943,6 +1943,7 @@
   "knowledge.empty_action": "ナレッジベースを作成",
   "knowledge.empty_description": "AI とともに知識を蓄積しましょう",
   "knowledge.error.directory_not_migrated": "フォルダーの移行に失敗しました。削除してから再度アップロードしてください。",
+  "knowledge.error.empty_indexable_text": "インデックス可能なテキストを抽出できませんでした。ソース、OCR、またはドキュメント処理の設定を確認してから、再インデックスしてください。",
   "knowledge.error.failed_base_unknown": "このナレッジベースは移行中に失敗しました。再構築して、新しい埋め込みモデルを選択してください。",
   "knowledge.error.failed_to_create": "ナレッジベースの作成に失敗しました",
   "knowledge.error.failed_to_delete": "ナレッジベースの削除に失敗しました",
