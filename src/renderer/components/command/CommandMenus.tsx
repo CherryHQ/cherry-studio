@@ -289,7 +289,10 @@ function CommandContextMenuExtraItemView({
           <ContextMenuItemContent icon={item.icon}>{item.label}</ContextMenuItemContent>
         </ContextMenuSubTrigger>
         <ContextMenuSubContent>
-          <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-1' }} className="-mr-1 max-h-72">
+          <ScrollArea
+            contentProps={{ className: 'pr-1' }}
+            viewportProps={{ className: 'overflow-x-hidden' }}
+            className="-mr-1 max-h-72">
             {item.children.map((child, index) => (
               <CommandContextMenuExtraItemView
                 key={`${child.type}-${index}`}
@@ -714,7 +717,10 @@ function CommandDropdownExtraItemView({
           <ContextMenuItemContent icon={item.icon}>{item.label}</ContextMenuItemContent>
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
-          <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-1' }} className="-mr-1 max-h-72">
+          <ScrollArea
+            contentProps={{ className: 'pr-1' }}
+            viewportProps={{ className: 'overflow-x-hidden' }}
+            className="-mr-1 max-h-72">
             {item.children.map((child, index) => (
               <CommandDropdownExtraItemView key={`${child.type}-${index}`} item={child} onSelectItem={onSelectItem} />
             ))}
