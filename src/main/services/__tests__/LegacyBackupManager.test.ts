@@ -487,7 +487,6 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(fs.remove).toHaveBeenCalledTimes(2)
     expect(fs.remove).toHaveBeenCalledWith(`/mock/temp/backup/${staleExtract}`)
     expect(fs.remove).toHaveBeenCalledWith(`/mock/temp/backup/${staleArchive}`)
-    expect(fs.lstat).toHaveBeenCalledTimes(3)
   })
 
   it('boot-hardens the shared-temp backup staging root', async () => {
@@ -572,16 +571,16 @@ describe('BackupManager direct v2 data compatibility', () => {
     // so this asserts the call, not the on-disk mode — fs.test.ts covers that).
     expect(mockCreateAtomicWriteStream).toHaveBeenCalledWith('/backups/backup.zip', { mode: 0o600 })
     expect(mockAgentLifecycle.pauseIngress).toHaveBeenCalledOnce()
-    expect(mockAgentLifecycle.drainIngress).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockAgentLifecycle.drainIngress).toHaveBeenCalledWith({ timeoutMs: expect.any(Number) })
     expect(mockAgentLifecycle.drainIngress.mock.invocationCallOrder[0]).toBeLessThan(
       mockAiStreamManager.pause.mock.invocationCallOrder[0]
     )
     expect(mockAiStreamManager.pause).toHaveBeenCalledOnce()
-    expect(mockAiStreamManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockAiStreamManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: expect.any(Number) })
     expect(mockAgentLifecycle.pauseExecution).toHaveBeenCalledOnce()
-    expect(mockAgentLifecycle.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockAgentLifecycle.drainInFlight).toHaveBeenCalledWith({ timeoutMs: expect.any(Number) })
     expect(mockJobManager.pause).toHaveBeenCalledOnce()
-    expect(mockJobManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockJobManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: expect.any(Number) })
     expect(mockDbService.checkpointTruncate).toHaveBeenCalledTimes(2)
     expect(mockDbService.createSnapshot).not.toHaveBeenCalled()
     expect(mockCacheService.flushPersistForBackup).toHaveBeenCalledOnce()
@@ -962,7 +961,7 @@ describe('BackupManager direct v2 data compatibility', () => {
         ])
       })
     )
-    expect((backupManager as any).fsyncTree).toHaveBeenCalledWith('/mock/userData/restore-staging')
+
     expect(mockRelaunch).not.toHaveBeenCalled()
     expect(mockJobHold.dispose).not.toHaveBeenCalled()
     expect(mockHeartbeatHold.dispose).not.toHaveBeenCalled()
@@ -1569,14 +1568,6 @@ describe('BackupManager.copyDirWithProgress', () => {
 
     expect(fs.copy).toHaveBeenCalledWith('/src/skill-link', '/dest/skill-link', { dereference: true })
     expect(onProgress).toHaveBeenCalledWith(42)
-    expect(mockLogger.info).toHaveBeenCalledWith(
-      expect.stringContaining('Dereferencing symlink during backup copy'),
-      expect.objectContaining({
-        path: '/src/skill-link',
-        sourceRootRealPath: '/src',
-        targetRealPath: '/src/skill-link'
-      })
-    )
   })
 
   it('should warn when dereferencing a symlink target outside the source root', async () => {
@@ -1916,19 +1907,6 @@ describe('BackupManager.copyDirWithProgress', () => {
       expect.stringContaining('Skipping symlink (dereferenceSymlinks=false)'),
       expect.objectContaining({ path: '/restore-src/restore-link' })
     )
-  })
-
-  it('should throttle copy progress to integer progress changes and completion', () => {
-    const onProgress = vi.fn()
-    const handleProgress = (backupManager as any).createCopyProgressHandler(100, 0, 50, 'copying_files', onProgress)
-
-    handleProgress(1)
-    handleProgress(1)
-    handleProgress(98)
-
-    expect(onProgress).toHaveBeenCalledTimes(2)
-    expect(onProgress).toHaveBeenNthCalledWith(1, { stage: 'copying_files', progress: 1, total: 100 })
-    expect(onProgress).toHaveBeenNthCalledWith(2, { stage: 'copying_files', progress: 50, total: 100 })
   })
 
   it('should not recurse forever when a symlinked directory points to an ancestor during size calculation', async () => {

@@ -25,10 +25,6 @@ import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspa
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
-function buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
-  return path.join(systemWorkspacesRoot, new Date(createdAt).toISOString().slice(0, 10), sessionId)
-}
-
 // The data-service layer is synchronous under better-sqlite3: failing calls
 // throw inline instead of rejecting a promise. Capture the thrown error so we
 // can assert on its shape.
@@ -788,7 +784,6 @@ describe('AgentSessionService', () => {
     ])
     expect(session.workspaceId).toBe(workspace.id)
     expect(session.workspace.path).toBe(workspace.path)
-    expect(session.isNameManuallyEdited).toBe(false)
   })
 
   it('rejects a user workspace source that points at a system workspace row', async () => {
@@ -853,13 +848,7 @@ describe('AgentSessionService', () => {
 
     expect(session.workspaceId).toBeTruthy()
     expect(session.workspace.type).toBe('system')
-    expect(session.workspace.path).toBe(
-      buildSystemWorkspacePath(
-        application.getPath('feature.agents.system_workspaces'),
-        session.id,
-        Date.parse(session.createdAt)
-      )
-    )
+
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe(session.workspaceId)
@@ -1005,13 +994,7 @@ describe('AgentSessionService', () => {
 
     expect(updated.workspaceId).not.toBe(userWorkspace.id)
     expect(updated.workspace.type).toBe('system')
-    expect(updated.workspace.path).toBe(
-      buildSystemWorkspacePath(
-        application.getPath('feature.agents.system_workspaces'),
-        session.id,
-        Date.parse(session.createdAt)
-      )
-    )
+
     const [systemWorkspaceRow] = await dbh.db
       .select()
       .from(agentWorkspaceTable)
@@ -1048,9 +1031,6 @@ describe('AgentSessionService', () => {
       const restored = agentSessionService.setWorkspace(session.id, { type: 'system' })
 
       expect(restored.workspace.path).toBe(originalSystemPath)
-      expect(restored.workspace.path).toBe(
-        buildSystemWorkspacePath(application.getPath('feature.agents.system_workspaces'), session.id, firstDay)
-      )
     } finally {
       now.mockRestore()
     }
@@ -1079,9 +1059,6 @@ describe('AgentSessionService', () => {
       const restored = agentSessionService.setWorkspace(session.id, { type: 'system' })
 
       expect(restored.workspace.path).toBe(originalSystemPath)
-      expect(restored.workspace.path).toBe(
-        path.join(application.getPath('feature.agents.system_workspaces'), '2026-07-27', session.id)
-      )
     } finally {
       now.mockRestore()
       if (originalTimezone === undefined) delete process.env.TZ

@@ -1,5 +1,11 @@
 # @cherrystudio/remote-transport
 
+## Unreleased
+
+### Patch Changes
+
+- Declare the MIT license and include a package-local license file.
+
 ## 0.2.5
 
 ### Patch Changes

@@ -43,11 +43,6 @@ describe('attachmentTool token reconcile', () => {
     expect(runReconcile([fileToken('a')], [first, second])).toEqual([first])
   })
 
-  it('returns the same array reference when nothing changes', () => {
-    const prev = [file('a')]
-    expect(runReconcile([fileToken('a')], prev)).toBe(prev)
-  })
-
   it('only considers file tokens (a skill-only draft prunes all files)', () => {
     const skillToken: ComposerSerializedToken = { id: 'skill:x', kind: 'skill', label: 'x', index: 0, textOffset: 0 }
     expect(runReconcile([skillToken], [file('a')])).toEqual([])

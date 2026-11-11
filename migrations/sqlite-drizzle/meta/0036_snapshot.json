@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9da0e12c-76c9-474c-b0a5-e885a9e010b9",
+  "id": "45066f4a-7106-4ee6-ae1c-bf5124a3e3ec",
   "prevId": "13604f26-aae6-4e99-acf4-83eb07b6e40f",
   "tables": {
     "agent": {
@@ -170,81 +170,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "agent_background_task": {
-      "name": "agent_background_task",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "agent_id": {
-          "name": "agent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "record": {
-          "name": "record",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "finished_at": {
-          "name": "finished_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agent_background_task_agent_started_idx": {
-          "name": "agent_background_task_agent_started_idx",
-          "columns": [
-            "agent_id",
-            "started_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "agent_background_task_agent_id_agent_id_fk": {
-          "name": "agent_background_task_agent_id_agent_id_fk",
-          "tableFrom": "agent_background_task",
-          "tableTo": "agent",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2972,6 +2897,93 @@
         }
       }
     },
+    "assistant_avatar_file_ref": {
+      "name": "assistant_avatar_file_ref",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_entry_id": {
+          "name": "file_entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "aafr_entry_id_idx": {
+          "name": "aafr_entry_id_idx",
+          "columns": [
+            "file_entry_id"
+          ],
+          "isUnique": false
+        },
+        "aafr_source_id_idx": {
+          "name": "aafr_source_id_idx",
+          "columns": [
+            "source_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "assistant_avatar_file_ref_file_entry_id_file_entry_id_fk": {
+          "name": "assistant_avatar_file_ref_file_entry_id_file_entry_id_fk",
+          "tableFrom": "assistant_avatar_file_ref",
+          "tableTo": "file_entry",
+          "columnsFrom": [
+            "file_entry_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "assistant_avatar_file_ref_source_id_assistant_id_fk": {
+          "name": "assistant_avatar_file_ref_source_id_assistant_id_fk",
+          "tableFrom": "assistant_avatar_file_ref",
+          "tableTo": "assistant",
+          "columnsFrom": [
+            "source_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "chat_message_file_ref": {
       "name": "chat_message_file_ref",
       "columns": {
@@ -3076,7 +3088,7 @@
       "checkConstraints": {
         "cmfr_role_check": {
           "name": "cmfr_role_check",
-          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output')"
+          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output', 'author_avatar')"
         }
       }
     },
