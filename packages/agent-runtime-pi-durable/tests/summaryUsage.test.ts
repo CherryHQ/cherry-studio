@@ -1,6 +1,6 @@
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { Type } from '@earendil-works/pi-ai'
 import { defineExtension, defineTool } from '@earendil-works/pi-durable'
+import { obj } from '@earendil-works/pi-schema'
 import { expect, it } from 'vitest'
 
 import {
@@ -91,7 +91,7 @@ it('charges a child summary to its consuming run and retains the total after reo
           defineTool({
             name: 'hold',
             description: 'Hold',
-            parameters: Type.Object({}),
+            parameters: obj({}),
             replay: 'safe',
             async execute() {
               reached()
@@ -217,7 +217,7 @@ it.each(['idle', 'successor'] as const)(
             defineTool({
               name: 'hold',
               description: 'Hold the successor run',
-              parameters: Type.Object({}),
+              parameters: obj({}),
               replay: 'safe',
               async execute() {
                 successorStarted.resolve()

@@ -471,7 +471,7 @@ describe('filterStandardParams', () => {
 
   it('keeps topK for other models', () => {
     const input = { topK: 40 }
-    expect(filterStandardParams(input, makeModel())).toBe(input)
+    expect(filterStandardParams(input, makeModel())).toEqual(input)
   })
 })
 

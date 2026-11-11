@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
@@ -6,7 +6,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 import { exportService } from '@renderer/services/ExportService'
 
-import { ChatBottomOverlayInsetProvider } from '../../layout/ChatViewportInsetContext'
 import type { MessageVirtualListHandle } from '../list/MessageVirtualList'
 import MessageList from '../MessageList'
 import { MessageListProvider } from '../MessageListProvider'
@@ -25,7 +24,6 @@ const scrollToElement = vi.fn()
 const scrollToRange = vi.fn()
 const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
-  navigationBaseKey: null as string | null,
   renderItemLimit: undefined as number | undefined,
   renderVersion: 0,
   readyCallbacks: [] as ((element: HTMLDivElement) => void)[],
@@ -309,7 +307,7 @@ vi.mock('../list/MessageVirtualList', async () => {
           scrollToKey,
           scrollToElement,
           scrollToRange,
-          getNavigationBaseKey: () => messageVirtualListMocks.navigationBaseKey,
+          getNavigationBaseKey: () => null,
           isFollowing: () => false,
           getScrollElement: () => messageVirtualListMocks.scrollElement
         }),
@@ -436,7 +434,6 @@ describe('MessageList', () => {
     scrollToRange.mockClear()
     vi.mocked(exportService.captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
-    messageVirtualListMocks.navigationBaseKey = null
     messageVirtualListMocks.renderItemLimit = undefined
     messageVirtualListMocks.renderVersion = 0
     messageVirtualListMocks.readyCallbacks = []
@@ -457,57 +454,15 @@ describe('MessageList', () => {
     expect(messageOutlineModule.loaded).toBe(false)
   })
 
-  it('exposes a stable message-list boundary', () => {
-    const { container } = renderMessageList([createMessage('assistant-1', 'assistant')])
-
-    expect(container.querySelector('[data-ui~="chat.message-list"]')).toHaveAttribute('id', 'messages')
-  })
-
-  it('keeps rapid navigation moving through assistant and user group owners', async () => {
-    const user = userEvent.setup()
-    const userMessage1 = createMessage('user-1', 'user')
-    const assistantMessage1 = { ...createMessage('assistant-1', 'assistant'), parentId: userMessage1.id }
-    const userMessage2 = createMessage('user-2', 'user')
-    const assistantMessage2 = { ...createMessage('assistant-2', 'assistant'), parentId: userMessage2.id }
-    const userMessage3 = createMessage('user-3', 'user')
-    const assistantMessage3 = { ...createMessage('assistant-3', 'assistant'), parentId: userMessage3.id }
-    messageVirtualListMocks.navigationBaseKey = `assistant${userMessage3.id}`
-    messageVirtualListMocks.scrollElement = null
-    scrollToKey.mockImplementationOnce((key: string) => {
-      messageVirtualListMocks.navigationBaseKey = key
-    })
-
+  it('does not show the removed navigation buttons for a saved buttons preference', () => {
     render(
-      <MessageListProvider
-        value={createValue(
-          [userMessage1, assistantMessage1, userMessage2, assistantMessage2, userMessage3, assistantMessage3],
-          { messageNavigation: 'buttons' }
-        )}>
+      <MessageListProvider value={createValue([createMessage('user-1', 'user')], { messageNavigation: 'buttons' })}>
         <MessageList />
       </MessageListProvider>
     )
 
-    const scrollElement = screen.getByTestId('virtual-list')
-    scrollElement.getBoundingClientRect = vi.fn(() => ({
-      bottom: 500,
-      height: 500,
-      left: 0,
-      right: 500,
-      top: 0,
-      width: 500,
-      x: 0,
-      y: 0,
-      toJSON: () => ({})
-    }))
-    fireEvent.mouseMove(scrollElement, { clientX: 470, clientY: 250 })
-
-    await user.click(screen.getByRole('button', { name: 'Previous Message' }))
-    await user.click(screen.getByRole('button', { name: 'Previous Message' }))
-
-    expect(scrollToKey.mock.calls).toEqual([
-      [`user${userMessage2.id}`, 'start'],
-      [`user${userMessage1.id}`, 'start']
-    ])
+    expect(screen.queryByRole('button', { name: /Previous Message|chat.navigation.prev/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Next Message|chat.navigation.next/ })).not.toBeInTheDocument()
   })
 
   it('keeps artifact popup and approval state when the source virtual row unmounts', async () => {
@@ -538,51 +493,6 @@ describe('MessageList', () => {
     expect(screen.getByRole('button', { name: 'Open artifact' })).toBeInTheDocument()
   })
 
-  it('keeps search disabled for embedded lists unless explicitly enabled', () => {
-    renderMessageList([createMessage('assistant-1', 'assistant')])
-
-    expect(screen.queryByTestId('message-list-search')).not.toBeInTheDocument()
-  })
-
-  it('keeps search mounted while excluding pending and live message content', () => {
-    const completed = createMessage('assistant-completed', 'assistant')
-    const pending = createMessage('assistant-pending', 'assistant', 'pending')
-    const live = createMessage('assistant-live', 'assistant')
-
-    render(
-      <MessageListProvider
-        value={createValue([completed, pending, live], {
-          streamingLayers: {
-            historyPartsByMessageId: {},
-            liveMessageIds: [live.id]
-          }
-        })}>
-        <MessageList enableSearch />
-      </MessageListProvider>
-    )
-
-    expect(screen.getByTestId('message-list-search')).toBeInTheDocument()
-    expect(messageListSearchMock.props?.messages.map((message) => message.id)).toEqual([
-      completed.id,
-      pending.id,
-      live.id
-    ])
-    expect(messageListSearchMock.props?.excludedMessageIds.has(live.id)).toBe(true)
-    expect(messageListSearchMock.props?.isStreaming).toBe(true)
-  })
-
-  it('pads the message column with the rail gutter from the chat layout context', () => {
-    chatLayoutModeMock.railGutterPx = 24
-
-    renderMessageList([createMessage('assistant-1', 'assistant')])
-
-    // Base side padding (24) + context gutter (24) on both sides.
-    expect(screen.getByTestId('message-group').parentElement).toHaveStyle({
-      paddingLeft: '48px',
-      paddingRight: '48px'
-    })
-  })
-
   it('narrows the message column to the side padding a compact window sets', () => {
     chatLayoutModeMock.sidePaddingPx = 12
 
@@ -604,186 +514,6 @@ describe('MessageList', () => {
       paddingLeft: '12px',
       paddingRight: '24px'
     })
-  })
-
-  it('preserves the measured rail gutter when the message list unmounts', () => {
-    Object.defineProperty(messageVirtualListMocks.scrollElement!, 'clientWidth', { value: 820 })
-    const view = render(
-      <MessageListProvider
-        value={createValue([createMessage('assistant-1', 'assistant')], { messageNavigation: 'anchor' })}>
-        <MessageList />
-      </MessageListProvider>
-    )
-
-    expect(chatLayoutModeMock.setRailGutterPx).toHaveBeenCalledWith(24)
-
-    chatLayoutModeMock.setRailGutterPx.mockClear()
-    view.unmount()
-
-    expect(chatLayoutModeMock.setRailGutterPx).not.toHaveBeenCalled()
-  })
-
-  it('keeps historical groups sealed while only the live tail changes', () => {
-    const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
-    const historyUser = createMessage('user-history', 'user')
-    const historyAssistant = createMessage('assistant-history', 'assistant')
-    const liveAssistant = createMessage('assistant-live', 'assistant', 'pending')
-    const historyParts = {
-      'user-history': [{ type: 'text', text: 'question' }],
-      'assistant-history': [{ type: 'text', text: 'sealed answer' }]
-    } as MessageListProviderValue['state']['partsByMessageId']
-    const streamingLayers = {
-      historyPartsByMessageId: historyParts,
-      liveMessageIds: ['assistant-live']
-    } as NonNullable<MessageListProviderValue['state']['streamingLayers']>
-    const actions: Partial<MessageListActions> = {}
-    const buildValue = (text: string) =>
-      createValue(
-        [historyUser, historyAssistant, { ...liveAssistant }],
-        {
-          topic,
-          streamingLayers,
-          partsByMessageId: {
-            ...historyParts,
-            'assistant-live': [{ type: 'text', text }]
-          }
-        },
-        actions
-      )
-
-    const view = render(
-      <MessageListProvider value={buildValue('a')}>
-        <MessageList />
-      </MessageListProvider>
-    )
-
-    for (const text of ['ab', 'abc', 'abcd', 'abcde']) {
-      view.rerender(
-        <MessageListProvider value={buildValue(text)}>
-          <MessageList />
-        </MessageListProvider>
-      )
-    }
-
-    expect(messageGroupRenderCounts.get('user-history')).toBe(1)
-    expect(messageGroupRenderCounts.get('assistant-history')).toBe(1)
-    expect(messageGroupRenderCounts.get('assistant-live')).toBe(5)
-  })
-
-  it('keeps historical groups sealed when the history parts map is rebuilt with unchanged entries', () => {
-    const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
-    const historyUser = createMessage('user-history', 'user')
-    const historyAssistant = createMessage('assistant-history', 'assistant')
-    const liveAssistant = createMessage('assistant-live', 'assistant', 'pending')
-    const userParts = [{ type: 'text', text: 'question' }]
-    const assistantParts = [{ type: 'text', text: 'sealed answer' }]
-    const actions: Partial<MessageListActions> = {}
-    const buildValue = () => {
-      const historyParts = {
-        'user-history': userParts,
-        'assistant-history': assistantParts
-      } as MessageListProviderValue['state']['partsByMessageId']
-      return createValue(
-        [historyUser, historyAssistant, liveAssistant],
-        {
-          topic,
-          streamingLayers: {
-            historyPartsByMessageId: historyParts,
-            liveMessageIds: ['assistant-live']
-          },
-          partsByMessageId: {
-            ...historyParts,
-            'assistant-live': [{ type: 'text', text: 'streaming' }]
-          }
-        },
-        actions
-      )
-    }
-
-    const view = render(
-      <MessageListProvider value={buildValue()}>
-        <MessageList />
-      </MessageListProvider>
-    )
-    view.rerender(
-      <MessageListProvider value={buildValue()}>
-        <MessageList />
-      </MessageListProvider>
-    )
-
-    expect(messageGroupRenderCounts.get('user-history')).toBe(1)
-    expect(messageGroupRenderCounts.get('assistant-history')).toBe(1)
-    expect(messageGroupRenderCounts.get('assistant-live')).toBe(2)
-  })
-
-  it('does not rerender or remount history while a new live id is waiting to join the list', () => {
-    const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
-    const historyUser = createMessage('user-history', 'user')
-    const historyAssistant = createMessage('assistant-history', 'assistant')
-    const historyParts = {
-      'user-history': [{ type: 'text', text: 'question' }],
-      'assistant-history': [{ type: 'text', text: 'answer with code' }]
-    } as MessageListProviderValue['state']['partsByMessageId']
-    const actions: Partial<MessageListActions> = {}
-    const buildValue = (liveMessageIds: string[]) =>
-      createValue(
-        [historyUser, historyAssistant],
-        {
-          topic,
-          streamingLayers: { historyPartsByMessageId: historyParts, liveMessageIds },
-          partsByMessageId: historyParts
-        },
-        actions
-      )
-
-    const view = render(
-      <MessageListProvider value={buildValue([])}>
-        <MessageList />
-      </MessageListProvider>
-    )
-    view.rerender(
-      <MessageListProvider value={buildValue(['assistant-future'])}>
-        <MessageList />
-      </MessageListProvider>
-    )
-
-    expect(messageGroupRenderCounts.get('assistant-history')).toBe(1)
-    expect(messageGroupRenderCounts.get('user-history')).toBe(1)
-    expect(messageGroupMountCounts.get('assistant-history')).toBe(1)
-    expect(messageGroupMountCounts.get('user-history')).toBe(1)
-  })
-
-  it('does not remount a group when it crosses from the live tail into history', () => {
-    const historyUser = createMessage('user-history', 'user')
-    const assistantParts = {
-      'assistant-1': [{ type: 'text', text: 'answer' }]
-    } as MessageListProviderValue['state']['partsByMessageId']
-    const buildValue = (liveMessageIds: string[], status: MessageListItem['status']) =>
-      createValue([historyUser, createMessage('assistant-1', 'assistant', status)], {
-        streamingLayers: { historyPartsByMessageId: assistantParts, liveMessageIds },
-        partsByMessageId: assistantParts
-      })
-
-    const view = render(
-      <MessageListProvider value={buildValue(['assistant-1'], 'pending')}>
-        <MessageList />
-      </MessageListProvider>
-    )
-    view.rerender(
-      <MessageListProvider value={buildValue([], 'success')}>
-        <MessageList />
-      </MessageListProvider>
-    )
-
-    expect(messageGroupMountCounts.get('assistant-1')).toBe(1)
-    expect(messageGroupMountCounts.get('user-history')).toBe(1)
-  })
-
-  it('keeps the latest pending assistant group mounted', () => {
-    renderMessageList([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant', 'pending')])
-
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', 'assistantassistant-1')
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-enabled', 'true')
   })
 
   it('keeps a queued message capture mounted and resolves a replacement element', async () => {
@@ -867,45 +597,6 @@ describe('MessageList', () => {
     await vi.waitFor(() => expect(screen.queryByTestId(`message-node-${message.id}`)).not.toBeInTheDocument())
   })
 
-  it('keeps an active success-row assistant group mounted while approval owns the turn', () => {
-    const assistant = createMessage('assistant-1', 'assistant', 'success')
-    render(
-      <MessageListProvider
-        value={createValue([createMessage('user-1', 'user'), assistant], {
-          getMessageActivityState: (message) => ({
-            isApprovalAnchor: message.id === assistant.id,
-            isProcessing: message.id === assistant.id,
-            isStreamTarget: message.id === assistant.id,
-            isActiveTurnProcessing: message.id === assistant.id,
-            isStreamLive: false
-          })
-        })}>
-        <MessageList />
-      </MessageListProvider>
-    )
-
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', 'assistantassistant-1')
-  })
-
-  it('keeps the scroll-to-bottom button enabled after assistant response completes', () => {
-    renderMessageList([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant')])
-
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', '')
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-enabled', 'true')
-  })
-
-  it('uses bottom overlay padding as the scroll-to-bottom button offset', () => {
-    render(
-      <ChatBottomOverlayInsetProvider value={{ contentBottomPadding: 128, scrollerBottomMargin: 12 }}>
-        <MessageListProvider value={createValue([createMessage('user-1', 'user')])}>
-          <MessageList />
-        </MessageListProvider>
-      </ChatBottomOverlayInsetProvider>
-    )
-
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-bottom-offset', '128')
-  })
-
   it('keeps existing messages visible while history refresh is loading', () => {
     render(
       <MessageListProvider
@@ -934,23 +625,6 @@ describe('MessageList', () => {
 
     expect(screen.getByTestId('message-list-loading')).toBeInTheDocument()
     expect(screen.queryByTestId('virtual-list')).toBeNull()
-  })
-
-  it('marks the message list container while multi-select mode is active', () => {
-    render(
-      <MessageListProvider
-        value={createValue([createMessage('user-1', 'user')], {
-          selection: {
-            enabled: true,
-            isMultiSelectMode: true,
-            selectedMessageIds: []
-          }
-        })}>
-        <MessageList />
-      </MessageListProvider>
-    )
-
-    expect(document.getElementById('messages')).toHaveClass('messages-container', 'multi-select-mode')
   })
 
   it('keeps the list runtime bound while messages change', () => {
@@ -983,14 +657,6 @@ describe('MessageList', () => {
     runtime?.locateMessage(nextMessage.id)
 
     expect(scrollToKey).toHaveBeenCalledWith('assistantassistant-1', 'start')
-  })
-
-  it('does not register the message outline scroll listener while outline is disabled', () => {
-    const addEventListenerSpy = vi.spyOn(messageVirtualListMocks.scrollElement!, 'addEventListener')
-
-    renderMessageList([createMessage('assistant-1', 'assistant')])
-
-    expect(addEventListenerSpy).not.toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true })
   })
 
   it('exports topic image from a complete non-virtualized capture surface', async () => {

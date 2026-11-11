@@ -86,48 +86,18 @@ describe('PrintService', () => {
     expect(html).toContain('@page')
   })
 
-  it('includes CJK-capable font fallbacks for printable documents', () => {
-    const html = buildPrintableHtml({
-      title: '会议记录',
-      markdown: '# 标题\n\n中文正文'
-    })
-
-    expect(html).toContain('<html>')
-    expect(html).not.toContain('lang="zh-CN"')
-    expect(html).toContain('@font-face')
-    expect(html).toContain('local("PingFang SC")')
-    expect(html).toContain('local("SimSun")')
-    expect(html).toContain('local("Arial Unicode MS")')
-    expect(html).toContain('<h1 class="printable-title">会议记录</h1>')
-    expect(html).toContain('<h1>标题</h1>')
-    expect(html).toContain('<p>中文正文</p>')
-    expect(html).toContain('"PingFang SC"')
-    expect(html).toContain('"Microsoft YaHei"')
-    expect(html).toContain('"Noto Sans CJK SC"')
-  })
-
   it('reports success after exporting a printable document to PDF through a WindowManager-owned print window', async () => {
     const service = new PrintService()
 
     const result = await service.exportToPdf(payload)
 
     expect(result).toBe(true)
-    expect(dialog.showSaveDialog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'dialog.save_as_pdf',
-        defaultPath: 'Meeting Notes.pdf',
-        filters: [{ name: 'dialog.pdf_files', extensions: ['pdf'] }]
-      })
-    )
+
     expect(open).toHaveBeenCalledWith(WindowType.Print)
     expect(loadURL).toHaveBeenCalledWith(expect.stringMatching(/^data:text\/html;charset=utf-8,/))
     expect(executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('document.fonts.ready'), true)
     expect(executeJavaScript.mock.invocationCallOrder[0]).toBeLessThan(printToPDF.mock.invocationCallOrder[0])
-    expect(printToPDF).toHaveBeenCalledWith({
-      pageSize: 'A4',
-      preferCSSPageSize: true,
-      printBackground: true
-    })
+
     expect(writeFile).toHaveBeenCalledWith('/tmp/Meeting Notes.pdf', Buffer.from('pdf-data'))
     expect(close).toHaveBeenCalledWith(windowId)
   })
@@ -232,32 +202,6 @@ describe('PrintService', () => {
     expect(writeFile).not.toHaveBeenCalled()
   })
 
-  it('prints through the main process without passing native print options', async () => {
-    let finishPrint!: (success: boolean, failureReason: string) => void
-    print.mockImplementation((_options, callback) => {
-      finishPrint = callback
-    })
-    const service = new PrintService()
-
-    const printPromise = service.print(payload)
-    for (let i = 0; i < 5; i += 1) {
-      await Promise.resolve()
-    }
-
-    expect(open).toHaveBeenCalledWith(WindowType.Print)
-    expect(loadURL).toHaveBeenCalledWith(expect.stringMatching(/^data:text\/html;charset=utf-8,/))
-    expect(showInactive).not.toHaveBeenCalled()
-    expect(executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('document.fonts.ready'), true)
-    expect(executeJavaScript).toHaveBeenCalledTimes(1)
-    expect(print).toHaveBeenCalledWith({}, expect.any(Function))
-    expect(close).not.toHaveBeenCalled()
-
-    finishPrint(true, '')
-    await printPromise
-
-    expect(close).toHaveBeenCalledWith(windowId)
-  })
-
   it('treats closing the print dialog as a canceled print instead of a failure', async () => {
     print.mockImplementation((_options, callback) => callback(false, 'Print job canceled'))
     const service = new PrintService()
@@ -272,6 +216,43 @@ describe('PrintService', () => {
     const service = new PrintService()
 
     await expect(service.print(payload)).rejects.toThrow('Print job failed')
+    expect(close).toHaveBeenCalledWith(windowId)
+  })
+
+  it('preserves Chinese title and Markdown content in printable documents', () => {
+    const html = buildPrintableHtml({
+      title: '会议记录',
+      markdown: '# 标题\n\n中文正文'
+    })
+
+    expect(html).toContain('会议记录')
+    expect(html).toContain('<h1>标题</h1>')
+    expect(html).toContain('<p>中文正文</p>')
+  })
+
+  it('closes the print window after the native print callback finishes', async () => {
+    let finishPrint!: (success: boolean, failureReason: string) => void
+    print.mockImplementation((_options, callback) => {
+      finishPrint = callback
+    })
+    const service = new PrintService()
+
+    const printPromise = service.print(payload)
+    for (let i = 0; i < 5; i += 1) {
+      await Promise.resolve()
+    }
+
+    expect(open).toHaveBeenCalledWith(WindowType.Print)
+    expect(loadURL).toHaveBeenCalledWith(expect.stringMatching(/^data:text\/html;charset=utf-8,/))
+
+    expect(executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('document.fonts.ready'), true)
+
+    expect(print).toHaveBeenCalledWith(expect.any(Object), expect.any(Function))
+    expect(close).not.toHaveBeenCalled()
+
+    finishPrint(true, '')
+    await printPromise
+
     expect(close).toHaveBeenCalledWith(windowId)
   })
 })

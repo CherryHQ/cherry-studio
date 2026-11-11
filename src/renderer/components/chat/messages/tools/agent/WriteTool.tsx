@@ -1,5 +1,6 @@
 import CodeViewer from '@renderer/components/CodeViewer'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
+import { getFilePreviewFileName } from '@renderer/utils/filePreview'
 
 import { AgentToolsType, type WriteToolInput, type WriteToolOutput } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
@@ -15,7 +16,7 @@ export function WriteTool({
   output?: WriteToolOutput
   hasError?: boolean
 }): ToolDisclosureItem {
-  const filename = input?.file_path?.split('/').pop()
+  const filename = input?.file_path ? getFilePreviewFileName(input.file_path) : undefined
   const language = getLanguageByFilePath(input?.file_path ?? '')
   // A Write creates the file: keep the path inert until the call finishes
   // successfully (output present and no error). While streaming the file may

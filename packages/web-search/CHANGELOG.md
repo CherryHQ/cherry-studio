@@ -1,5 +1,17 @@
 # @cherrystudio/web-search
 
+## 0.7.0
+
+### Minor Changes
+
+- [#24181](https://github.com/CherryHQ/cherry-studio/pull/24181) [`5313170`](https://github.com/CherryHQ/cherry-studio/commit/53131700862e0b357530935cfcc1a9e83544f2fa) Thanks [@404-Page-Found](https://github.com/404-Page-Found)! - Add a portable StepFun keyword-search provider with host-owned transport and credentials.
+
+## 0.6.0
+
+### Minor Changes
+
+- [#24077](https://github.com/CherryHQ/cherry-studio/pull/24077) [`082f62f`](https://github.com/CherryHQ/cherry-studio/commit/082f62f5913841c9f674b61479b8b6fe45b494fc) Thanks [@NatsUIJM](https://github.com/NatsUIJM)! - Add URL fetching to the Exa provider through the Contents API.
+
 ## 0.5.0
 
 ### Minor Changes
