@@ -38,8 +38,9 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
-import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
+import type { AttachmentBudget } from './attachmentBudget'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
+import { runAttachmentWorker } from './attachmentWorkerClient'
 import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
 import { materializeNativeFilePart } from './fileProcessor'
 
@@ -336,7 +337,7 @@ export async function prepareChatMessages<T extends UIMessage = UIMessage>(
 ): Promise<T[]> {
   const pending: PendingInline[] = []
   const prepared = await Promise.all(messages.map((message) => prepareChatMessage(message, ctx, pending)))
-  applyInlineCaps(pending, ctx)
+  await applyInlineCaps(pending, ctx)
   return prepared
 }
 
@@ -356,11 +357,13 @@ function defer(parts: UIMessage['parts'], pending: PendingInline[], handle: stri
   parts.push({ type: 'text', text: '' })
 }
 
-function applyInlineCaps(pending: PendingInline[], ctx: PrepareChatContext): void {
+async function applyInlineCaps(pending: PendingInline[], ctx: PrepareChatContext): Promise<void> {
+  if (pending.length === 0) return
   const caps = ctx.budget
-    ? allocateInlineCaps(
-        pending.map((entry) => entry.body),
-        ctx.budget
+    ? await runAttachmentWorker(
+        'allocate',
+        { bodies: pending.map((entry) => entry.body), tokens: ctx.budget.tokens },
+        ctx.signal
       )
     : pending.map(() => READ_FILE_PAGE_SIZE)
 

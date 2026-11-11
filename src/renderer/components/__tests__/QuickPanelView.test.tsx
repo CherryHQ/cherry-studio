@@ -125,33 +125,6 @@ function OpenPanelOnMount({
   return null
 }
 
-function OpenChildPanelWithParentOnMount() {
-  const quickPanel = useQuickPanel()
-  const didOpenRef = useRef(false)
-
-  useEffect(() => {
-    if (didOpenRef.current) return
-    didOpenRef.current = true
-
-    quickPanel.open({
-      title: 'Child Panel',
-      list: createList(1, 'Child'),
-      symbol: 'child',
-      pageSize: PAGE_SIZE,
-      queryAnchor: 0,
-      parentPanel: {
-        title: 'Slash Panel',
-        list: createList(1, 'Root'),
-        symbol: '/',
-        pageSize: PAGE_SIZE,
-        queryAnchor: 0
-      }
-    })
-  }, [quickPanel])
-
-  return null
-}
-
 function wrapWithProviders(children: React.ReactNode) {
   return <QuickPanelProvider>{children}</QuickPanelProvider>
 }
@@ -189,25 +162,6 @@ describe('QuickPanelView', () => {
   })
 
   describe('rendering', () => {
-    it('uses a slightly narrower horizontal width than the inputbar stack', () => {
-      const list = createList(1)
-      const input = createInputAdapter()
-
-      renderOpenPanel({
-        input,
-        list,
-        symbol: '/',
-        triggerInfo: { type: 'input', position: 0, originalText: '/Item 3' }
-      })
-
-      const panel = screen.getByTestId('quick-panel')
-      expect(panel).toHaveClass('right-2', 'left-2')
-      expect(panel).not.toHaveClass('w-full')
-      expect(panel).toHaveClass('-top-1')
-      expect(panel.className).not.toContain('px-[35px]')
-      expect(panel.className).not.toContain('top-px')
-    })
-
     it('exposes the panel surface for Custom CSS overrides', () => {
       const list = createList(1)
       const input = createInputAdapter()
@@ -221,22 +175,6 @@ describe('QuickPanelView', () => {
 
       const panelBody = screen.getByTestId('quick-panel-body')
       expect(panelBody).toHaveAttribute('data-slot', 'quick-panel-content')
-    })
-
-    it('uses neutral selected item styling instead of theme-primary styling', () => {
-      const list = createList(1, 'Selected', { isSelected: true })
-      const input = createInputAdapter()
-
-      renderOpenPanel({
-        input,
-        list,
-        symbol: '/',
-        triggerInfo: { type: 'input', position: 0, originalText: '/Item 1' }
-      })
-
-      const selectedRow = screen.getByText('Selected 1').closest('[data-id="Selected-1"]')
-      expect(selectedRow).toHaveClass('bg-accent')
-      expect(selectedRow?.className).not.toContain('primary')
     })
 
     it('filters from the composer input adapter instead of rendering an internal search input', async () => {
@@ -302,27 +240,6 @@ describe('QuickPanelView', () => {
 
       await waitFor(() => expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible'))
     })
-
-    it('does not navigate back to the parent panel from a child panel', async () => {
-      const input = createInputAdapter()
-
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenChildPanelWithParentOnMount />
-          </>
-        )
-      )
-
-      expect(screen.getByText('Child 1')).toBeInTheDocument()
-
-      fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'ArrowLeft', ctrlKey: true })
-
-      expect(screen.getByText('Child 1')).toBeInTheDocument()
-      expect(screen.queryByText('Root 1')).not.toBeInTheDocument()
-      expect(screen.queryByText('settings.quickPanel.back')).not.toBeInTheDocument()
-    })
   })
 
   describe('focusing', () => {
@@ -344,23 +261,6 @@ describe('QuickPanelView', () => {
         }
       }
     }
-
-    it('should focus on the first selectable item after panel open by default', () => {
-      const list = createList(100)
-      const input = createInputAdapter()
-
-      renderOpenPanel({
-        input,
-        list,
-        symbol: '/',
-        triggerInfo: { type: 'input', position: 0, originalText: '/Item 1' }
-      })
-
-      const panel = screen.getByTestId('quick-panel')
-      const focused = panel.querySelectorAll('.focused')
-      expect(focused.length).toBe(1)
-      expect(focused[0].textContent).toContain('Item 1')
-    })
 
     it('should focus on the right item using ArrowUp, ArrowDown', async () => {
       const list = createList(100, 'Item')

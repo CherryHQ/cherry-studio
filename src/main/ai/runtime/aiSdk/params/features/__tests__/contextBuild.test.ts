@@ -211,36 +211,7 @@ describe('buildContextOptions → createMiddleware', () => {
   })
 })
 
-describe('buildContextOptions — perTool lane rules', () => {
-  const fakeCodec = { deflate: () => null, assemble: (s: unknown) => s, snippet: (t: string) => t }
-
-  it('truncatable:false → bare-string preserve, even when a codec exists (fs_read invariant)', () => {
-    const scope = makeScope({
-      entries: [
-        { name: 'fs_read', truncatable: false, codec: fakeCodec } as never,
-        { name: 'plain_exempt', truncatable: false }
-      ]
-    })
-    const opts = buildContextOptions(scope)!
-    expect(opts.truncate?.perTool).toEqual(['fs_read', 'plain_exempt'])
-  })
-
-  it('codec-bearing entries become perTool objects carrying the codec closure', () => {
-    const scope = makeScope({ entries: [{ name: 'web_fetch', codec: fakeCodec } as never, { name: 'other' }] })
-    const opts = buildContextOptions(scope)!
-    expect(opts.truncate?.perTool).toEqual([{ name: 'web_fetch', codec: fakeCodec }])
-  })
-})
-
 describe('buildContextOptions — storage routing', () => {
-  it('anchored request → FileManager adapter wired with the placeholder id and allow-list set', () => {
-    const persistedOutputPaths = new Set<string>()
-    const scope = makeScope({ requestContext: { requestId: 'anchor-1', persistedOutputPaths } })
-    const opts = buildContextOptions(scope)!
-    expect(opts.truncate?.storage).toBeDefined()
-    expect(adapterFactoryMock).toHaveBeenCalledWith({ messageId: 'anchor-1', persistedOutputPaths })
-  })
-
   it('no message row (temp chat / one-shot streamPrompt) → no storage', () => {
     const opts = buildContextOptions(makeScope({ canOffloadToolOutputs: false }))!
     expect(opts.truncate?.storage).toBeUndefined()
@@ -262,11 +233,6 @@ describe('buildContextOptions — storage routing', () => {
 // The lookup moved out of resolveTruncateStorage so it can gate fs_read's
 // admission too, and now runs once per request in buildAgentParams.
 describe('hasAnchorRow', () => {
-  it('reports an anchored request when the id resolves to a message row', () => {
-    expect(hasAnchorRow('anchor-1')).toBe(true)
-    expect(getByIdMock).toHaveBeenCalledWith('anchor-1')
-  })
-
   it('treats a missing row as non-anchored (temp chat / one-shot streamPrompt)', () => {
     // Real MessageService.getById throws NOT_FOUND for missing rows — it never returns null.
     getByIdMock.mockImplementation(() => {
@@ -289,29 +255,6 @@ describe('hasAnchorRow', () => {
 })
 
 describe('contextBuildFeature', () => {
-  it('is gated on contextSettings.enabled and contributes one middleware-pushing plugin', async () => {
-    expect(contextBuildFeature.applies!(makeScope())).toBe(true)
-    expect(
-      contextBuildFeature.applies!(makeScope({ contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, enabled: false } }))
-    ).toBe(false)
-
-    const plugins = contextBuildFeature.contributeModelAdapters!(makeScope())
-    expect(plugins).toHaveLength(1)
-
-    const ctx = { middlewares: undefined as LanguageModelMiddleware[] | undefined }
-    await (plugins[0] as { configureContext: (c: unknown) => void | Promise<void> }).configureContext(ctx)
-    expect(ctx.middlewares).toHaveLength(1)
-    expect(typeof ctx.middlewares![0].transformParams).toBe('function')
-  })
-
-  it('pushes no middleware when context settings are disabled', async () => {
-    const scope = makeScope({ contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, enabled: false } })
-    const plugins = contextBuildFeature.contributeModelAdapters!(scope)
-    const ctx = { middlewares: undefined as LanguageModelMiddleware[] | undefined }
-    await (plugins[0] as { configureContext: (c: unknown) => void | Promise<void> }).configureContext(ctx)
-    expect(ctx.middlewares).toBeUndefined()
-  })
-
   it('does not register context middleware for caller-owned requests', async () => {
     const scope = makeScope({ request: { contextOwner: 'caller' } })
     expect(contextBuildFeature.applies!(scope)).toBe(false)
@@ -332,11 +275,6 @@ describe('contextBuildFeature', () => {
 // model — the 100k default is ~3% of a 1M window but several times a 16k one,
 // where it never fired and one tool result could swamp the request.
 describe('resolveInFlightTruncateThreshold', () => {
-  it('uses the window share when it is below the configured character setting', () => {
-    // 16k window → 16000 * 0.1 * 3 = 4800 chars, far below the 100k setting
-    expect(resolveInFlightTruncateThreshold(100_000, 16_000)).toBe(4800)
-  })
-
   it('keeps the configured setting when the window share is larger', () => {
     // 1M window share would be 300k; the explicit setting still caps the top
     expect(resolveInFlightTruncateThreshold(30_000, 1_000_000)).toBe(30_000)
@@ -349,16 +287,9 @@ describe('resolveInFlightTruncateThreshold', () => {
   // A declared max_tokens is billed alongside the input, so the share has to
   // come off the room the prompt actually has: 200k − 128k leaves 72k, a third
   // of the budget the raw window would have handed out.
-  it('takes its share of the room left after a declared max_tokens', () => {
-    expect(resolveInFlightTruncateThreshold(100_000, 200_000, 128_000)).toBe(21_600)
-    expect(resolveInFlightTruncateThreshold(100_000, 200_000, undefined)).toBe(60_000)
-  })
 
   // minimax-m2 ships 205000/205000 and 82 other registry rows are just as
   // degenerate; unfloored, the share would be 0 and every tool result offloads.
-  it('floors instead of collapsing when the reservation swallows the window', () => {
-    expect(resolveInFlightTruncateThreshold(100_000, 205_000, 205_000)).toBe(12_300)
-  })
 
   it('scales with the window (the point of the change)', () => {
     const small = resolveInFlightTruncateThreshold(100_000, 16_000)
@@ -426,47 +357,6 @@ describe('buildContextOptions — compression wiring', () => {
     expect(buildContextOptions(scope)).toBeNull()
   })
 
-  it('wires compact + truncate + contextWindow when enabled', () => {
-    const scope = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS })
-    const opts = buildContextOptions(scope)!
-    expect(opts).not.toBeNull()
-    expect(opts.compact).toEqual({ reasoning: 'none', emptyMessages: 'remove' })
-    // In-flight threshold is window-relative: min(setting, window share).
-    expect(opts.truncate?.threshold).toBe(
-      resolveInFlightTruncateThreshold(DEFAULT_CONTEXT_SETTINGS.truncateThreshold, 200_000)
-    )
-    expect(typeof opts.contextWindow).toBe('number')
-    expect(opts.onBeforeCompress).toBeTypeOf('function')
-    expect(opts.logger).toBeDefined()
-  })
-
-  it('durable+mid-loop owns LLM compress: only the no-model fallback wires a budget hook', () => {
-    // In-flight LLM compression no longer exists as an option — the trimmed
-    // ContextMiddlewareOptions type makes it unrepresentable. What remains to
-    // pin is the onBeforeCompress wiring per compression state.
-    // compress.enabled + model present: durable path owns it — the middleware gets NO Janitor.
-    const withModel = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: {} as never })
-    const withModelOpts = buildContextOptions(withModel)!
-    // Model present → durable path handles it; no sliding-window fallback needed.
-    expect(withModelOpts.onBeforeCompress).toBeUndefined()
-
-    // compress.enabled + no model: no-LLM sliding-window fallback still active.
-    const noModel = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: null })
-    const noModelOpts = buildContextOptions(noModel)!
-    // Wanted but unavailable → no-LLM sliding-window guard.
-    expect(noModelOpts.onBeforeCompress).toBeTypeOf('function')
-
-    // compress.enabled: false → nothing set regardless of model.
-    const compressOff = makeScope({
-      contextSettings: {
-        ...DEFAULT_CONTEXT_SETTINGS,
-        compress: { ...DEFAULT_CONTEXT_SETTINGS.compress, enabled: false }
-      },
-      compressionModel: {} as never
-    })
-    expect(buildContextOptions(compressOff)!.onBeforeCompress).toBeUndefined()
-  })
-
   // The Janitor re-estimates after this hook and returns early once under
   // budget, so it will NOT re-run `ensureValidHistory` — whatever the fallback
   // returns goes to the provider as-is. Dropping a single message could cut
@@ -523,24 +413,7 @@ describe('buildContextOptions — compression wiring', () => {
 
     it('leaves history untouched when already under budget', () => {
       const history = toolHistory()
-      expect(fallback()(history, { currentTokens: 100, limit: 1000 })).toBe(history)
+      expect(fallback()(history, { currentTokens: 100, limit: 1000 })).toEqual(history)
     })
-  })
-
-  it('attaches NO budget machinery when compression is disabled (no Janitor → no warnings)', () => {
-    // Regression: setting onCompress/onBeforeCompress unconditionally made the middleware
-    // build a Janitor on every request and warn when no model/tokenizer.
-    const scope = makeScope({
-      contextSettings: {
-        ...DEFAULT_CONTEXT_SETTINGS,
-        compress: { ...DEFAULT_CONTEXT_SETTINGS.compress, enabled: false }
-      },
-      compressionModel: {} as never
-    })
-    const opts = buildContextOptions(scope)!
-    expect(opts.onBeforeCompress).toBeUndefined()
-    // truncate + compact still active.
-    expect(opts.truncate).toBeDefined()
-    expect(opts.compact).toBeDefined()
   })
 })

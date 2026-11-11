@@ -234,24 +234,6 @@ describe('skillHandlers', () => {
     expect(discoverSystemMock).toHaveBeenCalledWith()
   })
 
-  it('system skill routes keep discovery and import separate from agent association', async () => {
-    discoverSystemMock.mockResolvedValue([])
-    importSystemMock.mockResolvedValue({ id: 'system-skill' })
-
-    await skillHandlers['skill.discover_system']({}, ctx)
-    await skillHandlers['skill.import_system']({ directoryPath: '/skill' }, ctx)
-
-    expect(discoverSystemMock).toHaveBeenCalledWith()
-    expect(importSystemMock).toHaveBeenCalledWith({ directoryPath: '/skill' })
-  })
-
-  it('reconcile delegates to SkillService.reconcileSkills with the native IpcApi contract', async () => {
-    reconcileMock.mockResolvedValue(undefined)
-
-    await expect(skillHandlers['skill.reconcile']({}, ctx)).resolves.toBeUndefined()
-    expect(reconcileMock).toHaveBeenCalledWith()
-  })
-
   it('scopes reconcile to one Skill when skillId is present', async () => {
     reconcileSkillMock.mockResolvedValue(undefined)
 

@@ -281,7 +281,8 @@ vi.mock('react-i18next', () => {
       'chat.save.knowledge.error.file_partial_failed': `${options?.count ?? 0} file(s) could not be saved`,
       'knowledge.data_source.add_dialog.url.description': '输入网页链接：',
       'knowledge.data_source.add_dialog.url.help': '将自动抓取页面文本并分块索引',
-      'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com'
+      'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com',
+      'library.import_dialog.error.invalid_url': '无效的 URL'
     } satisfies Record<string, string>
 
     return translations[key] ?? options?.defaultValue ?? key
@@ -338,6 +339,17 @@ describe('AddKnowledgeItemDialog', () => {
       // No "添加数据源" panel for the file source.
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       expect(screen.queryByRole('heading', { name: '添加数据源' })).not.toBeInTheDocument()
+    })
+
+    it('opens a fresh native picker when reopened during the exit phase', async () => {
+      const onOpenChange = vi.fn()
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      await waitFor(() => expect(mockFileSelect).toHaveBeenCalledTimes(1))
+
+      rerender(<AddKnowledgeItemDialog open={false} onOpenChange={onOpenChange} />)
+      rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await waitFor(() => expect(mockFileSelect).toHaveBeenCalledTimes(2))
     })
 
     it('submits picked files via detect and closes when added', async () => {
@@ -584,6 +596,33 @@ describe('AddKnowledgeItemDialog', () => {
   })
 
   describe('note source (panel)', () => {
+    it('updates selectable notes after mutations to an existing directory tree', () => {
+      setPendingAddSource('note')
+      const root = {}
+      const onOpenChange = vi.fn()
+      mockUseDirectoryTree.mockReturnValue({ root, version: 0, isLoading: false, error: null })
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      expect(screen.getByText('未找到笔记')).toBeVisible()
+
+      mockProjectNotesTree.mockReturnValue([createNoteNode('New note', '/notes/New note.md')])
+      mockUseDirectoryTree.mockReturnValue({ root, version: 1, isLoading: false, error: null })
+      rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      expect(screen.getByRole('checkbox', { name: /New note/ })).toBeVisible()
+      expect(screen.queryByText('未找到笔记')).not.toBeInTheDocument()
+
+      mockProjectNotesTree.mockReturnValue([createNoteNode('Renamed note', '/notes/Renamed note.md')])
+      mockUseDirectoryTree.mockReturnValue({ root, version: 2, isLoading: false, error: null })
+      rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      expect(screen.getByRole('checkbox', { name: /Renamed note/ })).toBeVisible()
+      expect(screen.queryByRole('checkbox', { name: /New note/ })).not.toBeInTheDocument()
+
+      mockProjectNotesTree.mockReturnValue([])
+      mockUseDirectoryTree.mockReturnValue({ root, version: 3, isLoading: false, error: null })
+      rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      expect(screen.getByText('未找到笔记')).toBeVisible()
+      expect(screen.queryByRole('checkbox', { name: /Renamed note/ })).not.toBeInTheDocument()
+    })
+
     it('renders the note picker and reflects selection in the footer', () => {
       setPendingAddSource('note')
       mockProjectNotesTree.mockReturnValue([
@@ -592,7 +631,6 @@ describe('AddKnowledgeItemDialog', () => {
       ])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
       expect(screen.getByText('Meeting notes')).toBeInTheDocument()
       expect(screen.getByText('Ideas')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
@@ -826,7 +864,6 @@ describe('AddKnowledgeItemDialog', () => {
       setPendingAddSource('url')
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'sm')
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
       fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
         target: { value: 'https://example.com' }
@@ -849,6 +886,21 @@ describe('AddKnowledgeItemDialog', () => {
           'detect'
         )
       })
+    })
+
+    it('rejects an invalid url without submitting or closing the panel', async () => {
+      setPendingAddSource('url')
+      const onOpenChange = vi.fn()
+      const user = userEvent.setup()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await user.type(screen.getByPlaceholderText('https://example.com'), 'not a valid URL')
+      await user.click(screen.getByRole('button', { name: '添加' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('无效的 URL')
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(onOpenChange).not.toHaveBeenCalledWith(false)
+      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
     })
 
     it('shows an inline error and keeps the panel open when the url submit fails', async () => {

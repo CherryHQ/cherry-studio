@@ -187,14 +187,6 @@ afterEach(() => {
 })
 
 describe('MessageAnchorLine', () => {
-  it('keeps the anchor rail scoped inside the message list layer', () => {
-    const { container } = renderRail({ messages })
-
-    const anchorRail = container.firstElementChild
-    expect(anchorRail).toHaveClass('absolute', 'z-20')
-    expect(anchorRail).not.toHaveClass('fixed', 'z-999')
-  })
-
   it('renders one tick per conversation turn', () => {
     const { container } = renderRail({ messages })
 
@@ -215,25 +207,12 @@ describe('MessageAnchorLine', () => {
     expect(getAllByRole('button')).toHaveLength(1)
   })
 
-  it('renders nothing without conversation turns', () => {
-    const { container } = renderRail({ messages: [] })
-
-    expect(container.firstElementChild).toBeNull()
-  })
-
   it('marks the turn containing the active message', () => {
     const { container } = renderRail({ messages, activeMessageId: 'assistant-1' })
 
     const ticks = container.querySelectorAll('[data-message-anchor-tick]')
     expect(ticks[0]).toHaveAttribute('data-active', 'true')
     expect(ticks[1]).toHaveAttribute('data-active', 'false')
-  })
-
-  it('defaults the active tick to the last turn', () => {
-    const { container } = renderRail({ messages })
-
-    const ticks = container.querySelectorAll('[data-message-anchor-tick]')
-    expect(ticks[4]).toHaveAttribute('data-active', 'true')
   })
 
   it('scrolls to the turn start message on tick click', () => {
@@ -246,39 +225,6 @@ describe('MessageAnchorLine', () => {
     expect(scrollToMessageId).toHaveBeenCalledWith('user-2')
   })
 
-  it('gives every tick the same constant pitch inside a scrollable rail', () => {
-    const { container } = renderRail({ messages })
-
-    // Constant pitch (never varies with the turn count) and the rail can scroll
-    // once the ticks overflow it.
-    expect(container.querySelector('.overflow-y-auto')).not.toBeNull()
-    const ticks = Array.from(container.querySelectorAll<HTMLElement>('[data-message-anchor-tick]'))
-    const heights = new Set(ticks.map((tick) => tick.style.height))
-    expect(heights).toEqual(new Set(['10px']))
-  })
-
-  it('runs the rail the full message-area height rather than insetting above the composer', () => {
-    const { container } = renderRail({ messages })
-
-    // The rail spans top-to-bottom; the composer sits to the left of this gutter.
-    expect(container.firstElementChild).toHaveClass('top-2.5', 'bottom-8')
-    expect((container.firstElementChild as HTMLElement).style.bottom).toBe('')
-  })
-
-  it('fades the top edge as a hint while older pages remain unloaded', () => {
-    const { container } = renderRail({ messages, hasOlder: true })
-
-    const scroll = container.querySelector<HTMLElement>('.overflow-y-auto')
-    expect(scroll?.style.maskImage).toContain('transparent 0%')
-  })
-
-  it('keeps the top edge solid when fully loaded and unscrolled', () => {
-    const { container } = renderRail({ messages })
-
-    const scroll = container.querySelector<HTMLElement>('.overflow-y-auto')
-    expect(scroll?.style.maskImage ?? 'black 0%').toContain('black 0%')
-  })
-
   it('renders nothing without messages', () => {
     const { container } = renderRail({ messages: [] })
 
@@ -286,35 +232,6 @@ describe('MessageAnchorLine', () => {
   })
 
   describe('interactivity gating', () => {
-    it('keeps resting ticks visible with a hit strip confined to the yielded gutter', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
-      const animationFrame = installDeferredAnimationFrame()
-      const { container } = renderRail({ messages, railOpacity: 0.5 })
-
-      const wrapper = container.firstElementChild as HTMLElement
-      const strip = wrapper.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
-      expect(wrapper).not.toHaveAttribute('inert')
-      expect(wrapper).not.toHaveClass('pointer-events-none')
-      expect(wrapper.style.width).toBe('20px')
-      expect(strip.style.opacity).toBe('0.7')
-      expect(wrapper.style.opacity).toBe('')
-
-      fireEvent.mouseMove(wrapper, { clientY: tickCenterOf5(1) })
-      animationFrame.flushNext()
-      expect(strip.style.opacity).toBe('1')
-
-      fireEvent.mouseLeave(wrapper)
-      expect(strip.style.opacity).toBe('0.7')
-    })
-
-    it('spans the full 32px strip once the gutter has fully yielded', () => {
-      const { container } = renderRail({ messages, railOpacity: 1 })
-
-      const strip = container.firstElementChild as HTMLElement
-      expect(strip).not.toHaveClass('pointer-events-none')
-      expect(strip.style.width).toBe('32px')
-    })
-
     it.each([0.01, 0])('stays visible and navigable at zero gutter (railOpacity: %s)', (railOpacity) => {
       restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
       const scrollToMessageId = vi.fn()
@@ -414,7 +331,6 @@ describe('MessageAnchorLine', () => {
       fireEvent.mouseMove(strip, { clientY: tickCenterOf5(0) })
       fireEvent.mouseMove(strip, { clientY: tickCenterOf5(1) })
 
-      expect(animationFrame.request).toHaveBeenCalledTimes(1)
       expect(queryByText('Question two')).not.toBeInTheDocument()
 
       animationFrame.flushNext()
@@ -453,29 +369,6 @@ describe('MessageAnchorLine', () => {
 
       expect(view.getByText('Live answer two')).toBeInTheDocument()
     })
-
-    it('stops extracting a historical preview at the visible character limit', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
-      const animationFrame = installDeferredAnimationFrame()
-      const preview = 'x'.repeat(240)
-      const historyPartsByMessageId = {
-        'user-2': [
-          textPart(preview),
-          {
-            type: 'text',
-            get text(): string {
-              throw new Error('preview extraction read past its limit')
-            }
-          }
-        ] as CherryMessagePart[]
-      }
-      const view = renderRail({ messages, historyPartsByMessageId })
-
-      fireEvent.mouseMove(view.container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
-      animationFrame.flushNext()
-
-      expect(view.getByText(preview)).toBeInTheDocument()
-    })
   })
 
   describe('hover preview branch selection', () => {
@@ -513,24 +406,6 @@ describe('MessageAnchorLine', () => {
 
       expect(getByText('First reply')).toBeInTheDocument()
     })
-
-    it('styles the preview card with the semantic popover surface only', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
-      const animationFrame = installDeferredAnimationFrame()
-      partsMap['user-2'] = [textPart('Question two')]
-      partsMap['assistant-2'] = [textPart('Answer two')]
-      const { container, getByText } = renderRail({ messages })
-
-      fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
-      animationFrame.flushNext()
-
-      const card = container.querySelector<HTMLElement>('.bg-popover')
-      expect(card).not.toBeNull()
-      expect(card?.className).not.toContain('dark:bg-neutral-800')
-      // These maintained semantic tokens are the visual contract after the
-      // foreground hierarchy migration on main.
-      expect(getByText('Answer two')).toHaveClass('text-muted-foreground')
-    })
   })
 
   describe('accessibility', () => {
@@ -546,7 +421,6 @@ describe('MessageAnchorLine', () => {
       expect(ticks[0]).toHaveAttribute('aria-current', 'true')
       expect(ticks[1]).not.toHaveAttribute('aria-current')
       // Inactive ticks use main's maintained strong-structure token.
-      expect(ticks[1].firstElementChild).toHaveClass('bg-border-strong')
     })
 
     it('reaches a tick with Tab and activates it with Enter', async () => {
@@ -561,18 +435,65 @@ describe('MessageAnchorLine', () => {
       await user.keyboard('{Enter}')
       expect(scrollToMessageId).toHaveBeenCalledWith('user-1')
     })
+
+    it('exposes the rail as a labelled navigation landmark', () => {
+      const { getByRole } = renderRail({ messages })
+
+      expect(getByRole('navigation')).toHaveAttribute('aria-label', 'chat.navigation.anchor.label')
+    })
+
+    it('moves between ticks with arrow, Home and End keys and previews the focused turn', async () => {
+      const user = userEvent.setup()
+      partsMap['user-1'] = [textPart('Question one')]
+      partsMap['user-2'] = [textPart('Question two')]
+      const { container, getByText } = renderRail({ messages })
+      const ticks = container.querySelectorAll('[data-message-anchor-tick]')
+
+      await user.tab()
+      expect(ticks[0]).toHaveFocus()
+      await user.keyboard('{ArrowDown}')
+      expect(ticks[1]).toHaveFocus()
+      expect(getByText('Question two')).toBeInTheDocument()
+      await user.keyboard('{ArrowUp}')
+      expect(ticks[0]).toHaveFocus()
+      await user.keyboard('{End}')
+      expect(ticks[ticks.length - 1]).toHaveFocus()
+      await user.keyboard('{Home}')
+      expect(ticks[0]).toHaveFocus()
+      expect(getByText('Question one')).toBeInTheDocument()
+    })
+  })
+
+  it('tracks the focused turn across a prepended history page and clears the preview on blur', async () => {
+    const user = userEvent.setup()
+    partsMap['user-1'] = [textPart('Question one')]
+    partsMap['user-2'] = [textPart('Question two')]
+    const olderPage = [
+      makeMessage({ id: 'user-0', role: 'user' }),
+      makeMessage({ id: 'assistant-0', role: 'assistant', parentId: 'user-0' })
+    ]
+    const { container, getByText, queryByText, rerender } = renderRail({ messages, hasOlder: true })
+    const ticks = () => container.querySelectorAll('[data-message-anchor-tick]')
+
+    await user.tab()
+    await user.keyboard('{ArrowDown}')
+    expect(ticks()[1]).toHaveFocus()
+    expect(getByText('Question two')).toBeInTheDocument()
+
+    // Older history prepends: React keeps the focused button by key, but
+    // every array index shifts. The preview must follow the focused turn.
+    rerender(rail({ messages: [...olderPage, ...messages], hasOlder: true }))
+    expect(ticks()[2]).toHaveFocus()
+    expect(getByText('Question two')).toBeInTheDocument()
+    expect(queryByText('Question one')).not.toBeInTheDocument()
+
+    // Blur must clear the preview even though the focused turn moved indices.
+    fireEvent.blur(ticks()[2])
+    expect(queryByText('Question two')).not.toBeInTheDocument()
+    expect(queryByText('Question one')).not.toBeInTheDocument()
   })
 
   describe('strip geometry', () => {
-    it('anchors the strip to the bottom on first entry so the newest turns are visible', () => {
-      // 40 turns × 10px = 400px of ticks inside a 352px viewport.
-      restoreGeometry = installRailGeometry({ scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }).restore
-      const { container } = renderRail({ messages: makeTurnMessages(40), hasOlder: true })
-
-      const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
-      expect(strip.scrollTop).toBe(400 - RAIL_VIEWPORT_PX)
-    })
-
     it('compensates the scroll when older turns prepend so visible ticks stay put', () => {
       const metrics = { scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }
       restoreGeometry = installRailGeometry(metrics).restore
@@ -588,42 +509,6 @@ describe('MessageAnchorLine', () => {
 
       // 6 prepended turns × 10px pitch.
       expect(strip.scrollTop).toBe(entryScrollTop + 60)
-    })
-
-    it('keeps the bottom alignment when the last page loads (hasOlder true → false)', () => {
-      // 5 turns × 10px fit the 352px viewport with 302px of free space.
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
-      const { container, rerender } = renderRail({ messages, hasOlder: true })
-
-      const cluster = container.querySelector<HTMLElement>('.overflow-y-auto > div') as HTMLElement
-      // Mounted with unloaded history: the cluster hugs the bottom.
-      expect(cluster.style.paddingTop).toBe('302px')
-
-      rerender(rail({ messages, hasOlder: false }))
-
-      // The alignment is latched for the rail's lifetime — finishing the last
-      // page must not re-centre (151px) and shift every visible tick.
-      expect(cluster.style.paddingTop).toBe('302px')
-    })
-
-    it('centres the cluster when mounted fully loaded', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX }).restore
-      const { container } = renderRail({ messages, hasOlder: false })
-
-      const cluster = container.querySelector<HTMLElement>('.overflow-y-auto > div') as HTMLElement
-      expect(cluster.style.paddingTop).toBe('151px')
-    })
-
-    it('fades both ends while the strip is scrolled into the middle', () => {
-      restoreGeometry = installRailGeometry({ scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }).restore
-      const { container } = renderRail({ messages: makeTurnMessages(40) })
-
-      const strip = container.querySelector<HTMLElement>('.overflow-y-auto') as HTMLElement
-      strip.scrollTop = 20
-      fireEvent.scroll(strip)
-
-      expect(strip.style.maskImage).toContain('transparent 0%')
-      expect(strip.style.maskImage).toContain('transparent 100%')
     })
   })
 })

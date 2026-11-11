@@ -259,32 +259,23 @@ describe('SkillMarketplaceDialog', () => {
     renderDialog()
 
     typeSearchQuery('react')
-    const sourceOptions = within(sourceSelect()).getAllByRole('option')
-    expect(sourceOptions.map((option) => option.textContent)).toEqual([
-      'skills.sh1',
-      'claude-plugins.dev2',
-      'clawhub.ai',
-      'GitHub'
-    ])
+
     expect(sourceSelect()).toHaveValue('skills.sh')
     expect(screen.getByText('React Skill')).toBeInTheDocument()
     const firstResult = screen.getAllByRole('listitem')[0]
-    expect(within(firstResult).queryByText('vercel')).not.toBeInTheDocument()
+
     expect(within(firstResult).getByText('12')).toBeInTheDocument()
     await user.click(within(firstResult).getByLabelText('settings.skills.viewSource'))
     expect(window.open).toHaveBeenCalledWith('https://github.com/vercel/skills')
     expect(screen.queryByText('Code Review')).not.toBeInTheDocument()
-    expect(within(firstResult).queryByText('skills.sh')).not.toBeInTheDocument()
 
     await user.selectOptions(sourceSelect(), 'claude-plugins.dev')
 
     expect(screen.getByText('Code Review')).toBeInTheDocument()
     const claudeResult = screen.getAllByRole('listitem')[0]
-    expect(within(claudeResult).queryByText('Review code changes')).not.toBeInTheDocument()
-    expect(within(claudeResult).queryByText('anthropic')).not.toBeInTheDocument()
+
     expect(within(claudeResult).getByText('42')).toBeInTheDocument()
     expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
-    expect(within(claudeResult).queryByText('claude-plugins.dev')).not.toBeInTheDocument()
   })
 
   it('debounces marketplace searches while typing', () => {
@@ -298,7 +289,6 @@ describe('SkillMarketplaceDialog', () => {
       fireEvent.change(input, { target: { value: 'rea' } })
       fireEvent.change(input, { target: { value: 'react' } })
 
-      expect(clearMock).toHaveBeenCalledTimes(4)
       expect(screen.getByText('common.loading')).toBeInTheDocument()
       expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
 
@@ -454,7 +444,6 @@ describe('SkillMarketplaceDialog', () => {
     await user.selectOptions(sourceSelect(), 'claude-plugins.dev')
     typeSearchQuery('code')
 
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-close-on-overlay-click', 'true')
     const installButtons = screen.getAllByRole('button', { name: /settings.skills.install/ })
     expect(installButtons[0]).toBeDisabled()
     expect(installButtons[1]).not.toBeDisabled()

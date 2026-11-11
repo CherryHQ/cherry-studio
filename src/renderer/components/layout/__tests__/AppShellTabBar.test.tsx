@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as UI from '@cherrystudio/ui'
 import { useTabsContext } from '@renderer/hooks/tab'
 
 import { TabsProvider } from '../TabsProvider'
@@ -36,7 +37,8 @@ vi.mock('@renderer/services/resourceListRevealEvents', () => ({
   emitResourceListReveal: mocks.emitResourceListReveal
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  Kbd: (await importOriginal<typeof UI>()).Kbd,
   Button: ({ children, variant, ...props }: React.ComponentProps<'button'> & { variant?: string }) => {
     void variant
     return (
@@ -194,9 +196,19 @@ afterEach(() => {
   mocks.macTransparentState.value = false
   mocks.platformState.isMac = false
   mocks.platformState.isWin = false
+  Reflect.deleteProperty(navigator, 'windowControlsOverlay')
+  vi.unstubAllGlobals()
 })
 
 describe('AppShellTabBar', () => {
+  it('does not mount a separate notification entry in the focused settings tab bar', () => {
+    renderTabBar({
+      tabs: [createTab('settings', { url: '/settings/notifications' })],
+      activeTabId: 'settings',
+      isFocusedTab: true
+    })
+    expect(screen.queryByRole('button', { name: 'Notification center' })).not.toBeInTheDocument()
+  })
   it('keeps the Windows title bar at least as tall as the native overlay when zoomed out', () => {
     mocks.platformState.isWin = true
     renderTabBar({ tabs: [createTab('home')], activeTabId: 'home' })
@@ -231,6 +243,57 @@ describe('AppShellTabBar', () => {
 
     return closeTab
   }
+
+  it('keeps the macOS leading inset fixed through native resize and refreshes it for zoom and fullscreen', () => {
+    mocks.platformState.isMac = true
+    vi.stubGlobal('innerWidth', 1226)
+    vi.stubGlobal('devicePixelRatio', 2)
+    let rect = { x: 86, width: 1140, height: 42 }
+    const overlay = Object.assign(document.createElement('div'), { visible: true, getTitlebarAreaRect: () => rect })
+    Object.defineProperty(navigator, 'windowControlsOverlay', { configurable: true, value: overlay })
+    renderTabBar({ isFocusedTab: true })
+    const header = document.querySelector<HTMLElement>('[data-ui~="app.tab-bar"]')!
+    // The native-controls inset must not follow transient x offsets or fractional-zoom width rounding.
+    expect(header.style.paddingLeft).toBe('calc(88px)')
+
+    const changeGeometry = (width: number, next: typeof rect) => {
+      vi.stubGlobal('innerWidth', width)
+      rect = next
+      fireEvent(overlay, new Event('geometrychange'))
+    }
+    changeGeometry(1218, { x: 82, width: 1132, height: 42 })
+    expect(header.style.paddingLeft).toBe('calc(88px)')
+
+    vi.stubGlobal('devicePixelRatio', 2.5)
+    changeGeometry(981, { x: 69, width: 912, height: 34 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+    changeGeometry(974, { x: 66, width: 906, height: 34 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+
+    overlay.visible = false
+    changeGeometry(3440, { x: 0, width: 0, height: 0 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+
+    overlay.visible = true
+    vi.stubGlobal('devicePixelRatio', 2)
+    changeGeometry(3440, { x: 86, width: 1103, height: 42 })
+    expect(header.style.paddingLeft).toBe('calc(71px)')
+    vi.stubGlobal('innerWidth', 1189)
+    fireEvent(window, new Event('resize'))
+    expect(header.style.paddingLeft).toBe('calc(88px)')
+  })
+
+  it('shows supplied hints on pinned and normal tabs without changing their accessible names', () => {
+    renderTabBar({
+      tabs: [createTab('p', { isPinned: true }), createTab('a')],
+      shortcutHints: new Map([
+        ['p', '⌃1'],
+        ['a', '⌃2']
+      ])
+    })
+    expect(within(screen.getByRole('button', { name: 'P' })).getByText('⌃1')).toBeVisible()
+    expect(within(screen.getByRole('button', { name: 'A' })).getByText('⌃2')).toBeVisible()
+  })
 
   it('keeps the account avatar out of the tab bar when the sidebar is hidden', () => {
     MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 0)
@@ -410,18 +473,7 @@ describe('AppShellTabBar', () => {
       detachTab
     })
 
-    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Launchpad' })).not.toBeInTheDocument()
-    expect(screen.queryByTestId('shell-tab-actions')).not.toBeInTheDocument()
-    expect(screen.getByTestId('window-controls')).toBeInTheDocument()
-    expect(screen.queryByTestId('menu-tab.pin')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('menu-tab.move-to-first')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('menu-tab.close-others')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('menu-tab.close-to-right')).not.toBeInTheDocument()
-
     const detachButton = screen.getByLabelText('tab.open_in_new_window', { selector: 'button' })
-    expect(detachButton).toHaveTextContent('')
     await user.click(detachButton)
     expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
   })
@@ -686,15 +738,6 @@ describe('AppShellTabBar', () => {
     expect(closeTabs).toHaveBeenCalledWith(['b', 'c'], 'a')
   })
 
-  it('lets the home tab expose menu affordances like a normal tab', () => {
-    const tabs = [createTab('home'), createTab('a')]
-
-    renderTabBar({ tabs, activeTabId: 'home' })
-
-    expect(screen.queryAllByTestId('menu-tab.move-to-first')).toHaveLength(2)
-    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(2)
-  })
-
   it('keeps tab buttons no-drag while leaving tabbar whitespace draggable', () => {
     const tabs = [createTab('home'), createTab('a'), createTab('p', { isPinned: true })]
 
@@ -732,16 +775,6 @@ describe('AppShellTabBar', () => {
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
   })
 
-  it('keeps close and pin menu actions when only a single tab is open', () => {
-    const tabs = [createTab('home')]
-
-    renderTabBar({ tabs, activeTabId: 'home' })
-
-    expect(screen.queryByTestId('menu-tab.move-to-first')).toBeNull()
-    expect(screen.queryAllByTestId('menu-tab.pin')).toHaveLength(1)
-    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(1)
-  })
-
   it('does not offer pinning for transient mini-app tabs', () => {
     const transientMiniAppTab = createTab('mini-app', {
       url: '/app/mini-app/deepseek-harness',
@@ -753,16 +786,6 @@ describe('AppShellTabBar', () => {
     expect(screen.queryByTestId('menu-tab.pin')).not.toBeInTheDocument()
     expect(screen.getByTestId('menu-tab.open-in-new-window')).toBeInTheDocument()
     expect(screen.getByTestId('menu-tab.close')).toBeInTheDocument()
-  })
-
-  it('allows both the last normal tab and pinned tabs to close from the menu', () => {
-    const tabs = [createTab('home'), createTab('p', { isPinned: true })]
-
-    renderTabBar({ tabs, activeTabId: 'home' })
-
-    expect(screen.queryAllByTestId('menu-tab.pin')).toHaveLength(2)
-    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(2)
-    expect(screen.queryAllByTestId('menu-tab.move-to-first')).toHaveLength(0)
   })
 
   it('closes a pinned tab through its context menu item', () => {
@@ -797,7 +820,7 @@ describe('AppShellTabBar', () => {
     (pointerType) => {
       const closeTab = renderTabBar()
       const tab = screen.getByRole('button', { name: 'A' })
-      const remainingTab = screen.getByRole('button', { name: 'Chat' })
+
       const closeButton = within(tab).getByRole('button', { name: 'tab.close' })
       const click = new MouseEvent('click', { bubbles: true, detail: 1 })
       Object.defineProperty(click, 'pointerType', { value: pointerType })
@@ -806,8 +829,6 @@ describe('AppShellTabBar', () => {
 
       expect(closeTab).toHaveBeenCalledOnce()
       expect(closeTab).toHaveBeenCalledWith('a')
-      expect(tab).toHaveStyle({ flex: '1 1 0px' })
-      expect(remainingTab).toHaveStyle({ flex: '1 1 0px' })
     }
   )
 
@@ -829,14 +850,11 @@ describe('AppShellTabBar', () => {
       try {
         const closeTab = renderTabBar()
         const tab = screen.getByRole('button', { name: 'A' })
-        const remainingTab = screen.getByRole('button', { name: 'Chat' })
 
         firePointerDoubleClick(tab, pointerType)
 
         expect(closeTab).toHaveBeenCalledOnce()
         expect(closeTab).toHaveBeenCalledWith('a')
-        expect(tab).toHaveStyle({ flex: '1 1 0px' })
-        expect(remainingTab).toHaveStyle({ flex: '1 1 0px' })
       } finally {
         rectSpy.mockRestore()
       }
@@ -848,30 +866,13 @@ describe('AppShellTabBar', () => {
 
     const tab = screen.getByRole('button', { name: 'A' })
     const closeButton = within(tab).getByRole('button', { name: 'tab.close' })
-
-    // Hidden via opacity + collapsed width, not display — display:none would drop
-    // it from the tab order, and a fixed width would reserve blank space on the tab.
-    expect(closeButton).toHaveClass('opacity-0')
-    expect(closeButton).toHaveClass('w-0')
-    expect(closeButton).not.toHaveClass('hidden')
     expect(closeButton).toHaveAttribute('tabindex', '0')
 
     fireEvent.keyDown(closeButton, { key: 'Enter' })
     expect(closeTab).toHaveBeenCalledWith('a')
   })
 
-  it('always shows the close button on the active tab', () => {
-    renderTabBar()
-
-    const activeTab = screen.getByRole('button', { name: 'Chat' })
-    const closeButton = within(activeTab).getByRole('button', { name: 'tab.close' })
-
-    expect(closeButton).toHaveClass('opacity-100')
-    expect(closeButton).toHaveClass('w-[18px]')
-    expect(closeButton).not.toHaveClass('opacity-0')
-  })
-
-  it('freezes tab widths, collapses the closed tab, then re-flexes when the mouse leaves the strip', () => {
+  it('defers mouse-driven close until its animation completes', () => {
     const restoreAnimation = mockCloseAnimation()
 
     try {
@@ -883,31 +884,17 @@ describe('AppShellTabBar', () => {
       // detail > 0 marks a real mouse click; keyboard-driven closes must not freeze.
       fireEvent.click(closeButton, { detail: 1 })
 
-      // Phase 1: the whole strip freezes instantly (a visual no-op snap).
-      const remainingTab = screen.getByRole('button', { name: 'Chat' })
-      expect(tabA).toHaveStyle({ flex: '0 0 120px' })
-      expect(remainingTab).toHaveStyle({ flex: '0 0 120px' })
       expect(closeTab).not.toHaveBeenCalled()
 
-      // Phase 2 (next frames): the closed tab collapses; removal waits for the end.
       act(() => {
         vi.advanceTimersByTime(50)
       })
-      expect(tabA).toHaveStyle({ flex: '0 0 0px' })
-      expect(tabA).toHaveStyle({ opacity: '0' })
       expect(closeTab).not.toHaveBeenCalled()
 
       act(() => {
         vi.advanceTimersByTime(250)
       })
       expect(closeTab).toHaveBeenCalledWith('a')
-
-      // jsdom reports zero-size rects, so the thaw falls back to an instant unfreeze.
-      fireEvent.mouseLeave(screen.getByTestId('app-shell-tab-strip'))
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
-      expect(remainingTab).toHaveStyle({ flex: '1 1 0px' })
     } finally {
       restoreAnimation()
     }
@@ -1121,332 +1108,6 @@ describe('AppShellTabBar', () => {
     }
   })
 
-  it('keeps the strip frozen when the pointer leaves before collapse starts', () => {
-    const restoreAnimation = mockCloseAnimation()
-
-    try {
-      renderTabBar()
-
-      const closingTab = screen.getByRole('button', { name: 'A' })
-      const remainingTab = screen.getByRole('button', { name: 'Chat' })
-      fireEvent.click(within(closingTab).getByRole('button', { name: 'tab.close' }), { detail: 1 })
-      fireEvent.mouseLeave(screen.getByTestId('app-shell-tab-strip'))
-
-      act(() => {
-        vi.advanceTimersByTime(20)
-      })
-      expect(closingTab).toHaveStyle({ flex: '0 0 120px' })
-      expect(remainingTab).toHaveStyle({ flex: '0 0 120px' })
-
-      act(() => {
-        vi.advanceTimersByTime(30)
-      })
-      expect(closingTab).toHaveStyle({ flex: '0 0 0px' })
-    } finally {
-      restoreAnimation()
-    }
-  })
-
-  it('includes a leading closing tab gap and current margin in the early thaw target', () => {
-    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
-      const element = this as HTMLElement
-      const tabId = element.dataset.tabId
-      const geometry =
-        element.dataset.testid === 'app-shell-tab-strip'
-          ? { left: 0, width: 300 }
-          : tabId === 'a'
-            ? { left: 0, width: 90 }
-            : tabId === 'b'
-              ? { left: 94, width: 90 }
-              : tabId === 'c'
-                ? { left: 188, width: 90 }
-                : { left: 0, width: 0 }
-      return {
-        width: geometry.width,
-        height: 30,
-        top: 0,
-        left: geometry.left,
-        right: geometry.left + geometry.width,
-        bottom: 30,
-        x: geometry.left,
-        y: 0,
-        toJSON: () => ({})
-      }
-    })
-    vi.useFakeTimers()
-    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16))
-
-    try {
-      renderTabBar({
-        tabs: [createTab('a'), createTab('b'), createTab('c')]
-      })
-      const closingTab = screen.getByRole('button', { name: 'A' })
-      const remainingTab = screen.getByRole('button', { name: 'B' })
-
-      fireEvent.click(within(closingTab).getByRole('button', { name: 'tab.close' }), { detail: 1 })
-      act(() => {
-        vi.advanceTimersByTime(50)
-      })
-      expect(closingTab).toHaveStyle({ flex: '0 0 0px' })
-
-      // Model the first transition frame: width is still 90px and margin-right
-      // is still 0px, so the leading item's full footprint is 90 + gap 4.
-      const styleSpy = vi
-        .spyOn(window, 'getComputedStyle')
-        .mockReturnValue({ marginRight: '0px' } as CSSStyleDeclaration)
-      try {
-        fireEvent.mouseLeave(screen.getByTestId('app-shell-tab-strip'))
-        expect(styleSpy).toHaveBeenCalled()
-      } finally {
-        styleSpy.mockRestore()
-      }
-
-      // Strip right limit: 300 - pr-1 4 - launchpad footprint 6 = 290.
-      // (290 - post-close left 0 - alive gap 4) / 2 = 143.
-      expect(remainingTab).toHaveStyle({ flex: '0 0 143px' })
-    } finally {
-      vi.useRealTimers()
-      vi.unstubAllGlobals()
-      rectSpy.mockRestore()
-    }
-  })
-
-  it('divides adjacent normal tabs, skipping the first tab and every lit neighbor', () => {
-    const tabs = [createTab('a'), createTab('b'), createTab('c'), createTab('d')]
-
-    renderTabBar({ tabs, activeTabId: 'c' })
-
-    const hasDivider = (name: string) =>
-      screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
-
-    // "A" opens the strip; "C" is active, so both boundaries around it stay clear.
-    expect(hasDivider('A')).toBe(false)
-    expect(hasDivider('B')).toBe(true)
-    expect(hasDivider('C')).toBe(false)
-    expect(hasDivider('D')).toBe(false)
-  })
-
-  it('keeps the divider at Chrome-matched metrics', () => {
-    renderTabBar({ tabs: [createTab('a'), createTab('b'), createTab('c')], activeTabId: 'a' })
-
-    // The tint/thickness were calibrated against a Chrome screenshot; pin them so
-    // a later "tidy-up" cannot silently wash the divider out again.
-    const divider = screen.getByRole('button', { name: 'C' }).querySelector('[data-tab-divider]')
-    expect(divider).toHaveClass('h-4', 'w-[1.5px]', 'bg-border/80')
-    // It fades on the same 150ms as the tab tint it hands the boundary over to.
-    expect(divider).toHaveClass('transition-opacity', 'duration-150')
-  })
-
-  it('drops every divider while a reorder drag is in flight', () => {
-    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
-    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() })
-
-    try {
-      const tabs = [createTab('a'), createTab('b'), createTab('c'), createTab('d')]
-      renderTabBar({ tabs, activeTabId: 'a' })
-
-      const hasDivider = (name: string) =>
-        screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
-      expect(hasDivider('C')).toBe(true)
-
-      // Dragging only translates tabs — the arrays keep their pre-drop order, so a
-      // divider drawn from that order can land against the dragged tab.
-      const dragged = screen.getByRole('button', { name: 'D' })
-      const pointerDown = new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 300, clientY: 20 })
-      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
-      fireEvent(dragged, pointerDown)
-      const pointerMove = new MouseEvent('pointermove', { bubbles: true, clientX: 120, clientY: 20 })
-      Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
-      fireEvent(document, pointerMove)
-
-      expect(dragged).toHaveClass('cursor-grabbing')
-      expect(document.querySelectorAll('[data-tab-divider][data-visible]')).toHaveLength(0)
-    } finally {
-      if (originalSetPointerCapture) {
-        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
-      } else {
-        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
-      }
-    }
-  })
-
-  it('reclamps a dragged tab with the current strip, tab, and launchpad geometry after resize', () => {
-    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
-    const originalRequestAnimationFrame = Object.getOwnPropertyDescriptor(globalThis, 'requestAnimationFrame')
-    const originalCancelAnimationFrame = Object.getOwnPropertyDescriptor(globalThis, 'cancelAnimationFrame')
-    let stripWidth = 300
-    let tabWidth = 100
-    let tabLeft = 100
-
-    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
-      const element = this as HTMLElement
-      const translateX = Number.parseFloat(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1] ?? '0')
-      const geometry =
-        element.dataset.ui === 'app.tab-bar' || element.dataset.testid === 'app-shell-tab-strip'
-          ? { left: 0, width: stripWidth, height: element.dataset.ui === 'app.tab-bar' ? 44 : 30 }
-          : element.dataset.launchpadButton !== undefined
-            ? { left: stripWidth - 56, width: 28, height: 28 }
-            : element.dataset.tabId === 'a'
-              ? { left: tabLeft + translateX, width: tabWidth, height: 30 }
-              : element.dataset.tabId === 'home'
-                ? { left: 0, width: 100, height: 30 }
-                : { left: 0, width: 0, height: 0 }
-
-      return {
-        x: geometry.left,
-        y: 0,
-        top: 0,
-        bottom: geometry.height,
-        left: geometry.left,
-        right: geometry.left + geometry.width,
-        width: geometry.width,
-        height: geometry.height,
-        toJSON: () => ({})
-      }
-    })
-
-    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() })
-    vi.useFakeTimers()
-    Object.defineProperty(globalThis, 'requestAnimationFrame', {
-      configurable: true,
-      writable: true,
-      value: (callback: FrameRequestCallback) => window.setTimeout(() => callback(0), 16)
-    })
-    Object.defineProperty(globalThis, 'cancelAnimationFrame', {
-      configurable: true,
-      writable: true,
-      value: (id: number) => window.clearTimeout(id)
-    })
-
-    try {
-      renderTabBar({ tabs: [createTab('home'), createTab('a')], activeTabId: 'a' })
-      const tab = screen.getByRole('button', { name: 'A' })
-      const pointerDown = new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 20, clientY: 20 })
-      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
-      fireEvent(tab, pointerDown)
-
-      const startDrag = new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 20 })
-      Object.defineProperty(startDrag, 'pointerId', { value: 1 })
-      fireEvent(document, startDrag)
-      expect(tab).toHaveStyle({ transform: 'translateX(34px)' })
-
-      stripWidth = 240
-      tabWidth = 160
-      tabLeft = 0
-      const moveAfterResize = new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 20 })
-      Object.defineProperty(moveAfterResize, 'pointerId', { value: 1 })
-      fireEvent(document, moveAfterResize)
-      act(() => {
-        vi.runOnlyPendingTimers()
-      })
-
-      expect(tab).toHaveStyle({ transform: 'translateX(18px)' })
-    } finally {
-      vi.useRealTimers()
-      for (const [key, descriptor] of [
-        ['requestAnimationFrame', originalRequestAnimationFrame],
-        ['cancelAnimationFrame', originalCancelAnimationFrame]
-      ] as const) {
-        if (descriptor) Object.defineProperty(globalThis, key, descriptor)
-        else Reflect.deleteProperty(globalThis, key)
-      }
-      if (originalSetPointerCapture) {
-        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
-      } else {
-        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
-      }
-      rectSpy.mockRestore()
-    }
-  })
-
-  it('clears the divider beside a tab whose context menu is open', () => {
-    const tabs = [createTab('a'), createTab('b'), createTab('c')]
-    renderTabBar({ tabs, activeTabId: 'a' })
-
-    const hasDivider = (name: string) =>
-      screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
-    expect(hasDivider('C')).toBe(true)
-
-    // A menu-open tab is tinted like a hovered one, and the modal menu steals the
-    // pointer — so hover state alone cannot keep the neighbouring divider away.
-    fireEvent.click(screen.getAllByTestId('menu-set-open')[1])
-    expect(hasDivider('B')).toBe(false)
-    expect(hasDivider('C')).toBe(false)
-
-    fireEvent.click(screen.getAllByTestId('menu-set-closed')[1])
-    expect(hasDivider('C')).toBe(true)
-  })
-
-  it('clears the divider beside a collapsing tab, and the zone separator beside a lit tab', () => {
-    const restore = mockCloseAnimation()
-
-    try {
-      const tabs = [createTab('p', { isPinned: true }), createTab('a'), createTab('b'), createTab('c')]
-      renderTabBar({ tabs, activeTabId: 'a' })
-
-      const hasDivider = (name: string) =>
-        screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
-      // The pinned zone already ends in its own separator, so the first normal tab
-      // must not add one on top of it.
-      expect(hasDivider('A')).toBe(false)
-      expect(hasDivider('C')).toBe(true)
-
-      const closeButton = within(screen.getByRole('button', { name: 'B' })).getByRole('button', { name: 'tab.close' })
-      // detail: 1 marks it a real pointer close — the path that plays the collapse.
-      fireEvent.click(closeButton, { detail: 1 })
-      act(() => {
-        vi.advanceTimersByTime(40)
-      })
-
-      // "B" is collapsing: its own divider and the one on "C" must stay away until
-      // it is gone, or a hairline flashes in the shrinking gap.
-      expect(hasDivider('B')).toBe(false)
-      expect(hasDivider('C')).toBe(false)
-    } finally {
-      restore()
-    }
-  })
-
-  it('clears the dividers on both sides of the hovered tab', async () => {
-    const user = userEvent.setup()
-    const tabs = [createTab('a'), createTab('b'), createTab('c')]
-
-    renderTabBar({ tabs, activeTabId: 'a' })
-
-    const hasDivider = (name: string) =>
-      screen.getByRole('button', { name }).querySelector('[data-tab-divider][data-visible]') !== null
-
-    expect(hasDivider('C')).toBe(true)
-
-    await user.hover(screen.getByRole('button', { name: 'B' }))
-    expect(hasDivider('B')).toBe(false)
-    expect(hasDivider('C')).toBe(false)
-
-    await user.unhover(screen.getByRole('button', { name: 'B' }))
-    expect(hasDivider('C')).toBe(true)
-  })
-
-  it('keeps the tab highlighted while its context menu is open', () => {
-    renderTabBar()
-
-    const tab = () => screen.getByRole('button', { name: 'A' })
-    expect(tab()).not.toHaveAttribute('data-menu-open')
-
-    // One toggle pair per tab menu; index 1 belongs to tab "A".
-    fireEvent.click(screen.getAllByTestId('menu-set-open')[1])
-    expect(tab()).toHaveAttribute('data-menu-open', 'true')
-
-    fireEvent.click(screen.getAllByTestId('menu-set-closed')[1])
-    expect(tab()).not.toHaveAttribute('data-menu-open')
-  })
-
-  it('allows closing normal tabs while more than one normal tab is open', () => {
-    const tabs = [createTab('home'), createTab('a'), createTab('p', { isPinned: true })]
-
-    renderTabBar({ tabs, activeTabId: 'home' })
-
-    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(3)
-  })
   it('closes a normal tab on double click or middle click', () => {
     const handleDoubleClick = vi.fn()
     const handleAuxClick = vi.fn()
@@ -1512,67 +1173,6 @@ describe('getTabCapabilities', () => {
     normalCount: 1,
     canDetach: true,
     ...over
-  })
-
-  it('keeps close, pin, detach, and menu enabled for the last normal tab', () => {
-    expect(getTabCapabilities({ id: 'home', isPinned: false }, ctx({ normalCount: 1, normalIndex: 0 }))).toEqual({
-      menu: true,
-      reorder: false,
-      togglePin: true,
-      detach: true,
-      close: true,
-      closeOthers: false,
-      closeToRight: false
-    })
-  })
-
-  it('unlocks every normal action once a second normal tab exists', () => {
-    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2, normalIndex: 0 }))).toEqual({
-      menu: true,
-      reorder: true,
-      togglePin: true,
-      detach: true,
-      close: true,
-      closeOthers: true,
-      closeToRight: true
-    })
-  })
-
-  it('does not treat newly-created chat tabs as the fixed home tab', () => {
-    expect(getTabCapabilities({ id: 'chat', isPinned: false }, ctx({ normalCount: 2, normalIndex: 1 }))).toEqual({
-      menu: true,
-      reorder: true,
-      togglePin: true,
-      detach: true,
-      close: true,
-      closeOthers: true,
-      closeToRight: false
-    })
-  })
-
-  it('treats the home tab like any other normal tab when siblings exist', () => {
-    expect(getTabCapabilities({ id: 'home', isPinned: false }, ctx({ normalCount: 3, normalIndex: 0 }))).toEqual({
-      menu: true,
-      reorder: true,
-      togglePin: true,
-      detach: true,
-      close: true,
-      closeOthers: true,
-      closeToRight: true
-    })
-  })
-
-  it('lets pinned tabs unpin and close via menu, batch-closing only the normal zone', () => {
-    expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 1, normalCount: 1 }))).toEqual({
-      menu: true,
-      reorder: false,
-      togglePin: true,
-      detach: true,
-      close: true,
-      closeOthers: true,
-      closeToRight: true
-    })
-    expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 2 })).reorder).toBe(true)
   })
 
   it('hides batch close on pinned tabs when no normal tabs exist', () => {

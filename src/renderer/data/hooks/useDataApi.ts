@@ -297,6 +297,7 @@ function createInfiniteQueryKeyGetter(
  * @property reset - Reset to page 1
  */
 export interface UsePaginatedQueryResult<T> {
+  goToPage: (page: number) => void
   items: readonly T[]
   total: number
   page: number
@@ -1211,6 +1212,10 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     setCurrentPage(1)
   }, [])
 
+  const goToPage = useCallback((page: number) => {
+    if (Number.isInteger(page) && page > 0) setCurrentPage(page)
+  }, [])
+
   return {
     items,
     total,
@@ -1223,7 +1228,8 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     prevPage,
     nextPage,
     refresh: refetch,
-    reset
+    reset,
+    goToPage
   }
 }
 
