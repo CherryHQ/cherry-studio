@@ -13,7 +13,8 @@ import type {
   ExtractExtensionIds,
   ExtractProviderIds,
   StringKeys,
-  UnionToIntersection
+  UnionToIntersection,
+  WebSearchToolConfigMap
 } from '../types'
 
 describe('Type Utilities', () => {
@@ -266,4 +267,10 @@ describe('ProviderExtensionConfig Type Constraints', () => {
 
     expectTypeOf(config.variants[0].suffix).toEqualTypeOf<'chat'>()
   })
+})
+
+it('exposes the Anthropic schema selector through its provider-specific tool config', () => {
+  expectTypeOf<NonNullable<WebSearchToolConfigMap['anthropic']>['schema']>().toEqualTypeOf<
+    'basic' | 'dynamic' | undefined
+  >()
 })

@@ -59,6 +59,10 @@ const PROVIDER_MODELS_PATH = path.join(__dirname, '../data/provider-models.json'
 const REASONING_FAMILIES_GEN_PATH = path.join(__dirname, '../src/patterns/reasoning-families.gen.ts')
 const SERVER_TOOL_MODELS_GEN_PATH = path.join(__dirname, '../src/patterns/server-tool-models.gen.ts')
 const SERVER_TOOL_CONSTRAINTS_GEN_PATH = path.join(__dirname, '../src/patterns/server-tool-constraints.gen.ts')
+const ANTHROPIC_WEB_TOOL_CONSTRAINTS_GEN_PATH = path.join(
+  __dirname,
+  '../src/patterns/anthropic-web-tool-constraints.gen.ts'
+)
 const { values: args } = parseArgs({
   options: {
     write: { type: 'boolean' },
@@ -259,6 +263,32 @@ function buildServerToolConstraintsGen(models: Map<string, any>): string {
     '/** Reasoning efforts the provider-native web-search tool rejects, by model id. */',
     'export const WEB_SEARCH_UNSUPPORTED_EFFORTS: Readonly<Record<string, readonly string[]>> =',
     `  ${JSON.stringify(sortKeys(webSearchUnsupportedEfforts), null, 2)}`,
+    ''
+  ].join('\n')
+}
+
+function buildAnthropicWebToolConstraintsGen(models: Map<string, any>): string {
+  const ids = new Set<string>()
+  for (const model of models.values()) {
+    const creator = creatorById.get(model.ownedBy)
+    if (creator?.anthropicBasicWebToolModelIds?.includes(model.id)) ids.add(model.id)
+  }
+  for (const creator of CREATORS) {
+    for (const id of creator.anthropicBasicWebToolModelIds ?? []) {
+      if (!ids.has(id)) throw new Error(`Declared Anthropic web tool model id not in catalog: ${id}`)
+    }
+  }
+  return [
+    '/**',
+    ' * GENERATED FILE — DO NOT EDIT.',
+    ' *',
+    ' * Compiled from `Creator.anthropicBasicWebToolModelIds`',
+    ' * declarations by scripts/generate-catalog.ts — edit the creator and run `pnpm generate`.',
+    ' */',
+    '',
+    '/** Models that only accept basic Anthropic web tool schemas. */',
+    'export const ANTHROPIC_BASIC_WEB_TOOL_MODEL_IDS: readonly string[] =',
+    `  ${JSON.stringify([...ids].sort(), null, 2)}`,
     ''
   ].join('\n')
 }
@@ -658,6 +688,10 @@ void (async () => {
   if (args['providers-only']) {
     if (WRITE) {
       const { models } = JSON.parse(fs.readFileSync(MODELS_PATH, 'utf8'))
+      fs.writeFileSync(
+        ANTHROPIC_WEB_TOOL_CONSTRAINTS_GEN_PATH,
+        buildAnthropicWebToolConstraintsGen(new Map(models.map((model: { id: string }) => [model.id, model])))
+      )
       fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers: buildProviders() }))
       fs.writeFileSync(
         SERVER_TOOL_MODELS_GEN_PATH,
@@ -756,6 +790,7 @@ void (async () => {
   fs.writeFileSync(SERVER_TOOL_MODELS_GEN_PATH, serverToolModelsGen)
   console.log(`WROTE ${SERVER_TOOL_MODELS_GEN_PATH}.`)
 
+  fs.writeFileSync(ANTHROPIC_WEB_TOOL_CONSTRAINTS_GEN_PATH, buildAnthropicWebToolConstraintsGen(models))
   fs.writeFileSync(SERVER_TOOL_CONSTRAINTS_GEN_PATH, buildServerToolConstraintsGen(models))
   console.log(`WROTE ${SERVER_TOOL_CONSTRAINTS_GEN_PATH}.`)
 })()

@@ -7,6 +7,14 @@ export default defineCreator({
   fetchModels: anthropicModels(),
   modelsDevProviders: ['anthropic'],
   idPrefixes: ['claude'],
+  anthropicBasicWebToolModelIds: [
+    'claude-haiku-4-5',
+    'claude-opus-4',
+    'claude-opus-4-1',
+    'claude-opus-4-5',
+    'claude-sonnet-4',
+    'claude-sonnet-4-5'
+  ],
   models: [
     {
       id: 'claude-haiku-5-5',
