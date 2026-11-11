@@ -8,6 +8,7 @@ export const InstalledSkillSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
+  note: z.string().nullable(),
   folderName: z.string(),
   source: z.string(),
   sourceUrl: z.string().nullable(),
@@ -50,9 +51,19 @@ export const SKILL_LIST_MEMBERSHIP_DIMENSIONS = {
   AGENT_ID: 'agentId'
 } as const
 
-export const UpdateSkillSchema = z.strictObject({
-  isGlobalEnabled: z.boolean()
-})
+export const UpdateSkillSchema = z
+  .strictObject({
+    isGlobalEnabled: z.boolean().optional(),
+    note: z
+      .string()
+      .trim()
+      .transform((value) => value || null)
+      .nullable()
+      .optional()
+  })
+  .refine((value) => value.isGlobalEnabled !== undefined || value.note !== undefined, {
+    message: 'At least one skill field is required'
+  })
 export type UpdateSkillDto = z.infer<typeof UpdateSkillSchema>
 
 export type SkillSchemas = {

@@ -5952,6 +5952,8 @@
   "settings.skills.launchFailed": "Impossibile provare {{name}}",
   "settings.skills.mirrorToggleFailed": "Impossibile sincronizzare la competenza {{name}}",
   "settings.skills.notFound": "Competenza non trovata",
+  "settings.skills.note.label": "Nota personale",
+  "settings.skills.note.placeholder": "Aggiungi un promemoria per scegliere questa competenza",
   "settings.skills.readOnly": "Sola lettura",
   "settings.skills.remote.applyFailed": "Impossibile aggiornare la competenza",
   "settings.skills.remote.check": "Verifica aggiornamenti",

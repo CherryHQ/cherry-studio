@@ -5952,6 +5952,8 @@
   "settings.skills.launchFailed": "Could not try {{name}}",
   "settings.skills.mirrorToggleFailed": "Failed to sync skill {{name}}",
   "settings.skills.notFound": "Skill not found",
+  "settings.skills.note.label": "User note",
+  "settings.skills.note.placeholder": "Add a reminder for choosing this skill",
   "settings.skills.readOnly": "Read only",
   "settings.skills.remote.applyFailed": "Failed to update the Skill",
   "settings.skills.remote.check": "Check for updates",

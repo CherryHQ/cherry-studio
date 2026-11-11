@@ -51,6 +51,11 @@ export function useSkillMutationsById(id: string) {
     [updateTrigger]
   )
 
+  const updateNote = useCallback(
+    (note: string | null): Promise<InstalledSkill> => updateTrigger({ body: { note } }),
+    [updateTrigger]
+  )
+
   const uninstallSkill = useCallback(async (): Promise<void> => {
     const result = await ipcApi.request('skill.uninstall', { skillId: id })
     unwrapSkillResult(result, 'Failed to uninstall skill')
@@ -75,5 +80,5 @@ export function useSkillMutationsById(id: string) {
     [id, invalidate]
   )
 
-  return { uninstallSkill, updateGlobalEnabled, setMirrorEnabled, isUpdating }
+  return { uninstallSkill, updateGlobalEnabled, updateNote, setMirrorEnabled, isUpdating }
 }

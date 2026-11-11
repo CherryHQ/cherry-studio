@@ -25,7 +25,7 @@ export const skillHandlers: HandlersFor<SkillSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateSkillSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const skill = skillService.updateGlobalEnabled(params.skillId, parsed.data.isGlobalEnabled)
+      const skill = skillService.updateFields(params.skillId, parsed.data)
       if (!skill) throw DataApiErrorFactory.notFound('Skill', params.skillId)
       return skill
     }

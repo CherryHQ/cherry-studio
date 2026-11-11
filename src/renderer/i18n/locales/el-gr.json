@@ -5952,6 +5952,8 @@
   "settings.skills.launchFailed": "Δεν ήταν δυνατή η δοκιμή της δεξιότητας {{name}}",
   "settings.skills.mirrorToggleFailed": "Αποτυχία συγχρονισμού της δεξιότητας {{name}}",
   "settings.skills.notFound": "Η δεξιότητα δεν βρέθηκε",
+  "settings.skills.note.label": "Σημείωση χρήστη",
+  "settings.skills.note.placeholder": "Προσθέστε μια υπενθύμιση για την επιλογή αυτής της δεξιότητας",
   "settings.skills.readOnly": "Μόνο για ανάγνωση",
   "settings.skills.remote.applyFailed": "Η ενημέρωση του Skill απέτυχε",
   "settings.skills.remote.check": "Έλεγχος για ενημερώσεις",

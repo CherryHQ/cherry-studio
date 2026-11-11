@@ -855,6 +855,26 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it('shows a skill note on settings cards and removes its summary when cleared', () => {
+    const resource = createSkillResource()
+    if (resource.type !== 'skill') throw new Error('Expected a skill resource')
+    resource.raw.note = 'Use for quarterly invoices'
+    const { rerender } = render(<ResourceCard resource={resource} variant="settings" {...getResourceCardProps()} />)
+
+    expect(screen.getByText('Use for quarterly invoices')).toBeVisible()
+
+    rerender(
+      <ResourceCard
+        resource={{ ...resource, raw: { ...resource.raw, note: null } }}
+        variant="settings"
+        {...getResourceCardProps()}
+      />
+    )
+
+    expect(screen.queryByText('Use for quarterly invoices')).not.toBeInTheDocument()
+    expect(screen.getByText('Skill')).toBeVisible()
+  })
+
   it('shows only the visibly labeled global switch on Skill settings cards', () => {
     render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
 

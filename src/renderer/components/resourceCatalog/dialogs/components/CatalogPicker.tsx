@@ -24,6 +24,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 export interface CatalogItem {
   id: string
   name: string
+  note?: string | null
   description?: string | null
   icon?: ReactNode
   inactiveBadge?: string
@@ -116,6 +117,25 @@ export const CatalogToggleGrid: FC<{
               <span className="truncate" title={item.name}>
                 {item.name}
               </span>
+              {item.note ? (
+                <Tooltip
+                  content={
+                    <div className="max-h-60 max-w-80 overflow-auto whitespace-pre-wrap break-words">{item.note}</div>
+                  }
+                  portalContainer={portalContainer ?? undefined}
+                  asChild>
+                  <span
+                    tabIndex={0}
+                    className="max-w-40 truncate text-xs text-muted-foreground"
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                    }}
+                    onKeyDown={(event) => event.stopPropagation()}>
+                    {item.note}
+                  </span>
+                </Tooltip>
+              ) : null}
               <CatalogBadges item={item} />
             </div>
             {item.description ? (

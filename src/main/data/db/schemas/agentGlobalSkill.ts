@@ -9,6 +9,7 @@ export const agentGlobalSkillTable = sqliteTable(
     id: uuidPrimaryKey(),
     name: text().notNull(),
     description: text(),
+    note: text(),
     folderName: text().notNull(),
     source: text().notNull(),
     sourceUrl: text(),

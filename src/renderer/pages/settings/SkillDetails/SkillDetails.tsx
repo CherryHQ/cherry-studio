@@ -1,6 +1,6 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, FolderOpen, MoreHorizontal, Play, RefreshCw, Trash2 } from 'lucide-react'
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
@@ -18,6 +18,7 @@ import {
   Label,
   Skeleton,
   Switch,
+  Textarea,
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -43,7 +44,19 @@ export function SkillDetails({ skillId }: { skillId: string }) {
   // Received from the list route; handed back on return so the list restores the active tab.
   const { scope } = useSearch({ strict: false }) as { scope?: 'all' | 'system' | 'builtin' }
   const { data: skill, isLoading, error, refetch } = useQuery('/skills/:skillId', { params: { skillId } })
-  const { updateGlobalEnabled, setMirrorEnabled, uninstallSkill, isUpdating } = useSkillMutationsById(skillId)
+  const { updateGlobalEnabled, updateNote, setMirrorEnabled, uninstallSkill, isUpdating } =
+    useSkillMutationsById(skillId)
+  const [noteState, setNoteState] = useState({ id: skillId, draft: '', baseline: '' })
+  const noteId = useId()
+  useEffect(() => {
+    if (!skill || skill.id !== skillId) return
+    const value = skill.note ?? ''
+    setNoteState((current) => {
+      if (current.id !== skillId) return { id: skillId, draft: value, baseline: value }
+      if (current.draft !== current.baseline) return current
+      return { id: skillId, draft: value, baseline: value }
+    })
+  }, [skill, skillId])
   const mirrorToggleId = useId()
   const globalToggleId = useId()
   const [isUpdatingMirror, setIsUpdatingMirror] = useState(false)
@@ -90,6 +103,22 @@ export function SkillDetails({ skillId }: { skillId: string }) {
       toast.error(t('settings.skills.mirrorToggleFailed', { name: skill.name }))
     } finally {
       setIsUpdatingMirror(false)
+    }
+  }
+
+  const handleSaveNote = async () => {
+    try {
+      const submitted = noteState.draft
+      const updated = await updateNote(submitted || null)
+      const value = updated.note ?? ''
+      setNoteState((current) =>
+        current.id === skillId
+          ? { id: skillId, draft: current.draft === submitted ? value : current.draft, baseline: value }
+          : current
+      )
+      toast.success(t('common.saved'))
+    } catch {
+      toast.error(t('common.save_failed'))
     }
   }
 
@@ -283,6 +312,24 @@ export function SkillDetails({ skillId }: { skillId: string }) {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor={noteId}>{t('settings.skills.note.label')}</Label>
+        <Textarea.Input
+          id={noteId}
+          className="max-h-40 resize-none overflow-y-auto"
+          value={noteState.id === skillId ? noteState.draft : ''}
+          placeholder={t('settings.skills.note.placeholder')}
+          onValueChange={(draft) => setNoteState((current) => ({ ...current, draft }))}
+        />
+        <Button
+          size="sm"
+          className="justify-self-start"
+          disabled={isUpdating || noteState.draft === noteState.baseline}
+          onClick={() => void handleSaveNote()}>
+          {t('common.save')}
+        </Button>
       </div>
 
       <div className="flex min-h-0 flex-1">

@@ -76,6 +76,7 @@ export function SkillCatalogPicker({
           return {
             id: skill.id,
             name: skill.name,
+            note: skill.note,
             disableToggle: true,
             inactiveBadge: t('library.config.dialogs.create.capability.builtin_badge')
           }
@@ -84,6 +85,7 @@ export function SkillCatalogPicker({
         return {
           id: skill.id,
           name: skill.name,
+          note: skill.note,
           description: mode === 'edit' ? skill.description : undefined,
           icon: mode === 'edit' ? <Sparkles size={13} strokeWidth={1.5} className="text-warning" /> : undefined
         }

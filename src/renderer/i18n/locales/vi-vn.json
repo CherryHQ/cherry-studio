@@ -5952,6 +5952,8 @@
   "settings.skills.launchFailed": "Không thể dùng thử {{name}}",
   "settings.skills.mirrorToggleFailed": "Đồng bộ kỹ năng {{name}} thất bại",
   "settings.skills.notFound": "Không tìm thấy kỹ năng",
+  "settings.skills.note.label": "Ghi chú cá nhân",
+  "settings.skills.note.placeholder": "Thêm lời nhắc để chọn kỹ năng này",
   "settings.skills.readOnly": "Chỉ đọc",
   "settings.skills.remote.applyFailed": "Không thể cập nhật Skill",
   "settings.skills.remote.check": "Kiểm tra bản cập nhật",

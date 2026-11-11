@@ -5952,6 +5952,8 @@
   "settings.skills.launchFailed": "无法试用 {{name}}",
   "settings.skills.mirrorToggleFailed": "同步技能 {{name}} 失败",
   "settings.skills.notFound": "未找到技能",
+  "settings.skills.note.label": "用户备注",
+  "settings.skills.note.placeholder": "添加选择此技能时的提醒",
   "settings.skills.readOnly": "只读",
   "settings.skills.remote.applyFailed": "技能更新失败",
   "settings.skills.remote.check": "检查更新",

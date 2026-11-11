@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getByIdMock, listMock, updateGlobalEnabledMock } = vi.hoisted(() => ({
+const { getByIdMock, listMock, updateFieldsMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn(),
   listMock: vi.fn(),
-  updateGlobalEnabledMock: vi.fn()
+  updateFieldsMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentGlobalSkillService', () => ({
   agentGlobalSkillService: {
     getById: getByIdMock,
     list: listMock,
-    updateGlobalEnabled: updateGlobalEnabledMock
+    updateFields: updateFieldsMock
   }
 }))
 
@@ -23,15 +23,29 @@ describe('skillHandlers', () => {
 
   it('updates only the global enabled state', async () => {
     const updated = { id: 'skill-1', isGlobalEnabled: false }
-    updateGlobalEnabledMock.mockReturnValueOnce(updated)
+    updateFieldsMock.mockReturnValueOnce(updated)
 
     const result = await skillHandlers['/skills/:skillId'].PATCH({
       params: { skillId: 'skill-1' },
       body: { isGlobalEnabled: false }
     })
 
-    expect(updateGlobalEnabledMock).toHaveBeenCalledWith('skill-1', false)
+    expect(updateFieldsMock).toHaveBeenCalledWith('skill-1', { isGlobalEnabled: false })
     expect(result).toBe(updated)
+  })
+
+  it('passes a normalized combined patch through and keeps missing skills as errors', async () => {
+    updateFieldsMock.mockImplementation((_id, patch) => ({ id: 'skill-1', ...patch }))
+    await expect(
+      skillHandlers['/skills/:skillId'].PATCH({
+        params: { skillId: 'skill-1' },
+        body: { isGlobalEnabled: false, note: '  reminder  ' }
+      })
+    ).resolves.toEqual({ id: 'skill-1', isGlobalEnabled: false, note: 'reminder' })
+    updateFieldsMock.mockReturnValueOnce(null)
+    await expect(
+      skillHandlers['/skills/:skillId'].PATCH({ params: { skillId: 'missing' }, body: { note: null } })
+    ).rejects.toMatchObject({ status: 404 })
   })
 
   it('rejects fields outside the global toggle contract', async () => {
@@ -42,6 +56,6 @@ describe('skillHandlers', () => {
       } as never)
     ).rejects.toThrow()
 
-    expect(updateGlobalEnabledMock).not.toHaveBeenCalled()
+    expect(updateFieldsMock).not.toHaveBeenCalled()
   })
 })

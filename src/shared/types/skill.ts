@@ -142,6 +142,7 @@ export const InstalledSkillSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
+  note: z.string().nullable(),
   folderName: z.string(),
   source: z.string(),
   sourceUrl: z.string().nullable(),

@@ -186,6 +186,7 @@ function createSkillResource(id: string, folderName: string, source: string): Ex
       id,
       name: folderName,
       description: null,
+      note: null,
       folderName,
       source,
       sourceUrl: null,

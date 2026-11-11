@@ -5952,6 +5952,8 @@
   "settings.skills.launchFailed": "No se pudo probar {{name}}",
   "settings.skills.mirrorToggleFailed": "Error al sincronizar la habilidad {{name}}",
   "settings.skills.notFound": "Habilidad no encontrada",
+  "settings.skills.note.label": "Nota personal",
+  "settings.skills.note.placeholder": "Añade un recordatorio para elegir esta habilidad",
   "settings.skills.readOnly": "Solo lectura",
   "settings.skills.remote.applyFailed": "No se pudo actualizar el Skill",
   "settings.skills.remote.check": "Buscar actualizaciones",

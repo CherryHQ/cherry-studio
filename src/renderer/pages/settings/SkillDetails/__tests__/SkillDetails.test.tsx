@@ -25,7 +25,8 @@ const mocks = vi.hoisted(() => ({
   search: {} as Record<string, unknown>,
   uninstallSkill: vi.fn(),
   setMirrorEnabled: vi.fn(),
-  updateGlobalEnabled: vi.fn()
+  updateGlobalEnabled: vi.fn(),
+  updateNote: vi.fn()
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -42,7 +43,8 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
     isUpdating: false,
     uninstallSkill: mocks.uninstallSkill,
     setMirrorEnabled: mocks.setMirrorEnabled,
-    updateGlobalEnabled: mocks.updateGlobalEnabled
+    updateGlobalEnabled: mocks.updateGlobalEnabled,
+    updateNote: mocks.updateNote
   })
 }))
 vi.mock('@renderer/hooks/useSkillLauncher', () => ({ useSkillLauncher: () => mocks.launchSkill }))
@@ -100,6 +102,7 @@ vi.mock('react-i18next', () => ({
 }))
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   Label: (await importOriginal<typeof CherryUiModule>()).Label,
+  Textarea: (await importOriginal<typeof CherryUiModule>()).Textarea,
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Button: ({ children, ...props }: ComponentProps<'button'> & { size?: string; variant?: string }) => {
     const { size, variant, ...buttonProps } = props
@@ -168,6 +171,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     id: 'skill-1',
     name: 'Writer',
     description: 'Draft clear prose',
+    note: null,
     folderName: 'writer',
     source: 'builtin',
     sourceUrl: null,
@@ -186,6 +190,35 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
 }
 
 describe('SkillDetails', () => {
+  it('saves and clears a note for a read-only builtin while retaining a failed draft', async () => {
+    const user = userEvent.setup()
+    mocks.query = { data: createSkill({ note: 'Old note' }), error: undefined, isLoading: false }
+    mocks.updateNote
+      .mockRejectedValueOnce(new Error('failed'))
+      .mockResolvedValueOnce(createSkill({ note: 'Saved reminder' }))
+      .mockResolvedValueOnce(createSkill({ note: null }))
+    render(<SkillDetails skillId="skill-1" />)
+    const input = screen.getByLabelText('settings.skills.note.label')
+    await user.clear(input)
+    await user.type(input, 'Saved reminder')
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.save_failed'))
+    expect(input).toHaveValue('Saved reminder')
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).toBeDisabled())
+    await user.clear(input)
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    await waitFor(() => expect(input).toHaveValue(''))
+    expect(mocks.updateNote).toHaveBeenLastCalledWith(null)
+  })
+
+  it('bounds the note editor height and scrolls long notes internally', () => {
+    render(<SkillDetails skillId="skill-1" />)
+    const input = screen.getByLabelText('settings.skills.note.label')
+    // Keep long notes from growing beyond the editor and hiding Save.
+    expect(input).toHaveClass('max-h-40', 'overflow-y-auto', 'resize-none')
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.query = { data: createSkill(), error: undefined, isLoading: false }
@@ -198,6 +231,7 @@ describe('SkillDetails', () => {
     mocks.uninstallSkill.mockResolvedValue(undefined)
     mocks.setMirrorEnabled.mockResolvedValue(createSkill({ mirrorEnabled: false }))
     mocks.updateGlobalEnabled.mockResolvedValue(undefined)
+    mocks.updateNote.mockResolvedValue(createSkill({ note: 'Saved reminder' }))
     mocks.flushBrowser.mockResolvedValue(undefined)
     mocks.refetch.mockResolvedValue(undefined)
   })

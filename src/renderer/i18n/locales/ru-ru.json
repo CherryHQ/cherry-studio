@@ -5952,6 +5952,8 @@
   "settings.skills.launchFailed": "Не удалось попробовать {{name}}",
   "settings.skills.mirrorToggleFailed": "Не удалось синхронизировать навык {{name}}",
   "settings.skills.notFound": "Навык не найден",
+  "settings.skills.note.label": "Личная заметка",
+  "settings.skills.note.placeholder": "Добавьте напоминание для выбора этого навыка",
   "settings.skills.readOnly": "Только чтение",
   "settings.skills.remote.applyFailed": "Не удалось обновить Skill",
   "settings.skills.remote.check": "Проверить обновления",
