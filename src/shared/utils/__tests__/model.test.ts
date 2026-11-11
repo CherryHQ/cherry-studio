@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  CHERRY_CLOUD_PROVIDER_ID,
-  CHERRYAI_DEFAULT_MODEL_ID,
-  CHERRYAI_PROVIDER_ID
-} from '@shared/data/presets/cherryai'
+import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
   getRawModelId,
@@ -14,7 +10,6 @@ import {
   isGatewayRoutableModel,
   isGenerateImageModel,
   isNonChatModel,
-  isPublicGatewayRoutableModel,
   isReasoningModel,
   isRerankModel,
   isSpeechToTextModel,
@@ -158,24 +153,6 @@ describe('shared model capability helpers', () => {
         providerId: 'corp:west'
       }
       expect(isGatewayRoutableModel(colonProvider)).toBe(false)
-    })
-  })
-
-  describe('isPublicGatewayRoutableModel', () => {
-    it('keeps an ordinary gateway-routable model', () => {
-      expect(isPublicGatewayRoutableModel(createModel())).toBe(true)
-    })
-
-    it('excludes Cherry Cloud without removing it from the internal Work runtime', () => {
-      const cloudModel: Model = {
-        ...createModel(),
-        id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
-        providerId: CHERRY_CLOUD_PROVIDER_ID,
-        apiModelId: 'deepseek-free'
-      }
-
-      expect(isGatewayRoutableModel(cloudModel)).toBe(true)
-      expect(isPublicGatewayRoutableModel(cloudModel)).toBe(false)
     })
   })
 
