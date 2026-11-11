@@ -91,7 +91,7 @@ export function createMarkdownSession(doc: ProseMirrorNode, previous?: MarkdownS
   return { text, lines, tree, fragments: TreeFragment.addTree(tree, reusable), change }
 }
 
-export function findSourceLineIndex(lines: readonly SourceLine[], offset: number) {
+export function findSourceLineIndex(lines: ReadonlyArray<Pick<SourceLine, 'textFrom'>>, offset: number) {
   let low = 0
   let high = lines.length - 1
   while (low < high) {
@@ -100,6 +100,27 @@ export function findSourceLineIndex(lines: readonly SourceLine[], offset: number
     else high = middle - 1
   }
   return low
+}
+
+/** Indexes of the lines that belong to a fenced code block, fence lines included. */
+export function findFencedCodeLines(lines: readonly string[]) {
+  let textFrom = 0
+  const starts = lines.map((line) => {
+    const start = { textFrom }
+    textFrom += line.length + 1
+    return start
+  })
+
+  const fenced = new Set<number>()
+  markdownParser.parse(lines.join('\n')).iterate({
+    enter: (node) => {
+      if (node.name !== 'FencedCode') return
+      const last = findSourceLineIndex(starts, node.to)
+      for (let line = findSourceLineIndex(starts, node.from); line <= last; line += 1) fenced.add(line)
+      return false
+    }
+  })
+  return fenced
 }
 
 export function toDocumentPosition(lines: readonly SourceLine[], offset: number) {

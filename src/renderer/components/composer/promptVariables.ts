@@ -9,6 +9,7 @@ import {
   createComposerTokenMarkerInlineContent
 } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME, requestComposerPromptVariableEdit } from './ComposerTokenNode'
+import { isMarkdownFencedCodePosition } from './markdownLivePreview/livePreviewPlugin'
 import type { ComposerDraftToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
@@ -106,13 +107,17 @@ export function getNextPromptVariableIndex(editor: Editor): number {
   return nextIndex
 }
 
-export function createPromptVariableInlineContent(text: string, options: { startIndex?: number } = {}): JSONContent[] {
-  const startIndex = options.startIndex ?? 0
-  return createComposerTokenMarkerInlineContent(text, [createPromptVariableMarkerRule({ startIndex })]).content
+export function createPromptVariableInlineContent(
+  text: string,
+  { startIndex = 0, literalFencedCode }: { startIndex?: number; literalFencedCode?: boolean } = {}
+): JSONContent[] {
+  return createComposerTokenMarkerInlineContent(text, [createPromptVariableMarkerRule({ startIndex })], {
+    literalFencedCode
+  }).content
 }
 
-export function createPromptVariableContent(text: string): JSONContent {
-  return { type: 'doc', content: createComposerLineParagraphs(createPromptVariableInlineContent(text)) }
+export function createPromptVariableContent(text: string, options: { literalFencedCode?: boolean } = {}): JSONContent {
+  return { type: 'doc', content: createComposerLineParagraphs(createPromptVariableInlineContent(text, options)) }
 }
 
 export function tokenizePromptVariablesInEditor(editor: Editor, update: Transaction): boolean {
@@ -136,7 +141,10 @@ export function tokenizePromptVariablesInEditor(editor: Editor, update: Transact
 
       const from = position + offset
       const to = from + segment.raw.length
-      if (changedRanges.some(({ newRange }) => newRange.from < to && newRange.to > from)) {
+      if (
+        !isMarkdownFencedCodePosition(editor.state, from) &&
+        changedRanges.some(({ newRange }) => newRange.from < to && newRange.to > from)
+      ) {
         replacements.push({
           from,
           to,
