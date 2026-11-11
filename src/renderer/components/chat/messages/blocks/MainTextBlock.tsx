@@ -11,8 +11,7 @@ import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
 import {
   determineCitationSource,
-  mapCitationMarksToTags,
-  normalizeCitationMarks,
+  stripKnownNumberedCitationMarkers,
   toTooltipCitation,
   withCitationTags
 } from '@renderer/utils/citation'
@@ -437,13 +436,17 @@ const MainTextBlock: React.FC<Props> = ({
       if (citationReferences?.length && citations.length > 0) {
         const sourceType = determineCitationSource(citationReferences)
         return hideMarkers
-          ? mapCitationMarksToTags(
-              normalizeCitationMarks(rawText, new Map(citations.map((c) => [c.number, c])), sourceType),
-              new Map()
+          ? stripKnownNumberedCitationMarkers(
+              stripCitationMarkers(rawText),
+              new Map(citations.map((c) => [c.number, c]))
             )
           : withCitationTags(rawText, citations, sourceType)
       }
-      if (hideMarkers) return stripCitationMarkers(rawText)
+      if (hideMarkers)
+        return stripKnownNumberedCitationMarkers(
+          stripCitationMarkers(rawText),
+          toolCitations?.citations.byMarkerNumber ?? new Map()
+        )
       if (toolCitations) {
         return withToolCitationTags(rawText, toolCitations.citations, toolCitations.projection.byMarker).content
       }

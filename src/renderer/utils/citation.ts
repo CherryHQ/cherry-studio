@@ -11,6 +11,7 @@
  */
 
 import type { GroundingSupport } from '@google/genai'
+import { fromMarkdown } from 'mdast-util-from-markdown'
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
@@ -246,4 +247,70 @@ export function generateCitationTag(citation: Citation): string {
 
   const safeUrl = citation.url.replace(/\|/g, '%7C')
   return `[${supTag}](${safeUrl})`
+}
+
+/** Hide source-backed numeric prose marks without deleting Markdown links, images or code. */
+export function stripKnownNumberedCitationMarkers(content: string, citations: ReadonlyMap<number, Citation>): string {
+  if (citations.size === 0) return content
+  const removals: Array<{ start: number; end: number }> = []
+  const visit = (node: ReturnType<typeof fromMarkdown>['children'][number] | ReturnType<typeof fromMarkdown>) => {
+    const start = node.position?.start.offset
+    const end = node.position?.end.offset
+    if (start === undefined || end === undefined) return
+    const raw = content.slice(start, end)
+    if (node.type === 'link') {
+      const marker = /^\[<sup>(\d+)<\/sup>\]\([^]*\)$/.exec(raw)
+      if (marker && citations.get(Number(marker[1]))?.url === node.url) {
+        removals.push({ start: start > 0 && /[ \t]/.test(content[start - 1]) ? start - 1 : start, end })
+      }
+      return
+    }
+    if (node.type === 'text') {
+      // Comma/semicolon multi-marker runs are ambiguous Markdown; preserve the entire run.
+      const ambiguous = [...raw.matchAll(/\[\d+\](?:[ \t]*[,;][ \t]*\[\d+\])+/g)]
+      let groupIndex = 0
+      for (const match of raw.matchAll(/\[(\d+)\]/g)) {
+        while (
+          groupIndex < ambiguous.length &&
+          ambiguous[groupIndex].index! + ambiguous[groupIndex][0].length <= match.index!
+        )
+          groupIndex++
+        const group = ambiguous[groupIndex]
+        if (group && group.index! <= match.index!) continue
+        const left = raw[match.index! - 1]
+        const right = raw[match.index! + match[0].length]
+        if ((left && /[\w\]!\\[]/.test(left)) || (right && /[\w([]/.test(right))) continue
+        if (!citations.has(Number(match[1]))) continue
+        const from = start + match.index!
+        removals.push({
+          start: from > 0 && /[ \t]/.test(content[from - 1]) ? from - 1 : from,
+          end: from + match[0].length
+        })
+      }
+      return
+    }
+    if (
+      node.type === 'code' ||
+      node.type === 'inlineCode' ||
+      node.type === 'html' ||
+      node.type === 'image' ||
+      node.type === 'definition' ||
+      node.type === 'linkReference' ||
+      node.type === 'imageReference'
+    )
+      return
+    // Raw inline HTML can wrap adjacent text nodes; leave that mixed paragraph intact.
+    if ('children' in node && (node.type !== 'paragraph' || !node.children.some((child) => child.type === 'html'))) {
+      for (const child of node.children) visit(child)
+    }
+  }
+  visit(fromMarkdown(content))
+  let cursor = 0
+  let result = ''
+  for (const removal of removals) {
+    if (removal.start < cursor) continue
+    result += content.slice(cursor, removal.start)
+    cursor = removal.end
+  }
+  return result + content.slice(cursor)
 }

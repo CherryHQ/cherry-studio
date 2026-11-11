@@ -194,6 +194,43 @@ describe('hidden citation export', () => {
     })
   })
 
+  it('hides source-backed native numbers but preserves links, code and ambiguous runs', () => {
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://example.com', title: 'One' },
+      { type: 'text', text: '' }
+    ] as MessageExportView['parts'])
+    expect(getToolCitationExport(message, 'Claim [1]. [1](https://example.com) `array[1]` [1], [2]', true)).toEqual({
+      content: 'Claim. [1](https://example.com) `array[1]` [1], [2]',
+      citation: ''
+    })
+  })
+
+  it('hides migrated source-backed superscript links before plain text conversion', () => {
+    const message = createExportView([
+      {
+        type: 'text',
+        text: '',
+        providerMetadata: {
+          cherry: {
+            references: [
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: { results: [{ url: 'https://example.com', title: 'One' }] }
+              }
+            ]
+          }
+        }
+      }
+    ] as MessageExportView['parts'])
+    expect(
+      getToolCitationExport(message, 'Claim [<sup>1</sup>](https://example.com). [1](https://other.com)', true)
+    ).toEqual({
+      content: 'Claim. [1](https://other.com)',
+      citation: ''
+    })
+  })
+
   it('strips tool markers outside code without modifying stored parts', () => {
     const parts = [{ type: 'text', text: 'Claim.[cite:abc-1] `literal [cite:abc-1]`' }]
     const message = createExportView(parts as MessageExportView['parts'])

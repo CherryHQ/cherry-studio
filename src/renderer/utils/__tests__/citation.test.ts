@@ -650,3 +650,27 @@ Numbered list:
     })
   })
 })
+
+import { stripKnownNumberedCitationMarkers } from '../citation'
+
+describe('source-backed hidden numeric marks', () => {
+  const sources = new Map([[1, { number: 1, url: 'https://example.com', title: 'One' }]])
+  it.each([
+    ['Claim [1].', 'Claim.'],
+    ['Claim [99].', 'Claim [99].'],
+    ['Claim [<sup>1</sup>](https://example.com).', 'Claim.'],
+    ['Ordinary [<sup>1</sup>](https://other.com).', 'Ordinary [<sup>1</sup>](https://other.com).'],
+    ['[1](https://example.com) ![1](image.png)', '[1](https://example.com) ![1](image.png)'],
+    [
+      '[1][target] and ![1][target]\n\n[target]: https://example.com',
+      '[1][target] and ![1][target]\n\n[target]: https://example.com'
+    ],
+    ['`[1]` and `x[1]`\n```js\n[1]\n```', '`[1]` and `x[1]`\n```js\n[1]\n```'],
+    ['array[1] [1], [2] [1]; [2] [1][2]', 'array[1] [1], [2] [1]; [2] [1][2]'],
+    ['    [1]\n', '    [1]\n'],
+    ['<span>[1]</span>', '<span>[1]</span>'],
+    ['Claim [1].\n\n<div>raw</div>\n\nMore [1].', 'Claim.\n\n<div>raw</div>\n\nMore.']
+  ])('preserves Markdown meaning for %s', (input, expected) => {
+    expect(stripKnownNumberedCitationMarkers(input, sources)).toBe(expected)
+  })
+})
