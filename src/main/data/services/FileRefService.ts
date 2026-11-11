@@ -13,6 +13,7 @@ import { asc, count, eq, inArray } from 'drizzle-orm'
 
 import { application } from '@application'
 import {
+  agentAvatarFileRefTable,
   assistantAvatarFileRefTable,
   agentSessionMessageFileRefTable,
   chatMessageFileRefTable,
@@ -31,6 +32,7 @@ import {
 import type { DbOrTx } from '@data/db/types'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import {
+  agentAvatarRef,
   assistantAvatarRef,
   agentSessionMessageSourceType,
   chatMessageSourceType,
@@ -96,6 +98,7 @@ function paintingRowToFileRef(row: PaintingFileRefRow): FileRef {
 function singleFileRowToFileRef(
   row: ProviderLogoFileRefRow | MiniAppLogoFileRefRow | MiniAppFileRefRow,
   sourceType:
+    | typeof agentAvatarRef.sourceType
     | typeof assistantAvatarRef.sourceType
     | typeof providerLogoRef.sourceType
     | typeof miniAppLogoRef.sourceType
@@ -149,6 +152,15 @@ class FileRefServiceImpl implements FileRefService {
           .orderBy(asc(paintingFileRefTable.createdAt), asc(paintingFileRefTable.id))
           .all()
         return rows.map(paintingRowToFileRef)
+      },
+      [agentAvatarRef.sourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(agentAvatarFileRefTable)
+          .where(eq(agentAvatarFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(agentAvatarFileRefTable.createdAt), asc(agentAvatarFileRefTable.id))
+          .all()
+        return rows.map((row) => singleFileRowToFileRef(row, agentAvatarRef.sourceType))
       },
       [assistantAvatarRef.sourceType]: () => {
         const rows = this.getDb()
@@ -240,6 +252,15 @@ class FileRefServiceImpl implements FileRefService {
           .all()
         return rows.map(paintingRowToFileRef)
       }
+      case agentAvatarRef.sourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(agentAvatarFileRefTable)
+          .where(eq(agentAvatarFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(agentAvatarFileRefTable.createdAt), asc(agentAvatarFileRefTable.id))
+          .all()
+        return rows.map((row) => singleFileRowToFileRef(row, agentAvatarRef.sourceType))
+      }
       case assistantAvatarRef.sourceType: {
         const rows = this.getDb()
           .select()
@@ -328,6 +349,13 @@ class FileRefServiceImpl implements FileRefService {
             .from(paintingFileRefTable)
             .where(inArray(paintingFileRefTable.fileEntryId, chunk))
             .groupBy(paintingFileRefTable.fileEntryId)
+            .all(),
+        [agentAvatarRef.sourceType]: () =>
+          this.getDb()
+            .select({ entryId: agentAvatarFileRefTable.fileEntryId, refCount: count() })
+            .from(agentAvatarFileRefTable)
+            .where(inArray(agentAvatarFileRefTable.fileEntryId, chunk))
+            .groupBy(agentAvatarFileRefTable.fileEntryId)
             .all(),
         [assistantAvatarRef.sourceType]: () =>
           this.getDb()

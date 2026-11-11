@@ -1463,4 +1463,23 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
     expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
   })
+  it('migrates populated agent avatar ownership and message references', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    sqlite.exec(`INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at) VALUES ('agent', 'claude-code', 'Agent', '', 'a0', 1, 1);
+      INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at) VALUES ('ws', 'Workspace', '/tmp/ws', 'user', 'a0', 1, 1);
+      INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, last_activity_at, created_at, updated_at) VALUES ('session', 'agent', 'Session', 'ws', 'a0', 1, 1, 1);
+      INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at) VALUES ('message', 'session', 'assistant', '{"parts":[]}', 'success', 1, 1);
+      INSERT INTO file_entry (id, origin, name, ext, size, cleanup_policy, created_at, updated_at) VALUES ('file', 'internal', 'image', 'webp', 3, 'delete_when_unreferenced', 1, 1);
+      INSERT INTO agent_session_message_file_ref (id, file_entry_id, source_id, role, created_at, updated_at) VALUES ('attachment', 'file', 'message', 'attachment', 1, 1);`)
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare('SELECT role FROM agent_session_message_file_ref').all()).toEqual([{ role: 'attachment' }])
+    sqlite.exec(`INSERT INTO agent_avatar_file_ref (id, file_entry_id, source_id, created_at, updated_at) VALUES ('slot', 'file', 'agent', 1, 1);
+      INSERT INTO agent_session_message_file_ref (id, file_entry_id, source_id, role, created_at, updated_at) VALUES ('author', 'file', 'message', 'author_avatar', 1, 1);`)
+    expect(() =>
+      sqlite.exec(
+        "INSERT INTO agent_avatar_file_ref (id, file_entry_id, source_id, created_at, updated_at) VALUES ('duplicate', 'file', 'agent', 1, 1)"
+      )
+    ).toThrow(/UNIQUE/)
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
 })

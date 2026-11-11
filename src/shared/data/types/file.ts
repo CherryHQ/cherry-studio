@@ -485,7 +485,7 @@ export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
 
 export const agentSessionMessageSourceType = 'agent_session_message' as const
 
-export const agentSessionMessageRoles = ['attachment'] as const
+export const agentSessionMessageRoles = ['attachment', 'author_avatar'] as const
 export const agentSessionMessageRoleSchema = z.enum(agentSessionMessageRoles)
 
 export const agentSessionMessageRefFields = {
@@ -616,6 +616,7 @@ function defineSingleFileRef<const T extends string>(sourceType: T) {
   return { sourceType, refFields, schema: z.object({ ...refCommonFields, ...refFields }) } as const
 }
 
+export const agentAvatarRef = defineSingleFileRef('agent_avatar')
 export const assistantAvatarRef = defineSingleFileRef('assistant_avatar')
 export const providerLogoRef = defineSingleFileRef('provider_logo')
 export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
@@ -665,6 +666,7 @@ export const allSourceTypes = [
   paintingSourceType,
   jobSourceType,
   translateHistorySourceType,
+  agentAvatarRef.sourceType,
   assistantAvatarRef.sourceType,
   providerLogoRef.sourceType,
   miniAppLogoRef.sourceType,
@@ -694,6 +696,7 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   paintingFileRefSchema,
   jobFileRefSchema,
   translateHistoryFileRefSchema,
+  agentAvatarRef.schema,
   assistantAvatarRef.schema,
   providerLogoRef.schema,
   miniAppLogoRef.schema,

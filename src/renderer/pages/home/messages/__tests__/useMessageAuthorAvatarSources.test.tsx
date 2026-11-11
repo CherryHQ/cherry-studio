@@ -1,12 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useMessageAuthorAvatarSources } from '@renderer/components/chat/messages/hooks/useMessageAuthorAvatarSources'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { ipcApi } from '@renderer/ipc'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-
-import { useMessageAuthorAvatarSources } from '../useMessageAuthorAvatarSources'
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
 
