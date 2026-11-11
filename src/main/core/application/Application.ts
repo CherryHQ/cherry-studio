@@ -16,7 +16,7 @@ import {
 } from '@main/core/lifecycle'
 import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
-import { noteExitReason, recordExit } from '@main/core/preboot/exitRecord'
+import { markExitForced, noteExitReason, recordExit } from '@main/core/preboot/exitRecord'
 import { bootConfigService } from '@main/data/bootConfig'
 
 import type { ServiceRegistry } from './serviceRegistry'
@@ -451,6 +451,7 @@ export class Application {
     // `onStop()`, which never yields the event loop for it to fire on.
     const forceExit = (): void => {
       logger.warn('Forced exit after shutdown timeout')
+      markExitForced()
       process.exit(1)
     }
 
@@ -535,6 +536,7 @@ export class Application {
       // Same last-resort fuse as the signal handlers — see setupSignalHandlers().
       const timer = setTimeout(() => {
         logger.warn('Forced exit after shutdown timeout (will-quit)')
+        markExitForced()
         process.exit(1)
       }, SHUTDOWN_TIMEOUT_MS)
 
@@ -702,6 +704,7 @@ export class Application {
    */
   public forceExit(code: number): void {
     noteExitReason('force-exit')
+    markExitForced()
     recordExit()
     this._isQuitting = true
     logger.warn(`Force exiting application with code ${code}`)

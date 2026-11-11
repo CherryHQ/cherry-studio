@@ -114,11 +114,18 @@ preboot/
 │                        header and unresponsive renderer call-stack
 │                        collection)
 ├── exitRecord.ts        records how each process ends: a heartbeat plus an
-│                        exit marker in `logs/last-session.json`. The next
-│                        launch logs `previous exit: …`; a record with no
-│                        exit marker means the process was killed. Runs right
-│                        after the single-instance lock so a second instance
-│                        never overwrites the live record.├── backupRestoreGate.ts
+│                        exit marker in `<userData>/last-session.json`, scoped
+│                        to the resolved profile the single-instance lock
+│                        protects. The next launch logs `previous exit: …`;
+│                        a record with no exit marker means the process was
+│                        killed (or, when a persisted OS-shutdown intent is
+│                        present, that a system shutdown interrupted cleanup).
+│                        Forced exits (forceExit, shutdown-timeout fuse) are
+│                        recorded with their outcome so they are not reported
+│                        as graceful. Runs right after the single-instance
+│                        lock so a second instance never overwrites the live
+│                        record.
+├── backupRestoreGate.ts
 │                        backup-restore gate; promotes a staged restored DB
 │                        (if any) at the top of startApp(), after the
 │                        single-instance lock and the frozen path registry,

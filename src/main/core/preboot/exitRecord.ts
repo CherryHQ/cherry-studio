@@ -2,26 +2,37 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
+import { app } from 'electron'
+
 import { loggerService } from '@logger'
-import { LOGS_DIR } from '@main/core/paths/constants'
 
 const logger = loggerService.withContext('ExitRecord')
 
 const RECORD_FILE = 'last-session.json'
 export const HEARTBEAT_INTERVAL_MS = 5_000
 
+/** How the process's own exit path was reached. */
+type ExitOutcome = 'graceful' | 'forced'
+
 interface ExitRecord {
   pid: number
   startedAt: string
   heartbeatAt: string
   memMB: number
+  /**
+   * Observed OS shutdown intent, persisted the moment it is known (before
+   * asynchronous teardown). Lets the next launch report an interrupted system
+   * shutdown instead of a kill when termination cuts cleanup short.
+   */
+  shutdownIntent?: string
   /** Present only when the process reached its exit path; absent means it was cut off. */
-  exit?: { at: string; reason: string }
+  exit?: { at: string; reason: string; outcome: ExitOutcome }
 }
 
 let record: ExitRecord | null = null
 let recordPath: string | null = null
 let exitReason: string | null = null
+let exitOutcome: ExitOutcome = 'graceful'
 let writeFailed = false
 
 /**
@@ -30,6 +41,23 @@ let writeFailed = false
  */
 export function noteExitReason(reason: string): void {
   exitReason = reason
+  // PowerService releases the Windows shutdown barrier before quit's async
+  // teardown runs, so persist an observed OS shutdown immediately: if
+  // termination cuts teardown short, the next launch can still report the
+  // system shutdown instead of a kill.
+  if (reason === 'system-shutdown' && record && !record.exit) {
+    record.shutdownIntent = reason
+    writeRecord()
+  }
+}
+
+/**
+ * Mark the in-progress exit as forced (cleanup skipped by `forceExit()` or
+ * truncated by the shutdown-timeout fuse). The requested reason is kept; only
+ * the outcome changes, so the next launch does not report it as graceful.
+ */
+export function markExitForced(): void {
+  exitOutcome = 'forced'
 }
 
 /**
@@ -44,8 +72,12 @@ export function noteExitReason(reason: string): void {
  *   - Safe to call once.
  */
 export function trackProcessExit(): void {
-  recordPath = path.join(LOGS_DIR, RECORD_FILE)
-  fs.mkdirSync(LOGS_DIR, { recursive: true })
+  // Scope the record to the resolved userData profile: the single-instance
+  // lock is keyed on it, so independently locked profiles never share one.
+  // LOGS_DIR is app-name-based, so two packaged copies configured with
+  // distinct userData directories would overwrite each other's record there.
+  recordPath = path.join(app.getPath('userData'), RECORD_FILE)
+  fs.mkdirSync(path.dirname(recordPath), { recursive: true })
   logPreviousExit(recordPath)
 
   const now = new Date().toISOString()
@@ -63,7 +95,8 @@ export function trackProcessExit(): void {
  */
 export function recordExit(fallbackReason = 'unknown'): void {
   if (!record || record.exit) return
-  record.exit = { at: new Date().toISOString(), reason: exitReason ?? fallbackReason }
+  delete record.shutdownIntent // the exit marker supersedes the intent
+  record.exit = { at: new Date().toISOString(), reason: exitReason ?? fallbackReason, outcome: exitOutcome }
   writeRecord()
 }
 
@@ -110,11 +143,22 @@ function logPreviousExit(file: string): void {
 
   if (previous.exit) {
     const { at, reason } = previous.exit
+    // Records written before outcomes existed only had graceful exit paths.
+    const outcome = previous.exit.outcome ?? 'graceful'
     if (reason === 'system-shutdown') {
       logger.info(`previous exit: system shutdown (at ${at})`)
+    } else if (outcome === 'forced') {
+      logger.warn(`previous exit: forced (${reason}) (at ${at})`)
     } else {
       logger.info(`previous exit: graceful (${reason}) (at ${at})`)
     }
+    return
+  }
+
+  if (previous.shutdownIntent === 'system-shutdown') {
+    logger.warn(
+      `previous exit: system shutdown interrupted during cleanup (last heartbeat ${previous.heartbeatAt}, pid ${previous.pid})`
+    )
     return
   }
 

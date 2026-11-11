@@ -6,17 +6,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 
-let logsDir: string
+let userDataDir: string
 let recordFile: string
 
-async function loadModule() {
+async function loadModule(dir: string = userDataDir) {
   vi.resetModules()
   vi.doMock('@logger', () => ({ loggerService: { withContext: () => logger } }))
-  vi.doMock('@main/core/paths/constants', () => ({ LOGS_DIR: logsDir }))
+  vi.doMock('electron', () => ({ app: { getPath: () => dir } }))
   return import('../exitRecord')
 }
 
-const readRecord = () => JSON.parse(fs.readFileSync(recordFile, 'utf8'))
+const readRecord = (file: string = recordFile) => JSON.parse(fs.readFileSync(file, 'utf8'))
 
 describe('exitRecord', () => {
   beforeEach(() => {
@@ -24,16 +24,16 @@ describe('exitRecord', () => {
     vi.clearAllMocks()
     // Keep the module's `exit` hook off the real test process.
     vi.spyOn(process, 'on').mockImplementation(() => process)
-    logsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'exit-record-'))
-    recordFile = path.join(logsDir, 'last-session.json')
+    userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'exit-record-'))
+    recordFile = path.join(userDataDir, 'last-session.json')
   })
 
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     vi.doUnmock('@logger')
-    vi.doUnmock('@main/core/paths/constants')
-    fs.rmSync(logsDir, { recursive: true, force: true })
+    vi.doUnmock('electron')
+    fs.rmSync(userDataDir, { recursive: true, force: true })
   })
 
   it('logs nothing about a previous exit on first launch', async () => {
@@ -77,6 +77,110 @@ describe('exitRecord', () => {
     next.trackProcessExit()
 
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('previous exit: system shutdown'))
+  })
+
+  it('scopes the record to the resolved userData profile so independently locked profiles never collide', async () => {
+    const first = await loadModule()
+    first.trackProcessExit()
+    first.noteExitReason('quit')
+    first.recordExit()
+
+    const otherDir = fs.mkdtempSync(path.join(os.tmpdir(), 'exit-record-other-'))
+    try {
+      // A second packaged copy with its own userData (and its own
+      // single-instance lock) sees no previous exit and writes its own record.
+      const other = await loadModule(otherDir)
+      other.trackProcessExit()
+
+      expect(logger.info).not.toHaveBeenCalled()
+      expect(logger.warn).not.toHaveBeenCalled()
+      expect(fs.existsSync(path.join(otherDir, 'last-session.json'))).toBe(true)
+
+      // The first profile's record is untouched by the other profile.
+      const next = await loadModule()
+      next.trackProcessExit()
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('previous exit: graceful (quit)'))
+    } finally {
+      fs.rmSync(otherDir, { recursive: true, force: true })
+    }
+  })
+
+  it('reports a forced exit as forced, not graceful, keeping the requested reason', async () => {
+    const first = await loadModule()
+    first.trackProcessExit()
+    first.noteExitReason('force-exit')
+    first.markExitForced()
+    first.recordExit()
+
+    const next = await loadModule()
+    next.trackProcessExit()
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('previous exit: forced (force-exit)'))
+    expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('graceful'))
+  })
+
+  it('reports a shutdown-timeout truncation as forced even when a quit was in progress', async () => {
+    const first = await loadModule()
+    first.trackProcessExit()
+    first.noteExitReason('quit')
+    // The shutdown-timeout fuse marks the exit forced, then process.exit(1)
+    // reaches the exit hook with the requested reason still noted.
+    first.markExitForced()
+    first.recordExit('exit(1)')
+
+    const next = await loadModule()
+    next.trackProcessExit()
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('previous exit: forced (quit)'))
+  })
+
+  it('treats records written before outcomes existed as graceful', async () => {
+    fs.writeFileSync(
+      recordFile,
+      JSON.stringify({
+        pid: 1,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        heartbeatAt: '2026-01-01T00:00:00.000Z',
+        memMB: 100,
+        exit: { at: '2026-01-01T01:00:00.000Z', reason: 'quit' }
+      })
+    )
+    const { trackProcessExit } = await loadModule()
+    trackProcessExit()
+
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('previous exit: graceful (quit)'))
+  })
+
+  it('persists observed system-shutdown intent before teardown and reports an interrupted shutdown', async () => {
+    const first = await loadModule()
+    first.trackProcessExit()
+    first.noteExitReason('system-shutdown')
+
+    // The intent is on disk before any exit marker: termination during async
+    // teardown (after the Windows shutdown barrier is released) keeps it.
+    expect(readRecord().shutdownIntent).toBe('system-shutdown')
+
+    const next = await loadModule()
+    next.trackProcessExit()
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('previous exit: system shutdown interrupted during cleanup')
+    )
+  })
+
+  it('clears the shutdown intent once the exit marker is written', async () => {
+    const first = await loadModule()
+    first.trackProcessExit()
+    first.noteExitReason('system-shutdown')
+    first.recordExit()
+
+    expect(readRecord().shutdownIntent).toBeUndefined()
+
+    const next = await loadModule()
+    next.trackProcessExit()
+
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('previous exit: system shutdown'))
+    expect(logger.warn).not.toHaveBeenCalled()
   })
 
   it('reports a session that left no exit marker as killed, with its last heartbeat', async () => {
