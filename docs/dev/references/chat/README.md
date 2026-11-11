@@ -116,10 +116,13 @@ establish a compaction budget. Crossing the trigger does not guarantee that the
 request fits: if no earlier prefix can be folded, history is served as-is.
 
 Compaction can fail open. If the compression model cannot be resolved, the produced summary is
-empty, or summarization throws, the marker-applied history is served unchanged for that request; an
-in-loop summarization failure stops further in-loop compaction for that request and lets it
-continue. A finite `max_messages` also short-circuits turn-start durable compaction: the window is
-computed over raw rows without applying existing compaction summaries, so the two settings do not
+empty, or summarization throws, the turn-start durable-compaction stage serves the marker-applied
+history unchanged. In the unresolved-model case, with context building and compression enabled and
+a known request-model window, request construction still installs the sliding-window fallback
+(`contextBuild.ts:142–145`); over-budget history may therefore lose its oldest turns before reaching
+the provider. An in-loop summarization failure stops further in-loop compaction for that request and
+lets it continue. A finite `max_messages` also short-circuits turn-start durable compaction: the window
+is computed over raw rows without applying existing compaction summaries, so the two settings do not
 compose, although the in-loop hook can still run.
 
 ### Unknown model window
