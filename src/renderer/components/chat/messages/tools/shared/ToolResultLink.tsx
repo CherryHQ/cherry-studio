@@ -43,9 +43,13 @@ export function ToolResultLink({ url, isImage, name }: ToolResultLinkData) {
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()
-          void (actions?.openExternalUrl
-            ? actions.openExternalUrl(url)
-            : ipcApi.request('system.shell.open_external_website', url))
+          if (!actions?.openExternalUrl) {
+            void ipcApi.request('system.shell.open_external_website', url)
+          } else if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+            void actions.openExternalUrl(url)
+          } else {
+            void actions.openExternalUrl(url, { preserveDefaultRouting: true })
+          }
         }}>
         {name ?? url}
       </a>

@@ -16,7 +16,7 @@ import {
   getRightPaneWidthPolicy,
   RESOURCE_LIST_PANE_CACHE_KEY,
   RESOURCE_LIST_PANE_WINDOW_CACHE_KEY,
-  type RightPaneWidthPolicy
+  resolveRightPaneWidth
 } from './paneLayout'
 import { evaluateAutoCollapse, predictCenterWidth } from './paneWidthPolicy'
 import { RightPaneHost } from './RightPaneHost'
@@ -59,10 +59,6 @@ type ChatAppShellCenterContentProps = ChatAppShellBaseProps & {
 export type ChatAppShellProps = ChatAppShellMainProps | ChatAppShellCenterContentProps
 
 const MANUAL_EXPAND_RELEASE_NARROWING = 8
-
-function clampPaneStoredWidth(width: number, { minWidth, maxWidth }: RightPaneWidthPolicy): number {
-  return Math.min(maxWidth ?? Number.POSITIVE_INFINITY, Math.max(minWidth, Math.round(width)))
-}
 
 /**
  * Predicted-center auto-collapse for the left resource list (single source,
@@ -129,14 +125,15 @@ function useResourceListAutoCollapse({
   const leftPaneOpenRef = useRef(leftPaneOpen)
   const frozenRef = useRef(frozen)
   const dockedPaneOpenRef = useRef(dockedPaneOpen)
-  const widthsRef = useRef({ listWidth: 0, paneWidth: 0, paneMin: 0 })
+  const widthsRef = useRef({ listWidth: 0, paneMin: 0 })
+  const paneProfileRef = useRef({ policy: paneProfile, storedWidth: storedPaneWidth })
+  paneProfileRef.current = { policy: paneProfile, storedWidth: storedPaneWidth }
   const onChangeRef = useRef(onPaneAutoCollapseChange)
   leftPaneOpenRef.current = leftPaneOpen
   frozenRef.current = frozen
   dockedPaneOpenRef.current = dockedPaneOpen
   widthsRef.current = {
     listWidth: clampResourceListPaneWidth(storedListWidth ?? 0),
-    paneWidth: clampPaneStoredWidth(storedPaneWidth ?? 0, paneProfile),
     paneMin: paneProfile.minWidth
   }
   useEffect(() => {
@@ -163,7 +160,7 @@ function useResourceListAutoCollapse({
         shellWidth,
         listWidth: widthsRef.current.listWidth,
         paneOpen: dockedPaneOpenRef.current,
-        paneWidth: widthsRef.current.paneWidth,
+        paneWidth: resolveRightPaneWidth(paneProfileRef.current.policy, paneProfileRef.current.storedWidth, shellWidth),
         paneMin: widthsRef.current.paneMin
       })
       let next = evaluateAutoCollapse(predictedCenter, collapsedRef.current)
@@ -223,7 +220,7 @@ function useResourceListAutoCollapse({
   // is an input too: presets can hold equal widths, and then only the floor moves the verdict.
   useLayoutEffect(() => {
     evaluate()
-  }, [evaluate, storedListWidth, storedPaneWidth, paneProfile.minWidth])
+  }, [evaluate, storedListWidth, storedPaneWidth, paneProfile.minWidth, paneProfile.preset])
 
   // Unfreeze → evaluate once (hard-blocked by suppression like every deferred pass).
   useLayoutEffect(() => {

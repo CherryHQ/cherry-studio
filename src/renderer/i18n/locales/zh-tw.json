@@ -4055,6 +4055,8 @@
   "settings.browser.names.opera": "Opera",
   "settings.browser.names.vivaldi": "Vivaldi",
   "settings.browser.noResults": "找不到符合的網頁，請嘗試其他關鍵字。",
+  "settings.browser.openChatLinks": "在右側面板開啟聊天連結",
+  "settings.browser.openChatLinksHelp": "在話題瀏覽器面板中開啟聊天訊息的連結。關閉後恢復正常的連結開啟方式。",
   "settings.browser.openLinks": "透過內建瀏覽器開啟網站連結",
   "settings.browser.openLinksHelp": "網站連結將在瀏覽器分頁中開啟，並共用現有的網站資料。",
   "settings.browser.profile": "使用者設定檔",

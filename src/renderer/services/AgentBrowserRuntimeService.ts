@@ -16,6 +16,7 @@ export interface AgentBrowserResource {
   url: string
   title: string
   ready: boolean
+  pendingNavigation?: { url: string }
   loading: boolean
   failed: boolean
 }
@@ -77,6 +78,12 @@ export class AgentBrowserRuntimeService {
     })
     this.ids = [...this.resources.keys()]
     this.emit()
+  }
+
+  navigate(sessionId: string, url: string): boolean {
+    if (!this.owners.has(sessionId) || !this.resources.has(sessionId)) return false
+    this.update(sessionId, { pendingNavigation: { url } })
+    return true
   }
 
   update(sessionId: string, patch: Partial<Omit<AgentBrowserResource, 'sessionId'>>): void {

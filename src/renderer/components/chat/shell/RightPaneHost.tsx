@@ -16,6 +16,9 @@ import {
   CHAT_SHELL_PANE_WIDTH,
   CHAT_SHELL_TRANSITION,
   getRightPaneWindowCacheKey,
+  getRightPaneWidthPolicy,
+  resolveRightPaneWidth,
+  type RightPaneWidthPreset,
   type RightPaneResizeCacheKey
 } from './paneLayout'
 import { buildDockedPaneWidthExpression, getPaneSpaceCap, resolveDockedPaneWidth } from './paneWidthPolicy'
@@ -50,6 +53,7 @@ interface ResizableRightPaneProps extends RightPaneFrameProps {
   defaultWidth?: number
   maxWidth?: number
   cacheKey?: RightPaneResizeCacheKey
+  widthPreset?: RightPaneWidthPreset
 }
 
 export interface RightPaneHostProps extends RightPaneFrameProps {
@@ -165,8 +169,10 @@ function useRightPaneResize({
   minWidth,
   maxWidth,
   spaceCapRef,
-  onDragClose
+  onDragClose,
+  paneRef
 }: {
+  paneRef: RefObject<HTMLDivElement | null>
   cacheKey: RightPaneResizeCacheKey
   defaultWidth: number
   minWidth: number
@@ -177,7 +183,6 @@ function useRightPaneResize({
   onDragClose?: () => void
 }) {
   const [storedWidth, setStoredWidth] = useWindowScopedPersistCache(cacheKey, getRightPaneWindowCacheKey(cacheKey))
-  const paneRef = useRef<HTMLDivElement>(null)
   const paneRightRef = useRef(0)
   const pendingDragCloseRef = useRef(false)
   const onDragCloseRef = useRef(onDragClose)
@@ -290,7 +295,7 @@ function useRightPaneResize({
       paneRightRef.current = paneRef.current?.getBoundingClientRect().right ?? event.clientX + paneWidth
       startResizeDrag(event)
     },
-    [paneWidth, startResizeDrag]
+    [paneRef, paneWidth, startResizeDrag]
   )
 
   // Keyboard/a11y path (arrow keys via splitterA11y): discrete single calls,
@@ -388,6 +393,7 @@ export function PersistentRightPaneHost({
   defaultWidth,
   maxWidth,
   cacheKey = ARTIFACT_RIGHT_PANE_CACHE_KEY,
+  widthPreset,
   onLayoutAnimationComplete,
   onFullWidthPhaseChange,
   onResizingChange,
@@ -395,9 +401,27 @@ export function PersistentRightPaneHost({
 }: PersistentRightPaneHostProps) {
   const reduceMotion = useReducedMotion()
   const animationControls = useAnimationControls()
-  const resolvedDefaultWidth = defaultWidth ?? (typeof width === 'number' ? width : ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH)
+  const paneRef = useRef<HTMLDivElement>(null)
+  const [shellWidth, setShellWidth] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const shell = paneRef.current?.closest('[data-chat-app-shell-root]')
+    if (!shell || typeof ResizeObserver === 'undefined') return
+    const update = () => {
+      const measured = shell.getBoundingClientRect().width
+      setShellWidth(measured > 0 ? measured : null)
+    }
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(shell)
+    return () => observer.disconnect()
+  }, [])
+  const resolvedDefaultWidth =
+    widthPreset === 'browser'
+      ? resolveRightPaneWidth(getRightPaneWidthPolicy(widthPreset), null, shellWidth)
+      : (defaultWidth ?? (typeof width === 'number' ? width : ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH))
   const spaceCapRef = useRef<number | null>(null)
-  const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useRightPaneResize({
+  const { isResizing, paneWidth, startResizing, setPaneWidth } = useRightPaneResize({
+    paneRef,
     cacheKey,
     defaultWidth: resolvedDefaultWidth,
     minWidth,

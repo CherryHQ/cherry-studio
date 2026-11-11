@@ -52,6 +52,14 @@ describe('ToolResultLink', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
+  it('preserves default routing for modified activations', async () => {
+    vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: null })
+    const url = 'https://example.com/page'
+    render(<ToolResultLink url={url} isImage={false} />, { wrapper: TestSWRConfig })
+    fireEvent.click(await screen.findByRole('link'), { ctrlKey: true })
+    expect(openExternalUrl).toHaveBeenCalledWith(url, { preserveDefaultRouting: true })
+  })
+
   it('keeps failed images actionable and retries a new source', async () => {
     const user = userEvent.setup()
     const url = 'https://example.com/expired.png'

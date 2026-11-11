@@ -8,6 +8,9 @@ import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrame
 import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 
 import { ChatAppShell } from '../ChatAppShell'
+import { predictCenterWidth } from '../paneWidthPolicy'
+
+vi.mock('../paneWidthPolicy', { spy: true })
 import {
   getRightPaneWidthPolicy,
   RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD,
@@ -69,6 +72,7 @@ vi.mock('@renderer/utils/style', () => ({
 vi.mock('@data/hooks/useCache', () => ({
   useCache: vi.fn(() => [persistCacheMock.state.windowWidth, persistCacheMock.setWindowWidth]),
   usePersistCache: vi.fn((key: string) => {
+    if (key === 'ui.chat.browser_pane.width') return [null, vi.fn()]
     if (key === 'ui.chat.artifact_pane.width') return [persistCacheMock.state.paneWidth, persistCacheMock.setPaneWidth]
     if (key === 'ui.chat.resource_pane.width')
       return [persistCacheMock.state.listPaneWidth, persistCacheMock.setListPaneWidth]
@@ -573,6 +577,28 @@ describe('ChatAppShell', () => {
 
     expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
     expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
+  })
+
+  it('predicts collapse using the browser third of the measured shell', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    rightPanelStateMock.current = {
+      layoutAnimationPending: false,
+      presentationMaximized: false,
+      presentationOpen: true,
+      activePaneWidth: getRightPaneWidthPolicy('browser')
+    }
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+    // 900 / 3 = 300, leaving 360 with the 240 px list; the minimum 255 would leave 405.
+    notifyObservedShellWidth(900)
+    expect(predictCenterWidth).toHaveBeenLastCalledWith(expect.objectContaining({ shellWidth: 900, paneWidth: 300 }))
+    expect(onPaneAutoCollapseChange).not.toHaveBeenCalledWith(true)
   })
 
   it('predicts detached auto-collapse from the same renderer-local list width used by its splitter', () => {
