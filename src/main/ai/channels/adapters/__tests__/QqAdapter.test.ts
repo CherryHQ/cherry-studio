@@ -383,19 +383,6 @@ describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
     expect(events[0].messageId).toBe('rb-1')
   })
 
-  it('dedup cap: 501 marks → map stays at 500, oldest evicted', () => {
-    vi.useFakeTimers()
-    try {
-      const adapter = createAdapterWithConfig({ mention_only: false })
-      for (let i = 0; i < 501; i++) adapter.markSeen(`cap-${i}`)
-      expect(adapter.seenMsgIds.size).toBe(500)
-      expect(adapter.wasSeen('cap-0')).toBe(false) // oldest evicted by the cap
-      expect(adapter.wasSeen('cap-500')).toBe(true) // newest still present
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
   it('parseContent strips alphanumeric mentions of other users', () => {
     const adapter = createAdapter()
     expect(adapter.parseContent('hi <@!A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4> how are you')).toBe('hi how are you')

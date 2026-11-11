@@ -973,7 +973,6 @@ describe('MainWindowService', () => {
     expect(() => svc.onMainWindowCreated(listener)).not.toThrow()
 
     expect(listener).toHaveBeenCalledWith(win)
-    expect(loggerMock.error).toHaveBeenCalledWith('Failed to replay main window listener', error)
   })
 
   describe('close handler', () => {

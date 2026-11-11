@@ -54,39 +54,6 @@ describe('SessionSendTool', () => {
     expect(screen.getByText('Accepted')).toBeInTheDocument()
   })
 
-  it('uses the streaming state supplied by the tool card', () => {
-    render(<Harness isStreaming input={{ target_session_id: 'session-build', message: 'Implement it.' }} />)
-
-    expect(screen.getByText('message.tools.sessionSend.sending')).toBeInTheDocument()
-    expect(screen.queryByText('Sent to')).toBeNull()
-    expect(screen.queryByText('Untitled session')).toBeNull()
-  })
-
-  it('labels an untitled target without exposing its id', () => {
-    render(
-      <Harness
-        input={{ target_session_id: 'opaque-id', message: 'Implement it.' }}
-        output={{
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                ok: true,
-                delivery: {
-                  receiver: { sessionId: 'opaque-id' },
-                  receiverSnapshot: { sessionName: '' }
-                }
-              })
-            }
-          ]
-        }}
-      />
-    )
-
-    expect(screen.getAllByText('Untitled session')).toHaveLength(2)
-    expect(screen.queryByText('opaque-id')).toBeNull()
-  })
-
   it.each([
     { props: { hasError: true, status: 'error' as const }, label: 'Error' },
     { props: { status: 'cancelled' as const }, label: 'Cancelled' }

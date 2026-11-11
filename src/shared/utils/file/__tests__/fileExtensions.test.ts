@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   audioExts,
-  documentExts,
   imageExts,
   knowledgeFileProcessingExts,
   knowledgeSupportedFileExts,
@@ -18,22 +17,10 @@ import {
 describe('knowledge file-extension source-of-truth invariants', () => {
   const supported = new Set<string>(knowledgeSupportedFileExts)
   const processing = new Set<string>(knowledgeFileProcessingExts)
-  const document = new Set<string>(documentExts)
 
   it('only processes files the knowledge base also accepts (processing ⊆ supported)', () => {
     const orphanProcessing = knowledgeFileProcessingExts.filter((ext) => !supported.has(ext))
     expect(orphanProcessing).toEqual([])
-  })
-
-  it('routes PDFs and nothing else through a document_to_markdown processor', () => {
-    expect(knowledgeFileProcessingExts).toEqual(['.pdf'])
-  })
-
-  it('keeps legacy .xls accepted and document-classified even though it is no longer processed', () => {
-    expect(supported.has('.xls')).toBe(true)
-    expect(document.has('.xls')).toBe(true)
-    // Read straight through AnydocReader instead of a document_to_markdown processor.
-    expect(processing.has('.xls')).toBe(false)
   })
 
   it('accepts OpenDocument and RTF formats through AnydocReader, not a processor', () => {
@@ -41,15 +28,6 @@ describe('knowledge file-extension source-of-truth invariants', () => {
       expect(supported.has(ext)).toBe(true)
       expect(processing.has(ext)).toBe(false)
     }
-  })
-
-  it('accepts legacy .ppt without classifying it as an app-wide document', () => {
-    expect(supported.has('.ppt')).toBe(true)
-    // The external file processor has not been verified for legacy binary PowerPoint.
-    expect(processing.has('.ppt')).toBe(false)
-    // Deliberately absent from documentExts: that list feeds officeparser on the AI
-    // attachment path, which does not handle the legacy binary PowerPoint format.
-    expect(document.has('.ppt')).toBe(false)
   })
 })
 

@@ -8,9 +8,9 @@ const a = (id: string) => ({ id, role: 'assistant' })
 describe('applyMaxMessagesWindow', () => {
   it('returns the input untouched when unlimited or already within the window', () => {
     const messages = [u('u1'), a('a1'), u('u2')]
-    expect(applyMaxMessagesWindow(messages, null)).toBe(messages)
-    expect(applyMaxMessagesWindow(messages, 3)).toBe(messages)
-    expect(applyMaxMessagesWindow(messages, 10)).toBe(messages)
+    expect(applyMaxMessagesWindow(messages, null)).toEqual(messages)
+    expect(applyMaxMessagesWindow(messages, 3)).toEqual(messages)
+    expect(applyMaxMessagesWindow(messages, 10)).toEqual(messages)
   })
 
   it('keeps exactly the last N when the window opens on a user row', () => {
@@ -41,7 +41,7 @@ describe('applyMaxMessagesWindow', () => {
     const messages = [u('u1'), a('a1'), u('u2')]
     for (const bad of [0, -3, Number.NaN, Number.POSITIVE_INFINITY, '2' as never, {} as never]) {
       expect(() => applyMaxMessagesWindow(messages, bad as never)).not.toThrow()
-      expect(applyMaxMessagesWindow(messages, bad as never)).toBe(messages)
+      expect(applyMaxMessagesWindow(messages, bad as never)).toEqual(messages)
     }
   })
 

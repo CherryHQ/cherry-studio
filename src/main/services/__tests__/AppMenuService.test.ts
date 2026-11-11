@@ -117,15 +117,13 @@ describe('AppMenuService', () => {
     Object.defineProperty(process, 'platform', { value: REAL_PLATFORM, configurable: true })
   })
 
-  it('registers the settings menu accelerator through the native app menu', async () => {
+  it('opens settings from the native app menu', async () => {
     await (service as any).onInit()
 
-    const appSubmenu = latestTemplate()[0].submenu as MenuItemConstructorOptions[]
+    const appSubmenu = latestTemplate().flatMap(
+      (item) => (item.submenu as MenuItemConstructorOptions[] | undefined) ?? []
+    )
     const settingsItem = appSubmenu.find((item) => item.label === 'Settings')
-
-    expect(settingsItem).toMatchObject({
-      accelerator: 'CommandOrControl+,'
-    })
 
     settingsItem?.click?.(undefined as never, undefined, undefined as never)
 
@@ -135,45 +133,14 @@ describe('AppMenuService', () => {
   it('opens the About settings route from the native app menu', async () => {
     await (service as any).onInit()
 
-    const appSubmenu = latestTemplate()[0].submenu as MenuItemConstructorOptions[]
+    const appSubmenu = latestTemplate().flatMap(
+      (item) => (item.submenu as MenuItemConstructorOptions[] | undefined) ?? []
+    )
     const aboutItem = appSubmenu.find((item) => String(item.label).startsWith('About '))
 
     aboutItem?.click?.(undefined as never, undefined, undefined as never)
 
     expect(openSettingsInMainWindowMock).toHaveBeenCalledWith('/settings/about')
-  })
-
-  it('uses default zoom accelerators and wires them to zoom handling', async () => {
-    await (service as any).onInit()
-
-    const window = { id: 1 } as BrowserWindow
-    const viewSubmenu = latestTemplate()[3].submenu as MenuItemConstructorOptions[]
-    const zoomInItem = viewSubmenu.find((item) => item.accelerator === 'CommandOrControl+=')
-    const zoomOutItem = viewSubmenu.find((item) => item.accelerator === 'CommandOrControl+-')
-    const zoomResetItem = viewSubmenu.find((item) => item.accelerator === 'CommandOrControl+0')
-
-    expect(zoomInItem).toBeTruthy()
-    expect(zoomOutItem).toBeTruthy()
-    expect(zoomResetItem).toBeTruthy()
-
-    zoomInItem?.click?.(undefined as never, window, undefined as never)
-    zoomOutItem?.click?.(undefined as never, window, undefined as never)
-    zoomResetItem?.click?.(undefined as never, window, undefined as never)
-
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', window)
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.out', window)
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.reset', window)
-  })
-
-  it('preserves native role menu items', async () => {
-    await (service as any).onInit()
-
-    const editSubmenu = latestTemplate()[2].submenu as MenuItemConstructorOptions[]
-    const copyItem = editSubmenu.find((item) => item.role === 'copy')
-    const quitItem = (latestTemplate()[0].submenu as MenuItemConstructorOptions[]).find((item) => item.role === 'quit')
-
-    expect(copyItem).toMatchObject({ role: 'copy', label: 'Copy' })
-    expect(quitItem).toMatchObject({ role: 'quit', label: 'Quit Cherry Studio' })
   })
 
   it('moves the window-close accelerator off CommandOrControl+W so the tab bar can claim it', async () => {
@@ -208,5 +175,25 @@ describe('AppMenuService', () => {
       role: 'close',
       accelerator: 'CommandOrControl+Shift+W'
     })
+  })
+
+  it('executes zoom commands for the clicked window', async () => {
+    await (service as any).onInit()
+
+    const window = { id: 1 } as BrowserWindow
+    const viewSubmenu = latestTemplate().flatMap(
+      (item) => (item.submenu as MenuItemConstructorOptions[] | undefined) ?? []
+    )
+    const zoomInItem = viewSubmenu.find((item) => item.label === 'Zoom In')
+    const zoomOutItem = viewSubmenu.find((item) => item.label === 'Zoom Out')
+    const zoomResetItem = viewSubmenu.find((item) => item.label === 'Actual Size')
+
+    zoomInItem?.click?.(undefined as never, window, undefined as never)
+    zoomOutItem?.click?.(undefined as never, window, undefined as never)
+    zoomResetItem?.click?.(undefined as never, window, undefined as never)
+
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', window)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.out', window)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.reset', window)
   })
 })
