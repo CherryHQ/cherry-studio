@@ -26,7 +26,7 @@ export function CodeBlockTabs({ label, items }: CodeBlockTabsProps) {
         <ScrollArea
           orientation="horizontal"
           type="hover"
-          className="min-w-0 flex-1"
+          className="min-w-0 flex-1 [&>[data-slot=scroll-area-scrollbar]]:hidden"
           viewportProps={{ className: 'overscroll-x-contain' }}>
           <TabsList aria-label={label} className="h-9 w-max justify-start gap-0.5 bg-transparent p-0">
             {items.map((item) => (
