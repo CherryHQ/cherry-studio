@@ -1,3 +1,4 @@
+import * as z from 'zod'
 /**
  * Agents domain API Schema definitions
  *
@@ -6,11 +7,10 @@
  * a response payload and an entity). DTOs are derived via .pick().
  */
 
-import * as z from 'zod'
-
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
@@ -163,6 +163,8 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
    * Human-readable primary model name resolved from the current runtime Model
    * at read time. Edits still go through the `model` UniqueModelId field.
    */
+  avatarFileId: FileEntryIdSchema.optional(),
+  avatarSrc: z.string().optional(),
   modelName: z.string().nullable()
 })
 

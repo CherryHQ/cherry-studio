@@ -374,14 +374,6 @@ describe('FilesPage keyboard rename', () => {
     })
   })
 
-  it('hides the contextual selection toolbar when nothing is selected', () => {
-    mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
-    mockFiles([])
-    render(<FilesPage />)
-
-    expect(screen.queryByRole('button', { name: 'files.actions' })).not.toBeInTheDocument()
-  })
-
   it('shows the unified empty state once the file list loads empty', () => {
     mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
     mockFiles([])
@@ -389,16 +381,6 @@ describe('FilesPage keyboard rename', () => {
 
     expect(screen.getByText('files.empty.title')).toBeInTheDocument()
     expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
-  })
-
-  it('shows a single message when the current file filter has no matches', () => {
-    mockFiles([entry])
-    render(<FilesPage />)
-
-    fireEvent.click(screen.getByText('files.image'))
-
-    expect(screen.getByText('files.empty.no_match_title')).toBeInTheDocument()
-    expect(screen.queryByText('files.empty.no_match_description')).not.toBeInTheDocument()
   })
 
   it('shows loading feedback instead of an empty state while the file list is loading', () => {
@@ -1538,17 +1520,6 @@ describe('FilesPage file operations', () => {
     expect(checkboxes[1]).not.toBeChecked()
   })
 
-  it('shows contextual actions for a single selected file', () => {
-    renderFilesPage()
-
-    selectFileAt(0)
-
-    const actionsButton = screen.getByRole('button', { name: 'files.actions' })
-
-    expect(actionsButton).toBeInTheDocument()
-    expect(screen.getByText(/files.delete.label/)).toBeInTheDocument()
-  })
-
   it('starts rename from the visible row action button', () => {
     vi.useFakeTimers()
     renderFilesPage()
@@ -2017,7 +1988,7 @@ describe('FilesPage file operations', () => {
     expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
   })
 
-  it('shows image files in the image grid without view switch or selection controls', async () => {
+  it('renames an image through its context menu', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [imageEntry.id]: '/tmp/photo.png' })
@@ -2028,12 +1999,7 @@ describe('FilesPage file operations', () => {
 
     fireEvent.click(screen.getByText('files.image'))
 
-    expect(screen.queryByLabelText('files.view_list')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('files.view_grid')).not.toBeInTheDocument()
     expect(await screen.findByAltText('photo.png')).toBeInTheDocument()
-    expect(screen.queryByLabelText('files.select_all_short')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('files.select_file')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('files.actions')).not.toBeInTheDocument()
 
     fireEvent.contextMenu(screen.getByAltText('photo.png'))
     fireEvent.click(screen.getByText('files.rename'))

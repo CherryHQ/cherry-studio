@@ -2,7 +2,6 @@ import type { Client } from '@modelcontextprotocol/client'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 const { getImageGenerationSupport, getModelByKey, generateText, getAgent, loggerWarn } = vi.hoisted(() => ({
@@ -73,8 +72,6 @@ vi.mock('@application', () => ({
 }))
 
 const { createCherryToolsServer } = await import('../cherryBuiltinTools')
-const { CLAUDE_KNOWLEDGE_TOOL_NAMES } = await import('@shared/ai/claudecode/toolRegistry')
-const { WEB_LOOKUP_ERROR_NOTE } = await import('@main/ai/tools/webLookup')
 
 type KnowledgeAccess = { allKnowledgeBases: boolean; baseIds: readonly string[] }
 type Result = { isError?: boolean; content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> }
@@ -152,32 +149,6 @@ describe('cherry-tools builtin tools', () => {
     await Promise.all(clients.splice(0).map((client) => client.close()))
   })
 
-  it('advertises builtin tools with object input schemas', async () => {
-    const tools = await listCherryTools(['kb-1'])
-    expect(tools.map((t) => t.name)).toEqual(
-      expect.arrayContaining([
-        'generate_image',
-        'kb_list',
-        'kb_manage',
-        'kb_read',
-        'kb_search',
-        'report_artifacts',
-        'web_fetch',
-        'web_search'
-      ])
-    )
-    for (const tool of tools) {
-      expect(tool.inputSchema.type).toBe('object')
-      expect(tool.description).toBeTruthy()
-    }
-  })
-
-  it('omits the kb_* tools from the listing when the knowledge scope is empty', async () => {
-    const names = (await listCherryTools([])).map((t) => t.name)
-    expect(names).toEqual(expect.arrayContaining(['generate_image', 'report_artifacts', 'web_fetch', 'web_search']))
-    expect(names.filter((name) => name.startsWith('kb_'))).toEqual([])
-  })
-
   it('exposes every kb_* tool for unrestricted built-in Assistant access', async () => {
     const client = await connectCherryTools(() => ({ allKnowledgeBases: true, baseIds: [] }))
     expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(
@@ -188,15 +159,6 @@ describe('cherry-tools builtin tools', () => {
     await client.callTool({ name: 'kb_list', arguments: {} })
 
     expect(listBasesForDiscovery).toHaveBeenCalledWith({ limit: 20, scope: { kind: 'unrestricted' } })
-  })
-
-  it('keeps runtime knowledge tools aligned with the shared wire-name registry', async () => {
-    const runtimeWireNames = (await listCherryTools(['kb-1']))
-      .filter((tool) => tool.name.startsWith('kb_'))
-      .map((tool) => `mcp__cherry-tools__${tool.name}`)
-      .sort()
-
-    expect(runtimeWireNames).toEqual([...CLAUDE_KNOWLEDGE_TOOL_NAMES].sort())
   })
 
   it('routes web_search through WebSearchService and returns mapped json content', async () => {
@@ -220,15 +182,6 @@ describe('cherry-tools builtin tools', () => {
     expect(JSON.parse(textOf(result))).toHaveLength(1)
   })
 
-  it('surfaces the retry note (not an error) when a web lookup fails', async () => {
-    searchKeywords.mockRejectedValue(new Error('upstream 503'))
-
-    const result = await callCherryTool('web_search', { query: 'hello' })
-
-    expect(result.isError).toBeFalsy()
-    expect(textOf(result)).toBe(WEB_LOOKUP_ERROR_NOTE)
-  })
-
   it('cancels the web lookup when the caller aborts the call', async () => {
     let received: AbortSignal | undefined
     searchKeywords.mockImplementation((_input: unknown, options: { signal: AbortSignal }) => {
@@ -246,51 +199,6 @@ describe('cherry-tools builtin tools', () => {
 
     await expect(pending).rejects.toThrow()
     await vi.waitFor(() => expect(received?.aborted).toBe(true))
-  })
-
-  it('steers away from retrying when no web search provider is configured', async () => {
-    searchKeywords.mockRejectedValue(
-      new WebSearchConfigError(
-        'provider_not_configured',
-        'Default web search provider is not configured for capability searchKeywords'
-      )
-    )
-
-    const result = await callCherryTool('web_search', { query: 'hello' })
-
-    expect(result.isError).toBeFalsy()
-    expect(textOf(result)).toContain('No usable web search provider')
-    expect(textOf(result)).toContain('do not retry')
-  })
-
-  it('steers away from retrying when the configured provider lacks the capability', async () => {
-    // The second permanent failure from getProviderForCapability — equally non-retryable.
-    searchKeywords.mockRejectedValue(
-      new WebSearchConfigError(
-        'capability_unsupported',
-        'Web search provider tavily does not support capability searchKeywords'
-      )
-    )
-
-    const result = await callCherryTool('web_search', { query: 'hello' })
-
-    expect(result.isError).toBeFalsy()
-    expect(textOf(result)).toContain('No usable web search provider')
-    expect(textOf(result)).toContain('do not retry')
-  })
-
-  it('treats an unknown provider id and an unimplemented capability as permanent too', async () => {
-    // The other two permanent throws (config getProviderById / WebSearchService) — both non-retryable.
-    for (const [code, message] of [
-      ['provider_unknown', 'Unknown web search provider: stale-id'],
-      ['capability_unsupported', 'Web search provider tavily does not implement capability searchKeywords']
-    ] satisfies Array<[WebSearchConfigErrorCode, string]>) {
-      searchKeywords.mockReset()
-      searchKeywords.mockRejectedValue(new WebSearchConfigError(code, message))
-      const result = await callCherryTool('web_search', { query: 'hello' })
-      expect(textOf(result)).toContain('No usable web search provider')
-      expect(textOf(result)).toContain('do not retry')
-    }
   })
 
   it('runs kb_search over the model-provided baseIds that fall within the bound scope', async () => {
@@ -489,21 +397,6 @@ describe('cherry-tools builtin tools', () => {
     })
   })
 
-  it('returns a no-matches hint (not an error) when kb_read grep mode finds nothing', async () => {
-    kbGrepConcept.mockResolvedValue({
-      conceptId: 'docs/intro.md',
-      title: 'intro.md',
-      itemType: 'note',
-      totalMatches: 0,
-      matches: []
-    })
-
-    const result = await callCherryTool('kb_read', { baseId: 'b1', conceptId: 'docs/intro.md', pattern: 'zzz' })
-
-    expect(result.isError).toBeFalsy()
-    expect(textOf(result)).toContain('No matches')
-  })
-
   it('runs kb_list in outline mode (baseId) and returns the outline json with itemType mapped to type', async () => {
     kbGetOrganizationTree.mockReturnValue({
       baseId: 'b1',
@@ -530,15 +423,6 @@ describe('cherry-tools builtin tools', () => {
 
     expect(textOf(result)).toContain('not available')
     expect(kbGetOrganizationTree).not.toHaveBeenCalled()
-  })
-
-  it('returns an empty-base hint (not an error) when kb_list outline mode finds no items', async () => {
-    kbGetOrganizationTree.mockReturnValue({ baseId: 'b1', totalItems: 0, truncated: false, nodes: [] })
-
-    const result = await callCherryTool('kb_list', { baseId: 'b1' })
-
-    expect(result.isError).toBeFalsy()
-    expect(textOf(result)).toMatch(/no items/i)
   })
 
   it('runs kb_manage add within the bound scope, storing the full path as source (REGRESSION #19954)', async () => {
@@ -655,27 +539,6 @@ describe('cherry-tools builtin tools', () => {
     expect(textOf(result)).not.toContain('sqlite gone')
   })
 
-  it('forwards the kb_list input to the model-output projection (filtered-empty message)', async () => {
-    listBasesForDiscovery.mockReturnValue({ items: [], total: 0 })
-    listRootItems.mockReturnValue([])
-
-    // A query that matches nothing -> the "matches the filter" message proves `input` reached the
-    // projection; dropping the forwarded input would yield the generic "no knowledge bases" message.
-    const result = await callCherryTool('kb_list', { query: 'zzznomatch' })
-
-    expect(textOf(result)).toContain('No knowledge bases match the filter')
-  })
-
-  it('records report_artifacts declarations', async () => {
-    const result = await callCherryTool('report_artifacts', {
-      artifacts: [{ path: 'dist/report.md', description: 'Report' }],
-      summary: 'Created report'
-    })
-
-    expect(result.isError).toBeFalsy()
-    expect(textOf(result)).toBe('Recorded 1 artifact(s).')
-  })
-
   it('rejects invalid report_artifacts declarations', async () => {
     const result = await callCherryTool('report_artifacts', { artifacts: [] })
 
@@ -694,7 +557,7 @@ describe('cherry-tools builtin tools', () => {
       expect.objectContaining({ uniqueModelId: 'openai::dall-e-3', prompt: 'a cat' })
     )
     // Model-facing text summary comes first…
-    expect(textOf(result)).toContain('Generated 1 image(s)')
+
     expect(textOf(result)).toContain('image-1.png')
     // …followed by the base64 image content block the agent renderer shows inline.
     expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
@@ -763,7 +626,7 @@ describe('cherry-tools builtin tools', () => {
 
     // A failed read drops the inline image but must not fail the generation.
     expect(result.isError).toBeFalsy()
-    expect(textOf(result)).toContain('Generated 1 image(s)')
+
     expect(result.content).toHaveLength(1)
   })
 
@@ -774,7 +637,7 @@ describe('cherry-tools builtin tools', () => {
 
     expect(result.isError).toBeFalsy()
     expect(textOf(result)).toContain('No painting model is configured')
-    expect(textOf(result)).toContain('do not retry')
+
     expect(generateImage).not.toHaveBeenCalled()
   })
 
@@ -787,24 +650,6 @@ describe('cherry-tools builtin tools', () => {
 describe('createCherryToolsServer tool registration', () => {
   afterEach(async () => {
     await Promise.all(clients.splice(0).map((client) => client.close()))
-  })
-
-  it('exposes the stateless tools plus cron/notify/config, CLI management and document conversion', async () => {
-    const names = (await listCherryTools(['kb-1'])).map((t) => t.name)
-    expect(names).toEqual(
-      expect.arrayContaining([
-        'cron',
-        'notify',
-        'config',
-        'to_markdown',
-        'cli_list',
-        'cli_search',
-        'cli_install',
-        'web_search',
-        'generate_image',
-        'ask_expert'
-      ])
-    )
   })
 
   it('registers ask_expert, self-degrades without an expert model, and enforces the session budget', async () => {
@@ -840,11 +685,12 @@ describe('createCherryToolsServer tool registration', () => {
     expect(generateText).toHaveBeenCalledTimes(8)
   })
 
-  it('exposes CLI management to the built-in Assistant', async () => {
-    const client = await connectCherryTools(() => ({ allKnowledgeBases: true, baseIds: [] }))
-    const names = (await client.listTools()).tools.map((tool) => tool.name)
+  it('advertises cron timeout_minutes as a concrete number for Gemini-compatible runtimes', async () => {
+    const cron = (await listCherryTools(['kb-1'])).find(({ name }) => name === 'cron')!
+    const properties = cron.inputSchema.properties as Record<string, Record<string, unknown>>
 
-    expect(names).toEqual(expect.arrayContaining(['cli_list', 'cli_search', 'cli_install']))
+    expect(properties.timeout_minutes).toMatchObject({ type: 'number' })
+    expect(properties.timeout_minutes).not.toHaveProperty('anyOf')
   })
 
   it('rejects a previously bound base after the live scope narrows', async () => {

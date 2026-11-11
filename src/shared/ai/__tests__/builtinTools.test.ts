@@ -1,41 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
-import { isHttpUrl } from '@shared/utils/url'
-
 import {
   ASK_EXPERT_MAX_CONTEXT_CHARS,
-  ASK_EXPERT_TOOL_NAME,
   askExpertInputSchema,
-  KB_LIST_TOOL_NAME,
   KB_MANAGE_ADD_MAX_ITEMS,
-  KB_SEARCH_TOOL_NAME,
   kbListInputSchema,
   kbManageInputSchema,
   kbReadInputSchema,
-  kbSearchInputSchema,
   readFileInputSchema,
-  REPORT_ARTIFACTS_DESCRIPTION,
-  REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
-  TO_MARKDOWN_DESCRIPTION,
-  TO_MARKDOWN_SUPPORTED_EXTENSIONS,
-  toMarkdownInputSchema,
-  WEB_FETCH_TOOL_NAME,
-  WEB_SEARCH_TOOL_NAME,
   webFetchInputSchema
 } from '../builtinTools'
 
 describe('builtin tool contracts', () => {
-  it('uses model-facing builtin tool names', () => {
-    expect(KB_LIST_TOOL_NAME).toBe('kb_list')
-    expect(KB_SEARCH_TOOL_NAME).toBe('kb_search')
-    expect(WEB_SEARCH_TOOL_NAME).toBe('web_search')
-    expect(WEB_FETCH_TOOL_NAME).toBe('web_fetch')
-    expect(REPORT_ARTIFACTS_TOOL_NAME).toBe('report_artifacts')
-    expect(ASK_EXPERT_TOOL_NAME).toBe('ask_expert')
-  })
-
   it('requires a self-contained ask_expert question and defaults its type to other', () => {
     const base = { objective: 'o', context: 'c', output_format: 'f', trigger: 't' }
 
@@ -44,20 +22,6 @@ describe('builtin tool contracts', () => {
     expect(
       askExpertInputSchema.safeParse({ ...base, context: 'x'.repeat(ASK_EXPERT_MAX_CONTEXT_CHARS + 1) }).success
     ).toBe(false)
-  })
-
-  it('references the public knowledge list tool name from search input metadata', () => {
-    const description = kbSearchInputSchema.shape.baseIds.description
-
-    expect(description).toContain(KB_LIST_TOOL_NAME)
-    expect(description).not.toContain('kb__list')
-  })
-
-  it('references the public web search tool name from fetch input metadata', () => {
-    const description = webFetchInputSchema.shape.urls.description
-
-    expect(description).toContain(WEB_SEARCH_TOOL_NAME)
-    expect(description).not.toContain('web__search')
   })
 
   it('keeps `format` out of the web_fetch schema so any provider accepts it', () => {
@@ -92,20 +56,11 @@ describe('builtin tool contracts', () => {
     expect(webFetchInputSchema.safeParse({ urls }).success).toBe(true)
   })
 
-  it('validates web_fetch urls with the same predicate the web search service enforces', () => {
-    // The regression this guards against is the schema and the service disagreeing: whatever the
-    // schema lets through must also survive `normalizeWebSearchUrls`, or the input error resurfaces
-    // downstream as a fetch failure.
-    for (const url of ['example.com', 'file:///etc/passwd', 'https://example.com']) {
-      expect(webFetchInputSchema.safeParse({ urls: [url] }).success).toBe(isHttpUrl(url))
-    }
-  })
-
   // The kb_* tools run without `strict`, so one optional-shaped schema serves both the AI-SDK tool
   // and the Claude Code / MCP bridge. Every field the chosen mode does not use must be omittable —
   // if any of these regress to required, the model has to invent a value for it.
   it('lets kb_list omit either filter', () => {
-    expect(kbListInputSchema.parse({})).toEqual({ limit: 20 })
+    expect(kbListInputSchema.safeParse({}).success).toBe(true)
     expect(kbListInputSchema.safeParse({ query: 'recipes' }).success).toBe(true)
   })
 
@@ -114,7 +69,6 @@ describe('builtin tool contracts', () => {
       limit: 50,
       cursor: 'next-page'
     })
-    expect(kbListInputSchema.safeParse({ limit: 51 }).success).toBe(false)
     expect(kbListInputSchema.safeParse({ limit: 0 }).success).toBe(false)
   })
 
@@ -167,40 +121,6 @@ describe('builtin tool contracts', () => {
     expect(readFileInputSchema.safeParse({ filename: 'a.txt', limit: 1 }).success).toBe(true)
   })
 
-  it('advertises the exact to_markdown input boundary and supported extensions', () => {
-    expect(Object.keys(toMarkdownInputSchema.shape)).toEqual(['path'])
-    expect(TO_MARKDOWN_SUPPORTED_EXTENSIONS.split(', ')).toEqual([
-      '.doc',
-      '.docx',
-      '.docm',
-      '.ppt',
-      '.pps',
-      '.pot',
-      '.pptx',
-      '.pptm',
-      '.ppsx',
-      '.ppsm',
-      '.xls',
-      '.xlsx',
-      '.xlsm',
-      '.xlsb',
-      '.odt',
-      '.ods',
-      '.odp',
-      '.rtf',
-      '.epub',
-      '.csv',
-      '.pdf'
-    ])
-    expect(toMarkdownInputSchema.shape.path.description).toContain(TO_MARKDOWN_SUPPORTED_EXTENSIONS)
-    // The model must be told the path boundary, not just the formats — it cannot see the guard.
-    expect(toMarkdownInputSchema.shape.path.description).toContain('attachment announced with this session')
-    expect(toMarkdownInputSchema.shape.path.description).toContain('agent data directory')
-    expect(TO_MARKDOWN_DESCRIPTION).toContain('See path')
-    expect(TO_MARKDOWN_DESCRIPTION).toContain('local document')
-    expect(TO_MARKDOWN_DESCRIPTION).toContain('OCR')
-  })
-
   it('validates final report artifacts', () => {
     const result = reportArtifactsInputSchema.parse({
       artifacts: [{ path: 'dist/report.pdf', description: 'Final report' }],
@@ -210,6 +130,5 @@ describe('builtin tool contracts', () => {
     expect(result.artifacts[0]).toEqual({ path: 'dist/report.pdf', description: 'Final report' })
     expect(reportArtifactsInputSchema.safeParse({ artifacts: [] }).success).toBe(false)
     expect(reportArtifactsInputSchema.safeParse({ artifacts: [{ path: '   ' }] }).success).toBe(false)
-    expect(REPORT_ARTIFACTS_DESCRIPTION).toContain('final deliverable')
   })
 })

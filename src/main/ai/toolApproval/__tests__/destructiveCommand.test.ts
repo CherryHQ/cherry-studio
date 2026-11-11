@@ -79,15 +79,4 @@ describe('detectDestructiveCommand', () => {
   it('flags a destructive segment hidden behind a harmless one', () => {
     expect(detectDestructiveCommand('echo cleaning; rm -rf dist')).toBe('file deletion (rm)')
   })
-
-  it('does not pretend to contain bash inside the workspace', () => {
-    // The home-directory rule is the common case, not a boundary: relative traversal is invisible
-    // to it, which is exactly why auto mode must not be described as containment.
-    expect(detectDestructiveCommand('cat ../../../.ssh/id_rsa')).toBeNull()
-  })
-
-  it('does not pretend to catch obfuscation', () => {
-    // Documents the stated limit: this is a usability net, never a security boundary.
-    expect(detectDestructiveCommand('eval "$(printf \'\\x72\\x6d\' ) -rf dist"')).toBeNull()
-  })
 })

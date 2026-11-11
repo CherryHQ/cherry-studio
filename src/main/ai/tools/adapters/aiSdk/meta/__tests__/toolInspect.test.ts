@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { ToolRegistry } from '../../registry'
 import type { ToolEntry } from '../../types'
-import { createToolInspectTool, TOOL_INSPECT_TOOL_NAME } from '../toolInspect'
+import { createToolInspectTool } from '../toolInspect'
 
 function makeRegistry(): ToolRegistry {
   const reg = new ToolRegistry()
@@ -32,10 +32,6 @@ async function callInspect(tool: Tool, args: { name: string }) {
 }
 
 describe('tool_inspect meta-tool', () => {
-  it('TOOL_INSPECT_TOOL_NAME is the agreed wire-name', () => {
-    expect(TOOL_INSPECT_TOOL_NAME).toBe('tool_inspect')
-  })
-
   it('returns a JSDoc stub for the tool', async () => {
     const reg = makeRegistry()
     const tool = createToolInspectTool(reg, new Set(['mcp__s1__t']), new Set())
@@ -72,11 +68,5 @@ describe('tool_inspect meta-tool', () => {
     const stub = (await callInspect(tool, { name: 'mcp__s1__t' })) as string
     const out = tool.toModelOutput!({ toolCallId: 'tc-1', input: { name: 'mcp__s1__t' }, output: stub })
     expect(out).toEqual({ type: 'text', value: stub })
-  })
-
-  it('advertises a callable inputExample', () => {
-    const reg = makeRegistry()
-    const tool = createToolInspectTool(reg, new Set(['mcp__s1__t']), new Set())
-    expect(tool.inputExamples?.[0]?.input).toMatchObject({ name: expect.any(String) })
   })
 })

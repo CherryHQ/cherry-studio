@@ -54,8 +54,8 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 
+import { AssistantAvatarPicker } from '../components/AssistantAvatarPicker'
 import {
-  AvatarField,
   CompactModelField,
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
   EDIT_DIALOG_PROMPT_MIN_HEIGHT,
@@ -84,7 +84,6 @@ export type AssistantEditDialogProps = EditDialogBaseProps & {
 }
 
 type AssistantEditFormValues = {
-  avatar: string
   name: string
   description: string
   modelId: UniqueModelId | null
@@ -126,7 +125,6 @@ function isAssistantToolTab(value: string): value is AssistantToolTab {
 function defaultValuesForAssistant(resource: AssistantEditDialogResource): AssistantEditFormValues {
   const form = initialAssistantFormState(resource)
   return {
-    avatar: form.emoji,
     name: form.name,
     description: form.description,
     modelId: form.modelId ?? null,
@@ -168,7 +166,6 @@ function modelLabelsForAssistant(resource: AssistantEditDialogResource): ModelLa
 function buildAssistantFormState(baseline: AssistantFormState, values: AssistantEditFormValues): AssistantFormState {
   return {
     ...baseline,
-    emoji: values.avatar,
     name: values.name,
     description: values.description,
     modelId: values.modelId,
@@ -229,7 +226,6 @@ function AssistantEditDialogContent({
 }: EditDialogBaseProps & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
@@ -282,7 +278,6 @@ function AssistantEditDialogContent({
     setFormBaseline(formBaselineRef.current)
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
-    setEmojiPickerOpen(false)
     setCreateGroupDialogOpen(false)
     setModelLabels(modelLabelsForAssistant(resource))
     // A fresh open is a fresh editing session — a stale failure from a prior
@@ -407,6 +402,8 @@ function AssistantEditDialogContent({
       <>
         <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
           <AssistantBasicFields
+            resource={resource}
+            open={open}
             form={form}
             modelFilter={modelFilter}
             isModelDisabled={isModelDisabled}
@@ -416,8 +413,6 @@ function AssistantEditDialogContent({
             groups={groups}
             groupsLoading={isGroupsLoading}
             groupsError={groupsError}
-            emojiPickerOpen={emojiPickerOpen}
-            setEmojiPickerOpen={setEmojiPickerOpen}
             onCreateGroup={() => setCreateGroupDialogOpen(true)}
             onSettingsNavigate={closeBeforeAction}
           />
@@ -491,6 +486,8 @@ function AssistantEditDialogContent({
 }
 
 function AssistantBasicFields({
+  resource,
+  open,
   form,
   modelFilter,
   isModelDisabled,
@@ -500,11 +497,11 @@ function AssistantBasicFields({
   groups,
   groupsLoading,
   groupsError,
-  emojiPickerOpen,
-  setEmojiPickerOpen,
   onCreateGroup,
   onSettingsNavigate
 }: {
+  resource: AssistantEditDialogResource
+  open: boolean
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter: EditDialogBaseProps['modelFilter']
   isModelDisabled: EditDialogBaseProps['isModelDisabled']
@@ -514,8 +511,6 @@ function AssistantBasicFields({
   groups: ReturnType<typeof useGroups>['groups']
   groupsLoading: ReturnType<typeof useGroups>['isLoading']
   groupsError: ReturnType<typeof useGroups>['error']
-  emojiPickerOpen: boolean
-  setEmojiPickerOpen: (open: boolean) => void
   onCreateGroup: () => void
   onSettingsNavigate?: (navigate: () => void) => void
 }) {
@@ -533,15 +528,18 @@ function AssistantBasicFields({
 
   return (
     <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
-      <AvatarField
-        form={form}
-        emojiPickerOpen={emojiPickerOpen}
-        setEmojiPickerOpen={setEmojiPickerOpen}
-        fallback="💬"
-        portalContainer={portalContainer}
-        size="sm"
-        layout="row"
-      />
+      <div className={editDialogFormRowClassName}>
+        <span className={editDialogFormRowLabelClassName}>{t('common.avatar')}</span>
+        <AssistantAvatarPicker
+          key={`${resource.id}:${open}`}
+          assistantId={resource.id}
+          emoji={resource.emoji}
+          avatarSrc={resource.avatarSrc}
+          ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+          portalContainer={portalContainer}
+          size="sm"
+        />
+      </div>
       <TextInputField
         form={form}
         name="name"
