@@ -31,6 +31,7 @@ export type PreferenceUpdateOptions = {
 
 export type PreferenceShortcutType = {
   binding: ShortcutBinding
+  customized?: boolean
   enabled: boolean
 }
 

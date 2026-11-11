@@ -5861,6 +5861,8 @@
   "settings.shortcuts.empty": "Nessuna scorciatoia disponibile in questo gruppo",
   "settings.shortcuts.exit_fullscreen": "Esci da schermo intero",
   "settings.shortcuts.focus_input": "Attiva il campo di inserimento",
+  "settings.shortcuts.history_back": "Indietro",
+  "settings.shortcuts.history_forward": "Avanti",
   "settings.shortcuts.new_topic": "Nuova conversazione",
   "settings.shortcuts.next_assistant": "Assistente successivo",
   "settings.shortcuts.next_tab": "Scheda successiva",

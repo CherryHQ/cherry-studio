@@ -5861,6 +5861,8 @@
   "settings.shortcuts.empty": "Nenhum atalho está disponível neste grupo",
   "settings.shortcuts.exit_fullscreen": "Sair do ecrã cheia",
   "settings.shortcuts.focus_input": "Focar o campo de entrada",
+  "settings.shortcuts.history_back": "Voltar",
+  "settings.shortcuts.history_forward": "Avançar",
   "settings.shortcuts.new_topic": "Novo tópico",
   "settings.shortcuts.next_assistant": "Próximo assistente",
   "settings.shortcuts.next_tab": "Próxima aba",

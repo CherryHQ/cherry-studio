@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@renderer/data/CacheService'
 import { preferenceService } from '@renderer/data/PreferenceService'
+import { useCommandContextKey } from '@renderer/hooks/command'
 import { ipcApi } from '@renderer/ipc'
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
@@ -105,6 +106,12 @@ export function WebviewBrowser({
   const [isLoading, setIsLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [pageTitle, setPageTitle] = useState('')
+  const [guestFocused, setGuestFocused] = useState(false)
+  // A hidden host drops the flag so the next show does not suppress host shortcuts early.
+  useEffect(() => {
+    if (!isHostActive) setGuestFocused(false)
+  }, [isHostActive])
+  useCommandContextKey('webview.focused', isHostActive && guestFocused)
   const guestAuthorizationKey = getGuestAuthorizationKey(securityProfile, initialUrl)
 
   // An <Activity>-hidden tab runs this cleanup too: main freezes a guest left hidden.
@@ -228,6 +235,7 @@ export function WebviewBrowser({
         testId="webview-browser-guest"
         className="inline-flex h-full w-full bg-white"
         onWebviewChange={handleWebviewChange}
+        onFocusChange={setGuestFocused}
         onDomReady={handleDomReady}
         onDidStartLoading={handleDidStartLoading}
         onDidStartNavigation={handleDidStartNavigation}

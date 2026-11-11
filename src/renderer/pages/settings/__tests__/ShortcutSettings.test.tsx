@@ -144,6 +144,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 const makeShortcut = ({
   command = 'app.search',
   binding = [],
+  customized,
   enabled = binding.length > 0,
   defaultPreference = { binding: [], enabled: false },
   label = 'Search everywhere',
@@ -151,6 +152,7 @@ const makeShortcut = ({
 }: {
   command?: CommandId
   binding?: ShortcutBinding
+  customized?: boolean
   enabled?: boolean
   defaultPreference?: PreferenceShortcutType
   label?: string
@@ -172,6 +174,7 @@ const makeShortcut = ({
     },
     preference: {
       binding,
+      ...(typeof customized === 'boolean' ? { customized } : {}),
       enabled
     },
     defaultPreference
@@ -293,6 +296,7 @@ describe('ShortcutSettings shortcut recorder', () => {
     await waitFor(() => {
       expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
         binding: ['CommandOrControl', 'Shift', 'K'],
+        customized: true,
         enabled: true
       })
     })
@@ -309,6 +313,7 @@ describe('ShortcutSettings shortcut recorder', () => {
     await waitFor(() => {
       expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
         binding: ['CommandOrControl', 'C'],
+        customized: true,
         enabled: true
       })
     })
@@ -329,6 +334,7 @@ describe('ShortcutSettings shortcut recorder', () => {
     await waitFor(() => {
       expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
         binding,
+        customized: true,
         enabled: true
       })
     })
@@ -363,7 +369,10 @@ describe('ShortcutSettings shortcut recorder', () => {
     fireEvent.click(resetButton as Element)
 
     await waitFor(() => {
-      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.tab.next', defaultPreference)
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.tab.next', {
+        ...defaultPreference,
+        customized: false
+      })
     })
   })
 
@@ -373,6 +382,7 @@ describe('ShortcutSettings shortcut recorder', () => {
       makeShortcut({
         command: 'tab.next',
         binding: ['Ctrl', 'Tab'],
+        customized: true,
         enabled: true,
         defaultPreference: { binding: ['Ctrl', 'Tab'], enabled: true }
       })
@@ -385,7 +395,7 @@ describe('ShortcutSettings shortcut recorder', () => {
 
     await waitFor(() => {
       expect(preferenceServiceSetMultipleMock).toHaveBeenCalledWith({
-        'shortcut.tab.next': { binding: ['Ctrl', 'Tab'], enabled: false }
+        'shortcut.tab.next': { binding: ['Ctrl', 'Tab'], customized: true, enabled: false }
       })
     })
   })

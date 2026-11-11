@@ -99,7 +99,10 @@ export function readScopeContext(scope: CommandFocusScopeState | null, base: Con
   return (key) => {
     for (let current = scope; current; current = current.parent) {
       const entries = current.values.get(key)
-      if (entries?.length) return entries.at(-1)?.value
+      // Every guest host publishes this flag. A later `false` must not hide another host's `true`.
+      if (entries?.length) {
+        return key === 'webview.focused' ? entries.some((entry) => entry.value === true) : entries.at(-1)?.value
+      }
       const context = current.options.context()
       if (Object.hasOwn(context, key)) return context[key]
     }

@@ -5861,6 +5861,8 @@
   "settings.shortcuts.empty": "ไม่มีแป้นพิมพ์ลัดในกลุ่มนี้",
   "settings.shortcuts.exit_fullscreen": "ออกจากเต็มหน้าจอ",
   "settings.shortcuts.focus_input": "โฟกัสอินพุต",
+  "settings.shortcuts.history_back": "ย้อนกลับ",
+  "settings.shortcuts.history_forward": "ไปข้างหน้า",
   "settings.shortcuts.new_topic": "สนทนาใหม่",
   "settings.shortcuts.next_assistant": "ผู้ช่วยถัดไป",
   "settings.shortcuts.next_tab": "แท็บถัดไป",

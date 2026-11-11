@@ -7,6 +7,7 @@ import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder
 import { CherryAssistantInstructionsUpgradeSeeder } from './seeders/CherryAssistantInstructionsUpgradeSeeder'
 import { CherryAssistantSeeder } from './seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from './seeders/cherrySupportSeeder'
+import { CommandShortcutPreferenceUpgradeSeeder } from './seeders/CommandShortcutPreferenceUpgradeSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
 import { KnowledgeBaseOrderSeeder } from './seeders/knowledgeBaseOrderSeeder'
 import { LegacyFileCleanupPolicySeeder } from './seeders/legacyFileCleanupPolicySeeder'
@@ -50,6 +51,7 @@ export const seeders: ISeeder[] = [
   new LongTextPastePreferenceUpgradeSeeder(),
   new WebSearchPreferenceUpgradeSeeder(),
   new SidebarShortcutMigrationSeeder(),
+  new CommandShortcutPreferenceUpgradeSeeder(),
   new ScheduledTasksShortcutSeeder(),
   new SelectionActionItemsUpgradeSeeder(),
   new MessageNavigationUpgradeSeeder(),

@@ -62,11 +62,13 @@ describe('useCommandShortcuts', () => {
   it('collects reset preferences using the current platform default', () => {
     expect(getAllShortcutDefaultPreferences()['shortcut.tab.next']).toEqual({
       binding: ['Ctrl', 'Tab'],
+      customized: false,
       enabled: true
     })
 
     expect(getAllShortcutDefaultPreferences()['shortcut.tab.prev']).toEqual({
       binding: ['Ctrl', 'Shift', 'Tab'],
+      customized: false,
       enabled: true
     })
   })
@@ -96,7 +98,27 @@ describe('useCommandShortcuts', () => {
     expect(mocks.setValues).toHaveBeenCalledWith({
       'tab.next': {
         binding: ['CommandOrControl', 'Alt', 'Tab'],
+        customized: true,
         enabled: true
+      }
+    })
+  })
+
+  it('preserves shortcut provenance when only toggling enabled', async () => {
+    mocks.preferenceValues = {
+      'tab.next': { binding: ['CommandOrControl', '['], customized: true, enabled: true }
+    }
+    const { result } = renderHook(() => useCommandShortcuts())
+
+    await act(async () => {
+      await result.current.updatePreference('shortcut.tab.next', { enabled: false })
+    })
+
+    expect(mocks.setValues).toHaveBeenCalledWith({
+      'tab.next': {
+        binding: ['CommandOrControl', '['],
+        customized: true,
+        enabled: false
       }
     })
   })

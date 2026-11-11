@@ -5861,6 +5861,8 @@
   "settings.shortcuts.empty": "Nu există comenzi rapide disponibile în acest grup",
   "settings.shortcuts.exit_fullscreen": "Ieși din ecran complet",
   "settings.shortcuts.focus_input": "Focalizează câmpul de introducere",
+  "settings.shortcuts.history_back": "Înapoi",
+  "settings.shortcuts.history_forward": "Înainte",
   "settings.shortcuts.new_topic": "Subiect nou",
   "settings.shortcuts.next_assistant": "Următorul asistent",
   "settings.shortcuts.next_tab": "Următoarea filă",

@@ -50,6 +50,8 @@ const buildNextPreference = (
   patch: Partial<PreferenceShortcutType>
 ): PreferenceShortcutType => {
   const current: Partial<PreferenceShortcutType> = currentValue ?? {}
+  const customized =
+    typeof patch.customized === 'boolean' ? patch.customized : Array.isArray(patch.binding) ? true : current.customized
 
   return {
     binding: Array.isArray(patch.binding)
@@ -62,7 +64,8 @@ const buildNextPreference = (
         ? patch.enabled
         : typeof current.enabled === 'boolean'
           ? current.enabled
-          : state.enabled
+          : state.enabled,
+    ...(typeof customized === 'boolean' ? { customized } : {})
   }
 }
 
@@ -72,7 +75,7 @@ export interface ShortcutListItem {
   label: string
   group: ShortcutSettingsGroup
   keybinding: (typeof REGISTERED_KEYBINDINGS)[number]
-  preference: ResolvedShortcut
+  preference: ResolvedShortcut & Pick<PreferenceShortcutType, 'customized'>
   defaultPreference: ResolvedShortcut
 }
 
@@ -85,6 +88,7 @@ export const getAllShortcutDefaultPreferences = (): Record<CommandShortcutKey, P
       }
       acc[rule.preferenceKey] = {
         binding: defaultPreference.binding,
+        customized: false,
         enabled: defaultPreference.enabled
       }
       return acc
@@ -144,7 +148,8 @@ export const useCommandShortcuts = () => {
             keybinding: rule,
             preference: {
               binding: preference.binding,
-              enabled: preference.enabled && preference.binding.length > 0
+              enabled: preference.enabled && preference.binding.length > 0,
+              ...(typeof rawValue?.customized === 'boolean' ? { customized: rawValue.customized } : {})
             },
             defaultPreference
           }

@@ -6,13 +6,16 @@ import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useCommandContextKey, useCommandHandler } from '@renderer/hooks/command'
 import { ipcApi } from '@renderer/ipc'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 
+import { CommandContextKeyProvider } from '../command/CommandContextKeyProvider'
+import { CommandProvider } from '../command/CommandProvider'
 import { WebviewBrowser } from '../WebviewBrowser'
 
 vi.unmock('@cherrystudio/ui')
@@ -21,6 +24,23 @@ vi.mock('@renderer/data/hooks/usePreference', async () => {
   const { MockUsePreference } = await import('@test-mocks/renderer/usePreference')
   return MockUsePreference
 })
+
+vi.mock('@data/hooks/usePreference', async () => {
+  const { mockUsePreference } = await import('@test-mocks/renderer/usePreference')
+  return {
+    usePreference: mockUsePreference,
+    useMultiplePreferences: () => [{}, vi.fn()]
+  }
+})
+
+vi.mock('@renderer/utils/platform', () => ({
+  platform: 'darwin',
+  isMac: true,
+  isWin: false,
+  isLinux: false,
+  isDev: false,
+  isProd: false
+}))
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn().mockResolvedValue(undefined) },
@@ -561,4 +581,108 @@ describe('WebviewBrowser', () => {
 
     expect(view.container.querySelector('webview')).not.toBe(firstGuest)
   })
+
+  it('does not run host tab history for a focused guest when another host later clears focus', () => {
+    goBack.mockClear()
+    const view = render(
+      <HistoryHarness otherFocused={false}>
+        <WebviewBrowser
+          initialUrl="https://example.com"
+          securityProfile="agent-browser"
+          isHostActive
+          target={{ id: 'browser-history', label: 'Browser' }}
+        />
+      </HistoryHarness>
+    )
+    const guest = view.container.querySelector('webview')!
+
+    pressHistoryBack()
+    expect(goBack).toHaveBeenCalledOnce()
+
+    act(() => {
+      guest.dispatchEvent(new Event('focus'))
+    })
+    pressHistoryBack()
+    expect(goBack).toHaveBeenCalledOnce()
+
+    view.rerender(
+      <HistoryHarness otherFocused>
+        <WebviewBrowser
+          initialUrl="https://example.com"
+          securityProfile="agent-browser"
+          isHostActive
+          target={{ id: 'browser-history', label: 'Browser' }}
+        />
+      </HistoryHarness>
+    )
+    view.rerender(
+      <HistoryHarness otherFocused={false}>
+        <WebviewBrowser
+          initialUrl="https://example.com"
+          securityProfile="agent-browser"
+          isHostActive
+          target={{ id: 'browser-history', label: 'Browser' }}
+        />
+      </HistoryHarness>
+    )
+    pressHistoryBack()
+    expect(goBack).toHaveBeenCalledOnce()
+
+    act(() => {
+      guest.dispatchEvent(new Event('blur'))
+    })
+    pressHistoryBack()
+    expect(goBack).toHaveBeenCalledTimes(2)
+
+    act(() => {
+      guest.dispatchEvent(new Event('focus'))
+    })
+    view.rerender(
+      <HistoryHarness otherFocused={false}>
+        <WebviewBrowser
+          initialUrl="https://example.com"
+          securityProfile="agent-browser"
+          isHostActive={false}
+          target={{ id: 'browser-history', label: 'Browser' }}
+        />
+      </HistoryHarness>
+    )
+    pressHistoryBack()
+    expect(goBack).toHaveBeenCalledTimes(3)
+  })
 })
+
+const goBack = vi.fn()
+
+function HistoryHarness({ otherFocused, children }: { otherFocused: boolean; children: ReactNode }) {
+  return (
+    <CommandContextKeyProvider>
+      <CommandProvider>
+        <OtherGuestFocus focused={otherFocused} />
+        <HistoryBack />
+        {children}
+      </CommandProvider>
+    </CommandContextKeyProvider>
+  )
+}
+
+function OtherGuestFocus({ focused }: { focused: boolean }) {
+  useCommandContextKey('webview.focused', focused)
+  return null
+}
+
+function HistoryBack() {
+  useCommandHandler('tab.history.back', goBack)
+  return null
+}
+
+function pressHistoryBack() {
+  window.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key: '[',
+      code: 'BracketLeft',
+      metaKey: true,
+      cancelable: true
+    })
+  )
+}

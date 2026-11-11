@@ -5861,6 +5861,8 @@
   "settings.shortcuts.empty": "Bu grupta kullanılabilir kısayol yok",
   "settings.shortcuts.exit_fullscreen": "Tam Ekrandan Çık",
   "settings.shortcuts.focus_input": "Giriş alanına odaklan",
+  "settings.shortcuts.history_back": "Geri",
+  "settings.shortcuts.history_forward": "İleri",
   "settings.shortcuts.new_topic": "Yeni Konuşma",
   "settings.shortcuts.next_assistant": "Sonraki Asistan",
   "settings.shortcuts.next_tab": "Sonraki Sekme",
