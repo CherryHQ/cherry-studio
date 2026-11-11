@@ -714,8 +714,15 @@ vi.mock('../components/AgentConversationPickerDialog', () => ({
         </button>
       </div>
     ) : null,
-  resolveAgentIdFromConversationSelection: async (selection: { type: 'agent'; agentId: string }) =>
-    selection.type === 'agent' ? selection.agentId : null
+  resolveAgentIdFromConversationSelection: async (
+    selection: { type: 'agent'; agentId: string },
+    _agents: unknown,
+    options: { isPresetModelContextReady?: boolean; onPresetModelContextLoading?: () => void }
+  ) => {
+    if (selection.type === 'agent') return selection.agentId
+    if (options.isPresetModelContextReady === false) options.onPresetModelContextLoading?.()
+    return null
+  }
 }))
 
 vi.mock('../components/sessions', () => ({
@@ -1319,10 +1326,10 @@ describe('AgentPage', () => {
     view.unmount()
   })
 
-  it('holds the add-agent picker in loading state while the preset model context hydrates', async () => {
+  it('does not block All/Preset choices when the Cloud receipt fails', async () => {
     agentPageMocks.sessionDisplayMode = 'time'
     ipcMocks.request.mockImplementation((command: string) =>
-      command === 'cherry_cloud.models.sync' ? new Promise(() => undefined) : Promise.resolve(undefined)
+      command === 'cherry_cloud.account.get' ? Promise.reject(new Error('Cloud offline')) : Promise.resolve(undefined)
     )
 
     render(
@@ -1333,7 +1340,7 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
 
     await waitFor(() =>
-      expect(screen.getByTestId('agent-create-dialog')).toHaveAttribute('data-catalog-context-loading', 'true')
+      expect(screen.getByTestId('agent-create-dialog')).toHaveAttribute('data-catalog-context-loading', 'false')
     )
   })
 
@@ -1353,6 +1360,7 @@ describe('AgentPage', () => {
 
   it('defers a catalog preset while the preset model context hydrates instead of rejecting it as missing a model', async () => {
     agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.defaultModelLoading = true
     ipcMocks.request.mockImplementation((command: string) =>
       command === 'cherry_cloud.models.sync' ? new Promise(() => undefined) : Promise.resolve(undefined)
     )

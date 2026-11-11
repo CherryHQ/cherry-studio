@@ -186,6 +186,61 @@ describe('resolveAgentIdFromConversationSelection', () => {
     expect(createAgent).not.toHaveBeenCalled()
   })
 
+  it('reuses an authoritative existing agent before model readiness, including failed Cloud hydration', async () => {
+    mocks.findAgentByName.mockResolvedValueOnce({ id: 'existing', name: 'Preset One' })
+    const createAgent = vi.fn()
+    const loading = vi.fn()
+    expect(
+      await resolveAgentIdFromConversationSelection(
+        { type: 'catalog', preset: { id: 'preset-1', name: 'Preset One' } },
+        [],
+        { defaultModelId: null, createAgent, isPresetModelContextReady: false, onPresetModelContextLoading: loading }
+      )
+    ).toBe('existing')
+    expect(createAgent).not.toHaveBeenCalled()
+    expect(loading).not.toHaveBeenCalled()
+  })
+
+  it('skips an unready Cloud candidate but creates with the unrelated selectable default', async () => {
+    const createAgent = vi.fn().mockResolvedValue({ id: 'new-agent' })
+    const isModelIdSelectable = vi.fn((id: string) => id === 'openai::gpt-4o')
+    expect(
+      await resolveAgentIdFromConversationSelection(
+        {
+          type: 'catalog',
+          preset: {
+            id: 'preset-1',
+            name: 'New Preset',
+            defaultModel: { provider: 'cherryai-subscription', id: 'cloud' }
+          }
+        },
+        [],
+        { defaultModelId: 'openai::gpt-4o', createAgent, isModelIdSelectable, isPresetModelContextReady: true }
+      )
+    ).toBe('new-agent')
+    expect(createAgent).toHaveBeenCalledWith(expect.objectContaining({ model: 'openai::gpt-4o' }))
+    expect(isModelIdSelectable).toHaveBeenCalledWith('cherryai-subscription::cloud')
+  })
+
+  it('does not create from an unready Cloud-only candidate', async () => {
+    const createAgent = vi.fn()
+    expect(
+      await resolveAgentIdFromConversationSelection(
+        {
+          type: 'catalog',
+          preset: {
+            id: 'preset-1',
+            name: 'New Preset',
+            defaultModel: { provider: 'cherryai-subscription', id: 'cloud' }
+          }
+        },
+        [],
+        { defaultModelId: null, createAgent, isModelIdSelectable: () => false, isPresetModelContextReady: true }
+      )
+    ).toBeNull()
+    expect(createAgent).not.toHaveBeenCalled()
+  })
+
   it('returns null when a preset has no resolvable model', async () => {
     const onMissingModel = vi.fn()
     const id = await resolveAgentIdFromConversationSelection(

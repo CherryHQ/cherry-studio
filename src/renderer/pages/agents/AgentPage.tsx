@@ -170,14 +170,9 @@ const AgentPage = () => {
   })
   const agentModelFilter = useAgentModelFilter('claude-code')
   // Poll cloud availability only while the picker needs it; AgentChat keeps the shared key warm otherwise.
-  const {
-    isModelHidden,
-    isModelUnavailable,
-    isAvailabilityReady: isCloudAvailabilityReady
-  } = useCherryCloudModelAvailability(presetModelContextEnabled)
+  const { isModelHidden, isModelUnavailable } = useCherryCloudModelAvailability(presetModelContextEnabled)
   const isPresetModelContextReady =
-    !presetModelContextEnabled ||
-    (!isModelsLoading && !isProvidersLoading && !isDefaultModelLoading && isCloudAvailabilityReady)
+    !presetModelContextEnabled || (!isModelsLoading && !isProvidersLoading && !isDefaultModelLoading)
   const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
   const selectableDefaultModelId = useMemo(() => {
     if (!defaultModel?.isEnabled) return null
@@ -709,10 +704,6 @@ const AgentPage = () => {
   const handleAgentConversationSelect = useCallback(
     async (selection: AgentConversationSelection) => {
       if (isCreatingEmptySessionRef.current) return
-      if (selection.type === 'catalog' && !isPresetModelContextReady) {
-        toast.error(t('common.loading'))
-        return
-      }
       isCreatingEmptySessionRef.current = true
       try {
         const agentId = await resolveAgentIdForSelection(selection)
@@ -730,14 +721,7 @@ const AgentPage = () => {
         isCreatingEmptySessionRef.current = false
       }
     },
-    [
-      activateSession,
-      isPresetModelContextReady,
-      pendingSessionDefaults,
-      resolveAgentIdForSelection,
-      resolveEmptySession,
-      t
-    ]
+    [activateSession, pendingSessionDefaults, resolveAgentIdForSelection, resolveEmptySession, t]
   )
 
   const requestSessionNavigation = useCallback(

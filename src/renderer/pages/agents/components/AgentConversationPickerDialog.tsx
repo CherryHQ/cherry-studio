@@ -228,14 +228,14 @@ export async function resolveAgentIdFromConversationSelection(
 ): Promise<string | null> {
   if (selection.type === 'agent') return selection.agentId
 
+  const presetName = selection.preset.name.trim()
+  const existing = agents.find((agent) => agent.name === presetName) ?? (await findAgentByName(presetName))
+  if (existing) return existing.id
+
   if (options.isPresetModelContextReady === false) {
     options.onPresetModelContextLoading?.()
     return null
   }
-
-  const presetName = selection.preset.name.trim()
-  const existing = agents.find((agent) => agent.name === presetName) ?? (await findAgentByName(presetName))
-  if (existing) return existing.id
 
   const modelId = resolveCatalogPresetModelId(selection.preset, options.defaultModelId, options.isModelIdSelectable)
   if (!modelId) {
