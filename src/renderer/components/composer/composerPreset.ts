@@ -2,6 +2,7 @@ import type { EditorOptions } from '@tiptap/core'
 
 import { Placeholder, type PlaceholderOptions } from '@renderer/components/RichEditor/extensions/placeholder'
 
+import { ComposerLines } from './composerLines'
 import {
   ComposerDocument,
   ComposerHardBreak,
@@ -19,6 +20,15 @@ export interface ComposerEditorPresetOptions {
   suggestionSources?: readonly ComposerSuggestionSource[]
 }
 
+/** Empty lines are ordinary content here, so only a wholly empty document shows the placeholder. */
+function showOnBlankDocument(placeholder: PlaceholderOptions['placeholder']): PlaceholderOptions['placeholder'] {
+  return (props) => {
+    const { doc } = props.editor.state
+    if (doc.childCount > 1 || doc.firstChild?.childCount) return ''
+    return typeof placeholder === 'function' ? placeholder(props) : (placeholder ?? '')
+  }
+}
+
 export function createComposerEditorPreset({
   placeholder,
   enableUndoRedo = true,
@@ -30,8 +40,9 @@ export function createComposerEditorPreset({
     ComposerParagraph,
     ComposerText,
     ComposerHardBreak,
+    ComposerLines,
     Placeholder.configure({
-      placeholder,
+      placeholder: showOnBlankDocument(placeholder),
       showOnlyWhenEditable: true,
       showOnlyCurrent: true,
       includeChildren: false

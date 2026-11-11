@@ -3,7 +3,11 @@ import { isHistoryTransaction } from '@tiptap/pm/history'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { NodeSelection, type Selection, type Transaction } from '@tiptap/pm/state'
 
-import { type ComposerTokenMarkerRule, createComposerTokenMarkerInlineContent } from './composerTokenMarkers'
+import {
+  type ComposerTokenMarkerRule,
+  createComposerLineParagraphs,
+  createComposerTokenMarkerInlineContent
+} from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME, requestComposerPromptVariableEdit } from './ComposerTokenNode'
 import type { ComposerDraftToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
@@ -108,12 +112,7 @@ export function createPromptVariableInlineContent(text: string, options: { start
 }
 
 export function createPromptVariableContent(text: string): JSONContent {
-  const content = createPromptVariableInlineContent(text)
-
-  return {
-    type: 'doc',
-    content: [{ type: 'paragraph', ...(content.length > 0 && { content }) }]
-  }
+  return { type: 'doc', content: createComposerLineParagraphs(createPromptVariableInlineContent(text)) }
 }
 
 export function tokenizePromptVariablesInEditor(editor: Editor, update: Transaction): boolean {

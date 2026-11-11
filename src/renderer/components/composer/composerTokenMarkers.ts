@@ -36,6 +36,19 @@ function appendPlainTextContent(content: JSONContent[], text: string) {
   })
 }
 
+/**
+ * Groups an inline stream into one paragraph per source line. Streams keep hard breaks as line
+ * separators so callers can splice them around tokens before inserting them.
+ */
+export function createComposerLineParagraphs(inline: readonly JSONContent[]): JSONContent[] {
+  const lines: JSONContent[][] = [[]]
+  for (const node of inline) {
+    if (node.type === 'hardBreak') lines.push([])
+    else lines[lines.length - 1].push(node)
+  }
+  return lines.map((content) => ({ type: 'paragraph', ...(content.length > 0 && { content }) }))
+}
+
 export function createComposerPlainTextContent(text: string): JSONContent[] {
   const content: JSONContent[] = []
   appendPlainTextContent(content, text)
