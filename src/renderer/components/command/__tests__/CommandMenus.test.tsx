@@ -1,5 +1,5 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import type ReactType from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -984,6 +984,42 @@ describe('CommandContextMenu', () => {
       expect(showNativePopupMenuMock).toHaveBeenCalled()
       expect(onOpenChange).toHaveBeenLastCalledWith(false)
     })
+  })
+
+  it('runs an immediate popup item synchronously without scheduling a frame', () => {
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+    const onSelect = vi.fn()
+    const onOpenChange = vi.fn()
+    const frame = vi.spyOn(window, 'requestAnimationFrame')
+    render(
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <CommandPopupMenu
+            location="webcontents.context"
+            onOpenChange={onOpenChange}
+            deferActionsUntilClosed
+            extraItems={[{ type: 'item', id: 'instant', label: 'Instant', executeImmediately: true, onSelect }]}>
+            <button type="button">trigger-popup</button>
+          </CommandPopupMenu>
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'trigger-popup' }))
+    frame.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Instant' }))
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
+    expect(onSelect).toHaveBeenCalledOnce()
+    expect(onSelect.mock.invocationCallOrder[0]).toBeLessThan(onOpenChange.mock.invocationCallOrder.at(-1)!)
+    expect(frame).not.toHaveBeenCalled()
+    const close = screen.getByTestId('dropdown-menu-close-complete')
+    const firstClose = createEvent.click(close, { cancelable: true })
+    fireEvent(close, firstClose)
+    expect(firstClose.defaultPrevented).toBe(true)
+    const secondClose = createEvent.click(close, { cancelable: true })
+    fireEvent(close, secondClose)
+    expect(secondClose.defaultPrevented).toBe(false)
+    expect(frame).not.toHaveBeenCalled()
+    frame.mockRestore()
   })
 
   it('runs deferred cherry popup actions after the close lifecycle finishes', () => {
