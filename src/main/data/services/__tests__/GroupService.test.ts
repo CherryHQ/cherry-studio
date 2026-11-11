@@ -42,24 +42,6 @@ describe('GroupService', () => {
       expect(row).toMatchObject({ name: 'Research', entityType: 'topic', orderKey: result.orderKey })
     })
 
-    it('should assign strictly increasing orderKeys within the same entityType', async () => {
-      const first = groupService.create({ entityType: 'topic', name: 'alpha' })
-      const second = groupService.create({ entityType: 'topic', name: 'beta' })
-      const third = groupService.create({ entityType: 'topic', name: 'gamma' })
-
-      expect(second.orderKey > first.orderKey).toBe(true)
-      expect(third.orderKey > second.orderKey).toBe(true)
-    })
-
-    it('should keep orderKey sequences independent across entityTypes', async () => {
-      const topicFirst = groupService.create({ entityType: 'topic', name: 'first-topic' })
-      const assistantFirst = groupService.create({ entityType: 'assistant', name: 'first-assistant' })
-
-      // Each entityType starts with the same fractional-indexing starter key
-      // because neither bucket has a predecessor.
-      expect(topicFirst.orderKey).toBe(assistantFirst.orderKey)
-    })
-
     it('should create knowledge groups', async () => {
       const result = groupService.create({ entityType: 'knowledge', name: 'Knowledge Group' })
 

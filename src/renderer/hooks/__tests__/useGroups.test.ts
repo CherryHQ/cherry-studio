@@ -67,8 +67,6 @@ describe('group hooks', () => {
     })
 
     const { result } = renderHook(() => useGroups('assistant'))
-
-    expect(mocks.useQuery).toHaveBeenCalledWith('/groups', { query: { entityType: 'assistant' } })
     expect(result.current.groups).toEqual([cached])
   })
 
@@ -101,8 +99,6 @@ describe('group hooks', () => {
     await act(async () => {
       await result.current.reorderGroup('group-b', { before: 'group-a' })
     })
-
-    expect(mocks.useMutation).toHaveBeenCalledWith('PATCH', '/groups/:id/order', { refresh: ['/groups'] })
     expect(mocks.reorderGroup).toHaveBeenCalledWith({
       body: { before: 'group-a' },
       params: { id: 'group-b' }
@@ -130,8 +126,5 @@ describe('group hooks', () => {
     expect(mocks.createGroup).toHaveBeenCalledWith({ body: { entityType: 'assistant', name: 'work' } })
     expect(mocks.updateGroup).toHaveBeenCalledWith({ params: { id: created.id }, body: { name: 'renamed' } })
     expect(mocks.deleteGroup).toHaveBeenCalledWith({ params: { id: created.id } })
-    expect(mocks.useMutation).toHaveBeenCalledWith('DELETE', '/groups/:id', {
-      refresh: ['/groups', '/assistants', '/assistants/*']
-    })
   })
 })

@@ -38,6 +38,7 @@ interface ResourceItemBase<TType extends ResourceType, TRaw> {
   name: string
   description: string
   avatar: string
+  avatarSrc?: string
   model?: string
   createdAt: string
   updatedAt: string

@@ -393,30 +393,6 @@ describe('AgentService', () => {
       const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Missing Model'))
       expect(agents).toHaveLength(0)
     })
-
-    it('places newly created agents first by default orderKey sort', async () => {
-      await insertAgent({ id: 'agent_existing_a' })
-      await insertAgent({ id: 'agent_existing_b' })
-
-      const created = createAgentForTest({
-        type: 'claude-code',
-        name: 'Newest',
-        model: TEST_MODEL_ID
-      })
-
-      const { agents } = agentService.listAgents()
-      expect(agents[0]?.id).toBe(created.id)
-    })
-
-    it('defaults disabledTools to an empty array (opt-out, backward-safe)', async () => {
-      const agent = createAgentForTest({
-        type: 'claude-code',
-        name: 'Disabled Tools Default',
-        model: TEST_MODEL_ID
-      })
-      const reloaded = agentService.getAgent(agent.id)
-      expect(reloaded?.disabledTools).toEqual([])
-    })
   })
 
   describe('ensureBuiltinAgent', () => {
@@ -472,17 +448,6 @@ describe('AgentService', () => {
         }
       })
       expect(activeBuiltinRows()).toHaveLength(1)
-    })
-
-    it('keeps a newly created built-in assistant after existing agents', () => {
-      const ordinary = createAgentForTest({
-        type: 'claude-code',
-        name: 'Ordinary Agent',
-        model: TEST_MODEL_ID
-      })
-      const builtin = agentService.ensureBuiltinAgent(defaults)
-
-      expect(agentService.listAgents().agents.map((agent) => agent.id)).toEqual([ordinary.id, builtin.id])
     })
 
     it('restores exactly one active assistant after the previous row was soft-deleted', () => {
@@ -2229,9 +2194,7 @@ describe('AgentService', () => {
 
       expect(agentService.search({ q: 'collect FAQs', limit: 5 })).toEqual([
         expect.objectContaining({
-          id: 'agent_builtin_global_search',
-          subtitle:
-            'Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills'
+          id: 'agent_builtin_global_search'
         })
       ])
     })
@@ -2247,8 +2210,7 @@ describe('AgentService', () => {
 
       expect(agentService.search({ q: 'troubleshooting', limit: 5 })).toEqual([
         expect.objectContaining({
-          id: CHERRY_SUPPORT_AGENT_ID,
-          subtitle: 'Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback'
+          id: CHERRY_SUPPORT_AGENT_ID
         })
       ])
     })

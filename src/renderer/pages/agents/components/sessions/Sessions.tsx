@@ -69,7 +69,9 @@ import {
   canDropSessionItemInDisplayGroup,
   deriveSessionListView,
   getAgentIdFromSessionGroupId,
+  getSessionAgentGroupId,
   getWorkdirPathFromSessionGroupId,
+  getWorkspaceSessionGroupId,
   moveSessionAgentGroupAfterDrop,
   moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
@@ -269,6 +271,25 @@ const Sessions = ({
     togglePin: toggleAgentPin
   } = usePins('agent', { enabled: dataEnabled && (displayMode === 'agent' || displayMode === 'group') })
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
+  const {
+    isLoading: isWorkspacePinsLoading,
+    isRefreshing: isWorkspacePinsRefreshing,
+    isMutating: isWorkspacePinsMutating,
+    pinnedIds: workspacePinnedIds,
+    togglePin: toggleWorkspacePin
+  } = usePins('workspace', { enabled: dataEnabled && displayMode === 'workdir' })
+  const isWorkspacePinActionDisabled = isWorkspacePinsLoading || isWorkspacePinsRefreshing || isWorkspacePinsMutating
+  const pinnedGroupIds = useMemo(
+    () =>
+      new Set(
+        displayMode === 'agent'
+          ? agentPinnedIds.map(getSessionAgentGroupId)
+          : displayMode === 'workdir'
+            ? workspacePinnedIds.map(getWorkspaceSessionGroupId)
+            : []
+      ),
+    [agentPinnedIds, displayMode, workspacePinnedIds]
+  )
 
   const sessionItemsReconciliationRef = useRef(EMPTY_SESSION_LIST_ITEM_RECONCILIATION)
   const apiBackedSessionItems = useMemo(() => {
@@ -540,6 +561,8 @@ const Sessions = ({
   )
 
   const { sessionGroupSeeds, sessionSectionBy } = useSessionGroupStructure({
+    pinnedGroupIds,
+    sessionGroupBy,
     agentsForDisplay: displayMode === 'group' ? agentsForDisplayGrouped : agentsForDisplay,
     displayMode,
     filteredGroupedSessions,
@@ -1047,6 +1070,20 @@ const Sessions = ({
     [agentById, deletingAgentId]
   )
 
+  const handleToggleWorkspacePin = useCallback(
+    async (group: ResourceListGroup) => {
+      const workspaceId = workdirDisplay.workspaceIdByGroupId.get(group.id)
+      if (!workspaceId || isWorkspacePinActionDisabled) return
+      try {
+        await toggleWorkspacePin(workspaceId)
+      } catch (err) {
+        logger.error('Failed to toggle workspace pin', { workspaceId, err })
+        toast.error(t('common.error'))
+      }
+    },
+    [isWorkspacePinActionDisabled, t, toggleWorkspacePin, workdirDisplay]
+  )
+
   const handleToggleAgentPin = useCallback(
     async (agentId: string) => {
       if (isAgentPinActionDisabled) return
@@ -1115,6 +1152,7 @@ const Sessions = ({
 
   const canDropSessionGroup = useCallback(
     ({ activeGroupId, overGroupId }: { activeGroupId: string; overGroupId: string }) => {
+      if (pinnedGroupIds.has(activeGroupId) !== pinnedGroupIds.has(overGroupId)) return false
       if (displayMode === 'agent' || displayMode === 'group') {
         const activeAgentId = getAgentIdFromSessionGroupId(activeGroupId)
         const overAgentId = getAgentIdFromSessionGroupId(overGroupId)
@@ -1134,7 +1172,7 @@ const Sessions = ({
 
       return workdirDragReady && !!activeWorkspaceId && !!overWorkspaceId && activeWorkspaceId !== overWorkspaceId
     },
-    [agentById, agentDragReady, displayMode, workdirDragReady, workdirDisplay]
+    [agentById, agentDragReady, displayMode, pinnedGroupIds, workdirDragReady, workdirDisplay]
   )
 
   // Pinned order is stored on the pin row, and `applyScopedMoves` resolves both
@@ -1406,6 +1444,10 @@ const Sessions = ({
           {workdirPath && (
             <Tooltip title={t('common.more')} delay={500}>
               <WorkdirGroupMoreMenu
+                canPin={!!workspaceId}
+                pinned={pinnedGroupIds.has(group.id)}
+                pinDisabled={isWorkspacePinActionDisabled}
+                onTogglePin={handleToggleWorkspacePin}
                 canDelete={!!workspaceId}
                 canRename={!!workspaceId}
                 deleteDisabled={!!deletingWorkspaceGroupId}
@@ -1454,6 +1496,9 @@ const Sessions = ({
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,
+      handleToggleWorkspacePin,
+      isWorkspacePinActionDisabled,
+      pinnedGroupIds,
       isAgentPinActionDisabled,
       isUpdatingWorkspace,
       openAgentEditor,
@@ -1595,6 +1640,10 @@ const Sessions = ({
       const workdirPath = workdirDisplay.pathByGroupId.get(group.id) ?? getWorkdirPathFromSessionGroupId(group.id)
       if (!workdirPath) return null
       const actionContext: WorkdirGroupActionContext = {
+        canPin: !!workspaceId,
+        pinned: pinnedGroupIds.has(group.id),
+        pinDisabled: isWorkspacePinActionDisabled,
+        onTogglePin: handleToggleWorkspacePin,
         canDelete: !!workspaceId,
         canRename: !!workspaceId,
         deleteDisabled: !!deletingWorkspaceGroupId,
@@ -1627,6 +1676,9 @@ const Sessions = ({
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,
+      handleToggleWorkspacePin,
+      isWorkspacePinActionDisabled,
+      pinnedGroupIds,
       handleToggleAgentPin,
       handleToggleAgentSidebar,
       isAgentPinActionDisabled,

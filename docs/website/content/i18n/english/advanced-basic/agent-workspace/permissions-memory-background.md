@@ -17,6 +17,8 @@ Agents can perform file, terminal, and network operations, and can also invoke s
 | **Plan Only** | Plans without editing files; only read-only or vetted commands run | Solution review, pre-release audit | Suitable for reviewing the plan before execution |
 | **Full Access** | Skips permission checks | Isolated, trusted, recoverable environments | May delete files or access the network, highest risk |
 
+Detected system or global package installs require approval and a live responder outside **Full Access**; **Plan Only** still blocks installation. **Full Access** permits unattended installs, but direct `mise` mutations remain blocked in every mode.
+
 The available modes depend on the runtime mode: Pi does not provide **Plan Only**, and new Pi Agents default to **Approve for Me**; **Claude Agent** provides all five modes.
 
 Configuration path: Left navigation **Work** → Agent menu → **Edit** → **Basic** → **Permission mode**.

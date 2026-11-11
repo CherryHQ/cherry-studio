@@ -259,7 +259,7 @@ export const ResourceGrid: FC<Props> = ({
   })
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const responsiveColumnCount = useGridColumnCount(isSettings ? contentRef : scrollRef)
+  const responsiveColumnCount = useGridColumnCount(contentRef)
   const [preferredColumns, setPreferredColumns] = useState<1 | 2>(1)
   const columnCount = isSettings
     ? Math.min(allowColumnToggle ? preferredColumns : 1, responsiveColumnCount)
@@ -573,7 +573,8 @@ export const ResourceGrid: FC<Props> = ({
 
       <ScrollArea
         viewportProps={{ ref: scrollRef }}
-        className={cn('min-h-0 flex-1', isSettings ? 'px-6 pt-4 pb-6' : 'px-5 py-4')}>
+        className="min-h-0 flex-1"
+        contentProps={{ className: isSettings ? 'px-6 pt-4 pb-6' : 'px-5 py-4' }}>
         <div ref={contentRef} className={cn(isSettings && 'mx-auto w-full max-w-3xl')}>
           {isLoading ? (
             <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />

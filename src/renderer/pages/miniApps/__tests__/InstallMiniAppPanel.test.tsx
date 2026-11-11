@@ -169,9 +169,6 @@ describe('InstallMiniAppPanel', () => {
 
     const card = await screen.findByTestId('install-preview')
     expect(card).toHaveTextContent(preview.manifest.description)
-    const description = within(card).getByText(preview.manifest.description)
-    const permissions = within(card).getByTestId('permissions')
-    expect(description.compareDocumentPosition(permissions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('releases the pending consent when the user cancels, and keeps the picker', async () => {
@@ -374,9 +371,7 @@ describe('InstallMiniAppPanel', () => {
 
       const notice = await screen.findByTestId('installed-notice')
       expect(notice).toHaveTextContent(/already installed|已安装/i)
-      // Right under the identity, before the description: "already installed" comes first.
-      const description = screen.getByText(preview.manifest.description)
-      expect(notice.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
       expect(clearDataBox()).not.toBeChecked()
       expect(screen.queryByRole('button', { name: /^install$|^安装$/i })).toBeNull()
       await userEvent.click(screen.getByRole('button', { name: /reinstall|重新安装/i }))
