@@ -5,7 +5,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import type { FileInfo } from '../types'
-import { logger, MAX_FILES_LIMIT, runRipgrep, validatePath } from '../types'
+import { type BaseDirInput, logger, MAX_FILES_LIMIT, primaryBaseDir, runRipgrep, validatePath } from '../types'
 
 // Schema definition
 export const GlobToolSchema = z.object({
@@ -23,8 +23,11 @@ export const globToolDefinition = {
 }
 
 // Handler implementation
-export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const searchPath = args.path || baseDir
+export async function handleGlobTool(
+  args: z.infer<typeof GlobToolSchema>,
+  baseDir: BaseDirInput
+): Promise<CallToolResult> {
+  const searchPath = args.path || primaryBaseDir(baseDir)
   const validPath = await validatePath(searchPath, baseDir)
 
   // Verify the search directory exists
