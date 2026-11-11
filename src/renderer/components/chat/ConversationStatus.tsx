@@ -28,16 +28,17 @@ export function ConversationStatus({
       role="img"
       aria-label={label}
       data-testid={testId}
-      className={cn('flex size-3 shrink-0 items-center justify-center', className)}>
+      className={cn(
+        'flex size-3 shrink-0 items-center justify-center',
+        status === 'approval' ? 'text-warning' : status === 'error' ? 'text-error' : 'text-foreground-tertiary',
+        className
+      )}>
       {status === 'pending' ? (
-        <Loader2 aria-hidden className="size-full animate-spin text-foreground-tertiary motion-reduce:animate-none" />
+        <Loader2 aria-hidden className="size-full animate-spin motion-reduce:animate-none" />
       ) : status === 'done' ? (
         <span aria-hidden className="size-1.25 rounded-full bg-success" />
       ) : (
-        <CircleAlert
-          aria-hidden
-          className={status === 'approval' ? 'size-full text-warning' : 'size-full text-error'}
-        />
+        <CircleAlert aria-hidden className="size-full" />
       )}
     </span>
   )
