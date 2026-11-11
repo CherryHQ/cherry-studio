@@ -46,7 +46,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
 import type { AgentRuntimeEvent } from '../types'
-import { PI_TRANSPORT } from './piStreamAdapter'
+import { PI_TRANSPORT } from './PiMessageMetadata'
 
 const logger = loggerService.withContext('PiApprovalExtension')
 

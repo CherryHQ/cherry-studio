@@ -70,7 +70,7 @@ import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
-import { createPiMemoryTools } from './memoryTools'
+import { createPiMemoryTools, PI_MEMORY_FILE_TOOLS } from './memoryTools'
 import { createPiBehaviorHost } from './piBehaviorHost'
 import { PiChildTasks } from './PiChildTasks'
 import {
@@ -213,6 +213,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
       getPermissionMode: () => this.permissionMode,
       isDisabled: (toolName: string) => this.isToolDisabled(toolName),
+      executionOwnedTools: PI_MEMORY_FILE_TOOLS,
       additionalReadOnlyRoots: [
         ...additionalSkillPaths,
         application.getPath('feature.agents.outputs'),
@@ -240,8 +241,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
       )
     }
-    const memoryTools = createPiMemoryTools(pi, approvalContext)
-    this.memoryTools = memoryTools
     const mcpServers = buildAgentMcpServers(
       session,
       agent,
@@ -345,6 +344,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         return child.projection.context.sessionId
       }
     })
+    const memoryTools = createPiMemoryTools(pi, approvalContext, true)
+    this.memoryTools = memoryTools
     const options = {
       ...binding,
       cwd: workspacePath,

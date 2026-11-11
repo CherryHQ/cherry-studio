@@ -16,7 +16,11 @@ import type { loadPiSdk } from './piSdk'
 
 export const PI_MEMORY_FILE_TOOLS: ReadonlySet<string> = new Set(['read', 'write', 'edit'])
 
-export function createPiMemoryTools(pi: Awaited<ReturnType<typeof loadPiSdk>>, context: PiApprovalContext) {
+export function createPiMemoryTools(
+  pi: Awaited<ReturnType<typeof loadPiSdk>>,
+  context: PiApprovalContext,
+  nativeApprovalHandled = false
+) {
   const authorize = createPiToolAuthorizer(context)
   const sessions = new Map<string, MemorySession>()
   const reads = new Map<string, { path: string; scope: string; hash: string | null }>()
@@ -112,7 +116,9 @@ export function createPiMemoryTools(pi: Awaited<ReturnType<typeof loadPiSdk>>, c
         const target = await memoryTarget(args.path)
         if (target && original.name === 'read') sessionFor(target, signal)
         if (!target || original.name === 'read') {
-          const decision = await authorize({ toolName: original.name, toolCallId, input: args, signal })
+          const decision = nativeApprovalHandled
+            ? undefined
+            : await authorize({ toolName: original.name, toolCallId, input: args, signal })
           if (decision?.block) throw new Error(decision.reason)
           args.path = resolve(args.path)
           const approvedTarget = await memoryTarget(args.path)
