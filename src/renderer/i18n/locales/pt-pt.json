@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.start": "Não foi possível iniciar o Claude Code. Referência de diagnóstico: {{reference}}",
   "error.claude_code_session_bus_missing": "O Claude Code necessita de um barramento de sessão Linux ativo.",
   "error.claude_code_session_bus_missing_detail": "Defina DBUS_SESSION_BUS_ADDRESS no ambiente de trabalho que inicia o Cherry Studio e, em seguida, reinicie a aplicação. O Claude Code não foi iniciado.",
+  "error.claude_code_storage_open_failed": "Não foi possível abrir o armazenamento da sessão Claude Code. Reinicie a aplicação e verifique se a pasta de dados do agente pode ser lida e tem espaço livre.",
   "error.content": "conteúdo",
   "error.data": "dados",
   "error.detail": "Detalhes do erro",
