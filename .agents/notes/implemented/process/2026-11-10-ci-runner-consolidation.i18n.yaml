@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/process/2026-11-10-ci-runner-consolidation.md
-2026-11-10-ci-runner-consolidation.md: cf76131aa64ae90ad75a975fa160ae008a3829b9
-2026-11-10-ci-runner-consolidation.zh.md: b920b2b79f48ce6e844e880a4b88a37b6945dda2
+2026-11-10-ci-runner-consolidation.md: 1c0f018ec3414d4f387a4cc943342ffff4070298
+2026-11-10-ci-runner-consolidation.zh.md: be8bec00ecc8cf02b1ac91c12200a42a0986a0f9

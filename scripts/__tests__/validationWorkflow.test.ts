@@ -189,6 +189,23 @@ describe('CI validation planning', () => {
     }
   })
 
+  it('accepts omitted native jobs for portable changes while requiring Linux consumer tests', () => {
+    const jobs = Object.fromEntries(
+      workflow.jobs['general-test'].needs.map((dependency: string) => [dependency, { result: 'success' }])
+    )
+    jobs.changes = {
+      result: 'success',
+      outputs: { plan: JSON.stringify(createPlan(['packages/web-search/src/providers/tavily.ts'])) }
+    }
+    jobs['platform-test'].result = 'skipped'
+    expect(verify('general', jobs)).toBe(0)
+    for (const dependency of ['main-test-shard', 'package-test']) {
+      jobs[dependency].result = 'skipped'
+      expect(verify('general', jobs)).not.toBe(0)
+      jobs[dependency].result = 'success'
+    }
+  })
+
   it('uses actual step outcomes to reject every unsuccessful or missing planned basic group', () => {
     const jobs = {
       changes: {

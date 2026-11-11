@@ -15,6 +15,7 @@ afterEach(() => {
 describe('validation selection', () => {
   it.each([
     'docs/dev/contrib/development.md',
+    'docs/dev/sources-index.json',
     'src/main/core/README.md',
     'packages/ui/README.md',
     'docs/website/content/pre-basic/settings/README.md',
@@ -63,6 +64,44 @@ describe('validation selection', () => {
     const plan = createPlan(['CONTRIBUTING.md', 'CONTRIBUTING.zh.md', 'CONTRIBUTING.i18n.yaml'])
     expect(plan.tasks).toEqual(['format', 'docs'])
     expect(plan.projects).toEqual([])
+  })
+  it('keeps the generated documentation index out of a documentation-only PR test plan', () => {
+    const plan = createPlan(['docs/dev/README.md', 'docs/dev/references/chat/README.md', 'docs/dev/sources-index.json'])
+    expect(plan.tasks).toEqual(['format', 'docs'])
+    expect(plan.projects).toEqual([])
+    expect(selectedGroups(plan).platform).toBe(false)
+  })
+  it.each([
+    ['packages/aiCore/src/core/context/prompts.ts', 'aiCore'],
+    ['packages/ai-sdk-provider/src/model.ts', 'ai-sdk-provider'],
+    ['packages/web-search/src/providers/tavily.ts', 'web-search']
+  ])('keeps Linux consumer coverage without native platform jobs for portable source %s', (file, project) => {
+    const plan = createPlan([file])
+    expect(plan.projects).toEqual(expect.arrayContaining([project, 'main', 'preload', 'renderer']))
+    expect(selectedGroups(plan)).toMatchObject({ main: true, renderer: true, packages: true, platform: false })
+    expect(() => verifyResults(plan, { platform: 'skipped' }, ['platform'])).not.toThrow()
+  })
+  it.each([
+    'src/main/services/file/FileService.ts',
+    'src/shared/utils/file/path.ts',
+    'native/system-speech/src/SystemSpeechNativeClient.ts',
+    'packages/provider-registry/src/registry-loader.ts',
+    'packages/remote-transport/src/socket.ts',
+    'packages/agent-runtime/src/contracts.ts',
+    'packages/aiCore/package.json',
+    'packages/web-search/tsup.config.ts',
+    'packages/web-search/src/bridge.node',
+    'pnpm-lock.yaml',
+    'tests/new.setup.ts',
+    'docs/dev/new-index.json'
+  ])('retains platform coverage for native, infrastructure and unclassified input %s', (file) => {
+    const plan = createPlan(['packages/web-search/src/providers/tavily.ts', file])
+    expect(selectedGroups(plan).platform).toBe(true)
+    expect(() => verifyResults(plan, { platform: 'skipped' }, ['platform'])).toThrow('platform: expected success')
+  })
+  it('retains platform coverage for scheduled and manual full validation of portable changes', () => {
+    const plan = createPlan(['packages/web-search/src/providers/tavily.ts'], 'Explicit full validation')
+    expect(selectedGroups(plan).platform).toBe(true)
   })
   it.each([
     [
@@ -267,6 +306,29 @@ describe('working tree changes', () => {
 
 // A docs-only plan must never start compilers, native rebuilds, lint fixes, or tests.
 describe('validation execution', () => {
+  it('does not prepare dependencies or run native tests for an unselected platform group', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-portable-'))
+    directories.push(cwd)
+    const log = join(cwd, 'commands.jsonl')
+    const pnpm = join(cwd, 'pnpm.cjs')
+    writeFileSync(log, '')
+    writeFileSync(
+      pnpm,
+      `require('node:fs').appendFileSync(process.env.COMMAND_LOG, JSON.stringify(process.argv.slice(2)) + '\\n')`
+    )
+    const result = spawnSync(process.execPath, ['scripts/validation/run.mjs', '--group', 'platform'], {
+      env: {
+        ...process.env,
+        npm_execpath: pnpm,
+        COMMAND_LOG: log,
+        VALIDATION_PLAN: JSON.stringify(createPlan(['packages/web-search/src/providers/tavily.ts']))
+      },
+      encoding: 'utf8'
+    })
+    expect(result.status, result.stderr).toBe(0)
+    expect(readFileSync(log, 'utf8')).toBe('')
+  })
+
   it.each([0, 7])('runs the theme check in the repository group and propagates exit %s', (exitCode) => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-theme-'))
     directories.push(cwd)

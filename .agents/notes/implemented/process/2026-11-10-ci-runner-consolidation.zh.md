@@ -14,9 +14,11 @@ Status: implemented
 
 独立运行选中的 main/preload 和 package 测试组，彼此无需等待，也不会因另一组失败而被跳过。依赖安装成功后，标记该 job 的 workspace 导出已准备完成，验证流程据此跳过重复的 postinstall 构建。本地未准备环境的验证和原生 SQLite 准备保留现有行为。
 
-在分配重任务 runner 前，先在分类 job 中检查工作流语法和格式。从仓库 manifest 获取精确的格式化工具版本，不安装 workspace 依赖。计划生成或预检失败仍会让必需门禁失败。恢复现有的只读、非阻塞 CI Performance 观察工作流，测量排队、准备、执行以及取消运行的成本。
+在分配重任务 runner 前，先在分类 job 中检查工作流语法和格式。从仓库 manifest 获取精确的格式化工具版本，不安装 workspace 依赖。计划生成或预检失败仍会让必需门禁失败。保留只读耗时采集脚本供按需分析；CI Performance 的自动执行通过仓库 Actions 设置停用。
 
-保留受影响项目选择、测试清单、worker 限制，以及 `basic-checks`、`general-test`、`render-test` 门禁。调整执行布局时，同步更新门禁依赖和结果映射。
+保留 Linux 受影响项目选择、测试清单、worker 限制，以及 `basic-checks`、`general-test`、`render-test` 门禁。调整执行布局时，同步更新门禁依赖和结果映射。
+
+将生成的文档来源索引视为文档，而不是触发全量验证的未知输入。`aiCore`、`ai-sdk-provider` 和 `web-search` 中的可移植 TypeScript 源码保留其 Linux 项目及消费者测试，同时省略原生平台 job。主进程和共享层源码、原生适配器、配置、未知输入及混合改动保留现有的原生平台选择。定时和手动全量验证始终包含两个平台。在计划和范围哈希中记录平台选择，确保执行与必需门禁一致。
 
 本决策仅取代[验证提案](../../proposed/process/2026-10-01-ci-and-local-validation.md)中 main/renderer 的初始分片基线。
 
@@ -25,6 +27,7 @@ Status: implemented
 - 保留五台或八台重任务 runner：环境准备较少，但合并的 main/packages、renderer 或未分片的 main/preload 仍超过执行时间目标。
 - 使用七台重任务 runner，将 renderer 分成两片：根据未分片的实测耗时，预计难以为十分钟目标留足余量。
 - 保留十二台重任务 runner：单个测试 job 更短，但会额外重复三次环境准备。
+- 只要 package 改动就跳过原生 job：无法区分可移植协议与文件系统或原生适配器。仅豁免已检查的三个可移植源码目录，其配置及原生消费者仍采用保守选择。
 
 ## Consequences
 
@@ -34,3 +37,4 @@ Status: implemented
 
 - Regression — `scripts/__tests__/validationWorkflow.test.ts` 约束七台 Linux runner 加一台 macOS 和一台 Windows runner，确保 package 测试组完整运行、两个 main/preload 分片和三个 renderer 分片均被覆盖、汇总门禁正确处理失败、预检失败被正确处理，并且仅在依赖安装成功后写入准备标记。
 - Regression — `scripts/__tests__/validationPlan.test.ts` 确保已准备和未准备的 workspace 都完整执行选中的测试组，并保留原生 ABI 准备。
+- Regression — `scripts/__tests__/validationPlan.test.ts` 和 `scripts/__tests__/validationWorkflow.test.ts` 复现文档索引回退问题，并验证可移植改动保留 Linux 消费者覆盖，混合、原生、配置输入及全量验证要求两个平台，跳过原生 job 不能掩盖缺失的 Linux job。
