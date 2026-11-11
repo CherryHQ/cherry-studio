@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildScanReport, diagnose } from '../engine'
-import { SCAN_RULES } from '../rules/registry'
 import { SCAN_LEVELS, type LogRecord, type ScanRule } from '../types'
 
 function rule(overrides: Partial<ScanRule> & Pick<ScanRule, 'id'>): ScanRule {
