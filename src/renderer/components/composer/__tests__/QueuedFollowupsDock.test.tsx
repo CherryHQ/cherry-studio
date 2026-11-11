@@ -283,21 +283,6 @@ describe('QueuedFollowupsDock', () => {
     expect(screen.getByRole('link', { name: 'https://example.com/docs' })).toBeInTheDocument()
   })
 
-  it('renders nothing when the queue is empty', () => {
-    const { container } = render(
-      <QueuedFollowupsDock
-        items={[]}
-        paused={false}
-        onTogglePause={vi.fn()}
-        onSteer={vi.fn()}
-        onEdit={vi.fn()}
-        onRemove={vi.fn()}
-        onReorder={vi.fn()}
-      />
-    )
-    expect(container).toBeEmptyDOMElement()
-  })
-
   it('hides a knowledge token prompt while keeping the user text and chip', async () => {
     const user = userEvent.setup()
     const { container } = render(

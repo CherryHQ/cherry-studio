@@ -3,9 +3,9 @@ import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Tooltip } from '@cherrystudio/ui'
 import EditIcon from '@renderer/components/icons/EditIcon'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
@@ -137,7 +137,13 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
             </button>
           </Tooltip>
           <div className="flex shrink-0 items-center gap-0.5">
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={t('common.copy')} onClick={handleCopy}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('common.copy')}
+              onClick={handleCopy}
+              className="text-muted-foreground">
               <Copy className="size-3.5" />
             </Button>
             <Button
@@ -145,7 +151,8 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
               variant="ghost"
               size="icon-sm"
               aria-label={t('common.edit')}
-              onClick={() => setIsEditing(true)}>
+              onClick={() => setIsEditing(true)}
+              className="text-muted-foreground">
               <EditIcon size={14} />
             </Button>
             <Button
@@ -153,7 +160,8 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
               variant="ghost"
               size="icon-sm"
               aria-label={t('common.delete')}
-              onClick={() => void handleRemove()}>
+              onClick={() => void handleRemove()}
+              className="text-muted-foreground">
               <Minus className="size-3.5" />
             </Button>
           </div>
@@ -178,7 +186,7 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
         {displayItems.length === 0 ? (
           <div className="px-3 py-2 text-xs leading-tight text-muted-foreground">{t('error.no_api_key')}</div>
         ) : (
-          <Scrollbar className="max-h-[60vh] overflow-x-hidden">
+          <ScrollArea viewportProps={{ className: 'overflow-x-hidden' }} className="max-h-[60vh]">
             <div>
               {displayItems.map((item) => (
                 <WebSearchApiKeyItem
@@ -189,7 +197,7 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
                 />
               ))}
             </div>
-          </Scrollbar>
+          </ScrollArea>
         )}
       </div>
 

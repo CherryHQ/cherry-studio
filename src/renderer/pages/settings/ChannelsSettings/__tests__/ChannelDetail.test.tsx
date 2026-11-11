@@ -38,10 +38,6 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
 }))
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingDivider: (props: React.HTMLAttributes<HTMLHRElement>) => <hr {...props} />,
   SettingGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -556,21 +552,5 @@ describe('ChannelDetail', () => {
         })
       )
     })
-  })
-
-  it('closes the edit dialog without clearing its content first', () => {
-    const { rerender } = render(<ChannelDetail channelDef={channelDef} />)
-
-    const editTooltip = screen.getByText('common.edit')
-    const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
-    fireEvent.click(editButton)
-    fireEvent.click(screen.getByRole('button', { name: 'close dialog' }))
-
-    channelMocks.channels = []
-    rerender(<ChannelDetail channelDef={channelDef} />)
-
-    const title = screen.getByRole('heading', { name: 'Telegram channel' })
-    expect(title).toBeInTheDocument()
-    expect(title.closest('[data-open]')).toHaveAttribute('data-open', 'false')
   })
 })

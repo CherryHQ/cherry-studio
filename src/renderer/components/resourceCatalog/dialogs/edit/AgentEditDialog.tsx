@@ -29,6 +29,7 @@ import { AgentLanguageField } from '@renderer/components/resourceCatalog/dialogs
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
@@ -38,6 +39,7 @@ import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
 import { type AgentLanguageMode, resolveAgentLanguagePreview } from '@renderer/utils/agent/agentLanguage'
+import { platform } from '@renderer/utils/platform'
 import {
   type AgentFormState,
   applyAgentFormPatch,
@@ -52,6 +54,7 @@ import {
 } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
+import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import {
   CLAUDE_KNOWLEDGE_TOOL_NAMES,
   CLAUDE_TOOL_CATEGORIES,
@@ -65,8 +68,8 @@ import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 
+import { AgentAvatarPicker } from '../components/AgentAvatarPicker'
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
-import { EmojiAvatarPicker } from '../components/DialogFormFields'
 import {
   CompactModelField,
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
@@ -86,6 +89,7 @@ import {
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
+import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
 import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
@@ -295,8 +299,10 @@ function AgentEditDialogContent({
 }: EditDialogBaseProps & { resource: AgentDetail; isModelDisabled?: ModelSelectorFilter }) {
   const { t } = useTranslation()
   const caps = AGENT_RUNTIME_CAPABILITIES[resource.type]
+  const sealedSkills = isSealedBuiltinAgentRole(resource.configuration?.builtin_role)
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
+  const memoryPanelRef = useRef<AgentMemoryPanelHandle>(null)
+  const [avatarSrc, setAvatarSrc] = useState(resource.avatarSrc)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
   const [formBaseline, setFormBaseline] = useState<AgentFormState>(() => buildInitialAgentFormState(resource))
@@ -352,6 +358,7 @@ function AgentEditDialogContent({
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
       { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
+      { id: 'memory', label: t('agent.memory.button') },
       {
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
@@ -361,14 +368,14 @@ function AgentEditDialogContent({
             ? [{ id: 'tools.knowledge' as const, label: t('library.config.dialogs.edit.knowledge_tab') }]
             : []),
           ...(caps.mcp ? [{ id: 'tools.mcp' as const, label: t('library.config.agent.section.tools.tab.mcp') }] : []),
-          ...(caps.skills
+          ...(caps.skills && !sealedSkills
             ? [{ id: 'tools.skills' as const, label: t('library.config.agent.section.tools.tab.skills') }]
             : [])
         ]
       },
       { id: 'advanced', label: t('library.config.dialogs.edit.advanced_tab') }
     ],
-    [caps.knowledgeBases, caps.mcp, caps.skills, t]
+    [caps.knowledgeBases, caps.mcp, caps.skills, sealedSkills, t]
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
@@ -381,7 +388,7 @@ function AgentEditDialogContent({
     form.reset(defaultValues)
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
-    setEmojiPickerOpen(false)
+    setAvatarSrc(resource.avatarSrc)
     setModelLabels(modelLabelsForAgent(resource))
     replaceFormBaseline(buildInitialAgentFormState(resource))
     setBaselineSkillAgentId(null)
@@ -520,6 +527,7 @@ function AgentEditDialogContent({
       onOpenChange(next)
       return true
     }
+    if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return false
     const valuesBeforeSave = JSON.stringify(form.getValues())
     const pendingSave = getPendingSave()
     if (pendingSave) await pendingSave
@@ -554,7 +562,11 @@ function AgentEditDialogContent({
     <EditDialogShell
       activeTab={activeTab}
       form={form}
-      onActiveTabChange={setActiveTab}
+      onActiveTabChange={async (tab) => {
+        if (tab === activeTab) return
+        if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
+        setActiveTab(tab)
+      }}
       onOpenChange={handleOpenChange}
       open={open}
       rootError={rootError}
@@ -572,8 +584,13 @@ function AgentEditDialogContent({
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
             patchAgentForm={patchAgentForm}
-            emojiPickerOpen={emojiPickerOpen}
-            setEmojiPickerOpen={setEmojiPickerOpen}
+            avatarSrc={avatarSrc}
+            avatarPickerOpen={open}
+            onAvatarChanged={(next) => {
+              setAvatarSrc(next.avatarSrc)
+              form.setValue('avatar', next.emoji)
+              replaceFormBaseline({ ...formBaselineRef.current, avatar: next.emoji })
+            }}
             onSettingsNavigate={closeBeforeAction}
             caps={caps}
             agentType={resource.type}
@@ -614,6 +631,11 @@ function AgentEditDialogContent({
             />
           </TabsContent>
         ) : null}
+        {open && activeTab === 'memory' ? (
+          <TabsContent value="memory" className="m-0 flex h-full min-h-0 flex-col">
+            <AgentMemoryPanel key={resource.id} ref={memoryPanelRef} agent={resource} />
+          </TabsContent>
+        ) : null}
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
           <AgentAdvancedFields form={form} />
         </TabsContent>
@@ -630,8 +652,9 @@ function AgentBasicFields({
   modelLabels,
   setModelLabels,
   patchAgentForm,
-  emojiPickerOpen,
-  setEmojiPickerOpen,
+  avatarSrc,
+  avatarPickerOpen,
+  onAvatarChanged,
   onSettingsNavigate,
   caps,
   agentType,
@@ -646,8 +669,9 @@ function AgentBasicFields({
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
   patchAgentForm: (patch: Partial<AgentFormState>) => void
-  emojiPickerOpen: boolean
-  setEmojiPickerOpen: (open: boolean) => void
+  avatarSrc?: string
+  avatarPickerOpen: boolean
+  onAvatarChanged: (next: { avatarSrc?: string; emoji: string }) => void
   onSettingsNavigate?: (navigate: () => void) => void
   caps: AgentRuntimeCapabilities
   agentType: AgentType
@@ -658,13 +682,16 @@ function AgentBasicFields({
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
   const [heartbeatOpen, setHeartbeatOpen] = useState(false)
+  const { isPresent: heartbeatPresent } = useExitPresence(heartbeatOpen ? true : null)
 
   return (
     <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
       <AgentAvatarNameField
         form={form}
-        emojiPickerOpen={emojiPickerOpen}
-        setEmojiPickerOpen={setEmojiPickerOpen}
+        agentId={agentId}
+        avatarSrc={avatarSrc}
+        avatarPickerOpen={avatarPickerOpen}
+        onAvatarChanged={onAvatarChanged}
         portalContainer={portalContainer}
       />
       <TextInputField
@@ -766,8 +793,13 @@ function AgentBasicFields({
               {t('agent.heartbeat.edit')}
             </Button>
           </div>
-          {heartbeatOpen ? (
-            <HeartbeatEditorDialog agentId={agentId} enabled={heartbeatEnabled} onOpenChange={setHeartbeatOpen} />
+          {heartbeatPresent ? (
+            <HeartbeatEditorDialog
+              agentId={agentId}
+              enabled={heartbeatEnabled}
+              open={heartbeatOpen}
+              onOpenChange={setHeartbeatOpen}
+            />
           ) : null}
         </div>
       ) : null}
@@ -777,13 +809,17 @@ function AgentBasicFields({
 
 function AgentAvatarNameField({
   form,
-  emojiPickerOpen,
-  setEmojiPickerOpen,
+  agentId,
+  avatarSrc,
+  avatarPickerOpen,
+  onAvatarChanged,
   portalContainer
 }: {
   form: UseFormReturn<AgentEditFormValues>
-  emojiPickerOpen: boolean
-  setEmojiPickerOpen: (open: boolean) => void
+  agentId: string
+  avatarSrc?: string
+  avatarPickerOpen: boolean
+  onAvatarChanged: (next: { avatarSrc?: string; emoji: string }) => void
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
@@ -804,17 +840,16 @@ function AgentAvatarNameField({
               name="avatar"
               render={({ field: avatarField }) => (
                 <InputGroupAddon className="py-0">
-                  <EmojiAvatarPicker
-                    value={avatarField.value}
-                    fallback="🤖"
-                    open={emojiPickerOpen}
-                    onOpenChange={setEmojiPickerOpen}
-                    onChange={avatarField.onChange}
-                    ariaLabel={t('library.config.dialogs.create.avatar_aria')}
-                    portalContainer={portalContainer}
-                    avatarClassName="border-0"
-                    avatarFontSize={18}
-                  />
+                  {avatarPickerOpen && (
+                    <AgentAvatarPicker
+                      agentId={agentId}
+                      emoji={avatarField.value}
+                      avatarSrc={avatarSrc}
+                      onChanged={onAvatarChanged}
+                      ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+                      portalContainer={portalContainer}
+                    />
+                  )}
                 </InputGroupAddon>
               )}
             />
@@ -1136,7 +1171,7 @@ function AgentToolsFields({
   const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
   const builtinSections = useMemo(() => {
     const tools = caps
-      .builtinTools()
+      .builtinTools(platform)
       .filter((tool) => !caps.knowledgeBases || hasKnowledgeScope || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
     return CLAUDE_TOOL_CATEGORIES.map((category) => ({
       category,

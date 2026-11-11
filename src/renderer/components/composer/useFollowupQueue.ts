@@ -219,7 +219,7 @@ interface UseFollowupQueueParams {
   status: TopicStreamStatus | undefined
   /** Timestamp of the last completed turn; a completion drains at most one queued follow-up. */
   lastCompletedAt: number | null
-  /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
+  /** Resolves to whether the submission was accepted; execution completes separately. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
   /** Called when auto-drain fails and leaves the queued item in place. */
   onDrainFailed?: () => void

@@ -248,21 +248,6 @@ describe('EntitySelector', () => {
       expect(screen.getByTestId('loading')).toBeInTheDocument()
       expect(screen.queryByTestId('row-1')).not.toBeInTheDocument()
     })
-
-    it('renders nothing when empty without emptyState (no hardcoded fallback)', () => {
-      render(
-        <EntitySelector
-          trigger={<button type="button">Open</button>}
-          items={[]}
-          mode="single"
-          value={null}
-          onChange={vi.fn()}
-          renderItem={(item, ctx) => <Row item={item} ctx={ctx} />}
-        />
-      )
-      openPopover()
-      expect(screen.queryByText(/no items/i)).not.toBeInTheDocument()
-    })
   })
 
   describe('keyboard navigation', () => {

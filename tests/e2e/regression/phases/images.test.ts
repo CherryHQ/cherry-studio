@@ -1,13 +1,148 @@
+import { execFileSync } from 'node:child_process'
 import { once } from 'node:events'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import sharp from 'sharp'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
+import { validateFileEvidence } from '../../../../scripts/e2e/regression/fileEvidence'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import { inspectImageInExternalBrowser, saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
+import { addCherryInModel, ensureCherryInSignedIn } from '../helpers/cherryIn'
 import { selectVisibleModel } from '../helpers/models'
 import { selectSidebarApp } from '../helpers/navigation'
+import { closeSettings } from '../helpers/settings'
+
+test(...caseDefinition('MP-90'), async ({ app, mainWindow: page }, testInfo) => {
+  testInfo.annotations.push({
+    type: 'uncovered',
+    description:
+      'Generated-image upscaling is not covered: the result view has no enhancement action. This case verifies preview zoom, rotation, and saving the original image.'
+  })
+  const attachScreenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+
+  await attachScreenshot('MP-90 image account preflight')
+  await ensureCherryInSignedIn(app, page)
+  await addCherryInModel(page, app.config.cherryIn.imageModel, 'Image')
+  await closeSettings(page)
+  await selectSidebarApp(page, 'Paintings')
+  const view = page.locator('[data-ui~="paintings.view"]:visible')
+  await view.getByRole('button', { name: 'New Image', exact: true }).click()
+  await view.locator('[data-selector-shell-root="true"] > button').first().click()
+  await selectVisibleModel(page, app.config.cherryIn.imageModel, 'cherryin')
+  await view
+    .locator('[contenteditable="true"]')
+    .fill(
+      'A red cherry robot holding a blue umbrella on a white background. One robot, one umbrella, crisp illustration.'
+    )
+  await view.getByRole('button', { name: 'Send', exact: true }).click()
+  const generation = page.getByRole('status', {
+    name: /Drawing in progress\. Please do not leave this page\.|Revealing generated image/
+  })
+  await expect(generation).toBeVisible()
+  await expect(generation).toBeHidden({ timeout: 180_000 })
+  const image = view.getByTestId('artboard-image-transform')
+  await expect(image).toBeVisible()
+  const originalUrl = await image.getAttribute('src')
+  expect(originalUrl).toBeTruthy()
+  const readOriginal = () => readFile(fileURLToPath(originalUrl!))
+  const original = await readOriginal()
+  const originalSize = await sharp(original).metadata()
+
+  await image.click()
+  const preview = page.getByTestId('image-preview-dialog')
+  await expect(preview).toBeVisible()
+  const previewImage = preview.locator('img')
+  await expect(previewImage).toBeVisible()
+  const initialBox = await previewImage.boundingBox()
+  expect(initialBox).not.toBeNull()
+  for (let i = 0; i < 6; i++) await preview.getByRole('button', { name: 'Zoom In', exact: true }).click()
+  await expect.poll(async () => (await previewImage.boundingBox())!.width).toBeGreaterThan(initialBox!.width)
+  const zoomedBox = (await previewImage.boundingBox())!
+  const viewportBox = (await preview.getByTestId('image-preview-viewport').boundingBox())!
+  const center = { x: viewportBox.x + viewportBox.width / 2, y: viewportBox.y + viewportBox.height / 2 }
+  await page.mouse.move(center.x, center.y)
+  await page.mouse.down()
+  await page.mouse.move(center.x + 60, center.y + 40, { steps: 12 })
+  await page.mouse.up()
+  await expect
+    .poll(async () => {
+      const box = (await previewImage.boundingBox())!
+      return Math.hypot(box.x - zoomedBox.x, box.y - zoomedBox.y)
+    })
+    .toBeGreaterThan(10)
+  await preview.getByRole('button', { name: 'Rotate Right', exact: true }).click()
+  await expect
+    .poll(() =>
+      previewImage.evaluate((node) => {
+        const matrix = new DOMMatrix(getComputedStyle(node).transform)
+        return Math.round((Math.atan2(matrix.b, matrix.a) * 180) / Math.PI)
+      })
+    )
+    .toBe(90)
+  await attachScreenshot('MP-90 enlarged dragged and rotated preview')
+  await preview.getByRole('button', { name: 'Reset', exact: true }).click()
+  // The preview dialog disables its own default close button; the toolbar action is labeled `Close Preview`.
+  await preview.getByRole('button', { name: 'Close Preview', exact: true }).click()
+  await expect(preview).toBeHidden()
+
+  await image.click()
+  await expect(preview).toBeVisible()
+  const output = join(app.paths.evidence, 'downloads', 'MP-90-original.png')
+  await rm(output, { force: true })
+  await preview.getByRole('button', { name: 'Save As', exact: true }).click()
+  await saveNativeFile(app.record.platform, app.paths, output)
+  await expect
+    .poll(async () =>
+      validateFileEvidence(output, { type: 'image' })
+        .then(() => true)
+        .catch(() => false)
+    )
+    .toBe(true)
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+  const saved = await readFile(output)
+  const savedSize = await sharp(saved).metadata()
+  expect(savedSize.width).toBe(originalSize.width)
+  expect(savedSize.height).toBe(originalSize.height)
+  expect(await sharp(saved).raw().toBuffer()).toEqual(await sharp(original).raw().toBuffer())
+  expect(Buffer.from(await readOriginal())).toEqual(original)
+  if (app.record.platform === 'macos') {
+    const resource = registerExternalResource(app.paths, app.record.platform, {
+      kind: 'document',
+      application: 'Preview',
+      path: output
+    })
+    execFileSync('open', ['-a', 'Preview', output], { timeout: 10_000 })
+    await expect
+      .poll(() =>
+        execFileSync('osascript', ['-e', 'tell application "Preview" to get name of every document'], {
+          encoding: 'utf8',
+          timeout: 10_000
+        })
+      )
+      .toContain('MP-90-original.png')
+    observeExternalResource(app.paths, resource)
+  } else {
+    const external = await inspectImageInExternalBrowser(app.paths, output)
+    expect(external.width).toBe(originalSize.width)
+    expect(external.height).toBe(originalSize.height)
+    await testInfo.attach('MP-90 image opened in external viewer', {
+      path: external.screenshot,
+      contentType: 'image/png'
+    })
+  }
+  await attachScreenshot('MP-90 original image saved after preview transformations')
+})
 
 test(...caseDefinition('MP-91'), async ({ mainWindow: page }, testInfo) => {
   // HTTP fixtures verify application requests and recovery, not image-model quality.

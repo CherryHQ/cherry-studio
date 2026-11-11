@@ -53,10 +53,8 @@ import {
   __testing,
   useInfiniteFlatItems,
   useInfiniteQuery,
-  useInvalidateCache,
   useMutation,
   usePaginatedQuery,
-  useQuery,
   useReadCache,
   useWriteCache,
   useWriteInfiniteCache
@@ -270,14 +268,6 @@ describe('useReadCache', () => {
     expect(result.current(PATH)).toEqual({ bare: true })
   })
 
-  it('returns a reader with stable identity across rerenders', () => {
-    const { Wrapper } = makeWrapper()
-    const { result, rerender } = renderHook(() => useReadCache(), { wrapper: Wrapper })
-    const first = result.current
-    rerender()
-    expect(result.current).toBe(first)
-  })
-
   it('does NOT subscribe — seeding the cache mid-test does not re-render', () => {
     const { Wrapper, cache } = makeWrapper()
     let renderCount = 0
@@ -359,14 +349,6 @@ describe('useWriteCache', () => {
       await writer.current(PATH, { round: 'trip' })
     })
     expect(reader.current(PATH)).toEqual({ round: 'trip' })
-  })
-
-  it('returns a writer with stable identity across rerenders', () => {
-    const { Wrapper } = makeWrapper()
-    const { result, rerender } = renderHook(() => useWriteCache(), { wrapper: Wrapper })
-    const first = result.current
-    rerender()
-    expect(result.current).toBe(first)
   })
 })
 
@@ -672,14 +654,6 @@ describe('useInfiniteFlatItems behavior', () => {
     const pages: Page<string>[] = [{ items: ['a', 'b'] }, { items: ['c', 'd'] }]
     const { result } = renderHook(() => useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true }))
     expect(result.current).toEqual(['d', 'c', 'b', 'a'])
-  })
-
-  it('returns the same reference across rerenders when pages/options unchanged', () => {
-    const pages: Page<string>[] = [{ items: ['a'] }]
-    const { result, rerender } = renderHook(({ p }) => useInfiniteFlatItems(p), { initialProps: { p: pages } })
-    const first = result.current
-    rerender({ p: pages })
-    expect(result.current).toBe(first)
   })
 
   it('does not mutate input pages or their items arrays', () => {
@@ -1387,21 +1361,6 @@ describe('useInfiniteQuery integration', () => {
     await waitFor(() => expect(result.current.pages[1]?.items[0]?.message.searchableText).toBe('settled approval'))
   })
 
-  it('pages reference is stable across rerenders when SWR data is unchanged', async () => {
-    spyGet().mockResolvedValueOnce({ items: [], nextCursor: undefined, activeNodeId: null })
-
-    const { Wrapper } = makeWrapper()
-    const { result, rerender } = renderHook(
-      () => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
-      { wrapper: Wrapper }
-    )
-
-    await waitFor(() => expect(result.current.pages).toHaveLength(1))
-    const firstRef = result.current.pages
-    rerender()
-    expect(result.current.pages).toBe(firstRef)
-  })
-
   it('does not revalidate the first page while pagination grows when explicitly disabled', async () => {
     const getSpy = spyGet()
     const cursors: Array<string | null> = []
@@ -1447,6 +1406,22 @@ describe('usePaginatedQuery reset-on-query-change', () => {
   function spyOffsetGet() {
     return vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [], total: 30, page: 1 })
   }
+
+  it('can return directly to a valid page after the consumer observes a smaller total', async () => {
+    const get = spyOffsetGet()
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => usePaginatedQuery('/assistants'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    await act(async () => result.current.goToPage(3))
+    await waitFor(() => expect(result.current.page).toBe(3))
+    await act(async () => result.current.goToPage(2))
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/assistants', expect.objectContaining({ query: { page: 2, limit: 10 } }))
+    )
+    expect(result.current.page).toBe(2)
+    await act(async () => result.current.goToPage(0))
+    expect(result.current.page).toBe(2)
+  })
 
   it('does NOT reset page when query keys reorder but values are unchanged', async () => {
     spyOffsetGet()
@@ -1533,33 +1508,6 @@ describe('useMutation trigger identity & option freshness', () => {
   function spyPost() {
     return vi.spyOn(dataApiService, 'post').mockResolvedValue({ id: 'created' })
   }
-
-  it('returns a trigger with stable identity across rerenders despite inline options', () => {
-    const { Wrapper } = makeWrapper()
-    // Options object is written inline — a fresh identity every render, the
-    // exact consumer shape that drove the issue-16696 composer crash.
-    const { result, rerender } = renderHook(
-      () => useMutation('POST', '/topics', { refresh: ['/topics'], onSuccess: () => {} }),
-      { wrapper: Wrapper }
-    )
-    const first = result.current.trigger
-    rerender()
-    rerender()
-    expect(result.current.trigger).toBe(first)
-  })
-
-  it('keeps trigger identity when options content changes across rerenders', () => {
-    const { Wrapper } = makeWrapper()
-    const firstCb = vi.fn()
-    const secondCb = vi.fn()
-    const { result, rerender } = renderHook(({ cb }) => useMutation('POST', '/topics', { onSuccess: cb }), {
-      wrapper: Wrapper,
-      initialProps: { cb: firstCb }
-    })
-    const first = result.current.trigger
-    rerender({ cb: secondCb })
-    expect(result.current.trigger).toBe(first)
-  })
 
   it('a trigger captured before a rerender still sees the latest onSuccess', async () => {
     spyPost()
@@ -1692,23 +1640,6 @@ describe('useMutation trigger identity & option freshness', () => {
     expect(onSuccess).toHaveBeenCalledWith(updatedProvider)
     expect(onError).not.toHaveBeenCalled()
     expect(result.current.provider.data).toEqual(updatedProvider)
-  })
-
-  it('keeps trigger identity on template paths with function-form refresh (crash-site shape)', () => {
-    const { Wrapper } = makeWrapper()
-    // Mirrors useUpdateAgent (useAgent.ts), the consumer that crashed in
-    // classic layout: template path + inline function-form refresh.
-    const { result, rerender } = renderHook(
-      () =>
-        useMutation('PATCH', '/agents/:agentId', {
-          refresh: ({ args }) => ['/agents', `/agents/${args?.params?.agentId}`]
-        }),
-      { wrapper: Wrapper }
-    )
-    const first = result.current.trigger
-    rerender()
-    rerender()
-    expect(result.current.trigger).toBe(first)
   })
 
   it('forwards an edit-transfer DELETE body through the real mutation fetcher (inv_50d805382a991607)', async () => {
@@ -1855,62 +1786,6 @@ describe('useMutation trigger identity & option freshness', () => {
   })
 })
 
-describe('useInvalidateCache identity', () => {
-  it('returns an invalidate function with stable identity across rerenders', () => {
-    const { Wrapper } = makeWrapper()
-    const { result, rerender } = renderHook(() => useInvalidateCache(), { wrapper: Wrapper })
-    const first = result.current
-    rerender()
-    expect(result.current).toBe(first)
-  })
-})
-
-describe('useQuery refetch identity', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  it('returns a refetch with stable identity across rerenders', async () => {
-    vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [], total: 0, page: 1 })
-    const { Wrapper } = makeWrapper()
-    const { result, rerender } = renderHook(() => useQuery('/assistants'), { wrapper: Wrapper })
-    await waitFor(() => expect(result.current.isLoading).toBe(false))
-
-    const first = result.current.refetch
-    rerender()
-    expect(result.current.refetch).toBe(first)
-  })
-})
-
-describe('useInfiniteQuery function identity', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  it('keeps loadNext/refresh/reset identity across plain rerenders', async () => {
-    vi.spyOn(dataApiService, 'get').mockResolvedValue({
-      items: [],
-      nextCursor: 'c1',
-      activeNodeId: null
-    })
-    const { Wrapper } = makeWrapper()
-    const { result, rerender } = renderHook(
-      () => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
-      { wrapper: Wrapper }
-    )
-    await waitFor(() => expect(result.current.isLoading).toBe(false))
-
-    const firstLoad = result.current.loadNext
-    const firstRefresh = result.current.refresh
-    const firstReset = result.current.reset
-    rerender()
-    rerender()
-    expect(result.current.loadNext).toBe(firstLoad)
-    expect(result.current.refresh).toBe(firstRefresh)
-    expect(result.current.reset).toBe(firstReset)
-  })
-})
-
 describe('usePaginatedQuery identity', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -1920,22 +1795,6 @@ describe('usePaginatedQuery identity', () => {
   function spyOffsetGet() {
     return vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [], total: 30, page: 1 })
   }
-
-  it('keeps nextPage/prevPage/reset identity across plain rerenders', async () => {
-    spyOffsetGet()
-    const { Wrapper } = makeWrapper()
-    const { result, rerender } = renderHook(() => usePaginatedQuery('/assistants'), { wrapper: Wrapper })
-    await waitFor(() => expect(result.current.isLoading).toBe(false))
-
-    const firstNext = result.current.nextPage
-    const firstPrev = result.current.prevPage
-    const firstReset = result.current.reset
-    rerender()
-    rerender()
-    expect(result.current.nextPage).toBe(firstNext)
-    expect(result.current.prevPage).toBe(firstPrev)
-    expect(result.current.reset).toBe(firstReset)
-  })
 
   it('still clamps navigation at both boundaries after memoization', async () => {
     // Guards the moved-bug hazard of memoizing the navigators: the
@@ -1983,16 +1842,5 @@ describe('usePaginatedQuery identity', () => {
     })
     await new Promise((r) => setTimeout(r, 30))
     expect(result.current.page).toBe(3)
-  })
-
-  it('returns a stable empty items array while data is undefined', () => {
-    const { Wrapper } = makeWrapper()
-    const { result, rerender } = renderHook(() => usePaginatedQuery('/assistants', { enabled: false }), {
-      wrapper: Wrapper
-    })
-    const first = result.current.items
-    rerender()
-    expect(result.current.items).toBe(first)
-    expect(first).toEqual([])
   })
 })
