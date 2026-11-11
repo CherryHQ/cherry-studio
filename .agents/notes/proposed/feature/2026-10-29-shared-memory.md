@@ -10,7 +10,7 @@ Agent file memory currently keeps durable facts in each Agent's `memory/FACT.md`
 
 Removing a dedicated memory MCP tool does not make native file edits safe. Concurrent sessions can overwrite unseen changes, and a failed multi-file reorganization can leave content or links incomplete. The feature needs program-enforced reads, saves, backups, recovery, and background scheduling alongside model-driven content selection.
 
-The existing [memory overview](../../../../docs/references/memory/overview.md), [Agent prompt builder](../../../../src/main/ai/agents/prompt.ts), and [Agent memory MCP implementation](../../../../src/main/ai/mcp/servers/agentMemory.ts) describe the current integration. This Spec defines its successor for file memory; the Knowledge Base and the independent `@cherry/memory` knowledge-graph MCP remain separate.
+The existing [memory overview](../../../../docs/dev/references/memory/overview.md), [Agent prompt builder](../../../../src/main/ai/agents/prompt.ts), and [Agent memory MCP implementation](../../../../src/main/ai/mcp/servers/agentMemory.ts) describe the current integration. This Spec defines its successor for file memory; the Knowledge Base and the independent `@cherry/memory` knowledge-graph MCP remain separate.
 
 ## Proposal
 
@@ -170,7 +170,7 @@ The existing database is `{userData}/Data/cherrystudio.sqlite`, obtained through
 | Global generation/automatic-organization preferences and existing default model | `PreferenceService` | No per-file progress in preferences |
 | Per-Agent/Assistant shared-access choice | Existing entity configuration | Presets carry switches, not memory bodies |
 
-Follow [app_state ownership](../../../../docs/references/data/app-state-overview.md); register new owner keys when implemented. Add no memory table, separate database, or scheduler-state JSON file. The [JobManager](../../../../src/main/core/job/JobManager.ts) garbage-collects terminal jobs, so completed reconciliation markers survive independently. Register the Dreaming handler during its owner's lifecycle initialization and use startup recovery `abandon`. Scheduled wakeups re-evaluate eligibility; they never replay an old model result.
+Follow [app_state ownership](../../../../docs/dev/references/data/app-state-overview.md); register new owner keys when implemented. Add no memory table, separate database, or scheduler-state JSON file. The [JobManager](../../../../src/main/core/job/JobManager.ts) garbage-collects terminal jobs, so completed reconciliation markers survive independently. Register the Dreaming handler during its owner's lifecycle initialization and use startup recovery `abandon`. Scheduled wakeups re-evaluate eligibility; they never replay an old model result.
 
 File replacement and SQLite progress are not one transaction. Confirm file outcomes before updating markers. On failure or restart, reconcile actual files with backup manifests and hashes. An apparently successful job row is insufficient evidence to skip unknown files; uncertain state remains pending, without exact reconstructed edit counts.
 

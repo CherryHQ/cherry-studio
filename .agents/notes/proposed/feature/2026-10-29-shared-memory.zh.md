@@ -10,7 +10,7 @@ Status: proposed
 
 去掉专用记忆 MCP 工具，不会自动让原生文件编辑变得安全。并发会话可能覆盖未读到的修改，多文件整理失败也可能留下不完整的内容或链接。除模型选择内容外，还需要程序强制执行读取、保存、备份、恢复和后台调度。
 
-现有[记忆概述](../../../../docs/references/memory/overview.md)、[智能体提示词构建器](../../../../src/main/ai/agents/prompt.ts)和[智能体记忆 MCP 实现](../../../../src/main/ai/mcp/servers/agentMemory.ts)说明了当前接入方式。本提案定义文件记忆的后续方案；知识库和独立的 `@cherry/memory` 知识图谱 MCP 继续作为独立能力。
+现有[记忆概述](../../../../docs/dev/references/memory/overview.md)、[智能体提示词构建器](../../../../src/main/ai/agents/prompt.ts)和[智能体记忆 MCP 实现](../../../../src/main/ai/mcp/servers/agentMemory.ts)说明了当前接入方式。本提案定义文件记忆的后续方案；知识库和独立的 `@cherry/memory` 知识图谱 MCP 继续作为独立能力。
 
 ## 提案
 
@@ -170,7 +170,7 @@ SHA-256 是内容指纹，不是次数或按时间递增的版本。`A -> B -> A
 | 全局生成、自动整理偏好与已有默认模型 | `PreferenceService` | 不在偏好设置中保存逐文件进度 |
 | 各智能体、助手的共享访问选择 | 已有实体配置 | 预设携带开关，不携带记忆正文 |
 
-遵循 [app_state 归属规则](../../../../docs/references/data/app-state-overview.md)，实现时登记所属模块的新键。不增加记忆表、独立数据库或调度状态 JSON 文件。[JobManager](../../../../src/main/core/job/JobManager.ts) 会清理已结束任务，因此完成复核的标记须独立保留。在所属模块生命周期初始化时注册 Dreaming 处理器，并使用启动恢复策略 `abandon`。定时唤醒重新判断资格，不重放旧模型结果。
+遵循 [app_state 归属规则](../../../../docs/dev/references/data/app-state-overview.md)，实现时登记所属模块的新键。不增加记忆表、独立数据库或调度状态 JSON 文件。[JobManager](../../../../src/main/core/job/JobManager.ts) 会清理已结束任务，因此完成复核的标记须独立保留。在所属模块生命周期初始化时注册 Dreaming 处理器，并使用启动恢复策略 `abandon`。定时唤醒重新判断资格，不重放旧模型结果。
 
 文件替换与 SQLite 进度不属于同一事务。先确认文件结果，再更新标记。失败或重启后，结合备份清单与哈希复核实际文件。任务行显示成功不足以证明未知文件已完成；无法确认的状态继续待处理，不重建虚假的精确修改次数。
 
