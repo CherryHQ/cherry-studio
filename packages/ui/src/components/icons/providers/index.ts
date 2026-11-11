@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-11-04T07:38:07.847Z
- * Total icons: 173
+ * Generated at: 2026-11-11T17:13:52.261Z
+ * Total icons: 174
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -59,6 +59,7 @@ export { DuckIcon as Duck } from './duck'
 export { ElevenlabsIcon as Elevenlabs } from './elevenlabs'
 export { EssentialAiIcon as EssentialAi } from './essential-ai'
 export { ExaIcon as Exa } from './exa'
+export { EzkielynaIcon as Ezkielyna } from './ezkielyna/ezkielyna'
 export { FeloIcon as Felo } from './felo'
 export { FirecrawlIcon as Firecrawl } from './firecrawl'
 export { FireworksIcon as Fireworks } from './fireworks'
