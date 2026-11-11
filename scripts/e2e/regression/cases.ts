@@ -306,7 +306,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-152',
     title: 'Agent step panel ends a turn without a stale running task',
-    tasks: ['agents', 'agent-task-plan-projection'],
+    tasks: ['agents', 'agent-basic-task'],
     phase: 'agentRuntimes',
     capabilities: []
   },
