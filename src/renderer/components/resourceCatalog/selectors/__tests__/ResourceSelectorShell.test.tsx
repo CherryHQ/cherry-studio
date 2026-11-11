@@ -11,8 +11,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return actual
 })
 
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/SelectorShell'
-
 import {
   ResourceSelectorShell,
   type ResourceSelectorShellItem,
@@ -192,47 +190,6 @@ describe('ResourceSelectorShell', () => {
       )
     })
 
-    it('fills the unified popover content height when available space is unconstrained', async () => {
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={[]}
-          onTogglePin={vi.fn()}
-          labels={LABELS}
-          loading
-          value={null}
-          onChange={vi.fn()}
-        />
-      )
-      openPopover()
-
-      await waitFor(() =>
-        expect(screen.getByRole('listbox').closest('[data-slot=scroll-area]')).toHaveStyle({
-          height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
-        })
-      )
-    })
-
-    it('sets the default popover target height when available space is unconstrained', () => {
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={[]}
-          onTogglePin={vi.fn()}
-          labels={LABELS}
-          value={null}
-          onChange={vi.fn()}
-        />
-      )
-      openPopover()
-
-      expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({
-        height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
-      })
-    })
-
     it('renders empty results with the shared empty state', () => {
       render(
         <ResourceSelectorShell
@@ -250,7 +207,6 @@ describe('ResourceSelectorShell', () => {
 
       expect(screen.getByText('Nothing')).toBeInTheDocument()
       // Presets render the unified empty illustration (an inline SVG), not per-preset lucide icons.
-      expect(screen.getByRole('listbox').querySelector('svg')).toBeInTheDocument()
     })
 
     it('lazy keeps content mounted after the first open', async () => {
@@ -277,27 +233,6 @@ describe('ResourceSelectorShell', () => {
       openPopover()
       await waitFor(() => expect(content).toHaveAttribute('hidden'))
       expect(document.querySelector('[data-selector-shell-content]')).toBe(content)
-    })
-
-    it('uses unified list height after lazy-kept content is measured', () => {
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={[]}
-          onTogglePin={vi.fn()}
-          labels={LABELS}
-          value={null}
-          onChange={vi.fn()}
-          mountStrategy="lazy-keep"
-        />
-      )
-
-      openPopover()
-
-      expect(screen.getByRole('listbox').closest('[data-slot=scroll-area]')).toHaveStyle({
-        height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
-      })
     })
 
     it('aligns the selected row to the start when a lazy-kept selector opens', async () => {

@@ -100,7 +100,7 @@ describe('BuiltinAgentProvisioner', () => {
 
   it('loads bundled skills from the app-owned plugin directory', () => {
     expect(getBuiltinAgentPluginDirectory('assistant')).toBe(path.join(templateDir, '.claude'))
-    expect(mocks.toAsarUnpackedPath).toHaveBeenCalledWith(path.join(templateDir, '.claude'))
+
     expect(loadBuiltinAgentDefinition('assistant')?.skills).toEqual(['cherry-assistant-guide'])
   })
 

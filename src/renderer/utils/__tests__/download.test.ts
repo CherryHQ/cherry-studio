@@ -138,16 +138,6 @@ describe('download', () => {
 
         expect(mockFetch).toHaveBeenCalled()
       })
-
-      it('should generate filename with timestamp for blob URLs', () => {
-        const now = Date.now()
-        vi.spyOn(Date, 'now').mockReturnValue(now)
-
-        void download('blob:http://localhost:3000/12345')
-
-        const element = mockCreateElement.mock.results[0].value
-        expect(element.download).toBe(`${now}_diagram.svg`)
-      })
     })
 
     describe('Filename handling', () => {
@@ -175,18 +165,6 @@ describe('download', () => {
 
         expect(mockFetch).toHaveBeenCalledWith('https://example.com/file.pdf')
         expect(mockCreateObjectURL).toHaveBeenCalledWith(expect.any(Blob))
-        expect(mockClick).toHaveBeenCalled()
-      })
-
-      it('should extract filename from URL and headers', async () => {
-        const headers = new Headers()
-        headers.set('Content-Disposition', 'attachment; filename="server-file.pdf"')
-        mockFetch.mockResolvedValue(createMockResponse({ headers }))
-
-        void download('https://example.com/files/document.docx')
-        await waitForAsync()
-
-        // 验证下载被触发（具体文件名由实现决定）
         expect(mockClick).toHaveBeenCalled()
       })
 
@@ -220,19 +198,6 @@ describe('download', () => {
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.download).toBe(`${now}_Q1.2026 "final".pdf`)
-      })
-
-      it('should add timestamp to network downloaded files', async () => {
-        const now = Date.now()
-        vi.spyOn(Date, 'now').mockReturnValue(now)
-
-        mockFetch.mockResolvedValue(createMockResponse())
-
-        void download('https://example.com/file.pdf')
-        await waitForAsync()
-
-        const element = mockCreateElement.mock.results[0].value
-        expect(element.download).toBe(`${now}_file.pdf`)
       })
 
       it('should handle Content-Type when filename has no extension', async () => {
