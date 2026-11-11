@@ -26,6 +26,7 @@ import { agentPreviewPanel } from '../scenarios/agentPreviewPanel'
 import { agentRuntimeMessages } from '../scenarios/agentRuntimeMessages'
 import { agentSessionList } from '../scenarios/agentSessionList'
 import { agentStatusPanel } from '../scenarios/agentStatusPanel'
+import { agentTaskPlanProjection } from '../scenarios/agentTaskPlanProjection'
 import { scheduledTasks } from '../scenarios/scheduledTasks'
 import { workspaceLifecycle } from '../scenarios/workspaceLifecycle'
 
@@ -119,6 +120,11 @@ test(...caseDefinition('MP-54'), async ({ app, mainWindow: page }, testInfo) => 
 test(...caseDefinition('MP-55'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(7 * 60_000)
   await agentStatusPanel(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-152'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(5 * 60_000)
+  await agentTaskPlanProjection(app, mainWindow, testInfo)
 })
 
 test(...caseDefinition('MP-58'), async ({ app, mainWindow }, testInfo) => {
