@@ -164,4 +164,20 @@ describe('useProviderMeta', () => {
 
     expect(result.current.showApiOptionsButton).toBe(false)
   })
+  it.each(['ppio', 'dashscope', 'modelscope', 'tokenhub'])('shows API options for %s', (id) => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id,
+        name: id,
+        presetProviderId: id,
+        authType: 'api-key',
+        apiKeys: [],
+        reportsActualCost: false,
+        settings: {},
+        isEnabled: true
+      }
+    })
+    const { result } = renderHook(() => useProviderMeta(id))
+    expect(result.current.showApiOptionsButton).toBe(true)
+  })
 })

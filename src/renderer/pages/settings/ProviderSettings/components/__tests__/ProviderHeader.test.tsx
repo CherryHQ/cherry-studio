@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { Provider } from '@shared/data/types/provider'
+
+import { getProviderApiOptionsVisibility } from '../../utils/providerApiOptions'
 import ProviderHeader from '../ProviderHeader'
 
 const useProviderMock = vi.fn()
@@ -130,6 +133,22 @@ describe('ProviderHeader', () => {
     expect(screen.queryByText('provider-avatar')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'OpenAI · common.docs' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'OpenAI · settings.models.list_title' })).not.toBeInTheDocument()
+  })
+
+  it('shows the API settings entry when the timeout is the only visible option', () => {
+    const provider = { id: 'ppio', presetProviderId: 'ppio', name: 'PPIO', isEnabled: true } as Provider
+    const visibility = getProviderApiOptionsVisibility(provider)
+    expect(visibility.showDialectSettings).toBe(false)
+    expect(visibility.isSupportAnthropicPromptCache).toBe(false)
+    expect(visibility.showImageRequestTimeout).toBe(true)
+    useProviderMock.mockReturnValue({ provider })
+    useProviderMetaMock.mockReturnValue({
+      fancyProviderName: 'PPIO',
+      showApiOptionsButton: visibility.hasVisibleApiOptions
+    })
+
+    render(<ProviderHeader providerId="ppio" />)
+    expect(screen.getByRole('button', { name: 'settings.provider.api.options.label' })).toBeInTheDocument()
   })
 
   it('opens the api options drawer when the meta enables the entry', () => {

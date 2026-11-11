@@ -321,3 +321,7 @@ descriptor is a pure derivation, not a param.
 | Custom transport contract | `src/main/ai/provider/custom/imageGenerationModel.ts` |
 | Vendor provider + transport | `src/main/ai/provider/custom/<vendor>/{<vendor>Provider,<vendor>Transport}.ts` |
 | Shared transport helpers | `src/main/ai/provider/custom/transportUtils.ts` |
+
+## Image submit timeout
+
+The per-submit timeout is a top-level request/IPC option derived from the draft and provider setting, not a `paramValues` or vendor-body parameter. It is bounded to 10–1800 seconds and defaults to 10 minutes when absent.

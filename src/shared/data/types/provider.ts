@@ -186,6 +186,7 @@ export const ProviderSettingsSchema = z.object({
   // Common
   rateLimit: z.number().optional(),
   timeout: z.number().optional(),
+  imageRequestTimeoutMs: z.number().int().min(10_000).max(1_800_000).optional(),
   extraHeaders: z.record(z.string(), z.string()).optional(),
 
   // User notes

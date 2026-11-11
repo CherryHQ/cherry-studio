@@ -8,6 +8,7 @@ import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { ErrorCode } from '@shared/data/api/errors'
+import { UpdateProviderSchema } from '@shared/data/api/schemas/providers'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 describe('ProviderService.update', () => {
@@ -50,6 +51,24 @@ describe('ProviderService.update', () => {
       timeout: 30,
       rateLimit: 5,
       apiVersion: '2026-01-01'
+    })
+  })
+
+  it('persists and clears the parsed image timeout without affecting siblings or another provider', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      { providerId: 'p-image', name: 'Image', orderKey: 'a0', providerSettings: { rateLimit: 5 } },
+      { providerId: 'p-other', name: 'Other', orderKey: 'a1', providerSettings: { imageRequestTimeoutMs: 30_000 } }
+    ])
+    const saved = providerService.update(
+      'p-image',
+      UpdateProviderSchema.parse({ providerSettings: { imageRequestTimeoutMs: 900_000 } })
+    )
+    expect(saved.settings.imageRequestTimeoutMs).toBe(900_000)
+    providerService.update('p-image', UpdateProviderSchema.parse({ providerSettings: { imageRequestTimeoutMs: null } }))
+    const rows = await dbh.db.select().from(userProviderTable)
+    expect(rows.find((row) => row.providerId === 'p-image')?.providerSettings).toEqual({ rateLimit: 5 })
+    expect(rows.find((row) => row.providerId === 'p-other')?.providerSettings).toEqual({
+      imageRequestTimeoutMs: 30_000
     })
   })
 
