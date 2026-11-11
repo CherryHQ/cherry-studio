@@ -78,11 +78,35 @@ Messages use the shared `MessageList`; input uses the shared `ComposerSurface` w
 an independent tool context. Prefilled quotes load the rich-text runtime directly
 to avoid briefly showing raw quote tags. Side-chat drafts stay in window-local
 memory and do not use the main-chat draft cache.
+Answer footers reuse the shared Copy, Save to Notes, and More actions through
+`useMessagePlatformActions`, `useMessageExportActions`, and `useMessageMenuConfig`.
+More uses the ordinary chat save/export menu and preferences. The adapter provides
+no regenerate, branch, or session-fork actions, so those entries stay hidden. Exports use the
+displayed side-chat message parts, including temporary messages, without fetching
+main-chat history or persisting the temporary conversation.
 The side-chat composer reuses the tool menu, pinned toolbar, voice, and model-speed
 controls shared by ordinary chat and Agents. It omits New Task, web-search, and
-image-generation toggles. The model still follows the main conversation. Agent-only
-skills, permission mode, and slash commands are not connected to side-chat execution
-yet, so the composers are not fully equivalent.
+image-generation toggles. The model still follows the main conversation. Skills and
+Permission Mode remain visible as icon-only toolbar buttons with tooltips. The skills
+picker shares `useAvailableSkills` and the Agent composer's quick-panel launcher, backed by the
+existing `/skills` and `skill.list_local` APIs. There is no side-chat skill-list
+endpoint. Permission selection shares the Agent composer's `PermissionModeLauncherRuntime`
+and unified quick panel, including its transitions and Full Access confirmation;
+only the controlled value belongs to the side conversation.
+Skills insert rich-text tokens;
+Main resolves their current enabled definitions and includes their instructions in
+the side-chat context budget. Agent sources list enabled Agent skills and workspace
+skills; ordinary chat lists globally enabled installed skills. Missing or disabled
+skills reject submission without clearing the draft. Skill selection does not edit
+the source Agent's enabled skills.
+Permission Mode offers Ask Before Acting and Full Access. Ask Before Acting gates
+each exposed tool call; Full Access removes those approval prompts after explicit
+confirmation. Both modes retain source tool exclusions and global capability gates.
+These request-local settings never update the source Agent or the shared tool
+registry. Selected skills and permission mode travel with the question for retry
+and approval continuation. Choosing Full Access does not remove the side-chat prompt's
+ban on sub-agents or its requirement for explicit side-chat authorization before
+changes. Slash commands and other Agent permission modes remain unsupported.
 Web-search and image-generation capabilities read the source configuration;
 hiding their buttons does not disable them. MCP selection updates the source
 Assistant or Agent configuration, and the button shows its enabled state.
@@ -109,6 +133,10 @@ the same quote token used by the main conversation.
 There is no Create Side Chat confirmation button. The first submit creates the side
 chat and sends the question; a failed submit retains the draft, and retry reuses the
 created side chat.
+Submission and approval errors retain the underlying error and reuse ordinary
+chat's error card, classification, settings navigation, and detail popup. Stream
+startup failures use the existing persistence listener to produce error parts.
+Side-chat error views do not enable cached AI diagnosis or Doctor sessions.
 Submission preserves the main composer's snapshot, and shared components render the
 quote. Text offsets are retained so whitespace trimming cannot shift the quote's
 position. Initial quotes in older messages receive missing metadata only for

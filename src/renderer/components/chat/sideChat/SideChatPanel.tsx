@@ -4,10 +4,19 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import ErrorBlock from '@renderer/components/chat/messages/blocks/ErrorBlock'
+import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
+import { useMessageExportActions } from '@renderer/components/chat/messages/hooks/useMessageExportActions'
 import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
+import { useMessageMenuConfig } from '@renderer/components/chat/messages/hooks/useMessageMenuConfig'
+import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { DEFAULT_MESSAGE_LIST_CONFIG, type MessageListProviderValue } from '@renderer/components/chat/messages/types'
+import {
+  DEFAULT_MESSAGE_LIST_CONFIG,
+  type MessageListItem,
+  type MessageListProviderValue
+} from '@renderer/components/chat/messages/types'
 import { useRightPanelActions, useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import { createComposerMessageSnapshot } from '@renderer/components/composer/composerDraft'
 import type { ComposerSerializedDraft, ComposerSerializedToken } from '@renderer/components/composer/tokens'
@@ -24,15 +33,65 @@ import {
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { SerializedError } from '@renderer/types/error'
+import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
+import { getErrorMessage, serializeHealthCheckError } from '@renderer/utils/error'
 import { toContentRole, type CherryMessagePart, type Message } from '@shared/data/types/message'
 import type { SideChatSource } from '@shared/data/types/sideChat'
 import { readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
-import { IpcError } from '@shared/ipc/errors/IpcError'
-import { sideChatErrorCodes } from '@shared/ipc/errors/sideChat'
 import type { SideChatView } from '@shared/ipc/schemas/sideChat'
 
 import { SideChatComposer } from './SideChatComposer'
 import { useSideChatContext } from './SideChatContext'
+
+// Side-chat errors stay local: do not start cached AI diagnosis or attach main-chat incidents.
+const getDoctorSubject = () => undefined
+
+const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
+  const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
+  return popup.show({ title, messages, processingMethod: '1' })
+}
+
+function SideChatRequestError({ error, topicId }: { error: SerializedError; topicId?: string }) {
+  const context = useSideChatContext()!
+  const { renderConfig } = useMessageListRenderConfig()
+  const { openErrorDetail, navigateErrorTarget } = useMessageErrorActions({ getDoctorSubject })
+  const message: MessageListItem = {
+    id: 'side-chat-request-error',
+    topicId: topicId ?? 'side-chat-pending',
+    role: 'assistant',
+    status: 'error',
+    createdAt: '',
+    modelId: context.modelId
+  }
+  return (
+    <MessageListProvider
+      value={{
+        state: {
+          ...DEFAULT_MESSAGE_LIST_CONFIG,
+          topic: {
+            id: message.topicId,
+            assistantId: undefined,
+            name: '',
+            messages: [],
+            createdAt: '',
+            updatedAt: '',
+            lastActivityAt: ''
+          },
+          messages: [message],
+          partsByMessageId: {},
+          messageNavigation: 'none',
+          renderConfig
+        },
+        actions: { openErrorDetail, navigateErrorTarget },
+        meta: { selectionLayer: false }
+      }}>
+      <div role="alert">
+        <ErrorBlock partId={message.id} error={error} message={message} />
+      </div>
+    </MessageListProvider>
+  )
+}
 
 export function SideChatDeleteButton() {
   const { t } = useTranslation()
@@ -68,8 +127,8 @@ export function SideChatDeleteButton() {
         latest.context.select(undefined)
         if (latest.panelState.isActive('side-chat')) actions.close()
       }
-    } catch {
-      toast.error(t('side_chat.request_error'))
+    } catch (cause) {
+      toast.error(getErrorMessage(cause))
     } finally {
       setBusy(false)
     }
@@ -121,7 +180,7 @@ interface PendingDraft {
   tokens: readonly ComposerSerializedToken[]
   topicId?: string
   busy: boolean
-  error?: string
+  error?: SerializedError
 }
 
 function PendingSideChat({ source }: { source: SideChatSource }) {
@@ -178,10 +237,7 @@ function PendingSideChat({ source }: { source: SideChatSource }) {
       return true
     } catch (cause) {
       update({
-        error:
-          cause instanceof IpcError && cause.code === sideChatErrorCodes.MODEL_UNAVAILABLE
-            ? 'code.model_required'
-            : 'side_chat.request_error'
+        error: serializeHealthCheckError(cause)
       })
       return false
     } finally {
@@ -191,7 +247,7 @@ function PendingSideChat({ source }: { source: SideChatSource }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-20 flex-1" />
-      {draft.error && <p role="alert">{t(draft.error)}</p>}
+      {draft.error && <SideChatRequestError error={draft.error} topicId={draft.topicId} />}
       <SideChatComposer
         temporary={!saveHistory}
         key={draft.key}
@@ -229,7 +285,11 @@ function SideChatConversation({ view }: { view: SideChatView }) {
   const [draft, setDraft] = useSideChatDraft(view.topicId)
   const [expanded, setExpanded] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string>()
+  const [error, setError] = useState<SerializedError>()
+  const { openErrorDetail, navigateErrorTarget } = useMessageErrorActions({ getDoctorSubject })
+  const platformActions = useMessagePlatformActions()
+  const exportActions = useMessageExportActions({ topicName: t('side_chat.title'), exportToObsidian })
+  const menuConfig = useMessageMenuConfig()
   const { renderConfig } = useMessageListRenderConfig()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const agentSource = view.sourceTopicId.startsWith('agent-session:')
@@ -242,11 +302,7 @@ function SideChatConversation({ view }: { view: SideChatView }) {
       await operation()
       return true
     } catch (cause) {
-      setError(
-        cause instanceof IpcError && cause.code === sideChatErrorCodes.MODEL_UNAVAILABLE
-          ? 'code.model_required'
-          : 'side_chat.request_error'
-      )
+      setError(serializeHealthCheckError(cause))
       return false
     } finally {
       setBusy(false)
@@ -295,36 +351,28 @@ function SideChatConversation({ view }: { view: SideChatView }) {
       messageNavigation: 'none',
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: view.topicId,
+      menuConfig,
       renderConfig
     },
     actions: {
-      notifyError: (message) => toast.error(message),
+      ...platformActions,
+      ...exportActions,
+      openErrorDetail,
+      navigateErrorTarget,
       respondToolApproval: async ({ match, approved }) => {
         if (!match.approvalId) return
-        acceptSideChat(
-          await ipcApi.request('side_chat.respond_approval', {
-            topicId: view.topicId,
-            messageId: match.messageId,
-            approvalId: match.approvalId,
-            approved
-          })
+        const approvalId = match.approvalId
+        await run(async () =>
+          acceptSideChat(
+            await ipcApi.request('side_chat.respond_approval', {
+              topicId: view.topicId,
+              messageId: match.messageId,
+              approvalId,
+              approved
+            })
+          )
         )
       },
-      regenerateMessage:
-        busy || view.generating
-          ? undefined
-          : (messageId) =>
-              void run(async () => {
-                const id = questionId(messageId)
-                if (!id) return
-                acceptSideChat(
-                  await ipcApi.request('side_chat.retry', {
-                    topicId: view.topicId,
-                    questionId: id,
-                    modelId: context.modelId
-                  })
-                )
-              }),
       deleteMessage:
         busy || view.generating
           ? undefined
@@ -351,7 +399,7 @@ function SideChatConversation({ view }: { view: SideChatView }) {
           <MessageList />
         </MessageListProvider>
       </div>
-      {error && <p role="alert">{t(error)}</p>}
+      {error && <SideChatRequestError error={error} topicId={view.topicId} />}
       <SideChatComposer
         temporary={view.mode === 'temporary'}
         text={draft}

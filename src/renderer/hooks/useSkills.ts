@@ -148,12 +148,16 @@ export function useInstalledSkills(agentId?: string, options: { enabled?: boolea
   }
 }
 
-function buildAvailableSkills(globalSkills: readonly InstalledSkill[], localSkills: readonly LocalSkill[]) {
+function buildAvailableSkills(
+  globalSkills: readonly InstalledSkill[],
+  localSkills: readonly LocalSkill[],
+  includeGlobal: boolean
+) {
   const seen = new Set<string>()
   const available: LocalSkill[] = []
 
   for (const skill of globalSkills) {
-    if (!skill.isEnabled) continue
+    if (!(includeGlobal ? skill.isGlobalEnabled : skill.isEnabled)) continue
     seen.add(skill.folderName)
     available.push({
       name: skill.name,
@@ -175,7 +179,11 @@ function buildAvailableSkills(globalSkills: readonly InstalledSkill[], localSkil
   return available
 }
 
-export function useAvailableSkills(agentId?: string, workdir?: string, options: { enabled?: boolean } = {}) {
+export function useAvailableSkills(
+  agentId?: string,
+  workdir?: string,
+  options: { enabled?: boolean; includeGlobal?: boolean } = {}
+) {
   const enabled = options.enabled ?? true
   const installed = useInstalledSkills(agentId, { enabled })
   const [localSkills, setLocalSkills] = useState<LocalSkill[]>([])
@@ -243,7 +251,11 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
     await Promise.all([Promise.resolve(refreshInstalledSkills()), refreshLocalSkills()])
   }, [refreshInstalledSkills, refreshLocalSkills])
 
-  const skills = useMemo(() => buildAvailableSkills(installed.skills, localSkills), [installed.skills, localSkills])
+  const includeGlobal = !agentId && options.includeGlobal === true
+  const skills = useMemo(
+    () => buildAvailableSkills(installed.skills, localSkills, includeGlobal),
+    [installed.skills, localSkills, includeGlobal]
+  )
   const isInitialLocalLoad = enabled && Boolean(workdir) && loadedLocalSkillsWorkdir !== workdir
 
   return {

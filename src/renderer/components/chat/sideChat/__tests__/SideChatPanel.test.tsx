@@ -296,15 +296,8 @@ it('keeps drafts scoped across topics, follows the current model, and clears tem
   expect(screen.queryByText('side_chat.save_default')).toBeNull()
   expect(screen.queryByText('side_chat.prompt')).toBeNull()
   ui.rerender(content('a', 'provider::replacement'))
-  await user.click((await screen.findAllByRole('button', { name: 'common.regenerate' }))[0])
-  await waitFor(() =>
-    expect(request).toHaveBeenCalledWith('side_chat.retry', {
-      topicId: 'a',
-      questionId: 'question-a',
-      modelId: 'provider::replacement'
-    })
-  )
   expect(await screen.findByText('answer a')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'common.regenerate' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'side_chat.create' })).toBeNull()
   failSend = true
   await user.click(screen.getByRole('button', { name: 'chat.input.send' }))

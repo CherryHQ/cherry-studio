@@ -23,12 +23,8 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
-import {
-  ComposerPanelSymbol,
-  getQuickPanelSearchAliases,
-  prepareComposerQuickPanelSearch
-} from '@renderer/components/composer/quickPanel'
-import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import type { ComposerToolFooterAction } from '@renderer/components/composer/toolLauncher'
 import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
@@ -140,35 +136,15 @@ import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shar
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
 import { useComposerSelectionReferenceInsertion } from './shared/useComposerSelectionReferenceInsertion'
+import { AGENT_SKILLS_LAUNCHER_ID, useComposerSkillsLauncher } from './shared/useComposerSkillsLauncher'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
 import { useScreenshotChat } from './shared/useScreenshotChat'
 
 const logger = loggerService.withContext('AgentComposer')
 
-const AGENT_SKILLS_LAUNCHER_ID = 'agent-skills'
 const AGENT_NEW_SESSION_TOOL_ID = 'composer:new-session'
 const EMPTY_ACCESSIBLE_PATHS: readonly AbsoluteFilePath[] = []
-
-const createSkillQuickPanelItems = (
-  skills: readonly LocalSkill[],
-  options: {
-    skillLabel: string
-    onInsertSkill: (skill: LocalSkill, inputAdapter?: QuickPanelInputAdapter) => void
-  }
-): QuickPanelListItem[] => {
-  return skills.map((skill) => ({
-    id: agentComposerTokenId.skill(skill),
-    label: skill.name,
-    description: skill.description ?? undefined,
-    icon: <ToolCase size={16} />,
-    filterText: [skill.name, skill.description].filter(Boolean).join(' '),
-    searchAliases: [options.skillLabel],
-    action: ({ inputAdapter }) => {
-      options.onInsertSkill(skill, inputAdapter)
-    }
-  }))
-}
 
 type AgentComposerSessionSnapshot = {
   workspace?: AgentConversationWorkspace | null
@@ -960,54 +936,14 @@ const AgentComposerInner = ({
     }
   }, [agentId, t])
 
-  const skillLabel = t('plugins.skills')
-  const skillItems = useMemo<QuickPanelListItem[]>(
-    () =>
-      createSkillQuickPanelItems(availableSkills, {
-        skillLabel,
-        onInsertSkill: insertSkillToken
-      }),
-    [availableSkills, insertSkillToken, skillLabel]
-  )
-  const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
-    return {
-      id: AGENT_SKILLS_LAUNCHER_ID,
-      kind: 'panel',
-      sources: ['root-panel'],
-      order: 40,
-      label: skillLabel,
-      icon: <ToolCase />,
-      searchAliases: [skillLabel],
-      panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
-      rootSearchItems: skillItems.map((item) => ({ ...item, suffix: skillLabel })),
-      action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
-        void refreshAvailableSkills().catch((error) => {
-          logger.warn('Failed to refresh available skills when opening the skills panel', { error })
-        })
-        quickPanel.open({
-          title: skillLabel,
-          list: skillItems,
-          symbol: AGENT_SKILLS_LAUNCHER_ID,
-          parentPanel,
-          ...prepareComposerQuickPanelSearch({ inputAdapter, queryAnchor, triggerInfo })
-        })
-      }
-    }
-  }, [refreshAvailableSkills, skillItems, skillLabel])
-
-  useEffect(
-    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction]),
-    [skillManageFooterAction, skillsLauncher, toolsRegistry]
-  )
-
-  // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
-  // it with the current (possibly stale) closure, so an externally installed/removed skill would
-  // otherwise only appear on the next open (mirrors the MCP status panel).
-  const updateQuickPanelList = quickPanel?.updateList
-  useEffect(() => {
-    if (!skillsPanelVisible || !updateQuickPanelList) return
-    updateQuickPanelList(skillItems)
-  }, [skillsPanelVisible, skillItems, updateQuickPanelList])
+  const skillFooterActions = useMemo(() => [skillManageFooterAction], [skillManageFooterAction])
+  useComposerSkillsLauncher({
+    skills: availableSkills,
+    refresh: refreshAvailableSkills,
+    onInsertSkill: insertSkillToken,
+    footerActions: skillFooterActions,
+    active: layerActive
+  })
 
   useEffect(
     () => toolsRegistry.registerLaunchers('composer-toolbar-settings', [], [customizeFooterAction]),

@@ -1,5 +1,5 @@
 import { ScanLine } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { createComposerUserMessageParts } from '@renderer/components/composer/composerDraft'
@@ -50,21 +50,24 @@ import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
-import { readSideChatComposerDraft, writeSideChatComposerDraft } from '@renderer/hooks/useSideChats'
+import { readSideChatComposerDraft, useSideChats, writeSideChatComposerDraft } from '@renderer/hooks/useSideChats'
 import { useTopicById } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { TopicType } from '@renderer/types/topic'
+import { getErrorMessage } from '@renderer/utils/error'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { blobToDataUrl } from '@renderer/utils/image'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { DEFAULT_ASSISTANT_SETTINGS, type Assistant } from '@shared/data/types/assistant'
 import type { CherryMessagePart, FileUIPart, Message } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
+import type { SideChatTurnSettings } from '@shared/data/types/sideChat'
 import { withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import { createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
 import { useSideChatContext } from './SideChatContext'
+import { SideChatToolControls } from './SideChatToolControls'
 
 const EMPTY_MODELS: Model[] = []
 
@@ -131,7 +134,15 @@ function SideChatComposerInput({ temporary, onSendDraft, ...props }: Props) {
       }
     }
   }, [agent, context.modelId, loaded.assistant])
-  const [turnOptions, setTurnOptions] = useState<NonNullable<Message['data']['turnOptions']>>({})
+  const views = useSideChats(context.sourceTopicId)
+  const [turnOptions, setTurnOptions] = useState<NonNullable<Message['data']['turnOptions']>>(() => ({
+    sideChat: views
+      .find((view) => view.topicId === context.selectedId)
+      ?.messages.findLast((message) => message.role === 'user')?.data.turnOptions?.sideChat
+  }))
+  const handlePermissionModeChange = useCallback((permissionMode: SideChatTurnSettings['permissionMode']) => {
+    setTurnOptions((current) => ({ ...current, sideChat: { permissionMode, skills: [] } }))
+  }, [])
   const reasoningEffort =
     turnOptions.reasoningEffort ??
     agent?.configuration?.reasoning_effort ??
@@ -264,15 +275,21 @@ function SideChatComposerInput({ temporary, onSendDraft, ...props }: Props) {
         await onSendDraft(draft, parts, {
           reasoningEffort: model ? resolveSupportedReasoningEffort(model, reasoningEffort) : reasoningEffort,
           serviceTier: model ? resolveSupportedServiceTier(model, serviceTier) : serviceTier,
-          fastMode: model?.supportsFastMode === true && turnOptions.fastMode === true
+          fastMode: model?.supportsFastMode === true && turnOptions.fastMode === true,
+          sideChat: {
+            permissionMode: turnOptions.sideChat?.permissionMode ?? 'default',
+            skills: draft.tokens
+              .filter((token) => token.kind === 'skill')
+              .map((token) => token.id.slice('skill:'.length))
+          }
         })
       ) {
         setFiles([])
         setDraftTokens([])
         actions.current.replaceDraft({ text: '', tokens: [] })
       }
-    } catch {
-      toast.error(t('side_chat.request_error'))
+    } catch (cause) {
+      toast.error(getErrorMessage(cause))
     } finally {
       sendingRef.current = false
       setSending(false)
@@ -325,7 +342,16 @@ function SideChatComposerInput({ temporary, onSendDraft, ...props }: Props) {
             <ComposerToolbarControls
               inputAdapter={inputAdapter}
               unifiedPanelControl={unifiedPanelControl}
-              renderContextControls={() => null}
+              renderContextControls={() => (
+                <SideChatToolControls
+                  sourceTopicId={context.sourceTopicId!}
+                  agentId={context.agentId}
+                  permissionMode={turnOptions.sideChat?.permissionMode ?? 'default'}
+                  onPermissionModeChange={handlePermissionModeChange}
+                  unifiedPanelControl={unifiedPanelControl}
+                  disabled={sending || props.isLoading || props.editable === false}
+                />
+              )}
               leading={
                 <ComposerToolbarShortcuts
                   scope={TopicType.Chat}
