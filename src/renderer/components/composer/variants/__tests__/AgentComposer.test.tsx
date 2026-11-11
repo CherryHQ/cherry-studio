@@ -1528,6 +1528,7 @@ describe('AgentComposer', () => {
     mocks.agentConfiguration = { permission_mode: 'plan', reasoning_effort: 'high' }
     mocks.modelResult = {
       ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'high'] }],
         selectableEfforts: ['low', 'high']
@@ -1690,6 +1691,7 @@ describe('AgentComposer', () => {
   it('keeps the session reasoning selection when the model update fails', async () => {
     mocks.modelResult = {
       ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'high'] }],
         selectableEfforts: ['low', 'high']
@@ -1759,6 +1761,7 @@ describe('AgentComposer', () => {
     mocks.agentConfiguration = { reasoning_effort: 'low' }
     mocks.modelResult = {
       ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
         selectableEfforts: ['low', 'medium', 'high']
