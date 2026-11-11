@@ -540,6 +540,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private holdTerminalErrorForFallback(error: unknown): AgentRuntimeEvent | undefined {
     const decision = this.resolveFallbackDecision(error)
     if (!decision || !this.lastCommand) return { type: 'error', error }
+    // Consume the turn's sole attempt when the restart is scheduled, not when it installs.
+    this.fallbackAttempted = true
     this.pendingFallback = { error, decision, command: this.lastCommand }
     return undefined
   }
