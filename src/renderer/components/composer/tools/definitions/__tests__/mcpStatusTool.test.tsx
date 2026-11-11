@@ -1,4 +1,4 @@
-import { act, render, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { Globe2 } from 'lucide-react'
 import { isValidElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   agentIds: [] as Array<string | null>,
   loggerError: vi.fn(),
   mcpServers: [] as McpServer[],
+  runtimeStatuses: {} as Record<string, McpRuntimeStatus>,
   mcpServerOptions: [] as Array<{ enabled?: boolean } | undefined>,
   open: vi.fn(),
   openSettingsTab: vi.fn(),
@@ -35,7 +36,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
-  useMcpRuntimeStatusMap: () => ({})
+  useMcpRuntimeStatusMap: () => mocks.runtimeStatuses
 }))
 
 vi.mock('@renderer/hooks/useMcpServer', () => ({
@@ -71,6 +72,32 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHos
   openResourceEditDialog: editDialogMocks.openResourceEditDialog
 }))
 
+vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
+  useComposerToolLauncherController: () => ({
+    getLaunchers: (source: string) => {
+      const latest = mocks.registerLaunchers.mock.calls.at(-1)?.[0] as ComposerToolLauncher[] | undefined
+      return (latest ?? []).filter((launcher) => launcher.sources?.includes(source as never))
+    },
+    dispatchLauncher: vi.fn()
+  }),
+  useComposerToolLauncherVersion: () => mocks.registerLaunchers.mock.calls.length
+}))
+vi.mock('@renderer/components/composer/tools/toolbarManifests', () => ({
+  getComposerToolbarManifestsForScope: () => []
+}))
+vi.mock('@renderer/components/composer/variants/shared/ComposerControlScaffolding', () => ({
+  COMPOSER_SEND_ACCESSORY_BUTTON_CLASS: ''
+}))
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+  Tooltip: ({ children, content }: any) => <span data-tooltip={content}>{children}</span>,
+  Popover: ({ children }: any) => <div>{children}</div>,
+  PopoverAnchor: ({ children }: any) => children,
+  PopoverContent: () => null,
+  ReorderableList: () => null,
+  Switch: () => null
+}))
+import { ComposerToolbarShortcuts } from '@renderer/components/composer/variants/shared/ComposerToolbarShortcuts'
 import type { Assistant } from '@renderer/types/assistant'
 
 import { TopicType } from '../../types'
@@ -320,13 +347,51 @@ describe('mcpStatusTool', () => {
     expect(updateAgent).not.toHaveBeenCalled()
   })
 
-  it('registers a root-panel-only launcher that opens a read-only MCP panel and clears typed query text', () => {
+  it('projects live MCP icon and tooltip into the pinned toolbar over the variant fallback', () => {
+    const servers = [server({ id: 'active', name: 'filesystem', isActive: true })]
+    const toolbar = () => (
+      <ComposerToolbarShortcuts
+        scope={TopicType.Chat}
+        pinnedIds={['mcp-status']}
+        onPinnedIdsChange={vi.fn()}
+        onResetPinnedIds={vi.fn()}
+        isDefault={false}
+        customizeOpen={false}
+        onCustomizeOpenChange={vi.fn()}
+        unifiedPanelControl={{ available: true, open: vi.fn() }}
+        customTools={[{ id: 'mcp-status', label: 'MCP', icon: <span data-testid="plain-mcp" />, onSelect: vi.fn() }]}
+      />
+    )
+    const publish = (state: McpRuntimeStatus['state']) => {
+      const summary = buildMcpToolbarStatus(servers, { active: status(state) }, t)
+      mocks.registerLaunchers([createMcpStatusLauncher([], t, 'manual', true, undefined, true, summary)])
+    }
+    publish('connected')
+    const view = render(toolbar())
+    expect(screen.queryByTestId('plain-mcp')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'MCP' }).closest('[data-tooltip]')).toHaveAttribute(
+      'data-tooltip',
+      'filesystem: Connected'
+    )
+    expect(view.container.querySelector('.bg-success-subtle-foreground')).toBeInTheDocument()
+    publish('error')
+    view.rerender(toolbar())
+    expect(screen.getByRole('button', { name: 'MCP' }).closest('[data-tooltip]')).toHaveAttribute(
+      'data-tooltip',
+      'filesystem: Failed'
+    )
+    expect(view.container.querySelector('.bg-error-subtle-foreground')).toBeInTheDocument()
+    expect(view.container.querySelector('.bg-success-subtle-foreground')).not.toBeInTheDocument()
+  })
+
+  it('registers a root-panel and pinned shortcut launcher that opens a read-only MCP panel and clears typed query text', () => {
     const items = [server({ id: 'active', name: 'filesystem', isActive: true })].map((mcpServer) => ({
       id: mcpServer.id,
       label: mcpServer.name,
       icon: 'mcp'
     }))
     const launcher = createMcpStatusLauncher(items, t)
+    expect(launcher.sources).toContain('popover')
     const quickPanel = { open: vi.fn() }
     const inputAdapter = {
       deleteTriggerRange: vi.fn(),

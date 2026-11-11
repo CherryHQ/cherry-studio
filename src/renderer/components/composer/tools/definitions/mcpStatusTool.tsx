@@ -361,7 +361,7 @@ export function createMcpStatusLauncher(
   return {
     id: MCP_STATUS_LAUNCHER_ID,
     kind: 'panel',
-    sources: ['root-panel'],
+    sources: ['root-panel', 'popover'],
     order: 50,
     label: 'MCP',
     active,
