@@ -233,6 +233,7 @@ class FileRefServiceImpl implements FileRefService {
     return this.getDb()
       .select({
         refId: agentSessionMessageFileRefTable.id,
+        messageId: agentSessionMessageTable.id,
         sessionId: agentSessionMessageTable.sessionId,
         sessionName: agentSessionTable.name,
         messageCreatedAt: agentSessionMessageTable.createdAt,

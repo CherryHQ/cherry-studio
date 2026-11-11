@@ -226,6 +226,7 @@ describe('FileRefService', () => {
           refId: expect.any(String),
           sessionId,
           sessionName: 'Research session',
+          messageId,
           messageCreatedAt: 1_750_000_000_000,
           messageSummary: 'Please attach the generated report.'
         }

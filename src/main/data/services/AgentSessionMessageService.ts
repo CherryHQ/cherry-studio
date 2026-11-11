@@ -57,6 +57,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { FileEntryId } from '@shared/data/types/file'
 import {
   AGENT_SESSION_MESSAGE_SEARCH_ROLES,
   type CherryMessagePart,
@@ -1150,6 +1151,49 @@ export class AgentSessionMessageService {
       { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
     ])
     return message
+  }
+
+  /**
+   * Drop the serialized file parts that reference a permanently deleted file
+   * entry, keeping the rest of the message intact, and rebuild the message's
+   * file-ref rows from the reconciled parts. Without this, a delete-and-detach
+   * leaves `data.parts` pointing at the deleted entry: attachment actions fail
+   * and the edit flow rejects the message with `attachment_unavailable`.
+   *
+   * Messages bound as native input are skipped: rewriting their parts mid-run
+   * could corrupt the bound runtime's view of the conversation.
+   */
+  detachFileEntryParts(sessionId: string, messageId: string, fileEntryId: FileEntryId): void {
+    const changed = application.get('DbService').withWriteTx((tx) => {
+      const existing = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existing) return false
+      if (existing.inputContextId || existing.data.nativeSessionId || existing.role === 'root') {
+        logger.warn('detachFileEntryParts skipped a native-bound message', { sessionId, messageId, fileEntryId })
+        return false
+      }
+      const parts = existing.data.parts ?? []
+      const kept = parts.filter((part) => {
+        if (part.type !== 'file') return true
+        const meta = readCherryMeta(part)
+        return meta?.fileEntryId !== fileEntryId && meta?.workingFileEntryId !== fileEntryId
+      })
+      if (kept.length === parts.length) return false
+      const mergedData: SessionMessageRow['data'] = { ...existing.data, parts: kept }
+      const updatedAt = Date.now()
+      this.invalidateForkPrefixTx(tx, sessionId, messageId)
+      tx.update(sessionMessagesTable)
+        .set({ data: mergedData, updatedAt })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .run()
+      replaceAgentSessionMessageFileRefsTx(tx, messageId, mergedData)
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return true
+    })
+    if (changed) {
+      notifyDataApiDataChange([
+        { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+      ])
+    }
   }
 
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {

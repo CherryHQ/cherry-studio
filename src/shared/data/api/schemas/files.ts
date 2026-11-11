@@ -77,6 +77,7 @@ export interface FileEntryRefCount {
 
 export interface AgentSessionMessageRefDetail {
   refId: string
+  messageId: string
   sessionId: string
   sessionName: string
   messageCreatedAt: number

@@ -128,6 +128,7 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
@@ -1300,7 +1301,34 @@ export class FileManager extends BaseService implements IFileManager {
     ids: FileEntryId[],
     options?: { detachReferences?: boolean }
   ): Promise<BatchMutationResult> {
+    // Collect owning agent-session messages before deletion: the entry delete
+    // cascades the ref rows, after which the owners are no longer findable.
+    const detachTargets = options?.detachReferences
+      ? ids.flatMap((id) =>
+          this.deps.fileRefService
+            .findAgentSessionMessageDetailsByEntryId(id)
+            .map((detail) => ({ id, sessionId: detail.sessionId, messageId: detail.messageId }))
+        )
+      : []
     const result = await internalBatchPermanentDeleteFromTrash(this.deps, ids, options)
+    // Reconcile the owning messages' serialized parts through the message
+    // layer so detached entries no longer dangle from `data.parts` (which
+    // broke attachment actions and message editing). A reconciliation failure
+    // must not fail the completed deletion.
+    const succeeded = new Set(result.succeeded)
+    for (const target of detachTargets) {
+      if (!succeeded.has(target.id)) continue
+      try {
+        agentSessionMessageService.detachFileEntryParts(target.sessionId, target.messageId, target.id)
+      } catch (error) {
+        fileManagerLogger.warn('failed to reconcile detached file part', {
+          fileEntryId: target.id,
+          sessionId: target.sessionId,
+          messageId: target.messageId,
+          error: (error as Error).message
+        })
+      }
+    }
     this.notifyReadModelChange(result.succeeded)
     return result
   }
