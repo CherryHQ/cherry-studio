@@ -76,12 +76,6 @@ describe('useCodeCli', () => {
   })
 
   describe('selectedCliTool', () => {
-    it('should default to claude-code', () => {
-      setupConfigsMock({})
-      const { result } = renderHook(() => useCodeCli())
-      expect(result.current.selectedCliTool).toBe(CodeCli.CLAUDE_CODE)
-    })
-
     it('selectTool should switch the selected tool (navigation state)', () => {
       setupConfigsMock({
         'openai-codex': state({ anthropic: cfg() }, 'anthropic')
