@@ -12,7 +12,10 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, args?: { width: number; height: number; ratio: string }) =>
+      args ? `${key}: ${args.width} × ${args.height} · ${args.ratio}` : key
+  })
 }))
 // Partial mock: only `toSafeFileUrl` is stubbed. Replacing the whole barrel
 // breaks any module that pulls a different export from it at import time.
@@ -67,6 +70,47 @@ describe('MessageGenerateImageToolTitle', () => {
     mocks.messageListActions = undefined
     mocks.getPhysicalPath.mockReset().mockResolvedValue('/data/f1.png')
     ;(window as unknown as { api: unknown }).api = { file: { getPhysicalPath: mocks.getPhysicalPath } }
+  })
+
+  it.each([
+    [128, 80, '8:5'],
+    [128, 128, '1:1']
+  ])('shows decoded dimensions %i × %i', async (width, height, ratio) => {
+    class DecodedImage {
+      naturalWidth = width
+      naturalHeight = height
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.())
+      }
+    }
+    vi.stubGlobal('Image', DecodedImage)
+    try {
+      render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: [{ id: 'f1', name: 'a.png' }] })} />)
+      expect(
+        await screen.findByText(`chat.input.tools.generate_image.actual_dimensions: ${width} × ${height} · ${ratio}`)
+      ).toBeInTheDocument()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('shows unavailable when decoding fails', async () => {
+    class BrokenImage {
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      set src(_value: string) {
+        queueMicrotask(() => this.onerror?.())
+      }
+    }
+    vi.stubGlobal('Image', BrokenImage)
+    try {
+      render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: [{ id: 'f1', name: 'a.png' }] })} />)
+      expect(await screen.findByText('chat.input.tools.generate_image.dimensions_unavailable')).toBeInTheDocument()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('renders the generated images resolved to file URLs', async () => {

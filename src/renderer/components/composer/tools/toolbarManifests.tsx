@@ -47,6 +47,12 @@ export const GENERATE_IMAGE_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition 
   visibleInScopes: [TopicType.Chat]
 }
 
+export const GENERATE_IMAGE_GEOMETRY_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {
+  toolbar: { id: 'generate-image-geometry', kind: 'panel', order: 21, icon: <Image size={18} /> },
+  label: (t) => t('chat.input.generate_image_geometry.title'),
+  visibleInScopes: [TopicType.Chat]
+}
+
 export const WEB_SEARCH_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {
   toolbar: {
     id: 'web-search',
@@ -94,6 +100,7 @@ export const PERMISSION_MODE_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition
 const COMPOSER_TOOLBAR_MANIFESTS: ComposerToolbarManifestDefinition[] = [
   ATTACHMENT_TOOLBAR_MANIFEST,
   GENERATE_IMAGE_TOOLBAR_MANIFEST,
+  GENERATE_IMAGE_GEOMETRY_TOOLBAR_MANIFEST,
   WEB_SEARCH_TOOLBAR_MANIFEST,
   KNOWLEDGE_BASE_TOOLBAR_MANIFEST,
   DICTATION_TOOLBAR_MANIFEST,

@@ -14,24 +14,15 @@
  * WireProfiles in PR4+.
  */
 import type { CanonicalParamKey } from '@shared/data/types/model'
+import { normalizeAspectRatio } from '@shared/utils/aspectRatio'
+
+export { normalizeAspectRatio }
 
 interface NativeBinding {
   /** The structured field name (the `ParamValues` key, `numImages → n`). */
   readonly option: string
   /** Optional wire normalization applied once during the split. */
   readonly map?: (value: unknown) => unknown
-}
-
-/**
- * Normalize the painting form's `ASPECT_X_Y` enum (or already-normalized `X:Y`)
- * into the `${number}:${number}` shape the AI SDK image option + Google/Imagen
- * accept. Returns `undefined` for blank / mismatched values so the field is
- * omitted. Idempotent (`X:Y → X:Y`), so emitters may re-apply it safely.
- */
-export function normalizeAspectRatio(value: string | undefined): string | undefined {
-  if (!value) return undefined
-  const stripped = value.replace(/^ASPECT_/i, '').replace('_', ':')
-  return /^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(stripped) ? stripped : undefined
 }
 
 // The genuine AI SDK `ImageModelV3CallOptions` image params (`@ai-sdk/provider`):

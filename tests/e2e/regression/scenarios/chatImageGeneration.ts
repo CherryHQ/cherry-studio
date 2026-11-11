@@ -23,6 +23,11 @@ export async function chatImageGeneration(app: RegressionApp, page: Page, testIn
   const topicName = app.resourceName('Orange cat')
   const imageRequests: Record<string, unknown>[] = []
   const toolResults: unknown[] = []
+  const imagenRequests: Record<string, any>[] = []
+  const squareImage = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=',
+    'base64'
+  )
   let failImages = false
   let assistantId: string | undefined
   const server = createServer((req, res) => {
@@ -30,6 +35,18 @@ export async function chatImageGeneration(app: RegressionApp, page: Page, testIn
       const chunks: Buffer[] = []
       for await (const chunk of req) chunks.push(Buffer.from(chunk))
       const body = JSON.parse(Buffer.concat(chunks).toString())
+      if (req.url?.endsWith(':predict')) {
+        imagenRequests.push(body)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            predictions: [
+              { bytesBase64Encoded: (imagenRequests.length === 1 ? efficiencyImage : squareImage).toString('base64') }
+            ]
+          })
+        )
+        return
+      }
       if (req.url === '/v1/images/generations') {
         imageRequests.push(body)
         res.writeHead(failImages ? 401 : 200, { 'Content-Type': 'application/json' })
@@ -109,7 +126,11 @@ export async function chatImageGeneration(app: RegressionApp, page: Page, testIn
             providerId,
             name: 'MP37 HTTP fixture',
             defaultChatEndpoint: 'openai-chat-completions',
-            endpointConfigs: { 'openai-chat-completions': { baseUrl }, 'openai-image-generation': { baseUrl } },
+            endpointConfigs: {
+              'openai-chat-completions': { baseUrl },
+              'openai-image-generation': { baseUrl },
+              'google-generate-content': { baseUrl, adapterFamily: 'google' }
+            },
             apiKeys: [{ id: 'mock', key: 'mock', isEnabled: true }]
           }
         })
@@ -135,13 +156,19 @@ export async function chatImageGeneration(app: RegressionApp, page: Page, testIn
               modelId: 'dall-e-3',
               endpointTypes: ['openai-image-generation'],
               capabilities: ['image-generation']
+            },
+            {
+              providerId,
+              modelId: 'imagen-4-0-generate-001',
+              endpointTypes: ['google-generate-content'],
+              capabilities: ['image-generation']
             }
           ]
         })
         await window.api.preference.setMultiple({
           'feature.paintings.default_model_id': paintingModel,
           'topic.naming.enabled': false,
-          'chat.input.toolbar.pinned_tools': ['generate-image']
+          'chat.input.toolbar.pinned_tools': ['generate-image', 'generate-image-geometry']
         })
         return [provider.status, enabled.status, models.status]
       },
@@ -185,6 +212,20 @@ export async function chatImageGeneration(app: RegressionApp, page: Page, testIn
     await expect(toggle).toBeEnabled()
     await toggle.click()
     await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    await composer.getByRole('button', { name: 'Default image geometry' }).click()
+    await page.getByRole('button', { name: /1792×1024/ }).click()
+    await expect
+      .poll(async () => {
+        const response = await page.evaluate(
+          (id) => window.api.dataApi.request({ id: 'mp37-read-assistant', method: 'GET', path: `/assistants/${id}` }),
+          assistantId!
+        )
+        return AssistantSchema.parse(response.data).settings.imageGenerationGeometry
+      })
+      .toEqual({ size: '1792x1024' })
+    await composer.getByRole('button', { name: 'Default image geometry' }).click()
+    await screenshot('MP-37 image geometry presets')
+    await page.keyboard.press('Escape')
     await composer.locator('[contenteditable="true"]').first().fill(prompt)
     await screenshot('MP-37 image generation enabled')
     await composer.getByRole('button', { name: 'Send', exact: true }).click()
@@ -192,7 +233,9 @@ export async function chatImageGeneration(app: RegressionApp, page: Page, testIn
     const success = messages.filter({ hasText: 'MP37_IMAGE_DONE' })
     await expect(success).toBeVisible({ timeout: 60_000 })
     expect(imageRequests).toHaveLength(1)
-    expect(imageRequests[0]).toMatchObject({ model: 'dall-e-3', prompt })
+    expect(imageRequests[0]).toMatchObject({ model: 'dall-e-3', prompt, size: '1792x1024' })
+    await expect(success.getByText('Actual: 128 × 80 · 8:5', { exact: true })).toBeVisible()
+    await screenshot('MP-37 actual dimensions caption')
     await expect(success.getByText('Generated image', { exact: true })).toBeVisible()
     const image = success.locator('img[src^="file:"]')
     await expect(image).toHaveCount(1)
@@ -213,12 +256,93 @@ export async function chatImageGeneration(app: RegressionApp, page: Page, testIn
     await page.keyboard.press('Escape')
     await expect(preview).toBeHidden()
 
+    await page.reload()
+    await selectSidebarApp(page, 'Chat')
+    const reopenedChat = page.locator('[data-ui~="chat.view"]:visible')
+    const reopenedGroup = reopenedChat
+      .locator('[data-ui~="chat.group-header"]')
+      .filter({ hasText: assistantName })
+      .first()
+    await reopenedGroup.hover()
+    const reopenExpand = reopenedGroup.getByRole('button', { name: 'Expand', exact: true })
+    if (await reopenExpand.isVisible()) await reopenExpand.click()
+    await reopenedChat.getByTestId('topic-list-row').filter({ hasText: topicName }).click()
+    await expect(reopenedChat.getByText('Actual: 128 × 80 · 8:5', { exact: true })).toBeVisible()
+    await composer.getByRole('button', { name: 'Default image geometry' }).click()
+    await expect(page.getByRole('button', { name: /1792×1024/ })).toHaveAttribute('aria-pressed', 'true')
+    await page.keyboard.press('Escape')
+
+    await page.evaluate(
+      (id) => window.api.preference.set('feature.paintings.default_model_id', id),
+      createUniqueModelId(providerId, 'imagen-4-0-generate-001')
+    )
+    await composer.getByRole('button', { name: 'Default image geometry' }).click()
+    await expect(page.getByText(/Saved choice unavailable/)).toBeVisible()
+    await screenshot('MP-37 unavailable saved choice')
+    await page.getByRole('button', { name: /16:9/ }).click()
+    await expect
+      .poll(async () => {
+        const response = await page.evaluate(
+          (id) => window.api.dataApi.request({ id: 'mp37-read-ratio', method: 'GET', path: `/assistants/${id}` }),
+          assistantId!
+        )
+        return AssistantSchema.parse(response.data).settings.imageGenerationGeometry
+      })
+      .toEqual({ aspectRatio: 'ASPECT_16_9' })
+    await composer.locator('[contenteditable="true"]').first().fill(prompt)
+    await composer.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect.poll(() => imagenRequests.length, { timeout: 60_000 }).toBe(1)
+    expect(imagenRequests[0].parameters.aspectRatio).toBe('16:9')
+    await expect(
+      messages.filter({ hasText: 'MP37_IMAGE_DONE' }).last().getByText('Actual: 128 × 80 · 8:5', { exact: true })
+    ).toBeVisible({ timeout: 60_000 })
+    await composer.locator('[contenteditable="true"]').first().fill(prompt)
+    await composer.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect.poll(() => imagenRequests.length, { timeout: 60_000 }).toBe(2)
+    await expect(
+      messages
+        .filter({ hasText: 'MP37_IMAGE_DONE' })
+        .last()
+        .getByText(/Actual: .* · 1:1/, { exact: true })
+    ).toBeVisible({ timeout: 60_000 })
+
+    await page.evaluate(
+      (id) => window.api.preference.set('feature.paintings.default_model_id', id),
+      createUniqueModelId(providerId, 'dall-e-3')
+    )
+    await composer.getByRole('button', { name: 'Default image geometry' }).click()
+    await expect(page.getByText(/Saved choice unavailable/)).toBeVisible()
+    const retained = await page.evaluate(
+      (id) => window.api.dataApi.request({ id: 'mp37-read-retained', method: 'GET', path: `/assistants/${id}` }),
+      assistantId!
+    )
+    expect(AssistantSchema.parse(retained.data).settings.imageGenerationGeometry).toEqual({
+      aspectRatio: 'ASPECT_16_9'
+    })
+    await page.getByRole('button', { name: /Automatic \(no assistant default\)/ }).click()
+    await expect
+      .poll(async () => {
+        const response = await page.evaluate(
+          (id) => window.api.dataApi.request({ id: 'mp37-read-cleared', method: 'GET', path: `/assistants/${id}` }),
+          assistantId!
+        )
+        return AssistantSchema.parse(response.data).settings.imageGenerationGeometry
+      })
+      .toBeNull()
+    await composer.locator('[contenteditable="true"]').first().fill(prompt)
+    await composer.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect.poll(() => imageRequests.length, { timeout: 60_000 }).toBe(2)
+    expect(imageRequests[1]).not.toHaveProperty('size')
+    await expect(
+      messages.filter({ hasText: 'MP37_IMAGE_DONE' }).last().getByText('Generated image', { exact: true })
+    ).toBeVisible({ timeout: 60_000 })
+
     failImages = true
     await composer.locator('[contenteditable="true"]').first().fill(prompt)
     await composer.getByRole('button', { name: 'Send', exact: true }).click()
     const failure = messages.filter({ hasText: 'MP37_FAILURE_DONE' })
     await expect(failure).toBeVisible({ timeout: 60_000 })
-    expect(imageRequests).toHaveLength(2)
+    expect(imageRequests).toHaveLength(3)
     const processDetails = failure.getByTestId('completed-process-trigger')
     await expect(processDetails).toBeVisible()
     if ((await processDetails.getAttribute('aria-expanded')) === 'false') await processDetails.click()
@@ -249,9 +373,9 @@ export async function chatImageGeneration(app: RegressionApp, page: Page, testIn
       page.getByText('Configure a painting model in Settings › Default Model', { exact: true }).last()
     ).toBeVisible()
     await screenshot('MP-37 unconfigured profile guidance')
-    expect(imageRequests).toHaveLength(2)
+    expect(imageRequests).toHaveLength(3)
     await testInfo.attach('MP-37 provider requests and tool results', {
-      body: JSON.stringify({ imageRequests, toolResults, topicId }),
+      body: JSON.stringify({ imageRequests, imagenRequests, toolResults, topicId }),
       contentType: 'application/json'
     })
   } finally {

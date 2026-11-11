@@ -32,9 +32,13 @@ function buildGenerateImageTool(configuredModel?: ConfiguredPaintingModel) {
     inputSchema,
     execute: async (input, options) => {
       const parsed = inputSchema.parse(input) as GenerateImageToolInput
-      return configuredModel === undefined
-        ? generateImageFromPrompt(parsed, getToolCallContext(options).request.abortSignal)
-        : generateImageFromPrompt(parsed, getToolCallContext(options).request.abortSignal, configuredModel)
+      const request = getToolCallContext(options).request
+      return generateImageFromPrompt(
+        parsed,
+        request.abortSignal,
+        configuredModel,
+        request.assistant?.settings.imageGenerationGeometry
+      )
     },
     toModelOutput: ({ output }) => paintingModelOutput(output as PaintingResult)
   })

@@ -76,6 +76,14 @@ export const AssistantSettingsSchema = z.object({
   enableWebSearch: z.boolean(),
   /** Offer the `generate_image` tool to the model (needs a painting model in Settings › Default Model). */
   enableGenerateImage: z.boolean(),
+  /** Optional assistant default used when the image tool omits geometry. */
+  imageGenerationGeometry: z
+    .union([
+      z.strictObject({ aspectRatio: z.string().trim().min(1) }),
+      z.strictObject({ size: z.string().trim().min(1) })
+    ])
+    .nullable()
+    .optional(),
 
   /** User-defined model parameters (e.g. {"top_k": 40, "repetition_penalty": 1.1}).
    *  Discriminated union on `type` ensures `value` is type-safe:

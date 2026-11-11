@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { deriveChipLabel } from '../sizeLabel'
+import { deriveChipLabel, parseRatio } from '../imageSize'
 
 /**
  * Locks the single-label contract: every chip shows exactly one concise
@@ -46,5 +46,22 @@ describe('deriveChipLabel', () => {
 
   it('case-insensitive aspect prefix', () => {
     expect(deriveChipLabel('aspect_1_1', 'aspect_1_1')).toBe('1:1')
+  })
+
+  it('preserves decimal ratio labels', () => {
+    expect(deriveChipLabel('9:19.5', '9:19.5')).toBe('9:19.5')
+  })
+
+  it('normalizes decimal aspect enum labels', () => {
+    expect(deriveChipLabel('ASPECT_9_19.5', 'ASPECT_9_19.5')).toBe('9:19.5')
+  })
+})
+
+describe('parseRatio', () => {
+  it.each([
+    ['9:19.5', { w: 9, h: 19.5 }],
+    ['19.5:9', { w: 19.5, h: 9 }]
+  ])('parses decimal ratio %s', (value, expected) => {
+    expect(parseRatio(value)).toEqual(expected)
   })
 })

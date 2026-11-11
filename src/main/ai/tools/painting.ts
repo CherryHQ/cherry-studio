@@ -22,9 +22,11 @@ import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-regi
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
+import { normalizeAspectRatio } from '@main/ai/utils/aiSdkNativeBindings'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import type { AssistantSettings } from '@shared/data/types/assistant'
 import {
   type ImageGenerationMode,
   type ImageGenerationSupport,
@@ -62,6 +64,9 @@ export const PAINTING_EDIT_NOT_SUPPORTED_NOTE =
 
 export const PAINTING_GENERATE_NOT_SUPPORTED_NOTE =
   "The configured painting model can't generate a new image without input images. Ask for image references or tell the user to choose a generation-capable painting model."
+
+export const PAINTING_GEOMETRY_UNSUPPORTED_NOTE =
+  "The assistant's saved default image geometry is not supported by the configured model or mode. Tell the user to change or clear it in the composer; do not retry."
 
 export const PAINTING_INPUT_IMAGE_ERROR_NOTE =
   'One or more image references could not be read as images. Ask the user for valid generated-image FileEntry ids.'
@@ -115,12 +120,35 @@ function resolveMode(input: GenerateImageToolInput): ImageGenerationMode {
 function extractParamValues(
   input: GenerateImageToolInput,
   support: ImageGenerationSupport | null,
-  mode: ImageGenerationMode
-): ParamValues {
+  mode: ImageGenerationMode,
+  geometryDefault?: AssistantSettings['imageGenerationGeometry']
+): { params: ParamValues } | PaintingError {
   const supports = support?.modes[mode]?.supports
-  if (!supports) return {}
-
   const candidate: Record<string, unknown> = {}
+  const explicitGeometry = ['size', 'aspectRatio', 'customSize', 'imageResolution'].some((key) => {
+    const value = input[key as keyof GenerateImageToolInput]
+    return value !== undefined && value !== null && value !== ''
+  })
+  if (geometryDefault && !explicitGeometry) {
+    const key = 'aspectRatio' in geometryDefault ? 'aspectRatio' : 'size'
+    const value =
+      key === 'aspectRatio' && 'aspectRatio' in geometryDefault
+        ? geometryDefault.aspectRatio
+        : 'size' in geometryDefault
+          ? geometryDefault.size
+          : ''
+    const spec = supports?.[key]
+    const ratio = key === 'aspectRatio' ? normalizeAspectRatio(value) : undefined
+    if (
+      spec?.type !== 'enum' ||
+      !spec.options.includes(value) ||
+      (key === 'aspectRatio' && (!ratio || ratio.split(':').some((side) => Number(side) <= 0)))
+    ) {
+      return { error: PAINTING_GEOMETRY_UNSUPPORTED_NOTE }
+    }
+    candidate[key] = value
+  }
+  if (!supports) return { params: {} }
   for (const key of Object.keys(supports)) {
     const value = input[key as keyof GenerateImageToolInput]
     if (value !== undefined && value !== null && value !== '') candidate[key] = value
@@ -137,7 +165,7 @@ function extractParamValues(
     if (value === undefined || spec.type !== 'size' || !spec.pairedEnumKey) return []
     return [[spec.pairedEnumKey, value]]
   })
-  return Object.fromEntries([...regularEntries, ...pairedSizeEntries])
+  return { params: Object.fromEntries([...regularEntries, ...pairedSizeEntries]) }
 }
 
 async function resolveInputImages(
@@ -157,7 +185,8 @@ async function resolveInputImages(
 export async function generateImageFromPrompt(
   input: GenerateImageToolInput,
   signal?: AbortSignal,
-  configuredModel: ConfiguredPaintingModel | null = resolveConfiguredPaintingModel()
+  configuredModel: ConfiguredPaintingModel | null = resolveConfiguredPaintingModel(),
+  geometryDefault?: AssistantSettings['imageGenerationGeometry']
 ): Promise<PaintingResult> {
   if (!configuredModel) return { error: PAINTING_MODEL_NOT_CONFIGURED_NOTE }
 
@@ -166,6 +195,9 @@ export async function generateImageFromPrompt(
   if ((mode === 'edit' && !support?.modes.edit) || (mode === 'generate' && support && !support.modes.generate)) {
     return { error: mode === 'edit' ? PAINTING_EDIT_NOT_SUPPORTED_NOTE : PAINTING_GENERATE_NOT_SUPPORTED_NOTE }
   }
+
+  const paramValues = extractParamValues(input, support, mode, geometryDefault)
+  if ('error' in paramValues) return paramValues
 
   let inputImages: string[] | undefined
   if (mode === 'edit') {
@@ -184,7 +216,7 @@ export async function generateImageFromPrompt(
       prompt: input.prompt,
       mode,
       ...(inputImages && { inputImages }),
-      paramValues: extractParamValues(input, support, mode),
+      paramValues: paramValues.params,
       // `manual` (confirmed no ref backing): this builtin tool's output only lives
       // in the tool-call part's text result — it is never emitted as a `file` part,
       // so `extractChatMessageFileEntryIds` skips it and none of the *_file_ref
