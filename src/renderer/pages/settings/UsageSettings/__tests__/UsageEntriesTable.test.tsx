@@ -87,6 +87,40 @@ function formatter(value: string): Intl.DateTimeFormat {
 }
 
 describe('UsageEntriesTable', () => {
+  it('distinguishes zero cache hits from missing data and legacy aggregates', () => {
+    const entries: AiUsageRecordEntry[] = [
+      { ...entry, id: 'zero', modelName: 'Zero', inputTokens: 10, cacheReadTokens: 0 },
+      { ...entry, id: 'missing', modelName: 'Missing', inputTokens: 10 },
+      {
+        ...entry,
+        id: 'legacy',
+        modelName: 'Legacy',
+        recordKind: 'legacy-aggregate',
+        inputTokens: 10,
+        cacheReadTokens: 0
+      }
+    ]
+    render(
+      <UsageEntriesTable
+        entries={entries}
+        entryTotal={3}
+        isLoading={false}
+        isRefreshing={false}
+        hasNextPage={false}
+        sortBy="createdAt"
+        sortOrder="desc"
+        onSort={() => {}}
+        onLoadNext={() => {}}
+        getProviderInfo={() => ({ id: 'minimax', name: 'MiniMax' })}
+        dateFormatter={formatter('date')}
+        timeFormatter={formatter('time')}
+      />
+    )
+    expect(within(screen.getByText('Zero').closest('tr')!).getByText('0%')).toBeInTheDocument()
+    expect(within(screen.getByText('Missing').closest('tr')!).getByText('—')).toBeInTheDocument()
+    expect(within(screen.getByText('Legacy').closest('tr')!).getByText('—')).toBeInTheDocument()
+  })
+
   it('keeps entry identity compact and distinguishes unpriced costs from missing metrics', () => {
     render(
       <UsageEntriesTable

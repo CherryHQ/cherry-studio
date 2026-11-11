@@ -2,10 +2,12 @@ import { debounce } from 'es-toolkit/compat'
 import { useEffect, useMemo, useRef } from 'react'
 
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@renderer/data/hooks/useDataApi'
-import type {
-  AiUsageRecordListSortBy,
-  AiUsageRecordSortOrder,
-  AiUsageRecordStatsBucket
+import {
+  AI_USAGE_CACHE_RATES_DEFAULT_GROUP_LIMIT,
+  AI_USAGE_CACHE_RATES_DEFAULT_LIMIT_PER_GROUP,
+  type AiUsageRecordListSortBy,
+  type AiUsageRecordSortOrder,
+  type AiUsageRecordStatsBucket
 } from '@shared/data/api/schemas/aiUsageRecords'
 import { CURRENCY, type Currency } from '@shared/data/types/model'
 
@@ -94,6 +96,13 @@ export function useUsageData({
     query: exploreQuery,
     enabled: rollup !== 'total'
   })
+  const cacheRatesResult = useQuery('/ai-usage-records/cache-rates', {
+    query: {
+      limitPerGroup: AI_USAGE_CACHE_RATES_DEFAULT_LIMIT_PER_GROUP,
+      groupLimit: AI_USAGE_CACHE_RATES_DEFAULT_GROUP_LIMIT
+    }
+  })
+  const refetchCacheRates = cacheRatesResult.refetch
   const refetchTimeline = timelineQueryResult.refetch
   const refetchOverviewStats = overviewStatsResult.refetch
   const refetchPreviousOverviewStats = previousOverviewStatsResult.refetch
@@ -103,6 +112,7 @@ export function useUsageData({
     () =>
       debounce(() => {
         void Promise.all([
+          refetchCacheRates(),
           refetchTimeline(),
           refetchOverviewStats(),
           refetchPreviousOverviewStats(),
@@ -110,9 +120,19 @@ export function useUsageData({
           refetchExploreTimeline()
         ])
       }, USAGE_REFRESH_DEBOUNCE_MS),
-    [refetchExploreStats, refetchExploreTimeline, refetchOverviewStats, refetchPreviousOverviewStats, refetchTimeline]
+    [
+      refetchCacheRates,
+      refetchExploreStats,
+      refetchExploreTimeline,
+      refetchOverviewStats,
+      refetchPreviousOverviewStats,
+      refetchTimeline
+    ]
   )
-  useDataChange(['/ai-usage-records', '/ai-usage-records/stats', '/ai-usage-records/timeline'], refreshUsageReadModels)
+  useDataChange(
+    ['/ai-usage-records', '/ai-usage-records/stats', '/ai-usage-records/timeline', '/ai-usage-records/cache-rates'],
+    refreshUsageReadModels
+  )
   useEffect(() => () => refreshUsageReadModels.cancel(), [refreshUsageReadModels])
 
   const timelineRows = timelineQueryResult.data?.buckets ?? EMPTY_TIMELINE_BUCKETS
@@ -126,6 +146,9 @@ export function useUsageData({
   )
 
   return {
+    cacheRateGroups: cacheRatesResult.data?.groups ?? [],
+    cacheRatesLoading: cacheRatesResult.isLoading && cacheRatesResult.data === undefined,
+    cacheRatesError: cacheRatesResult.data === undefined ? cacheRatesResult.error : undefined,
     costTotals,
     costCurrency,
     timelineBuckets,

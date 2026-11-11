@@ -497,7 +497,12 @@ server-limit top-N groups. `recordCount` counts rows; `requestCount` counts
 logical calls. Request ranking uses logical request count. Grouped timeline
 returns explicit Other buckets; monetary series stay separated by currency.
 
-The Usage page subscribes to the three DataApi change notifications and
+The cache-rates query selects the latest language invocation records per provider and
+model, independently of the selected date range. It includes unavailable rates in
+the request sample and computes arithmetic means over available rates, including
+a second mean that excludes zero-hit requests. Legacy aggregates are excluded.
+
+The Usage page subscribes to the four DataApi change notifications and
 debounces revalidation by 300 ms. This keeps an open page fresh even though
 global SWR focus/reconnect revalidation is disabled.
 

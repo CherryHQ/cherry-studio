@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AI_USAGE_RECORD_AGGREGATE_DEFAULT_LIMIT,
   AI_USAGE_RECORD_MAX_RANGE_DAYS,
+  AiUsageRecordCacheRatesQuerySchema,
   AiUsageRecordListQuerySchema,
   AiUsageRecordStatsQuerySchema,
   AiUsageRecordTimelineQuerySchema
@@ -13,6 +14,21 @@ const to = Date.UTC(2026, 6, 1)
 const from = to - 30 * DAY_MS
 
 describe('AI usage record query contracts', () => {
+  it('validates bounded cache-rate windows', () => {
+    expect(AiUsageRecordCacheRatesQuerySchema.parse({})).toEqual({ limitPerGroup: 10, groupLimit: 8 })
+    for (const query of [
+      { limitPerGroup: 0 },
+      { limitPerGroup: 51 },
+      { groupLimit: 0 },
+      { groupLimit: 21 },
+      { limitPerGroup: 1.5 },
+      { groupLimit: '2' },
+      { other: 1 }
+    ]) {
+      expect(AiUsageRecordCacheRatesQuerySchema.safeParse(query).success).toBe(false)
+    }
+  })
+
   it('applies bounded aggregate defaults', () => {
     expect(AiUsageRecordStatsQuerySchema.parse({ groupBy: 'provider', from, to })).toEqual({
       groupBy: 'provider',

@@ -49,6 +49,7 @@ import {
   WINDOW_KEYS,
   WINDOW_LABEL_KEYS
 } from './usageAnalytics'
+import { UsageCacheRatesPanel } from './UsageCacheRatesPanel'
 import { formatCost, parseDateKey } from './usageDisplay'
 import { UsageDistributionChart } from './UsageDistributionChart'
 import { UsageEntriesTable } from './UsageEntriesTable'
@@ -144,6 +145,9 @@ function UsageSettings() {
   const providerMap = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
 
   const {
+    cacheRateGroups,
+    cacheRatesLoading,
+    cacheRatesError,
     costTotals,
     costCurrency,
     timelineBuckets,
@@ -527,6 +531,8 @@ function UsageSettings() {
             </UsagePanel>
           )}
         </UsageSection>
+
+        <UsageCacheRatesPanel groups={cacheRateGroups} isLoading={cacheRatesLoading} error={cacheRatesError} />
 
         <UsageSection className={cn(!hasUsage && 'hidden')}>
           <UsageSectionHeader>

@@ -3,6 +3,7 @@
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import type { AiUsageRecordSchemas } from '@shared/data/api/schemas/aiUsageRecords'
 import {
+  AiUsageRecordCacheRatesQuerySchema,
   AiUsageRecordListQuerySchema,
   AiUsageRecordStatsQuerySchema,
   AiUsageRecordTimelineQuerySchema
@@ -10,6 +11,10 @@ import {
 import type { HandlersFor } from '@shared/data/api/types'
 
 export const aiUsageRecordHandlers: HandlersFor<AiUsageRecordSchemas> = {
+  '/ai-usage-records/cache-rates': {
+    GET: async ({ query }) => aiUsageRecordService.cacheRates(AiUsageRecordCacheRatesQuerySchema.parse(query ?? {}))
+  },
+
   '/ai-usage-records': {
     GET: async ({ query }) => {
       const parsed = AiUsageRecordListQuerySchema.parse(query ?? {})
