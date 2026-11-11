@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/testing/2026-11-11-ui-test-dependency-entrypoints.md
-2026-11-11-ui-test-dependency-entrypoints.md: e90bbab8f5a910bacdfaba335fad2d4597ef3a9d
-2026-11-11-ui-test-dependency-entrypoints.zh.md: 4866ef0075c53d3b3a5cf507fda05a6b817e4d5f
+2026-11-11-ui-test-dependency-entrypoints.md: f8156e388b088f47d009b1827d24eef53fc894eb
+2026-11-11-ui-test-dependency-entrypoints.zh.md: 3b49f1d7af60347c820fddb3fd15fc945a90e8cc

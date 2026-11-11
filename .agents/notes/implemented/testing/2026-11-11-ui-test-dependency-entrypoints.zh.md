@@ -22,8 +22,9 @@ Status: implemented
 
 ## Consequences
 
-renderer 测试选用同一已安装依赖版本的 CommonJS 形式；生产导入保持不变。固定六个文件仅收集测试的试验中，记录的导入求值耗时从 6.95～7.29 秒降至 2.64～2.65 秒，命令端到端耗时从 12.29～13.36 秒降至 7.92～7.95 秒。该试验有意跳过测试用例，不代表完整 CI 的提速。依赖升级必须保留这些受支持的导出，否则配置加载会明确失败。
+renderer 测试选用同一已安装依赖版本的 CommonJS 形式；生产导入保持不变。固定六个文件仅收集测试的试验中，记录的导入求值耗时从 6.76～7.18 秒降至 2.51～2.60 秒，命令端到端耗时从 11.97～12.97 秒降至 7.65～7.72 秒。该试验有意跳过测试用例，不代表完整 CI 的提速。依赖升级必须保留这些受支持的导出，否则配置加载会明确失败。
 
 ## Verification
 
 - Regression — 既有 `LazyCodeEditor.theme`、`NotificationCenter`、`HtmlArtifactsPopup.session` 和 `CliConfigEditor.format` 文件在预打包时复现 21 条失败，用精确包入口别名后 21 条用例全部通过，保留对编辑器状态、撤销、格式化及对话框上下文行为的验证。
+- Regression — 在 main `88fa91fb66` 上，最终定向 renderer 运行覆盖六个导入剖析消费者和四个身份一致性回归文件，共 127 条用例全部通过；在 UI 项目覆盖配置中使用相同 renderer 别名，三个既有真实 date-time-picker 用例也全部通过。
