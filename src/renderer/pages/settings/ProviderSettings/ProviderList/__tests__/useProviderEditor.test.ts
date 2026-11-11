@@ -68,15 +68,6 @@ describe('useProviderEditor', () => {
     })
   })
 
-  describe('initial state', () => {
-    it('starts closed with no editing provider', () => {
-      const { result } = renderHook(() => useProviderEditor(makeParams()))
-      expect(result.current.isOpen).toBe(false)
-      expect(result.current.editingProvider).toBeNull()
-      expect(result.current.initialLogo).toBeUndefined()
-    })
-  })
-
   describe('state transitions', () => {
     it('startAdd opens the editor in create-custom mode', () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))

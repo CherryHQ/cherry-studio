@@ -124,6 +124,21 @@
       },
       "default": "./dist/providers/exa-mcp.mjs"
     },
+    "./providers/stepfun": {
+      "react-native": {
+        "types": "./dist/providers/stepfun.d.mts",
+        "default": "./dist/providers/stepfun.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/stepfun.d.mts",
+        "default": "./dist/providers/stepfun.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/stepfun.d.cts",
+        "default": "./dist/providers/stepfun.cjs"
+      },
+      "default": "./dist/providers/stepfun.mjs"
+    },
     "./providers/bocha": {
       "react-native": {
         "types": "./dist/providers/bocha.d.mts",

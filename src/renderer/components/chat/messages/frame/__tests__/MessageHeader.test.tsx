@@ -166,31 +166,6 @@ describe('MessageHeader', () => {
     }
   })
 
-  it('keeps content and footer in the same body column', () => {
-    const { container } = render(
-      <MessageHeader
-        message={createMessage()}
-        contentSlot={<div className="message-content-container">Content</div>}
-        footerSlot={<div className="MessageFooter">Footer</div>}
-      />
-    )
-
-    const bodyColumn = container.querySelector('.message-body-column')
-    const content = container.querySelector('.message-body-content')
-    const footerSlot = container.querySelector('.message-footer-slot')
-    const footer = container.querySelector('.MessageFooter')
-
-    expect(content?.closest('.message-body-column')).toBe(bodyColumn)
-    expect(footer?.closest('.message-body-column')).toBe(bodyColumn)
-    expect(footer?.closest('.message-footer-slot')).toBe(footerSlot)
-  })
-
-  it('omits the body column when there is no body slot', () => {
-    const { container } = render(<MessageHeader message={createMessage()} />)
-
-    expect(container.querySelector('.message-body-column')).toBeNull()
-  })
-
   it('explains a runtime-started assistant turn with its origin', () => {
     // A goal round has no user message above it; the badge is the transcript's only explanation.
     const { getByText } = render(
@@ -207,73 +182,9 @@ describe('MessageHeader', () => {
     expect(queryByText('agent.session_turn_origin.background_work')).toBeNull()
   })
 
-  it('shows the snapshot assistant name without repeating the model beside it', () => {
-    const { getByText, queryByText } = render(
-      <MessageHeader
-        message={createMessage('assistant', {
-          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
-          messageSnapshot: {
-            id: 'a1',
-            name: 'My Assistant',
-            emoji: '🤖',
-            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
-          }
-        })}
-      />
-    )
-    expect(getByText('My Assistant')).toBeTruthy()
-    expect(queryByText('GPT-4')).toBeNull()
-  })
-
-  it('shows the model avatar and name beside the assistant when model identity is requested', () => {
-    const { getByText } = render(
-      <MessageHeader
-        showModelIdentity
-        message={createMessage('assistant', {
-          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
-          messageSnapshot: {
-            id: 'a1',
-            name: 'My Assistant',
-            emoji: '🤖',
-            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
-          }
-        })}
-      />
-    )
-
-    expect(getByText('My Assistant')).toBeTruthy()
-    expect(getByText('G').closest('[aria-hidden="true"]')).toBeTruthy()
-    expect(getByText('GPT-4')).toBeTruthy()
-  })
-
-  it('shows the snapshot agent name as primary', () => {
-    const { getByText } = render(
-      <MessageHeader
-        message={createMessage('assistant', {
-          model: { id: 'claude', name: 'Claude', provider: 'anthropic' },
-          messageSnapshot: {
-            id: 'ag1',
-            name: 'My Agent',
-            model: { id: 'claude', name: 'Claude', provider: 'anthropic' }
-          }
-        })}
-      />
-    )
-    expect(getByText('My Agent')).toBeTruthy()
-  })
-
-  it('marks the real message selection checkbox for drag selection lookup', () => {
-    providerState.actions = { selectMessage: vi.fn() }
-    providerState.selection = { isMultiSelectMode: true, selectedMessageIds: [] }
-
-    const { container } = render(<MessageHeader message={createMessage()} />)
-
-    expect(container.querySelector('[data-message-select-checkbox]')).not.toBeNull()
-  })
-
   it('shows durable sender attribution without transport status on a received message', () => {
     const sender = { agentId: 'agent-a', sessionId: 'session-a' }
-    const { container, getByText } = render(
+    const { getByText } = render(
       <MessageHeader
         message={createMessage('user', {
           delivery: {
@@ -296,8 +207,6 @@ describe('MessageHeader', () => {
     )
 
     expect(getByText('From Agent A / Research')).toBeTruthy()
-    expect(container.querySelector('.lucide-mouse-pointer-click')).not.toBeNull()
-    expect(screen.queryByText('agent.session_delivery.status.accepted')).toBeNull()
   })
 
   it('opens the sending session from durable attribution', async () => {

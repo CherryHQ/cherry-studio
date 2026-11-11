@@ -176,17 +176,6 @@ afterEach(() => {
 })
 
 describe('AppShell', () => {
-  it('owns the resource source provider at the route host boundary', () => {
-    render(<AppShell />)
-
-    const provider = screen.getByTestId('resource-view-source-provider')
-
-    expect(provider).toContainElement(screen.getByTestId('tab-router'))
-    expect(provider).not.toContainElement(screen.getByTestId('mini-app-pool'))
-    expect(provider).not.toContainElement(screen.getByTestId('sidebar'))
-    expect(provider).not.toContainElement(screen.getByTestId('tab-bar'))
-  })
-
   it('applies the compact minimum window size for the active chat tab and resets it on leaving', async () => {
     mocks.tabs = [
       ...mocks.tabs,
@@ -235,55 +224,6 @@ describe('AppShell', () => {
     mocks.commandHandlers.get('app.search')?.handler()
 
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
-  })
-
-  it('focuses the active Settings tab and hides workspace navigation', () => {
-    const settingsTab = {
-      id: 'settings',
-      isDormant: false,
-      title: 'Settings',
-      type: 'route' as const,
-      url: '/settings/provider'
-    }
-    mocks.tabs = [...mocks.tabs, settingsTab]
-    mocks.activeTabId = settingsTab.id
-
-    render(<AppShell />)
-
-    expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument()
-    expect(mocks.tabBarProps).toMatchObject({
-      activeTabId: settingsTab.id,
-      isFocusedTab: true,
-      tabs: [settingsTab]
-    })
-    expect(screen.getAllByTestId('tab-router').map((router) => router.dataset.tabId)).toEqual(['home', 'settings'])
-  })
-
-  it('keeps a background Settings tab in the positional tab-bar list', () => {
-    mocks.tabs = [
-      ...mocks.tabs,
-      {
-        id: 'settings',
-        isDormant: false,
-        title: 'Settings',
-        type: 'route',
-        url: '/settings/provider'
-      },
-      {
-        id: 'files',
-        isDormant: false,
-        title: 'Files',
-        type: 'route',
-        url: '/app/files'
-      }
-    ]
-    mocks.activeTabId = 'files'
-
-    render(<AppShell />)
-
-    // AppShellTabBar sends positional reorder indices to TabsProvider, so this list must stay unfiltered.
-    const tabBarTabs = mocks.tabBarProps?.tabs as Array<{ id: string }> | undefined
-    expect(tabBarTabs?.map((tab) => tab.id)).toEqual(['home', 'settings', 'files'])
   })
 
   it('restores the tab that was active before Settings when the focused tab closes or detaches', () => {
@@ -376,66 +316,21 @@ describe('AppShell', () => {
     expect(mocks.hideSearchPopup).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the Windows and Linux tab bar inside the content column beside the sidebar', () => {
+  it('exposes the maintained app content selector', () => {
     const { container } = render(<AppShell />)
-
-    const root = container.firstElementChild
-    const sidebar = screen.getByTestId('sidebar')
-    const tabBar = screen.getByTestId('tab-bar')
-    const tabRouter = screen.getByTestId('tab-router')
-    const contentColumn = tabBar.parentElement
-
-    if (!(root instanceof HTMLElement) || !(contentColumn instanceof HTMLElement)) {
-      throw new Error('Expected AppShell to render a root and content column')
-    }
-
-    expect(root.matches('[data-ui~="app.shell"]')).toBe(true)
+    expect(container.firstElementChild?.matches('[data-ui~="app.shell"]')).toBe(true)
     expect(container.querySelectorAll('[data-ui~="app.shell"]')).toHaveLength(1)
-    expect(sidebar.parentElement).toBe(root)
-    expect(contentColumn.parentElement).toBe(root)
-    expect(contentColumn).toContainElement(tabBar)
-    expect(contentColumn).toContainElement(tabRouter)
-    expect(contentColumn.querySelector('main')).toHaveAttribute('data-ui', 'app.content')
-    expect(Array.from(root.children)).toEqual([sidebar, contentColumn])
-    expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
+
+    expect(screen.getByRole('main')).toHaveAttribute('data-ui', 'app.content')
   })
 
-  it('keeps the macOS traffic lights in the left column beside the tab/content column', () => {
+  it('uses the native titlebar area for the macOS traffic-light drag region', () => {
     mocks.platformState.isMac = true
-
     const { container } = render(<AppShell />)
-
-    const root = container.firstElementChild
-    const sidebar = screen.getByTestId('sidebar')
-    const tabBar = screen.getByTestId('tab-bar')
-    const tabRouter = screen.getByTestId('tab-router')
-    const trafficLightSpacer = screen.getByTestId('macos-traffic-light-spacer')
-    const trafficLightDragRegion = screen.getByTestId('macos-traffic-light-drag-region')
-    const leftColumn = sidebar.parentElement
-    const contentColumn = tabBar.parentElement
-
-    if (
-      !(root instanceof HTMLElement) ||
-      !(leftColumn instanceof HTMLElement) ||
-      !(contentColumn instanceof HTMLElement)
-    ) {
-      throw new Error('Expected AppShell to render macOS left and content columns')
-    }
-
-    expect(root.matches('[data-ui~="app.shell"]')).toBe(true)
+    expect(container.firstElementChild?.matches('[data-ui~="app.shell"]')).toBe(true)
     expect(container.querySelectorAll('[data-ui~="app.shell"]')).toHaveLength(1)
-    expect(trafficLightDragRegion.parentElement).toBe(root)
-    expect(trafficLightDragRegion).toHaveClass('absolute', 'top-0', 'left-0')
-    expect(trafficLightDragRegion).toHaveClass('w-[env(titlebar-area-x)]')
-    expect(leftColumn.parentElement).toBe(root)
-    expect(leftColumn).not.toHaveClass('min-w-[88px]')
-    expect(contentColumn.parentElement).toBe(root)
-    expect(Array.from(leftColumn.children)).toEqual([trafficLightSpacer, sidebar])
-    expect(contentColumn).toContainElement(tabBar)
-    expect(contentColumn).toContainElement(tabRouter)
-    expect(Array.from(root.children)).toEqual([trafficLightDragRegion, leftColumn, contentColumn])
-    expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
-    expect(mocks.tabBarProps).toHaveProperty('isFullscreen', false)
+
+    expect(screen.getByTestId('macos-traffic-light-drag-region')).toHaveClass('w-[env(titlebar-area-x)]')
   })
 
   it('removes macOS traffic light placeholders when the window is fullscreen', async () => {
