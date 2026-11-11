@@ -498,6 +498,7 @@ describe('FileManager (integration)', () => {
             { type: 'text', text: 'see attachment' },
             {
               type: 'file',
+              mediaType: 'text/plain',
               url: 'file:///files/note.txt',
               providerMetadata: { cherry: { fileEntryId: entry.id } }
             }
@@ -553,6 +554,7 @@ describe('FileManager (integration)', () => {
           parts: [
             {
               type: 'file',
+              mediaType: 'text/plain',
               url: 'file:///files/note.txt',
               providerMetadata: { cherry: { fileEntryId: entry.id } }
             }

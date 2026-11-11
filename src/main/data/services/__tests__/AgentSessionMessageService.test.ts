@@ -162,6 +162,7 @@ describe('AgentSessionMessageService', () => {
           { type: 'text' as const, text: 'see attachment' },
           {
             type: 'file' as const,
+            mediaType: 'text/plain',
             url: 'file:///files/note.txt',
             providerMetadata: { cherry: { fileEntryId: FILE_ENTRY_ID } }
           }
@@ -215,6 +216,7 @@ describe('AgentSessionMessageService', () => {
           { type: 'text' as const, text: 'see attachment' },
           {
             type: 'file' as const,
+            mediaType: 'text/plain',
             url: 'file:///files/note.txt',
             providerMetadata: { cherry: { fileEntryId: FILE_ENTRY_ID } }
           }
@@ -270,6 +272,7 @@ describe('AgentSessionMessageService', () => {
           { type: 'text' as const, text: 'see attachment' },
           {
             type: 'file' as const,
+            mediaType: 'text/plain',
             url: 'file:///files/note.txt',
             providerMetadata: { cherry: { workingFileEntryId: FILE_ENTRY_ID } }
           }
@@ -299,6 +302,7 @@ describe('AgentSessionMessageService', () => {
             { type: 'text', text: 'root' },
             {
               type: 'file',
+              mediaType: 'text/plain',
               url: 'file:///files/note.txt',
               providerMetadata: { cherry: { fileEntryId: FILE_ENTRY_ID } }
             }
@@ -1576,6 +1580,7 @@ describe('AgentSessionMessageService', () => {
     })
     const filePart = {
       type: 'file' as const,
+      mediaType: 'text/plain',
       url: 'file:///stale/location/report.pdf',
       mediaType: 'application/pdf',
       filename: 'report.pdf',
