@@ -68,8 +68,8 @@ import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 
+import { AgentAvatarPicker } from '../components/AgentAvatarPicker'
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
-import { EmojiAvatarPicker } from '../components/DialogFormFields'
 import {
   CompactModelField,
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
@@ -307,7 +307,7 @@ function AgentEditDialogContent({
   const sealedSkills = isSealedBuiltinAgentRole(resource.configuration?.builtin_role)
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const memoryPanelRef = useRef<AgentMemoryPanelHandle>(null)
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
+  const [avatarSrc, setAvatarSrc] = useState(resource.avatarSrc)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
   const [formBaseline, setFormBaseline] = useState<AgentFormState>(() => buildInitialAgentFormState(resource))
@@ -393,7 +393,7 @@ function AgentEditDialogContent({
     form.reset(defaultValues)
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
-    setEmojiPickerOpen(false)
+    setAvatarSrc(resource.avatarSrc)
     setModelLabels(modelLabelsForAgent(resource))
     replaceFormBaseline(buildInitialAgentFormState(resource))
     setBaselineSkillAgentId(null)
@@ -589,8 +589,13 @@ function AgentEditDialogContent({
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
             patchAgentForm={patchAgentForm}
-            emojiPickerOpen={emojiPickerOpen}
-            setEmojiPickerOpen={setEmojiPickerOpen}
+            avatarSrc={avatarSrc}
+            avatarPickerOpen={open}
+            onAvatarChanged={(next) => {
+              setAvatarSrc(next.avatarSrc)
+              form.setValue('avatar', next.emoji)
+              replaceFormBaseline({ ...formBaselineRef.current, avatar: next.emoji })
+            }}
             onSettingsNavigate={closeBeforeAction}
             caps={caps}
             agentType={resource.type}
@@ -652,8 +657,9 @@ function AgentBasicFields({
   modelLabels,
   setModelLabels,
   patchAgentForm,
-  emojiPickerOpen,
-  setEmojiPickerOpen,
+  avatarSrc,
+  avatarPickerOpen,
+  onAvatarChanged,
   onSettingsNavigate,
   caps,
   agentType,
@@ -668,8 +674,9 @@ function AgentBasicFields({
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
   patchAgentForm: (patch: Partial<AgentFormState>) => void
-  emojiPickerOpen: boolean
-  setEmojiPickerOpen: (open: boolean) => void
+  avatarSrc?: string
+  avatarPickerOpen: boolean
+  onAvatarChanged: (next: { avatarSrc?: string; emoji: string }) => void
   onSettingsNavigate?: (navigate: () => void) => void
   caps: AgentRuntimeCapabilities
   agentType: AgentType
@@ -686,8 +693,10 @@ function AgentBasicFields({
     <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
       <AgentAvatarNameField
         form={form}
-        emojiPickerOpen={emojiPickerOpen}
-        setEmojiPickerOpen={setEmojiPickerOpen}
+        agentId={agentId}
+        avatarSrc={avatarSrc}
+        avatarPickerOpen={avatarPickerOpen}
+        onAvatarChanged={onAvatarChanged}
         portalContainer={portalContainer}
       />
       <TextInputField
@@ -822,13 +831,17 @@ function AgentBasicFields({
 
 function AgentAvatarNameField({
   form,
-  emojiPickerOpen,
-  setEmojiPickerOpen,
+  agentId,
+  avatarSrc,
+  avatarPickerOpen,
+  onAvatarChanged,
   portalContainer
 }: {
   form: UseFormReturn<AgentEditFormValues>
-  emojiPickerOpen: boolean
-  setEmojiPickerOpen: (open: boolean) => void
+  agentId: string
+  avatarSrc?: string
+  avatarPickerOpen: boolean
+  onAvatarChanged: (next: { avatarSrc?: string; emoji: string }) => void
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
@@ -849,17 +862,16 @@ function AgentAvatarNameField({
               name="avatar"
               render={({ field: avatarField }) => (
                 <InputGroupAddon className="py-0">
-                  <EmojiAvatarPicker
-                    value={avatarField.value}
-                    fallback="🤖"
-                    open={emojiPickerOpen}
-                    onOpenChange={setEmojiPickerOpen}
-                    onChange={avatarField.onChange}
-                    ariaLabel={t('library.config.dialogs.create.avatar_aria')}
-                    portalContainer={portalContainer}
-                    avatarClassName="border-0"
-                    avatarFontSize={18}
-                  />
+                  {avatarPickerOpen && (
+                    <AgentAvatarPicker
+                      agentId={agentId}
+                      emoji={avatarField.value}
+                      avatarSrc={avatarSrc}
+                      onChanged={onAvatarChanged}
+                      ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+                      portalContainer={portalContainer}
+                    />
+                  )}
                 </InputGroupAddon>
               )}
             />

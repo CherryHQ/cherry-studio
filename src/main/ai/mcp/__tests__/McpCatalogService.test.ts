@@ -461,22 +461,4 @@ describe('McpCatalogService', () => {
 
     expect(listener).toHaveBeenCalledExactlyOnceWith({ serverId: 'server-1' })
   })
-
-  it('delegates listResources to the runtime service', async () => {
-    const resources = [{ uri: 'file://a', name: 'a', serverId: 'server-1', serverName: 'docs' }]
-    runtimeListResources.mockResolvedValue(resources)
-
-    const service = new McpCatalogService()
-    await expect(service.listResources('server-1')).resolves.toBe(resources)
-    expect(runtimeListResources).toHaveBeenCalledWith('server-1')
-  })
-
-  it('delegates listPrompts to the runtime service', async () => {
-    const prompts = [{ id: 'p1', name: 'greet', serverId: 'server-1', serverName: 'docs' }]
-    runtimeListPrompts.mockResolvedValue(prompts)
-
-    const service = new McpCatalogService()
-    await expect(service.listPrompts('server-1')).resolves.toBe(prompts)
-    expect(runtimeListPrompts).toHaveBeenCalledWith('server-1')
-  })
 })

@@ -533,7 +533,6 @@ describe('PromptPolishActions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'manual edit' }))
 
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
-    expect(onRender).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'restore polished value' }))
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()

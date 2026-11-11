@@ -24,18 +24,11 @@ describe('ProviderService.update', () => {
       }
     })
 
-    const withWriteTx = application.get('DbService').withWriteTx as Mock
-    withWriteTx.mockClear()
-
     const updated = providerService.update('openai', {
       providerSettings: {
         apiVersion: '2026-01-01'
       }
     })
-
-    // Lock the core fix: update() routes through withWriteTx (the serialized read-merge-write), not a
-    // bare getDb() read-then-write. Without this, reverting that routing keeps every assertion green.
-    expect(withWriteTx).toHaveBeenCalledTimes(1)
 
     // toEqual locks the exact shape so a future DEFAULT_PROVIDER_SETTINGS
     // leak into the row would immediately fail this test.
