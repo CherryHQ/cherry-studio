@@ -15,9 +15,6 @@ const REJECTED_HEADER =
 export const UNATTENDED =
   'This unattended turn cannot request tool approval. Use bypassPermissions or retry interactively.'
 const UNATTENDED_REQUIRED = 'This tool always requires user approval and cannot run unattended. Retry interactively.'
-/** P3: global installs leak into every agent's environment, so they are blocked in every mode. */
-const globalInstallReason = (summary: string): string =>
-  `Blocked to avoid cross-agent dependency pollution: ${summary}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\`); for one-off tools use \`bun x <tool>\` / \`uvx <tool>\`.`
 /** An `unavailable` answer: the host could reach nobody to decide. */
 export const NOBODY_TO_APPROVE = 'Nobody can approve this tool call now.'
 /** The turn stopped while a person was asked; the call never ran. */
@@ -61,7 +58,7 @@ function requiresApproval(mode: PermissionMode, tool: string, host: ApprovalHost
   if (host.approvalRequired) return true
   if (host.category === 'meta') return false
   if (mode === 'auto') {
-    if (tool === 'bash') return host.destructive
+    if (tool === 'bash' || tool === 'powershell') return host.destructive
     if (host.category === 'read' || host.category === 'edit') return !host.withinAllowedRoots
     return false
   }
@@ -72,25 +69,30 @@ function requiresApproval(mode: PermissionMode, tool: string, host: ApprovalHost
 }
 
 /**
- * D34, in the host's order (P1–P13): a disabled tool, a SQLite write or a global install is blocked in every mode; the
- * host's rewrite applies in every mode; full access skips approvals except for non-bypassable tools; auto-approved
- * tools run; otherwise the mode decides, and with nobody to ask the call is blocked. In plan mode (D37) a call that
- * edits or would need approval is blocked with a pointer to `exit_plan_mode`.
+ * Disabled tools, protected SQLite and direct mise mutations are blocked in every mode.
+ * Ordinary global installs require approval under the root session's mode, with Full Access
+ * as the deliberate exception. Plan mode stays read-only; unavailable responders block
+ * approval-bound calls. Host rewrites apply in every mode.
  */
 export function decideApproval(
   call: GateCall,
   host: ApprovalHostFacts,
-  mode: PermissionMode,
+  permissionMode: PermissionMode,
   attendance: Attendance,
   plan: PlanState | undefined
 ): ApprovalDecision {
+  let mode = permissionMode
   if (host.disabled) return { kind: 'block', reason: `Tool "${call.tool}" is disabled for this agent.` }
   if (host.sqliteGuard) return { kind: 'block', reason: host.sqliteGuard }
   if (host.delegation === 'unattended')
     return { kind: 'block', reason: 'Cross-Session delegation requires an interactive user turn.' }
   if (host.delegation === 'interactive' && mode !== 'auto' && mode !== 'bypassPermissions')
     host = { ...host, approvalRequired: true }
-  if (host.globalInstall) return { kind: 'block', reason: globalInstallReason(host.globalInstall) }
+  if (host.miseMutation) return { kind: 'block', reason: `Blocked: ${host.miseMutation}.` }
+  if (host.globalInstall) {
+    host = { ...host, approvalRequired: true }
+    mode = host.globalInstallPermissionMode ?? mode
+  }
   const rewritten = host.rewrittenArgs === undefined ? {} : { args: host.rewrittenArgs }
   const autoAllowed = host.autoApproved && !host.approvalRequired
   // Plan mode is read-only whatever the permission mode: what would ask in `default` is blocked too.
@@ -101,8 +103,17 @@ export function decideApproval(
     return { kind: 'block', reason: PLAN_BLOCK }
   if (mode === 'bypassPermissions' && !host.nonBypassable) return { kind: 'allow', ...rewritten }
   if (autoAllowed || !requiresApproval(mode, call.tool, host)) return { kind: 'allow', ...rewritten }
-  if (attendance === 'unavailable')
-    return { kind: 'block', reason: host.approvalRequired ? UNATTENDED_REQUIRED : UNATTENDED }
+  if (attendance === 'unavailable') {
+    return {
+      kind: 'block',
+      reason:
+        host.globalInstall && !host.nonBypassable
+          ? UNATTENDED
+          : host.approvalRequired
+            ? UNATTENDED_REQUIRED
+            : UNATTENDED
+    }
+  }
   return { kind: 'ask', presentation: attendance === 'stream' ? 'stream' : 'message', ...rewritten }
 }
 

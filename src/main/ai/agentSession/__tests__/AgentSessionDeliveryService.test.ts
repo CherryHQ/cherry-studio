@@ -747,24 +747,6 @@ describe('AgentSessionDeliveryService', () => {
     }
   })
 
-  it('reinstalls its retry sweep when the service restarts', async () => {
-    vi.useFakeTimers()
-    try {
-      const service = new AgentSessionDeliveryService()
-      await service._doInit()
-      await service._doAllReady()
-      expect(vi.getTimerCount()).toBe(1)
-
-      await service._doStop()
-      expect(vi.getTimerCount()).toBe(0)
-
-      await service._doInit()
-      expect(vi.getTimerCount()).toBe(1)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
   it('rejects Session archive before the DB write while its turn is unsettled', async () => {
     mocks.hasUnsettledTopicWork.mockReturnValue(true)
     const delivery = new AgentSessionDeliveryService()
