@@ -40,3 +40,15 @@ describe('buildAgentUserContent', () => {
     expect(content).not.toContain(`- ${JSON.stringify(fileURLToPath(url))}:`)
   })
 })
+
+it('announces a marked note source rather than its managed copy', () => {
+  const part = {
+    ...filePart('file:///managed/copy', 'note.md'),
+    providerMetadata: {
+      cherry: { noteReference: true, originalPath: '/notes/note.md' }
+    }
+  } as CherryMessagePart
+  const content = buildAgentUserContent(message([part]))
+  expect(content).toContain('/notes/note.md')
+  expect(content).not.toContain('/managed/copy')
+})

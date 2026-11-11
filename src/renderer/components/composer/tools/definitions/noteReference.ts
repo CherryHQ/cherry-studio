@@ -17,6 +17,7 @@ export function noteToComposerAttachment(note: Pick<NotesTreeNode, 'externalPath
   return {
     fileTokenSourceId: createComposerFileTokenSourceId(),
     path: AbsoluteFilePathSchema.parse(note.externalPath),
+    noteReference: true,
     name: fileName,
     origin_name: fileName,
     ext: '.md',

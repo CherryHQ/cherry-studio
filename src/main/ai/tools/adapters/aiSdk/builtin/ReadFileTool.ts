@@ -23,6 +23,7 @@ import { loggerService } from '@logger'
 import { extractDocumentText, noExtractableTextNote } from '@main/ai/messages/attachmentTextExtraction'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
+import { readNoteSource } from '@main/services/notesDirectory'
 import {
   READ_FILE_PAGE_SIZE,
   READ_FILE_TOOL_NAME,
@@ -91,6 +92,12 @@ export async function readFile(
   if (!entry) {
     const available = attachments.map((a) => a.handle).join(', ') || '(none)'
     return { error: `No attached file named "${input.filename}". Available: ${available}` }
+  }
+  if (entry.noteSourcePath) {
+    const result = await readNoteSource(entry.noteSourcePath, signal)
+    return result.ok
+      ? paginate(result.text, input.offset, input.limit)
+      : textResult(`Could not read note "${entry.handle}": ${result.reason}`)
   }
   const entryId = entry.fileEntryId
 

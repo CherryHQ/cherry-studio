@@ -134,7 +134,7 @@ describe('useNoteReferenceMentionItems', () => {
       expect.objectContaining({
         kind: 'file',
         label: 'Daily.md',
-        payload: expect.objectContaining({ path: '/configured-notes/Daily.md', type: 'text' })
+        payload: expect.objectContaining({ path: '/configured-notes/Daily.md', type: 'text', noteReference: true })
       })
     )
     expect(run).toHaveBeenCalled()

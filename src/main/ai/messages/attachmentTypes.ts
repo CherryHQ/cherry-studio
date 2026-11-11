@@ -23,4 +23,5 @@ export interface FileAttachmentRef {
   readonly fileEntryId: string
   readonly handle: string
   readonly displayName: string
+  readonly noteSourcePath?: string
 }

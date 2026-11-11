@@ -5,8 +5,11 @@ import { Worker } from 'node:worker_threads'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as FileUtils from '@main/utils/file'
+
 import type { RuntimeForkResult } from '../../fork'
 import { forkClaudeSession } from '../claudeFork'
+import type * as SettingsBuilder from '../settingsBuilder'
 
 vi.mock('../forkWorker?nodeWorker', () => ({
   default: (options: ConstructorParameters<typeof Worker>[1]) =>
@@ -288,4 +291,94 @@ describe('Claude native forks', () => {
     await writeFile(file, content)
     await expect(forkClaudeSession(forkInput())).rejects.toMatchObject({ reason })
   })
+})
+
+const notePorts = vi.hoisted(() => ({ read: vi.fn(), submit: vi.fn(), managed: vi.fn() }))
+vi.mock('@main/services/notesDirectory', () => ({ readNoteSource: notePorts.read }))
+vi.mock('@main/utils/file', async (original) => ({
+  ...(await original<typeof FileUtils>()),
+  probeReadable: vi.fn().mockResolvedValue('readable')
+}))
+vi.mock('../agentSessionWarmup', () => ({
+  buildClaudeCodeQueryRequestForAgentSession: vi
+    .fn()
+    .mockResolvedValue({ key: 's', options: { cwd: '/workspace', env: {} }, settings: {}, sdkModelId: 'model' })
+}))
+vi.mock('../claudeContext', () => ({
+  prepareClaudeBranch: () => ({ id: 'context', backendId: 'backend', nativeThreadId: 'native' })
+}))
+vi.mock('@data/services/AgentSessionContextService', () => ({ agentSessionContextService: { children: () => [] } }))
+vi.mock('@main/ai/agentSession/nativeSubmission', () => ({
+  prepareNativeSubmission: () => ({ inputId: 'input' }),
+  applyNativeSubmissionResult: vi.fn(),
+  bindNativeInput: vi.fn(),
+  lookupNativeInput: vi.fn()
+}))
+vi.mock('../settingsBuilder', async (original) => ({
+  ...(await original<typeof SettingsBuilder>()),
+  registerMcpSessionCatalogSync: vi.fn()
+}))
+vi.mock('@cherrystudio/agent-runtime-claude-code', () => ({
+  createClaudeCodeRuntime: () => ({
+    create: async () => ({
+      status: 'confirmed',
+      value: {
+        thread: { id: 'thread' },
+        claude: {
+          observe: async () => ({ status: 'confirmed', value: {} }),
+          start: () => ({ status: 'confirmed' }),
+          submit: notePorts.submit
+        }
+      }
+    })
+  })
+}))
+
+it.each([
+  ['announces the source path for a readable marked note', true, true],
+  ['reports a missing marked note as unavailable', true, false],
+  ['announces the managed path for an unmarked attachment', false, true]
+])('%s', async (_name, marked, readable) => {
+  const { MockApplicationUtils } = await import('@test-mocks/main/application')
+  const { ClaudeCodeRuntimeDriver } = await import('../ClaudeCodeRuntimeDriver')
+  const source = '/notes/note.md'
+  const managed = '/managed/note.md'
+  MockApplicationUtils.setService('FileManager', { getPhysicalPath: notePorts.managed.mockReturnValue(managed) })
+  MockApplicationUtils.setService('ClaudeCodeWarmQueryManager', { consume: vi.fn().mockResolvedValue(undefined) })
+  notePorts.read.mockResolvedValue(
+    readable ? { ok: true, path: source, text: 'live' } : { ok: false, reason: 'missing' }
+  )
+  notePorts.submit.mockResolvedValue({ status: 'acknowledged' })
+  try {
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 's',
+      agentId: 'a',
+      modelId: 'provider::model',
+      resumeToken: 'resume'
+    } as never)
+    await connection.send({
+      message: {
+        id: 'm',
+        data: {
+          parts: [
+            {
+              type: 'file',
+              url: 'file:///snapshot/note.md',
+              filename: 'note.md',
+              mediaType: 'text/markdown',
+              providerMetadata: {
+                cherry: { fileEntryId: 'e1', ...(marked ? { noteReference: true, originalPath: source } : {}) }
+              }
+            }
+          ]
+        }
+      }
+    } as never)
+    const content = notePorts.submit.mock.calls.at(-1)![1]
+    expect(content).toContain(marked ? (readable ? source : 'Unavailable attachments: note.md') : managed)
+    if (marked) expect(content).not.toContain(managed)
+  } finally {
+    MockApplicationUtils.resetServices()
+    vi.clearAllMocks()
+  }
 })

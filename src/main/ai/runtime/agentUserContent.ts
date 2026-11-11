@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 import { defangSystemReminderTags } from '@main/ai/untrustedContent'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
 /**
  * Build the user-turn content sent to an agent runtime. Agent runtimes are
@@ -72,7 +73,11 @@ function extractAttachments(message: AgentSessionMessageEntity): Array<{ filenam
   for (const part of message.data?.parts ?? []) {
     // `parts` is a typed `CherryMessagePart[]`, so `type === 'file'` narrows to `FileUIPart`.
     if (part.type !== 'file' || !part.url.startsWith('file://')) continue
-    attachments.push({ filename: part.filename, path: fileURLToPath(part.url) })
+    const meta = readCherryMeta(part)
+    attachments.push({
+      filename: part.filename,
+      path: meta?.noteReference && meta.originalPath ? meta.originalPath : fileURLToPath(part.url)
+    })
   }
   return attachments
 }
