@@ -36,6 +36,7 @@ vi.mock('@renderer/hooks/useWebSearchFallbackNotice', () => ({ useWebSearchFallb
 vi.mock('@renderer/hooks/useMiniApps', () => ({ useMiniAppListSync: () => {} }))
 vi.mock('@renderer/hooks/useTopic', () => ({ useTopicAutoRenameSync: () => {} }))
 vi.mock('@renderer/hooks/agent/useSession', () => ({ useAgentSessionAutoRenameSync: () => {} }))
+vi.mock('@renderer/hooks/agent/useAgentTabIconChangeSync', () => ({ useAgentTabIconChangeSync: () => {} }))
 vi.mock('@renderer/hooks/tab', () => ({ useConversationTabTitleChangeSync: () => {} }))
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({ default: () => false }))
 vi.mock('@renderer/services/toast', () => ({ toast: { info: vi.fn() } }))

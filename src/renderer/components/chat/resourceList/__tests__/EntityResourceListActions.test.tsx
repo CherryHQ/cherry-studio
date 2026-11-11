@@ -22,6 +22,7 @@ import { AgentResourceList } from '../AgentResourceList'
 import { AssistantResourceList } from '../AssistantResourceList'
 
 const assistantDataMocks = vi.hoisted(() => ({
+  avatarSrc: undefined as string | undefined,
   assistants: [
     {
       id: 'assistant-1',
@@ -341,7 +342,10 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     restoreAssistant: assistantDataMocks.restoreAssistant
   }),
   useAssistantsApi: () => ({
-    assistants: assistantDataMocks.assistants,
+    assistants: assistantDataMocks.assistants.map((assistant) => ({
+      ...assistant,
+      avatarSrc: assistant.id === 'assistant-1' ? assistantDataMocks.avatarSrc : undefined
+    })),
     error: null,
     hasLoaded: true,
     isLoading: false,
@@ -536,6 +540,7 @@ describe('classic layout entity resource list actions', () => {
   }
 
   beforeEach(() => {
+    assistantDataMocks.avatarSrc = undefined
     MockUseCacheUtils.resetMocks()
     agentDataMocks.agents = [
       {
@@ -636,6 +641,22 @@ describe('classic layout entity resource list actions', () => {
     )
     permanentDeletePopupMocks.show.mockReset()
     permanentDeletePopupMocks.show.mockResolvedValue(false)
+  })
+
+  it('shows assistant image icons and preserves the emoji fallback', () => {
+    assistantDataMocks.avatarSrc = 'file:///avatar.webp'
+    const { rerender } = render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+    const image = screen.getByAltText('')
+    expect(image).toHaveAttribute('src', 'file:///avatar.webp')
+    fireEvent.error(image)
+    expect(screen.getByText('A')).toBeVisible()
+    assistantDataMocks.avatarSrc = undefined
+    rerender(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+    expect(screen.getByText('A')).toBeVisible()
   })
 
   it('uses archive-assistant actions for the classic layout assistant context and more menus', async () => {

@@ -13,9 +13,17 @@ import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as UseModelModule from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import type { Assistant } from '@shared/data/types/assistant'
+
+vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(() => null), prepareEntityImageBytes: vi.fn() }))
+vi.mock('@renderer/components/EmojiPicker/emojiSupport', () => ({
+  detectEmojiSupportLevel: async () => 15,
+  detectUnsupportedZwjEmojiIds: async () => []
+}))
 
 const {
   bindPromptMock,
@@ -120,6 +128,18 @@ const MODEL = vi.hoisted(
     }) as const
 )
 
+const DEFAULT_PROMPT_MODEL = vi.hoisted(
+  () =>
+    ({
+      id: 'openai::gpt-4o',
+      name: 'GPT-4o',
+      providerId: 'openai'
+    }) as const
+)
+
+const POLISH_PROMPT_BUTTON = 'Polish prompt · GPT-4o'
+const GENERATE_PROMPT_BUTTON = 'Generate prompt · GPT-4o'
+
 vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     trigger,
@@ -150,14 +170,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
   return actual
 })
-
-vi.mock('@renderer/components/EmojiPicker', () => ({
-  EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
-    <button type="button" onClick={() => onEmojiClick('🎓')}>
-      Choose emoji
-    </button>
-  )
-}))
 
 vi.mock('@renderer/components/PromptEditorField', () => ({
   default: ({
@@ -311,6 +323,14 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: fetchGenerateMock
 }))
 
+vi.mock('@renderer/hooks/useModel', async (importOriginal) => {
+  const actual = await importOriginal<typeof UseModelModule>()
+  return {
+    ...actual,
+    useDefaultModel: () => ({ defaultModel: DEFAULT_PROMPT_MODEL })
+  }
+})
+
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: openSettingsTabMock
 }))
@@ -335,6 +355,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           // definitions' own fallbacks, so copy changes need no edit here.
           'agent.settings.skills.addMore': 'Manage Skills',
           'common.avatar': 'Avatar',
+          'settings.general.image_upload': 'Image Upload',
+          'settings.general.emoji_picker': 'Emoji Picker',
+          'settings.general.avatar.reset': 'Reset Avatar',
           'common.add': 'Add',
           'common.cancel': 'Cancel',
           'common.more': 'More',
@@ -447,14 +470,31 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.label': 'System Prompt',
           'library.config.prompt.placeholder': 'Tell this assistant how to respond',
           'library.config.prompt.dblclick_hint': 'Double-click to edit',
+          'library.config.prompt.cancel_with_model': `Cancel · ${
+            typeof fallbackOrOptions === 'object' && fallbackOrOptions?.model != null
+              ? String(fallbackOrOptions.model)
+              : ''
+          }`,
           'library.config.prompt.generate': 'Generate prompt',
           'library.config.prompt.generate_failed_description': 'Check or change the default model, then try again.',
           'library.config.prompt.generate_failed_title': 'Failed to generate prompt',
+          'library.config.prompt.generate_with_model': `Generate prompt · ${
+            typeof fallbackOrOptions === 'object' && fallbackOrOptions?.model != null
+              ? String(fallbackOrOptions.model)
+              : ''
+          }`,
+          'library.config.prompt.no_default_model': 'No default model',
+          'library.config.prompt.open_default_model_settings': 'Open default model settings',
           'library.config.prompt.polish': 'Polish prompt',
           'library.config.prompt.polish_failed_description': 'Check or change the default model, then try again.',
           'library.config.prompt.polish_failed_title': 'Failed to polish prompt',
           'library.config.prompt.polish_variables_changed_description': 'Prompt variables changed.',
           'library.config.prompt.polish_variables_changed_title': 'Could not apply polished prompt',
+          'library.config.prompt.polish_with_model': `Polish prompt · ${
+            typeof fallbackOrOptions === 'object' && fallbackOrOptions?.model != null
+              ? String(fallbackOrOptions.model)
+              : ''
+          }`,
           'library.config.prompt.tokens_label': 'Tokens: ',
           'library.config.prompt.variables_description':
             'Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.',
@@ -613,6 +653,14 @@ const PI_AGENT: AgentDetail = {
 }
 
 beforeAll(() => {
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
   if (!HTMLElement.prototype.hasPointerCapture) {
     HTMLElement.prototype.hasPointerCapture = () => false
   }
@@ -1350,6 +1398,59 @@ describe('edit dialogs', () => {
         })
       })
     )
+    for (const [payload] of updateAssistantMock.mock.calls) {
+      expect(payload.body).not.toHaveProperty('emoji')
+    }
+  })
+
+  it('saves avatar changes through IPC without a PATCH on immediate close', async () => {
+    const data = new Uint8Array([1, 2, 3])
+    vi.mocked(prepareEntityImageBytes).mockResolvedValue(data)
+    ipcRequestMock.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const { rerender } = render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
+    await user.clear(screen.getByLabelText('Name'))
+    await user.type(screen.getByLabelText('Name'), 'Renamed assistant')
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    expect(updateAssistantMock.mock.calls[0][0].body).not.toHaveProperty('emoji')
+    await user.click(screen.getByRole('button', { name: 'Pick avatar' }))
+    const file = new File(['image'], 'avatar.png', { type: 'image/png' })
+    await user.upload(screen.getByLabelText('Image Upload'), file)
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('assistant.set_avatar', {
+        assistantId: ASSISTANT.id,
+        avatar: { kind: 'image', data }
+      })
+    )
+    expect(checkEntityImageSize).toHaveBeenCalledWith(file)
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={onOpenChange} />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+    expect(invalidateCacheMock).toHaveBeenCalledWith([`/assistants/${ASSISTANT.id}`, '/assistants'])
+  })
+
+  it('keeps a late avatar completion out of a reopened editing session without a PATCH', async () => {
+    const pendingAvatar = createDeferred<void>()
+    ipcRequestMock.mockReturnValueOnce(pendingAvatar.promise)
+    const user = userEvent.setup()
+    const { rerender } = render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Pick avatar' }))
+    await user.click(screen.getByRole('button', { name: 'Reset Avatar' }))
+    expect(ipcRequestMock).toHaveBeenCalledWith('assistant.set_avatar', {
+      assistantId: ASSISTANT.id,
+      avatar: { kind: 'default' }
+    })
+    rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={vi.fn()} />)
+    rerender(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Pick avatar' }))
+    await act(async () => pendingAvatar.resolve(undefined))
+    expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeVisible()
+    expect(updateAssistantMock).not.toHaveBeenCalled()
   })
 
   it('shows the clear model affordance beside the chevron and clears the selected model', async () => {
@@ -1658,12 +1759,13 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('System Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON }))
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished agent instructions'))
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original instructions',
+      model: DEFAULT_PROMPT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
@@ -1681,7 +1783,7 @@ describe('edit dialogs', () => {
 
     selectTab('System Prompt')
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
-    const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
+    const generateButton = screen.getByRole('button', { name: GENERATE_PROMPT_BUTTON })
     expect(generateButton).toBeEnabled()
     fireEvent.click(generateButton)
 
@@ -1690,6 +1792,7 @@ describe('edit dialogs', () => {
         expect.objectContaining({
           prompt: expect.stringContaining('You are a Prompt Generator.'),
           content: 'Alpha Agent',
+          model: DEFAULT_PROMPT_MODEL,
           throwOnError: true
         })
       )
@@ -1704,7 +1807,7 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
 
     selectTab('System Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON }))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     selectTab('Basic')
 
@@ -2024,7 +2127,7 @@ describe('edit dialogs', () => {
 
     selectTab('System Prompt')
     await expectVariablesHelpOnOpen()
-    const polishButton = screen.getByRole('button', { name: 'Polish prompt' })
+    const polishButton = screen.getByRole('button', { name: POLISH_PROMPT_BUTTON })
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
     fireEvent.click(polishButton)
 
@@ -2032,6 +2135,7 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original prompt',
+      model: DEFAULT_PROMPT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
@@ -2048,20 +2152,21 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={{ ...ASSISTANT, prompt: '' }} onOpenChange={vi.fn()} />)
 
     selectTab('System Prompt')
-    const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
+    const generateButton = screen.getByRole('button', { name: GENERATE_PROMPT_BUTTON })
     fireEvent.click(generateButton)
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated prompt'))
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('You are a Prompt Generator.'),
       content: 'Alpha Assistant',
+      model: DEFAULT_PROMPT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
     expect(fetchGenerateMock.mock.calls[0][0].prompt).not.toContain(
       'Create a useful system prompt from the supplied name or title.'
     )
-    expect(screen.getByRole('button', { name: 'Polish prompt' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON })).toBeInTheDocument()
   })
 
   it('allows closing and tab navigation while an assistant prompt action is in flight', async () => {
@@ -2070,7 +2175,7 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
     selectTab('System Prompt')
-    fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON }))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     selectTab('Basic')
 
@@ -2470,13 +2575,29 @@ describe('edit dialogs', () => {
     frames.restore()
   })
 
+  it('opens the agent avatar menu from its only avatar control', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    const dialog = screen.getByRole('dialog')
+    const avatarControls = within(dialog).getAllByRole('button', { name: 'Pick avatar' })
+    expect(avatarControls).toHaveLength(1)
+    await user.click(avatarControls[0])
+
+    expect(screen.getByRole('button', { name: 'Image Upload' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Emoji Picker' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeVisible()
+    expect(screen.queryByRole('textbox', { name: 'Type to search for an emoji' })).not.toBeInTheDocument()
+  })
+
   it('keeps popover content inside the dialog container', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     const dialog = screen.getByRole('dialog')
     fireEvent.click(screen.getByLabelText('Pick avatar'))
+    fireEvent.click(screen.getByRole('button', { name: 'Emoji Picker' }))
 
-    expect(dialog).toContainElement(screen.getByRole('button', { name: 'Choose emoji' }))
+    expect(dialog).toContainElement(await screen.findByRole('textbox', { name: 'Type to search for an emoji' }))
   })
 
   it('keeps edited values while switching tabs before save', async () => {

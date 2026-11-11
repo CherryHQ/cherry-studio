@@ -15,6 +15,7 @@ import {
 import { ScrollArea } from '@cherrystudio/ui'
 import { Checkbox, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import {
   MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
   ModelSelectorRow,
@@ -32,6 +33,7 @@ export type ResourceSelectorShellItem = {
   id: string
   name: string
   emoji?: string
+  avatarSrc?: string
   icon?: ReactNode
   description?: string
   groupId?: string
@@ -260,7 +262,14 @@ function ResourceSelectorOptionRowComponent<T extends ResourceSelectorShellItem>
             />
           ) : null
         }
-        leading={leading}
+        leading={
+          <AssistantAvatarImage
+            src={item.avatarSrc}
+            alt={item.name}
+            className="size-5 shrink-0 rounded-full object-cover"
+            fallback={leading}
+          />
+        }
         trailing={trailing}
         actions={
           <>

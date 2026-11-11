@@ -86,6 +86,10 @@ export function AgentGroupMoreMenu({
 }
 
 export function WorkdirGroupMoreMenu({
+  canPin,
+  pinned,
+  pinDisabled,
+  onTogglePin,
   canDelete,
   canRename,
   deleteDisabled,
@@ -98,6 +102,10 @@ export function WorkdirGroupMoreMenu({
 }: {
   canDelete: boolean
   canRename: boolean
+  canPin: boolean
+  pinned: boolean
+  pinDisabled?: boolean
+  onTogglePin: (group: ResourceListGroup) => void | Promise<void>
   deleteDisabled?: boolean
   group: ResourceListGroup
   onDelete: (group: ResourceListGroup) => void | Promise<void>
@@ -108,6 +116,10 @@ export function WorkdirGroupMoreMenu({
 }) {
   const { t } = useTranslation()
   const actionContext: WorkdirGroupActionContext = {
+    canPin,
+    pinned,
+    pinDisabled,
+    onTogglePin,
     canDelete,
     canRename,
     deleteDisabled,

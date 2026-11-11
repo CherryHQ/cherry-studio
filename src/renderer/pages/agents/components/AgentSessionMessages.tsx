@@ -110,7 +110,7 @@ const AgentSessionMessages = ({
             avatarIcon: activeAgent.configuration?.localRuntime ? (
               <LocalAgentIcon presetId={activeAgent.configuration.localRuntime.presetId} size={30} />
             ) : undefined,
-            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
+            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
           }
         : undefined,
     [activeAgent]

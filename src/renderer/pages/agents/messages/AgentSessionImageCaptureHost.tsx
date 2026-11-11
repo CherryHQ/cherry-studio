@@ -71,7 +71,10 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
           avatarIcon: captureTarget.activeAgent.configuration?.localRuntime ? (
             <LocalAgentIcon presetId={captureTarget.activeAgent.configuration.localRuntime.presetId} size={30} />
           ) : undefined,
-          avatar: getAgentAvatarFromConfiguration(captureTarget.activeAgent.configuration)
+          avatar: getAgentAvatarFromConfiguration(
+            captureTarget.activeAgent.configuration,
+            captureTarget.activeAgent.avatarSrc
+          )
         }
       : undefined,
     assistantId: captureTarget.session.agentId ?? undefined,

@@ -1408,7 +1408,7 @@ export class AgentSessionService {
     })
     publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
     this.notifyReadModelChange(result.deletedIds, 'membership')
-    if (result.deletedIds.length > 0) pinService.notifyPurged()
+    pinService.notifyPurged()
     logger.info('Deleted user workspace', {
       workspaceId,
       deletedSessionCount: result.deletedIds.length,

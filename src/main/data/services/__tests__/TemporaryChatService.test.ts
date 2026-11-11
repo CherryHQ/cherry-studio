@@ -1,13 +1,18 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainFileManagerExport } from '@test-mocks/main/FileManager'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
+import { fileEntryTable } from '@data/db/schemas/file'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { fileRefService } from '@data/services/FileRefService'
+import { messageService } from '@data/services/MessageService'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
+import type { FileEntryId } from '@shared/data/types/file'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -386,5 +391,75 @@ describe('TemporaryChatService', () => {
     // tests in the harness. We drop this specific scenario — the rollback
     // semantics are better exercised by the handler-layer integration test
     // that uses a fresh tmpdir per case.
+  })
+
+  describe('frozen avatar retention handoff', () => {
+    const fileId = '019606a0-0000-7000-8000-00000000aa04' as FileEntryId
+    function prepare() {
+      dbh.db
+        .insert(fileEntryTable)
+        .values({
+          id: fileId,
+          origin: 'internal',
+          name: 'avatar',
+          ext: 'webp',
+          size: 1,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+        .run()
+      const topic = service.createTopic({ name: 'Temporary' })
+      service.retainAvatar(topic.id, fileId)
+      const retention = MockMainFileManagerExport.fileManager.retainTemporaryEntry.mock.results.at(-1)!.value
+      const message = service.appendMessage(topic.id, {
+        role: 'assistant',
+        data: mainText('Hello'),
+        messageSnapshot: {
+          id: 'author',
+          name: 'Author',
+          avatarFileId: fileId,
+          model: { id: 'm', name: 'M', provider: 'p' }
+        }
+      })
+      return { topic, message, retention }
+    }
+    it('retains until message and refs commit, and releases only after that commit', () => {
+      const { topic, message, retention } = prepare()
+      expect(retention.dispose).not.toHaveBeenCalled()
+      retention.dispose.mockImplementation(() => {
+        expect(fileRefService.findBySource({ sourceType: 'chat_message', sourceId: message.id })).toEqual([
+          expect.objectContaining({ fileEntryId: fileId, role: 'author_avatar' })
+        ])
+      })
+      service.persist(topic.id)
+      expect(retention.dispose).toHaveBeenCalledTimes(1)
+      expect(service.hasTopic(topic.id)).toBe(false)
+      expect(
+        dbh.db.select().from(messageTable).where(eq(messageTable.id, message.id)).get()?.messageSnapshot?.avatarFileId
+      ).toBe(fileId)
+    })
+    it('keeps the buffered data and retention when promotion fails, allowing retry', () => {
+      const { topic, message, retention } = prepare()
+      const insert = messageService.insertPromotedMessageTx.bind(messageService)
+      const failure = vi.spyOn(messageService, 'insertPromotedMessageTx').mockImplementationOnce((tx, row) => {
+        insert(tx, row)
+        throw new Error('promotion failed after refs')
+      })
+      expect(() => service.persist(topic.id)).toThrow('promotion failed after refs')
+      failure.mockRestore()
+      expect(dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).all()).toEqual([])
+      expect(dbh.db.select().from(messageTable).where(eq(messageTable.id, message.id)).all()).toEqual([])
+      expect(service.listMessages(topic.id).map((m) => m.id)).toEqual([message.id])
+      expect(fileRefService.findByEntryId(fileId)).toEqual([])
+      expect(retention.dispose).not.toHaveBeenCalled()
+      service.persist(topic.id)
+      expect(fileRefService.findByEntryId(fileId)).toEqual([expect.objectContaining({ role: 'author_avatar' })])
+      expect(retention.dispose).toHaveBeenCalledTimes(1)
+    })
+    it('releases on temporary topic deletion', () => {
+      const { topic, retention } = prepare()
+      service.deleteTopic(topic.id)
+      expect(retention.dispose).toHaveBeenCalledTimes(1)
+      expect(fileRefService.findByEntryId(fileId)).toEqual([])
+    })
   })
 })

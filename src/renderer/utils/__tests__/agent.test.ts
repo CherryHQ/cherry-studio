@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_AGENT_AVATAR, getAgentAvatar, getAgentDescriptionForDisplay, getPermissionModeCards } from '../agent'
+import {
+  DEFAULT_AGENT_AVATAR,
+  getAgentAvatar,
+  getAgentAvatarFromConfiguration,
+  getAgentDescriptionForDisplay,
+  getPermissionModeCards
+} from '../agent'
 
 describe('agent utilities', () => {
   it('normalizes blank stored avatars to the default agent avatar', () => {
@@ -12,6 +18,11 @@ describe('agent utilities', () => {
 
   it('preserves non-blank stored avatars after trimming', () => {
     expect(getAgentAvatar('  🦞  ')).toBe('🦞')
+  })
+
+  it('prefers an uploaded image while retaining the configured emoji fallback', () => {
+    expect(getAgentAvatarFromConfiguration({ avatar: '🌟' }, 'file:///avatar.webp')).toBe('file:///avatar.webp')
+    expect(getAgentAvatarFromConfiguration({ avatar: '🌟' })).toBe('🌟')
   })
 
   it('uses localized builtin Cherry Assistant description only when the stored description is empty', () => {

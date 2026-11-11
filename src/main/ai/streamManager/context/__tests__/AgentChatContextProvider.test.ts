@@ -195,6 +195,24 @@ describe('AgentChatContextProvider', () => {
     }
   )
 
+  it('snapshots the agent avatar identity instead of its URL', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      name: 'My Agent',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet',
+      configuration: { avatar: '🌟' },
+      avatarFileId: 'file-1',
+      avatarSrc: 'file:///avatar.webp'
+    })
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+    const snapshot = prepared.reservedMessages?.find((message) => message.role === 'assistant')?.metadata
+      ?.messageSnapshot
+    expect(snapshot).toMatchObject({ emoji: '🌟', avatarFileId: 'file-1' })
+    expect(JSON.stringify(snapshot)).not.toContain('file:///avatar.webp')
+  })
+
   it('prepares fresh agent-session dispatch through the long-lived runtime service', async () => {
     const subscriber = makeSubscriber()
     mocks.runtimeIsSessionBusy.mockReturnValue(false)

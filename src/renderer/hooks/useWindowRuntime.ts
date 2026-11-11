@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useAgentTabIconChangeSync } from '@renderer/hooks/agent/useAgentTabIconChangeSync'
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useConversationTabTitleChangeSync } from '@renderer/hooks/tab'
@@ -131,6 +132,7 @@ export function useWindowRuntime(): void {
   useAgentSessionAutoRenameSync()
   // Relabels tabs bound to a renamed conversation, whichever window renamed it.
   useConversationTabTitleChangeSync()
+  useAgentTabIconChangeSync()
 
   // Launcher-list convergence after IPC-side writes: exactly once per window,
   // and outside every `<Activity>`.
