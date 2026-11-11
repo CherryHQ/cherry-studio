@@ -33,12 +33,13 @@ import { getApplicationId } from '@main/utils/appEdition'
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
 requireSingleInstance()
-trackProcessExit()
+// Freeze the path registry — bootstrap() asserts this completed. Early enough
+// that preboot recorders can consume centrally resolved paths.
+application.initPathRegistry()
+trackProcessExit(application.getPath('app.userdata'))
 configureChromiumFlags()
 configureRemoteDebugging()
 initCrashTelemetry()
-// Freeze the path registry — bootstrap() asserts this completed.
-application.initPathRegistry()
 const isolatedRestoreSession = prepareBackupRestoreSession()
 initSentry()
 // Privileged schemes must be declared before the app is ready, and only ONCE per

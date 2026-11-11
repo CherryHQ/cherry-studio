@@ -493,6 +493,29 @@ describe('userDataRelocation execution', () => {
     expectCommitted(target)
   })
 
+  it('excludes the live exit record when copying the userData root', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'data.txt'), 'data')
+    // A mid-heartbeat record has no exit marker; copying it would make the
+    // relocated profile's first launch misreport a kill.
+    fs.writeFileSync(
+      path.join(source, 'last-session.json'),
+      JSON.stringify({ pid: 1234, startedAt: '2026-01-01T00:00:00.000Z', heartbeatAt: '2026-01-01T00:00:05.000Z', memMB: 200 })
+    )
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocation } = await loadDomain()
+    await expect(runUserDataRelocation()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(target, 'data.txt'), 'utf8')).toBe('data')
+    expect(fs.existsSync(path.join(target, 'last-session.json'))).toBe(false)
+    expectCommitted(target)
+  })
+
   it('materializes symlinks without creating links in the target', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')

@@ -9,10 +9,9 @@ const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 let userDataDir: string
 let recordFile: string
 
-async function loadModule(dir: string = userDataDir) {
+async function loadModule(_dir: string = userDataDir) {
   vi.resetModules()
   vi.doMock('@logger', () => ({ loggerService: { withContext: () => logger } }))
-  vi.doMock('electron', () => ({ app: { getPath: () => dir } }))
   return import('../exitRecord')
 }
 
@@ -32,13 +31,12 @@ describe('exitRecord', () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     vi.doUnmock('@logger')
-    vi.doUnmock('electron')
     fs.rmSync(userDataDir, { recursive: true, force: true })
   })
 
   it('logs nothing about a previous exit on first launch', async () => {
     const { trackProcessExit } = await loadModule()
-    trackProcessExit()
+    trackProcessExit(userDataDir)
 
     expect(logger.info).not.toHaveBeenCalled()
     expect(logger.warn).not.toHaveBeenCalled()
@@ -47,7 +45,7 @@ describe('exitRecord', () => {
 
   it('refreshes the heartbeat on every interval so the last timestamp is accurate to one interval', async () => {
     const { trackProcessExit, HEARTBEAT_INTERVAL_MS } = await loadModule()
-    trackProcessExit()
+    trackProcessExit(userDataDir)
     const first = readRecord().heartbeatAt
 
     vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS)
@@ -57,31 +55,31 @@ describe('exitRecord', () => {
 
   it('reports a graceful exit with its reason on the next launch', async () => {
     const first = await loadModule()
-    first.trackProcessExit()
+    first.trackProcessExit(userDataDir)
     first.noteExitReason('quit')
     first.recordExit()
 
     const next = await loadModule()
-    next.trackProcessExit()
+    next.trackProcessExit(userDataDir)
 
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('previous exit: graceful (quit)'))
   })
 
   it('reports an OS shutdown distinctly', async () => {
     const first = await loadModule()
-    first.trackProcessExit()
+    first.trackProcessExit(userDataDir)
     first.noteExitReason('system-shutdown')
     first.recordExit()
 
     const next = await loadModule()
-    next.trackProcessExit()
+    next.trackProcessExit(userDataDir)
 
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('previous exit: system shutdown'))
   })
 
   it('scopes the record to the resolved userData profile so independently locked profiles never collide', async () => {
     const first = await loadModule()
-    first.trackProcessExit()
+    first.trackProcessExit(userDataDir)
     first.noteExitReason('quit')
     first.recordExit()
 
@@ -90,7 +88,7 @@ describe('exitRecord', () => {
       // A second packaged copy with its own userData (and its own
       // single-instance lock) sees no previous exit and writes its own record.
       const other = await loadModule(otherDir)
-      other.trackProcessExit()
+      other.trackProcessExit(otherDir)
 
       expect(logger.info).not.toHaveBeenCalled()
       expect(logger.warn).not.toHaveBeenCalled()
@@ -98,7 +96,7 @@ describe('exitRecord', () => {
 
       // The first profile's record is untouched by the other profile.
       const next = await loadModule()
-      next.trackProcessExit()
+      next.trackProcessExit(userDataDir)
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('previous exit: graceful (quit)'))
     } finally {
       fs.rmSync(otherDir, { recursive: true, force: true })
@@ -107,13 +105,13 @@ describe('exitRecord', () => {
 
   it('reports a forced exit as forced, not graceful, keeping the requested reason', async () => {
     const first = await loadModule()
-    first.trackProcessExit()
+    first.trackProcessExit(userDataDir)
     first.noteExitReason('force-exit')
     first.markExitForced()
     first.recordExit()
 
     const next = await loadModule()
-    next.trackProcessExit()
+    next.trackProcessExit(userDataDir)
 
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('previous exit: forced (force-exit)'))
     expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('graceful'))
@@ -121,7 +119,7 @@ describe('exitRecord', () => {
 
   it('reports a shutdown-timeout truncation as forced even when a quit was in progress', async () => {
     const first = await loadModule()
-    first.trackProcessExit()
+    first.trackProcessExit(userDataDir)
     first.noteExitReason('quit')
     // The shutdown-timeout fuse marks the exit forced, then process.exit(1)
     // reaches the exit hook with the requested reason still noted.
@@ -129,9 +127,23 @@ describe('exitRecord', () => {
     first.recordExit('exit(1)')
 
     const next = await loadModule()
-    next.trackProcessExit()
+    next.trackProcessExit(userDataDir)
 
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('previous exit: forced (quit)'))
+  })
+
+  it('reports a system-shutdown cleanup cut short by the timeout fuse as forced, keeping the shutdown reason', async () => {
+    const first = await loadModule()
+    first.trackProcessExit(userDataDir)
+    first.noteExitReason('system-shutdown')
+    first.markExitForced()
+    first.recordExit()
+
+    const next = await loadModule()
+    next.trackProcessExit(userDataDir)
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('previous exit: forced (system-shutdown)'))
+    expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('previous exit: system shutdown'))
   })
 
   it('treats records written before outcomes existed as graceful', async () => {
@@ -146,14 +158,14 @@ describe('exitRecord', () => {
       })
     )
     const { trackProcessExit } = await loadModule()
-    trackProcessExit()
+    trackProcessExit(userDataDir)
 
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('previous exit: graceful (quit)'))
   })
 
   it('persists observed system-shutdown intent before teardown and reports an interrupted shutdown', async () => {
     const first = await loadModule()
-    first.trackProcessExit()
+    first.trackProcessExit(userDataDir)
     first.noteExitReason('system-shutdown')
 
     // The intent is on disk before any exit marker: termination during async
@@ -161,7 +173,7 @@ describe('exitRecord', () => {
     expect(readRecord().shutdownIntent).toBe('system-shutdown')
 
     const next = await loadModule()
-    next.trackProcessExit()
+    next.trackProcessExit(userDataDir)
 
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('previous exit: system shutdown interrupted during cleanup')
@@ -170,14 +182,14 @@ describe('exitRecord', () => {
 
   it('clears the shutdown intent once the exit marker is written', async () => {
     const first = await loadModule()
-    first.trackProcessExit()
+    first.trackProcessExit(userDataDir)
     first.noteExitReason('system-shutdown')
     first.recordExit()
 
     expect(readRecord().shutdownIntent).toBeUndefined()
 
     const next = await loadModule()
-    next.trackProcessExit()
+    next.trackProcessExit(userDataDir)
 
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('previous exit: system shutdown'))
     expect(logger.warn).not.toHaveBeenCalled()
@@ -185,12 +197,12 @@ describe('exitRecord', () => {
 
   it('reports a session that left no exit marker as killed, with its last heartbeat', async () => {
     const first = await loadModule()
-    first.trackProcessExit()
+    first.trackProcessExit(userDataDir)
     vi.advanceTimersByTime(first.HEARTBEAT_INTERVAL_MS * 3)
     const lastHeartbeat = readRecord().heartbeatAt
 
     const next = await loadModule()
-    next.trackProcessExit()
+    next.trackProcessExit(userDataDir)
 
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining(`previous exit: killed without graceful shutdown (last heartbeat ${lastHeartbeat}`)
@@ -201,13 +213,13 @@ describe('exitRecord', () => {
     fs.writeFileSync(recordFile, '{"pid":1,"heartb')
     const { trackProcessExit } = await loadModule()
 
-    expect(() => trackProcessExit()).not.toThrow()
+    expect(() => trackProcessExit(userDataDir)).not.toThrow()
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('killed without graceful shutdown'))
   })
 
   it('stops heartbeating once the exit marker is written and keeps the first reason', async () => {
     const { trackProcessExit, noteExitReason, recordExit, HEARTBEAT_INTERVAL_MS } = await loadModule()
-    trackProcessExit()
+    trackProcessExit(userDataDir)
     noteExitReason('relaunch')
     recordExit()
     const afterExit = readRecord()

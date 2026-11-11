@@ -13,14 +13,16 @@ that builds the IoC container and runs the lifecycle stages
 But some setup must happen even earlier — synchronously, with no lifecycle
 services available — because `application.bootstrap()` itself depends on it.
 Most importantly: `application.initPathRegistry()` is called from preboot
-in `main/main.ts` after userData resolution, the single-instance lock,
-Chromium flag setup, and crash telemetry setup. It calls `buildPathRegistry()`
-to build a frozen snapshot of the path registry by reading
-`app.getPath('userData')` and other Electron paths. So all
+in `main/main.ts` right after userData resolution and the single-instance
+lock, before Chromium flag setup and crash telemetry setup. It calls
+`buildPathRegistry()` to build a frozen snapshot of the path registry by
+reading `app.getPath('userData')` and other Electron paths. So all
 `app.setPath('userData', …)` calls must complete **before**
 `application.initPathRegistry()` is called, and the registry must be
 initialized **before** `application.bootstrap()` (which asserts the registry
-exists and refuses to start otherwise).
+exists and refuses to start otherwise). Early registry setup also lets
+preboot recorders (e.g. `exitRecord.ts`) take their paths from
+`application.getPath()` instead of reading Electron paths directly.
 
 This directory holds that pre-bootstrap work.
 

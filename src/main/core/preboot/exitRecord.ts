@@ -2,13 +2,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-import { app } from 'electron'
-
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('ExitRecord')
 
-const RECORD_FILE = 'last-session.json'
+/**
+ * Process-local live session record, kept at the userData root. Exported so
+ * the userData relocation copy filter can exclude it: a copied live record
+ * has no exit marker, so the relocated profile would misreport its first
+ * launch as a kill.
+ */
+export const RECORD_FILE = 'last-session.json'
 export const HEARTBEAT_INTERVAL_MS = 5_000
 
 /** How the process's own exit path was reached. */
@@ -69,14 +73,17 @@ export function markExitForced(): void {
  * Timing contract:
  *   - Must run after `requireSingleInstance()` so a second instance does not
  *     overwrite the live instance's record.
+ *   - Must run after `application.initPathRegistry()`: the composition root
+ *     (main.ts) supplies the centrally resolved userData directory, keeping
+ *     path ownership in the path registry (see core/paths/README.md).
  *   - Safe to call once.
  */
-export function trackProcessExit(): void {
+export function trackProcessExit(userDataDir: string): void {
   // Scope the record to the resolved userData profile: the single-instance
   // lock is keyed on it, so independently locked profiles never share one.
   // LOGS_DIR is app-name-based, so two packaged copies configured with
   // distinct userData directories would overwrite each other's record there.
-  recordPath = path.join(app.getPath('userData'), RECORD_FILE)
+  recordPath = path.join(userDataDir, RECORD_FILE)
   fs.mkdirSync(path.dirname(recordPath), { recursive: true })
   logPreviousExit(recordPath)
 
@@ -145,10 +152,13 @@ function logPreviousExit(file: string): void {
     const { at, reason } = previous.exit
     // Records written before outcomes existed only had graceful exit paths.
     const outcome = previous.exit.outcome ?? 'graceful'
-    if (reason === 'system-shutdown') {
-      logger.info(`previous exit: system shutdown (at ${at})`)
-    } else if (outcome === 'forced') {
+    // The forced outcome outranks the reason: a system-shutdown cleanup cut
+    // short by the timeout fuse must still read as forced, not as a clean
+    // shutdown.
+    if (outcome === 'forced') {
       logger.warn(`previous exit: forced (${reason}) (at ${at})`)
+    } else if (reason === 'system-shutdown') {
+      logger.info(`previous exit: system shutdown (at ${at})`)
     } else {
       logger.info(`previous exit: graceful (${reason}) (at ${at})`)
     }
