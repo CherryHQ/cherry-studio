@@ -239,8 +239,8 @@ describe('archive', () => {
     })
     const d = dest()
     const stream = vi.spyOn(StreamZip.async.prototype, 'stream').mockImplementation(async function (this, entry) {
-      fs.rmSync(path.join(d, 'leak.txt'), { force: true })
-      fs.symlinkSync('/etc/hosts', path.join(d, 'leak.txt'))
+      if (fs.existsSync(path.join(d, 'leak.txt'))) fs.unlinkSync(path.join(d, 'leak.txt'))
+      fs.symlinkSync(work, path.join(d, 'leak.txt'), 'junction')
       return realStream.call(this, entry)
     })
 
@@ -259,8 +259,8 @@ describe('archive', () => {
     const d = dest()
     const stream = vi.spyOn(StreamZip.async.prototype, 'stream').mockImplementation(async function (this, entry) {
       fs.mkdirSync(path.join(d, 'assets'), { recursive: true })
-      fs.rmSync(path.join(d, 'assets', 'leak.txt'), { force: true })
-      fs.symlinkSync('/etc/hosts', path.join(d, 'assets', 'leak.txt'))
+      if (fs.existsSync(path.join(d, 'assets', 'leak.txt'))) fs.unlinkSync(path.join(d, 'assets', 'leak.txt'))
+      fs.symlinkSync(work, path.join(d, 'assets', 'leak.txt'), 'junction')
       return realStream.call(this, entry)
     })
     try {

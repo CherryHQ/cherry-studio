@@ -70,6 +70,26 @@ describe('applyMigrations over a populated database', () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  it('adds mirror_enabled when upgrading a populated pre-export database', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0030_skill_mirror_export'))
+    sqlite
+      .prepare(`INSERT INTO agent_global_skill
+      (id, name, folder_name, source, content_hash, is_enabled, created_at, updated_at)
+      VALUES ('existing-skill', 'Existing skill', 'existing-skill', 'local', 'hash', 1, 1000, 2000)`)
+      .run()
+    sqlite.close()
+    sqlite = new Database(join(tempDir, 'test.db'))
+    db = drizzle({ client: sqlite, casing: 'snake_case' })
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare('SELECT name, mirror_enabled, is_enabled FROM agent_global_skill').all()).toEqual([
+      { name: 'Existing skill', mirror_enabled: 1, is_enabled: 1 }
+    ])
+    sqlite.prepare('UPDATE agent_global_skill SET mirror_enabled = 0').run()
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare('SELECT mirror_enabled FROM agent_global_skill').get()).toEqual({ mirror_enabled: 0 })
+    expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
+  })
+
   it('adds diagnostic history to a populated database and retains it after reopening', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
     const now = Date.now()
@@ -1153,10 +1173,8 @@ describe('applyMigrations over a populated database', () => {
 
     applyMigrations(db, resolveMigrationsPath())
 
-    expect(
-      sqlite.prepare(`SELECT task_schedule_id FROM agent_session WHERE id = 'session-task-migrate'`).get()
-    ).toEqual({
-      task_schedule_id: 'schedule-new'
+    expect(sqlite.prepare(`SELECT task_id FROM agent_session WHERE id = 'session-task-migrate'`).get()).toEqual({
+      task_id: 'schedule-new'
     })
     const metadata = sqlite
       .prepare(`SELECT id, metadata FROM job_schedule WHERE id IN ('schedule-old', 'schedule-new') ORDER BY id`)
@@ -1166,21 +1184,20 @@ describe('applyMigrations over a populated database', () => {
       { reuse: { enabled: true, revision: 3 } }
     ])
 
-    // One session cannot serve two schedules after migration, and schedule
-    // deletion clears the internal pointer rather than retaining stale state.
+    // Each task selects at most one reuse target; clearing that selection
+    // lets schedule deletion detach ownership without deleting the session.
     expect(() =>
       sqlite
         .prepare(
-          `INSERT INTO agent_session (id, agent_id, name, workspace_id, task_schedule_id, order_key, created_at, updated_at)
-           VALUES ('session-duplicate-binding', 'agent-task-migrate', 'Duplicate', 'workspace-task-migrate', 'schedule-new', 'a1', ?, ?)`
+          `INSERT INTO agent_session (id, agent_id, name, workspace_id, task_id, is_task_reuse_target, order_key, last_activity_at, created_at, updated_at)
+           VALUES ('session-duplicate-binding', 'agent-task-migrate', 'Duplicate', 'workspace-task-migrate', 'schedule-new', 1, 'a1', 1, ?, ?)`
         )
         .run(now, now)
-    ).toThrow(/UNIQUE|constraint/i)
+    ).toThrow(/UNIQUE/i)
+    sqlite.prepare(`UPDATE agent_session SET is_task_reuse_target = 0 WHERE task_id = 'schedule-new'`).run()
     sqlite.prepare(`DELETE FROM job_schedule WHERE id = 'schedule-new'`).run()
-    expect(
-      sqlite.prepare(`SELECT task_schedule_id FROM agent_session WHERE id = 'session-task-migrate'`).get()
-    ).toEqual({
-      task_schedule_id: null
+    expect(sqlite.prepare(`SELECT task_id FROM agent_session WHERE id = 'session-task-migrate'`).get()).toEqual({
+      task_id: null
     })
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })

@@ -1,14 +1,4 @@
-import type { GroundingMetadata } from '@google/genai'
-
 import type OpenAI from '@cherrystudio/openai'
-import type { McpServer } from '@shared/data/types/mcpServer'
-
-import type { FileMetadata } from './file'
-import type { GenerateImageResponse } from './image'
-import type { KnowledgeReference } from './knowledge'
-import type { McpToolResponse } from './mcpTool'
-import type { Model } from './model'
-import type { WebSearchProviderResponse } from './webSearchProvider'
 
 export type Usage = OpenAI.Completions.CompletionUsage & {
   thoughts_tokens?: number
@@ -26,56 +16,11 @@ export type Metrics = {
 
 export interface MessageUiState {
   foldSelected?: boolean
+  /** Active reply when browsing was saved; ignore the selection after branch navigation. */
+  foldSelectedBranchId?: string | null
   multiModelMessageStyle?: string
   useful?: boolean
   disclosures?: Record<string, boolean>
-}
-
-export type LegacyMessage = {
-  id: string
-  assistantId: string
-  role: 'user' | 'assistant'
-  content: string
-  reasoning_content?: string
-  translatedContent?: string
-  topicId: string
-  createdAt: string
-  status: 'sending' | 'pending' | 'searching' | 'success' | 'paused' | 'error'
-  modelId?: string
-  model?: Model
-  files?: FileMetadata[]
-  images?: string[]
-  usage?: Usage
-  metrics?: Metrics
-  knowledgeBaseIds?: string[]
-  type: 'text' | '@' | 'clear'
-  mentions?: Model[]
-  askId?: string
-  useful?: boolean
-  error?: Record<string, any>
-  enabledMCPs?: McpServer[]
-  metadata?: {
-    // Gemini
-    groundingMetadata?: GroundingMetadata
-    // Perplexity Or Openrouter
-    citations?: string[]
-    // OpenAI
-    annotations?: OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[]
-    // Zhipu or Hunyuan
-    webSearchInfo?: any[]
-    // Web search
-    webSearch?: WebSearchProviderResponse
-    // MCP Tools
-    mcpTools?: McpToolResponse[]
-    // Generate Image
-    generateImage?: GenerateImageResponse
-    // knowledge
-    knowledge?: KnowledgeReference[]
-  }
-  // multi-model message style
-  multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
-  // whether selected when folded
-  foldSelected?: boolean
 }
 
 export interface Citation {

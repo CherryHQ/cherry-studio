@@ -99,10 +99,11 @@ describe('routeTitle', () => {
         expect(getDefaultRouteTitle('/settings/')).toBe('设置')
       })
 
-      it('should handle double slashes (protocol-relative URL)', () => {
-        // '//chat' is a protocol-relative URL, so 'chat' becomes the hostname
-        // This is expected behavior per URL standard
-        expect(getDefaultRouteTitle('//chat')).toBe('/')
+      it('should reject double slashes (protocol-relative URL)', () => {
+        // '//chat' is a protocol-relative URL, so 'chat' parses as the host,
+        // not an app-route path. parseAppRouteUrl rejects it and the title
+        // falls back to the empty string.
+        expect(getDefaultRouteTitle('//chat')).toBe('')
       })
 
       it('should handle relative-like paths', () => {
