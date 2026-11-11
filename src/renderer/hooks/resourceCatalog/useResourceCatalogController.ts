@@ -73,6 +73,7 @@ export function useResourceCatalogController(
   const { t } = useTranslation()
   const { onConfirmArchiveAgentSessions, onLaunchSkill, onOpenSkill } = options
   const [hiddenBuiltinRoles, setHiddenBuiltinRoles] = usePreference('agent.builtin.hidden_roles')
+  const hiddenBuiltinRolesList = useMemo(() => sanitizeHiddenBuiltinRoles(hiddenBuiltinRoles), [hiddenBuiltinRoles])
   // Preference has no atomic set operations, so cross-window writes remain last-write-wins; this guards only controller reentry and duplicate submits.
   const hiddenWritePendingRef = useRef(false)
   const [search, setSearch] = useState('')
@@ -108,7 +109,7 @@ export function useResourceCatalogController(
     refetch
   } = useResourceLibrary({
     resourceType,
-    hiddenBuiltinRoles: sanitizeHiddenBuiltinRoles(hiddenBuiltinRoles),
+    hiddenBuiltinRoles: hiddenBuiltinRolesList,
     activeGroupId: isAssistantLibrary ? activeGroupId : null,
     search,
     sort: 'name'
@@ -426,7 +427,7 @@ export function useResourceCatalogController(
     refetch,
     gridProps: {
       resources,
-      hasHiddenBuiltinAgents: sanitizeHiddenBuiltinRoles(hiddenBuiltinRoles).length > 0,
+      hasHiddenBuiltinAgents: hiddenBuiltinRolesList.length > 0,
       onHide: async (resource: ResourceItem) => {
         if (hiddenWritePendingRef.current) return
         if (resource.type !== 'agent') return

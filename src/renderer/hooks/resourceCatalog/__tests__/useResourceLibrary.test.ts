@@ -122,7 +122,7 @@ describe('useResourceLibrary', () => {
     })
   })
 
-  it('filters only present protected roles and counts the same agents', () => {
+  it('filters only the hidden protected roles that are present', () => {
     const support = { ...agentListItem, id: 'support', configuration: { builtin_role: 'support' } }
     mocks.useAgentList.mockReturnValue(listResult([support, agentListItem]))
     const { result, rerender } = renderHook(
