@@ -99,7 +99,7 @@ Status: proposed
 
 读取凭据把模型实际所见字节的哈希绑定到调用方、目标和编辑依据，保存在模型无法修改的内容之外。不能在保存前临时取得最新哈希，冒充模型原先的读取基准。不能用其他会话或较新读取的凭据替代旧编辑的凭据。关联缺失或不明确时，须重新完整读取并重新生成编辑。审批绑定作用域、目标、操作、拟保存内容和预期版本，修改这些内容须重新审批。既有权限策略决定何时授予审批，但已获准操作仍执行保存保护。
 
-Pi 和 Claude Code 分别适配。Pi 在 [PiRuntimeConnection](../../../../src/main/ai/runtime/pi/PiRuntimeConnection.ts) 装配 SDK 工具，在 [approvalExtension](../../../../src/main/ai/runtime/pi/approvalExtension.ts) 应用策略。Claude Code 在 [PreToolUse 钩子](../../../../src/main/ai/runtime/claudeCode/hooks.ts)检查规则，因为自动批准路径可能跳过 `canUseTool`。这些是接入位置，不是已有的事务保存服务。仅有工具执行前权限检查，不能让保存锁一直覆盖后续写入。
+Pi 和 Claude Code 分别适配。Pi 在 [PiRuntimeConnection](../../../../src/main/ai/runtime/pi/PiRuntimeConnection.ts) 装配 SDK 工具，在 [piApprovalFacts](../../../../src/main/ai/runtime/pi/piApprovalFacts.ts) 收集权限事实。Claude Code 在 [PreToolUse 钩子](../../../../src/main/ai/runtime/claudeCode/hooks.ts)检查规则，因为自动批准路径可能跳过 `canUseTool`。这些是接入位置，不是已有的事务保存服务。仅有工具执行前权限检查，不能让保存锁一直覆盖后续写入。
 
 各运行时须列明并验证实际经过记忆模块的操作，包括删除和重命名。不能满足接口约定的操作，不作为受保护记忆编辑交付。助手文件编辑也须完成同等能力和审批接入，否则只使用入口。
 
