@@ -673,7 +673,11 @@ export class SkillService {
   private async snapshotLocalSkillSource(canonicalPath: string): Promise<{ snapshotDir: string; tempDir: string }> {
     const tempDir = await createTempDir('skill-local-update-')
     try {
-      const snapshotDir = path.join(tempDir, 'source')
+      // Keep the canonical basename inside the temp dir so `parseSkillMetadata`'s
+      // folder-name fallback (used when frontmatter `name` is blank) still resolves
+      // to the real source folder instead of a generic `source` directory.
+      const baseName = path.basename(canonicalPath)
+      const snapshotDir = path.join(tempDir, baseName && baseName !== '.' && baseName !== '..' ? baseName : 'source')
       await copyDirectoryRecursive(canonicalPath, snapshotDir)
       return { snapshotDir, tempDir }
     } catch (error) {
