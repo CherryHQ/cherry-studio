@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module'
 import { resolve } from 'path'
 
 import { defineConfig } from 'vitest/config'
@@ -22,6 +23,7 @@ process.stderr.setMaxListeners(64)
 
 const mainConfig = (electronViteConfig as any).main
 const rendererConfig = (electronViteConfig as any).renderer
+const requireUi = createRequire(resolve(__dirname, 'packages/ui/package.json'))
 
 export default defineConfig({
   test: {
@@ -66,7 +68,14 @@ export default defineConfig({
         extends: true,
         plugins: rendererConfig.plugins.filter((plugin: any) => plugin.name !== 'tailwindcss'),
         resolve: {
-          alias: rendererConfig.resolve.alias
+          alias: [
+            { find: /^date-fns$/, replacement: requireUi.resolve('date-fns') },
+            { find: /^react-day-picker$/, replacement: requireUi.resolve('react-day-picker') },
+            ...Object.entries(rendererConfig.resolve.alias as Record<string, string>).map(([find, replacement]) => ({
+              find,
+              replacement
+            }))
+          ]
         },
         test: {
           name: 'renderer',
@@ -241,14 +250,6 @@ export default defineConfig({
     // 全局共享配置
     globals: true,
     setupFiles: [],
-    deps: {
-      optimizer: {
-        client: {
-          enabled: true,
-          include: ['@cherrystudio/ui > date-fns', '@cherrystudio/ui > react-day-picker']
-        }
-      }
-    },
     exclude: ['**/node_modules/**', '**/dist/**', '**/out/**', '**/build/**'],
     coverage: {
       provider: 'v8',
