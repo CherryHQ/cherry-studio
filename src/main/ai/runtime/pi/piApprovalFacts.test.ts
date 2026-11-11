@@ -109,14 +109,6 @@ function buildGate(
         offloadThreshold: 20000
       }
     })
-    const interactions = await createPiInteractionPorts({
-      input: { sessionId: 's1', agentId: 'agent', modelId: 'test::model' },
-      approval: context,
-      toolCallId: async (call) => calls.get(call.key)!,
-      emit: (event) => {
-        if (event.type === 'tool-approval-request') emitted.push(event)
-      }
-    })
     const fake = createFakeHarness({
       install: (ports) =>
         install(
@@ -129,10 +121,29 @@ function buildGate(
               }
             }
           },
-          { ...host, ...interactions }
+          {
+            ...host,
+            approvals: {
+              ...host.approvals,
+              ask: (...args) => interactions.approvals.ask(...args),
+              facts: (...args) => interactions.approvals.facts(...args),
+              outcomes: (...args) => interactions.approvals.outcomes(...args)
+            },
+            questions: { ask: (...args) => interactions.questions.ask(...args) }
+          }
         )
     })
-    return { fake, thread: await fake.createThread() }
+    const thread = await fake.createThread()
+    const interactions = await createPiInteractionPorts({
+      input: { sessionId: 's1', agentId: 'agent', modelId: 'test::model' },
+      root: thread,
+      approval: context,
+      toolCallId: async (call) => calls.get(call.key)!,
+      emit: (event) => {
+        if (event.type === 'tool-approval-request') emitted.push(event)
+      }
+    })
+    return { fake, thread }
   })()
   const handler = async (event: ToolEvent, ctx: { signal?: AbortSignal }) => {
     const { fake, thread } = await setup
@@ -248,7 +259,8 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
       toolCallId: 'tc-bash',
       toolName: 'bash',
       input: { command: 'ls' },
-      presentation: 'stream'
+      registrationId: expect.any(String),
+      origin: { kind: 'root', messageId: undefined }
     })
     expect(emitted[0].request.providerMetadata?.cherry?.transport).toBe('pi-agent')
 
@@ -479,15 +491,15 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
-  it('marks an out-of-stream approval for message presentation', async () => {
+  it('keeps a complete out-of-stream request pending for the host to present', async () => {
     const { handler, emitted } = buildGate({
       getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
     })
     const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
     await flush()
 
-    expect(emitted[0].request.presentation).toBe('message')
-    expect(toolApprovalRegistry.peek(emitted[0].request.approvalId)?.presentation).toBe('message')
+    expect(emitted[0].request.input).toEqual({ command: 'ls' })
+    expect(toolApprovalRegistry.peek(emitted[0].request.approvalId)?.anchor).toBeUndefined()
     toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
     await pending
   })

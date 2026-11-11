@@ -18,7 +18,6 @@ function makeEntry(overrides: Record<string, unknown> = {}) {
     toolCallId: 'tc1',
     toolName: 'bash',
     originalInput: { cmd: 'ls' },
-    presentation: 'stream' as const,
     resolve,
     ...overrides
   }
@@ -32,13 +31,14 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
 
   it('resolves a dispatch with the exact decision, unmodified', async () => {
     const { entry, result, approvalId } = makeEntry()
-    expect(toolApprovalRegistry.register(entry)).toBe(true)
+    expect(toolApprovalRegistry.register(entry)).toEqual(expect.any(String))
     expect(toolApprovalRegistry.size()).toBe(1)
 
     expect(toolApprovalRegistry.dispatch(approvalId, { approved: true })).toEqual({
       sessionId: 's1',
       toolCallId: 'tc1',
-      presentation: 'stream'
+      registrationId: expect.any(String),
+      anchor: undefined
     })
     await expect(result).resolves.toEqual({ approved: true })
     expect(toolApprovalRegistry.size()).toBe(0)
@@ -69,7 +69,7 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     toolApprovalRegistry.register(first.entry)
 
     const dup = makeEntry({ approvalId: first.approvalId })
-    expect(toolApprovalRegistry.register(dup.entry)).toBe(false)
+    expect(toolApprovalRegistry.register(dup.entry)).toBeUndefined()
 
     await expect(dup.result).resolves.toEqual({ approved: false, reason: 'Duplicate approval registration' })
     expect(toolApprovalRegistry.size()).toBe(1)
@@ -82,7 +82,7 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     const controller = new AbortController()
     controller.abort()
     const { entry, result } = makeEntry({ signal: controller.signal })
-    expect(toolApprovalRegistry.register(entry)).toBe(false)
+    expect(toolApprovalRegistry.register(entry)).toBeUndefined()
 
     await expect(result).resolves.toEqual({
       approved: false,
@@ -107,8 +107,8 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     const aborted: string[] = []
     const subscription = toolApprovalRegistry.onAborted((entry) => aborted.push(entry.approvalId))
     const controller = new AbortController()
-    const cancelled = makeEntry({ signal: controller.signal, presentation: 'message' })
-    const answered = makeEntry({ signal: new AbortController().signal, presentation: 'message' })
+    const cancelled = makeEntry({ signal: controller.signal })
+    const answered = makeEntry({ signal: new AbortController().signal })
     toolApprovalRegistry.register(cancelled.entry)
     toolApprovalRegistry.register(answered.entry)
 
@@ -121,7 +121,7 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
 
   it.each(['signal', 'session'] as const)('notifies once when %s cancellation arrives first', async (first) => {
     const controller = new AbortController()
-    const { entry, result, approvalId } = makeEntry({ signal: controller.signal, presentation: 'message' })
+    const { entry, result, approvalId } = makeEntry({ signal: controller.signal })
     const aborted: { approvalId: string; reason: string }[] = []
     const subscription = toolApprovalRegistry.onAborted(({ approvalId, reason }) => {
       aborted.push({ approvalId, reason })
@@ -200,4 +200,22 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
   it('clear() is a no-op (returns 0) when nothing is pending', () => {
     expect(toolApprovalRegistry.clear()).toBe(0)
   })
+})
+
+// A restored Durable call may reuse its approval ID; old events must not bind or cancel it.
+it('fences a recovered registration and freezes its response anchor', async () => {
+  const old = makeEntry()
+  const previous = toolApprovalRegistry.register(old.entry)!
+  toolApprovalRegistry.abort(old.entry.sessionId)
+  const next = makeEntry({ approvalId: old.approvalId })
+  const current = toolApprovalRegistry.register(next.entry)!
+  const anchor = { kind: 'message' as const, messageId: 'new-card', contextId: 'context' }
+  expect(toolApprovalRegistry.bind(old.approvalId, previous, anchor)).toBe(false)
+  toolApprovalRegistry.cancelRequest(old.approvalId, previous, 'stale')
+  expect(toolApprovalRegistry.bind(old.approvalId, current, anchor)).toBe(true)
+  expect(toolApprovalRegistry.bind(old.approvalId, current, { ...anchor, messageId: 'other' })).toBe(false)
+  expect(toolApprovalRegistry.peek(old.approvalId)?.anchor).toEqual(anchor)
+  toolApprovalRegistry.dispatch(old.approvalId, { approved: true })
+  await expect(old.result).resolves.toMatchObject({ approved: false })
+  await expect(next.result).resolves.toEqual({ approved: true })
 })

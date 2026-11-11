@@ -107,6 +107,7 @@ import { formatAgentWebviewAnnotationPrompt } from '@shared/utils/webviewAnnotat
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
+import { AgentApprovalComposer, useAgentSessionApprovals } from '../../messages/AgentSessionApprovals'
 import { AgentBrowserView } from './AgentBrowserView'
 import {
   type AgentPreviewUrlCandidate,
@@ -1323,6 +1324,11 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
   const child = useAgentChildProjection(meta.sessionId ?? '', tab?.toolCallId, active && !!meta.sessionId)
   const contextUsage = useAgentSessionContextUsage(child?.view?.sessionId)
+  const approvals = useAgentSessionApprovals(meta.sessionId).filter((approval) =>
+    child?.view?.contextId
+      ? approval.taskPath.at(-1)?.contextId === child.view.contextId
+      : approval.taskPath.at(-1)?.toolCallId === tab?.toolCallId
+  )
   const deferredToolResult = useMemo(
     () => findDeferredToolResult(runtime.partsByMessageId, tab?.toolCallId),
     [runtime.partsByMessageId, tab?.toolCallId]
@@ -1427,6 +1433,11 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
           partsByMessageId={flow.partsByMessageId}
         />
       </div>
+      {meta.sessionId && (
+        <div className="shrink-0 p-2">
+          <AgentApprovalComposer sessionId={meta.sessionId} approvals={approvals} embedded />
+        </div>
+      )}
       {(child?.error || child?.view?.diagnostic) && (
         <p role="alert" className="px-4 py-2 text-sm text-error">
           {child?.error ?? child?.view?.diagnostic}

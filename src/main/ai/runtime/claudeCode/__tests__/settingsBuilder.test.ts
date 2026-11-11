@@ -284,7 +284,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.approvalRegister.mockReturnValue(true)
+    mocks.approvalRegister.mockReturnValue('registration-1')
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -1684,7 +1684,10 @@ describe('buildClaudeCodeSessionSettings', () => {
           await Promise.resolve()
           expect(settled).toBe(false)
           expect(emit).toHaveBeenCalledWith(
-            expect.objectContaining({ toolName, presentation: agentID ? 'message' : 'stream' })
+            expect.objectContaining({
+              toolName,
+              origin: agentID ? { kind: 'child', threadId: agentID } : { kind: 'root', messageId: undefined }
+            })
           )
 
           mocks.approvalRegister.mock.lastCall![0].resolve({ approved })
@@ -2418,7 +2421,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         toolCallId: 'tool-use-1',
         toolName: 'AskUserQuestion',
         input,
-        presentation: 'stream',
+        origin: { kind: 'root', messageId: undefined },
         providerMetadata: { cherry: { transport: 'claude-agent', toolName: 'AskUserQuestion' } }
       })
     )
@@ -2989,7 +2992,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect.objectContaining({
           toolCallId: 'tu-1',
           toolName: 'SomeTool',
-          presentation: 'stream'
+          origin: { kind: 'root', messageId: undefined }
         })
       )
     })
@@ -3104,8 +3107,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect(mocks.approvalRegister).toHaveBeenCalledWith(
           expect.objectContaining({
             sessionId: 'warm-bg-delegation',
-            toolCallId: 'tu-bg-delegation',
-            presentation: 'message'
+            toolCallId: 'tu-bg-delegation'
           })
         )
         expect(emit).toHaveBeenCalledWith(expect.objectContaining({ toolName: toCherryBuiltinRuntimeName(toolName) }))
@@ -3167,16 +3169,14 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect(mocks.approvalRegister).toHaveBeenCalledWith(
           expect.objectContaining({
             sessionId: 'warm-bg-question',
-            toolCallId: 'tu-bg-question',
-            presentation: 'message'
+            toolCallId: 'tu-bg-question'
           })
         )
         expect(emit).toHaveBeenCalledWith(
           expect.objectContaining({
             toolCallId: 'tu-bg-question',
             toolName: 'AskUserQuestion',
-            input,
-            presentation: 'message'
+            input
           })
         )
       })
@@ -3208,16 +3208,14 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect(mocks.approvalRegister).toHaveBeenCalledWith(
           expect.objectContaining({
             sessionId: 'warm-wake-question',
-            toolCallId: 'tu-wake-question',
-            presentation: 'message'
+            toolCallId: 'tu-wake-question'
           })
         )
         expect(emit).toHaveBeenCalledWith(
           expect.objectContaining({
             toolCallId: 'tu-wake-question',
             toolName: 'AskUserQuestion',
-            input,
-            presentation: 'message'
+            input
           })
         )
       })
@@ -3246,8 +3244,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
         expect(emit).toHaveBeenCalledWith(
           expect.objectContaining({
-            toolCallId: 'tu-bg-live-question',
-            presentation: 'message'
+            toolCallId: 'tu-bg-live-question'
           })
         )
       })

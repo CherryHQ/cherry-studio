@@ -27,6 +27,7 @@ import { startAgentSessionRun } from '@main/ai/streamManager'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { CherryToolMetaSchema } from '@shared/data/types/uiParts'
 
 import {
   contentOf,
@@ -66,8 +67,11 @@ interface LiveExecution {
   messageId?: string
   messageIds: Set<string>
   status: AgentExecution['status']
-  approvals: Map<string, { toolCallId: string; status: 'pending' | 'approved' | 'denied' }>
-  toolInputs: Map<string, { toolName: string; input: unknown }>
+  approvals: Map<
+    string,
+    { toolCallId: string; status: 'pending' | 'approved' | 'denied' | 'expired'; registrationId?: string }
+  >
+  toolInputs: Map<string, { toolName: string; input: unknown; registrationId?: string }>
 }
 
 interface PendingDelta {
@@ -329,7 +333,7 @@ export class SessionJournal {
     })
   }
 
-  markInteraction(interactionId: string, status: 'approved' | 'denied'): void {
+  markInteraction(interactionId: string, status: 'approved' | 'denied' | 'expired'): void {
     const approval = this.execution?.approvals.get(interactionId)
     const current = this.projection.interactions[interactionId]
     if (!approval || !current || approval.status !== 'pending') return
@@ -396,11 +400,29 @@ export class SessionJournal {
     }
     for (const part of message.parts) {
       if (!isToolUIPart(part)) continue
-      execution.toolInputs.set(part.toolCallId, { toolName: getToolName(part), input: part.input })
+      const registrationId = CherryToolMetaSchema.safeParse(part.callProviderMetadata?.cherry).data
+        ?.approvalRegistrationId
+      execution.toolInputs.set(part.toolCallId, { toolName: getToolName(part), input: part.input, registrationId })
+      if (part.state === 'approval-requested') {
+        const previous = execution.approvals.get(part.approval.id)
+        if (!previous || previous.registrationId !== registrationId)
+          this.onChunk(
+            listener,
+            { type: 'tool-approval-request', approvalId: part.approval.id, toolCallId: part.toolCallId },
+            messageId
+          )
+      }
       if (part.state !== 'output-available' && part.state !== 'output-error' && part.state !== 'output-denied') continue
       for (const [id, approval] of execution.approvals)
         if (approval.toolCallId === part.toolCallId)
-          this.markInteraction(id, part.state === 'output-denied' ? 'denied' : 'approved')
+          this.markInteraction(
+            id,
+            part.state === 'output-denied'
+              ? 'denied'
+              : part.state === 'output-error' && part.approval?.approved === undefined
+                ? 'expired'
+                : 'approved'
+          )
     }
     if (
       execution.status === 'awaiting-approval' &&
@@ -464,7 +486,11 @@ export class SessionJournal {
         return
       case 'tool-input-available':
       case 'tool-input-error': {
-        execution.toolInputs.set(chunk.toolCallId, { toolName: chunk.toolName, input: chunk.input })
+        execution.toolInputs.set(chunk.toolCallId, {
+          toolName: chunk.toolName,
+          input: chunk.input,
+          registrationId: CherryToolMetaSchema.safeParse(chunk.providerMetadata?.cherry).data?.approvalRegistrationId
+        })
         this.replaceTool(
           messageId,
           `${messageId}:tool:${chunk.toolCallId}:in`,
@@ -521,13 +547,18 @@ export class SessionJournal {
       case 'tool-approval-request': {
         const input = execution.toolInputs.get(chunk.toolCallId)
         this.interactionInputs.set(chunk.approvalId, JSON.stringify(input?.input ?? null))
-        execution.approvals.set(chunk.approvalId, { toolCallId: chunk.toolCallId, status: 'pending' })
+        execution.approvals.set(chunk.approvalId, {
+          toolCallId: chunk.toolCallId,
+          status: 'pending',
+          registrationId: input?.registrationId
+        })
         this.append({
           kind: 'interaction.updated',
           payload: {
             interactionId: chunk.approvalId,
             kind: interactionKind(input?.toolName),
             revision: this.next(),
+            ...(input?.registrationId ? { registrationId: input.registrationId } : {}),
             executionId: execution.executionId,
             toolCallId: chunk.toolCallId,
             status: 'pending',

@@ -473,7 +473,8 @@ export class AiService extends BaseService {
         updatedInput: payload.updatedInput
       },
       payload.anchorId,
-      payload.topicId
+      payload.topicId,
+      payload.registrationId
     )
     if (result.ok) return result
 

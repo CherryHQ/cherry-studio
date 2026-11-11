@@ -19,6 +19,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { remoteCommandService, type RemoteCommandOutcome } from '@data/services/RemoteCommandService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 
@@ -277,6 +278,7 @@ export function registerAgentMethods(
         !interaction ||
         interaction.status !== 'pending' ||
         interaction.revision !== params.expectedRevision ||
+        interaction.registrationId !== params.expectedRegistrationId ||
         interaction.executionId !== params.expectedExecutionId ||
         interaction.inputDigest !== params.inputDigest
       ) {
@@ -314,13 +316,24 @@ export function registerAgentMethods(
       } else if (response.kind === 'approve' && interaction.kind === 'question') {
         return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Question requires answers' } }
       }
+      const pending = toolApprovalRegistry.peek(params.interactionId)
+      if (pending && pending.registrationId !== params.expectedRegistrationId)
+        return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Approval registration changed' } }
       const decision = {
         approved,
         ...(updatedInput ? { updatedInput } : {}),
         ...('reason' in response ? { reason: response.reason } : {})
       }
       if (
-        !application.get('AgentSessionRuntimeService').respondToolApproval(params.interactionId, decision, anchorId)
+        !application
+          .get('AgentSessionRuntimeService')
+          .respondToolApproval(
+            params.interactionId,
+            decision,
+            anchorId,
+            buildAgentSessionTopicId(params.sessionId),
+            params.expectedRegistrationId
+          ).ok
       ) {
         return { status: 'rejected', error: { reason: 'NOT_FOUND', message: 'Interaction is no longer pending' } }
       }

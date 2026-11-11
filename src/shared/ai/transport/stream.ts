@@ -245,6 +245,7 @@ export interface ApprovalDecision {
 }
 
 export interface AiToolApprovalRespondRequest extends ApprovalDecision {
+  registrationId?: string
   topicId?: string
   anchorId?: string
 }

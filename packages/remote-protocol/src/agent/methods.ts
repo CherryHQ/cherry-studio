@@ -134,6 +134,7 @@ export const agentMethods = {
       z.strictObject({
         ...command,
         interactionId: opaqueId,
+        expectedRegistrationId: opaqueId.optional(),
         expectedRevision: decimal,
         expectedExecutionId: opaqueId,
         inputDigest: digest,
@@ -142,6 +143,7 @@ export const agentMethods = {
       z.strictObject({
         ...command,
         interactionId: opaqueId,
+        expectedRegistrationId: opaqueId.optional(),
         expectedRevision: decimal,
         expectedExecutionId: opaqueId,
         inputDigest: digest,

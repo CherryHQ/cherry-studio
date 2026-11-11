@@ -14,6 +14,7 @@ import {
   type AgentSessionCheckpoints
 } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
+import { Emitter } from '@main/core/lifecycle'
 
 import { ensureAgentSessionRootTx, getAgentSessionHead, readAgentSessionAncestry } from './agentSessionMessageTree'
 import { agentSessionService } from './AgentSessionService'
@@ -34,6 +35,9 @@ export interface RootProjectionCheckpoint {
 }
 
 class AgentSessionContextService {
+  private readonly childCreated = new Emitter<{ ownerSessionId: string }>()
+  readonly onChildCreated = this.childCreated.event
+
   saveRootProjectionTx(tx: DbOrTx, sessionId: string, checkpoint: RootProjectionCheckpoint): void {
     const context = tx.select().from(contexts).where(eq(contexts.id, checkpoint.contextId)).get()
     if (context?.sessionId !== sessionId) throw new Error('Projection belongs to another session')
@@ -85,7 +89,7 @@ class AgentSessionContextService {
   }
 
   child(parentContextId: string, nativeThreadId: string, toolCallId: string, name: string): AgentSessionContextRow {
-    return application.get('DbService').withWriteTx((tx) => {
+    const child = application.get('DbService').withWriteTx((tx) => {
       const parent = tx.select().from(contexts).where(eq(contexts.id, parentContextId)).get()
       if (!parent) throw new Error('Parent context is unavailable')
       const found = tx
@@ -115,6 +119,15 @@ class AgentSessionContextService {
         .returning()
         .get()
     })
+    const ownerSessionId = application
+      .get('DbService')
+      .getDb()
+      .select({ ownerSessionId: sessions.ownerSessionId })
+      .from(sessions)
+      .where(eq(sessions.id, child.sessionId))
+      .get()?.ownerSessionId
+    if (ownerSessionId) this.childCreated.fire({ ownerSessionId })
+    return child
   }
 
   findChild(ownerSessionId: string, toolCallId: string): AgentSessionContextRow | undefined {

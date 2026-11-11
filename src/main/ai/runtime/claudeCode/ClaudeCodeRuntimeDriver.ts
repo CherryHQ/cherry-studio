@@ -5,6 +5,7 @@ import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
 import { application } from '@application'
 import { runtimeId, type Observation, type Subagent, type Thread } from '@cherrystudio/agent-runtime'
+import { claudeThread } from '@cherrystudio/agent-runtime-claude-code'
 import type {
   ClaudeCodeRuntime,
   ClaudeControl,
@@ -870,7 +871,23 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private bindApprovalEmitter(): void {
     if (!this.approvalEmitter) return
-    this.approvalEmitter.emit = (request) => this.eventQueue.push({ type: 'tool-approval-request', request })
+    this.approvalEmitter.emit = (request) => {
+      const origin = request.origin
+      const root = this.context
+      this.eventQueue.push({
+        type: 'tool-approval-request',
+        request:
+          origin.kind === 'child' && root?.nativeThreadId
+            ? {
+                ...request,
+                origin: {
+                  ...origin,
+                  threadId: claudeThread(runtimeId(root.backendId), root.nativeThreadId, origin.threadId).id
+                }
+              }
+            : request
+      })
+    }
     this.approvalEmitter.emitInput = (request) =>
       this.eventQueue.push({
         type: 'chunk',

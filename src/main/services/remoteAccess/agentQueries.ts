@@ -27,7 +27,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
-import { readCherryMeta } from '@shared/data/types/uiParts'
+import { CherryToolMetaSchema, readCherryMeta } from '@shared/data/types/uiParts'
 import type { SerializedError } from '@shared/types/error'
 
 import { DEFAULT_PAGE, pageOf, queryPage } from './agentPagination'
@@ -313,10 +313,13 @@ export function listPersistedInteractions(sessionId: string): AgentInteraction[]
       if (!approval?.id) continue
       const input = JSON.stringify(part.input ?? null)
       const partId = `${message.id}:approval:${approval.id}`
+      const registrationId = CherryToolMetaSchema.safeParse(part.callProviderMetadata?.cherry).data
+        ?.approvalRegistrationId
       interactions.push({
         interactionId: approval.id,
         kind: interactionKind(getToolName(part)),
         revision: revisionOf(message.updatedAt),
+        ...(registrationId ? { registrationId } : {}),
         executionId: message.id,
         toolCallId: part.toolCallId,
         status:

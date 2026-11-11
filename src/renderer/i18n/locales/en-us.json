@@ -1,6 +1,12 @@
 {
   "agent.add.error.failed": "Failed to add an agent",
   "agent.add.title": "Add Agent",
+  "agent.approval.approved": "Approved",
+  "agent.approval.cancelled": "Cancelled",
+  "agent.approval.denied": "Denied",
+  "agent.approval.expired": "Expired",
+  "agent.approval.pending": "Waiting for confirmation",
+  "agent.approval.unavailable": "This approval is no longer available. Open the current request to continue.",
   "agent.archive.related_resources": "Linked channels will disconnect; scheduled tasks are paused. Settings, subscriptions, and run history are kept. Missed tasks won't run automatically after restoring the agent.",
   "agent.askUserQuestion.answered": "answered",
   "agent.askUserQuestion.close": "Close",

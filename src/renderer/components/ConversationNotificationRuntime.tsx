@@ -47,6 +47,8 @@ export function ConversationNotificationRuntime(): null {
     playCompletionSound()
   })
 
+  useIpcOn('notification.retired', ({ id }) => toast.closeToast(id))
+
   useIpcOn('notification.present', (notification) => {
     if (
       notification.category === 'system' &&
@@ -61,7 +63,8 @@ export function ConversationNotificationRuntime(): null {
         ? toast.error
         : notification.category === 'usage' ||
             notification.kind === 'backup-failed' ||
-            notification.kind === 'backup-warning'
+            notification.kind === 'backup-warning' ||
+            notification.kind === 'approval-request'
           ? toast.warning
           : notification.category === 'official'
             ? toast.info

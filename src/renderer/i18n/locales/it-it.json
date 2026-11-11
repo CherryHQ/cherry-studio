@@ -1,6 +1,12 @@
 {
   "agent.add.error.failed": "Impossibile aggiungere un agente",
   "agent.add.title": "Aggiungi agente",
+  "agent.approval.approved": "Approvata",
+  "agent.approval.cancelled": "Annullata",
+  "agent.approval.denied": "Rifiutata",
+  "agent.approval.expired": "Scaduta",
+  "agent.approval.pending": "In attesa di conferma",
+  "agent.approval.unavailable": "Questa approvazione non è più disponibile. Apri la richiesta attuale per continuare.",
   "agent.archive.related_resources": "I canali collegati verranno disconnessi; le attività pianificate sono sospese. Impostazioni, sottoscrizioni e cronologia delle esecuzioni vengono conservati. Le attività saltate non verranno eseguite automaticamente dopo il ripristino dell'agente.",
   "agent.askUserQuestion.answered": "risposta inviata",
   "agent.askUserQuestion.close": "Chiudi",

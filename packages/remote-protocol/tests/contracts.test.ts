@@ -145,6 +145,14 @@ describe('question and workspace command contracts', () => {
     )
     expect(schema.parse({ ...target, decision: 'approve' })).toEqual({ ...target, decision: 'approve' })
   })
+  it('binds response identity to the expected live registration', () => {
+    const schema = agentMethods['agent.interactions.respond'].params
+    const params = { ...target, expectedRegistrationId: 'registration-1', decision: 'approve' as const }
+    expect(schema.parse(params)).toEqual(params)
+    expect(encodeAgentCommand('agent.interactions.respond', params)).not.toEqual(
+      encodeAgentCommand('agent.interactions.respond', { ...params, expectedRegistrationId: 'registration-2' })
+    )
+  })
   it('separates registered and system creation without accepting paths or ambiguous destinations', () => {
     const schema = agentMethods['agent.sessions.create'].params
     const base = { commandId: 'c', agentId: 'a' }

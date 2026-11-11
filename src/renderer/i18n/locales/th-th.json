@@ -1,6 +1,12 @@
 {
   "agent.add.error.failed": "ไม่สามารถเพิ่มเอเจนต์ได้",
   "agent.add.title": "เพิ่มเอเจนต์",
+  "agent.approval.approved": "อนุมัติแล้ว",
+  "agent.approval.cancelled": "ยกเลิกแล้ว",
+  "agent.approval.denied": "ปฏิเสธแล้ว",
+  "agent.approval.expired": "หมดอายุแล้ว",
+  "agent.approval.pending": "กำลังรอการยืนยัน",
+  "agent.approval.unavailable": "การอนุมัตินี้ไม่สามารถใช้ได้อีกต่อไป โปรดเปิดคำขอปัจจุบันเพื่อดำเนินการต่อ",
   "agent.archive.related_resources": "แชนแนลที่เชื่อมไว้จะถูกตัดการเชื่อมต่อ งานตามกำหนดการจะถูกพักไว้ การตั้งค่า การสมัครสมาชิก และประวัติการรันยังคงเก็บไว้ งานที่พลาดไปจะไม่รันอัตโนมัติหลังกู้คืนเอเจนต์",
   "agent.askUserQuestion.answered": "ตอบแล้ว",
   "agent.askUserQuestion.close": "ปิด",

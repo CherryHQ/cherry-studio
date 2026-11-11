@@ -41,6 +41,7 @@ import { fileRefService } from '@data/services/FileRefService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { StreamErrorResult } from '@main/ai/streamManager'
 import {
@@ -48,6 +49,7 @@ import {
   AgentChatContextProvider
 } from '@main/ai/streamManager/context/AgentChatContextProvider'
 import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
 import { FileManager, FileIntakeService } from '@main/services/file'
@@ -100,7 +102,7 @@ const fake = vi.hoisted(() => {
       async prepareBranch() {},
       isSessionBusy: () => false,
       isSessionBusyForArchive: () => false,
-      respondToolApproval: vi.fn(() => true),
+      respondToolApproval: vi.fn(() => ({ ok: true })),
       cancelSessionForks: async () => {},
       closeSession: async () => {},
       recoverSessionForks: async () => {}
@@ -1230,6 +1232,91 @@ describe('remote agent access', () => {
     expect(interaction).toMatchObject({ status: 'approved', input: { text: '{"path":"preserved.txt"}' } })
   })
 
+  // A native approval snapshot must be remotely actionable only for its current registration.
+  it('projects registration-bound approvals and rejects an old snapshot after native ID reuse', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('approval', 'agent-1', () => {})
+    const nativeId = randomUUID()
+    const anchor = randomUUID()
+    const register = () =>
+      toolApprovalRegistry.register({
+        approvalId: nativeId,
+        sessionId,
+        toolCallId: 'write',
+        toolName: 'Write',
+        originalInput: { path: '/tmp/proof' },
+        resolve: () => {}
+      })!
+    const first = register()
+    const publish = (registrationId: string, state: 'approval-requested' | 'output-error' = 'approval-requested') => {
+      for (const listener of fake.streams.get(buildAgentSessionTopicId(sessionId)) ?? [])
+        listener.onMessage?.(
+          {
+            id: anchor,
+            role: 'assistant',
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolName: 'Write',
+                toolCallId: 'write',
+                input: { path: '/tmp/proof' },
+                ...(state === 'output-error'
+                  ? { state: 'output-error' as const, errorText: 'Cancelled' }
+                  : { state: 'approval-requested' as const, approval: { id: nativeId } }),
+                callProviderMetadata: { cherry: { approvalRegistrationId: registrationId } }
+              }
+            ]
+          },
+          undefined,
+          'messages'
+        )
+    }
+    try {
+      publish(first)
+      const { interaction } = await call('agent.interactions.get', { sessionId, interactionId: nativeId })
+      const params = {
+        sessionId,
+        interactionId: nativeId,
+        expectedRevision: interaction.revision,
+        ...(interaction.registrationId ? { expectedRegistrationId: interaction.registrationId } : {}),
+        expectedExecutionId: interaction.executionId,
+        inputDigest: interaction.inputDigest,
+        decision: 'approve'
+      }
+      toolApprovalRegistry.cancelRequest(nativeId, first, 'Reissued')
+      const second = register()
+      expect(await call('agent.interactions.respond', { ...params, commandId: randomUUID() })).toMatchObject({
+        status: 'rejected',
+        error: { reason: 'CONFLICT' }
+      })
+      expect(fake.runtime.respondToolApproval).not.toHaveBeenCalled()
+      publish(second)
+      const current = (await call('agent.interactions.get', { sessionId, interactionId: nativeId })).interaction
+      fake.runtime.respondToolApproval.mockReturnValueOnce({ ok: false })
+      expect(
+        await call('agent.interactions.respond', {
+          ...params,
+          expectedRevision: current.revision,
+          expectedRegistrationId: current.registrationId,
+          commandId: randomUUID()
+        })
+      ).toMatchObject({ status: 'rejected' })
+      expect(fake.runtime.respondToolApproval).toHaveBeenCalledWith(
+        nativeId,
+        { approved: true },
+        anchor,
+        buildAgentSessionTopicId(sessionId),
+        second
+      )
+      publish(second, 'output-error')
+      expect((await call('agent.interactions.get', { sessionId, interactionId: nativeId })).interaction.status).toBe(
+        'expired'
+      )
+    } finally {
+      toolApprovalRegistry.abort(sessionId)
+    }
+  })
+
   it('requires complete answers for the current question and replays its receipt without dispatching twice', async () => {
     const { session } = await call('agent.sessions.get', { sessionId })
     await call('agent.messages.send', {
@@ -1257,6 +1344,7 @@ describe('remote agent access', () => {
       sessionId,
       interactionId: 'question',
       expectedRevision: interaction.revision,
+      ...(interaction.registrationId ? { expectedRegistrationId: interaction.registrationId } : {}),
       expectedExecutionId: interaction.executionId,
       inputDigest: interaction.inputDigest
     }
@@ -1279,7 +1367,9 @@ describe('remote agent access', () => {
     expect(fake.runtime.respondToolApproval).toHaveBeenCalledWith(
       'question',
       { approved: true, updatedInput: { ...input, answers: params.response.answers } },
-      anchor
+      anchor,
+      buildAgentSessionTopicId(sessionId),
+      undefined
     )
     expect(await call('agent.interactions.respond', params)).toEqual(receipt)
     expect(fake.runtime.respondToolApproval).toHaveBeenCalledTimes(1)
@@ -1305,6 +1395,7 @@ describe('remote agent access', () => {
       sessionId,
       interactionId: interaction.interactionId,
       expectedRevision: interaction.revision,
+      ...(interaction.registrationId ? { expectedRegistrationId: interaction.registrationId } : {}),
       expectedExecutionId: interaction.executionId,
       inputDigest: interaction.inputDigest,
       response: { kind: 'deny', reason: '请勿读取' }
@@ -1313,7 +1404,9 @@ describe('remote agent access', () => {
     expect(fake.runtime.respondToolApproval).toHaveBeenCalledWith(
       'read-approval',
       { approved: false, reason: '请勿读取' },
-      anchor
+      anchor,
+      buildAgentSessionTopicId(sessionId),
+      undefined
     )
   })
 
@@ -1763,12 +1856,19 @@ describe('remote agent access', () => {
       sessionId,
       interactionId: 'approval-1',
       expectedRevision: interaction.revision,
+      ...(interaction.registrationId ? { expectedRegistrationId: interaction.registrationId } : {}),
       expectedExecutionId: receipt.executionId,
       inputDigest: interaction.inputDigest,
       decision: 'approve'
     })
     expect(respond.status).toBe('applied')
-    expect(fake.runtime.respondToolApproval).toHaveBeenCalledWith('approval-1', { approved: true }, assistantId)
+    expect(fake.runtime.respondToolApproval).toHaveBeenCalledWith(
+      'approval-1',
+      { approved: true },
+      assistantId,
+      buildAgentSessionTopicId(sessionId),
+      undefined
+    )
     emit({ type: 'tool-output-available', toolCallId: 'call-1', output: 'x'.repeat(5000) }, assistantId)
     projection = await drain(projection)
     expect(projection.interactions['approval-1'].status).toBe('approved')

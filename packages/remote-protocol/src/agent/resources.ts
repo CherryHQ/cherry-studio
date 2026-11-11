@@ -176,6 +176,7 @@ export type AgentInteractionResponse = z.infer<typeof interactionResponseSchema>
 
 export const interactionSummarySchema = z.looseObject({
   interactionId: opaqueId,
+  registrationId: opaqueId.optional(),
   revision: decimal,
   executionId: opaqueId,
   toolCallId: opaqueId,

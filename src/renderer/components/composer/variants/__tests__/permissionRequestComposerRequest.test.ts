@@ -38,7 +38,7 @@ describe('findNextPendingPermissionRequest', () => {
       messageId: 'message-2',
       toolCallId: 'call-2',
       approvalId: 'approval-2',
-      title: 'Read',
+      title: '/tmp/file.ts',
       toolResponse: {
         tool: { name: 'Read', type: 'provider' },
         status: 'pending',

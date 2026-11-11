@@ -576,10 +576,8 @@ async function buildToolPermissions(
       return { behavior: 'allow', updatedInput: input }
     }
 
-    // Interactive background requests are rendered as independent assistant messages. This is
-    // intentionally separate from "has a live turn": the parent turn may be complete while its
-    // background agent is still waiting for the user. Tools needing a user-authored answer stay
-    // fail-closed on channel/scheduled runs — they have no responder.
+    // Background interaction uses the shared responder even after the parent finishes.
+    // Runs without a user-facing responder cannot request authored input.
     if (
       (!hasLiveTurnStream && !requiresUserResponse) ||
       (requiresUserResponse &&
@@ -593,7 +591,6 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
     }
 
-    const presentation = !hasLiveTurnStream || isBackgroundAgent ? 'message' : 'stream'
     const approvalId = randomUUID()
     const emit = sessionState().peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {
@@ -607,17 +604,19 @@ async function buildToolPermissions(
         toolCallId: opts.toolUseID,
         toolName,
         originalInput: input,
-        presentation,
         signal: opts.signal,
         resolve: (decision) => resolve(decisionToPermissionResult(decision, input))
       })
       if (!pending) return
       emit({
         approvalId,
+        registrationId: pending,
+        origin: opts.agentID
+          ? { kind: 'child', threadId: opts.agentID }
+          : { kind: 'root', messageId: interactionState.replyId },
         toolCallId: opts.toolUseID,
         toolName,
         input,
-        presentation,
         providerMetadata: {
           cherry: { transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport, toolName } satisfies CherryToolMeta
         }

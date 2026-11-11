@@ -262,6 +262,7 @@ export interface AnchorMessage {
 
 export interface MessageRenderConfig {
   subagentListTitle?: string
+  pendingToolApprovals?: Readonly<Record<string, Readonly<Record<string, number>>>>
   userName: string
   narrowMode: boolean
   messageStyle: ChatMessageStyle

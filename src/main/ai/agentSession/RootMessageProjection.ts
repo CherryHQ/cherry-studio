@@ -8,7 +8,7 @@ import {
   type RootProjectionCheckpoint
 } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
-import type { RuntimeMessageProjection } from '@main/ai/runtime/types'
+import type { AgentRuntimeToolApprovalRequest, RuntimeMessageProjection } from '@main/ai/runtime/types'
 import { dropEmptyContentParts, finalizeInterruptedParts, stripTransientStatusParts } from '@main/ai/streamManager'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -17,7 +17,11 @@ type Source = { messageId: string; parts: CherryUIMessage['parts'] }
 
 /** Groups native sources into product replies; selected model context never deletes retained sources. */
 export class RootMessageProjection {
-  private readonly approvals = new Map<string, { id: string; approved: boolean }>()
+  private readonly approvalRegistrations = new Map<string, string>()
+  private readonly approvals = new Map<
+    string,
+    { id: string; approved: boolean; input?: Record<string, unknown> } | { id: string; errorText: string }
+  >()
   private readonly sources = new Map<string, Source>()
   private readonly replySources = new Map<string, Set<string>>()
   private readonly removed = new Set<string>()
@@ -43,6 +47,10 @@ export class RootMessageProjection {
         parts = messages.getSessionMessage(context.sessionId, range.messageId).data.parts ?? []
         bodies.set(range.messageId, parts)
         for (const part of parts) {
+          if (isToolUIPart(part)) {
+            const registrationId = part.callProviderMetadata?.cherry?.approvalRegistrationId
+            if (typeof registrationId === 'string') this.approvalRegistrations.set(part.toolCallId, registrationId)
+          }
           if (isToolUIPart(part) && part.approval?.approved !== undefined)
             this.approvals.set(part.toolCallId, part.approval)
         }
@@ -166,6 +174,7 @@ export class RootMessageProjection {
           toolName: pending.input.toolName,
           input: pending.input.input,
           providerExecuted: pending.input.providerExecuted,
+          callProviderMetadata: pending.input.providerMetadata,
           state: 'approval-requested',
           approval: { id: pending.approvalId }
         })
@@ -196,25 +205,87 @@ export class RootMessageProjection {
     }
   }
 
-  resolveToolApproval(toolCallId: string, approvalId: string, approved: boolean): void {
-    this.approvals.set(toolCallId, { id: approvalId, approved })
+  requestToolApproval(messageId: string, request: AgentRuntimeToolApprovalRequest): void {
+    if (this.approvalRegistrations.get(request.toolCallId) !== request.registrationId)
+      this.approvals.delete(request.toolCallId)
+    this.approvalRegistrations.set(request.toolCallId, request.registrationId)
+    this.control(messageId, {
+      type: 'tool-input-available',
+      toolCallId: request.toolCallId,
+      toolName: request.toolName,
+      input: request.input,
+      providerExecuted: true,
+      providerMetadata: {
+        ...request.providerMetadata,
+        cherry: { ...request.providerMetadata?.cherry, approvalRegistrationId: request.registrationId }
+      }
+    })
+    this.control(messageId, {
+      type: 'tool-approval-request',
+      toolCallId: request.toolCallId,
+      approvalId: request.approvalId
+    })
+  }
+
+  resolveToolApproval(
+    toolCallId: string,
+    approvalId: string,
+    approved: boolean,
+    input?: Record<string, unknown>
+  ): void {
+    this.approvals.set(toolCallId, { id: approvalId, approved, input })
+  }
+
+  retireToolApproval(toolCallId: string, approvalId: string, errorText: string): void {
+    this.approvals.set(toolCallId, { id: approvalId, errorText })
   }
 
   private decorate(part: CherryUIMessage['parts'][number]): CherryUIMessage['parts'][number] {
     if (!isToolUIPart(part)) return part
+    const registrationId = this.approvalRegistrations.get(part.toolCallId)
+    if (registrationId) {
+      part = {
+        ...part,
+        callProviderMetadata: {
+          ...part.callProviderMetadata,
+          cherry: { ...part.callProviderMetadata?.cherry, approvalRegistrationId: registrationId }
+        }
+      }
+    }
     const approval = this.approvals.get(part.toolCallId)
     if (approval) {
+      if ('errorText' in approval) {
+        const [retired] = finalizeInterruptedParts(
+          [
+            {
+              type: 'dynamic-tool',
+              toolName: 'toolName' in part ? part.toolName : part.type.slice(5),
+              toolCallId: part.toolCallId,
+              input: part.input,
+              state: 'approval-requested',
+              approval: { id: approval.id },
+              callProviderMetadata: part.callProviderMetadata,
+              providerExecuted: part.providerExecuted
+            }
+          ],
+          'error'
+        )
+        return isToolUIPart(retired) && retired.state === 'output-error'
+          ? { ...retired, errorText: approval.errorText }
+          : retired
+      }
+      part = { ...part, input: approval.input ?? part.input }
       if (!approval.approved) {
         return {
           ...part,
           state: 'output-denied',
           output: undefined,
           errorText: undefined,
-          approval: { ...approval, approved: false }
+          approval: { id: approval.id, approved: false }
         }
       }
       if (part.state === 'output-denied') return part
-      const allowed = { ...approval, approved: true as const }
+      const allowed = { id: approval.id, approved: true as const }
       return part.state === 'output-available' || part.state === 'output-error'
         ? { ...part, approval: allowed }
         : { ...part, state: 'approval-responded', approval: allowed }

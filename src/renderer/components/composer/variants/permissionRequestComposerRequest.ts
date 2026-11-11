@@ -51,7 +51,10 @@ function getStringField(value: unknown, fields: string[]): string | undefined {
 }
 
 function getPermissionTitle(part: PermissionToolPart, fallback: string): string {
-  return getStringField(part.input, ['question', 'message', 'prompt', 'title', 'description', 'path']) ?? fallback
+  return (
+    getStringField(part.input, ['question', 'message', 'prompt', 'title', 'description', 'path', 'file_path']) ??
+    fallback
+  )
 }
 
 /** Return the FIFO head from the newest reply that has pending tool permissions. */

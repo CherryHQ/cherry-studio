@@ -1,6 +1,12 @@
 {
   "agent.add.error.failed": "Не удалось добавить агента",
   "agent.add.title": "Добавить агента",
+  "agent.approval.approved": "Одобрено",
+  "agent.approval.cancelled": "Отменено",
+  "agent.approval.denied": "Отклонено",
+  "agent.approval.expired": "Срок истёк",
+  "agent.approval.pending": "Ожидает подтверждения",
+  "agent.approval.unavailable": "Это подтверждение больше недоступно. Откройте текущий запрос, чтобы продолжить.",
   "agent.archive.related_resources": "Связанные каналы будут отключены; запланированные задачи приостановлены. Настройки, подписки и история запусков сохраняются. После восстановления агента пропущенные задачи не будут запущены автоматически.",
   "agent.askUserQuestion.answered": "ответил",
   "agent.askUserQuestion.close": "Закрыть",

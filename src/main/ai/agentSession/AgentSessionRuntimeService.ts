@@ -33,6 +33,7 @@ import {
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
+import { AGENT_SESSION_APPROVALS_CACHE_KEY, type AgentSessionApproval } from '@shared/ai/agentSessionApprovals'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
   AGENT_SESSION_TASK_EVENTS_CACHE_KEY,
@@ -69,7 +70,11 @@ import {
   type ServiceTierSelection,
   type UniqueModelId
 } from '@shared/data/types/model'
-import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import {
+  CherryToolMetaSchema,
+  type AgentTaskEventPartData,
+  getKnowledgeBaseIdsFromParts
+} from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
@@ -94,7 +99,7 @@ import {
   TraceFlushListener
 } from '../streamManager'
 import { type AbortedApproval, type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
-import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
+import type { ApprovalRequestedEvent, ApprovalSettledEvent, InProcessUsageContext } from '../types'
 import {
   type AgentSessionRuntimeConnectionTarget,
   type AgentSessionRuntimeLaunchTarget,
@@ -215,6 +220,7 @@ export interface AgentSessionRuntimeSnapshot {
 }
 
 export interface AgentSessionInteractionState {
+  replyId?: string
   currentTurn: 'none' | 'interactive' | 'headless'
   userResponse: 'unavailable' | 'stream' | 'message'
 }
@@ -473,6 +479,8 @@ export class AgentSessionRuntimeService extends BaseService {
     return this.forks.recover()
   }
 
+  private readonly _onApprovalSettled = new Emitter<ApprovalSettledEvent>()
+  public readonly onApprovalSettled = this._onApprovalSettled.event
   private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
   public readonly onApprovalRequested: Event<ApprovalRequestedEvent> = this._onApprovalRequested.event
   private readonly _onTurnTerminal = new Emitter<AgentSessionTurnTerminalEvent>()
@@ -535,20 +543,29 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
+    this.registerDisposable(
+      childContexts.onChildCreated(({ ownerSessionId }) => this.refreshApprovalViews(ownerSessionId))
+    )
     this.registerDisposable(toolApprovalRegistry.onAborted((aborted) => this.retireAbortedApprovalCard(aborted)))
   }
 
-  /**
-   * Only `message`-presentation cards need this: they are parked in a row of their own that outlives
-   * the turn, so nothing else retires them once their request is aborted.
-   */
   private retireAbortedApprovalCard(aborted: AbortedApproval): void {
-    if (aborted.presentation !== 'message') return
+    const anchor = aborted.anchor
+    if (!anchor) return
     try {
+      const entry = this.entries.get(aborted.sessionId)
+      const projection = entry?.rootProjections?.get(anchor.contextId)
+      if (anchor.kind === 'reply' && projection && entry) {
+        projection.retireToolApproval(aborted.toolCallId, aborted.approvalId, ABANDONED_APPROVAL_ERROR)
+        const parts = projection.parts(anchor.messageId)
+        if (parts) this.publishRootMessage(entry, projection, anchor.messageId, parts)
+      }
       agentSessionMessageService.retireAbandonedApproval(
         aborted.sessionId,
         aborted.approvalId,
-        ABANDONED_APPROVAL_ERROR
+        ABANDONED_APPROVAL_ERROR,
+        anchor.messageId,
+        aborted.registrationId
       )
     } catch (error) {
       logger.warn('Failed to retire an aborted tool-approval card', {
@@ -556,6 +573,9 @@ export class AgentSessionRuntimeService extends BaseService {
         approvalId: aborted.approvalId,
         error
       })
+    } finally {
+      this.refreshApprovalViews(aborted.sessionId)
+      this._onApprovalSettled.fire({ registrationId: aborted.registrationId, status: 'cancelled' })
     }
   }
 
@@ -874,6 +894,7 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   async primeConnection(sessionId: string): Promise<void> {
     if (this.forks.edits.has(sessionId)) return
+    this.refreshApprovalViews(sessionId)
     try {
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -1672,18 +1693,19 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Resolve a Claude `canUseTool` approval registered against this runtime session. Persisted
-   * interaction messages are settled before their SDK promise; live overlays are cleared after it.
+   * Resolve a runtime approval against its bound message before releasing the native callback.
    * Only an atomically recorded, undelivered decision may be replayed as a user message.
    */
   respondToolApproval(
     approvalId: string,
     decision: DispatchDecision,
     anchorId?: string,
-    topicId?: string
+    topicId?: string,
+    registrationId?: string
   ): AiToolApprovalRespondResponse {
     const pending = toolApprovalRegistry.peek(approvalId)
     if (!pending) {
+      if (registrationId) return { ok: false, reason: 'rejected' }
       // Only the first decision recorded on an abandoned card may become a new user message.
       // A missing registry entry alone also covers decisions already delivered in another window.
       if (anchorId && topicId && isAgentSessionTopic(topicId)) {
@@ -1698,47 +1720,65 @@ export class AgentSessionRuntimeService extends BaseService {
       return { ok: false, reason: 'rejected' }
     }
 
-    if (pending.presentation === 'message') {
-      if (!anchorId) {
-        logger.warn('Persisted tool approval response is missing its anchor message', { approvalId })
-        return { ok: false, reason: 'rejected' }
-      }
-      const applied = agentSessionMessageService.applyToolApprovalDecision(pending.sessionId, anchorId, {
-        approvalId,
-        approved: decision.approved,
-        ...(decision.reason !== undefined && { reason: decision.reason }),
-        ...(decision.updatedInput !== undefined && { updatedInput: decision.updatedInput })
-      })
-      if (!applied) {
-        logger.warn('Persisted tool approval response did not match a pending card', {
+    const anchor = pending.anchor
+    if (
+      registrationId !== pending.registrationId ||
+      !anchor ||
+      anchorId !== anchor.messageId ||
+      topicId !== buildAgentSessionTopicId(pending.sessionId)
+    )
+      return { ok: false, reason: 'rejected' }
+
+    try {
+      const applied = agentSessionMessageService.applyToolApprovalDecision(
+        pending.sessionId,
+        anchor.messageId,
+        {
           approvalId,
-          anchorId
-        })
-        return { ok: false, reason: 'rejected' }
-      }
+          approved: decision.approved,
+          ...(decision.reason !== undefined && { reason: decision.reason }),
+          ...(decision.updatedInput !== undefined && { updatedInput: decision.updatedInput })
+        },
+        pending.registrationId
+      )
+      if (!applied) return { ok: false, reason: 'rejected' }
+    } catch (error) {
+      logger.warn('Failed to persist tool approval response', { sessionId: pending.sessionId, approvalId, error })
+      return { ok: false, reason: 'rejected' }
     }
 
-    // A refusal that arrived here is the user's own answer, so drivers may attribute it to them.
-    // Registry/abort denials reach dispatch() directly and stay unmarked.
+    // Data-change listeners can cancel or replace a registration while publishing the persisted answer.
+    if (toolApprovalRegistry.peek(approvalId)?.registrationId !== pending.registrationId)
+      return { ok: false, reason: 'rejected' }
+    try {
+      if (anchor.kind === 'reply') {
+        const entry = this.entries.get(pending.sessionId)
+        const projection = entry?.rootProjections?.get(anchor.contextId)
+        if (entry && projection) {
+          projection.resolveToolApproval(pending.toolCallId, approvalId, decision.approved, decision.updatedInput)
+          const parts = projection.parts(anchor.messageId)
+          if (parts) this.publishRootMessage(entry, projection, anchor.messageId, parts)
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to publish persisted tool approval response', {
+        sessionId: pending.sessionId,
+        approvalId,
+        error
+      })
+    }
+    if (toolApprovalRegistry.peek(approvalId)?.registrationId !== pending.registrationId)
+      return { ok: false, reason: 'rejected' }
     const dispatched = toolApprovalRegistry.dispatch(
       approvalId,
       decision.approved ? decision : { ...decision, reasonSource: 'user' }
     )
     if (!dispatched) return { ok: false, reason: 'rejected' }
-
-    if (dispatched.presentation === 'stream') {
-      const entry = this.entries.get(dispatched.sessionId)
-      if (entry) {
-        getAgentSessionRuntimeNativeTurn(entry.runtimeState)?.projection?.resolveToolApproval(
-          dispatched.toolCallId,
-          approvalId,
-          decision.approved
-        )
-      }
-      application
-        .get('AiStreamManager')
-        .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId, decision.approved)
-    }
+    this.refreshApprovalViews(pending.sessionId)
+    this._onApprovalSettled.fire({
+      registrationId: pending.registrationId,
+      status: decision.approved ? 'approved' : 'denied'
+    })
     return { ok: true }
   }
 
@@ -1783,6 +1823,7 @@ export class AgentSessionRuntimeService extends BaseService {
         const child = await connection?.childProjection?.(toolCallId)
         if (entry && (this.entries.get(sessionId) !== entry || this.currentConnection(entry) !== connection))
           return null
+        this.refreshApprovalViews(sessionId)
         if (child) return child
         const context = childContexts.findChild(sessionId, toolCallId)
         if (!context) return null
@@ -1857,6 +1898,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.childSubscriptions.dispose()
     await this.forks.cancel()
     this._onApprovalRequested.dispose()
+    this._onApprovalSettled.dispose()
     this.disposeWarmLeases()
     await this.closeAll()
     try {
@@ -2222,7 +2264,15 @@ export class AgentSessionRuntimeService extends BaseService {
   private async runConnectionLoop(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): Promise<void> {
     try {
       for await (const event of connection.events) {
-        if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) break
+        if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) {
+          if (event.type === 'tool-approval-request')
+            toolApprovalRegistry.cancelRequest(
+              event.request.approvalId,
+              event.request.registrationId,
+              'Approval connection was replaced'
+            )
+          break
+        }
         this.handleRuntimeEvent(entry, event, connection)
       }
     } catch (error) {
@@ -2244,6 +2294,13 @@ export class AgentSessionRuntimeService extends BaseService {
         if (turn) turn.projection = projection
         const changed = projection.accept(event.projection, turn?.assistantMessageId)
         for (const [id, parts] of changed) this.publishRootMessage(entry, projection, id, parts)
+        if (
+          application
+            .get('CacheService')
+            .getShared(AGENT_SESSION_APPROVALS_CACHE_KEY(entry.sessionId))
+            ?.some((view) => view.source && !view.parentMessageId)
+        )
+          this.refreshApprovalViews(entry.sessionId)
         break
       }
       case 'response-start': {
@@ -2781,67 +2838,182 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  private refreshApprovalViews(sessionId: string): AgentSessionApproval[] {
+    try {
+      const views: AgentSessionApproval[] = []
+      const entry = this.entries.get(sessionId)
+      for (const message of agentSessionMessageService.listApprovalMessages(sessionId)) {
+        for (const part of message.data.parts ?? []) {
+          if (!isToolUIPart(part) || !part.approval) continue
+          const metadata = CherryToolMetaSchema.safeParse(part.callProviderMetadata?.cherry).data
+          const registrationId = metadata?.approvalRegistrationId
+          if (!registrationId) continue
+          const source = metadata?.approvalSource
+          const pending = toolApprovalRegistry.peek(part.approval.id)
+          const live = pending?.registrationId === registrationId && pending.anchor?.messageId === message.id
+          const taskPath: AgentSessionApproval['taskPath'] = []
+          if (source) {
+            const visit = (parentId: string, path: AgentSessionApproval['taskPath']): boolean => {
+              for (const child of childContexts.children(parentId)) {
+                if (!child.spawnToolCallId) continue
+                const next = [...path, { contextId: child.id, toolCallId: child.spawnToolCallId }]
+                if (
+                  child.nativeThreadId === source.threadId &&
+                  (!source.sessionId || child.sessionId === source.sessionId)
+                ) {
+                  taskPath.push(...next)
+                  return true
+                }
+                if (visit(child.id, next)) return true
+              }
+              return false
+            }
+            visit(source.contextId, [])
+          }
+          const parentMessageId =
+            source && taskPath[0]
+              ? (
+                  entry?.rootProjections?.get(source.contextId) ?? new RootMessageProjection(source.contextId)
+                ).toolCallMessageId(taskPath[0].toolCallId)
+              : undefined
+          views.push({
+            registrationId,
+            approvalId: part.approval.id,
+            messageId: message.id,
+            part,
+            source,
+            taskPath,
+            parentMessageId,
+            status: live
+              ? 'pending'
+              : part.approval.approved === true
+                ? 'approved'
+                : part.approval.approved === false
+                  ? 'denied'
+                  : part.state === 'output-error'
+                    ? 'cancelled'
+                    : 'expired'
+          })
+        }
+      }
+      application.get('CacheService').setShared(AGENT_SESSION_APPROVALS_CACHE_KEY(sessionId), views)
+      return views
+    } catch (error) {
+      logger.warn('Failed to refresh approval views', { sessionId, error })
+      return []
+    }
+  }
+
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
-    if (request.presentation === 'stream') {
-      const chunk: UIMessageChunk = {
-        type: 'tool-approval-request',
-        approvalId: request.approvalId,
-        toolCallId: request.toolCallId
-      }
-      if (!this.deliverRuntimeChunk(entry, chunk)) {
-        logger.warn('Live tool approval request lost its turn stream', {
-          sessionId: entry.sessionId,
-          approvalId: request.approvalId
-        })
-        toolApprovalRegistry.dispatch(request.approvalId, {
-          approved: false,
-          reason: 'The turn ended before this approval request could be presented'
-        })
-      }
+    const pending = toolApprovalRegistry.peek(request.approvalId)
+    if (!pending || pending.registrationId !== request.registrationId || pending.sessionId !== entry.sessionId) return
+    if (pending.anchor) return
+    const contextId = this.currentConnection(entry)?.contextId
+    const interaction = this.getInteractionState(entry.sessionId)
+    const cancel = () =>
+      toolApprovalRegistry.cancelRequest(
+        request.approvalId,
+        request.registrationId,
+        'Unable to present this approval request to the user'
+      )
+    if (!contextId || interaction.userResponse === 'unavailable') {
+      cancel()
       return
     }
-
-    // The requesting agent outlived its parent turn. Persist a settled assistant row containing the
-    // pending interaction instead of reopening a streaming turn: user follow-ups remain admissible,
-    // and several subagents can wait independently without overwriting one shared live message.
-    const part = {
-      type: `tool-${request.toolName}`,
-      toolCallId: request.toolCallId,
-      state: 'approval-requested',
-      input: request.input,
-      approval: { id: request.approvalId },
-      ...(request.providerMetadata ? { callProviderMetadata: request.providerMetadata } : {})
-    } as CherryMessagePart
-
+    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    const inline =
+      request.origin.kind === 'root' &&
+      request.origin.messageId !== undefined &&
+      request.origin.messageId === turn?.assistantMessageId &&
+      this.isTurnLive(entry, turn)
+    const anchor = {
+      kind: inline ? ('reply' as const) : ('message' as const),
+      contextId,
+      messageId: inline ? turn.assistantMessageId : uuidv7()
+    }
+    if (!toolApprovalRegistry.bind(request.approvalId, request.registrationId, anchor)) return
     try {
-      agentSessionMessageService.saveMessage(
-        {
-          sessionId: entry.sessionId,
-          message: {
-            role: 'assistant',
-            status: 'success',
-            data: { parts: [part] },
-            modelId: this.connectionTarget(entry).modelId,
-            messageSnapshot: entry.messageSnapshot
+      if (inline) {
+        const projection = this.rootProjection(entry, contextId)
+        turn.projection = projection
+        projection.requestToolApproval(anchor.messageId, request)
+        const parts = projection.parts(anchor.messageId) ?? []
+        agentSessionMessageService.replaceMessageParts(
+          entry.sessionId,
+          anchor.messageId,
+          parts,
+          this.rootCheckpoint(entry, projection, anchor.messageId)
+        )
+        this.publishTurnMessage(entry, turn, projection.parts(anchor.messageId) ?? [])
+      } else {
+        const part: CherryMessagePart = {
+          type: 'dynamic-tool',
+          toolName: request.toolName,
+          toolCallId: request.toolCallId,
+          state: 'approval-requested',
+          input: request.input,
+          approval: { id: request.approvalId },
+          providerExecuted: true,
+          callProviderMetadata: {
+            ...request.providerMetadata,
+            cherry: {
+              ...request.providerMetadata?.cherry,
+              approvalRecord: true,
+              approvalRegistrationId: request.registrationId,
+              ...(request.origin.kind === 'child'
+                ? {
+                    approvalSource: {
+                      contextId,
+                      threadId: request.origin.threadId,
+                      ...(request.origin.sessionId ? { sessionId: request.origin.sessionId } : {})
+                    }
+                  }
+                : {})
+            }
           }
-        },
-        { publishDataChange: true }
-      )
+        }
+        agentSessionMessageService.saveMessage(
+          {
+            sessionId: entry.sessionId,
+            message: {
+              id: anchor.messageId,
+              role: 'assistant',
+              status: 'success',
+              data: { parts: [part] },
+              modelId: this.connectionTarget(entry).modelId,
+              messageSnapshot: entry.messageSnapshot
+            }
+          },
+          { publishDataChange: true }
+        )
+      }
+      if (toolApprovalRegistry.peek(request.approvalId)?.registrationId !== request.registrationId) {
+        this.retireAbortedApprovalCard({ ...pending, anchor, approvalId: request.approvalId, reason: 'aborted' })
+        return
+      }
+      const views = this.refreshApprovalViews(entry.sessionId)
+      const view = views.find((item) => item.registrationId === request.registrationId)
+      if (!view) {
+        cancel()
+        return
+      }
       this._onApprovalRequested.fire({
+        registration: {
+          id: request.registrationId,
+          messageId: anchor.messageId,
+          taskToolCallId: view?.taskPath[0]?.toolCallId
+        },
         topicId: entry.topicId,
         approvalId: request.approvalId,
         requestedAt: Date.now()
       })
     } catch (error) {
-      logger.error('Failed to persist background tool approval request', {
+      logger.error('Failed to present tool approval request', {
         sessionId: entry.sessionId,
         approvalId: request.approvalId,
         error
       })
-      toolApprovalRegistry.dispatch(request.approvalId, {
-        approved: false,
-        reason: 'Unable to present this approval request to the user'
-      })
+      cancel()
     }
   }
 
@@ -3209,23 +3381,29 @@ export class AgentSessionRuntimeService extends BaseService {
     const execution = entry.runtimeState.execution
     const currentTurn = turn ? (turn.headless === true ? 'headless' : 'interactive') : 'none'
     if (execution.kind === 'steer-transition')
-      return { currentTurn, userResponse: execution.reply.turn.headless ? 'unavailable' : 'stream' }
+      return {
+        replyId: execution.reply.turn.assistantMessageId,
+        currentTurn,
+        userResponse: execution.reply.turn.headless ? 'unavailable' : 'stream'
+      }
     const backgroundResponder = getAgentSessionRuntimeOccupancy(entry.runtimeState)?.background?.responder
     if (backgroundResponder) {
       if (backgroundResponder === 'headless') {
-        return { currentTurn, userResponse: 'unavailable' }
+        return { replyId: turn?.assistantMessageId, currentTurn, userResponse: 'unavailable' }
       }
       // A background wake is deliberately an independent interaction. It must not attach approval
       // UI to a prior turn's stream merely because the receive-only projection is still opening.
-      if (execution.kind === 'autonomous-turn') return { currentTurn, userResponse: 'message' }
+      if (execution.kind === 'autonomous-turn')
+        return { replyId: turn?.assistantMessageId, currentTurn, userResponse: 'message' }
       const hasStream =
         hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn) && turn !== undefined && this.isTurnLive(entry, turn)
-      return { currentTurn, userResponse: hasStream ? 'stream' : 'message' }
+      return { replyId: turn?.assistantMessageId, currentTurn, userResponse: hasStream ? 'stream' : 'message' }
     }
-    if (currentTurn !== 'interactive') return { currentTurn, userResponse: 'unavailable' }
+    if (currentTurn !== 'interactive')
+      return { replyId: turn?.assistantMessageId, currentTurn, userResponse: 'unavailable' }
     const hasStream =
       hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn) && turn !== undefined && this.isTurnLive(entry, turn)
-    return { currentTurn, userResponse: hasStream ? 'stream' : 'message' }
+    return { replyId: turn?.assistantMessageId, currentTurn, userResponse: hasStream ? 'stream' : 'message' }
   }
 
   private startRuntimeRootSpan(

@@ -21,7 +21,16 @@ export const NotificationTargetSchema = z
       conversationId: z.string().min(1),
       // Empty means no reply; absent means a legacy record without a separate preview.
       replyPreview: z.string().optional(),
-      messageId: z.string().min(1).nullable().optional()
+      messageId: z.string().min(1).nullable().optional(),
+      approval: z
+        .object({
+          registrationId: z.string().min(1),
+          approvalId: z.string().min(1),
+          messageId: z.string().min(1),
+          taskToolCallId: z.string().optional(),
+          status: z.enum(['pending', 'approved', 'denied', 'cancelled', 'expired'])
+        })
+        .optional()
     }),
     z.object({ kind: z.literal('scheduled-task'), taskId: z.string().min(1) }),
     z.object({ kind: z.literal('settings'), tab: z.enum(['usage', 'data', 'profile']) }),

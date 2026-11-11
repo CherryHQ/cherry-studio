@@ -7,6 +7,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
+import type { AgentApprovalStatus } from '@shared/ai/agentSessionApprovals'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { NotificationTaskResultSchema, type TaskResultNotificationInput } from '@shared/data/types/notification'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
@@ -47,10 +48,12 @@ function isConversationTarget(meta: unknown): meta is ConversationNavigationTarg
 @DependsOn(['ConversationNavigationService'])
 @ServicePhase(Phase.WhenReady)
 export class NotificationService extends BaseService {
+  private readonly approvalNotifications = new Map<string, ElectronNotification>()
   private readonly activeNotifications = new Set<ElectronNotification>()
 
   protected onStop(): void {
     this.activeNotifications.clear()
+    this.approvalNotifications.clear()
   }
 
   protected onInit(): void {
@@ -101,6 +104,10 @@ export class NotificationService extends BaseService {
       if (!record) return true
       committed = true
       if (recordOnly) return true
+      if (record.target?.kind === 'conversation' && record.target.approval) {
+        const current = notificationRecordService.getById(record.id)
+        if (current?.target?.kind !== 'conversation' || current.target.approval?.status !== 'pending') return true
+      }
       const windows = getFullChromeWindowInfos()
       const focused = windows.find((window) => window.isFocused)
       const owner = focused ?? windows.find((window) => window.type === WindowType.Main) ?? windows[0]
@@ -114,7 +121,7 @@ export class NotificationService extends BaseService {
         }
       }
       if (focused) {
-        if (options.completion || result || input.category === 'usage') {
+        if (options.completion || result || input.category === 'usage' || input.kind === 'approval-request') {
           application.get('IpcApiService').send(focused.id, 'notification.present', record)
         }
         if (options.source !== 'update' && options.source !== 'backup') return true
@@ -136,11 +143,34 @@ export class NotificationService extends BaseService {
           logger.warn('Failed to open notification target', { error })
         )
       })
+      if (record.kind === 'approval-request') {
+        this.approvalNotifications.set(record.id, notification)
+        const release = () => this.approvalNotifications.delete(record.id)
+        notification.once('click', release)
+        notification.once('close', release)
+        notification.once('failed', release)
+      }
       this.showNotification(notification)
       return true
     } catch (error) {
       logger.warn('Failed to publish notification', { error, eventKey: input.eventKey })
       return committed
+    }
+  }
+
+  public settleApproval(registrationId: string, status: Exclude<AgentApprovalStatus, 'pending'>): void {
+    try {
+      for (const id of notificationRecordService.settleApproval(registrationId, status)) {
+        try {
+          this.approvalNotifications.get(id)?.close()
+          this.approvalNotifications.delete(id)
+          application.get('IpcApiService').broadcast('notification.retired', { id })
+        } catch (error) {
+          logger.warn('Failed to close approval reminder', { id, error })
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to settle approval notification', { registrationId, error })
     }
   }
 

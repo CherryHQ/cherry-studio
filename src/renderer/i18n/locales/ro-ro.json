@@ -1,6 +1,12 @@
 {
   "agent.add.error.failed": "Nu s-a putut adăuga un agent",
   "agent.add.title": "Adaugă agent",
+  "agent.approval.approved": "Aprobată",
+  "agent.approval.cancelled": "Anulată",
+  "agent.approval.denied": "Respinsă",
+  "agent.approval.expired": "Expirată",
+  "agent.approval.pending": "În așteptarea confirmării",
+  "agent.approval.unavailable": "Această aprobare nu mai este disponibilă. Deschide cererea curentă pentru a continua.",
   "agent.archive.related_resources": "Canalele asociate vor fi deconectate; sarcinile programate sunt întrerupte. Setările, abonamentele și istoricul execuțiilor sunt păstrate. Sarcinile ratate nu vor fi executate automat după restaurarea agentului.",
   "agent.askUserQuestion.answered": "răspuns",
   "agent.askUserQuestion.close": "Închide",

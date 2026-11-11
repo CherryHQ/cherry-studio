@@ -41,6 +41,7 @@ interface AgentChatMainProps {
   deleteMessage: (messageId: string) => Promise<void>
   startEditing: (messageId: string) => Promise<void>
   editBusy: boolean
+  selectToolApproval?: (messageId: string) => void
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
 }
 
@@ -67,7 +68,8 @@ export default function AgentChatMain({
   setActiveBranch,
   startEditing,
   editBusy,
-  respondToolApproval
+  respondToolApproval,
+  selectToolApproval
 }: AgentChatMainProps) {
   const navigate = useNavigate()
   const navigateToForkSource = useCallback<NavigateToForkSource>(
@@ -105,6 +107,7 @@ export default function AgentChatMain({
           startEditing={agentId ? startEditing : undefined}
           editBusy={editBusy}
           respondToolApproval={agentId ? respondToolApproval : undefined}
+          selectToolApproval={selectToolApproval}
           navigateToForkSource={navigateToForkSource}
         />
       </div>

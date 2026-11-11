@@ -1,6 +1,12 @@
 {
   "agent.add.error.failed": "新增智能體失敗",
   "agent.add.title": "新增智能體",
+  "agent.approval.approved": "已核准",
+  "agent.approval.cancelled": "已取消",
+  "agent.approval.denied": "已拒絕",
+  "agent.approval.expired": "已失效",
+  "agent.approval.pending": "等待你確認",
+  "agent.approval.unavailable": "此審批已失效，請開啟目前的請求繼續。",
   "agent.archive.related_resources": "關聯頻道將中斷連線，排程任務已暫停。設定、訂閱和執行記錄保留；還原智能體後不會自動補跑錯過的任務。",
   "agent.askUserQuestion.answered": "已回答",
   "agent.askUserQuestion.close": "關閉",

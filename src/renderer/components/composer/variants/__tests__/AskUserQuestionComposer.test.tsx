@@ -72,6 +72,17 @@ function makeRequest(requestQuestions = questions): AskUserQuestionComposerReque
 }
 
 describe('AskUserQuestionComposer', () => {
+  // Catches child provenance being read from text metadata instead of tool-call metadata.
+  it('labels an approval requested by a child', () => {
+    const request = makeRequest()
+    request.match.part = {
+      ...request.match.part,
+      callProviderMetadata: { cherry: { approvalSource: { contextId: 'root', threadId: 'child' } } }
+    } as CherryMessagePart
+    render(<AskUserQuestionComposer request={request} onRespond={vi.fn()} />)
+    expect(screen.getByText('agent.right_pane.info.subagents')).toBeInTheDocument()
+  })
+
   // Unsubmitted answers are cached per approval id, so the harness must not leak
   // one test's draft into the next one.
   beforeEach(() => {

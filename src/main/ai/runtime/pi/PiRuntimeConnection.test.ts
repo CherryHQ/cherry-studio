@@ -374,6 +374,52 @@ describe('desktop Pi root connection', () => {
     }
   )
 
+  // Catches child approvals losing their native origin or resuming the parent callback instead.
+  it('routes a child approval and edited input back to the waiting child', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    let root = ''
+    let child = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      const hasResult = call.messages.some((entry) => entry.role === 'toolResult')
+      if (call.sessionId !== root) {
+        child = call.sessionId!
+        return hasResult
+          ? assistantReply('child written')
+          : assistantReply(
+              [toolCallPart('child-write', 'write', { path: 'original.txt', content: 'original' })],
+              'toolUse'
+            )
+      }
+      return hasResult
+        ? assistantReply('parent resumed')
+        : assistantReply(
+            [toolCallPart('spawn', 'subagent', { description: 'write', prompt: 'write a file', fork: false })],
+            'toolUse'
+          )
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length).toBe(1)
+    expect(approvals()[0].request).toMatchObject({
+      toolCallId: 'child-write',
+      origin: { kind: 'child', threadId: child },
+      input: { path: 'original.txt', content: 'original' }
+    })
+    expect(child).not.toBe(root)
+    expect(existsSync(join(directory, 'original.txt'))).toBe(false)
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
+      approved: true,
+      updatedInput: { path: 'approved.txt', content: 'approved' }
+    })
+    await done(events)
+    expect(readFileSync(join(directory, 'approved.txt'), 'utf8')).toBe('approved')
+    expect(existsSync(join(directory, 'original.txt'))).toBe(false)
+    expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('child written')
+    expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
   // Catches approval edits being shown in the UI but the original write still executing.
   it('executes only approved arguments and returns a question answer to the native loop', async () => {
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }

@@ -58,6 +58,15 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
 
 const canDeleteMessage = (message: MessageListItem): boolean => message.role !== 'assistant'
 
+const agentApprovalLocators = new Map<string, (messageId: string) => string>()
+
+export function registerAgentApprovalLocator(topicId: string, locate: (messageId: string) => string): () => void {
+  agentApprovalLocators.set(topicId, locate)
+  return () => {
+    if (agentApprovalLocators.get(topicId) === locate) agentApprovalLocators.delete(topicId)
+  }
+}
+
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
 export function scrollAgentMessageListToEnd(topicId: string): void {
@@ -96,7 +105,7 @@ function withTerminalErrorFallback(
 
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
   const runtime = agentMessageListRuntimes.get(topicId) ?? null
-  dispatchLocateMessage(runtime, messageId, highlight)
+  dispatchLocateMessage(runtime, agentApprovalLocators.get(topicId)?.(messageId) ?? messageId, highlight)
   return runtime !== null
 }
 
@@ -140,6 +149,7 @@ interface AgentMessageListParams {
   workspacePath?: string
   messageTail?: MessageListState['messageTail']
   afterMessages?: MessageListState['afterMessages']
+  pendingToolApprovals?: MessageListState['renderConfig']['pendingToolApprovals']
 }
 
 /**
@@ -209,7 +219,8 @@ export function useAgentMessageListProviderValue({
   messageNavigation,
   workspacePath,
   messageTail,
-  afterMessages
+  afterMessages,
+  pendingToolApprovals
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
@@ -462,7 +473,7 @@ export function useAgentMessageListProviderValue({
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: resolvedAgentId,
-      renderConfig,
+      renderConfig: { ...renderConfig, pendingToolApprovals },
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
@@ -483,6 +494,7 @@ export function useAgentMessageListProviderValue({
       messageActivityStore,
       messageTail,
       afterMessages,
+      pendingToolApprovals,
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,

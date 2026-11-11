@@ -109,7 +109,8 @@ export interface AgentRuntimeToolApprovalRequest {
   toolCallId: string
   toolName: string
   input: Record<string, unknown>
-  presentation: 'stream' | 'message'
+  registrationId: string
+  origin: { kind: 'root'; messageId?: string } | { kind: 'child'; threadId: string; sessionId?: string }
   providerMetadata?: LanguageModelV3ToolApprovalRequest['providerMetadata']
 }
 

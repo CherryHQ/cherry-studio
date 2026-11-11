@@ -720,72 +720,6 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('respondToolApproval', () => {
-    it('clears the live awaiting-approval anchor as soon as the decision is dispatched', () => {
-      const resolve = vi.fn()
-      toolApprovalRegistry.register({
-        approvalId: 'approval-1',
-        sessionId: 'session-1',
-        toolCallId: 'tool-call-1',
-        toolName: 'Bash',
-        originalInput: { command: 'sleep 10' },
-        resolve
-      })
-
-      const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-1', { approved: true })).toEqual({ ok: true })
-      expect(resolve).toHaveBeenCalledWith({ approved: true })
-      expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1', true)
-    })
-
-    it('settles a persisted background interaction before resolving the requesting agent', () => {
-      const resolve = vi.fn()
-      toolApprovalRegistry.register({
-        approvalId: 'approval-bg',
-        sessionId: 'session-1',
-        toolCallId: 'tool-call-bg',
-        toolName: 'AskUserQuestion',
-        originalInput: { questions: [] },
-        presentation: 'message',
-        resolve
-      })
-      const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
-
-      const service = new AgentSessionRuntimeService()
-      expect(
-        service.respondToolApproval('approval-bg', { approved: true, updatedInput }, 'approval-message-1')
-      ).toEqual({ ok: true })
-
-      expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
-        approvalId: 'approval-bg',
-        approved: true,
-        updatedInput
-      })
-      expect(resolve).toHaveBeenCalledWith({ approved: true, updatedInput })
-      expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
-    })
-
-    it('keeps the background agent waiting when its persisted interaction cannot be settled', () => {
-      const resolve = vi.fn()
-      mocks.applyToolApprovalDecision.mockReturnValue(false)
-      toolApprovalRegistry.register({
-        approvalId: 'approval-bg',
-        sessionId: 'session-1',
-        toolCallId: 'tool-call-bg',
-        toolName: 'AskUserQuestion',
-        originalInput: { questions: [] },
-        presentation: 'message',
-        resolve
-      })
-
-      const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-bg', { approved: true }, 'wrong-message')).toEqual({
-        ok: false,
-        reason: 'rejected'
-      })
-      expect(resolve).not.toHaveBeenCalled()
-      expect(toolApprovalRegistry.peek('approval-bg')).toBeDefined()
-    })
-
     it('leaves stream status untouched for an unknown approval', () => {
       const service = new AgentSessionRuntimeService()
       expect(service.respondToolApproval('missing', { approved: true })).toEqual({ ok: false, reason: 'rejected' })
@@ -835,8 +769,12 @@ describe('AgentSessionRuntimeService', () => {
         toolCallId: 'tool-call-bg',
         toolName: 'AskUserQuestion',
         originalInput: { questions: [] },
-        presentation: 'message',
         resolve
+      })
+      toolApprovalRegistry.bind('approval-bg', toolApprovalRegistry.peek('approval-bg')!.registrationId, {
+        kind: 'message',
+        messageId: 'approval-message-1',
+        contextId: 'context'
       })
       const service = new AgentSessionRuntimeService()
       await (service as any).onInit()
@@ -844,7 +782,13 @@ describe('AgentSessionRuntimeService', () => {
       toolApprovalRegistry.abort('session-1', 'stream-ended')
 
       expect(resolve).toHaveBeenCalledWith({ approved: false, reason: 'stream-ended' })
-      expect(mocks.retireAbandonedApproval).toHaveBeenCalledWith('session-1', 'approval-bg', expect.any(String))
+      expect(mocks.retireAbandonedApproval).toHaveBeenCalledWith(
+        'session-1',
+        'approval-bg',
+        expect.any(String),
+        'approval-message-1',
+        expect.any(String)
+      )
     })
 
     it('leaves streamed approvals to the turn stream, which owns their card', async () => {
@@ -2832,112 +2776,6 @@ describe('AgentSessionRuntimeService', () => {
     const BG_KEY = 'agent.session.background_tasks.session-1'
     const tasks = [{ id: 'bg-1', type: 'subagent', description: 'Audit the codebase' }]
 
-    it('persists an out-of-turn interaction as an independent assistant message', () => {
-      const service = new AgentSessionRuntimeService()
-      const approvalRequestedEvents: unknown[] = []
-      service.onApprovalRequested((event) => approvalRequestedEvents.push(event))
-      service.beginTurn(baseTurnInput)
-      service.markTurnTerminal('session-1', 'success')
-      const entry = getEntry(service)
-      const input = { questions: [{ question: 'Choose a database' }] }
-
-      ;(service as any).handleRuntimeEvent(entry, {
-        type: 'tool-approval-request',
-        request: {
-          approvalId: 'approval-bg',
-          toolCallId: 'tool-call-bg',
-          toolName: 'AskUserQuestion',
-          input,
-          presentation: 'message',
-          providerMetadata: { cherry: { transport: 'claude-agent' } }
-        }
-      })
-
-      expect(mocks.saveMessage).toHaveBeenCalledWith(
-        {
-          sessionId: 'session-1',
-          message: expect.objectContaining({
-            role: 'assistant',
-            status: 'success',
-            data: {
-              parts: [
-                expect.objectContaining({
-                  type: 'tool-AskUserQuestion',
-                  toolCallId: 'tool-call-bg',
-                  state: 'approval-requested',
-                  input,
-                  approval: { id: 'approval-bg' }
-                })
-              ]
-            }
-          })
-        },
-        { publishDataChange: true }
-      )
-      expect(approvalRequestedEvents).toEqual([
-        {
-          topicId: 'agent-session:session-1',
-          approvalId: 'approval-bg',
-          requestedAt: expect.any(Number)
-        }
-      ])
-    })
-
-    it('does not publish an out-of-turn approval when its interaction message cannot be persisted', () => {
-      mocks.saveMessage.mockImplementationOnce(() => {
-        throw new Error('disk full')
-      })
-      const service = new AgentSessionRuntimeService()
-      const approvalRequestedEvents: unknown[] = []
-      service.onApprovalRequested((event) => approvalRequestedEvents.push(event))
-      service.beginTurn(baseTurnInput)
-      service.markTurnTerminal('session-1', 'success')
-      const entry = getEntry(service)
-
-      ;(service as any).handleRuntimeEvent(entry, {
-        type: 'tool-approval-request',
-        request: {
-          approvalId: 'approval-bg',
-          toolCallId: 'tool-call-bg',
-          toolName: 'AskUserQuestion',
-          input: { questions: [{ question: 'Choose a database' }] },
-          presentation: 'message'
-        }
-      })
-
-      expect(approvalRequestedEvents).toEqual([])
-    })
-
-    it('keeps an in-turn approval on the live assistant stream', () => {
-      const service = new AgentSessionRuntimeService()
-      const approvalRequestedEvents: unknown[] = []
-      service.onApprovalRequested((event) => approvalRequestedEvents.push(event))
-      service.beginTurn(baseTurnInput)
-      const entry = getEntry(service)
-      const enqueue = vi.fn()
-      entry.currentTurn.controller = { enqueue } as never
-      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
-
-      ;(service as any).handleRuntimeEvent(entry, {
-        type: 'tool-approval-request',
-        request: {
-          approvalId: 'approval-live',
-          toolCallId: 'tool-call-live',
-          toolName: 'Bash',
-          input: { command: 'pwd' },
-          presentation: 'stream'
-        }
-      })
-
-      expect(enqueue).toHaveBeenCalledWith({
-        type: 'tool-approval-request',
-        approvalId: 'approval-live',
-        toolCallId: 'tool-call-live'
-      })
-      expect(mocks.saveMessage).not.toHaveBeenCalledWith(expect.anything(), { publishDataChange: true })
-      expect(approvalRequestedEvents).toEqual([])
-    })
-
     it('remembers whether the turn that spawned background work had an interactive responder', async () => {
       const interactive = new AgentSessionRuntimeService()
       interactive.beginTurn(baseTurnInput)
@@ -3295,65 +3133,6 @@ describe('AgentSessionRuntimeService', () => {
         void service.closeSession('session-1')
       }
     )
-
-    it('keeps an admitted turn approval pending until its stream reopens', async () => {
-      const service = new AgentSessionRuntimeService()
-      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
-      const entry = getEntry(service)
-      entry.runtimeState.execution.reply.admission = 'admitted'
-      const send = vi.fn()
-      entry.connection = { send, close: vi.fn(), events: [] }
-      const decisions: unknown[] = []
-      toolApprovalRegistry.register({
-        approvalId: 'deferred-approval',
-        sessionId: 'session-1',
-        toolCallId: 'deferred-call',
-        toolName: 'Bash',
-        originalInput: { command: 'pwd' },
-        presentation: 'stream',
-        resolve: (decision) => decisions.push(decision)
-      })
-      ;(service as any).handleRuntimeEvent(entry, {
-        type: 'chunk',
-        chunk: {
-          type: 'tool-input-available',
-          toolCallId: 'deferred-call',
-          toolName: 'Bash',
-          input: { command: 'pwd' }
-        }
-      })
-      ;(service as any).handleRuntimeEvent(entry, {
-        type: 'tool-approval-request',
-        request: {
-          approvalId: 'deferred-approval',
-          toolCallId: 'deferred-call',
-          toolName: 'Bash',
-          input: { command: 'pwd' },
-          presentation: 'stream'
-        }
-      })
-      expect(decisions).toEqual([])
-      const reader = openChunkStream(service, {
-        sessionId: 'session-1',
-        turnId: handle.turnId,
-        signal: new AbortController().signal
-      }).getReader()
-      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
-      await expect(reader.read()).resolves.toMatchObject({
-        value: { type: 'tool-input-available', toolCallId: 'deferred-call' }
-      })
-      await expect(reader.read()).resolves.toMatchObject({
-        value: {
-          type: 'tool-approval-request',
-          approvalId: 'deferred-approval',
-          toolCallId: 'deferred-call'
-        }
-      })
-      toolApprovalRegistry.dispatch('deferred-approval', { approved: true })
-      expect(decisions).toEqual([expect.objectContaining({ approved: true })])
-      expect(send).not.toHaveBeenCalled()
-      await service.closeSession('session-1')
-    })
 
     it('keeps a receive-only wake interactive when the background work started from an interactive turn', async () => {
       const service = new AgentSessionRuntimeService()

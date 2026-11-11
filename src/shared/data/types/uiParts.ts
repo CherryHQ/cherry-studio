@@ -178,6 +178,11 @@ export interface CherryToolMeta {
   transport?: string
   /** Tool name (used by approval bridge before the part has been finalized). */
   toolName?: string
+  /** Marks a standalone approval storage record, excluded from the conversation message list. */
+  approvalRecord?: boolean
+  approvalRegistrationId?: string
+  /** Confirmed native source of a child interaction presented in its root conversation. */
+  approvalSource?: { contextId: string; threadId: string; sessionId?: string }
   /** Runtime-neutral subagent linkage: the spawning tool call this part nests under. */
   parentToolCallId?: string
   /** MCP / builtin tool identity. Matches `ToolType` consumed by `toolResponse.ts`. */
@@ -303,6 +308,11 @@ export const CherryReasoningMetaSchema: z.ZodType<CherryReasoningMeta> = z.objec
 })
 
 export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
+  approvalRecord: z.boolean().optional(),
+  approvalRegistrationId: z.string().optional(),
+  approvalSource: z
+    .object({ contextId: z.string(), threadId: z.string(), sessionId: z.string().optional() })
+    .optional(),
   transport: z.string().optional(),
   toolName: z.string().optional(),
   tool: z

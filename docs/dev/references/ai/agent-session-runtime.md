@@ -951,7 +951,14 @@ reopening native compaction history. Electron acceptance is checked separately.
 ### Pi behavior host
 
 `piBehaviorHost.ts` implements the existing `HostPorts` using Cherry services.
-Approvals and questions use existing cards; approval outcomes stay in message
+Approvals and questions use the shared host presentation path: root requests bind to
+an eligible originating reply; child requests retain one canonical record with native
+source identity, projected into the parent composer and child-panel composer footer.
+Task areas show pending state and navigation; approval-only records are excluded from
+conversation bubbles even when their task association is unresolved. Adapters supply complete
+input and origin; Main owns registration/anchor validation and cancellation cleanup.
+Notifications track the same registration through its terminal outcome. See [Tool Approval](./tool-approval.md).
+Approval outcomes stay in message
 parts. Environment facts (disabled tools, protected paths, delegation attendance
 and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
 whether to run, ask or block. No new approval table is required.

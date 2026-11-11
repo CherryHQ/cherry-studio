@@ -63,11 +63,10 @@ question nothing can receive.
    delegates to `AiService.respondToolApproval`, which branches on transport
    **before** touching the topic-message DB:
    - **Agent-session registry path**: hands the decision to
-     `AgentSessionRuntimeService.respondToolApproval`, which settles any
-     persisted interaction card and dispatches the live approval registry
-     entry so the existing runtime proceeds. When a live entry handles it, the handler
-     **early-returns — no DB read happens** (and `topicId` / `anchorId`
-     are not required). When no live entry matches — the connection was torn
+     `AgentSessionRuntimeService.respondToolApproval`, which requires the bound `topicId` and `anchorId`, persists the decision
+     on that exact message, then dispatches the live callback so the existing runtime
+     proceeds. Wrong or retired anchors are rejected, including inline cards. A failed
+     database write leaves the callback pending for an explicit retry. When no live entry matches — the connection was torn
      down, or the app restarted — the card is settled with the decision the
      user actually made. Only the first decision recorded on a pending or retired,
      unanswered card returns `{ ok: false, reason: 'undelivered' }`. Already-answered,
@@ -89,11 +88,45 @@ question nothing can receive.
    broadcasts `pending`, the shared-cache entry flips back. Every window
    sees the approval card disappear in the same tick.
 
-For native Agent root messages, the host retains each resolved approval by tool-call
-ID, including its real approval ID. Later native results may omit approval metadata;
-the projection reapplies the decision before publishing and persisting, and restores
-it from persisted parts after reconnecting. A host refusal remains `output-denied`;
-a permitted call can still finish with a genuine execution error.
+## Native Agent presentation
+
+Pi, Pi Durable and Claude Code emit a complete `tool-approval-request`: tool name,
+input, approval identity, registration identity and trusted root/child origin.
+Adapters retain native permission policy and callback conversion; they do not choose
+where the card appears.
+
+`AgentSessionRuntimeService` binds the request to one canonical message in its originating
+connection context. Root requests use the eligible reply, even before native tool input
+arrives. Child requests persist complete input and source metadata in the existing message
+store. A shared-cache projection associates them with trusted child contexts and spawn calls.
+Approval controls replace the parent composer while preserving its draft, and also appear in
+the child panel's composer footer. Both answer the same registration. Task rows only provide
+status and navigation, with pending counts retained when collapsed. Approval-only storage
+records never render as extra assistant bubbles. An unresolved task still has a sourced
+request in the parent composer. Notification navigation selects the canonical request;
+late task association never changes the response anchor.
+An unavailable responder or failed presentation settles the callback without authorization.
+
+Every response includes the registration ID and canonical message/session anchor. Duplicate
+request events reuse one registration; recovered requests receive a new registration even
+when Durable reuses its native approval ID or inline message. Old cards cannot answer them.
+Cancellation retires the exact bound message, and publication reconciles cancellation
+that happened during its write. Only native cancellation or session teardown cancels
+a child request; observing or closing its panel does not own execution.
+
+The root projection retains resolved decisions, edited input and cancellation state
+within its context. Later tool snapshots cannot restore an actionable old card or
+replace approved input. A host refusal remains `output-denied`; a permitted call can
+still finish with a genuine execution error. Stored cards never recreate callbacks;
+reopening follows each runtime's native recovery policy.
+
+`ConversationNotificationService` publishes an approval notification only after the record
+is saved and answerable. The notification uses registration identity for deduplication and
+carries the conversation, task and canonical approval location. Accepted decisions and
+cancellation update its status without changing read state; startup expires registrations
+that no longer exist. In-app reminders are retired and OS notifications are closed on a
+best-effort basis. Notification failure does not settle the native callback. Activation
+re-reads the record and opens the current conversation/task; it never grants permission.
 
 ## Persistent decisions
 
@@ -134,9 +167,8 @@ and execution input; it does not rewrite the approved operation.
 Native Pi `edits` arrays use the shared MultiEdit card and map each hunk's
 `oldText` / `newText` independently, preserving all edit hunks.
 
-The rendered card is not byte-bound to that object: the stream approval chunk
-carries only IDs, the card uses earlier streamed tool input, and a configured
-`PreToolUse` hook may rewrite input before approval
+The shared host publishes the complete input supplied by the approval request.
+A configured `PreToolUse` hook may still rewrite input before approval
 (`src/main/ai/agentSession/AgentSessionRuntimeService.ts:2582`,
 `src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts`,
 `src/renderer/components/chat/messages/tools/toolResponse.ts:238`,

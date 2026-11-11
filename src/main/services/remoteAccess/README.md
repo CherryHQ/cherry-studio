@@ -83,7 +83,7 @@ history. Provider rejection never revokes the device grant or rewrites an applie
 Question interactions are declared in live events, checkpoints and persisted views. Their form
 stays in the input resource. `agent.interactions.respond` validates the revision/execution/digest
 and complete answer keys, then forwards original input plus answers (or denial reason) to the
-existing Agent runtime. It never accepts caller-supplied replacement tool input.
+existing Agent runtime. A registered interaction includes `registrationId`, echoed by the client as `expectedRegistrationId`. The adapter forwards it with the canonical session/message anchor and checks the runtime response before accepting the command. Missing or stale registration identities cannot answer reissued approvals. It never accepts caller-supplied replacement tool input.
 
 Workspace catalogs advertise system creation. `agent.sessions.create` resolves explicit system or
 registered selections through `AgentSessionService`; the phone cannot supply a directory. Responses

@@ -8,6 +8,7 @@ import { modelMessageSchema } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type { AiToolApprovalRespondRequest } from '@shared/ai/transport'
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
@@ -1232,17 +1233,8 @@ describe('AiService tool approval', () => {
    */
   function getApprovalHandler() {
     const service = createService()
-    return (
-      event: { sender: Electron.WebContents },
-      payload: {
-        approvalId: string
-        approved: boolean
-        reason?: string
-        updatedInput?: Record<string, unknown>
-        topicId?: string
-        anchorId?: string
-      }
-    ) => service.respondToolApproval(payload, event.sender)
+    return (event: { sender: Electron.WebContents }, payload: AiToolApprovalRespondRequest) =>
+      service.respondToolApproval(payload, event.sender)
   }
 
   beforeEach(() => {
@@ -1262,6 +1254,7 @@ describe('AiService tool approval', () => {
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
       approvalId: 'agent-approval-1',
+      registrationId: 'registration-1',
       approved: true
     })
 
@@ -1274,7 +1267,8 @@ describe('AiService tool approval', () => {
         updatedInput: undefined
       },
       undefined,
-      undefined
+      undefined,
+      'registration-1'
     )
     // Fast-path short-circuits before any DB read or continue dispatch.
     expect(getById).not.toHaveBeenCalled()
