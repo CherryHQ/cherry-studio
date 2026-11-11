@@ -2000,7 +2000,11 @@ export class JobManager extends BaseService {
       resolver.resolve(snapshot)
       this.finishedResolvers.delete(jobId)
     }
-    // A completed job frees a global slot. If a dispatch was previously blocked
+    this.dispatchFreedSlot(snapshot.queue)
+  }
+
+  private dispatchFreedSlot(queue: string): void {
+    // A completed or delayed job frees a global slot. If a dispatch was previously blocked
     // solely by the global cap, re-kick every queue so a queue starved by the
     // cap (with its own slots free) wakes now instead of waiting for the next
     // promotion tick. The flag self-corrects: if the cap is still binding, the
@@ -2009,7 +2013,7 @@ export class JobManager extends BaseService {
       this.globalCapReached = false
       this.dispatchAll()
     } else {
-      void this.dispatch(snapshot.queue)
+      void this.dispatch(queue)
     }
   }
 
@@ -2095,6 +2099,7 @@ export class JobManager extends BaseService {
       this.promoteDueAtFire(retryId, jobId, queue)
     })
     logger.info('Retry scheduled', { jobId, nextAttempt, scheduledAt, queue })
+    this.dispatchFreedSlot(queue)
   }
 
   // ---------------- Schedule arming + catch-up ----------------
