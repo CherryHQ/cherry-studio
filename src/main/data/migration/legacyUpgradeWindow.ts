@@ -13,7 +13,7 @@ import { isDev } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
 import { LegacyUpgradeChannels, type LegacyUpgradeScreen } from '@shared/types/legacyUpgrade'
 
-import { createLegacyBridgeUpdater, LegacyBridgeInstaller } from './legacyBridgeInstaller'
+import { createLegacyBridgeUpdater, LegacyBridgeInstaller, prepareLegacyBridgeProfile } from './legacyBridgeInstaller'
 import type { LegacyBridgeTarget } from './legacyBridgeTarget'
 
 // Preboot has no lifecycle WindowManager or IpcApiService; like relocation,
@@ -21,7 +21,8 @@ import type { LegacyBridgeTarget } from './legacyBridgeTarget'
 export function showLegacyUpgradeWindow(
   screen: Omit<LegacyUpgradeScreen, 'dark'>,
   downloads: { bridge: string; prerequisite: string },
-  target?: LegacyBridgeTarget
+  target?: LegacyBridgeTarget,
+  profile?: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const window = new BrowserWindow({
@@ -47,6 +48,10 @@ export function showLegacyUpgradeWindow(
           () => createLegacyBridgeUpdater(target),
           (state) => {
             if (!window.isDestroyed()) window.webContents.send(LegacyUpgradeChannels.State, state)
+          },
+          () => {
+            if (!profile) throw new Error('Missing migration profile')
+            return prepareLegacyBridgeProfile(profile)
           }
         )
       : undefined

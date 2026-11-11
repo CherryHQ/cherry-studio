@@ -12,14 +12,16 @@ export function findLegacyBridgeTarget(
   edition: AppEdition,
   platform: string,
   arch: string,
-  linuxPackageType: LegacyLinuxPackageType = 'AppImage'
+  linuxPackageType: LegacyLinuxPackageType = 'AppImage',
+  portable = false
 ) {
   return targets.find(
     (target) =>
       target.edition === edition &&
       target.platform === platform &&
       target.arch === arch &&
-      (platform !== 'linux' || target.url.endsWith(`.${linuxPackageType}`))
+      (platform !== 'linux' || target.url.endsWith(`.${linuxPackageType}`)) &&
+      (platform !== 'win32' || target.url.endsWith(portable ? '-portable.exe' : '-setup.exe'))
   )
 }
 
@@ -38,7 +40,7 @@ export function isLegacyBridgeCompatible(history: string, platform: string): boo
       recordedOs !== os ||
       environment !== 'prod' ||
       packaged !== 'packaged' ||
-      mode !== 'install' ||
+      (mode !== 'install' && !(platform === 'win32' && mode === 'portable')) ||
       !Number.isFinite(time) ||
       time < lastTimestamp
     )

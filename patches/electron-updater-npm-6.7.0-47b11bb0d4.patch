@@ -85,6 +85,77 @@ index 8f18dc5416c91835ded4e47f2358fba680c129ac..35a629185bbde1f83a3debdd41b1d161
              if (!this.autoInstallOnAppQuit) {
                  /**
                   * If this was not `true` previously then MacUpdater.doDownloadUpdate()
+diff --git a/out/PortableUpdater.d.ts b/out/PortableUpdater.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..3df9c536c2e4798c8d76f9537c8f48d2ff952b54
+--- /dev/null
++++ b/out/PortableUpdater.d.ts
+@@ -0,0 +1,7 @@
++import { NsisUpdater } from "./NsisUpdater";
++export declare class PortableUpdater extends NsisUpdater {
++    portableExecutable?: string;
++    portableSha512?: string;
++    private portableInstalling;
++    quitAndInstall(): void;
++}
+diff --git a/out/PortableUpdater.js b/out/PortableUpdater.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..be7a785968bef3f14515441efdfdf5788a9e38c5
+--- /dev/null
++++ b/out/PortableUpdater.js
+@@ -0,0 +1,52 @@
++"use strict";
++Object.defineProperty(exports, "__esModule", { value: true });
++exports.PortableUpdater = void 0;
++const { spawn } = require("child_process");
++const path = require("path");
++const { NsisUpdater } = require("./NsisUpdater");
++const { portableInstallScript } = require("./portableInstallScript");
++class PortableUpdater extends NsisUpdater {
++    quitAndInstall() {
++        if (this.portableInstalling) return;
++        if (!this.installerPath || !this.portableExecutable || !this.portableSha512 || !path.isAbsolute(this.portableExecutable)) {
++            this.dispatchError(new Error("Portable installation requires a verified download and absolute executable path"));
++            return;
++        }
++        this.portableInstalling = true;
++        const config = Buffer.from(JSON.stringify({ source: this.installerPath, target: this.portableExecutable,
++            sha512: this.portableSha512, parent: process.pid })).toString("base64");
++        const script = `$c = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${config}')) | ConvertFrom-Json\n${portableInstallScript}`;
++        let child;
++        let timer;
++        let ready = false;
++        let output = "";
++        const fail = error => {
++            if (ready || !this.portableInstalling) return;
++            clearTimeout(timer);
++            this.portableInstalling = false;
++            this.dispatchError(error);
++        };
++        try {
++            child = spawn(path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
++                ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")],
++                { detached: true, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
++            timer = setTimeout(() => { child.kill(); fail(new Error("Portable installer preparation timed out")); }, 120000);
++            child.once("error", fail);
++            child.once("exit", code => fail(new Error(`Portable installer exited before handoff (${code})`)));
++            child.stderr.on("data", data => this._logger.error(data.toString()));
++            child.stdout.on("data", data => {
++                output += data.toString();
++                if (!ready && output.split(/\r?\n/).includes("ready")) {
++                    ready = true;
++                    clearTimeout(timer);
++                    child.stdout.destroy();
++                    child.stderr.destroy();
++                    child.unref();
++                    require("electron").autoUpdater.emit("before-quit-for-update");
++                    this.app.quit();
++                }
++            });
++        } catch (error) { fail(error); }
++    }
++}
++exports.PortableUpdater = PortableUpdater;
 diff --git a/out/RpmUpdater.d.ts b/out/RpmUpdater.d.ts
 index 41eb04a6b38e98249b8ec30556db3b45a4c548e4..0d1aa957f2b1a8074cd8cd7ffdc61e14ac0c18ef 100644
 --- a/out/RpmUpdater.d.ts
@@ -143,6 +214,74 @@ index 7095549478c7f880eeef4c8baa7ce300720f1afe..c84c44f3eb308ac82d851f41030eb4d6
          }
          throw new Error(`Package manager ${packageManager} not supported`);
      }
+diff --git a/out/main.d.ts b/out/main.d.ts
+index 82382c2b42686bfd22bce78b4d5f0d883dfb5587..ccda3335c4aab3ffcece897fa924b5fee5badfeb 100644
+--- a/out/main.d.ts
++++ b/out/main.d.ts
+@@ -17,3 +17,4 @@ export declare const autoUpdater: AppUpdater;
+  */
+ export type VerifyUpdateCodeSignature = (publisherName: string[], path: string) => Promise<string | null>;
+ export type VerifyUpdateSupport = (updateInfo: UpdateInfo) => boolean | Promise<boolean>;
++export { PortableUpdater } from "./PortableUpdater";
+diff --git a/out/main.js b/out/main.js
+index 7052a0e9726f2ac26155f77319a108ff86c61396..a401598afad378effc8d1c58a829789d33be4580 100644
+--- a/out/main.js
++++ b/out/main.js
+@@ -84,3 +84,4 @@ Object.defineProperty(exports, "autoUpdater", {
+     },
+ });
+ //# sourceMappingURL=main.js.map
++Object.defineProperty(exports, "PortableUpdater", { enumerable: true, get: function () { return require("./PortableUpdater").PortableUpdater; } });
+diff --git a/out/portableInstallScript.js b/out/portableInstallScript.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..8c0eec02056c78de48e28b869ed1860d0a1597d7
+--- /dev/null
++++ b/out/portableInstallScript.js
+@@ -0,0 +1,44 @@
++"use strict";
++exports.portableInstallScript = String.raw`
++$ErrorActionPreference = 'Stop'
++$stage = $c.target + '.update-' + [Guid]::NewGuid().ToString() + '.exe'
++$backup = $stage + '.previous'
++$replaced = $false
++$ready = $false
++try {
++    $parentProcess = [Diagnostics.Process]::GetProcessById($c.parent)
++    Copy-Item -LiteralPath $c.source -Destination $stage
++    $hash = [Convert]::ToBase64String([Security.Cryptography.SHA512]::Create().ComputeHash([IO.File]::ReadAllBytes($stage)))
++    if ($hash -cne $c.sha512) { throw 'Portable SHA512 verification failed' }
++    $current = Get-AuthenticodeSignature -LiteralPath $c.target
++    $next = Get-AuthenticodeSignature -LiteralPath $stage
++    if ($current.Status -ne 'Valid' -or $next.Status -ne 'Valid' -or $current.SignerCertificate.Subject -cne $next.SignerCertificate.Subject) {
++        throw 'Portable publisher verification failed'
++    }
++    [Console]::Out.WriteLine('ready')
++    [Console]::Out.Flush()
++    $ready = $true
++    if (!$parentProcess.WaitForExit(120000)) { throw 'Application did not exit' }
++    $deadline = [DateTime]::UtcNow.AddSeconds(60)
++    while ($true) {
++        try { [IO.File]::Move($c.target, $backup); break }
++        catch { if ([DateTime]::UtcNow -ge $deadline) { throw }; Start-Sleep -Milliseconds 250 }
++    }
++    $replaced = $true
++    [IO.File]::Move($stage, $c.target)
++    Start-Process -FilePath $c.target -WorkingDirectory ([IO.Path]::GetDirectoryName($c.target))
++    Remove-Item -LiteralPath $backup -ErrorAction SilentlyContinue
++} catch {
++    $failure = $_.ToString()
++    if ($replaced) {
++        Remove-Item -LiteralPath $c.target -ErrorAction SilentlyContinue
++        [IO.File]::Move($backup, $c.target)
++        Start-Process -FilePath $c.target -WorkingDirectory ([IO.Path]::GetDirectoryName($c.target))
++    }
++    [IO.File]::WriteAllText($c.source + '.install-error.log', $failure)
++    if (!$ready) { [Console]::Error.WriteLine($failure) }
++    exit 1
++} finally {
++    Remove-Item -LiteralPath $stage -ErrorAction SilentlyContinue
++}
++`;
 diff --git a/out/util.js b/out/util.js
 index 9294ffd6ca8f02c2e0f90c663e7e9cdc02c1ac37..f52107493e2995320ee4efd0eb2a8c9bf03291a2 100644
 --- a/out/util.js

@@ -8,6 +8,7 @@ import {
   DebUpdater,
   MacUpdater,
   NsisUpdater,
+  PortableUpdater,
   RpmUpdater,
   type ProgressInfo
 } from 'electron-updater'
@@ -17,7 +18,7 @@ import { parse } from 'yaml'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { getLegacyProfilePaths } from '@main/core/paths/legacyProfilePaths'
-import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
+import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import { getAppEdition } from '@main/utils/appEdition'
 import type { LegacyInstallState } from '@shared/types/legacyUpgrade'
@@ -52,21 +53,25 @@ export function getLegacyBridgeEligibility(profile: string): { prerequisite: boo
     )
     if (!compatible) return { prerequisite: true }
     prerequisite = false
-    if (!app.isPackaged || profile !== application.getPath('app.userdata')) return { prerequisite: false }
-    if (bootConfigService.get('app.user_data_path')?.[getNormalizedExecutablePath()]) return { prerequisite: false }
-    if (process.env.PORTABLE_EXECUTABLE_DIR || app.runningUnderARM64Translation) return { prerequisite: false }
+    if (!app.isPackaged || !isUsableDataDir(profile) || app.runningUnderARM64Translation) return { prerequisite: false }
+    const portable = process.platform === 'win32' && process.env.PORTABLE_EXECUTABLE_DIR !== undefined
+    if (portable) {
+      const executable = application.getPath('app.portable_executable')
+      if (!executable) return { prerequisite: false }
+      fs.accessSync(executable, fs.constants.R_OK | fs.constants.W_OK)
+    }
     const linuxPackageType = getLegacyLinuxPackageType()
     if (process.platform === 'linux') {
       if (!linuxPackageType) return { prerequisite: false }
       if (linuxPackageType === 'AppImage') fs.accessSync(process.env.APPIMAGE!, fs.constants.W_OK)
     }
-    if (process.platform === 'win32') {
+    if (process.platform === 'win32' && !portable) {
       const config = parse(fs.readFileSync(application.getPath('app.extra_resources', 'app-update.yml'), 'utf8'))
       if (!config?.publisherName?.length) return { prerequisite: false }
     }
     return {
       prerequisite: false,
-      target: findLegacyBridgeTarget(getAppEdition(), process.platform, process.arch, linuxPackageType)
+      target: findLegacyBridgeTarget(getAppEdition(), process.platform, process.arch, linuxPackageType, portable)
     }
   } catch (error) {
     logger.warn('Automatic bridge installation unavailable', error as Error)
@@ -98,7 +103,9 @@ export function createLegacyBridgeUpdater(target: LegacyBridgeTarget): AppUpdate
     target.platform === 'darwin'
       ? new MacUpdater(options, adapter)
       : target.platform === 'win32'
-        ? new NsisUpdater(options, adapter)
+        ? target.url.endsWith('-portable.exe')
+          ? new PortableUpdater(options, adapter)
+          : new NsisUpdater(options, adapter)
         : target.url.endsWith('.deb')
           ? new DebUpdater(options, adapter)
           : target.url.endsWith('.rpm')
@@ -114,8 +121,32 @@ export function createLegacyBridgeUpdater(target: LegacyBridgeTarget): AppUpdate
   updater.autoInstallOnAppQuit = false
   updater.allowDowngrade = true
   updater.disableDifferentialDownload = true
-  if (updater instanceof NsisUpdater) updater.installDirectory = application.getPath('app.install')
+  if (updater instanceof PortableUpdater) {
+    updater.portableExecutable = application.getPath('app.portable_executable')
+    updater.portableSha512 = target.sha512
+  }
+  if (updater instanceof NsisUpdater && !(updater instanceof PortableUpdater))
+    updater.installDirectory = application.getPath('app.install')
   return updater
+}
+
+export function prepareLegacyBridgeProfile(profile: string): () => void {
+  if (!isUsableDataDir(profile)) throw new Error('Migration data directory is unavailable')
+  const executable = getNormalizedExecutablePath()
+  const previous = bootConfigService.get('app.user_data_path')
+  if (previous?.[executable] === profile) return () => {}
+  const restore = () => {
+    bootConfigService.set('app.user_data_path', previous)
+    bootConfigService.persist()
+  }
+  bootConfigService.set('app.user_data_path', { ...previous, [executable]: profile })
+  try {
+    bootConfigService.persist()
+  } catch (error) {
+    bootConfigService.set('app.user_data_path', previous)
+    throw error
+  }
+  return restore
 }
 
 export class LegacyBridgeInstaller {
@@ -126,10 +157,12 @@ export class LegacyBridgeInstaller {
   private disposed = false
   private handoff = false
   private removeError?: () => void
+  private restoreProfile?: () => void
 
   constructor(
     private readonly createUpdater: () => AppUpdater,
-    private readonly publish: (state: LegacyInstallState) => void
+    private readonly publish: (state: LegacyInstallState) => void,
+    private readonly prepareProfile: () => () => void = () => () => {}
   ) {}
 
   private update(state: LegacyInstallState) {
@@ -155,6 +188,12 @@ export class LegacyBridgeInstaller {
     const onError = (error: Error) => {
       logger.error('Bridge installation failed', error)
       this.handoff = false
+      try {
+        this.restoreProfile?.()
+      } catch (restoreError) {
+        logger.error('Cannot restore profile mapping after installation failure', restoreError as Error)
+      }
+      this.restoreProfile = undefined
       token.cancel()
       if (!this.disposed) this.update({ phase: 'failed' })
       if (!this.task) this.release()
@@ -180,6 +219,7 @@ export class LegacyBridgeInstaller {
       this.update({ phase: 'downloading' })
       await updater.downloadUpdate(token)
       if (token.cancelled || this.disposed) return
+      this.restoreProfile = this.prepareProfile()
       this.handoff = true
       this.update({ phase: 'installing' })
       updater.quitAndInstall(false, true)

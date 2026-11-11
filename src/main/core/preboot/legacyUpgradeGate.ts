@@ -71,7 +71,8 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
         bridge: getLegacyUpgradeDownloadUrl(platform),
         prerequisite: getLegacyUpgradeDownloadUrl({ ...platform, version: '1.9.12' })
       },
-      eligibility.target
+      eligibility.target,
+      profile.path
     )
   } catch (error) {
     logger.error('Cannot complete legacy upgrade check', error as Error)

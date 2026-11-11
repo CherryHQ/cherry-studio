@@ -30,7 +30,8 @@ After launch, 2.1.0 owns migration and its existing recovery UI. Once migration 
 | Windows NSIS installation | `NsisUpdater`, preserving installation directory and edition | x64/arm64, translated x64, elevation cancellation, install and launch |
 | Linux AppImage | `AppImageUpdater`, only for the actual writable AppImage | x64/arm64, executable replacement and launch |
 | Linux deb/rpm | `DebUpdater` / `RpmUpdater`, selected by the packaged `package-type` marker; use package-manager downgrade support | Package database reports 2.1.0, elevation failure stays recoverable, launch and migration |
-| Windows portable, unknown Linux form, unpackaged development build | Existing manual download instructions | Correct version/edition/architecture; no automatic replacement |
+| Windows portable | Patched `PortableUpdater`, replacing the launcher at the same path after verified staging | Both architectures, signer continuity, locked files, rollback and launch |
+| Unknown Linux form, unpackaged development build | Existing manual download instructions | Correct version/edition/architecture; no automatic replacement |
 
 Global and CN must stay in their current edition. Architecture selection uses the existing native-architecture rule, including translated processes; never select the first asset as a fallback. A cross-architecture replacement is enabled only after packaged acceptance proves its installer and profile compatibility; otherwise offer the appropriate manual installer. Missing artifacts, unavailable native updater support, or unverified profile continuity select the manual path with a concise reason.
 
@@ -46,7 +47,7 @@ The updater cache must be separate from normal update downloads and from legacy 
 
 ### Fixed artifacts and verification
 
-Use a small checked-in target manifest generated from the official 2.1.0 release metadata: exact version, edition, OS, architecture, installer kind, URL, and SHA-512. For each eligible target, a minimal provider uses the library's supported custom-provider extension to expose exactly one pinned artifact. Reuse the library's downloader, checksum validation, cache verification, signature checks, and installer. Do not implement ZIP extraction or application replacement ourselves, modify updater private fields, or add a local metadata server.
+Use a small checked-in target manifest generated from the official 2.1.0 release metadata: exact version, edition, OS, architecture, installer kind, URL, and SHA-512. For each eligible target, a minimal provider uses the library's supported custom-provider extension to expose exactly one pinned artifact. Reuse the library's downloader, checksum validation, cache verification, signature checks, and installer. Do not implement ZIP extraction or application replacement in application business code, modify updater private fields, or add a local metadata server.
 
 A generic fixed-tag feed was considered first. It supplies existing metadata but does not itself enforce a single edition/architecture target or an immutable expected checksum. The installed updater's file selection uses `process.arch`, whereas the product selects native architecture on translated hosts. An explicit pinned provider supplies the product contract without patching dependency selection behavior. Reuse library metadata types; reject any missing/mismatched target rather than selecting another version.
 
@@ -70,9 +71,17 @@ First prove the pinned provider and downgrade handoff in disposable packaged ins
 
 The user approved extending the existing electron-updater 6.7.0 patch. Custom AppAdapters now retain the Electron download transport, and MacUpdater exposes `dispose()` to remove its own native listeners and close its staging server after download settlement. Application code uses these public capabilities without accessing private updater fields.
 
-The implementation includes a 12-target manifest (Global/CN, x64/arm64, macOS/Windows/Linux), isolated cache and bookkeeping, serialized cancel/retry, renderer progress, and updater-owned exit. The manifest comes from the official `v2.1.0` release's `latest*.yml` assets. Automatic eligibility currently excludes custom profiles, portable/deb/rpm forms, unpackaged builds, translated processes, and Windows installations without publisher verification metadata. Unknown or pre-1.9.12 history makes the 1.9.12 prerequisite the primary action.
+The implementation includes a 24-target manifest (Global/CN, x64/arm64, macOS/Windows/Linux), isolated cache and bookkeeping, serialized cancel/retry, renderer progress, and updater-owned exit. The manifest comes from official `v2.1.0` metadata and portable asset bytes checked against release SHA-256 digests. Automatic eligibility excludes unpackaged builds, translated processes, and non-portable Windows installations without publisher verification metadata. Custom profiles and portable/deb/rpm forms are included; portable signature verification occurs before exit. Unknown or pre-1.9.12 history makes the 1.9.12 prerequisite the primary action.
 
 Scoped tests exercise session cancellation, verification failure, retry, late events, native listener disposal, custom-adapter transport, IPC guards, and handoff exit protection. These are not proof of replacing a signed application. Packaged installation, signing compatibility, restart into 2.1.0, and migration remain release-blocking acceptance work on all three operating systems; AC5 is not complete. Do not treat this implementation branch as release-ready on the strength of unit or renderer tests.
+
+### Custom profiles and portable installation extension
+
+The user approved extending one-click installation to custom data directories and Windows portable builds. This supersedes the earlier exclusions and the blanket prohibition on application replacement: portable replacement belongs in the existing electron-updater dependency patch, not application business code.
+
+Before installer handoff, persist the selected profile under the normalized executable key in BootConfig. The released 2.1.0 reads the same mapping. No user data is copied and no legacy config is rewritten. Download/cancel does not write the mapping; persistence failure prevents installation, and observable handoff failure restores the prior mapping. Keep the executable location and edition unchanged.
+
+PortableUpdater reuses the pinned download and checksum pipeline. Its detached PowerShell worker stages the portable EXE beside the original, verifies SHA-512 and valid matching Authenticode publisher subjects, then signals readiness before the app quits. It waits for the application and launcher file lock, renames the old EXE to a backup, replaces it, and launches from the same location. Replacement/start failure restores and launches the backup; the worker records post-exit errors beside the cached download. It never touches the adjacent data directory. Missing or invalid signatures fail closed with retry/manual recovery. Windows native replacement acceptance remains required and must not be inferred from mocked tests.
 
 ## Alternatives considered
 

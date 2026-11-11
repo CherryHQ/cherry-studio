@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { LegacyBridgeInstaller } from '../legacyBridgeInstaller'
 
-function fixture() {
+function fixture(prepareProfile?: () => () => void) {
   let finishDownload!: () => void
   let token: CancellationToken | undefined
   const updater = Object.assign(new EventEmitter(), {
@@ -20,7 +20,7 @@ function fixture() {
     quitAndInstall: vi.fn()
   })
   const changed = vi.fn()
-  const installer = new LegacyBridgeInstaller(() => updater as unknown as AppUpdater, changed)
+  const installer = new LegacyBridgeInstaller(() => updater as unknown as AppUpdater, changed, prepareProfile)
   return { installer, updater, changed, finish: () => finishDownload(), token: () => token }
 }
 
@@ -85,6 +85,36 @@ describe('bridge installation session', () => {
     await vi.waitFor(() => expect(f.installer.installing).toBe(true))
     f.updater.emit('error', new Error('Signature rejected'))
     expect(f.installer.installing).toBe(false)
+    expect(f.installer.state.phase).toBe('failed')
+  })
+
+  it('blocks installation when profile handoff cannot be persisted', async () => {
+    const f = fixture(() => {
+      throw new Error('Read-only BootConfig')
+    })
+    f.installer.start()
+    await vi.waitFor(() => expect(f.token()).toBeDefined())
+    f.finish()
+    await vi.waitFor(() => expect(f.installer.state.phase).toBe('failed'))
+    expect(f.updater.quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  it('restores profile selection after helper failure without changing it during download', async () => {
+    let selected = '/original'
+    const f = fixture(() => {
+      selected = '/custom'
+      return () => {
+        selected = '/original'
+      }
+    })
+    f.installer.start()
+    await vi.waitFor(() => expect(f.token()).toBeDefined())
+    expect(selected).toBe('/original')
+    f.finish()
+    await vi.waitFor(() => expect(f.installer.installing).toBe(true))
+    expect(selected).toBe('/custom')
+    f.updater.emit('error', new Error('Helper rejected signature'))
+    expect(selected).toBe('/original')
     expect(f.installer.state.phase).toBe('failed')
   })
 

@@ -122,7 +122,13 @@ describe('preboot upgrade window boundary', () => {
       quitAndInstall: vi.fn()
     })
     vi.spyOn(bridge, 'createLegacyBridgeUpdater').mockReturnValue(updater as unknown as AppUpdater)
-    const closed = showLegacyUpgradeWindow(screen, downloads, findLegacyBridgeTarget('global', 'darwin', 'arm64'))
+    vi.spyOn(bridge, 'prepareLegacyBridgeProfile').mockReturnValue(() => {})
+    const closed = showLegacyUpgradeWindow(
+      screen,
+      downloads,
+      findLegacyBridgeTarget('global', 'darwin', 'arm64'),
+      '/custom/profile'
+    )
     handlers.get(LegacyUpgradeChannels.GetScreen)!(event())
     handlers.get(LegacyUpgradeChannels.Install)!(event())
     await vi.waitFor(() =>

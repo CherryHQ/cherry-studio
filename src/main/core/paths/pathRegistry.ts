@@ -85,6 +85,7 @@ export function buildPathRegistry() {
     'app.root.resources.binaries': path.join(appRootResources, 'binaries'),
     'app.utility_process': path.join(app.getAppPath(), 'out', 'utility-process'), // utility-process entry bundles
     'app.exe_file': app.getPath('exe'),
+    'app.portable_executable': process.env.PORTABLE_EXECUTABLE_FILE || '',
     'app.install': path.dirname(app.getPath('exe')), // directory containing the executable
     'app.logs': LOGS_DIR,
     'app.crash_dumps': app.getPath('crashDumps'),

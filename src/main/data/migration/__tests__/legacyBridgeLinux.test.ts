@@ -12,12 +12,13 @@ import { bootConfigService } from '@main/data/bootConfig'
 import {
   createLegacyBridgeUpdater,
   getLegacyBridgeEligibility,
+  prepareLegacyBridgeProfile,
   getLegacyLinuxPackageType
 } from '../legacyBridgeInstaller'
 import { findLegacyBridgeTarget } from '../legacyBridgeTarget'
 import { getLegacyUpgradeDownloadUrl } from '../legacyUpgrade'
 
-vi.mock('@main/data/bootConfig', () => ({ bootConfigService: { get: vi.fn() } }))
+vi.mock('@main/data/bootConfig', () => ({ bootConfigService: { get: vi.fn(), set: vi.fn(), persist: vi.fn() } }))
 
 describe('Linux bridge package continuity', () => {
   let root: string
@@ -72,16 +73,45 @@ describe('Linux bridge package continuity', () => {
     expect(getLegacyBridgeEligibility(root)).toEqual({ prerequisite: false })
   })
 
-  it('keeps older and custom profiles out of automatic package installation', () => {
+  it('supports discovered custom profiles but blocks older data', () => {
     fs.writeFileSync(path.join(root, 'package-type'), 'deb')
     vi.mocked(bootConfigService.get).mockReturnValue({ [app.getPath('exe')]: '/custom' })
-    // A different selected profile must never be handed to the default-profile installer.
     const custom = path.join(root, 'custom')
     fs.mkdirSync(custom)
     fs.copyFileSync(path.join(root, 'version.log'), path.join(custom, 'version.log'))
-    expect(getLegacyBridgeEligibility(custom).target).toBeUndefined()
+    expect(getLegacyBridgeEligibility(custom).target?.url).toContain('.deb')
     fs.writeFileSync(path.join(root, 'version.log'), '1.9.11|linux|prod|packaged|install|2026-09-01T00:00:00.000Z')
     expect(getLegacyBridgeEligibility(root)).toEqual({ prerequisite: true })
+  })
+
+  it('supports a configured custom profile when it is the active profile', () => {
+    fs.writeFileSync(path.join(root, 'package-type'), 'deb')
+    vi.mocked(bootConfigService.get).mockReturnValue({ [app.getPath('exe')]: root })
+    expect(getLegacyBridgeEligibility(root).target?.url).toContain('.deb')
+  })
+
+  it.each(['x64', 'arm64'] as const)('selects a compatible Windows %s portable installer', (arch) => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    vi.spyOn(process, 'arch', 'get').mockReturnValue(arch)
+    vi.stubEnv('PORTABLE_EXECUTABLE_DIR', root)
+    fs.writeFileSync(path.join(root, 'version.log'), '1.9.12|win|prod|packaged|portable|2026-09-01T00:00:00.000Z')
+    expect(getLegacyBridgeEligibility(root).target?.url).toContain(`win-${arch}-portable.exe`)
+    expect(getLegacyUpgradeDownloadUrl({ platform: 'win32', arch, translated: false, portable: true })).toBe(
+      `https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-2.1.0-win-${arch}-portable.exe`
+    )
+  })
+
+  it('pins the selected custom directory only at handoff and restores the previous mapping on failure', () => {
+    const previous = { '/another/executable': '/another/profile' }
+    vi.mocked(bootConfigService.get).mockReturnValue(previous)
+    const restore = prepareLegacyBridgeProfile(root)
+    expect(vi.mocked(bootConfigService.set).mock.lastCall?.[1]).toEqual({ ...previous, [app.getPath('exe')]: root })
+    restore()
+    expect(vi.mocked(bootConfigService.set).mock.lastCall?.[1]).toEqual(previous)
+  })
+
+  it('refuses handoff if the selected profile disappears', () => {
+    expect(() => prepareLegacyBridgeProfile(path.join(root, 'missing'))).toThrow('unavailable')
   })
 
   it.each(['global', 'cn'] as const)(

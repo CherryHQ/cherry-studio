@@ -10,6 +10,7 @@ import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
 import { LegacyFileCleanupPolicySeeder } from '@data/db/seeding/seeders/legacyFileCleanupPolicySeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
+import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import type * as UserDataLocationModule from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 
@@ -20,7 +21,7 @@ import { isMigratedFromV1 } from '../v1MigrationOrigin'
 vi.mock('@main/data/bootConfig', () => ({ bootConfigService: { get: vi.fn() } }))
 vi.mock('@main/core/preboot/userDataLocation', async (importOriginal) => ({
   ...(await importOriginal<typeof UserDataLocationModule>()),
-  getNormalizedExecutablePath: () => '/app/cherry'
+  getNormalizedExecutablePath: vi.fn(() => '/app/cherry')
 }))
 
 describe('legacy profile detection', () => {
@@ -36,6 +37,7 @@ describe('legacy profile detection', () => {
     fs.mkdirSync(profile)
     vi.spyOn(application, 'getPath').mockImplementation((key) => (key === 'v1.home_config_file' ? configFile : profile))
     vi.mocked(bootConfigService.get).mockReturnValue(null)
+    vi.mocked(getNormalizedExecutablePath).mockReturnValue('/app/cherry')
     Object.defineProperty(app, 'isPackaged', { configurable: true, value: true })
   })
 
@@ -157,6 +159,25 @@ describe('legacy profile detection', () => {
       expect(findLegacyUpgradeProfile()).toEqual({ kind: 'recover', path: custom })
       expect(fs.readFileSync(file)).toEqual(before)
       expect(fs.readdirSync(profile)).toEqual([])
+    }
+  )
+
+  it.each(['installed', 'other-portable', 'exact-portable'])(
+    'does not adopt another executable profile for a portable launch: %s',
+    (source) => {
+      const exe = '/portable/cherry-studio-portable.exe'
+      vi.mocked(getNormalizedExecutablePath).mockReturnValue(exe)
+      const custom = path.join(root, '自定义 data')
+      fs.mkdirSync(custom)
+      fs.writeFileSync(path.join(custom, 'version.log'), '1.9.12')
+      const executablePath =
+        source === 'exact-portable' ? exe : source === 'installed' ? '/app/cherry' : '/other/cherry-studio-portable.exe'
+      fs.writeFileSync(configFile, JSON.stringify({ appDataPath: [{ executablePath, dataPath: custom }] }))
+      expect(findLegacyUpgradeProfile()).toEqual(
+        source === 'exact-portable' ? { kind: 'legacy', path: custom } : undefined
+      )
+      expect(fs.readdirSync(profile)).toEqual([])
+      expect(fs.readdirSync(custom)).toEqual(['version.log'])
     }
   )
 
