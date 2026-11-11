@@ -6,6 +6,20 @@
   },
   "definitions": [
     {
+      "targetKey": "feature.memory.generation.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Enable Dreaming memory processing; the automatic organization preference is subordinate to this switch"
+    },
+    {
+      "targetKey": "feature.memory.dreaming.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Automatically organize managed shared and private memory while idle using the application default model"
+    },
+    {
       "targetKey": "assistant.archive.related_topics",
       "type": "boolean",
       "defaultValue": false,
