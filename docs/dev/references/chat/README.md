@@ -143,6 +143,8 @@ position. Initial quotes in older messages receive missing metadata only for
 display; stored history is not changed.
 `useSideChats` and `SideChatState` hold only window-local memory state. RPC responses
 and events share revision checks, and deletion retains version tombstones.
+All side-chat clients use `side_chat.*` IPC. The runtime calls `SideChatService`
+directly for saved data; there is no parallel side-chat REST API or DataApi subscription.
 Stream events do not enter persistent caches, and request bodies are not logged.
 Saved side-chat model usage is linked to the corresponding answer and reuses
 main-chat usage statistics. Temporary side chats retain streamed token counts and

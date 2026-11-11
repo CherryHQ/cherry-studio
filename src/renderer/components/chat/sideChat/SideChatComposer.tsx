@@ -59,6 +59,7 @@ import { getErrorMessage } from '@renderer/utils/error'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { blobToDataUrl } from '@renderer/utils/image'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { CacheComposerDraftBase } from '@shared/data/cache/cacheValueTypes'
 import { DEFAULT_ASSISTANT_SETTINGS, type Assistant } from '@shared/data/types/assistant'
 import type { CherryMessagePart, FileUIPart, Message } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -71,7 +72,17 @@ import { SideChatToolControls } from './SideChatToolControls'
 
 const EMPTY_MODELS: Model[] = []
 
-type Props = Omit<ComposerSurfaceProps, 'onSendDraft'> & {
+type Props = Omit<
+  ComposerSurfaceProps,
+  | 'onSendDraft'
+  | 'tokens'
+  | 'managedTokenKinds'
+  | 'supportedExts'
+  | 'setFiles'
+  | 'filesCount'
+  | 'quickPanelEnabled'
+  | 'enableDragDrop'
+> & {
   temporary: boolean
   onSendDraft: (
     draft: ComposerSerializedDraft,
@@ -93,18 +104,24 @@ export function SideChatComposer(props: Props) {
           addNewTopic: () => undefined,
           onTextChange: (next) => props.onTextChange(typeof next === 'function' ? next(props.text) : next)
         }}>
-        <SideChatComposerInput {...props} draftTokens={props.draftTokens ?? initialDraft?.tokens} />
+        <SideChatComposerInput
+          {...props}
+          initialDraft={initialDraft}
+          draftTokens={props.draftTokens ?? initialDraft?.tokens}
+        />
       </ComposerToolRuntimeProvider>
     </QuickPanelProvider>
   )
 }
 
-function SideChatComposerInput({ temporary, onSendDraft, ...props }: Props) {
+function SideChatComposerInput({
+  temporary,
+  onSendDraft,
+  initialDraft,
+  ...props
+}: Props & { initialDraft?: CacheComposerDraftBase }) {
   const { t } = useTranslation()
   const context = useSideChatContext()!
-  const [initialDraft] = useState(() =>
-    context.selectedId ? readSideChatComposerDraft(context.selectedId) : undefined
-  )
   const { topic } = useTopicById(context.agentId ? undefined : context.sourceTopicId)
   const loaded = useAssistant(topic?.assistantId, { loadDefaultModel: false })
   const { agent } = useAgent(context.agentId ?? null)

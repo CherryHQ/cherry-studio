@@ -253,9 +253,7 @@ function PendingSideChat({ source }: { source: SideChatSource }) {
         key={draft.key}
         text={draft.text}
         onTextChange={(text) => update({ text })}
-        tokens={[]}
         draftTokens={draft.tokens}
-        managedTokenKinds={[]}
         onTokensChange={(tokens) => update({ tokens })}
         placeholder={t('side_chat.question')}
         sendDisabled={draft.busy || !context.modelId}
@@ -264,13 +262,8 @@ function PendingSideChat({ source }: { source: SideChatSource }) {
         isLoading={false}
         onSendDraft={send}
         onPause={() => {}}
-        supportedExts={[]}
-        setFiles={() => {}}
-        filesCount={0}
         isExpanded={expanded}
         onExpandedChange={setExpanded}
-        quickPanelEnabled={false}
-        enableDragDrop={false}
         enableSpellCheck={enableSpellCheck}
         fontSize={renderConfig.fontSize}
         narrowMode={false}
@@ -404,8 +397,6 @@ function SideChatConversation({ view }: { view: SideChatView }) {
         temporary={view.mode === 'temporary'}
         text={draft}
         onTextChange={setDraft}
-        tokens={[]}
-        managedTokenKinds={[]}
         onTokensChange={() => {}}
         placeholder={t('side_chat.question')}
         sendDisabled={busy || view.generating || missingModel}
@@ -430,13 +421,8 @@ function SideChatConversation({ view }: { view: SideChatView }) {
         onPause={() =>
           void run(async () => acceptSideChat(await ipcApi.request('side_chat.stop', { topicId: view.topicId })))
         }
-        supportedExts={[]}
-        setFiles={() => {}}
-        filesCount={0}
         isExpanded={expanded}
         onExpandedChange={setExpanded}
-        quickPanelEnabled={false}
-        enableDragDrop={false}
         enableSpellCheck={enableSpellCheck}
         fontSize={renderConfig.fontSize}
         narrowMode={false}
