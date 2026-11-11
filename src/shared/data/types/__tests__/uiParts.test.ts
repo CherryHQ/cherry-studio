@@ -76,6 +76,15 @@ describe('CherryToolMetaSchema', () => {
 })
 
 describe('CherryFileMetaSchema', () => {
+  it('preserves explicit note provenance and leaves ordinary files unmarked', () => {
+    expect(CherryFileMetaSchema.parse({ noteReference: true, originalPath: '/tmp/笔记.md' })).toEqual({
+      noteReference: true,
+      originalPath: '/tmp/笔记.md'
+    })
+    expect(CherryFileMetaSchema.parse({})).not.toHaveProperty('noteReference')
+    expect(CherryFileMetaSchema.safeParse({ noteReference: false }).success).toBe(false)
+  })
+
   it('accepts fileEntryId, fileTokenSourceId, originalPath, and the safe composer file kind', () => {
     const ok = CherryFileMetaSchema.safeParse({
       fileEntryId: 'entry-1',

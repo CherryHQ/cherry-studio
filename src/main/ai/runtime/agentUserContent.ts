@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
 import { defangSystemReminderTags } from '@main/ai/untrustedContent'
+import { readNoteSource } from '@main/services/notesDirectory'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
 /**
  * Build the user-turn content sent to an agent runtime. Agent runtimes are
@@ -11,9 +13,15 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
  * to the text — the agent reads them with its own tools. Driver-neutral: shared
  * by the agent drivers to keep attachment handling consistent.
  */
-export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
+export async function buildAgentUserContent(message: AgentSessionMessageEntity): Promise<string> {
   const text = extractMessageText(message)
-  const content = appendAgentAttachmentPaths(text, extractAttachments(message))
+  const { attachments, unavailable } = await extractAttachments(message)
+  let content = appendAgentAttachmentPaths(text, attachments)
+  if (unavailable.length) {
+    const names = message.delivery ? unavailable.map((name) => JSON.stringify(name)) : unavailable
+    const note = `Unavailable attachments: ${names.join(', ')}`
+    content = content.trim() ? `${content}\n\n${note}` : note
+  }
   return wrapAgentSessionDeliveryContent(message, content)
 }
 
@@ -67,12 +75,25 @@ function extractMessageText(message: AgentSessionMessageEntity): string {
 }
 
 /** Original names and absolute local paths of composer attachments. */
-function extractAttachments(message: AgentSessionMessageEntity): Array<{ filename?: string; path: string }> {
+async function extractAttachments(
+  message: AgentSessionMessageEntity
+): Promise<{ attachments: Array<{ filename?: string; path: string }>; unavailable: string[] }> {
   const attachments: Array<{ filename?: string; path: string }> = []
+  const unavailable: string[] = []
   for (const part of message.data?.parts ?? []) {
     // `parts` is a typed `CherryMessagePart[]`, so `type === 'file'` narrows to `FileUIPart`.
     if (part.type !== 'file' || !part.url.startsWith('file://')) continue
-    attachments.push({ filename: part.filename, path: fileURLToPath(part.url) })
+    const meta = readCherryMeta(part)
+    if (meta?.noteReference === true && meta.originalPath) {
+      const source = await readNoteSource(meta.originalPath)
+      if (!source.ok) {
+        unavailable.push(part.filename || 'attachment')
+        continue
+      }
+      attachments.push({ filename: part.filename, path: source.path })
+    } else {
+      attachments.push({ filename: part.filename, path: fileURLToPath(part.url) })
+    }
   }
-  return attachments
+  return { attachments, unavailable }
 }

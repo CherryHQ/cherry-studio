@@ -225,6 +225,7 @@ export interface CherryFileMeta {
   /** Safe composer-only source marker used to restore sent-message token previews. */
   composerFileKind?: 'pasted-text'
   originalPath?: AbsoluteFilePath
+  noteReference?: true
 }
 
 /**
@@ -322,7 +323,8 @@ export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
     .optional(),
   fileTokenSourceId: z.string().optional(),
   composerFileKind: z.literal('pasted-text').optional(),
-  originalPath: AbsoluteFilePathSchema.optional()
+  originalPath: AbsoluteFilePathSchema.optional(),
+  noteReference: z.literal(true).optional()
 })
 
 const DiagnosisStepSchema: z.ZodType<DiagnosisStep> = z.object({

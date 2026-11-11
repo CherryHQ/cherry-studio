@@ -591,7 +591,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       mediaType: 'text/plain',
       url: 'file:///tmp/log.txt',
       filename: 'log.txt',
-      providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+      providerMetadata: { cherry: { fileEntryId: 'fe-1', noteReference: true, originalPath: '/notes/log.md' } }
     })
     const path = [
       attachedMsg,
@@ -609,7 +609,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(messages.map((m) => m.id)).not.toContain('u1')
     // … but the request carries the raw-path retained context …
     expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
-      { fileEntryId: 'fe-1', handle: 'log.txt', displayName: 'log.txt' }
+      { fileEntryId: 'fe-1', handle: 'log.txt', displayName: 'log.txt', noteSourcePath: '/notes/log.md' }
     ])
     expect(prepared.models[0].request.retainedContext?.persistedOutputPaths.size).toBe(0)
     // … and the served summary row tells the model the file is still readable.

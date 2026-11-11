@@ -498,7 +498,7 @@ describe('ChannelMessageHandler', () => {
         'first file',
         'second file'
       ])
-      const content = buildAgentUserContent({ data: { parts } } as AgentSessionMessageEntity)
+      const content = await buildAgentUserContent({ data: { parts } } as AgentSessionMessageEntity)
       for (const file of files) {
         expect(content).toContain(fileURLToPath(file.url))
         expect(content).toContain(JSON.stringify(file.filename))

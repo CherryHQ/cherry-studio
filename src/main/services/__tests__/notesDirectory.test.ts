@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const loggerMocks = vi.hoisted(() => ({
@@ -21,7 +22,7 @@ vi.mock('@logger', () => ({
 }))
 
 const { application } = await import('@application')
-const { validateNotesDirectory } = await import('../notesDirectory')
+const { validateNotesDirectory, resolveEffectiveNotesRoot, readNoteSource } = await import('../notesDirectory')
 
 describe('validateNotesDirectory', () => {
   let root: string
@@ -56,5 +57,33 @@ describe('validateNotesDirectory', () => {
     expect(validateNotesDirectory(appDataPath)).toBe(false)
     expect(validateNotesDirectory(filesPath)).toBe(false)
     expect(validateNotesDirectory(notesPath)).toBe(false)
+  })
+
+  it('resolves the effective root on every call', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.notes.path', '')
+    expect(resolveEffectiveNotesRoot()).toBe(notesPath)
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.notes.path', notesPath)
+    expect(resolveEffectiveNotesRoot()).toBe(notesPath)
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.notes.path', path.join(root, 'CustomNotes'))
+    expect(resolveEffectiveNotesRoot()).toBe(path.join(root, 'CustomNotes'))
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.notes.path', path.join(root, 'missing'))
+    expect(resolveEffectiveNotesRoot()).toBe(notesPath)
+  })
+
+  it('reads only contained regular Markdown files, including empty and Unicode paths', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.notes.path', '')
+    const source = path.join(notesPath, '笔记 with spaces.MD')
+    const outside = path.join(root, 'Notes2')
+    await mkdir(outside)
+    await writeFile(source, '')
+    await writeFile(path.join(notesPath, 'other.txt'), 'text')
+    await writeFile(path.join(outside, 'outside.md'), 'secret')
+    await symlink(path.join(outside, 'outside.md'), path.join(notesPath, 'link.md'))
+    expect(await readNoteSource(source)).toEqual({ ok: true, path: source, text: '' })
+    expect(await readNoteSource(path.join(notesPath, 'missing.md'))).toEqual({ ok: false, reason: 'missing' })
+    expect(await readNoteSource(notesPath)).toEqual({ ok: false, reason: 'not-a-file' })
+    expect(await readNoteSource(path.join(notesPath, 'other.txt'))).toEqual({ ok: false, reason: 'not-markdown' })
+    expect(await readNoteSource(path.join(outside, 'outside.md'))).toEqual({ ok: false, reason: 'outside-root' })
+    expect(await readNoteSource(path.join(notesPath, 'link.md'))).toEqual({ ok: false, reason: 'outside-root' })
   })
 })

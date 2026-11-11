@@ -48,6 +48,7 @@ export interface ComposerAttachment {
   type: FileType
   /** Pasted-text marker (existing composer-only kind). */
   composerFileKind?: ComposerFileKind
+  noteReference?: true
 }
 
 /**

@@ -80,6 +80,19 @@ external file parts (no `fileEntryId`) are still eagerly materialized, but
 image/audio/video parts are omitted when native support is false. Other
 gateway/external file types keep their existing behavior.
 
+## Note references
+
+A note selected through the Notes picker or an `@` mention carries
+`noteReference: true` and its original absolute path in `cherry.originalPath`.
+On each request, the last user message receives a block with each retained
+reference's handle, JSON-encoded source path, and current Markdown content, capped
+by the attachment budget. `read_file` reads the current source with the usual
+pagination; `readNoteSource` confines canonical paths to the effective Notes root
+and rejects non-regular files, non-Markdown files, and files over 10 MiB. An
+unavailable source is reported explicitly in the block or tool result and never
+silently falls back to the managed copy. Ordinary attachments, including Markdown
+selected through the file picker, retain snapshot behavior.
+
 ## Supported extensions (upload allowlist)
 
 What the composer lets the user pick is `imageExts`, `documentExts`, and

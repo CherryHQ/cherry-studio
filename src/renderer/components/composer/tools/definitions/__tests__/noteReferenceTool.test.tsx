@@ -268,4 +268,11 @@ describe('noteReferenceTool', () => {
       expect(item).toMatchObject({ isSelected: true, disabled: true })
     })
   })
+
+  it('marks the selected note with its exact source path', () => {
+    expect(noteToComposerAttachment(note())).toMatchObject({
+      path: '/notes/journal/Daily note.md',
+      noteReference: true
+    })
+  })
 })

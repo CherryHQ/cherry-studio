@@ -1,3 +1,13 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import { application } from '@application'
+import type * as NotesDirectory from '@main/services/notesDirectory'
+
+const { readNoteMock } = vi.hoisted(() => ({ readNoteMock: vi.fn() }))
+vi.mock('@main/services/notesDirectory', () => ({ readNoteSource: readNoteMock }))
+
 vi.mock('../attachmentWorkerClient', async () => {
   const { allocateInlineCaps } = await import('../attachmentInlineBudget')
   return {
@@ -22,11 +32,18 @@ const { getByIdMock, ocrMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
   ocrMock: vi.fn<() => Promise<string>>()
 }))
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => (name === 'FileProcessingService' ? { ocrImage: ocrMock } : { getById: getByIdMock })
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const mock = mockApplicationFactory()
+  const get = mock.application.get.bind(mock.application)
+  mock.application.get = ((name: string) =>
+    name === 'FileProcessingService'
+      ? { ocrImage: ocrMock }
+      : name === 'FileManager'
+        ? { getById: getByIdMock }
+        : get(name)) as typeof mock.application.get
+  return mock
+})
 
 const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }))
 vi.mock('../fileProcessor', () => ({ materializeNativeFilePart: resolveMock }))
@@ -96,7 +113,13 @@ const run = (
 const textOf = (parts: UIMessage['parts']) =>
   parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text)
 
-afterEach(() => vi.clearAllMocks())
+let notesRoot: string | undefined
+afterEach(async () => {
+  if (notesRoot) await rm(notesRoot, { recursive: true, force: true })
+  notesRoot = undefined
+  vi.restoreAllMocks()
+  vi.resetAllMocks()
+})
 
 describe('prepareChatMessages — routing', () => {
   it('keeps a native image inline (no extraction)', async () => {
@@ -471,4 +494,63 @@ describe('collectFileAttachments', () => {
       { fileEntryId: 'legacy', handle: 'legacy.png', displayName: 'legacy.png' }
     ])
   })
+})
+
+it('delivers current marked note content on each request without its snapshot', async () => {
+  const note = {
+    ...fileWithEntry('e1', 'note.md', 'text/markdown'),
+    providerMetadata: {
+      cherry: { fileEntryId: 'e1', noteReference: true, originalPath: '/notes/note.md' }
+    }
+  } as CherryMessagePart
+  const messages = [userMessage([note])] as UIMessage[]
+  const attachments = collectFileAttachments(messages)
+  expect(attachments[0].noteSourcePath).toBe('/notes/note.md')
+  readNoteMock
+    .mockResolvedValueOnce({ ok: true, path: '/notes/note.md', text: 'LIVE-A' })
+    .mockResolvedValueOnce({ ok: true, path: '/notes/note.md', text: 'LIVE-B' })
+    .mockResolvedValueOnce({ ok: false, reason: 'missing' })
+  for (const expected of ['LIVE-A', 'LIVE-B', 'Unavailable: missing']) {
+    const [out] = await prepareChatMessages(messages, { attachments, nativeSupport: NONE, isToolCapable: true })
+    const text = textOf(out.parts).join('\n')
+    expect(text).toContain('/notes/note.md')
+    expect(text).toContain(expected)
+    expect(text).not.toContain('SNAPSHOT')
+  }
+})
+
+it('reads rewritten note bytes from the real notes directory on each request', async () => {
+  notesRoot = await mkdtemp(path.join(tmpdir(), 'note-routing-'))
+  const source = path.join(notesRoot, 'note.md')
+  vi.mocked(application.getPath).mockReturnValue(notesRoot)
+  const actual = await vi.importActual<typeof NotesDirectory>('@main/services/notesDirectory')
+  readNoteMock.mockImplementation(actual.readNoteSource)
+  const note = {
+    ...fileWithEntry('e1', 'note.md', 'text/markdown'),
+    providerMetadata: { cherry: { fileEntryId: 'e1', noteReference: true, originalPath: source } }
+  } as CherryMessagePart
+  for (const content of ['first real bytes', 'rewritten real bytes']) {
+    await writeFile(source, content)
+    const [out] = await run([note], NONE)
+    expect(textOf(out.parts).join('\n')).toContain(content)
+  }
+})
+
+it('keeps a note-only historical turn nonempty and places current content only in the latest turn', async () => {
+  const note = {
+    ...fileWithEntry('e1', 'note.md', 'text/markdown'),
+    providerMetadata: { cherry: { fileEntryId: 'e1', noteReference: true, originalPath: '/notes/note.md' } }
+  }
+  const messages = [userMessage([note]), userMessage([{ type: 'text', text: 'next' }])] as UIMessage[]
+  readNoteMock.mockResolvedValueOnce({ ok: true, path: '/notes/note.md', text: 'CURRENT BODY' })
+  const out = await prepareChatMessages(messages, {
+    attachments: collectFileAttachments(messages),
+    nativeSupport: NONE,
+    isToolCapable: true
+  })
+  expect(out[0].parts).toEqual([
+    { type: 'text', text: 'Referenced note "note.md" (source file; current content is provided in the latest turn)' }
+  ])
+  expect(JSON.stringify(out[0].parts)).not.toContain('CURRENT BODY')
+  expect(JSON.stringify(out[1].parts)).toContain('CURRENT BODY')
 })

@@ -18,3 +18,8 @@ export function isActiveManagedFilePart(part: FileUIPart, composerFileTokenIds: 
   const sourceId = readCherryMeta(part)?.fileTokenSourceId
   return !sourceId || composerFileTokenIds.has(`file:${sourceId}`)
 }
+
+export function getNoteSourcePath(part: FileUIPart): string | undefined {
+  const meta = readCherryMeta(part)
+  return meta?.noteReference === true && meta.originalPath ? meta.originalPath : undefined
+}

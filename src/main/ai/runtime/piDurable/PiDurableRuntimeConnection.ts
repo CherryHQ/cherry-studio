@@ -78,6 +78,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private providerSessionId?: string
   private readonly turnUsage = new PiTurnUsage()
   private reconcileChain: Promise<unknown> = Promise.resolve()
+  private steerChain: Promise<void> = Promise.resolve()
   private readonly steers = new Set<string>()
   private readonly children = new Map<
     string,
@@ -151,7 +152,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.sending = true
     this.failure = undefined
     this.turnUsage.reset()
-    const text = buildAgentUserContent(input.message)
+    const text = await buildAgentUserContent(input.message)
     if (!input.systemReminder && /^\/compact(?:\s|$)/.test(text.trim())) {
       this.compacting = true
       this.events.push({ type: 'compaction-start', trigger: 'manual' })
@@ -194,9 +195,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   redirect(input: AgentRuntimeCommand): boolean {
     if (!this.active || this.closing) return false
     this.steers.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message)), 'steer').catch((error) =>
-      this.fail(error)
-    )
+    this.steerChain = this.steerChain
+      .then(async () => {
+        const content = await buildAgentUserContent(input.message)
+        await this.submit(input, wrapSteerReminder(content), 'steer')
+      })
+      .catch((error) => this.fail(error))
     return true
   }
 

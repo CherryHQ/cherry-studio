@@ -31,6 +31,7 @@ import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@ma
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { readNoteSource } from '@main/services/notesDirectory'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -1160,7 +1161,15 @@ async function extractAttachmentPaths(
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     try {
       let resolved: AbsoluteFilePath
-      if (readCherryMeta(part)?.remoteAttachment && part.url?.startsWith('file://')) {
+      const meta = readCherryMeta(part)
+      if (meta?.noteReference === true && meta.originalPath) {
+        const source = await readNoteSource(meta.originalPath)
+        if (!source.ok) {
+          unavailable.push(part)
+          continue
+        }
+        resolved = AbsoluteFilePathSchema.parse(source.path)
+      } else if (meta?.remoteAttachment && part.url?.startsWith('file://')) {
         resolved = AbsoluteFilePathSchema.parse(fileURLToPath(part.url))
       } else if (fileEntryId) {
         resolved = application.get('FileManager').getPhysicalPath(fileEntryId)

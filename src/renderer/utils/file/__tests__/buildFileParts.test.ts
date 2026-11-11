@@ -38,6 +38,16 @@ describe('buildFilePartsForAttachments', () => {
     mocks.request.mockResolvedValue({ kind: 'file', mime: 'image/png', size: 1, mtime: 0 })
   })
 
+  it('preserves a note reference and its exact source path without marking ordinary files', async () => {
+    const source = '/tmp/我的 笔记.md' as AbsoluteFilePath
+    const [note, ordinary] = await buildFilePartsForAttachments([
+      attachment({ path: source, noteReference: true }),
+      attachment({ path: source })
+    ])
+    expect(note.providerMetadata?.cherry).toMatchObject({ noteReference: true, originalPath: source })
+    expect(ordinary.providerMetadata?.cherry).not.toHaveProperty('noteReference')
+  })
+
   it('creates the FileEntry at send time and emits a file:// url + file identities + the disk MIME', async () => {
     const [part] = await buildFilePartsForAttachments([attachment()])
 

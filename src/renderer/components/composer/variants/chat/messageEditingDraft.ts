@@ -246,6 +246,7 @@ function createEditableAttachment(
 
   return {
     fileTokenSourceId,
+    ...(readCherryMeta(part)?.noteReference ? { noteReference: true } : {}),
     name,
     origin_name: name,
     // The stored part carries a `file://` URL, not a filesystem path. Leave the
