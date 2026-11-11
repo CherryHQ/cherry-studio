@@ -33,6 +33,6 @@ Status: implemented
 - AC1 — 真实 REPL 内核及 Computer Use 服务测试验证目标独立记录、重复操作去重，以及纯 JavaScript cell 不关联应用。
 - AC2 — 渲染器测试覆盖多目标展示、跨调用复用图标读取和切换 cell 后移除旧目标；schema 校验拒绝非 PNG 图标数据。
 - AC3 — 客户端图标读取不创建应用控制；上游 SDK/原生测试验证独立请求校验和图标生成。
-- macOS Electron 组件验收通过真实 IPC 和已发布 SDK，在会话详情和工具卡片中加载真实 64×64 Finder PNG，复用图标查询并保留未知应用回退。目标关联使用测试数据；尚未验证真实 Pi/Claude 模型流程及 Windows/Linux 视觉表现。
+- macOS Electron 组件验收通过真实 IPC 和已发布 SDK，在会话详情和工具卡片中加载真实 64×64 Finder PNG，复用图标查询并保留未知应用回退。后续真实模型测试通过 CherryIN 的 Claude Sonnet 4.6 覆盖 Claude Code、Pi 和 Pi Durable。Claude 合并文本块，Pi Durable 丢弃 audience 注解，因此渲染器同时从这些已有文本传输的 REPL_CONTEXT 结尾控制块读取经过校验的 cell。Windows/Linux 视觉表现仍未验证。
 
 - Review 修复：Pi 投影保留原生结构化结果，MCP 卡片在成功和失败时均解包原始结果，保留实时与恢复历史中的 cell 上下文和 audience 注解。测试串联真实 Pi MCP 转换器、原生会话、实时/历史投影、工具卡片适配和 REPL 解析。

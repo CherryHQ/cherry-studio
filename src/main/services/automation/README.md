@@ -131,5 +131,7 @@ the existing REPL cell ID. `computer_use.get_call_apps` serves this transient di
 the renderer queries `computer_use.get_app_icon` lazily by stable identity and shares reads
 through SWR. Neither icons nor the association list enter tool results, model context or
 persisted session metadata. A cell may display several app icons. Evicted/previous-process
-calls have no inferred targets. The current SDK needs the upstream `getAppIcon` release;
-older SDKs retain the named fallback without altering tool execution.
+calls have no inferred targets. Published SDK 0.1.11 supplies the independent icon API.
+Session details share the icon cache and use stable identity from the live control list.
+Claude and Pi Durable can omit MCP annotations; the renderer also recognizes the existing
+validated `REPL_CONTEXT` footer in their text-only results.

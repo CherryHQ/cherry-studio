@@ -74,23 +74,21 @@ function parseJson(text: string): unknown {
 const cellContextSchema = z.object({ cell: z.uuid() })
 
 export function getAutomationCell(response: unknown): string | undefined {
+  if (typeof response === 'string') {
+    const footer = response.trimEnd().split('\n').at(-1)
+    if (!footer?.startsWith('REPL_CONTEXT ')) return undefined
+    const context = cellContextSchema.safeParse(parseJson(footer.slice('REPL_CONTEXT '.length)))
+    return context.success ? context.data.cell : undefined
+  }
   const parsed = CallToolResultSchema.safeParse(Array.isArray(response) ? { content: response } : response)
   if (!parsed.success) return undefined
   const structured = z.object({ replContext: cellContextSchema }).safeParse(parsed.data.structuredContent)
   if (structured.success) return structured.data.replContext.cell
   const [only] = parsed.data.content
   if (parsed.data.isError && parsed.data.content.length === 1 && only.type === 'text') {
-    return getAutomationCell(parseJson(only.text))
+    const cell = getAutomationCell(parseJson(only.text))
+    if (cell) return cell
   }
-  for (const part of parsed.data.content) {
-    if (
-      part.type === 'text' &&
-      part.text.startsWith('REPL_CONTEXT ') &&
-      part.annotations?.audience?.includes('assistant')
-    ) {
-      const context = cellContextSchema.safeParse(parseJson(part.text.slice('REPL_CONTEXT '.length)))
-      if (context.success) return context.data.cell
-    }
-  }
-  return undefined
+  const last = parsed.data.content.at(-1)
+  return last?.type === 'text' ? getAutomationCell(last.text) : undefined
 }
