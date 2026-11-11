@@ -97,4 +97,19 @@ describe('paintingGenerate', () => {
     })
     expect(ipcRequestMock).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['dashscope', 900_000, undefined, 900_000],
+    ['dashscope', 900_000, 30_000, 30_000],
+    ['dashscope', undefined, undefined, undefined],
+    ['dmxapi', 900_000, undefined, undefined]
+  ])('resolves the request timeout for %s', async (id, saved, draft, expected) => {
+    prefetchMock.mockResolvedValue({ modes: { generate: { supports: {} } } })
+    ipcRequestMock.mockReset().mockResolvedValue({ files: [image] })
+    const input = makeInput({ providerId: id, requestTimeoutMs: draft })
+    input.provider = { ...input.provider, id, imageRequestTimeoutMs: saved }
+    await paintingGenerate(input)
+    if (expected === undefined) expect(sentPayload()).not.toHaveProperty('requestTimeoutMs')
+    else expect(sentPayload().requestTimeoutMs).toBe(expected)
+  })
 })

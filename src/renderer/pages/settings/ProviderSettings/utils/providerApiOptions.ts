@@ -1,3 +1,4 @@
+import { supportsImageRequestTimeout } from '@renderer/utils/imageGenerationTimeout'
 import type { Provider } from '@shared/data/types/provider'
 import {
   isAIGatewayProvider,
@@ -17,11 +18,14 @@ export function getProviderApiOptionsVisibility(provider: Provider) {
   const isSupportAnthropicPromptCache = isAnthropicSupportedProvider(provider) || isAIGatewayProvider(provider)
   const isOpenAIProvider = isOpenAIOptionsProvider(provider)
 
+  const showImageRequestTimeout = supportsImageRequestTimeout(provider.id)
+
   return {
+    showImageRequestTimeout,
     isOpenAIProvider,
     isSupportAnthropicPromptCache,
     showDialectSettings,
-    hasVisibleApiOptions: showDialectSettings || isSupportAnthropicPromptCache
+    hasVisibleApiOptions: showDialectSettings || isSupportAnthropicPromptCache || showImageRequestTimeout
   }
 }
 

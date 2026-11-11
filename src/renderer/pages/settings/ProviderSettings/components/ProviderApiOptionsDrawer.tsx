@@ -252,6 +252,41 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       headerClassName="px-6 pt-4 pb-2"
       bodyClassName="space-y-0 px-6 pt-1 pb-6">
       <div className="flex min-w-0 flex-col gap-4">
+        {getProviderApiOptionsVisibility(provider).showImageRequestTimeout && (
+          <PageSidePanelItem
+            title={
+              <OptionTitle
+                id={apiOptionId(providerId, 'image-request-timeout')}
+                label={t('settings.provider.api.options.image_request_timeout.label')}
+                help={t('settings.provider.api.options.image_request_timeout.help')}
+              />
+            }
+            action={
+              <InputNumber
+                id={apiOptionId(providerId, 'image-request-timeout')}
+                min={10}
+                max={1800}
+                step={10}
+                placeholder="600"
+                value={
+                  provider.settings.imageRequestTimeoutMs == null
+                    ? null
+                    : provider.settings.imageRequestTimeoutMs / 1000
+                }
+                onBlur={async (seconds) => {
+                  try {
+                    await updateProvider({
+                      providerSettings: { imageRequestTimeoutMs: seconds === null ? null : seconds * 1000 }
+                    })
+                  } catch {
+                    handleSaveError()
+                  }
+                }}
+                className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
+              />
+            }
+          />
+        )}
         {options.length > 0 ? (
           <div className="flex flex-col gap-4">
             {options.map((item) => {

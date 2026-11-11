@@ -80,3 +80,29 @@ describe('Provider DTO logo validation', () => {
     expect(UpdateProviderSchema.safeParse({ providerSettings: { cacheControl: { ttl: '30m' } } }).success).toBe(false)
   })
 })
+
+describe('image request timeout', () => {
+  it.each([10_000, 10_001, 900_000, 1_800_000])('retains %i milliseconds on create and patch', (value) => {
+    expect(
+      CreateProviderSchema.parse({ providerId: 'p', name: 'n', providerSettings: { imageRequestTimeoutMs: value } })
+        .providerSettings?.imageRequestTimeoutMs
+    ).toBe(value)
+    expect(
+      UpdateProviderSchema.parse({ providerSettings: { imageRequestTimeoutMs: value } }).providerSettings
+        ?.imageRequestTimeoutMs
+    ).toBe(value)
+  })
+  it.each([9_999, 1_800_001, 10_000.5, '10000', true, -1, 0, NaN, Infinity])('rejects invalid value %s', (value) => {
+    expect(
+      CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', providerSettings: { imageRequestTimeoutMs: value } })
+        .success
+    ).toBe(false)
+    expect(UpdateProviderSchema.safeParse({ providerSettings: { imageRequestTimeoutMs: value } }).success).toBe(false)
+  })
+  it('preserves deletion and omission in patches', () => {
+    expect(UpdateProviderSchema.parse({ providerSettings: { imageRequestTimeoutMs: null } }).providerSettings).toEqual({
+      imageRequestTimeoutMs: null
+    })
+    expect(UpdateProviderSchema.parse({ providerSettings: {} }).providerSettings).toEqual({})
+  })
+})

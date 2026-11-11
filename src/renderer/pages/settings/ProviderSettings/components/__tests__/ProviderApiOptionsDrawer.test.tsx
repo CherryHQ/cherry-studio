@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,6 +6,9 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ProviderUtils from '@shared/utils/provider'
 
 import ProviderApiOptionsDrawer from '../ProviderApiOptionsDrawer'
+
+const toastErrorMock = vi.fn()
+vi.mock('@renderer/services/toast', () => ({ toast: { error: (...args: unknown[]) => toastErrorMock(...args) } }))
 
 const updateProviderMock = vi.fn()
 const useProviderMock = vi.fn()
@@ -121,6 +124,48 @@ describe('ProviderApiOptionsDrawer', () => {
     isAzureOpenAIProviderMock.mockReturnValue(false)
     isAnthropicSupportedProviderMock.mockReturnValue(true)
     isSystemProviderMock.mockReturnValue(false)
+  })
+
+  it('saves the supported provider timeout as a single settings patch', () => {
+    useProviderMock.mockReturnValue({ provider: { ...provider, id: 'ppio' }, updateProvider: updateProviderMock })
+    render(<ProviderApiOptionsDrawer providerId="ppio" open onClose={vi.fn()} />)
+    const input = screen.getByLabelText('settings.provider.api.options.image_request_timeout.label')
+    fireEvent.change(input, { target: { value: '900' } })
+    fireEvent.blur(input)
+    expect(updateProviderMock).toHaveBeenCalledWith({ providerSettings: { imageRequestTimeoutMs: 900_000 } })
+  })
+
+  it('shows the saved timeout and clears it with a null patch', () => {
+    useProviderMock.mockReturnValue({
+      provider: { ...provider, id: 'ppio', settings: { ...provider.settings, imageRequestTimeoutMs: 900_000 } },
+      updateProvider: updateProviderMock
+    })
+    render(<ProviderApiOptionsDrawer providerId="ppio" open onClose={vi.fn()} />)
+    const input = screen.getByLabelText('settings.provider.api.options.image_request_timeout.label')
+    expect(input).toHaveValue('900')
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.blur(input)
+    expect(updateProviderMock).toHaveBeenCalledWith({ providerSettings: { imageRequestTimeoutMs: null } })
+  })
+
+  it('reports a failed save and restores the saved value', async () => {
+    updateProviderMock.mockRejectedValueOnce(new Error('failed'))
+    useProviderMock.mockReturnValue({
+      provider: { ...provider, id: 'ppio', settings: { ...provider.settings, imageRequestTimeoutMs: 600_000 } },
+      updateProvider: updateProviderMock
+    })
+    render(<ProviderApiOptionsDrawer providerId="ppio" open onClose={vi.fn()} />)
+    const input = screen.getByLabelText('settings.provider.api.options.image_request_timeout.label')
+    fireEvent.change(input, { target: { value: '900' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('settings.provider.save_failed'))
+    expect(input).toHaveValue('600')
+  })
+
+  it('does not show the timeout for unsupported providers', () => {
+    useProviderMock.mockReturnValue({ provider: { ...provider, id: 'dmxapi' }, updateProvider: updateProviderMock })
+    render(<ProviderApiOptionsDrawer providerId="dmxapi" open onClose={vi.fn()} />)
+    expect(screen.queryByLabelText('settings.provider.api.options.image_request_timeout.label')).not.toBeInTheDocument()
   })
 
   it('preserves sibling endpoints when changing the selected endpoint dialect', () => {

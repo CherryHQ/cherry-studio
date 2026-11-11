@@ -81,6 +81,7 @@ const ProviderSettingsMergePatchSchema = z.object({
   keepAliveTime: ProviderSettingsSchema.shape.keepAliveTime.nullable().optional(),
   rateLimit: ProviderSettingsSchema.shape.rateLimit.nullable().optional(),
   timeout: ProviderSettingsSchema.shape.timeout.nullable().optional(),
+  imageRequestTimeoutMs: ProviderSettingsSchema.shape.imageRequestTimeoutMs.nullable().optional(),
   extraHeaders: z.record(z.string(), z.string().nullable()).nullable().optional(),
   notes: ProviderSettingsSchema.shape.notes.nullable().optional(),
   isAuthed: ProviderSettingsSchema.shape.isAuthed.nullable().optional(),

@@ -22,7 +22,7 @@ export interface ImageTransportDescriptor {
  * `submit`, so this is the whole generation for them; the previous 120s was
  * shorter than common vendor latencies.
  */
-export const DEFAULT_IMAGE_REQUEST_TIMEOUT_MS = 10 * 60_000
+export { DEFAULT_IMAGE_REQUEST_TIMEOUT_MS } from '@shared/ai/imageGenerationTimeout'
 
 export interface ImageGenerationTransport {
   submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }>

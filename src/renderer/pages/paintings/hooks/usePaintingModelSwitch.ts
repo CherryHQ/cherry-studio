@@ -78,6 +78,7 @@ export function usePaintingModelSwitch({
         prompt: painting.prompt,
         providerId,
         mode: 'generate',
+        requestTimeoutMs: undefined,
         model: modelId,
         // Switching providers resets the form context; never carry input
         // images across to a different provider's model.

@@ -3,13 +3,16 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InfoTooltip, InputNumber } from '@cherrystudio/ui'
+import { useProviderById } from '@renderer/hooks/useProvider'
+import { supportsImageRequestTimeout } from '@renderer/utils/imageGenerationTimeout'
+import { DEFAULT_IMAGE_REQUEST_TIMEOUT_MS } from '@shared/ai/imageGenerationTimeout'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import type { PaintingData } from '../model/types/paintingData'
-import { supportsImageRequestTimeout } from '../utils/imageGenerationTimeout'
+import { resolveImageRequestTimeoutMs } from '../utils/imageGenerationTimeout'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
@@ -50,7 +53,13 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
   // that `canonicalGenerate` partitions into AI SDK args vs provider bag at
   // request time. Top-level PaintingData fields are not visible to the wire.
   const paintingParams = painting.params ?? {}
-  const requestTimeoutSeconds = painting.requestTimeoutMs ? Math.round(painting.requestTimeoutMs / 1000) : null
+  const requestTimeoutSeconds = painting.requestTimeoutMs == null ? null : painting.requestTimeoutMs / 1000
+  const { provider, error } = useProviderById(painting.providerId)
+  const effectiveTimeoutMs = resolveImageRequestTimeoutMs(
+    painting.providerId,
+    painting.requestTimeoutMs,
+    provider?.settings.imageRequestTimeoutMs
+  )
   // The override only reaches transports that apply it; hide it where the value would be inert.
   const requestTimeoutSupported = supportsImageRequestTimeout(painting.providerId)
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
@@ -102,6 +111,15 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
             value={requestTimeoutSeconds}
             onBlur={(value) => onConfigChange({ requestTimeoutMs: value === null ? undefined : value * 1000 })}
           />
+          <div aria-live="polite">
+            {provider
+              ? t('paintings.request_timeout_effective', {
+                  seconds: (effectiveTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS) / 1000
+                })
+              : error
+                ? t('common.unknown')
+                : t('common.loading')}
+          </div>
         </div>
       )}
     </>

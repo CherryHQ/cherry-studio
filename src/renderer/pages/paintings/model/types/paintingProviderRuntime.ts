@@ -8,6 +8,7 @@ export interface PaintingProviderRuntime {
   presetProviderId?: string
   defaultChatEndpoint?: Provider['defaultChatEndpoint']
   isEnabled: boolean
+  imageRequestTimeoutMs?: number
   apiHost: string
   getApiKey: () => Promise<string>
 }
@@ -87,6 +88,7 @@ export function createPaintingProviderRuntime(
     presetProviderId: provider?.presetProviderId,
     defaultChatEndpoint: provider?.defaultChatEndpoint,
     isEnabled: provider?.isEnabled ?? false,
+    imageRequestTimeoutMs: provider?.settings.imageRequestTimeoutMs,
     apiHost: resolvePaintingApiHost(provider, presetEndpointConfigs),
     getApiKey: async () => apiKey
   }

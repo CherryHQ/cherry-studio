@@ -5,6 +5,7 @@ import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/t
 import { getFileTypeByExt } from '@shared/utils/file'
 
 import { checkProviderEnabled } from '../utils/checkProviderEnabled'
+import { resolveImageRequestTimeoutMs } from '../utils/imageGenerationTimeout'
 import { generatePainting } from './generatePainting'
 import type { GenerateInput } from './types/generateInput'
 import type { PaintingData } from './types/paintingData'
@@ -147,6 +148,12 @@ export async function canonicalGenerate<T extends PaintingData>(
         )
       : undefined
 
+  const requestTimeoutMs = resolveImageRequestTimeoutMs(
+    provider.id,
+    painting.requestTimeoutMs,
+    provider.imageRequestTimeoutMs
+  )
+
   return generatePainting({
     provider,
     signal: abortController.signal,
@@ -154,7 +161,7 @@ export async function canonicalGenerate<T extends PaintingData>(
     prompt,
     ...(options.mode && { mode: options.mode }),
     paramValues,
-    ...(painting.requestTimeoutMs && { requestTimeoutMs: painting.requestTimeoutMs }),
+    ...(requestTimeoutMs !== undefined && { requestTimeoutMs }),
     ...(inputImages && { inputImages })
   })
 }
