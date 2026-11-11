@@ -97,6 +97,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [initializedModel, setInitializedModel] = useState<Model | null>(null)
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
+  const inputModalitiesEditedRef = useRef(false)
 
   const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
@@ -112,6 +113,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       return
     }
 
+    inputModalitiesEditedRef.current = false
     setName(model.name)
     setGroup(model.group ?? '')
     setEndpointTypes(model.endpointTypes?.length ? [...model.endpointTypes] : [])
@@ -159,13 +161,23 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextClassification = overrides?.classification
       const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
       const effectiveClassification = nextClassification ?? classification
+      const initialClassification = getInitialModelClassification(model)
+      const shouldApplyInputModalities =
+        inputModalitiesEditedRef.current ||
+        effectiveClassification.primaryType !== initialClassification.primaryType ||
+        effectiveClassification.inputModalities.size !== initialClassification.inputModalities.size ||
+        [...effectiveClassification.inputModalities].some(
+          (modality) => !initialClassification.inputModalities.has(modality)
+        )
       const classifiedCapabilities =
         shouldApplyPurpose || nextClassification
-          ? buildModelCapabilities(model.capabilities ?? [], effectiveClassification)
+          ? buildModelCapabilities(model.capabilities ?? [], effectiveClassification, !shouldApplyInputModalities)
           : undefined
       const classifiedInputModalities =
         shouldApplyPurpose || nextClassification
-          ? buildModelInputModalities(model.inputModalities ?? [], effectiveClassification)
+          ? shouldApplyInputModalities
+            ? buildModelInputModalities(model.inputModalities ?? [], effectiveClassification)
+            : (model.inputModalities ?? [])
           : undefined
       const resolvedPurposeFields =
         shouldApplyPurpose && classifiedCapabilities && classifiedInputModalities
@@ -173,7 +185,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               {
                 ...nextPurposeFields,
                 capabilities: classifiedCapabilities,
-                inputModalities: classifiedInputModalities
+                ...(shouldApplyInputModalities ? { inputModalities: classifiedInputModalities } : {})
               },
               inferModelPurpose(nextPurposeFields),
               {
@@ -196,12 +208,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         ...(resolvedPurposeFields
           ? {
               capabilities: resolvedPurposeFields.capabilities,
-              inputModalities: resolvedPurposeFields.inputModalities
+              ...(shouldApplyInputModalities ? { inputModalities: resolvedPurposeFields.inputModalities } : {})
             }
           : nextClassification && classifiedCapabilities && classifiedInputModalities
             ? {
                 capabilities: classifiedCapabilities,
-                inputModalities: classifiedInputModalities
+                ...(shouldApplyInputModalities ? { inputModalities: classifiedInputModalities } : {})
               }
             : {}),
         ...(hasPurposeFieldsOverride && resolvedPurposeFields
@@ -296,6 +308,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const handlePrimaryTypeChange = useCallback(
     (primaryType: ModelPrimaryType) => {
+      inputModalitiesEditedRef.current = true
       commitClassification({ ...classification, primaryType })
     },
     [classification, commitClassification]
@@ -316,6 +329,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const handleToggleInputModality = useCallback(
     (modality: ModelInputModality) => {
+      inputModalitiesEditedRef.current = true
       const inputModalities = new Set(classification.inputModalities)
       if (inputModalities.has(modality)) {
         inputModalities.delete(modality)
@@ -328,6 +342,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   )
 
   const handleResetClassification = useCallback(() => {
+    inputModalitiesEditedRef.current = true
     const nextClassification = {
       ...savedClassification,
       capabilities: new Set(savedClassification.capabilities),
@@ -398,6 +413,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 chatEndpointType={chatEndpointType}
                 chatEndpointTypes={providerChatEndpointTypes}
                 onPurposeChange={(nextPurpose) => {
+                  inputModalitiesEditedRef.current = true
                   const nextPurposeFields = applyModelPurpose(purposeFields, nextPurpose, {
                     previousPurpose: modelPurpose,
                     chatEndpointType

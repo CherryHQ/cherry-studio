@@ -435,6 +435,28 @@ function assertCompleteCustomModelRow(row: UserModelRow): asserts row is Complet
   }
 }
 
+function hasExplicitInputModalities(
+  row: Pick<UserModelRow, 'inputModalities' | 'inputModalitiesExplicit' | 'capabilities' | 'presetModelId'>
+): boolean {
+  // Migrated saved Vision/Audio/Video choices can predate the modalities column.
+  // Custom rows store complete user config. Preset capability deltas can also
+  // contain inherited modalities, so they cannot prove saved modality intent.
+  const legacySelection =
+    row.presetModelId === null &&
+    row.inputModalities === null &&
+    row.capabilities?.some(
+      (capability) =>
+        capability === MODEL_CAPABILITY.IMAGE_RECOGNITION ||
+        capability === MODEL_CAPABILITY.AUDIO_RECOGNITION ||
+        capability === MODEL_CAPABILITY.VIDEO_RECOGNITION
+    )
+  return (
+    row.inputModalitiesExplicit ||
+    (row.inputModalities !== null && row.inputModalities.length > 0) ||
+    Boolean(legacySelection)
+  )
+}
+
 function customRowToRuntimeModel(row: UserModelRow): Model {
   assertCompleteCustomModelRow(row)
   const reasoning = row.reasoning ? ReasoningConfigSchema.parse(row.reasoning) : undefined
@@ -786,9 +808,7 @@ class ModelService {
         if (model.description === undefined && registryModel?.description !== undefined) {
           updates.description = registryModel.description
         }
-        const hasExplicitInputModalities =
-          row.inputModalitiesExplicit || (row.inputModalities !== null && row.inputModalities.length > 0)
-        if (!hasExplicitInputModalities && registryModel?.inputModalities !== undefined) {
+        if (!hasExplicitInputModalities(row) && registryModel?.inputModalities !== undefined) {
           updates.inputModalities = registryModel.inputModalities
         }
         if (model.outputModalities === undefined && registryModel?.outputModalities !== undefined) {

@@ -124,6 +124,20 @@ Custom rows store their complete config. This lets catalog changes reach
 existing rows without a data migration. Explicit empty strings and arrays
 remain valid overrides.
 
+The model editor displays effective input support: a recognition capability or
+its corresponding input modality enables Vision, Audio or Video, matching the
+runtime predicates. Unrelated Reasoning or chat-protocol edits do not submit
+input modalities or clear untouched recognition capabilities. Intentional
+modality or purpose edits do submit the updated input support, including
+repeated ON/save/OFF changes in the same drawer.
+
+The existing storage-only `inputModalitiesExplicit` column and non-empty stored
+lists protect saved custom input support during registry enrichment. Custom
+rows with a legacy recognition capability and no stored modality list also
+retain that choice instead of acquiring registry input modalities. This PR
+adds that legacy-recognition enrichment guard; it does not expose a runtime
+provenance field or redesign database/catalog ownership.
+
 ### User Override Protection
 
 When a user changes a registry-enrichable field (for example `name`), the value
@@ -231,6 +245,7 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `presetModelId` | Links to models.json entry (null = custom model) |
 | `name` / `capabilities` / `supportsStreaming` | Required for custom rows; nullable preset deltas |
 | `inputModalities` / `outputModalities` | Complete custom config or nullable preset deltas |
+| `inputModalitiesExplicit` | Provenance flag for explicit input-modality values |
 | `contextWindow` / `maxOutputTokens` | Complete custom config or nullable preset deltas |
 | `reasoning` | Custom-model intrinsic controls/token limits; preset rows resolve it from the registry |
 | `pricing` | Complete custom config or nullable preset delta |

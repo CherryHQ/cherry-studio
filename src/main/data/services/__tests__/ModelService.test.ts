@@ -24,7 +24,7 @@ import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
-import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY, ModelSchema } from '@shared/data/types/model'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
@@ -965,6 +965,10 @@ describe('ModelService.delete', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('ModelService.list', () => {
+  it('does not expose storage-only input provenance in the runtime schema', () => {
+    expect(ModelSchema.shape).not.toHaveProperty('inputModalitiesExplicit')
+  })
+
   const dbh = setupTestDatabase()
 
   async function seedMultipleModels() {
@@ -1360,6 +1364,45 @@ describe('ModelService.list — registry enrichment', () => {
     expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
   })
 
+  it.each([MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.AUDIO_RECOGNITION, MODEL_CAPABILITY.VIDEO_RECOGNITION])(
+    'retains a migrated custom %s choice during registry enrichment without exposing provenance',
+    async (capability) => {
+      await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+      await dbh.db.insert(userModelTable).values(
+        modelRow('openai', 'legacy-recognition', {
+          capabilities: [capability],
+          inputModalities: null,
+          inputModalitiesExplicit: false
+        })
+      )
+      resolveModelMock.mockReturnValue({
+        presetModel: {
+          id: 'legacy-recognition',
+          name: 'Legacy Recognition',
+          inputModalities: ['text', 'image', 'audio', 'video']
+        },
+        registryOverride: null,
+        reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+      })
+      const storedBefore = dbh.db.select().from(userModelTable).get()
+      const model = modelService.getByKey('openai', 'legacy-recognition')
+      expect(model?.capabilities).toContain(capability)
+      expect(model?.inputModalities).toBeUndefined()
+      expect(model).not.toHaveProperty('inputModalitiesExplicit')
+      expect(dbh.db.select().from(userModelTable).get()).toEqual(storedBefore)
+
+      modelService.update('openai', 'legacy-recognition', { capabilities: [capability, MODEL_CAPABILITY.REASONING] })
+      const updated = modelService.getByKey('openai', 'legacy-recognition')
+      expect(updated?.capabilities).toContain(capability)
+      expect(updated?.inputModalities).toBeUndefined()
+      expect(updated).not.toHaveProperty('inputModalitiesExplicit')
+      expect(dbh.db.select().from(userModelTable).get()).toMatchObject({
+        inputModalities: null,
+        inputModalitiesExplicit: false
+      })
+    }
+  )
+
   it('hydrates legacy implicit empty input modalities without mutating the stored row', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(
@@ -1480,6 +1523,7 @@ describe('ModelService.list — registry enrichment', () => {
 
     const [model] = modelService.list({ providerId: 'openai' })
 
+    expect(model).not.toHaveProperty('inputModalitiesExplicit')
     expect(model).toMatchObject({
       id: 'openai::gpt-4o',
       providerId: 'openai',

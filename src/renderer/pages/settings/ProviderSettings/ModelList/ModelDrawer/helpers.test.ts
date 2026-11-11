@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { isAudioModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
 import {
   areModelClassificationsEqual,
@@ -65,6 +66,26 @@ describe('model drawer classification helpers', () => {
       MODALITY.IMAGE,
       MODALITY.AUDIO
     ])
+  })
+
+  describe.each([
+    [MODALITY.IMAGE, MODEL_CAPABILITY.IMAGE_RECOGNITION, isVisionModel],
+    [MODALITY.AUDIO, MODEL_CAPABILITY.AUDIO_RECOGNITION, isAudioModel],
+    [MODALITY.VIDEO, MODEL_CAPABILITY.VIDEO_RECOGNITION, isVideoModel]
+  ] as const)('%s editor/runtime parity', (modality, capability, isEnabled) => {
+    for (const inputModalities of [undefined, [], [MODALITY.TEXT], [MODALITY.TEXT, modality]]) {
+      it.each([false, true])(
+        `matches runtime with inputs=${JSON.stringify(inputModalities)}, recognition=%s`,
+        (recognition) => {
+          const model = makeModel({
+            capabilities: recognition ? [capability] : [],
+            inputModalities
+          })
+          const classification = getInitialModelClassification(model)
+          expect(classification.inputModalities.has(modality)).toBe(isEnabled(model))
+        }
+      )
+    }
   })
 
   it('switches between editable model types without disabling independent capabilities', () => {
