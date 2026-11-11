@@ -224,8 +224,14 @@ export async function collectCredentialLogRecords(
       const level = value.level
       if (timestampMs === undefined || typeof level !== 'string' || !SCAN_LEVELS.includes(level as ScanLevel)) continue
       scannedRecordCount++
+      // Scan the raw line (structured fields like "apiKey":"…" under any key)
+      // and the decoded string values: JSON escaping (\", \\) hides quoted
+      // credentials embedded in a message from a raw-line match.
+      const decoded = Object.values(value)
+        .filter((field): field is string => typeof field === 'string')
+        .join('\n')
       const credentialMatch = providerCredentialExposedRule.anchors
-        .map((anchor) => anchor.exec(line)?.[0])
+        .map((anchor) => anchor.exec(line)?.[0] ?? (decoded === '' ? undefined : anchor.exec(decoded)?.[0]))
         .find((match): match is string => match !== undefined)
       if (!credentialMatch) continue
       if (records.length === MAX_SCAN_RECORDS) {

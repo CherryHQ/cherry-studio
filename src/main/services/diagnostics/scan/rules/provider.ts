@@ -9,7 +9,9 @@ export const providerCredentialExposedRule: ScanRule = {
     'A credential-shaped value appears in an application log; rotate it and review the log contents before sharing the bundle.',
   levels: SCAN_LEVELS,
   anchors: [
-    /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b|\bAKIA[0-9A-Z]{16}\b|\bghp_[A-Za-z0-9]{36,}\b|\bBearer\s+[A-Za-z0-9_.~+/=-]{20,}|-----BEGIN\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE\s+KEY-----|(?:api[_-]?keys?|authorization|access[_-]?token|client[_-]?secret|secret[_-]?key)\s*["']?\s*[:=]\s*["']?(?:Bearer\s+)?[A-Za-z0-9_~+/.=-]{20,}/i
+    // `[\s"']*` is one merged run on purpose: two adjacent `\s*` runs around an
+    // optional quote backtrack quadratically on `key` + spaces without a separator.
+    /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b|\bAKIA[0-9A-Z]{16}\b|\bghp_[A-Za-z0-9]{36,}\b|\bBearer\s+[A-Za-z0-9_.~+/=-]{20,}|-----BEGIN\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE\s+KEY-----|(?:api[_-]?keys?|authorization|access[_-]?token|client[_-]?secret|secret[_-]?key)[\s"']*[:=]\s*["']?(?:Bearer\s+)?[A-Za-z0-9_~+/.=-]{20,}/i
   ]
 }
 
