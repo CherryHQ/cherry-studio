@@ -848,6 +848,7 @@ export default function ComposerSurfaceRuntime({
   )
   const shouldRestoreEditorFocus = useCallback(
     (snapshot: ComposerFocusRestoreSnapshot) => {
+      if (!editorRef.current || editorRef.current.isDestroyed) return false
       if (pointerDownVersionRef.current !== snapshot.pointerDownVersion || !document.hasFocus()) return false
 
       const activeElement = document.activeElement

@@ -15,8 +15,15 @@ import { createComposerFileTokenSourceId } from '@renderer/utils/message/compose
 import type { ProviderActionHandlers } from './composerProviderActions'
 
 const logger = loggerService.withContext('useScreenshotChat')
-// One capture session exists at a time; retain its receipt across composer remounts.
+// One capture session exists at a time; retries must not duplicate draft content.
 let acceptedDeliveryId: string | undefined
+const defaultTargets = new Set<string>()
+let currentTarget: string | null = null
+
+function setScreenshotTarget(scopeKey: string | null) {
+  currentTarget = scopeKey
+  return ipcApi.request('chat.screenshot.target', { scopeKey })
+}
 
 export function useScreenshotChat({
   scopeKey,
@@ -45,8 +52,7 @@ export function useScreenshotChat({
   )
   const startScreenshot = useCallback(() => {
     closeQuickPanel?.('screenshot')
-    void ipcApi
-      .request('chat.screenshot.target', { scopeKey: target })
+    void setScreenshotTarget(target)
       .then(() => ipcApi.request('chat.screenshot.capture'))
       .catch((error) => {
         logger.error('Failed to start screenshot capture', error)
@@ -54,14 +60,17 @@ export function useScreenshotChat({
       })
   }, [closeQuickPanel, t, target])
   useEffect(() => {
-    if (!active || !isActiveTab || !registerOnMount) return
-    void ipcApi
-      .request('chat.screenshot.target', { scopeKey: target })
-      .catch((error) => logger.error('Failed to register screenshot target', error))
+    if (!active || !isActiveTab) return
+    if (registerOnMount) {
+      defaultTargets.add(target)
+      void setScreenshotTarget(target).catch((error) => logger.error('Failed to register screenshot target', error))
+    }
     return () => {
-      void ipcApi
-        .request('chat.screenshot.target', { scopeKey: null })
-        .catch((error) => logger.error('Failed to clear screenshot target', error))
+      defaultTargets.delete(target)
+      if (currentTarget !== target) return
+      void setScreenshotTarget([...defaultTargets].at(-1) ?? null).catch((error) =>
+        logger.error('Failed to restore screenshot target', error)
+      )
     }
   }, [active, isActiveTab, registerOnMount, target])
   const receiver = useRef({ active: false, target, isBlocked, actionsRef, setFiles, closeQuickPanel })
@@ -75,6 +84,7 @@ export function useScreenshotChat({
     }
   }, [])
   useIpcOn('chat.screenshot.attachment', ({ deliveryId, scopeKey: destination, imageUrl, name, size, text }) => {
+    if (destination !== target) return
     const report = (accepted: boolean) => {
       void ipcApi
         .request('chat.screenshot.received', { deliveryId, accepted })
@@ -82,7 +92,7 @@ export function useScreenshotChat({
     }
     if (acceptedDeliveryId === deliveryId) return report(true)
     if (!active || !isActiveTab || pending.current.has(deliveryId)) return
-    if (destination !== target || isBlocked()) return report(false)
+    if (isBlocked()) return report(false)
     pending.current.add(deliveryId)
     void (async () => {
       try {

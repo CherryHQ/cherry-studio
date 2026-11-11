@@ -1,11 +1,16 @@
+import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
+import { mockUseSharedCacheSelector } from '@test-mocks/renderer/useCache'
+import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { mockUsePreference } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import type * as CherryUi from '@cherrystudio/ui'
 import type * as VirtualList from '@renderer/components/chat/messages/list/MessageVirtualList'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { ModelSchema, type UniqueModelId } from '@shared/data/types/model'
 import type { SideChatSource } from '@shared/data/types/sideChat'
 import type { SideChatEventSchemas, SideChatView } from '@shared/ipc/schemas/sideChat'
 
@@ -14,9 +19,13 @@ import { SideChatPanel } from '../SideChatPanel'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryUi>())
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { resolvedLanguage: 'en-US', language: 'en-US' } })
-}))
+vi.mock('react-i18next', () => {
+  const translation = {
+    t: (key: string) => key,
+    i18n: { resolvedLanguage: 'en-US', language: 'en-US', exists: () => true }
+  }
+  return { useTranslation: () => translation }
+})
 vi.mock('@renderer/components/chat/panes/Shell', () => ({ useRightPanelActions: () => ({ requestOpen: () => {} }) }))
 
 // JSDOM has no layout: only virtual scrolling is replaced; message bodies and actions are real.
@@ -38,11 +47,77 @@ vi.mock('@renderer/components/chat/messages/list/MessageVirtualList', async (imp
 }))
 
 const listeners = new Map<string, (event: never) => void>()
+const defaultQuery = mockUseQuery.getMockImplementation()!
+const defaultMutation = mockUseMutation.getMockImplementation()!
+const defaultPreference = mockUsePreference.getMockImplementation()!
+const defaultSelector = mockUseSharedCacheSelector.getMockImplementation()!
+const rangeRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects')
+const rangeBounds = Object.getOwnPropertyDescriptor(Range.prototype, 'getBoundingClientRect')
 beforeEach(() => {
+  Object.defineProperties(Range.prototype, {
+    getClientRects: { configurable: true, value: () => [] },
+    getBoundingClientRect: { configurable: true, value: () => new DOMRect() }
+  })
+  // Match production's stable cache results and callbacks so launcher effects can settle.
+  const selections = new WeakMap<object, unknown>()
+  mockUseSharedCacheSelector.mockImplementation((keys, selector) => {
+    if (!selections.has(selector)) selections.set(selector, defaultSelector(keys, selector))
+    return selections.get(selector) as ReturnType<typeof selector>
+  })
+  const mutations = new Map<string, ReturnType<typeof defaultMutation>>()
+  mockUseMutation.mockImplementation((method, path, options) => {
+    const key = `${method}:${path}`
+    if (!mutations.has(key)) mutations.set(key, defaultMutation(method, path, options))
+    return mutations.get(key)!
+  })
+  const preferenceSetters = new Map<string, ReturnType<typeof defaultPreference>[1]>()
+  mockUsePreference.mockImplementation((key, options) => {
+    const [value, setter] = defaultPreference(key, options)
+    if (!preferenceSetters.has(key)) preferenceSetters.set(key, setter)
+    return [value, preferenceSetters.get(key)!]
+  })
+  const models = ['initial', 'current', 'replacement'].map((id) =>
+    ModelSchema.parse({
+      id: `provider::${id}`,
+      providerId: 'provider',
+      name: 'Current model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+  )
+  const queries = new Map<string, ReturnType<typeof defaultQuery>>()
+  mockUseQuery.mockImplementation((path, options) => {
+    const key = JSON.stringify([path, options])
+    if (!queries.has(key)) {
+      const result = defaultQuery(path, options)
+      queries.set(
+        key,
+        path.startsWith('/models/') && options?.enabled !== false
+          ? { ...result, data: models.find((model) => path === `/models/${model.id}`) }
+          : result
+      )
+    }
+    return queries.get(key)!
+  })
+  for (const [key, value] of Object.entries(DefaultPreferences.default)) {
+    mockPreferenceState.set(key, value)
+  }
   vi.mocked(window.api.ipcApi.on).mockImplementation((name, listener) => {
     listeners.set(name, listener)
     return () => listeners.delete(name)
   })
+})
+
+afterEach(() => {
+  for (const [key, descriptor] of [
+    ['getClientRects', rangeRects],
+    ['getBoundingClientRect', rangeBounds]
+  ] as const) {
+    if (descriptor) Object.defineProperty(Range.prototype, key, descriptor)
+    else Reflect.deleteProperty(Range.prototype, key)
+  }
 })
 
 function OpenChat({ id }: { id: string }) {
@@ -52,6 +127,26 @@ function OpenChat({ id }: { id: string }) {
       Open {id}
     </button>
   )
+}
+
+function composerInput() {
+  const input = document.querySelector<HTMLElement>('[data-ui~="part:composer-input"] [contenteditable="true"]')
+  expect(input).not.toBeNull()
+  return input!
+}
+
+async function typeQuestion(user: ReturnType<typeof userEvent.setup>, text: string) {
+  const input = await waitFor(composerInput)
+  // JSDOM has no hit testing; place the caret with the DOM selection API.
+  act(() => {
+    input.focus()
+    const range = document.createRange()
+    range.selectNodeContents(input)
+    range.collapse(true)
+    document.getSelection()!.removeAllRanges()
+    document.getSelection()!.addRange(range)
+  })
+  await user.paste(text)
 }
 
 function SelectQuote({ source }: { source: SideChatSource }) {
@@ -133,7 +228,7 @@ it.each([
   ui.rerender(content(next))
   if (choice === 'existing') {
     await user.click(screen.getByRole('button', { name: `Open ${existing.topicId}` }))
-    await user.type(await screen.findByPlaceholderText('side_chat.question'), 'keep this draft')
+    await typeQuestion(user, 'keep this draft')
   } else {
     await user.click(screen.getByRole('button', { name: 'Select quote' }))
     expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute('aria-disabled', 'false')
@@ -149,15 +244,22 @@ it.each([
   )
   expect(screen.queryByRole('alert')).toBeNull()
   if (choice === 'existing') {
-    expect(screen.getByPlaceholderText('side_chat.question')).toHaveValue('keep this draft')
+    expect(composerInput()).toHaveTextContent('keep this draft')
   } else {
     expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute('aria-disabled', 'true')
     await act(async () => responses[1]({ ok: true, data: view(`${first.topicId}-new`, next) }))
-    expect(await screen.findByPlaceholderText('side_chat.question')).toBeInTheDocument()
+    expect(await waitFor(composerInput)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'side_chat.create' })).toBeNull()
     expect(request).toHaveBeenCalledWith('side_chat.submit', {
       topicId: `${first.topicId}-new`,
       text: '<blockquote>\n\nselected quote\n</blockquote> ',
+      parts: [expect.objectContaining({ type: 'text', text: '<blockquote>\n\nselected quote\n</blockquote> ' })],
+      turnOptions: {
+        reasoningEffort: 'default',
+        serviceTier: 'standard',
+        fastMode: false,
+        sideChat: { permissionMode: 'default', skills: [] }
+      },
       modelId: 'provider::current',
       composer: {
         version: 1,
@@ -200,10 +302,9 @@ it('keeps the quoted question after a failed first send and reuses the created c
   await user.click(screen.getByRole('button', { name: 'Select quote' }))
   await waitFor(() => expect(container.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument())
   const editor = container.querySelector<HTMLElement>('[contenteditable="true"]')!
-  await user.click(editor)
-  await user.keyboard('{Control>}{End}{/Control}Explain this')
+  await typeQuestion(user, 'Explain this')
   await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('code.model_required')
+  expect(await screen.findByRole('alert')).toHaveTextContent('common.detail')
   expect(editor).toHaveTextContent('Explain this')
   expect(container.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument()
   failSend = false
@@ -215,10 +316,10 @@ it('keeps the quoted question after a failed first send and reuses the created c
     expect.objectContaining({
       topicId: view.topicId,
       modelId: 'provider::current',
-      text: expect.stringMatching(/^<blockquote>\n\nselected words\n<\/blockquote>\s*Explain this$/),
+      text: 'Explain this<blockquote>\n\nselected words\n</blockquote> ',
       composer: {
         version: 1,
-        tokens: [expect.objectContaining({ kind: 'quote', description: 'selected words', textOffset: 0 })]
+        tokens: [expect.objectContaining({ kind: 'quote', description: 'selected words', textOffset: 12 })]
       }
     })
   )
@@ -291,8 +392,7 @@ it('keeps drafts scoped across topics, follows the current model, and clears tem
   const user = userEvent.setup()
   const ui = render(content('a'))
   fireEvent.click(await screen.findByText('Open a'))
-  const input = await screen.findByPlaceholderText('side_chat.question')
-  fireEvent.change(input, { target: { value: 'private a' } })
+  await typeQuestion(user, 'private a')
   expect(screen.queryByText('side_chat.save_default')).toBeNull()
   expect(screen.queryByText('side_chat.prompt')).toBeNull()
   ui.rerender(content('a', 'provider::replacement'))
@@ -301,7 +401,7 @@ it('keeps drafts scoped across topics, follows the current model, and clears tem
   expect(screen.queryByRole('button', { name: 'side_chat.create' })).toBeNull()
   failSend = true
   await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('code.model_required')
+  expect(await screen.findByRole('alert')).toHaveTextContent('common.detail')
   expect(request).toHaveBeenCalledWith(
     'side_chat.submit',
     expect.objectContaining({
@@ -310,18 +410,18 @@ it('keeps drafts scoped across topics, follows the current model, and clears tem
       modelId: 'provider::replacement'
     })
   )
-  expect(screen.getByPlaceholderText('side_chat.question')).toHaveValue('private a')
+  expect(composerInput()).toHaveTextContent('private a')
   expect(request.mock.calls.some(([name]) => name === 'side_chat.configure')).toBe(false)
   failSend = false
   await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
-  await waitFor(() => expect(screen.getByPlaceholderText('side_chat.question')).toHaveValue(''))
-  fireEvent.change(screen.getByPlaceholderText('side_chat.question'), { target: { value: 'private a' } })
+  await waitFor(() => expect(composerInput()).toHaveTextContent(/^$/))
+  await typeQuestion(user, 'private a')
   ui.rerender(content('b'))
   fireEvent.click(await screen.findByText('Open b'))
-  await waitFor(() => expect(screen.getByPlaceholderText('side_chat.question')).toHaveValue(''))
-  fireEvent.change(screen.getByPlaceholderText('side_chat.question'), { target: { value: 'private b' } })
+  await waitFor(() => expect(composerInput()).toHaveTextContent(/^$/))
+  await typeQuestion(user, 'private b')
   ui.rerender(content('a'))
-  await waitFor(() => expect(screen.getByPlaceholderText('side_chat.question')).toHaveValue('private a'))
+  await waitFor(() => expect(composerInput()).toHaveTextContent('private a'))
   const removal: SideChatEventSchemas['side_chat.changed'] = {
     topicId: 'a',
     sourceTopicId: 'source-a',
@@ -333,5 +433,5 @@ it('keeps drafts scoped across topics, follows the current model, and clears tem
   act(() => listeners.get('side_chat.changed')!({ ...removal, revision: 1, view: views[0] } as never))
   expect(screen.queryByText('quote-a')).toBeNull()
   ui.rerender(content('b'))
-  await waitFor(() => expect(screen.getByPlaceholderText('side_chat.question')).toHaveValue('private b'))
+  await waitFor(() => expect(composerInput()).toHaveTextContent('private b'))
 })

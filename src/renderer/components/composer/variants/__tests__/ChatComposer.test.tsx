@@ -1057,7 +1057,7 @@ describe('ChatComposer', () => {
     }
   )
 
-  it('rejects a capture started before entering message editing in the same chat', async () => {
+  it('ignores a capture addressed to the composer before entering message editing', async () => {
     const message = { id: 'edit-target', role: 'user', topicId: topic.id, createdAt: '2026-01-01', status: 'success' }
     render(
       <MessageEditingProvider>
@@ -1081,9 +1081,9 @@ describe('ChatComposer', () => {
     })
     expect(mocks.files).toHaveLength(0)
     expect(mocks.surfaceProps?.text).toBe(before)
-    expect(ipcRequestMock).toHaveBeenCalledWith('chat.screenshot.received', {
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('chat.screenshot.received', {
       deliveryId: 'stale-edit',
-      accepted: false
+      accepted: expect.any(Boolean)
     })
   })
 
