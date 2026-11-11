@@ -21,7 +21,7 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'ui.theme': 'light',
   'ui.font_size': 14,
 
-  'agent.skills.external_export.enabled': true,
+  'agent.skills.external_export.enabled': false,
 
   // AI preferences
   'ai.default_model': 'gpt-4',

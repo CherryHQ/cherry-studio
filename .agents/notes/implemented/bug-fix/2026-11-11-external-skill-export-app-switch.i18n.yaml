@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-11-external-skill-export-app-switch.md
-2026-11-11-external-skill-export-app-switch.md: f5093d6bc572fc208cec228265cc7267fd54fd34
-2026-11-11-external-skill-export-app-switch.zh.md: 27a76bf3c470b351bb86cc363a72fc3e839a8b18
+2026-11-11-external-skill-export-app-switch.md: 9332d62e5ab88581959822be3c11fdd2e838eafd
+2026-11-11-external-skill-export-app-switch.zh.md: 19e88b40ba67402447cfa695f4aecd6c68cf98fa

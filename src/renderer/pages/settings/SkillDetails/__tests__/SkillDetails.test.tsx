@@ -269,6 +269,7 @@ describe('SkillDetails', () => {
   })
 
   it('keeps export changes pending until saved, then displays the refreshed preference', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
     const user = userEvent.setup()
     let complete!: (skill: InstalledSkill) => void
     mocks.setMirrorEnabled.mockReturnValueOnce(
@@ -298,6 +299,7 @@ describe('SkillDetails', () => {
   })
 
   it('preserves the export preference after failure and allows retry', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
     const user = userEvent.setup()
     mocks.setMirrorEnabled.mockRejectedValueOnce(new Error('export conflict'))
     render(<SkillDetails skillId="skill-1" />)

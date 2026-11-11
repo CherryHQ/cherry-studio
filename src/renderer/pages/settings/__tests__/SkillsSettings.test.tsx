@@ -84,10 +84,10 @@ describe('SkillsSettings', () => {
     ipcMock.mockRejectedValueOnce(new Error('failed')).mockResolvedValueOnce(undefined)
     render(<SkillsSettings />)
     const toggle = screen.getByRole('switch', { name: '向外部智能体导出技能' })
-    expect(toggle).toBeChecked()
+    expect(toggle).not.toBeChecked()
     await userEvent.setup().click(toggle)
     await waitFor(() => expect(ipcMock).toHaveBeenCalledWith('skill.reconcile', { externalExportsOnly: true }))
-    expect(MockUsePreferenceUtils.getPreferenceValue('agent.skills.external_export.enabled')).toBe(false)
+    expect(MockUsePreferenceUtils.getPreferenceValue('agent.skills.external_export.enabled')).toBe(true)
     await waitFor(() => expect(toastMock).toHaveBeenCalled())
     const config = toastMock.mock.calls[0][0]
     expect(config.title).toBe('设置已保存，但目录同步失败。')

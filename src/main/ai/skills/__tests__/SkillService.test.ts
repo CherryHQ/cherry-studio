@@ -223,7 +223,14 @@ describe('SkillService', () => {
     })
     afterEach(() => vi.mocked(application.getPath).mockRestore())
 
+    it('keeps the internal mirror without exporting by default', async () => {
+      await service.linkMirror('skill-one')
+      await expect(fs.promises.readFile(path.join(mirror, 'skill-one', 'SKILL.md'), 'utf8')).resolves.toBe('# Skill')
+      await expect(fs.promises.lstat(path.join(external, 'skill-one'))).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
     it('preserves per-skill choices while disabling exports and restores only enabled skills', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
       await service.syncExternalExports()
       expect((await fs.promises.lstat(path.join(external, 'skill-one'))).isSymbolicLink()).toBe(true)
       await expect(fs.promises.lstat(path.join(external, 'skill-two'))).rejects.toMatchObject({ code: 'ENOENT' })
@@ -2690,6 +2697,7 @@ describe('SkillService', () => {
     })
 
     it('setMirrorEnabled controls external export without removing internal Claude discovery', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
       await writeLibrarySkill('skill-one')
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_1,
@@ -2700,7 +2708,7 @@ describe('SkillService', () => {
         isEnabled: false
       })
 
-      // default-on: mirror present before the toggle
+      // The per-skill export is enabled before the toggle.
       await skillService.linkMirror('skill-one')
       await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
       const exported = path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-one')
@@ -2721,6 +2729,7 @@ describe('SkillService', () => {
     })
 
     it.each([true, false])('restores export after a database exception (previously enabled: %s)', async (previous) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
       await writeLibrarySkill('skill-one')
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_1,
@@ -2754,6 +2763,7 @@ describe('SkillService', () => {
     })
 
     it('preserves user-owned external skill directories on enable, disable and uninstall', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
       await writeLibrarySkill('skill-one')
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_1,
@@ -2776,6 +2786,7 @@ describe('SkillService', () => {
     it.each([false, true])(
       'compensates a missing database row and reports restoration failures: %s',
       async (failRestore) => {
+        MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
         await writeLibrarySkill('skill-one')
         await dbh.db.insert(agentGlobalSkillTable).values({
           id: SKILL_ID_1,
@@ -2832,6 +2843,7 @@ describe('SkillService', () => {
     })
 
     it('reports export conflicts for installs and reinstalls while preserving both skill directories', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
       const source = await createTempDir('skill-export-conflict-')
       await fs.promises.writeFile(path.join(source, 'SKILL.md'), '# installed internally')
       vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('skill-one'))
@@ -2934,6 +2946,7 @@ describe('SkillService', () => {
     it.each(['internal', 'export'])(
       'reports partial uninstall and independently removes the other projection when %s cleanup fails',
       async (stage) => {
+        MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
         const library = await writeLibrarySkill('managed')
         const contentHash = await skillService['computeBuiltinDirectoryHash'](library)
         await dbh.db.insert(agentGlobalSkillTable).values({
