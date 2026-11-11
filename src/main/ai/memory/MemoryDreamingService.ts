@@ -10,7 +10,7 @@ import { loggerService } from '@logger'
 import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import type { JobContext } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { MemoryScope } from '@shared/types/memory'
+import type { MemoryExtractionRange, MemoryScope } from '@shared/types/memory'
 
 import type { MemoryMutationSource } from './memoryBackups'
 import { memoryDreamingJobHandler } from './memoryDreamingJobHandler'
@@ -27,8 +27,10 @@ import {
 } from './memoryDreamingState'
 import {
   admitExtraction,
+  extractContextCandidates,
   extractMemoryQuotes,
   finishExtraction,
+  readExtractionRange,
   readExtractionSource,
   type ExtractionInput,
   type ExtractionTicket
@@ -221,6 +223,98 @@ export class MemoryDreamingService extends BaseService {
   cancel(scope: MemoryScope): void {
     if (scope.kind === 'shared') this.resetExtraction()
     this.invalidate(scope, true)
+  }
+
+  previewExtraction(range: MemoryExtractionRange, assertCaller: () => undefined) {
+    // No persisted body, cursor advancement or write capability until forgetting is supported.
+    const epoch = this.epoch
+    const boundary = this.extractionBoundary
+    const generation = readDreamingState({ kind: 'shared' }).generation
+    return this.work.track(
+      this.queue.runExclusive(async () => {
+        const scope = { kind: 'shared' } as const
+        const controller = new AbortController()
+        let session: MemorySession | undefined
+        let revoke: { dispose(): void } | undefined
+        assertCaller()
+        this.assertScope(scope)
+        if (!application.get('PreferenceService').get(GENERATION_KEY)) throw new DreamingError('unavailable')
+        const initial = readExtractionSource(range.source)
+        const minimum = Math.max(
+          boundary,
+          this.sourceBoundaries.get(initial.entityKey) ?? 0,
+          this.sourceBoundaries.get(initial.key) ?? 0
+        )
+        const assertActive = (): undefined => {
+          assertCaller()
+          this.assertScope(scope)
+          controller.signal.throwIfAborted()
+          initial.authority.assertAuthorized()
+          if (
+            this.epoch !== epoch ||
+            this.extractionBoundary !== boundary ||
+            readDreamingState(scope).generation !== generation ||
+            !application.get('PreferenceService').get(GENERATION_KEY) ||
+            this.foregroundBusy() ||
+            Math.max(
+              boundary,
+              this.sourceBoundaries.get(initial.entityKey) ?? 0,
+              this.sourceBoundaries.get(initial.key) ?? 0
+            ) !== minimum
+          )
+            throw new DOMException('Memory preview invalidated', 'AbortError')
+          return undefined
+        }
+        assertActive()
+        const source = readExtractionRange(range, minimum)
+        const assertCurrent = (): undefined => {
+          assertActive()
+          if (readExtractionRange(range, minimum).hash !== source.hash) throw new DreamingError('conflict')
+          return undefined
+        }
+        const ticket: ExtractionTicket = {
+          input: initial.input,
+          entityKey: initial.entityKey,
+          key: initial.key,
+          messageId: initial.messageId,
+          createdAt: initial.createdAt,
+          hash: initial.hash
+        }
+        this.active = { scope, controller, extraction: ticket }
+        try {
+          revoke = initial.authority.onRevoked?.(() => controller.abort('source-revoked'))
+          session = application.get('MemoryService').open({ scope, assertAuthorized: assertCurrent }, 'extraction')
+          const paths = await session.list()
+          if (paths.length > 40) throw new DreamingError('budget')
+          const files: MemoryRead[] = []
+          let bytes = 0
+          for (const path of paths) {
+            const file = await session.read(path)
+            bytes += Buffer.byteLength(file.content ?? '', 'utf8')
+            if (bytes > 32_000) throw new DreamingError('budget')
+            files.push(file)
+          }
+          const result = await extractContextCandidates(
+            source,
+            files.map(({ path, hash, content }) => ({ path, hash, content })),
+            controller.signal,
+            assertCurrent
+          )
+          if (JSON.stringify(await session.list()) !== JSON.stringify(paths)) throw new DreamingError('conflict')
+          for (const file of files)
+            if ((await session.read(file.path)).hash !== file.hash) throw new DreamingError('conflict')
+          assertCurrent()
+          return result
+        } catch (error) {
+          if (controller.signal.aborted) throw new DOMException('Memory preview interrupted', 'AbortError')
+          throw error
+        } finally {
+          revoke?.dispose()
+          session?.dispose()
+          this.active = undefined
+        }
+      })
+    )
   }
 
   execute(ctx: JobContext<Record<string, never>>): Promise<unknown> {

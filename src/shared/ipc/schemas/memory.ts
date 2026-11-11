@@ -1,6 +1,11 @@
 import * as z from 'zod'
 
-import { MemoryDreamingStatusSchema, MemoryScopeSchema } from '@shared/types/memory'
+import {
+  MemoryDreamingStatusSchema,
+  MemoryScopeSchema,
+  MemoryExtractionRangeSchema,
+  MemoryExtractionPreviewSchema
+} from '@shared/types/memory'
 
 import { defineRoute } from '../define'
 
@@ -14,6 +19,10 @@ const result = z.object({
 })
 
 export const memoryRequestSchemas = {
+  'memory.dreaming.preview_extraction': defineRoute({
+    input: MemoryExtractionRangeSchema,
+    output: MemoryExtractionPreviewSchema
+  }),
   'memory.dreaming.status': defineRoute({ input: MemoryScopeSchema, output: MemoryDreamingStatusSchema }),
   'memory.dreaming.request': defineRoute({ input: MemoryScopeSchema, output: z.void() }),
   'memory.dreaming.cancel': defineRoute({ input: MemoryScopeSchema, output: z.void() }),
