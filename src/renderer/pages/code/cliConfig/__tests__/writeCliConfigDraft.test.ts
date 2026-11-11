@@ -925,17 +925,14 @@ describe('writeCliConfigDraft', () => {
       expect(JSON.parse(findWrite('auth.json')!.content).OPENAI_API_KEY).toBe('sk-secret')
     })
 
-    it.each(['null', 'missing', 'rejected', 'fresh'])('preserves existing limits when metadata is %s', async (kind) => {
+    it.each(['null', 'missing', 'fresh'])('preserves existing limits when metadata is %s', async (kind) => {
       if (kind !== 'fresh')
         existing['/resolved~/.codex/config.toml'] =
           'model_context_window = 1000000\nmodel_auto_compact_token_limit = 900000\n'
       mockGet({
         '/providers/deepseek': () => codexProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
-        '/models/': () => {
-          if (kind === 'rejected') throw new Error('unavailable')
-          return kind === 'missing' ? { id: 'deepseek::large-model' } : null
-        }
+        '/models/': () => (kind === 'missing' ? { id: 'deepseek::large-model' } : null)
       })
       await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model' })
       const config = parseToml(findWrite('config.toml')!.content) as Record<string, any>
@@ -947,6 +944,26 @@ describe('writeCliConfigDraft', () => {
         expect(config.model_context_window).toBe(1000000)
         expect(config.model_auto_compact_token_limit).toBe(900000)
       }
+    })
+
+    // Fail-closed credential guard: on the direct path the model record carries the per-model
+    // key binding, so a rejected metadata read must abort the write (nothing touches disk)
+    // rather than silently authenticate under the first enabled key. The gateway path above
+    // still degrades quietly because bindings are enforced server-side there.
+    it('aborts the write when metadata is rejected (fail-closed credential guard)', async () => {
+      existing['/resolved~/.codex/config.toml'] =
+        'model_context_window = 1000000\nmodel_auto_compact_token_limit = 900000\n'
+      mockGet({
+        '/providers/deepseek': () => codexProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => {
+          throw new Error('unavailable')
+        }
+      })
+      await expect(writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::large-model' })).rejects.toThrow(
+        'credential selection'
+      )
+      expect(writes).toEqual([])
     })
 
     it('submits supplied direct-provider drafts verbatim despite different metadata', async () => {
