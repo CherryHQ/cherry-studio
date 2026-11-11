@@ -49,7 +49,7 @@ it('shows all actual call targets and shares icon requests across calls', async 
   })
   render(
     <>
-      <ComputerUseAppIcons cell={first} />
+      <ComputerUseAppIcons cell={first} fallback={<span>Script icon</span>} />
       <ComputerUseAppIcons cell={second} />
     </>,
     { wrapper: Cache }
@@ -59,14 +59,18 @@ it('shows all actual call targets and shares icon requests across calls', async 
     expect(screen.getAllByRole('img', { name: 'Finder' })[0]).toHaveAttribute('src', 'data:image/png;base64,aWNvbg==')
   )
   expect(screen.getByRole('img', { name: 'Terminal' })).not.toHaveAttribute('src')
+  expect(screen.queryByText('Script icon')).not.toBeInTheDocument()
   expect(iconQueries).toBe(1)
 })
 
 it('removes old targets when changing calls and never guesses a target without a cell', async () => {
   vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: [{ id: 'finder', name: 'Finder' }] })
-  const { rerender } = render(<ComputerUseAppIcons cell={first} />, { wrapper: Cache })
+  const { rerender } = render(<ComputerUseAppIcons cell={first} fallback={<span>Script icon</span>} />, {
+    wrapper: Cache
+  })
   expect(await screen.findByRole('img', { name: 'Finder' })).toBeInTheDocument()
-  rerender(<ComputerUseAppIcons />)
+  rerender(<ComputerUseAppIcons fallback={<span>Script icon</span>} />)
+  expect(screen.getByText('Script icon')).toBeInTheDocument()
   expect(screen.queryByRole('img')).not.toBeInTheDocument()
   vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: [] })
   rerender(<ComputerUseAppIcons cell={second} />)
@@ -93,7 +97,7 @@ it.each(['unavailable', 'broken'])('retains an accessible fallback for an %s ico
           ? { status: 'unavailable' }
           : { status: 'available', icon: { mimeType: 'image/png', dataBase64: 'aWNvbg==' } }
   }))
-  render(<ComputerUseAppIcons cell={first} />, { wrapper: Cache })
+  render(<ComputerUseAppIcons cell={first} fallback={<span>Script icon</span>} />, { wrapper: Cache })
   await waitFor(() =>
     expect(window.api.ipcApi.request).toHaveBeenCalledWith('computer_use.get_app_icon', {
       identity: 'com.apple.finder'

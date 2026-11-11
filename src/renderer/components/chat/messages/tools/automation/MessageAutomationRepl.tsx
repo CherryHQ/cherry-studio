@@ -44,8 +44,10 @@ export const MessageAutomationRepl = memo(({ toolResponse }: { toolResponse: Too
             key: id,
             label: (
               <span className="flex min-w-0 items-center gap-2">
-                <Icon aria-hidden="true" className="size-3.5 shrink-0" />
-                <ComputerUseAppIcons cell={getAutomationCell(response)} />
+                <ComputerUseAppIcons
+                  cell={getAutomationCell(response)}
+                  fallback={<Icon aria-hidden="true" className="size-3.5 shrink-0" />}
+                />
                 <span className="min-w-0 truncate">
                   {kind === 'reset'
                     ? t('message.tools.automation.reset')
