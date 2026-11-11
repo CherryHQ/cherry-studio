@@ -1902,6 +1902,19 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'boom')
     })
 
+    it('shows one card for an error persisted twice but keeps distinct errors', () => {
+      const failure = { name: 'AI_APICallError', message: "Unknown parameter: 'response_format'." }
+      renderParts([
+        { type: 'data-error', data: failure },
+        { type: 'data-error', data: { ...failure } },
+        { type: 'data-error', data: { name: 'AI_APICallError', message: 'Rate limit reached' } }
+      ] as unknown as CherryMessagePart[])
+
+      expect(
+        screen.getAllByTestId('mock-error-block').map((block) => block.getAttribute('data-error-message'))
+      ).toEqual(["Unknown parameter: 'response_format'.", 'Rate limit reached'])
+    })
+
     it('does not move non-consecutive updates for the same video ahead of intervening content', async () => {
       const { container } = renderParts([
         { type: 'data-video', data: { filePath: '/tmp/same.mp4', url: 'https://v.test/first.mp4' } },
