@@ -27,6 +27,7 @@ describe('client web provider readiness', () => {
     expect(isWebSearchProviderReady(provider('exa-mcp'), 'searchKeywords')).toBe(true)
     expect(isWebSearchProviderReady(provider('searxng'), 'searchKeywords')).toBe(true)
     expect(isWebSearchProviderReady(provider('firecrawl'), 'searchKeywords')).toBe(true)
+    expect(isWebSearchProviderReady(provider('keenable'), 'searchKeywords')).toBe(true)
   })
 
   it('accepts hostless keyless keyword search providers without any configuration', () => {
@@ -42,6 +43,7 @@ describe('client web provider readiness', () => {
     expect(isWebSearchProviderReady(provider('fetch'), 'fetchUrls')).toBe(true)
     expect(isWebSearchProviderReady(provider('jina'), 'fetchUrls')).toBe(true)
     expect(isWebSearchProviderReady(provider('firecrawl'), 'fetchUrls')).toBe(true)
+    expect(isWebSearchProviderReady(provider('keenable'), 'fetchUrls')).toBe(true)
     expect(isWebSearchProviderReady(provider('fetch'), 'searchKeywords')).toBe(false)
   })
 

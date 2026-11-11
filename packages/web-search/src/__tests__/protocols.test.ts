@@ -11,6 +11,7 @@ import { exa } from '../providers/exa'
 import { exaMcp } from '../providers/exaMcp'
 import { firecrawl } from '../providers/firecrawl'
 import { getJinaHostCandidates, jina } from '../providers/jina'
+import { keenable } from '../providers/keenable'
 import { parallel } from '../providers/parallel'
 import { querit } from '../providers/querit'
 import { searchapi } from '../providers/searchapi'
@@ -237,6 +238,89 @@ describe('portable provider contracts', () => {
     const { client } = setup(desearch, JSON.stringify({ detail: 'Forbidden' }), 403)
     const error = await client.execute(search('desearch')).catch((caught: unknown) => caught)
     expect(error).toMatchObject({ kind: 'http', status: 403 })
+    expect(JSON.stringify(error)).not.toContain('test-key')
+  })
+
+  it('searches the public Keenable endpoint without a key and maps the snippet text', async () => {
+    const { client, requests } = setup(keenable, fixture('keenable-search-response.json'))
+    const result = await client.execute({ ...search('keenable'), credentials: undefined })
+    expect(requests[0].url).toBe('https://service.example/proxy/v1/search/public')
+    expect(requests[0].method).toBe('POST')
+    expect(JSON.parse(requests[0].body!)).toEqual({ query: 'hello', max_results: 4 })
+    const headers = new Headers(requests[0].headers)
+    expect(headers.get('x-keenable-title')).toBe('Cherry Studio')
+    expect(headers.has('x-api-key')).toBe(false)
+    expect(result.results).toEqual([
+      {
+        title: 'Keenable Result Title',
+        content: 'Keenable page text\nacross lines',
+        url: 'https://keenable.example/result',
+        sourceInput: 'hello'
+      },
+      { title: '', content: '', url: 'https://keenable.example/second', sourceInput: 'hello' }
+    ])
+  })
+
+  it('sends a configured Keenable key to the keyed endpoint and clamps the result count', async () => {
+    const { client, requests } = setup(keenable, fixture('keenable-search-response.json'))
+    const keyedSearch = (maxResults: number): WebSearchCall => ({
+      providerId: 'keenable',
+      capability: 'searchKeywords',
+      input: 'hello',
+      config: { apiHost: 'https://service.example/proxy', maxResults },
+      credentials: { apiKey: 'test-key' }
+    })
+    const result = await client.execute(keyedSearch(1))
+    expect(requests[0].url).toBe('https://service.example/proxy/v1/search')
+    expect(new Headers(requests[0].headers).get('x-api-key')).toBe('test-key')
+    expect(result.results.map((item) => item.url)).toEqual(['https://keenable.example/result'])
+
+    await client.execute(keyedSearch(100))
+    expect(JSON.parse(requests[1].body!).max_results).toBe(50)
+  })
+
+  it('fetches pages through Keenable Fetch with or without a key and rejects empty content', async () => {
+    const fetchCall = (apiKey?: string): WebSearchCall => ({
+      providerId: 'keenable',
+      capability: 'fetchUrls',
+      input: 'https://example.com/a?b=1&c=2',
+      config: { apiHost: 'https://service.example/proxy' },
+      credentials: apiKey ? { apiKey } : undefined
+    })
+    const { client, requests } = setup(keenable, fixture('keenable-fetch-response.json'))
+    const result = await client.execute(fetchCall())
+    expect(requests[0].method).toBe('GET')
+    expect(requests[0].url).toBe(
+      'https://service.example/proxy/v1/fetch/public?url=https%3A%2F%2Fexample.com%2Fa%3Fb%3D1%26c%3D2'
+    )
+    expect(new Headers(requests[0].headers).get('x-keenable-title')).toBe('Cherry Studio')
+    expect(result.results).toEqual([
+      {
+        title: 'Keenable Fetched Page',
+        content: 'Fetched page content in Markdown.',
+        url: 'https://example.com/a?b=1&c=2',
+        sourceInput: 'https://example.com/a?b=1&c=2'
+      }
+    ])
+
+    await client.execute(fetchCall('test-key'))
+    expect(requests[1].url.startsWith('https://service.example/proxy/v1/fetch?url=')).toBe(true)
+    expect(new Headers(requests[1].headers).get('x-api-key')).toBe('test-key')
+
+    await expect(
+      setup(keenable, JSON.stringify({ title: 'Empty', content: '  ' })).client.execute(fetchCall())
+    ).rejects.toMatchObject({ kind: 'invalid_response', code: 'empty_content' })
+  })
+
+  it('reports a rejected Keenable key as an HTTP error without echoing the key', async () => {
+    const { client } = setup(
+      keenable,
+      JSON.stringify({ error: 'Authentication failed', message: 'Malformed API key' }),
+      401
+    )
+    const error = await client.execute(search('keenable')).catch((caught: unknown) => caught)
+    expect(error).toMatchObject({ kind: 'http', status: 401 })
+    expect((error as Error).message).toContain('Malformed API key')
     expect(JSON.stringify(error)).not.toContain('test-key')
   })
 

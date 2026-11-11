@@ -6092,6 +6092,7 @@
   "settings.tool.websearch.provider_description.fetch": "組み込みURLフェッチプロバイダー。URLからウェブページのコンテンツを取得し、検索結果を充実させます。",
   "settings.tool.websearch.provider_description.firecrawl": "Firecrawl クローラーおよび検索サービスは、WebサイトをMarkdownに変換することに最適化されています。",
   "settings.tool.websearch.provider_description.jina": "Jina Reader の検索および読み取り API は、クリーンな Web コンテンツを取得するためのものです。",
+  "settings.tool.websearch.provider_description.keenable": "AI エージェント向けの Keenable ウェブ検索・ページ取得 API。API キーなしで利用でき、キーを追加するとレート制限が緩和されます。",
   "settings.tool.websearch.provider_description.parallel": "AI エージェント向けのウェブ検索 API。関連度順のリンクと情報密度の高い抜粋を返します。",
   "settings.tool.websearch.provider_description.querit": "AIアプリ向けのWeb検索結果を含む検索サービス",
   "settings.tool.websearch.provider_description.searchapi": "SearchApi のリアルタイム検索 API。Google の検索結果を構造化された JSON で返します。",

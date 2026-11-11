@@ -52,6 +52,7 @@ import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { FirecrawlProvider } from '../api/FirecrawlProvider'
 import { JinaProvider } from '../api/JinaProvider'
+import { KeenableProvider } from '../api/KeenableProvider'
 import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
@@ -755,6 +756,87 @@ describe('main web search API providers', () => {
         url: 'https://desearch.example/result'
       },
       { content: '', sourceInput: 'latest web research', title: '', url: 'https://desearch.example/second' }
+    ])
+  })
+
+  it('searches Keenable without an API key through the public endpoint', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('keenable-search-response.json')))
+
+    const provider = createProviderDriver(
+      KeenableProvider,
+      createProvider({
+        id: 'keenable',
+        name: 'Keenable',
+        apiKeys: [],
+        capabilities: [
+          { feature: 'searchKeywords', apiHost: 'https://api.keenable.ai' },
+          { feature: 'fetchUrls', apiHost: 'https://api.keenable.ai' }
+        ]
+      })
+    )
+
+    const result = await provider.searchKeywords('Cherry Studio', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: { query: 'Cherry Studio', max_results: 4 },
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'http-referer': 'https://cherry-ai.com',
+        'x-keenable-title': 'Cherry Studio',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'POST',
+      url: 'https://api.keenable.ai/v1/search/public'
+    })
+    expect(result.results).toEqual([
+      {
+        content: 'Keenable page text\nacross lines',
+        sourceInput: 'Cherry Studio',
+        title: 'Keenable Result Title',
+        url: 'https://keenable.example/result'
+      },
+      { content: '', sourceInput: 'Cherry Studio', title: '', url: 'https://keenable.example/second' }
+    ])
+  })
+
+  it('fetches a Keenable page with the configured API key', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse({ title: 'Article', content: 'Article body' }))
+
+    const provider = createProviderDriver(
+      KeenableProvider,
+      createProvider({
+        id: 'keenable',
+        name: 'Keenable',
+        apiKeys: ['keenable-key'],
+        capabilities: [
+          { feature: 'searchKeywords', apiHost: 'https://api.keenable.ai' },
+          { feature: 'fetchUrls', apiHost: 'https://api.keenable.ai' }
+        ]
+      })
+    )
+
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: null,
+      headers: {
+        accept: 'application/json',
+        'http-referer': 'https://cherry-ai.com',
+        'x-api-key': 'keenable-key',
+        'x-keenable-title': 'Cherry Studio',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'GET',
+      url: 'https://api.keenable.ai/v1/fetch?url=https%3A%2F%2Fexample.com%2Farticle'
+    })
+    expect(result.results).toEqual([
+      {
+        content: 'Article body',
+        sourceInput: 'https://example.com/article',
+        title: 'Article',
+        url: 'https://example.com/article'
+      }
     ])
   })
 
