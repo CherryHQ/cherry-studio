@@ -23,6 +23,7 @@ import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuAction
 import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
+import { getConversationStatus } from '@renderer/utils/conversationStatus'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -135,7 +136,6 @@ const SessionItem = ({
   // Unlike the completion dot, awaiting-approval is an ongoing state, so it
   // stays on the selected row too (it only yields to hover actions).
   const showAwaitingApprovalBadge = awaitingApprovalAnchors.length > 0 || classifyTurn(status).isAwaitingApproval
-  const isStreamErrored = status === 'error'
   // The status overlay (spinner / red / green dot) sits at ONE fixed spot
   // (right-1.5) on every row so the indicators line up. Running (spinner) and
   // errored (red) are ongoing states that stay on the selected row too — only
@@ -143,15 +143,13 @@ const SessionItem = ({
   // opened (`!isActive`). It yields to hover actions. While awaiting approval
   // the pill alone is shown — no spinner: a paused turn is blocked, not
   // running, so a spinner would send the opposite signal ("wait" vs "act").
-  const conversationRowStatus = showAwaitingApprovalBadge
-    ? 'approval'
-    : isStreamPending
-      ? 'pending'
-      : isStreamErrored
-        ? 'error'
-        : !isActive && isStreamFulfilled
-          ? 'done'
-          : null
+  const conversationRowStatus = getConversationStatus({
+    isAwaitingApproval: showAwaitingApprovalBadge,
+    isPending: isStreamPending,
+    isErrored: status === 'error',
+    isFulfilled: isStreamFulfilled,
+    isActive
+  })
   const showStreamIndicator = !shortcutHint && conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming && !!onTogglePin
   const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon

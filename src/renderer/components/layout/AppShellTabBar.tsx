@@ -21,8 +21,10 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
+import { getTabConversation } from '@renderer/utils/tabConversation'
 
 import { WindowControls } from '../WindowControls'
+import { ConversationTabPreview, ConversationTabPreviewProvider, ConversationTabStatus } from './ConversationTabPreview'
 import { ShellTabBarActions } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
 import { useTabDrag } from './useTabDrag'
@@ -112,7 +114,7 @@ const PinnedTabButton = ({
   ...rest
 }: PinnedTabButtonProps) => {
   return (
-    <Tooltip placement="bottom" content={tab.title} delay={600}>
+    <ConversationTabPreview tab={tab} isActive={isActive} disabled={drag.isDragging} onSelect={onSelect}>
       {/* Spread `rest` (which carries injected ContextMenuTrigger props) first so the */}
       {/* drag handler / transform style / drag classes always win on a key collision. */}
       <button
@@ -127,8 +129,8 @@ const PinnedTabButton = ({
         type="button"
         onPointerDown={drag.onPointerDown}
         onClick={onSelect}
-        title={tab.title}
         aria-label={tab.title}
+        title={getTabConversation(tab) ? undefined : tab.title}
         style={{
           ...rest.style,
           transform: `translateX(${drag.translateX}px)`,
@@ -145,10 +147,15 @@ const PinnedTabButton = ({
         {shortcutHint ? (
           <Kbd className="rounded-full bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">{shortcutHint}</Kbd>
         ) : (
-          <TabIcon tab={tab} size={iconSize} />
+          <span className="relative">
+            <TabIcon tab={tab} size={iconSize} />
+            <span className="absolute -right-1 -bottom-1">
+              <ConversationTabStatus tab={tab} isActive={isActive} />
+            </span>
+          </span>
         )}
       </button>
-    </Tooltip>
+    </ConversationTabPreview>
   )
 }
 
@@ -271,146 +278,149 @@ const NormalTabButton = ({
     // below then overrides any colliding `onContextMenu` chain ordering. The
     // props type already excludes `onClick`/`onPointerDown`/`style`/`className`,
     // so the spread can't clobber those — the order is just belt-and-braces.
-    <button
-      {...rest}
-      ref={setRefs}
-      data-tab-id={tab.id}
-      data-active={(isClosing ? closingWasActive : isActive) || undefined}
-      data-hovered={(isClosing && !closingWasActive) || undefined}
-      type="button"
-      // Explicit name: the close button's aria-label must not leak into the
-      // tab's accessible name via name-from-content.
-      aria-label={tab.title}
-      onPointerDown={drag.onPointerDown}
-      onClick={(e) => {
-        // Chromium's click events retain PointerEvent.pointerType, while the
-        // following dblclick is a plain MouseEvent. Close on click #2 so touch
-        // and pen can skip the mouse-only width freeze without closing twice.
-        if (e.detail === 2 && canClose) {
+    <ConversationTabPreview tab={tab} isActive={isActive} disabled={drag.isDragging || isClosing} onSelect={onSelect}>
+      <button
+        {...rest}
+        ref={setRefs}
+        data-tab-id={tab.id}
+        data-active={(isClosing ? closingWasActive : isActive) || undefined}
+        data-hovered={(isClosing && !closingWasActive) || undefined}
+        type="button"
+        // Explicit name: the close button's aria-label must not leak into the
+        // tab's accessible name via name-from-content.
+        aria-label={tab.title}
+        onPointerDown={drag.onPointerDown}
+        onClick={(e) => {
+          // Chromium's click events retain PointerEvent.pointerType, while the
+          // following dblclick is a plain MouseEvent. Close on click #2 so touch
+          // and pen can skip the mouse-only width freeze without closing twice.
+          if (e.detail === 2 && canClose) {
+            e.preventDefault()
+            e.stopPropagation()
+            closeFromPointer(e)
+            return
+          }
+          onSelect()
+        }}
+        onAuxClick={(e) => {
+          if (e.button === 1 && canClose) {
+            e.preventDefault()
+            e.stopPropagation()
+            closeFromPointer(e)
+          }
+        }}
+        onDoubleClick={(e) => {
+          if (!canClose) return
           e.preventDefault()
           e.stopPropagation()
-          closeFromPointer(e)
-          return
-        }
-        onSelect()
-      }}
-      onAuxClick={(e) => {
-        if (e.button === 1 && canClose) {
-          e.preventDefault()
-          e.stopPropagation()
-          closeFromPointer(e)
-        }
-      }}
-      onDoubleClick={(e) => {
-        if (!canClose) return
-        e.preventDefault()
-        e.stopPropagation()
-      }}
-      style={{
-        // Frozen tabs pin their flex-basis in px; the unfrozen value keeps the same
-        // units so unfreezing animates smoothly (px→auto/percent widths cannot).
-        // A closing tab collapses to zero width so its right siblings slide over.
-        flex: isClosing ? '0 0 0px' : frozenWidth != null ? `0 0 ${frozenWidth}px` : '1 1 0px',
-        // Cancels the strip's gap-1 so the finished collapse leaves no 4px jump.
-        marginRight: isClosing ? -4 : undefined,
-        pointerEvents: isClosing ? 'none' : undefined,
-        transform: `translateX(${drag.translateX}px)`,
-        // Inline transition overrides the class `transition-all`, so every property
-        // involved in the close/unfreeze animations must be listed here. `flex` is
-        // transitioned ONLY during the collapse and the thaw glide — both interpolate
-        // px→px flex-basis with grow pinned at 0. Everywhere else flex changes must
-        // snap: animating flex-grow is never width-constant (entering the freeze, or
-        // swapping the thawed px back to `flex: 1 1 0`, would wobble every sibling).
-        transition:
-          drag.isDragging || drag.noTransition
-            ? 'none'
-            : `var(--app-nav-state-transition), ${
-                isClosing || isThawing
-                  ? isClosing
-                    ? 'transform 200ms ease, flex 200ms ease, margin 200ms ease, padding 200ms ease, opacity 40ms linear 140ms'
-                    : 'transform 200ms ease, flex 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease'
-                  : 'transform 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease'
-              }`,
-        zIndex: drag.isDragging ? 50 : 'auto',
-        // Keep the tab opaque through most of the collapse, then fade only near
-        // the end so its surface cannot compress into a vertical line.
-        opacity: drag.isGhost ? 0.3 : isClosing ? 0 : 1
-      }}
-      className={cn(
-        'shell-navigation-item nodrag group relative flex h-[30px] min-w-[56px] max-w-[160px] items-center gap-1.5 rounded-[10px] px-2 [-webkit-app-region:no-drag]',
-        drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
-        isClosing && 'min-w-0 overflow-hidden px-0'
-      )}>
-      {/* Chrome-style divider (see TAB_DIVIDER_CLASS), centred in the strip's 4px
+        }}
+        style={{
+          // Frozen tabs pin their flex-basis in px; the unfrozen value keeps the same
+          // units so unfreezing animates smoothly (px→auto/percent widths cannot).
+          // A closing tab collapses to zero width so its right siblings slide over.
+          flex: isClosing ? '0 0 0px' : frozenWidth != null ? `0 0 ${frozenWidth}px` : '1 1 0px',
+          // Cancels the strip's gap-1 so the finished collapse leaves no 4px jump.
+          marginRight: isClosing ? -4 : undefined,
+          pointerEvents: isClosing ? 'none' : undefined,
+          transform: `translateX(${drag.translateX}px)`,
+          // Inline transition overrides the class `transition-all`, so every property
+          // involved in the close/unfreeze animations must be listed here. `flex` is
+          // transitioned ONLY during the collapse and the thaw glide — both interpolate
+          // px→px flex-basis with grow pinned at 0. Everywhere else flex changes must
+          // snap: animating flex-grow is never width-constant (entering the freeze, or
+          // swapping the thawed px back to `flex: 1 1 0`, would wobble every sibling).
+          transition:
+            drag.isDragging || drag.noTransition
+              ? 'none'
+              : `var(--app-nav-state-transition), ${
+                  isClosing || isThawing
+                    ? isClosing
+                      ? 'transform 200ms ease, flex 200ms ease, margin 200ms ease, padding 200ms ease, opacity 40ms linear 140ms'
+                      : 'transform 200ms ease, flex 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease'
+                    : 'transform 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease'
+                }`,
+          zIndex: drag.isDragging ? 50 : 'auto',
+          // Keep the tab opaque through most of the collapse, then fade only near
+          // the end so its surface cannot compress into a vertical line.
+          opacity: drag.isGhost ? 0.3 : isClosing ? 0 : 1
+        }}
+        className={cn(
+          'shell-navigation-item nodrag group relative flex h-[30px] min-w-[56px] max-w-[160px] items-center gap-1.5 rounded-[10px] px-2 [-webkit-app-region:no-drag]',
+          drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
+          isClosing && 'min-w-0 overflow-hidden px-0'
+        )}>
+        {/* Chrome-style divider (see TAB_DIVIDER_CLASS), centred in the strip's 4px
           gap so it reads as belonging to neither tab. The bar hides it whenever a
           neighbour lights up (active / hover / closing / dragging) — fading on the
           same 150ms as the tab tints it hands over to, so the boundary is never
           missing mid-swap. */}
-      <span
-        aria-hidden
-        data-tab-divider
-        data-visible={showDivider || undefined}
-        className={cn(
-          '-left-[3px] -translate-y-1/2 pointer-events-none absolute top-1/2 transition-opacity duration-150',
-          TAB_DIVIDER_CLASS,
-          showDivider ? 'opacity-100' : 'opacity-0'
+        <span
+          aria-hidden
+          data-tab-divider
+          data-visible={showDivider || undefined}
+          className={cn(
+            '-left-[3px] -translate-y-1/2 pointer-events-none absolute top-1/2 transition-opacity duration-150',
+            TAB_DIVIDER_CLASS,
+            showDivider ? 'opacity-100' : 'opacity-0'
+          )}
+        />
+        <TabIcon tab={tab} size={iconSize} className="shrink-0" />
+        <span
+          className={cn(
+            'min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left text-xs/(--line-height-body-xs)',
+            (isClosing ? closingWasActive : isActive) ? 'font-medium' : 'font-normal'
+          )}
+          style={{
+            maskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)'
+          }}>
+          {tab.title}
+        </span>
+        <ConversationTabStatus tab={tab} isActive={isActive} />
+        {shortcutHint && (
+          <Kbd className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            {shortcutHint}
+          </Kbd>
         )}
-      />
-      <TabIcon tab={tab} size={iconSize} className="shrink-0" />
-      <span
-        className={cn(
-          'min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left text-xs/(--line-height-body-xs)',
-          (isClosing ? closingWasActive : isActive) ? 'font-medium' : 'font-normal'
-        )}
-        style={{
-          maskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)'
-        }}>
-        {tab.title}
-      </span>
-      {shortcutHint && (
-        <Kbd className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-          {shortcutHint}
-        </Kbd>
-      )}
-      {canClose &&
-        !shortcutHint && (
-          // Chrome-style right-side X: always visible on the active tab, hover-revealed
-          // elsewhere. Hidden via opacity (not display) so it stays keyboard-focusable;
-          // pointer events stay off until hover/focus so an invisible X never swallows clicks.
-          <div
-            role="button"
-            tabIndex={0}
-            aria-label={t('tab.close')}
-            onClick={(e) => {
-              e.stopPropagation()
-              if (e.detail > 0) closeFromPointer(e)
-              else onClose()
-            }}
-            onDoubleClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
+        {canClose &&
+          !shortcutHint && (
+            // Chrome-style right-side X: always visible on the active tab, hover-revealed
+            // elsewhere. Hidden via opacity (not display) so it stays keyboard-focusable;
+            // pointer events stay off until hover/focus so an invisible X never swallows clicks.
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label={t('tab.close')}
+              onClick={(e) => {
                 e.stopPropagation()
-                onClose()
-              }
-            }}
-            className={cn(
-              // Width collapses with the opacity so a hidden X frees its space for the
-              // title instead of reserving a blank slot at the tab's right edge.
-              'nodrag ml-auto flex h-[18px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-sm transition-all duration-150 hover:bg-foreground/10',
-              // A closing tab keeps its X visible (Chrome-style) — hover no longer
-              // matches once pointer events are off, and the handover cleared isActive.
-              isActive || isClosing
-                ? 'w-[18px] opacity-100'
-                : 'pointer-events-none w-0 opacity-0 focus-visible:pointer-events-auto focus-visible:w-[18px] focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:w-[18px] group-hover:opacity-100'
-            )}>
-            <X size={10} />
-          </div>
-        )}
-    </button>
+                if (e.detail > 0) closeFromPointer(e)
+                else onClose()
+              }}
+              onDoubleClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.stopPropagation()
+                  onClose()
+                }
+              }}
+              className={cn(
+                // Width collapses with the opacity so a hidden X frees its space for the
+                // title instead of reserving a blank slot at the tab's right edge.
+                'nodrag ml-auto flex h-[18px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-sm transition-all duration-150 hover:bg-foreground/10',
+                // A closing tab keeps its X visible (Chrome-style) — hover no longer
+                // matches once pointer events are off, and the handover cleared isActive.
+                isActive || isClosing
+                  ? 'w-[18px] opacity-100'
+                  : 'pointer-events-none w-0 opacity-0 focus-visible:pointer-events-auto focus-visible:w-[18px] focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:w-[18px] group-hover:opacity-100'
+              )}>
+              <X size={10} />
+            </div>
+          )}
+      </button>
+    </ConversationTabPreview>
   )
 }
 
@@ -930,7 +940,7 @@ export const AppShellTabBar = ({
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <>
+    <ConversationTabPreviewProvider>
       <header
         ref={tabBarRef}
         data-ui="app.tab-bar"
@@ -1220,6 +1230,6 @@ export const AppShellTabBar = ({
           <ShellTabBarActions />
         )}
       </header>
-    </>
+    </ConversationTabPreviewProvider>
   )
 }

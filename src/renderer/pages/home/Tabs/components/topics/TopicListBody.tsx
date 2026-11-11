@@ -31,6 +31,7 @@ import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import type { Topic } from '@renderer/types/topic'
 import type { TopicDisplayMode } from '@renderer/utils/chat/topicsHelpers'
+import { getConversationStatus } from '@renderer/utils/conversationStatus'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -270,25 +271,12 @@ const TopicRow = memo(function TopicRow({
     </div>
   )
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
-  const {
-    isAwaitingApproval: isTopicAwaitingApproval,
-    isErrored: isTopicStreamErrored,
-    isFulfilled: isTopicStreamFulfilled,
-    isPending: isTopicStreamPending
-  } = streamStatus
+  const { isAwaitingApproval: isTopicAwaitingApproval, isPending: isTopicStreamPending } = streamStatus
   // Running (spinner) and errored (red) are ongoing states that stay on the
   // selected row too — only the completion dot (green) is a read-receipt that
   // clears once the row is opened (`!isActive`). Awaiting approval is shown as
   // a badge instead of a spinner because the turn needs user action.
-  const conversationRowStatus = isTopicAwaitingApproval
-    ? 'approval'
-    : isTopicStreamPending
-      ? 'pending'
-      : isTopicStreamErrored
-        ? 'error'
-        : !isActive && isTopicStreamFulfilled
-          ? 'done'
-          : null
+  const conversationRowStatus = getConversationStatus({ ...streamStatus, isActive })
   const hasTopicStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time'

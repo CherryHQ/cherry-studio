@@ -43,6 +43,21 @@ Goal is selected separately in the Quick Panel through the existing native
 user. Pi and Durable provide a static command entry; Claude uses its live SDK
 catalog. Draft keywords and the input placeholder do not suggest modes.
 
+## Horizontal conversation previews
+
+Conversation tabs reuse the sidebar status priority and completion read receipt.
+Inactive topic and Agent session tabs, including pinned tabs, open a read-only
+message preview on hover or keyboard focus. The card loads bounded history only
+while open, observes live execution overlays, and refreshes on read-model changes
+and each reopening. Sidebar hover cards retain their own content.
+
+`MessagePreviewContent` owns the compact message presentation: Markdown and tool
+requests without links, decision controls, media playback, or scrolling. Pending
+requests take precedence over the latest two-message tail. Opening a request
+revalidates its persisted state before locating it in the existing tab; hovering
+never marks a completion as seen. File and embedded-image previews use text
+placeholders so background previews do not fetch or play media.
+
 ## Documents
 
 | Document | What it covers |

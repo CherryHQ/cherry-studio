@@ -42,6 +42,8 @@ Reuse the shared message presentation boundary with an explicit read-only capabi
 
 Publish this bilingual Spec first. After an explicit human Approval on its current head, implement one dependent layer covering all acceptance criteria. Keep the note proposed until every criterion has actual evidence. Start with focused renderer tests for status mapping, preview content selection, interaction safety, navigation, and affected sidebar/tab consumers; then validate the real Electron hover and streaming behavior in both themes. Do not run a full local test suite by default.
 
+On 2026-11-11, the user explicitly instructed implementation without waiting for approval. That instruction authorizes the dependent implementation layer; it does not replace verification evidence or mark this note implemented.
+
 ## Alternatives considered
 
 - A separate tab status taxonomy would drift from the sidebar; reuse its semantics instead.
