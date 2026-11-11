@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as Selectors from '@renderer/components/resourceCatalog/selectors'
 
 // Use the real Popover/MenuList/MenuItem (renderer.setup stubs them globally) so the filter
 // popover actually opens/closes.
@@ -12,6 +13,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 const mocks = vi.hoisted(() => ({
   createAssistant: vi.fn(),
+  realPicker: false,
   pickerProps: undefined as any,
   createDialogProps: undefined as any
 }))
@@ -20,23 +22,27 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn() }) }
 }))
 
-vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
-  ConversationPickerDialog: (props: any) => {
-    mocks.pickerProps = props
-    return (
-      <div data-testid="picker" data-open={String(props.open)}>
-        {props.toolbar}
-        <span data-testid="create-action-icon">{props.createAction?.row('').icon}</span>
-        <button type="button" onClick={() => props.createAction?.onSelect('')}>
-          create-new
-        </button>
-        <button type="button" onClick={() => props.createAction?.onSelect('测试助手')}>
-          create-new-from-query
-        </button>
-      </div>
-    )
+vi.mock('@renderer/components/resourceCatalog/selectors', async (original) => {
+  const actual = await original<typeof Selectors>()
+  return {
+    ConversationPickerDialog: (props: any) => {
+      mocks.pickerProps = props
+      if (mocks.realPicker) return <actual.ConversationPickerDialog {...props} />
+      return (
+        <div data-testid="picker" data-open={String(props.open)}>
+          {props.toolbar}
+          <span data-testid="create-action-icon">{props.createAction?.row('').icon}</span>
+          <button type="button" onClick={() => props.createAction?.onSelect('')}>
+            create-new
+          </button>
+          <button type="button" onClick={() => props.createAction?.onSelect('测试助手')}>
+            create-new-from-query
+          </button>
+        </div>
+      )
+    }
   }
-}))
+})
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
   getResourceCreateDefaultAvatar: () => '💬',
@@ -97,10 +103,34 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   mocks.pickerProps = undefined
+  mocks.realPicker = false
   mocks.createDialogProps = undefined
 })
 
 describe('AssistantConversationPickerDialog', () => {
+  it('renders the selected assistant image with emoji fallback', () => {
+    mocks.realPicker = true
+    render(
+      <AssistantConversationPickerDialog
+        open
+        onOpenChange={vi.fn()}
+        assistants={
+          [
+            { id: 'image', name: 'Photo', emoji: '🎓', avatarSrc: 'file:///avatar.webp' },
+            { id: 'emoji', name: 'Emoji', emoji: '🤖' }
+          ] as any
+        }
+        onSelect={vi.fn()}
+      />
+    )
+    const image = screen.getByRole('img', { name: 'Photo' })
+    expect(image).toHaveAttribute('src', 'file:///avatar.webp')
+    expect(screen.getAllByText('🤖')[0]).toBeVisible()
+    fireEvent.error(image)
+    expect(screen.getAllByText('🎓')[0]).toBeVisible()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  })
+
   it('exposes a create action that closes the picker and opens the assistant create dialog', () => {
     const onOpenChange = vi.fn()
 
