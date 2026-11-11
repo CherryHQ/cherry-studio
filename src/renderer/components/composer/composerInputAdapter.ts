@@ -105,11 +105,17 @@ export function insertKnowledgeBaseTokenAtStart(editor: Editor, token: ComposerD
     }
   }
 
-  const content = Fragment.fromArray([
-    editor.schema.nodeFromJSON({ type: COMPOSER_TOKEN_NODE_NAME, attrs: token }),
-    editor.schema.text(' ')
-  ])
-  editor.view.dispatch(editor.state.tr.insert(position, content))
+  editor
+    .chain()
+    .insertContentAt(
+      position,
+      [
+        { type: COMPOSER_TOKEN_NODE_NAME, attrs: token },
+        { type: 'text', text: ' ' }
+      ],
+      { updateSelection: false }
+    )
+    .run()
   return true
 }
 
