@@ -5,6 +5,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 
+import { findFencedCodeLines, TOKEN_PLACEHOLDER } from '../markdownLivePreview/markdownSession'
 import {
   type ComposerTokenMarkerRule,
   createComposerPlainTextContent,
@@ -12,7 +13,6 @@ import {
   createComposerTokenMarkerInlineContent
 } from './composerTokenMarkers'
 import { createComposerLinkToken } from './linkToken'
-import { findFencedCodeLines, TOKEN_PLACEHOLDER } from './markdownLivePreview/markdownSession'
 import { createPromptVariableMarkerRule } from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
 

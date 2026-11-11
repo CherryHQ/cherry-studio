@@ -2,16 +2,16 @@ import type { EditorOptions } from '@tiptap/core'
 
 import { Placeholder, type PlaceholderOptions } from '@renderer/components/RichEditor/extensions/placeholder'
 
-import { ComposerLines } from './composerLines'
+import { ComposerMarkdownLivePreview } from '../markdownLivePreview/livePreviewPlugin'
 import {
   ComposerDocument,
   ComposerHardBreak,
   ComposerParagraph,
   ComposerText,
   ComposerUndoRedo
-} from './composerSchema'
+} from '../markdownLivePreview/sourceSchema'
+import { ComposerLines } from './composerLines'
 import { ComposerTokenNode, type ComposerTokenRenderer } from './ComposerTokenNode'
-import { ComposerMarkdownLivePreview } from './markdownLivePreview/livePreviewPlugin'
 import { type ComposerSuggestionSource, createComposerSuggestionExtension } from './quickPanel'
 
 export interface ComposerEditorPresetOptions {

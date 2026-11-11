@@ -5,6 +5,8 @@ file with `MermaidPreview` in `contain` fit, edge to edge on the host's own back
 
 The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), browser-playable video (`.mp4`, `.webm`, `.m4v`), PDF, Word (`.docx`), Rich Text Format (`.rtf`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), Mermaid diagrams (`.mmd`, `.mermaid`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
 
+Writable Markdown in the Agent right pane uses the shared `MarkdownLivePreview` document surface and the existing file-edit session. Its source/preview control switches views of the same draft; the automatic-save preference and manual save actions apply to both. Generic `FilePreview` remains read-only. Both surfaces use `MarkdownFileHostProvider` for relative images and file navigation.
+
 ## Path Contract
 
 - Accept local absolute `AbsoluteFilePath` values only. POSIX and Windows paths are supported.

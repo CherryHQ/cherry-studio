@@ -41,7 +41,13 @@ import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import FileCommentBox from '@renderer/components/FileCommentBox'
 import type { LineComment } from '@renderer/components/FileEditor'
-import { canProduceSelectionReference, FilePreview, hasRenderedFilePreview } from '@renderer/components/FilePreview'
+import {
+  canProduceSelectionReference,
+  FilePreview,
+  hasRenderedFilePreview,
+  isMarkdownFilePreview,
+  MarkdownFileHostProvider
+} from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { buildOpenTargetMenuItems, loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
@@ -95,6 +101,11 @@ export {
 } from './artifactPanePath'
 
 const logger = loggerService.withContext('ArtifactPane')
+const MarkdownLivePreview = lazy(() =>
+  import('@renderer/components/markdownLivePreview/MarkdownLivePreview').then((module) => ({
+    default: module.MarkdownLivePreview
+  }))
+)
 const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
 
 const ARTIFACT_FILE_TREE_ERROR_KEYS = {
@@ -422,11 +433,25 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     isText === 'text' &&
     hasRenderedFilePreview(getArtifactPaneSelectionPath(overlaySelection))
   )
-  const editToggleLabel = t(editMode === 'edit' ? 'common.preview' : 'common.edit')
+  const liveMarkdown = Boolean(
+    overlaySelection &&
+    !overlaySelection.readOnly &&
+    isMarkdownFilePreview(getArtifactPaneSelectionPath(overlaySelection))
+  )
+  const isEditing = editMode === 'edit' || liveMarkdown
+  const editToggleLabel = t(
+    liveMarkdown
+      ? editMode === 'edit'
+        ? 'file_preview.markdown.mode.preview'
+        : 'file_preview.markdown.mode.source'
+      : editMode === 'edit'
+        ? 'common.preview'
+        : 'common.edit'
+  )
   const fileSize = useFileSize(previewWorkspacePath, previewFilePath, contentRefreshToken, knownFileSizeBytes)
   const canCopyPreviewContent = canCopyFileContent(previewFilePath ?? null, isText, fileSize)
   const isEditDirty = fileSession?.isDirty ?? false
-  const editorDraft = editMode === 'edit' && fileSession?.status === 'ready' ? fileSession.draft : ''
+  const editorDraft = isEditing && fileSession?.status === 'ready' ? fileSession.draft : ''
   const wordWrapUnavailable = useMemo(() => hasUnwrappableLine(editorDraft), [editorDraft])
 
   useEffect(() => {
@@ -526,7 +551,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   // whose SyntheticEvent.stopPropagation() this handler already called.
   const handleOverlayKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if (event.key === 's' && (isMac ? event.metaKey : event.ctrlKey) && editMode === 'edit' && fileSession?.isDirty) {
+      if (event.key === 's' && (isMac ? event.metaKey : event.ctrlKey) && isEditing && fileSession?.isDirty) {
         event.preventDefault()
         // A failed save stays visible in the session's error banner.
         void fileSessionFlush?.().catch(() => undefined)
@@ -541,7 +566,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       event.stopPropagation()
       onPreviewClose()
     },
-    [editMode, fileSession?.isDirty, fileSessionFlush, onPreviewClose, pickerActive]
+    [isEditing, fileSession?.isDirty, fileSessionFlush, onPreviewClose, pickerActive]
   )
 
   const copyPath = useCallback(
@@ -923,7 +948,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         {/* Plugin toolbars (e.g. an attachment's Markdown/HTML preview-source toggle) portal into this slot. */}
         <FilePreviewToolbarPortalHost />
         {pickerToggle}
-        {!paneSettings.autoSave && editMode === 'edit' && fileSession?.isDirty ? (
+        {!paneSettings.autoSave && isEditing && fileSession?.isDirty ? (
           <>
             <Button type="button" variant="ghost" size="sm" onClick={() => void handleDiscardFailedSave()}>
               {t('common.cancel')}
@@ -1016,7 +1041,23 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             </div>
           )}
           <div data-file-edit className="relative min-h-0 flex-1 overflow-hidden">
-            {editMode === 'edit' && fileSession?.status === 'ready' ? (
+            {liveMarkdown && editMode === 'preview' && fileSession?.status === 'ready' ? (
+              <div className="h-full overflow-auto">
+                <div className="mx-auto w-full max-w-4xl px-4 pt-4">
+                  <MarkdownFileHostProvider filePath={getArtifactPaneSelectionPath(overlaySelection)}>
+                    <Suspense fallback={<LoadingState label={t('common.loading')} />}>
+                      <MarkdownLivePreview
+                        key={`${previewKey}:${fileSession.sessionId}:${fileSession.documentEpoch}`}
+                        value={fileSession.draft}
+                        onChange={fileSession.setDraft}
+                        readOnly={fileSession.readOnly}
+                        label={getPreviewFileTitle(overlaySelection)}
+                      />
+                    </Suspense>
+                  </MarkdownFileHostProvider>
+                </div>
+              </div>
+            ) : editMode === 'edit' && fileSession?.status === 'ready' ? (
               <Suspense fallback={<LoadingState label={t('common.loading')} />}>
                 <FileEditor
                   // Pierre measures tab stops when it attaches, so a tab-size change remounts the editor.
@@ -1036,7 +1077,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   className="h-full"
                 />
               </Suspense>
-            ) : editMode === 'edit' && fileSession?.status === 'loading' ? (
+            ) : isEditing && fileSession?.status === 'loading' ? (
               <div className="flex h-full items-center justify-center">
                 <LoadingState label={t('common.loading')} />
               </div>

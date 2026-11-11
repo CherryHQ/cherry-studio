@@ -1,0 +1,27 @@
+.markdown-live-preview {
+  min-width: 0;
+}
+
+.markdown-live-source {
+  outline: none;
+  min-height: 8rem;
+}
+
+.markdown-live-source > p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.markdown-live-source > p.markdown-live-source-hidden {
+  display: none;
+}
+
+.markdown-live-block {
+  min-width: 0;
+  display: contents;
+}
+
+.markdown-live-block:not([data-preview-last]) > div[data-ui='markdown.paragraph'] {
+  margin-bottom: calc(var(--spacing) * 4);
+}

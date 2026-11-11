@@ -3,10 +3,10 @@ import { TextSelection } from '@tiptap/pm/state'
 import type { DecorationSet } from '@tiptap/pm/view'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createComposerDraftContent, serializeComposerDocument } from '../../composerDraft'
-import { createComposerEditorPreset } from '../../composerPreset'
-import { createComposerPlainTextContent } from '../../composerTokenMarkers'
-import type { ComposerSerializedToken } from '../../tokens'
+import { createComposerDraftContent, serializeComposerDocument } from '../../composer/composerDraft'
+import { createComposerEditorPreset } from '../../composer/composerPreset'
+import { createComposerPlainTextContent } from '../../composer/composerTokenMarkers'
+import type { ComposerSerializedToken } from '../../composer/tokens'
 
 const editors: Editor[] = []
 

@@ -1,7 +1,7 @@
 import type { JSONContent } from '@tiptap/core'
 
+import { findFencedCodeLines } from '../markdownLivePreview/markdownSession'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
-import { findFencedCodeLines } from './markdownLivePreview/markdownSession'
 import type { ComposerDraftToken } from './tokens'
 
 export interface ComposerTokenMarkerMatch {

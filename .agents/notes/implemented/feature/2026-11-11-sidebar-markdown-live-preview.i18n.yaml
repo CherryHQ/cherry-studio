@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-11-sidebar-markdown-live-preview.md
+2026-11-11-sidebar-markdown-live-preview.md: 6f6c82d074b1f6e8c32618ed76306e0d39b9ff8d
+2026-11-11-sidebar-markdown-live-preview.zh.md: ba421ca6be7d4c4502bf7ecf12f4a72607ed83b7

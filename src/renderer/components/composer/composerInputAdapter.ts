@@ -16,11 +16,11 @@ import {
 } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter, QuickPanelInsertTextOptions } from '@renderer/components/QuickPanel'
 
+import { hasMarkdownLivePreview, isMarkdownFencedCodePosition } from '../markdownLivePreview/livePreviewPlugin'
 import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from './composerDraft'
 import { createComposerLineSlice } from './composerLines'
 import { createComposerPlainTextContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
-import { hasMarkdownLivePreview, isMarkdownFencedCodePosition } from './markdownLivePreview/livePreviewPlugin'
 import {
   createPromptVariableInlineContent,
   getNextPromptVariableIndex,

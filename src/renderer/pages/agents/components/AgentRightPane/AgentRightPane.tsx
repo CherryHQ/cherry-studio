@@ -69,7 +69,11 @@ import { useArtifactPanePreviewNavigation } from '@renderer/components/chat/pane
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
-import { FilePreviewNavigationProvider, hasRenderedFilePreview } from '@renderer/components/FilePreview'
+import {
+  FilePreviewNavigationProvider,
+  hasRenderedFilePreview,
+  isMarkdownFilePreview
+} from '@renderer/components/FilePreview'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentChildProjection } from '@renderer/hooks/agent/useAgentChildProjection'
@@ -757,7 +761,9 @@ function AgentRightPaneStateProvider({
     [acceptDetectedBrowserUrl, browserUrl, browserProfile, openBrowserUrl, messages, partsByMessageId]
   )
   const editPath =
-    editMode === 'edit' && previewFileSelection && !previewFileSelection.readOnly
+    previewFileSelection &&
+    !previewFileSelection.readOnly &&
+    (editMode === 'edit' || isMarkdownFilePreview(getArtifactPaneSelectionPath(previewFileSelection)))
       ? getArtifactPaneSelectionPath(previewFileSelection)
       : undefined
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
