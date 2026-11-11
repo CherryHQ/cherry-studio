@@ -18,21 +18,33 @@ const components: Partial<Components> = {
   input: () => null
 }
 
-export function MessagePreviewContent({ message }: { message: CherryUIMessage }) {
+export function MessagePreviewContent({
+  message,
+  renderInputMessageAsMarkdown = true
+}: {
+  message: CherryUIMessage
+  renderInputMessageAsMarkdown?: boolean
+}) {
   return message.parts.slice(-8).map((part, index) => {
     const key = `${message.id}-${index}`
     if (part.type === 'text') {
-      const clipped = part.text.length > 2400
+      const user = message.role === 'user'
+      const clipped = !user && part.text.length > 2400
+      const text = user ? part.text : part.text.slice(-2400)
       return (
         <div key={key}>
           {clipped && <span aria-hidden>…</span>}
-          <Markdown
-            id={key}
-            components={components}
-            disallowedElements={['video', 'audio', 'iframe', 'button', 'svg']}
-            className="text-xs leading-relaxed">
-            {part.text.slice(-2400)}
-          </Markdown>
+          {user && !renderInputMessageAsMarkdown ? (
+            <div className="whitespace-pre-wrap break-words">{text}</div>
+          ) : (
+            <Markdown
+              id={key}
+              components={components}
+              disallowedElements={['video', 'audio', 'iframe', 'button', 'svg']}
+              className="markdown text-inherit leading-relaxed [&>*:last-child]:mb-0">
+              {text}
+            </Markdown>
+          )}
         </div>
       )
     }

@@ -46,6 +46,18 @@ describe('MessagePreviewContent', () => {
     expect(container.querySelectorAll('a,button,input,video,audio,iframe')).toHaveLength(0)
   })
 
+  it('preserves the beginning and full user content for visual folding, respecting plain-text preferences', () => {
+    const text = `**QUESTION_START**${'x'.repeat(3000)}QUESTION_END`
+    const { container } = render(
+      <MessagePreviewContent
+        renderInputMessageAsMarkdown={false}
+        message={{ id: 'user', role: 'user', parts: [{ type: 'text', text }] }}
+      />
+    )
+    expect(screen.getByText(text)).toBeInTheDocument()
+    expect(container.querySelector('strong')).toBeNull()
+  })
+
   it('bounds long text while preserving its latest tail and signaling omitted content', () => {
     render(
       <MessagePreviewContent

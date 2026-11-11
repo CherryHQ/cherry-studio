@@ -9,11 +9,18 @@ export function selectConversationPreview(messages: readonly CherryUIMessage[]) 
     )
   )
   const request = pending[0]
+  const visible = messages.filter((message) => message.role !== 'system')
+  const lastUserIndex = visible.findLastIndex((message) => message.role === 'user')
+  const latest = visible.at(-1)
+  const latestTurn =
+    lastUserIndex < 0
+      ? visible.slice(-2)
+      : latest?.role === 'assistant'
+        ? [visible[lastUserIndex], latest]
+        : [visible[lastUserIndex]]
   return {
     request,
     remainingRequests: Math.max(0, pending.length - 1),
-    messages: request
-      ? [{ ...request.message, parts: [request.part] }]
-      : messages.filter((message) => message.role !== 'system').slice(-2)
+    messages: request ? [{ ...request.message, parts: [request.part] }] : latestTurn
   }
 }

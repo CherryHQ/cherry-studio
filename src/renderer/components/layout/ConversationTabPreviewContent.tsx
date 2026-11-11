@@ -5,9 +5,13 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { useDataChange, useInfiniteFlatItems } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { ConversationStatus } from '@renderer/components/chat/ConversationStatus'
-import { MessagePreviewContent } from '@renderer/components/chat/messages/blocks/MessagePreviewContent'
+import { MessagePreview } from '@renderer/components/chat/messages/frame/MessagePreview'
+import { useMessageAuthorAvatarSources } from '@renderer/components/chat/messages/hooks/useMessageAuthorAvatarSources'
+import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
+import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
+import useAvatar from '@renderer/hooks/useAvatar'
 import { useConversationHistoryQuery } from '@renderer/hooks/useConversationHistoryQuery'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import {
@@ -16,10 +20,8 @@ import {
   useTopicOverlayHandoffOnTerminal
 } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { getConversationStatus } from '@renderer/utils/conversationStatus'
 import { selectConversationPreview } from '@renderer/utils/message/conversationPreview'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
-import { classifyTurn } from '@shared/ai/transport'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 
@@ -106,25 +108,11 @@ export default function ConversationTabPreviewContent({
       )
       .map((message) => (live.overlay[message.id] ? { ...message, parts: live.overlay[message.id] } : message))
   }, [agent, sessionRows, topicRows, live.liveAssistants, live.overlay])
-  const { request, remainingRequests, messages: selected } = selectConversationPreview(messages)
-  const status = getConversationStatus({
-    ...stream,
-    isAwaitingApproval: stream.awaitingApprovalAnchors.length > 0 || classifyTurn(stream.status).isAwaitingApproval,
-    isErrored: stream.status === 'error',
-    isActive: false
-  })
-  const statusLabel =
-    status === 'approval'
-      ? t('agent.toolPermission.pendingBadge')
-      : status === 'pending'
-        ? t('message.tools.status.running')
-        : status === 'error'
-          ? t('message.tools.status.error')
-          : status === 'done'
-            ? t('message.tools.status.done')
-            : stream.status === 'aborted'
-              ? t('agent.right_pane.info.desktop_control.stopped')
-              : ''
+  const { request, messages: selected } = selectConversationPreview(messages)
+  const { renderConfig } = useMessageListRenderConfig()
+  const avatar = useAvatar()
+  const items = selected.map((message) => toMessageListItem(message, { topicId }))
+  const assistantAvatarSources = useMessageAuthorAvatarSources(items, topicId)
   const mounted = useRef(false)
   useEffect(() => {
     mounted.current = true
@@ -161,48 +149,38 @@ export default function ConversationTabPreviewContent({
   }
   return (
     <>
-      <div className="shrink-0 border-b px-4 py-3">
-        <div className="line-clamp-2 font-medium text-sm">{tab.title}</div>
-        {statusLabel && (
-          <div className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
-            <ConversationStatus status={status} />
-            {statusLabel}
-            {remainingRequests > 0 && <span> +{remainingRequests}</span>}
-          </div>
-        )}
-      </div>
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label={t('common.open')}
-        onClick={open}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            void open()
-          }
-        }}
-        className="flex min-h-0 flex-col overflow-hidden px-4 py-3 focus-visible:bg-muted">
+      <div className="flex min-h-0 flex-col overflow-hidden px-4 pt-4">
         {selected.length ? (
-          <div
-            className={
-              request ? 'flex min-h-0 flex-col overflow-hidden' : 'flex min-h-0 flex-col justify-end overflow-hidden'
-            }>
-            <div className="shrink-0 space-y-3">
-              {selected.map((message) => (
-                <div key={message.id} className={message.role === 'user' ? 'ml-8 rounded-lg bg-muted p-2' : ''}>
-                  <div className="mb-1 text-muted-foreground text-xs">
-                    {t(
-                      message.role === 'user'
-                        ? 'globalSearch.messageSearch.roles.user'
-                        : 'globalSearch.messageSearch.roles.assistant'
-                    )}
-                  </div>
-                  <MessagePreviewContent message={message} />
-                </div>
+          <MessageListProvider
+            value={{
+              state: {
+                topic: {
+                  id: topicId,
+                  assistantId: '',
+                  name: tab.title,
+                  createdAt: '',
+                  updatedAt: '',
+                  lastActivityAt: '',
+                  messages: []
+                },
+                messages: items,
+                partsByMessageId: Object.fromEntries(selected.map((message) => [message.id, message.parts])),
+                renderConfig,
+                messageNavigation: '',
+                estimateSize: 0,
+                overscan: 0,
+                loadOlderDelayMs: 0,
+                loadingResetDelayMs: 0
+              },
+              actions: {},
+              meta: { selectionLayer: false, userProfile: { avatar }, assistantAvatarSources }
+            }}>
+            <div className="flex min-h-0 flex-col gap-4 overflow-hidden">
+              {selected.map((message, index) => (
+                <MessagePreview key={message.id} message={message} item={items[index]} />
               ))}
             </div>
-          </div>
+          </MessageListProvider>
         ) : (
           <div className="py-4 text-muted-foreground text-xs">
             {query.isLoading
@@ -213,10 +191,7 @@ export default function ConversationTabPreviewContent({
           </div>
         )}
       </div>
-      <Button
-        variant="ghost"
-        className="h-8 shrink-0 justify-start rounded-none border-t px-4 text-muted-foreground text-xs"
-        onClick={open}>
+      <Button variant="ghost" size="sm" className="m-2 ml-auto shrink-0 text-muted-foreground" onClick={open}>
         {t('common.open')} ↗
       </Button>
     </>

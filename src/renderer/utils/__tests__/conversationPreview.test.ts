@@ -33,6 +33,15 @@ describe('selectConversationPreview', () => {
     expect(preview.remainingRequests).toBe(1)
     expect(preview.messages.map((m) => m.id)).toEqual(['question'])
   })
+  it('keeps the latest user question when multiple assistant chunks follow it', () => {
+    const user: CherryUIMessage = { id: 'user', role: 'user', parts: [{ type: 'text', text: 'Question' }] }
+    const intermediate: CherryUIMessage = { ...reply, id: 'intermediate' }
+    expect(selectConversationPreview([user, intermediate, reply]).messages.map((message) => message.id)).toEqual([
+      'user',
+      'reply'
+    ])
+    expect(selectConversationPreview([reply, user]).messages.map((message) => message.id)).toEqual(['user'])
+  })
   it('advances after resolution, then returns to the latest conversation tail', () => {
     const answered: CherryUIMessage = {
       ...question,
