@@ -5,6 +5,7 @@ import { EditorContent, type NodeViewProps } from '@tiptap/react'
 import { Check, ChevronRight, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
 import React, {
   startTransition,
+  use,
   useCallback,
   useEffect,
   useId,
@@ -29,6 +30,7 @@ import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
@@ -68,6 +70,7 @@ import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools
 import type { ComposerInputFilePreviewAction } from './filePreview'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
+import { handleMarkdownCodeKey } from './markdownLivePreview/codeBlockKeys'
 import pasteHandling, { shouldHandleClipboardFiles } from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
@@ -659,6 +662,9 @@ export default function ComposerSurfaceRuntime({
   const sendMessageShortcutRef = useRef(sendMessageShortcut)
   const newlineShortcutRef = useRef(newlineShortcut)
   const steerShortcutRef = useRef(steerShortcut)
+  const markdownLivePreviewRef = useRef(markdownLivePreview)
+  // A surface can render outside CodeStyleProvider and then keeps the default code colors.
+  const codeBlockStyle = use(CodeStyleContext)?.codeBlockStyle
   const setFilesRef = useRef(setFiles)
   const onSendDraftRef = useRef(onSendDraft)
   const onShiftTabRef = useRef(onShiftTab)
@@ -683,6 +689,7 @@ export default function ComposerSurfaceRuntime({
     sendMessageShortcutRef.current = sendMessageShortcut
     newlineShortcutRef.current = newlineShortcut
     steerShortcutRef.current = steerShortcut
+    markdownLivePreviewRef.current = markdownLivePreview
     setFilesRef.current = setFiles
     onSendDraftRef.current = onSendDraft
     onShiftTabRef.current = onShiftTab
@@ -691,6 +698,7 @@ export default function ComposerSurfaceRuntime({
   }, [
     filesCount,
     steerShortcut,
+    markdownLivePreview,
     isExpanded,
     isInputHistoryActive,
     newlineShortcut,
@@ -1638,6 +1646,12 @@ export default function ComposerSurfaceRuntime({
           return true
         }
 
+        if (markdownLivePreviewRef.current && handleMarkdownCodeKey(view, event)) {
+          event.preventDefault()
+          event.stopPropagation()
+          return true
+        }
+
         if (event.key === 'Tab' && !event.isComposing && !quickPanelRef.current.isVisible) {
           const targetToken = editorRef.current
             ? selectPromptVariableToken(editorRef.current, event.shiftKey ? -1 : 1)
@@ -2446,7 +2460,10 @@ export default function ComposerSurfaceRuntime({
               'min-w-0 flex-1 [-webkit-app-region:no-drag]',
               isCompact && '[&>[data-slot=scroll-area-scrollbar]]:hidden'
             )}
-            style={isCompact ? compactEditorContentStyle : editorContentStyle}
+            style={{
+              ...(markdownLivePreview && codeBlockStyle),
+              ...(isCompact ? compactEditorContentStyle : editorContentStyle)
+            }}
             viewportProps={{ style: isCompact ? { overflowY: 'hidden' } : undefined }}
             contentProps={{ className: 'grid min-h-full' }}>
             <EditorContent

@@ -269,6 +269,45 @@
   line-height: 0 !important;
 }
 
+.composer-tiptap.tiptap p.composer-md-cb-line {
+  position: relative;
+  border-right: 0.5px solid var(--border);
+  border-left: 0.5px solid var(--border);
+  background: var(--code-background, var(--background-subtle));
+  padding: 0 12px;
+  color: var(--code-foreground, var(--foreground));
+  font-size: 0.93em;
+  font-family: var(--code-font-family);
+  line-height: 1.55 !important;
+}
+
+.composer-tiptap.tiptap p.composer-md-cb-first {
+  margin-top: 4px !important;
+  border-top: 0.5px solid var(--border);
+  border-top-right-radius: 8px;
+  border-top-left-radius: 8px;
+  padding-top: 8px;
+}
+
+.composer-tiptap.tiptap p.composer-md-cb-last {
+  margin-bottom: 4px !important;
+  border-bottom: 0.5px solid var(--border);
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+  padding-bottom: 8px;
+}
+
+.composer-tiptap.tiptap p.composer-md-cb-first[data-language]::after {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  content: attr(data-language);
+  pointer-events: none;
+  user-select: none;
+}
+
 .tiptap img:not([data-file-token-icon-thumbnail]) {
   max-width: 800px;
   width: 100%;

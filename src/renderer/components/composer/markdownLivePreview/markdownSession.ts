@@ -15,6 +15,17 @@ export interface SourceLine {
   blockSize: number
 }
 
+export interface MarkdownCodeBlock {
+  language: string
+  code: string
+  reveal: { from: number; to: number }
+  open: SourceLine
+  codeLines: SourceLine[]
+  close?: SourceLine
+  /** Inside a quote or list each line carries a container prefix, so its columns are not code columns. */
+  nested: boolean
+}
+
 /** The edited source window, in offsets of the previous and the next text. */
 export interface SourceChange {
   from: number

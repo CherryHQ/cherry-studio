@@ -455,7 +455,11 @@ describe('Markdown live preview', () => {
         '**',
         '`',
         '>',
-        '#'
+        '#',
+        '```',
+        '```js',
+        '~~~',
+        '    '
       ]
       let seed = 20261109
       const random = (limit: number) => {
