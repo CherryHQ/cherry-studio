@@ -293,6 +293,23 @@ describe('UserAccountPanel', () => {
     expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(false)
   })
 
+  it.each([
+    ['while the avatar dot is showing', false, { via: 'avatar_dot' }],
+    ['after the dot has been dismissed', true, {}]
+  ] as const)('credits a Subscribe click to the avatar dot only %s', async (_case, seen, extra) => {
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    MockUseCacheUtils.setPersistCacheValue('ui.cherry_cloud.subscribe_prompt_seen', seen)
+    session = { phase: 'signed-out', accountId: null, displayName: null }
+    const user = userEvent.setup()
+
+    renderAccount(<UserAccountPanel />)
+    await waitFor(() => expect(screen.queryByTestId('subscribe-reminder-dot') !== null).toBe(!seen))
+    await user.click(await screen.findByRole('button', { name: /去订阅/ }))
+
+    const call = request.mock.calls.find(([route]) => route === 'cherry_cloud.subscription.start')
+    expect(call?.[1]).toEqual({ source: 'account_panel', flowId: expect.any(String), ...extra })
+  })
+
   it('opens the subscription page when signed in without a paid plan', async () => {
     vi.stubEnv('DEV', false)
     plans.entitlements = [
