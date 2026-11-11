@@ -11,7 +11,7 @@ import {
   DialogTitle,
   EmptyState,
   ReorderableList,
-  Scrollbar,
+  ScrollArea,
   Skeleton
 } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
@@ -106,7 +106,9 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
           <Plus className="size-4" />
           {t('settings.prompts.add')}
         </Button>
-        <Scrollbar className="max-h-[60vh] overflow-y-auto" data-ui="part:prompt-preset-list">
+        <ScrollArea
+          viewportProps={{ className: 'overflow-y-auto', 'data-ui': 'part:prompt-preset-list' }}
+          className="max-h-[60vh]">
           {error ? (
             <div role="alert" className="flex flex-col items-center gap-3 py-8">
               <span>{t('settings.prompts.errors.loadFailed')}</span>
@@ -140,14 +142,13 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
                   className="flex items-center gap-2 rounded-lg border border-border p-2">
                   <Button
                     ref={state.dragHandleProps?.ref}
-                    {...state.dragHandleProps?.attributes}
-                    {...state.dragHandleProps?.listeners}
                     data-ui="part:prompt-preset-drag"
                     variant="ghost"
                     size="icon"
                     disabled={busy}
                     aria-label={t('settings.prompts.reorder', { title: prompt.title })}
-                    title={t('settings.prompts.reorder', { title: prompt.title })}>
+                    title={t('settings.prompts.reorder', { title: prompt.title })}
+                    className="text-muted-foreground">
                     <GripVertical className="size-4" />
                   </Button>
                   <Button
@@ -168,7 +169,8 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
                     size="icon"
                     disabled={busy}
                     aria-label={t('settings.prompts.edit')}
-                    onClick={() => setEditor({ prompt })}>
+                    onClick={() => setEditor({ prompt })}
+                    className="text-muted-foreground">
                     <Pencil className="size-4" />
                   </Button>
                   <Button
@@ -177,14 +179,15 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
                     size="icon"
                     disabled={busy}
                     aria-label={t('settings.prompts.delete')}
-                    onClick={() => setDeleteTarget(prompt)}>
+                    onClick={() => setDeleteTarget(prompt)}
+                    className="text-muted-foreground">
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
               )}
             />
           )}
-        </Scrollbar>
+        </ScrollArea>
         <PromptEditDialog
           open={editor !== null}
           prompt={editor?.prompt}

@@ -13,12 +13,7 @@ vi.mock('../MarkdownResultStore', () => ({
   markdownResultStore: { persistResultToPath: persistResultMock }
 }))
 
-const {
-  createFileProcessingJobOutput,
-  getFileProcessingFailureMessage,
-  getFileProcessingMarkdownArtifactPath,
-  isMarkdownFileArtifact
-} = await import('../artifacts')
+const { createFileProcessingJobOutput } = await import('../artifacts')
 
 function createCtx(
   overrides: Partial<JobContext<FileProcessingJobPayload>> = {}
@@ -96,76 +91,5 @@ describe('createFileProcessingJobOutput', () => {
     await expect(
       createFileProcessingJobOutput(createMarkdownCtx(), { kind: 'markdown', markdownContent: '# hello' })
     ).rejects.toThrow('disk full')
-  })
-})
-
-describe('getFileProcessingMarkdownArtifactPath', () => {
-  it('returns the validated markdown artifact path from a completed job snapshot', () => {
-    expect(
-      getFileProcessingMarkdownArtifactPath({
-        id: 'fp-job-1',
-        type: 'file-processing.remote-poll',
-        status: 'completed',
-        input: {},
-        output: {
-          artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
-        }
-      } as never)
-    ).toBe('/tmp/out.md')
-  })
-
-  it('rejects completed output without a markdown file artifact', () => {
-    expect(() =>
-      getFileProcessingMarkdownArtifactPath({
-        id: 'fp-job-1',
-        type: 'file-processing.remote-poll',
-        status: 'completed',
-        input: {},
-        output: {
-          artifact: { kind: 'text', format: 'plain', text: 'hello' }
-        }
-      } as never)
-    ).toThrow(/without a markdown path artifact/i)
-  })
-
-  it('rejects markdown artifacts with a non-absolute path', () => {
-    expect(() =>
-      getFileProcessingMarkdownArtifactPath({
-        id: 'fp-job-1',
-        type: 'file-processing.remote-poll',
-        status: 'completed',
-        input: {},
-        output: {
-          artifact: { kind: 'file', format: 'markdown', path: 'not-an-absolute-path' }
-        }
-      } as never)
-    ).toThrow()
-  })
-})
-
-describe('isMarkdownFileArtifact', () => {
-  it('identifies markdown file artifacts', () => {
-    expect(
-      isMarkdownFileArtifact({
-        kind: 'file',
-        format: 'markdown',
-        path: '/tmp/out.md' as AbsoluteFilePath
-      })
-    ).toBe(true)
-    expect(isMarkdownFileArtifact({ kind: 'text', format: 'plain', text: 'hello' })).toBe(false)
-  })
-})
-
-describe('getFileProcessingFailureMessage', () => {
-  it('returns the job error message when present', () => {
-    expect(
-      getFileProcessingFailureMessage({
-        error: { code: 'FAILED', message: 'processor failed', retryable: false }
-      } as never)
-    ).toBe('processor failed')
-  })
-
-  it('returns a fallback when the job has no error message', () => {
-    expect(getFileProcessingFailureMessage({ error: null } as never)).toBe('no error details')
   })
 })

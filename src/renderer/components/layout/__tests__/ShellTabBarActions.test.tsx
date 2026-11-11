@@ -83,6 +83,10 @@ afterEach(() => {
 })
 
 describe('ShellTabBarActions', () => {
+  it('does not duplicate the notification bell while the sidebar is visible', () => {
+    render(<ShellTabBarActions />)
+    expect(screen.queryByRole('button', { name: 'Notification center' })).not.toBeInTheDocument()
+  })
   it('opens global search from the action area', async () => {
     const user = userEvent.setup()
 
@@ -145,7 +149,7 @@ describe('ShellTabBarActions', () => {
     ])
   })
 
-  it.each([50, 180])('keeps settings in the sidebar at width %ipx', (width) => {
+  it.each([50, 180])('keeps standalone settings out of the tab bar at width %ipx', (width) => {
     cacheService.setPersist('ui.sidebar.width', width)
     render(<ShellTabBarActions />)
 

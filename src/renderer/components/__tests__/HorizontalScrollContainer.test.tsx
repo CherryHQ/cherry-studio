@@ -83,7 +83,7 @@ describe('HorizontalScrollContainer', () => {
       </HorizontalScrollContainer>
     )
 
-    const content = screen.getByText('Tokens: 42').closest('[data-scrolling]') as HTMLElement
+    const content = screen.getByText('Tokens: 42').closest('[data-horizontal-scroll-viewport]') as HTMLElement
     setElementSize(content, { clientWidth: 100, scrollWidth: 300 })
     fireEvent.resize(window)
 
@@ -107,7 +107,7 @@ describe('HorizontalScrollContainer', () => {
       </HorizontalScrollContainer>
     )
 
-    const content = screen.getByText('Tokens: 42').closest('[data-scrolling]') as HTMLElement
+    const content = screen.getByText('Tokens: 42').closest('[data-horizontal-scroll-viewport]') as HTMLElement
     setElementSize(content, { clientWidth: 100, scrollWidth: 300 })
 
     triggerResizeObserver()
@@ -126,7 +126,7 @@ describe('HorizontalScrollContainer', () => {
       </HorizontalScrollContainer>
     )
 
-    const content = screen.getByText('Tokens: 42').closest('[data-scrolling]') as HTMLElement
+    const content = screen.getByText('Tokens: 42').closest('[data-horizontal-scroll-viewport]') as HTMLElement
     const scrollBy = vi.fn()
     Object.defineProperty(content, 'scrollBy', { configurable: true, value: scrollBy })
     setElementSize(content, { clientWidth: 100, scrollWidth: 300 })

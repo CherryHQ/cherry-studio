@@ -46,7 +46,12 @@ interface ExportAnnotationsInput {
  * `setWindowOpenHandler` replaces whatever was installed before it.
  */
 function configureOpenLinkExternal(webview: Electron.WebContents, isExternal: boolean) {
-  webview.setWindowOpenHandler(({ url }) => {
+  webview.setWindowOpenHandler(({ url, disposition }) => {
+    // Keep popup windows in the guest session so auth cookies and opener callbacks survive.
+    if (disposition === 'new-window' && (url.startsWith('http:') || url.startsWith('https:'))) {
+      return { action: 'allow' }
+    }
+
     if (isExternal || application.get('PreferenceService').get('app.browser.open_links_in_browser')) {
       if (isSafeExternalUrl(url)) {
         void application
