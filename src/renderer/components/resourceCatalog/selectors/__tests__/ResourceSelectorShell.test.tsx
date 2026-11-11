@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -67,6 +67,30 @@ afterEach(() => {
 function openPopover() {
   fireEvent.click(screen.getByRole('button', { name: /open/i }))
 }
+
+it('shows assistant images and falls back to emoji when absent or broken', async () => {
+  render(
+    <ResourceSelectorShell
+      trigger={<button type="button">Open</button>}
+      items={[
+        { id: 'image', name: 'Photo assistant', emoji: '🎓', avatarSrc: 'file:///avatar.webp' },
+        { id: 'emoji', name: 'Emoji assistant', emoji: '🤖' }
+      ]}
+      value={null}
+      onChange={vi.fn()}
+      pinnedIds={[]}
+      onTogglePin={vi.fn()}
+      labels={LABELS}
+    />
+  )
+  openPopover()
+  const image = await screen.findByRole('img', { name: 'Photo assistant' })
+  expect(image).toHaveAttribute('src', 'file:///avatar.webp')
+  expect(within(getRow('Emoji assistant')).getByText('🤖')).toBeVisible()
+  fireEvent.error(image)
+  expect(within(getRow('Photo assistant')).getByText('🎓')).toBeVisible()
+  expect(screen.queryByRole('img')).not.toBeInTheDocument()
+})
 
 function getRow(name: string) {
   return screen.getByRole('option', { name: new RegExp(name) })

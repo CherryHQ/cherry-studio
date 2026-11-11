@@ -256,8 +256,22 @@
     {
       "idx": 36,
       "version": "6",
-      "when": 1794204922738,
-      "tag": "0036_known_masque",
+      "when": 1794385320323,
+      "tag": "0036_assistant_avatar",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1794385698412,
+      "tag": "0037_agent_avatar",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1794395392608,
+      "tag": "0038_great_rafael_vega",
       "breakpoints": true
     }
   ],

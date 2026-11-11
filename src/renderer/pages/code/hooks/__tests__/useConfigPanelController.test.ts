@@ -82,6 +82,30 @@ describe('useConfigPanelController', () => {
     mocks.sanitizeCliConfigBlob.mockImplementation((_tool: string, blob: unknown) => blob)
   })
 
+  it.each(['p1', CLI_OWN_LOGIN_PROVIDER_ID])(
+    'opens a fresh editor session for %s after cancellation while preserving its saved config',
+    (providerId) => {
+      const savedConfig = { modelId: null, config: { effortLevel: 'medium' } }
+      const options = { ...baseOptions(), providerConfigs: { [providerId]: savedConfig } }
+      const { result, rerender } = renderHook(() => useConfigPanelController(options))
+      const provider = { id: providerId } as Provider
+      act(() => result.current.openConfigurePanel(provider))
+      const originalKey = result.current.configPanelKey
+      const originalPanel = result.current.configPanelProps ?? result.current.ownLoginConfigPanelProps!
+      rerender()
+      expect(result.current.configPanelKey).toBe(originalKey)
+
+      act(() => originalPanel.onClose())
+      act(() => result.current.openConfigurePanel(provider))
+
+      // The editor owns its draft at mount; a new session discards canceled edits even during exit retention.
+      expect(result.current.configPanelKey).not.toBe(originalKey)
+      const reopenedPanel = result.current.configPanelProps ?? result.current.ownLoginConfigPanelProps!
+      expect(reopenedPanel.providerConfig).toEqual(savedConfig)
+      expect(options.upsertProviderConfig).not.toHaveBeenCalled()
+    }
+  )
+
   describe('onToggleCurrent in-flight guard', () => {
     // Regression: writeCliConfigDraft / clearCliConfig write multiple files sequentially with no
     // cross-file lock, so a rapid second toggle for the same tool must be dropped, not interleaved.

@@ -4410,4 +4410,47 @@ describe('MessageService', () => {
       expect(stateOf(duplicate?.parts, 'ap-a')).toBe('approval-responded')
     })
   })
+
+  it('keeps frozen author refs through placeholder, edit, finalization and retry, then cascades on delete', async () => {
+    const fileId = '019606a0-0000-7000-8000-00000000aa02'
+    const topicId = 'avatar-history'
+    await seedFileEntry(fileId)
+    await seedTopicWithRoot(topicId)
+    const snapshot = {
+      id: 'author',
+      name: 'Author',
+      emoji: '🌟',
+      avatarFileId: fileId,
+      model: { id: 'm', name: 'M', provider: 'p' }
+    }
+    const readRefs = (id: string) =>
+      dbh.db
+        .select({ fileEntryId: chatMessageFileRefTable.fileEntryId, role: chatMessageFileRefTable.role })
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, id))
+        .all()
+    const expected = [{ fileEntryId: fileId, role: 'author_avatar' }]
+    const created = messageService.create(topicId, {
+      role: 'assistant',
+      data: mainText('initial'),
+      messageSnapshot: snapshot
+    })
+    expect(readRefs(created.id)).toEqual(expected)
+    const { placeholders } = messageService.createUserMessageWithPlaceholders({
+      topicId,
+      userMessage: { mode: 'create', dto: { role: 'user', data: mainText('Q') } },
+      placeholders: [{ role: 'assistant', data: mainText(''), messageSnapshot: snapshot }]
+    })
+    const id = placeholders[0].id
+    expect(readRefs(id)).toEqual(expected)
+    messageService.update(id, { data: mainText('edited') })
+    expect(readRefs(id)).toEqual(expected)
+    messageService.finalizeAssistantMessage(id, { data: mainText('failed'), status: 'error' })
+    expect(readRefs(id)).toEqual(expected)
+    messageService.resetAssistantForRetry(id)
+    expect(readRefs(id)).toEqual(expected)
+    expect(messageService.getById(id).messageSnapshot).toEqual(snapshot)
+    messageService.delete(id)
+    expect(readRefs(id)).toEqual([])
+  })
 })
