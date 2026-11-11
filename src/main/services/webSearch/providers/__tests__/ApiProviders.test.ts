@@ -632,9 +632,7 @@ describe('main web search API providers', () => {
       body: null,
       headers: {
         accept: 'application/json',
-        authorization: 'Bearer serpkite-key',
-        'http-referer': 'https://cherry-ai.com',
-        'x-title': 'Cherry Studio'
+        authorization: 'Bearer serpkite-key'
       },
       method: 'GET',
       url: 'https://api.serpkite.com/v1/search?q=latest+web+research&num=4'
