@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import {
   ContextMenu,
@@ -26,6 +26,8 @@ import {
 import { loggerService } from '@logger'
 import {
   useCommandContextReader,
+  useCommandKeyboardBoundary,
+  useCommandOrigin,
   useCommandMenuPresentationMode,
   useCommandRuntime,
   useCommandShortcutPreferences,
@@ -49,6 +51,42 @@ type CommandIconRenderer = (iconKey: string | undefined) => React.ReactNode
 const logger = loggerService.withContext('CommandMenus')
 
 export type MaybePromise<T> = T | PromiseLike<T>
+
+function useNativeMenuRequest() {
+  const captureOrigin = useCommandOrigin()
+  const openBoundary = useCommandKeyboardBoundary()
+  const currentRef = useRef<{ close: () => boolean } | null>(null)
+  useLayoutEffect(
+    () => () => {
+      currentRef.current?.close()
+    },
+    []
+  )
+
+  return useCallback(
+    (target: EventTarget | null) => {
+      currentRef.current?.close()
+      const origin = captureOrigin(target)
+      const releaseBoundary = openBoundary()
+      let open = true
+      const request = {
+        origin,
+        isCurrent: () => open && currentRef.current === request && origin.isActive(),
+        close: () => {
+          if (!open) return false
+          open = false
+          releaseBoundary()
+          if (currentRef.current !== request) return false
+          currentRef.current = null
+          return true
+        }
+      }
+      currentRef.current = request
+      return request
+    },
+    [captureOrigin, openBoundary]
+  )
+}
 
 export type CommandContextMenuExtraItem =
   | { type: 'separator' }
@@ -251,7 +289,10 @@ function CommandContextMenuExtraItemView({
           <ContextMenuItemContent icon={item.icon}>{item.label}</ContextMenuItemContent>
         </ContextMenuSubTrigger>
         <ContextMenuSubContent>
-          <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-1' }} className="-mr-1 max-h-72">
+          <ScrollArea
+            contentProps={{ className: 'pr-1' }}
+            viewportProps={{ className: 'overflow-x-hidden' }}
+            className="-mr-1 max-h-72">
             {item.children.map((child, index) => (
               <CommandContextMenuExtraItemView
                 key={`${child.type}-${index}`}
@@ -347,6 +388,7 @@ export function CommandContextMenu({
   const [resolvedExtraItems, setResolvedExtraItems] = useState<readonly CommandContextMenuExtraItem[] | null>(null)
   const extraItemsRequestIdRef = useRef(0)
   const runtime = useCommandRuntime()
+  const beginNativeRequest = useNativeMenuRequest()
   const model = useResolvedCommandMenu(location)
   const mode = resolveMenuPresentationMode(location, preferredMode ?? 'cherry')
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
@@ -480,6 +522,7 @@ export function CommandContextMenu({
         x: Math.round(event.clientX),
         y: Math.round(event.clientY)
       }
+      const request = beginNativeRequest(event.target)
       const requestId = extraItemsRequestIdRef.current + 1
       extraItemsRequestIdRef.current = requestId
       onOpenChange?.(true)
@@ -498,7 +541,7 @@ export function CommandContextMenu({
           return EMPTY_EXTRA_ITEMS
         })
         .then((resolvedNativeExtraItems) => {
-          if (extraItemsRequestIdRef.current !== requestId) {
+          if (extraItemsRequestIdRef.current !== requestId || !request.isCurrent()) {
             return
           }
 
@@ -514,12 +557,12 @@ export function CommandContextMenu({
           }
 
           return window.api.command.showNativePopupMenu(nativeModel as never, anchor).then((result) => {
-            if (extraItemsRequestIdRef.current !== requestId) {
+            if (extraItemsRequestIdRef.current !== requestId || !request.isCurrent()) {
               return
             }
 
             if (result?.type === 'command') {
-              runtime.execute(result.command)
+              request.origin.execute(result.command)
               return
             }
 
@@ -532,12 +575,12 @@ export function CommandContextMenu({
           logger.error('Failed to show native command menu', error as Error)
         })
         .finally(() => {
-          if (extraItemsRequestIdRef.current === requestId) {
+          if (request.close() && extraItemsRequestIdRef.current === requestId) {
             onOpenChange?.(false)
           }
         })
     },
-    [commandItems, location, mode, onOpenChange, resolveExtraItemShortcutLabels, resolveExtraItems, runtime]
+    [beginNativeRequest, commandItems, location, mode, onOpenChange, resolveExtraItemShortcutLabels, resolveExtraItems]
   )
 
   if (disabled || (!combinedItems.length && !hasLazyExtraItems)) {
@@ -674,7 +717,10 @@ function CommandDropdownExtraItemView({
           <ContextMenuItemContent icon={item.icon}>{item.label}</ContextMenuItemContent>
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
-          <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-1' }} className="-mr-1 max-h-72">
+          <ScrollArea
+            contentProps={{ className: 'pr-1' }}
+            viewportProps={{ className: 'overflow-x-hidden' }}
+            className="-mr-1 max-h-72">
             {item.children.map((child, index) => (
               <CommandDropdownExtraItemView key={`${child.type}-${index}`} item={child} onSelectItem={onSelectItem} />
             ))}
@@ -741,6 +787,7 @@ export function CommandPopupMenu({
   const context = useCommandContextReader()
   const shortcutPreferences = useCommandShortcutPreferences()
   const runtime = useCommandRuntime()
+  const beginNativeRequest = useNativeMenuRequest()
   const model = useResolvedCommandMenu(location)
   const mode = resolveMenuPresentationMode(location, presentationMode ?? preferredMode ?? 'cherry')
   const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false)
@@ -789,21 +836,23 @@ export function CommandPopupMenu({
       const nativeItems = combinedItems.map(toNativePopupMenuItem)
       if (!nativeItems.length) return
       const model: NativePopupMenuModel<CommandId> = { location, items: nativeItems }
+      const request = beginNativeRequest(event.target)
       onOpenChange?.(true)
       try {
         const result = await window.api.command.showNativePopupMenu(model, anchor)
+        if (!request.isCurrent()) return
         if (result?.type === 'command') {
-          runtime.execute(result.command)
+          request.origin.execute(result.command)
         } else if (result?.type === 'custom') {
           getExtraItemActions(decoratedExtraItems).get(result.id)?.()
         }
       } catch (error) {
         logger.error('Failed to show native command popup menu', error as Error)
       } finally {
-        onOpenChange?.(false)
+        if (request.close()) onOpenChange?.(false)
       }
     },
-    [combinedItems, decoratedExtraItems, location, mode, runtime, onOpenChange]
+    [beginNativeRequest, combinedItems, decoratedExtraItems, location, mode, onOpenChange]
   )
 
   const handleCherryOpenChange = useCallback(

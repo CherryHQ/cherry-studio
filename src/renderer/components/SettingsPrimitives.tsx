@@ -28,11 +28,13 @@ export const SettingsContentColumn = ({
   theme,
   children,
   viewportProps,
+  contentProps,
   ...rest
 }: React.ComponentPropsWithoutRef<typeof ScrollArea> & { theme?: ThemeMode; innerClassName?: string }) => (
   <ScrollArea
     className={cn('min-h-0 min-w-0 flex-1', className)}
-    viewportProps={{ ...viewportProps, className: cn('p-6', viewportProps?.className), 'data-theme-mode': theme }}
+    viewportProps={{ ...viewportProps, 'data-theme-mode': theme }}
+    contentProps={{ ...contentProps, className: cn('p-6', contentProps?.className) }}
     {...rest}>
     <div className={cn('mx-auto w-full max-w-3xl shrink-0', innerClassName)}>{children}</div>
   </ScrollArea>

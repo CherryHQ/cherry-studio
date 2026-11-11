@@ -4,6 +4,8 @@ Status: proposed
 
 [English](2026-10-18-agent-runtime-subagent-control.md) | 中文
 
+旧 Pi 执行器的源码／测试链接固定在收缩前的 `46d76e4`，仅保留历史证据。现行实现及测试归属见[运行时边界收缩方案](../simplification/2026-11-05-agent-runtime-boundary-ownership.md)第 11 节；这些旧入口已退出生产路径。
+
 ## Problem
 
 Cherry 需要观察子智能体、管理委派工作，并在 harness 支持时继续与子智能体对话。有些 harness 只暴露任务结果，有些则提供可独立访问的会话。发现、观察、输入和取消是相互独立的能力。
@@ -26,7 +28,7 @@ Cherry 需要观察子智能体、管理委派工作，并在 harness 支持时�
 
 继续使用 `packages/agent-runtime-pi` 中现有的子智能体实现。Cherry 有自己的 UI，当前选择不承担社区插件的 TUI 集成和终端交互假设带来的接入工作。这是一项集成决策，不表示所有社区插件都依赖 TUI 或无法无界面运行。社区实现仍可作为参考；若要改变该选择，需要针对具体可复用的执行接口，独立于其展示层进行评估。
 
-[Pi 子智能体扩展](../../../../packages/agent-runtime-pi/src/subagent.ts)拥有子会话创建、续接、运行跟踪和结果交付职责，继续复用 Pi 原生会话、工具、执行循环和存储。Cherry 负责展示、权限和产品配置；扩展与公共运行时包不能依赖终端组件或 Cherry renderer 代码。[后台子智能体文档](../feature/2026-10-14-agent-runtime-background-subagent.md)维护 Pi 专属行为。
+[Pi 子智能体扩展](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagent.ts)拥有子会话创建、续接、运行跟踪和结果交付职责，继续复用 Pi 原生会话、工具、执行循环和存储。Cherry 负责展示、权限和产品配置；扩展与公共运行时包不能依赖终端组件或 Cherry renderer 代码。[后台子智能体文档](../feature/2026-10-14-agent-runtime-background-subagent.md)维护 Pi 专属行为。
 
 ### 分开父子关系、上下文与分配的工作
 
@@ -104,7 +106,7 @@ Pi 与 Pi Durable 可以实现一致的 Cherry 子智能体行为，同时保留
 
 只有两个实现都需要相同行为时，才提取纯请求校验或结果格式化规则。不要先把 Pi 的 registry、run 计数、inbox 和 delivery pump 搬进 `agent-runtime`。Durable 的 anchor、reporter、submission 去重与 answer entry 去重仍需使用原生 commit 和重放机制。多条输入可以共享一个答案，输入接纳或观察到该答案，都不能成为再次向父方报告的授权。
 
-适配 Durable 时已有一项需要对齐的产品策略：[Cherry Pi 的交付实现](../../../../packages/agent-runtime-pi/src/subagentDelivery.ts)在用户停止父方后禁止自动唤醒，直到另一轮运行开始；上游 Durable 示例则允许停止之后到达的报告启动父方新一轮执行。适配这一行为时应保留 Cherry 现有停止策略，按需用原生持久状态实现，不能直接继承示例的时序。源码对照不代表已经实现这种行为一致性。
+适配 Durable 时已有一项需要对齐的产品策略：[Cherry Pi 的交付实现](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagentDelivery.ts)在用户停止父方后禁止自动唤醒，直到另一轮运行开始；上游 Durable 示例则允许停止之后到达的报告启动父方新一轮执行。适配这一行为时应保留 Cherry 现有停止策略，按需用原生持久状态实现，不能直接继承示例的时序。源码对照不代表已经实现这种行为一致性。
 
 ### 尚需明确的决策
 

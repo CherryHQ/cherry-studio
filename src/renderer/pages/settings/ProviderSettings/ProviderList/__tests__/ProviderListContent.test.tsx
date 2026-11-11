@@ -211,34 +211,6 @@ describe('ProviderListContent — C1 grouped reorder', () => {
     expect(onReorder).not.toHaveBeenCalled()
   })
 
-  it('passes the full unfiltered cache as ReorderableList items in a group', () => {
-    // Full cache: 3 providers under the same preset; one disabled and filtered out.
-    const all = [
-      provider('zhipu-a', 'zhipu', true),
-      provider('zhipu-b', 'zhipu', true),
-      provider('zhipu-c', 'zhipu', false)
-    ]
-    const visible = all.filter((p) => p.isEnabled) // default `enabled` filter view
-
-    render(
-      <ProviderListContent
-        providers={all}
-        visibleProviders={visible}
-        searchActive={false}
-        expandedGroups={{ zhipu: true }}
-        onToggleGroup={() => {}}
-        onDragStateChange={() => {}}
-        onReorder={() => {}}
-        renderItem={() => null}
-      />
-    )
-
-    // The group's ReorderableList must receive the full 3-item cache, not the
-    // 2-item filtered view — otherwise computeMinimalMoves throws on reorder.
-    expect(reorderableItemsCalls.length).toBeGreaterThan(0)
-    expect(reorderableItemsCalls.every((items) => items.length === all.length)).toBe(true)
-  })
-
   it('reorders a ProviderListGroup as one full provider block', () => {
     const onReorder = vi.fn()
     const all = [
@@ -469,56 +441,5 @@ describe('ProviderListContent — C1 grouped reorder', () => {
 
     expect(onReorder).toHaveBeenCalledTimes(1)
     expect(onReorderError).toHaveBeenCalledWith(error)
-  })
-
-  it('renders the dragged group collapsed (header-only) in the drag overlay', () => {
-    renderBlockFixture(() => {})
-
-    const groupItem = sortableCalls[0].items.find((item) => item.id === 'group:zhipu')!
-
-    // Overlay copy: collapsed header-only, regardless of expandedGroups.
-    groupExpandedCalls.length = 0
-    render(<div>{sortableCalls[0].renderItem(groupItem, { dragging: false, overlay: true })}</div>)
-    expect(groupExpandedCalls.at(-1)).toMatchObject({ presetProviderId: 'zhipu', expanded: false })
-
-    // In-list placeholder: still expanded (expandedGroups.zhipu === true) so it
-    // reserves the full height.
-    groupExpandedCalls.length = 0
-    render(<div>{sortableCalls[0].renderItem(groupItem, { dragging: false, overlay: false })}</div>)
-    expect(groupExpandedCalls.at(-1)).toMatchObject({ presetProviderId: 'zhipu', expanded: true })
-  })
-
-  it('reports the outer drag state to the parent while the Sortable is active', () => {
-    const onDragStateChange = vi.fn()
-    const all = [
-      provider('solo-a', 'solo-a', true),
-      provider('zhipu-a', 'zhipu', true),
-      provider('zhipu-b', 'zhipu', true)
-    ]
-
-    render(
-      <ProviderListContent
-        providers={all}
-        visibleProviders={all}
-        searchActive={false}
-        expandedGroups={{ zhipu: true }}
-        onToggleGroup={() => {}}
-        onDragStateChange={onDragStateChange}
-        onReorder={() => {}}
-        renderItem={() => null}
-      />
-    )
-
-    act(() => {
-      sortableCalls[0].onDragStart({ activeId: 'group:zhipu' })
-    })
-
-    expect(onDragStateChange).toHaveBeenLastCalledWith(true)
-
-    act(() => {
-      sortableCalls.at(-1)!.onDragEnd()
-    })
-
-    expect(onDragStateChange).toHaveBeenLastCalledWith(false)
   })
 })

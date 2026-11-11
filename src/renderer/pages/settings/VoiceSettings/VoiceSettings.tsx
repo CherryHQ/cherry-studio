@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   Button,
+  HelpTooltip,
   InputNumber,
   Select,
   SelectContent,
@@ -18,7 +19,6 @@ import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
-  SettingDescription,
   SettingDivider,
   SettingGroup,
   SettingRow,
@@ -123,17 +123,19 @@ function statusKey(status: StatusState): string {
   if (status.status === 'installing') return 'settings.voice.status.installing'
   if (
     status.reason &&
-    [
-      'asset_required',
-      'download_failed',
-      'model_load_failed',
-      'model_required',
-      'voice_unavailable',
-      'worker_crashed'
-    ].includes(status.reason)
+    ['asset_required', 'download_failed', 'model_load_failed', 'voice_unavailable', 'worker_crashed'].includes(
+      status.reason
+    )
   )
     return `settings.voice.status.${status.reason}`
   return `settings.voice.status.${status.status}`
+}
+
+function recognitionStatusKey(status: StatusState): string {
+  if (status.status !== 'loading' && status.status !== 'installing' && status.reason === 'model_required') {
+    return 'settings.voice.status.model_required'
+  }
+  return statusKey(status)
 }
 
 function errorKey(error: boolean | string): string {
@@ -834,8 +836,10 @@ function VoiceSettings() {
 
   return (
     <SettingsContentColumn theme={theme} className="[&_[data-slot=select-trigger]]:max-w-full">
-      <h1 className="text-xl font-semibold text-foreground">{t('settings.voice.title')}</h1>
-      <SettingDescription>{t('settings.voice.description')}</SettingDescription>
+      <h1 className="flex items-center gap-1 text-xl font-semibold text-foreground">
+        <span>{t('settings.voice.title')}</span>
+        <HelpTooltip content={t('settings.voice.description')} placement="right" />
+      </h1>
 
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.voice.recognition.title')}</SettingTitle>
@@ -903,6 +907,11 @@ function VoiceSettings() {
         <SettingRow id="setting-voice-recognition-model" className="scroll-mt-6 flex-wrap gap-3">
           <div>
             <SettingRowTitle>{t('settings.voice.recognition.model')}</SettingRowTitle>
+            <div id="setting-voice-recognition-status" className="mt-2 text-sm">
+              <span role="status" className="text-muted-foreground">
+                {t(installingLocale ? 'settings.voice.status.installing' : recognitionStatusKey(recognitionStatus))}
+              </span>
+            </div>
           </div>
           <Select
             value={recognitionModel || EMPTY_VALUE}
@@ -1039,14 +1048,6 @@ function VoiceSettings() {
         </SettingRow>
         <SettingDivider />
         <DictationShortcutSettings />
-        <SettingDivider />
-        <div
-          id="setting-voice-recognition-status"
-          className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <span role="status" className="text-muted-foreground">
-            {t(installingLocale ? 'settings.voice.status.installing' : statusKey(recognitionStatus))}
-          </span>
-        </div>
         {canOpenMicrophoneSettings ? (
           <>
             <SettingDivider />
@@ -1231,10 +1232,10 @@ function VoiceSettings() {
         </div>
         <SettingDivider />
         <SettingRow id="setting-voice-auto-read" className="scroll-mt-6 flex-wrap gap-3">
-          <div>
-            <SettingRowTitle>{t('settings.voice.auto_read.label')}</SettingRowTitle>
-            <SettingDescription>{t('settings.voice.auto_read.description')}</SettingDescription>
-          </div>
+          <SettingRowTitle className="gap-1">
+            <span>{t('settings.voice.auto_read.label')}</span>
+            <HelpTooltip content={t('settings.voice.auto_read.description')} placement="right" />
+          </SettingRowTitle>
           <Switch
             ref={autoReadRef}
             aria-label={t('settings.voice.auto_read.label')}
