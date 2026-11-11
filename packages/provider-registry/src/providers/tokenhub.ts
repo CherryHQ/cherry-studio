@@ -33,6 +33,7 @@ export default defineProvider({
   overrides: [
     // Tencent-own
     { modelId: 'hy4', apiModelId: 'hy4' },
+    { modelId: 'hy4-flash', apiModelId: 'hy4-flash' },
     { modelId: 'hy4-preview', apiModelId: 'hy4-preview' },
     { modelId: 'hy-role', apiModelId: 'hy-role' },
     { modelId: 'hy-mt2-pro', apiModelId: 'hy-mt2-pro' },
