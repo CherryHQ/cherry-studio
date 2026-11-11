@@ -177,6 +177,7 @@
   "knowledge.source.invalid_url": "Introduceți un URL valid care începe cu http:// sau https://.",
   "local_agent.configuration_required": "Configurați un model și o cheie API în terminalul agentului, apoi încercați din nou.",
   "local_agent.model_unavailable": "Modelul selectat „{{model}}” nu mai este disponibil. Alegeți alt model în Servicii pentru agenți.",
+  "local_agent.runtime_required": "Este necesar {{runtime}} {{version}} sau o versiune ulterioară.",
   "notification.action_required.agent": "Agentul are nevoie de intervenția ta",
   "notification.action_required.assistant": "Asistentul are nevoie de intervenția ta",
   "notification.center.backup_failed": "Copia de siguranță a eșuat",

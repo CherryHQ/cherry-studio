@@ -275,10 +275,10 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   {
     id: 'pi-acp',
     terminalArgs: [],
-    terminalExecutable: 'pi',
     name: 'Pi',
     protocol: 'acp',
-    executable: 'pi-acp',
+    executable: 'pi',
+    npmPackage: '@earendil-works/pi-coding-agent',
     args: [],
     helpUrl: 'https://github.com/svkozak/pi-acp'
   },

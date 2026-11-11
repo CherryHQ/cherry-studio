@@ -6,10 +6,9 @@ import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { executeCommand } from '@main/utils/processRunner'
 import { getPathFromEnvironment } from '@main/utils/shellEnv'
-import type { LocalAgentPreset } from '@shared/ai/localAgent'
 
 export async function resolveRequiredRuntime(
-  runtime: NonNullable<LocalAgentPreset['requiredRuntime']>,
+  runtime: { executable: string; minimumVersion: string },
   env: Record<string, string>
 ) {
   const systemPath = await findExecutableInEnv(runtime.executable, { env })

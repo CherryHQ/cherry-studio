@@ -177,6 +177,7 @@
   "knowledge.source.invalid_url": "Geben Sie eine gültige URL ein, die mit http:// oder https:// beginnt.",
   "local_agent.configuration_required": "Konfigurieren Sie im Agent-Terminal ein Modell und einen API-Schlüssel und versuchen Sie es erneut.",
   "local_agent.model_unavailable": "Das gewählte Modell „{{model}}“ ist nicht mehr verfügbar. Wählen Sie in den Agent-Diensten ein anderes Modell.",
+  "local_agent.runtime_required": "{{runtime}} {{version}} oder neuer ist erforderlich.",
   "notification.action_required.agent": "Agent benötigt Ihre Eingabe",
   "notification.action_required.assistant": "Assistent benötigt Ihre Eingabe",
   "notification.center.backup_failed": "Sicherung fehlgeschlagen",

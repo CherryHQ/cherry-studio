@@ -119,7 +119,7 @@ export async function resolveLocalAgentLaunch(
   const lookupEnv = mergeEnvironment(shellEnv, preset?.env, config.env)
   let executable: string | undefined
   let source = 'system'
-  if (config.executableOverride && !(terminal && definition?.terminalExecutable)) {
+  if (config.executableOverride && !(terminal && (definition?.terminalExecutable || config.presetId === 'pi-acp'))) {
     executable = path.isAbsolute(config.executableOverride)
       ? config.executableOverride
       : ((await findExecutableInEnv(config.executableOverride, { env: lookupEnv })) ?? undefined)
@@ -189,6 +189,23 @@ export async function resolveLocalAgentLaunch(
             throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
           env[key] = value
         }
+      }
+    }
+  }
+  if (config.presetId === 'pi-acp' && !terminal && !config.executableOverride) {
+    const nativeExecutable = executable
+    const finalEnv = mergeEnvironment(env, preset?.env, config.env)
+    const runtime = await resolveRequiredRuntime({ executable: 'node', minimumVersion: '20.0.0' }, finalEnv)
+    if (!runtime) throw new Error(t('local_agent.runtime_required', { runtime: 'Node.js', version: '20' }))
+    return {
+      executable: runtime.path,
+      source: runtime.source,
+      args: [application.getPath('app.pi_acp.file'), ...config.args],
+      env: {
+        ...(runtime.source === 'mise'
+          ? mergeBinaryExecutionEnv(finalEnv, [path.dirname(runtime.path)])
+          : mergePathPrefixes(finalEnv, [path.dirname(runtime.path)])),
+        PI_ACP_PI_COMMAND: finalEnv.PI_ACP_PI_COMMAND || nativeExecutable
       }
     }
   }

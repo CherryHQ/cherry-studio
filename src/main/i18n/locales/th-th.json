@@ -177,6 +177,7 @@
   "knowledge.source.invalid_url": "ป้อน URL ที่ถูกต้องซึ่งขึ้นต้นด้วย http:// หรือ https://",
   "local_agent.configuration_required": "ตั้งค่าโมเดลและคีย์ API ในเทอร์มินัลของเอเจนต์ แล้วลองอีกครั้ง",
   "local_agent.model_unavailable": "โมเดล “{{model}}” ที่เลือกไม่พร้อมใช้งานแล้ว โปรดเลือกโมเดลอื่นในบริการเอเจนต์",
+  "local_agent.runtime_required": "ต้องใช้ {{runtime}} {{version}} หรือใหม่กว่า",
   "notification.action_required.agent": "เอเจนต์ต้องการข้อมูลจากคุณ",
   "notification.action_required.assistant": "ผู้ช่วยต้องการข้อมูลจากคุณ",
   "notification.center.backup_failed": "สำรองข้อมูลไม่สำเร็จ",

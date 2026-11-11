@@ -177,6 +177,7 @@
   "knowledge.source.invalid_url": "Enter a valid URL starting with http:// or https://.",
   "local_agent.configuration_required": "Configure a model and API key in the agent terminal, then try again.",
   "local_agent.model_unavailable": "The selected model “{{model}}” is no longer available. Choose another model in Agent Services.",
+  "local_agent.runtime_required": "{{runtime}} {{version}} or newer is required.",
   "notification.action_required.agent": "Agent needs your input",
   "notification.action_required.assistant": "Assistant needs your input",
   "notification.center.backup_failed": "Backup failed",

@@ -177,6 +177,7 @@
   "knowledge.source.invalid_url": "http:// veya https:// ile başlayan geçerli bir URL girin.",
   "local_agent.configuration_required": "Aracı terminalinde bir model ve API anahtarı yapılandırıp tekrar deneyin.",
   "local_agent.model_unavailable": "Seçilen “{{model}}” modeli artık kullanılamıyor. Aracı Hizmetleri bölümünde başka bir model seçin.",
+  "local_agent.runtime_required": "{{runtime}} {{version}} veya daha yenisi gereklidir.",
   "notification.action_required.agent": "Ajan için girdi gerekiyor",
   "notification.action_required.assistant": "Asistan için girdi gerekiyor",
   "notification.center.backup_failed": "Yedekleme başarısız oldu",

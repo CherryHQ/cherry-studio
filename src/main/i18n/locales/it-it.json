@@ -177,6 +177,7 @@
   "knowledge.source.invalid_url": "Inserisci un URL valido che inizi con http:// o https://.",
   "local_agent.configuration_required": "Configura un modello e una chiave API nel terminale dell’agente, quindi riprova.",
   "local_agent.model_unavailable": "Il modello selezionato «{{model}}» non è più disponibile. Scegli un altro modello nei servizi degli agenti.",
+  "local_agent.runtime_required": "È richiesto {{runtime}} {{version}} o successivo.",
   "notification.action_required.agent": "L'agente richiede il tuo intervento",
   "notification.action_required.assistant": "L'assistente richiede il tuo intervento",
   "notification.center.backup_failed": "Backup non riuscito",

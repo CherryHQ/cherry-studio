@@ -177,6 +177,7 @@
   "knowledge.source.invalid_url": "Введите корректный URL, начинающийся с http:// или https://.",
   "local_agent.configuration_required": "Настройте модель и ключ API в терминале агента, затем повторите попытку.",
   "local_agent.model_unavailable": "Выбранная модель «{{model}}» больше недоступна. Выберите другую модель в разделе сервисов агентов.",
+  "local_agent.runtime_required": "Требуется {{runtime}} {{version}} или новее.",
   "notification.action_required.agent": "Агент ожидает вашего ответа",
   "notification.action_required.assistant": "Ассистент ожидает вашего ответа",
   "notification.center.backup_failed": "Ошибка резервного копирования",

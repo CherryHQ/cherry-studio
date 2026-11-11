@@ -91,6 +91,9 @@ export function buildPathRegistry() {
     'app.session': appSession,
     'app.session.cache': path.join(appSession, 'Cache'), // Chromium cache Directory
     'app.session.webview': path.join(appSession, 'Partitions', 'webview'), // persist:webview Chromium partition
+    'app.pi_acp.file': app.isPackaged
+      ? path.join(appExtraResources, 'pi-acp', 'index.mjs')
+      : path.join(app.getAppPath(), 'out', 'pi-acp', 'index.mjs'),
     'app.extra_resources': appExtraResources, // electron-builder extraResources output root
     'app.temp': appTemp, // Cherry-specific temp under sys.temp
     'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned)
@@ -386,6 +389,10 @@ export function buildPathRegistry() {
     'external.devin.config': isWin
       ? path.join(sysHome, 'AppData', 'Roaming', 'devin')
       : path.join(sysHome, '.config', 'devin'),
+    'external.trae.installation': path.join(
+      process.env.XDG_DATA_HOME || path.join(sysHome, '.local', 'share'),
+      'traecli'
+    ),
     'external.trae.config': isWin
       ? path.join(sysHome, 'AppData', 'Roaming', 'trae_cli')
       : isMac

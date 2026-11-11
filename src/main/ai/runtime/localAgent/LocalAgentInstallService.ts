@@ -1,5 +1,5 @@
 import type { ChildProcess } from 'node:child_process'
-import { access, lstat, realpath, unlink } from 'node:fs/promises'
+import { access, lstat, readFile, realpath, rm, unlink } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
@@ -302,7 +302,74 @@ export class LocalAgentInstallService extends BaseService {
       return async () => {
         if (!(await uninstallBinaryAgent(target.executable, expectedPath))) throw new Error('Installation changed')
       }
-    // Only receipt-verified legacy uv installs are removable; source installs also contain user data.
+    if (target.executable === 'traecli' && process.platform !== 'win32') {
+      const bin = env.TRAECLI_INSTALL_DIR || env.XDG_BIN_HOME || application.getPath('external.acp.bin')
+      if (path.resolve(expectedPath) !== path.join(bin, 'traecli')) return undefined
+      const binary = await realpath(expectedPath)
+      const statePath = env.TRAECLI_STATE_DIR || application.getPath('external.trae.installation')
+      const state = await realpath(statePath).catch(() => statePath)
+      const release = path.dirname(binary)
+      const versioned = path.dirname(release) === path.join(state, 'releases') && path.basename(binary) === 'traex'
+      if (
+        !versioned &&
+        binary !== path.join(await realpath(bin), 'traex') &&
+        binary !== path.join(await realpath(bin), 'traecli')
+      )
+        return undefined
+      if (versioned) {
+        const receipt = JSON.parse(await readFile(path.join(release, 'trae-installation.json'), 'utf8'))
+        if (typeof receipt.auto_update !== 'boolean' || typeof receipt.channel !== 'string') return undefined
+        if ((await realpath(release)) !== release) return undefined
+      }
+      const help = await this.run(expectedPath, ['--help'], env, 8000, true)
+      if (!/TRAE CLI/.test(help)) return undefined
+      const original = await lstat(binary)
+      return async () => {
+        if (/app-server/.test(help)) await this.run(expectedPath, ['app-server', 'daemon', 'stop'], env, 30_000)
+        const current = await lstat(binary)
+        if (
+          (await realpath(expectedPath)) !== binary ||
+          current.ino !== original.ino ||
+          current.mtimeMs !== original.mtimeMs
+        )
+          throw new Error('Installation changed')
+        const entries: string[] = []
+        for (const name of ['traecli', 'traex', 'coco', 'trae-cli', 'trae-agent', 'ta']) {
+          const entry = path.join(bin, name)
+          const stat = await lstat(entry).catch(() => undefined)
+          if (stat?.isSymbolicLink() && (await realpath(entry).catch(() => undefined)) === binary) entries.push(entry)
+        }
+        for (const entry of entries) await unlink(entry)
+        if (versioned) {
+          const currentLink = path.join(state, 'current')
+          if (
+            (await lstat(currentLink).catch(() => undefined))?.isSymbolicLink() &&
+            (await realpath(currentLink)) === release
+          )
+            await unlink(currentLink)
+          await rm(release, { recursive: true })
+        } else await unlink(binary)
+      }
+    }
+    if (target.executable === 'hermes') {
+      const help = await this.run(expectedPath, ['uninstall', '--help'], env, 8000, true).catch(() => '')
+      if (/hermes/i.test(help) && /--yes\b/.test(help) && /--full\b/.test(help)) {
+        const resolved = await realpath(expectedPath)
+        const original = await lstat(resolved)
+        return async () => {
+          const current = await lstat(resolved)
+          if (
+            (await realpath(expectedPath)) !== resolved ||
+            current.dev !== original.dev ||
+            current.ino !== original.ino ||
+            current.mtimeMs !== original.mtimeMs
+          )
+            throw new Error('Installation changed')
+          // Without --full, Hermes preserves configuration, sessions and named profiles.
+          await this.run(expectedPath, ['uninstall', '--yes'], env)
+        }
+      }
+    }
     const recipe =
       target.executable === 'hermes' ? { manager: 'uv' as const, package: 'hermes-agent' } : await this.recipe(target)
     if (!recipe || recipe.manager === 'binary') return undefined

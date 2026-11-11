@@ -28,8 +28,8 @@ vi.mock('@main/core/platform', async (importOriginal) => ({
 }))
 vi.mock('@main/utils/bundledGit', () => ({ getBundledGitDir: () => inventory.bundledGitDir }))
 vi.mock('../runtimeDependency', () => ({
-  resolveRequiredRuntime: async () => {
-    const runtime = inventory.snapshots.bun?.availability
+  resolveRequiredRuntime: async ({ executable }: { executable: string }) => {
+    const runtime = inventory.snapshots[executable]?.availability
     return runtime?.source !== 'none' ? runtime : undefined
   }
 }))
@@ -204,17 +204,16 @@ agent_servers:
     )
   })
 
-  it.each(['system', 'mise'] as const)(
-    'makes the %s native Pi discoverable to an independently installed adapter',
-    async (source) => {
-      inventory.snapshots['pi-acp'] = { name: 'pi-acp', availability: { source: 'system', path: '/adapter/pi-acp' } }
-      inventory.snapshots.pi = { name: 'pi', availability: { source, path: '/native pi/bin/pi' } }
-      const launch = await resolveLocalAgentLaunch({ ...config, presetId: 'pi-acp', protocol: 'acp' })
-      expect(launch.executable).toBe('/adapter/pi-acp')
-      expect(launch.env.PATH.split(path.delimiter)).toContain('/native pi/bin')
-      expect(launch.env.HOME).toBe('/user/home')
-    }
-  )
+  it.each(['system', 'mise'] as const)('runs the bundled Pi adapter with the %s native CLI', async (source) => {
+    inventory.snapshots.node = { name: 'node', availability: { source: 'system', path: '/user/bin/node' } }
+    inventory.snapshots['pi-acp'] = { name: 'pi-acp', availability: { source: 'system', path: '/adapter/pi-acp' } }
+    inventory.snapshots.pi = { name: 'pi', availability: { source, path: '/native pi/bin/pi' } }
+    const launch = await resolveLocalAgentLaunch({ ...config, presetId: 'pi-acp', protocol: 'acp' })
+    expect(launch.executable).toBe('/user/bin/node')
+    expect(launch.env.PI_ACP_PI_COMMAND).toBe('/native pi/bin/pi')
+    expect(launch.args).toEqual([application.getPath('app.pi_acp.file')])
+    expect(launch.env.HOME).toBe('/user/home')
+  })
 
   it.each([false, true])('makes bundled Bun available to omp (terminal=%s)', async (terminal) => {
     inventory.snapshots.omp = { name: 'omp', availability: { source: 'system', path: '/user/bin/omp' } }
@@ -330,7 +329,6 @@ agent_servers:
     ['antigravity-acp', 'agy_acp_server.par', []],
     ['mistral-vibe', 'vibe-acp', []],
     ['amp-acp', 'amp-acp', []],
-    ['pi-acp', 'pi-acp', []],
     ['deepagents', 'deepagents-acp', []],
     ['glm-acp-agent', 'glm-acp-agent', []],
     ['grok-build', 'grok', ['agent', 'stdio']],

@@ -177,6 +177,7 @@
   "knowledge.source.invalid_url": "请输入以 http:// 或 https:// 开头的有效 URL。",
   "local_agent.configuration_required": "请先在智能体终端中配置模型和 API 密钥，然后重试。",
   "local_agent.model_unavailable": "所选模型“{{model}}”已不可用，请在智能体服务中重新选择模型。",
+  "local_agent.runtime_required": "需要 {{runtime}} {{version}} 或更高版本。",
   "notification.action_required.agent": "智能体任务需要你的响应",
   "notification.action_required.assistant": "助手需要你的响应",
   "notification.center.backup_failed": "备份失败",

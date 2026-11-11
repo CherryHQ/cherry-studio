@@ -217,12 +217,12 @@ new Agent Services CLI is installed through mise. Hermes uses the official POSIX
 PowerShell source installer in noninteractive mode, without requiring a registry entry
 or a preinstalled Python, uv, Node.js or npm. The installer prepares its dependencies;
 existing Hermes installations are reused. Source-install upgrades use `hermes update`,
-not PyPI package versions. Only verified legacy uv/mise installations support automatic
-removal; source installations require manual removal to preserve their shared user data.
+not PyPI package versions. Verified legacy uv/mise installations use their package manager for removal; source
+installations use the official data-preserving Hermes uninstaller.
 Kiro and Trae use their official installers on supported platforms; Vibe uses
 `uv tool install mistral-vibe`, avoiding unsupported registry archive entries.
-Install and reuse both check separate native CLI dependencies: Pi requires `pi`,
-Amp requires `amp`, and Antigravity's terminal entry requires `agy`. Existing system
+Pi installation manages the native `pi` CLI; its ACP adapter ships with Cherry.
+Install and reuse check separate native CLI dependencies: Amp requires `amp`, and Antigravity's terminal entry requires `agy`. Existing system
 or Agent Services installations are reused; missing CLIs use the shared system installer.
 An adapter alone does not satisfy these installation checks. Dependency failures
 prevent an installation-success result. Adapter and terminal launches include the
@@ -469,10 +469,17 @@ from assistant output exactly once when an identical text chunk arrives. This al
 handles startup chunks received before the session response. Later identical text,
 messages without startup metadata, and other agents' messages remain unchanged.
 
-Pi ACP 0.0.34 discards native model failure information and resolves a settled
-prompt as `end_turn`, even after retries fail. Cherry cannot reliably classify
-that result as a failure from ACP alone. This remains an upstream adapter
-limitation; retry text is not used to infer message status.
+Pi uses Cherry's bundled, patched `pi-acp@0.0.34` adapter with system Node.js 20+
+and the detected native `pi` executable. Agent Services manages the native CLI;
+adapter updates ship with Cherry. User-provided executable overrides remain external
+ACP commands. Final native errors reject the prompt with their original message;
+recovered retries succeed, cancellation takes precedence, and length exhaustion
+reports `max_tokens`. Existing global adapters are not removed automatically.
+
+Hermes source installations use the official data-preserving `uninstall --yes`.
+Trae on macOS/Linux removes verified standalone/versioned program files and matching
+aliases after stopping its daemon when supported. User configuration, unrelated
+commands and older release caches are preserved. Windows Trae uninstall remains unsupported.
 
 Authentication, backend availability and native database maintenance remain CLI-owned
 prerequisites. Cherry does not repair native databases, downgrade packages, or infer

@@ -177,6 +177,7 @@
   "knowledge.source.invalid_url": "Εισαγάγετε μια έγκυρη διεύθυνση URL που ξεκινά με http:// ή https://.",
   "local_agent.configuration_required": "Ρυθμίστε ένα μοντέλο και ένα κλειδί API στο τερματικό του πράκτορα και δοκιμάστε ξανά.",
   "local_agent.model_unavailable": "Το επιλεγμένο μοντέλο «{{model}}» δεν είναι πλέον διαθέσιμο. Επιλέξτε άλλο μοντέλο στις Υπηρεσίες πρακτόρων.",
+  "local_agent.runtime_required": "Απαιτείται {{runtime}} {{version}} ή νεότερο.",
   "notification.action_required.agent": "Ο Agent χρειάζεται τη συμβολή σας",
   "notification.action_required.assistant": "Ο βοηθός χρειάζεται τη συμβολή σας",
   "notification.center.backup_failed": "Η δημιουργία αντιγράφου ασφαλείας απέτυχε",
