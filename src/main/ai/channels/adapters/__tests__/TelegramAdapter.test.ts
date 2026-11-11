@@ -17,6 +17,7 @@ const mockBot = {
     setMyCommands: vi.fn().mockResolvedValue(undefined),
     sendMessage: vi.fn().mockResolvedValue(undefined),
     sendChatAction: vi.fn().mockResolvedValue(undefined),
+    sendMessageDraft: vi.fn().mockResolvedValue(undefined),
     sendDocument: vi.fn().mockResolvedValue(undefined)
   },
   catch: vi.fn(),
@@ -53,6 +54,7 @@ describe('TelegramAdapter', () => {
     mockBot.api.config.use.mockClear()
     mockBot.api.sendMessage.mockClear().mockResolvedValue(undefined)
     mockBot.api.sendChatAction.mockClear().mockResolvedValue(undefined)
+    mockBot.api.sendMessageDraft.mockClear().mockResolvedValue(undefined)
     mockBot.api.sendDocument.mockClear().mockResolvedValue(undefined)
     mockBot.catch.mockClear()
     mockBot.start.mockReset().mockImplementation(async (options) => {
@@ -73,7 +75,8 @@ describe('TelegramAdapter', () => {
       agentId: (overrides.agentId as string) ?? 'agent-1',
       channelConfig: {
         bot_token: (overrides.bot_token as string) ?? 'test-token',
-        allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? ['123']
+        allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? ['123'],
+        topic_agents: overrides.topic_agents as Record<string, string> | undefined
       }
     })
   }
@@ -536,6 +539,86 @@ describe('TelegramAdapter', () => {
       userId: '456',
       userName: 'TestUser',
       text: 'Hello bot'
+    })
+  })
+
+  describe('forum topics', () => {
+    const topicMessage = (threadId: number) => ({
+      chat: { id: 123 },
+      from: { id: 456, first_name: 'TestUser' },
+      message: { text: 'hi', is_topic_message: true, message_thread_id: threadId }
+    })
+
+    it('routes a mapped topic to its own conversation and agent, and keeps the thread for replies', async () => {
+      const adapter = createAdapter({ topic_agents: { '123:7': 'agent-research' } })
+      await adapter.connect()
+      const messageSpy = vi.fn()
+      adapter.on('message', messageSpy)
+
+      const messageHandler = mockBot.on.mock.calls[0][1] as (ctx: any) => void
+      messageHandler(topicMessage(7))
+
+      expect(messageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chatId: '123',
+          threadId: '7',
+          conversationId: '123:7',
+          dispatchAgentId: 'agent-research'
+        })
+      )
+    })
+
+    it('keeps an unmapped topic in the chat conversation but still replies into its thread', async () => {
+      const adapter = createAdapter({ topic_agents: { '123:9': 'agent-research' } })
+      await adapter.connect()
+      const messageSpy = vi.fn()
+      adapter.on('message', messageSpy)
+
+      const messageHandler = mockBot.on.mock.calls[0][1] as (ctx: any) => void
+      messageHandler(topicMessage(7))
+
+      expect(messageSpy).toHaveBeenCalledWith({
+        chatId: '123',
+        userId: '456',
+        userName: 'TestUser',
+        text: 'hi',
+        threadId: '7'
+      })
+    })
+
+    it('routes a /new sent in a mapped topic to that topic conversation', async () => {
+      const adapter = createAdapter({ topic_agents: { '123:7': 'agent-research' } })
+      await adapter.connect()
+      const commandSpy = vi.fn()
+      adapter.on('command', commandSpy)
+
+      const newHandler = mockBot.command.mock.calls.find(([name]) => name === 'new')?.[1] as (ctx: any) => void
+      newHandler(topicMessage(7))
+
+      expect(commandSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'new', conversationId: '123:7', dispatchAgentId: 'agent-research' })
+      )
+    })
+
+    it('posts the reply into its thread even when MarkdownV2 falls back to plain text', async () => {
+      const adapter = createAdapter()
+      await adapter.connect()
+      mockBot.api.sendMessage.mockRejectedValueOnce(new Error("can't parse entities"))
+
+      await adapter.sendMessage('123', 'Hello', { threadId: '7' })
+
+      expect(mockBot.api.sendMessage).toHaveBeenLastCalledWith('123', 'Hello', { message_thread_id: 7 })
+    })
+
+    it('sends the typing action and streaming draft into the thread', async () => {
+      const adapter = createAdapter()
+      await adapter.connect()
+
+      await adapter.sendTypingIndicator('123', { threadId: '7' })
+      await adapter.onTextUpdate('123', 'partial', { threadId: '7' })
+
+      expect(mockBot.api.sendChatAction).toHaveBeenCalledWith('123', 'typing', { message_thread_id: 7 })
+      expect(mockBot.api.sendMessageDraft).toHaveBeenCalledWith(123, 0, 'partial', { message_thread_id: 7 })
     })
   })
 })
