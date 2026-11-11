@@ -252,7 +252,7 @@ describe('cherry-tools builtin tools', () => {
 
     const result = await callCherryTool('web_search', { query: 'hello' })
 
-    expect(result.isError).toBeFalsy()
+    expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('No usable web search provider')
     expect(textOf(result)).toContain('do not retry')
   })
@@ -268,7 +268,7 @@ describe('cherry-tools builtin tools', () => {
 
     const result = await callCherryTool('web_search', { query: 'hello' })
 
-    expect(result.isError).toBeFalsy()
+    expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('No usable web search provider')
     expect(textOf(result)).toContain('do not retry')
   })
@@ -282,9 +282,36 @@ describe('cherry-tools builtin tools', () => {
       searchKeywords.mockReset()
       searchKeywords.mockRejectedValue(new WebSearchConfigError(code, message))
       const result = await callCherryTool('web_search', { query: 'hello' })
+      expect(result.isError).toBe(true)
       expect(textOf(result)).toContain('No usable web search provider')
       expect(textOf(result)).toContain('do not retry')
     }
+  })
+
+  it('marks web_fetch as failed when no provider is configured for fetching', async () => {
+    fetchUrls.mockRejectedValue(
+      new WebSearchConfigError(
+        'provider_not_configured',
+        'Default web search provider is not configured for capability fetchUrls'
+      )
+    )
+
+    const result = await callCherryTool('web_fetch', { urls: ['https://a.com'] })
+
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain('No usable web search provider')
+    expect(textOf(result)).toContain('do not retry')
+  })
+
+  it('marks web_search as failed when the network environment blocks web access', async () => {
+    searchKeywords.mockRejectedValue(
+      new Error('Unsafe remote url: DNS resolved to local or private address 198.18.0.1')
+    )
+
+    const result = await callCherryTool('web_search', { query: 'hello' })
+
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain('Web access failed because of the current network environment')
   })
 
   it('runs kb_search over the model-provided baseIds that fall within the bound scope', async () => {

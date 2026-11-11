@@ -76,6 +76,51 @@ describe('MessageWebSearchToolTitle', () => {
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'www.cherry-ai.com')
     expect(screen.getByText('cherry-ai.com')).toBeInTheDocument()
   })
+
+  it('reveals the normalized failure diagnostic when the failed header is clicked', async () => {
+    const diagnostic =
+      'Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again.'
+
+    render(
+      <MessageWebSearchToolTitle
+        toolResponse={{
+          id: 'tool-call-1',
+          toolCallId: 'tool-call-1',
+          tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
+          status: 'error',
+          arguments: { query: 'Cherry Studio' },
+          response: { isError: true, content: [{ type: 'text', text: diagnostic }] }
+        }}
+      />
+    )
+
+    expect(screen.getByText('Failed')).toBeInTheDocument()
+    expect(screen.queryByText(diagnostic)).toBeNull()
+    expect(screen.queryByText('Searched by the model')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button'))
+
+    expect(await screen.findByText(diagnostic)).toBeInTheDocument()
+    expect(screen.queryByText('Searched by the model')).toBeNull()
+  })
+
+  it('shows a failed label without a disclosure when the normalized error has no text', () => {
+    render(
+      <MessageWebSearchToolTitle
+        toolResponse={{
+          id: 'tool-call-1',
+          toolCallId: 'tool-call-1',
+          tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
+          status: 'error',
+          arguments: { query: 'Cherry Studio' },
+          response: { isError: true, content: [] }
+        }}
+      />
+    )
+
+    expect(screen.getByText('Failed')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
 })
 
 // A provider-native tool can share the `web_search` wire name without sharing our result shape —
