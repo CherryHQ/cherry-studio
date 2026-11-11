@@ -272,16 +272,16 @@ export function stripKnownNumberedCitationMarkers(content: string, citations: Re
       for (const match of raw.matchAll(/\[(\d+)\]/g)) {
         while (
           groupIndex < ambiguous.length &&
-          ambiguous[groupIndex].index! + ambiguous[groupIndex][0].length <= match.index!
+          ambiguous[groupIndex].index + ambiguous[groupIndex][0].length <= match.index
         )
           groupIndex++
         const group = ambiguous[groupIndex]
-        if (group && group.index! <= match.index!) continue
-        const left = raw[match.index! - 1]
-        const right = raw[match.index! + match[0].length]
+        if (group && group.index <= match.index) continue
+        const left = raw[match.index - 1]
+        const right = raw[match.index + match[0].length]
         if ((left && /[\w\]!\\[]/.test(left)) || (right && /[\w([]/.test(right))) continue
         if (!citations.has(Number(match[1]))) continue
-        const from = start + match.index!
+        const from = start + match.index
         removals.push({
           start: from > 0 && /[ \t]/.test(content[from - 1]) ? from - 1 : from,
           end: from + match[0].length
