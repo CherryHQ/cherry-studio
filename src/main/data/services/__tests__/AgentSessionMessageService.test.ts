@@ -1580,7 +1580,6 @@ describe('AgentSessionMessageService', () => {
     })
     const filePart = {
       type: 'file' as const,
-      mediaType: 'text/plain',
       url: 'file:///stale/location/report.pdf',
       mediaType: 'application/pdf',
       filename: 'report.pdf',
