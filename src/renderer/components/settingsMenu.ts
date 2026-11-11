@@ -55,6 +55,8 @@ export interface SettingsMenuEntry {
   groupKey?: string
 }
 
+export const BUILTIN_TOOLS_GROUP_KEY = 'settings.menuGroups.builtinTools'
+
 /**
  * Single source of truth for the settings sidebar menu.
  * Array order = menu render order = search tie-break order.
@@ -92,37 +94,37 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/prompts',
     titleKey: 'settings.prompts.title',
     icon: createElement(Zap),
-    groupKey: 'settings.menuGroups.capabilities'
+    groupKey: BUILTIN_TOOLS_GROUP_KEY
   },
   {
     route: '/settings/computer-use',
     titleKey: 'settings.computerUse.title',
     icon: createElement(MousePointer2),
-    groupKey: 'settings.menuGroups.capabilities'
+    groupKey: BUILTIN_TOOLS_GROUP_KEY
   },
   {
     route: '/settings/browser',
     titleKey: 'settings.browser.title',
     icon: createElement(Globe),
-    groupKey: 'settings.menuGroups.capabilities'
+    groupKey: BUILTIN_TOOLS_GROUP_KEY
   },
   {
     route: '/settings/websearch',
     titleKey: 'settings.tool.websearch.title',
     icon: createElement(Search),
-    groupKey: 'settings.menuGroups.capabilities'
+    groupKey: BUILTIN_TOOLS_GROUP_KEY
   },
   {
     route: '/settings/file-processing',
     titleKey: 'settings.tool.file_processing.features.document_to_markdown.title',
     icon: createElement(FileCode),
-    groupKey: 'settings.menuGroups.capabilities'
+    groupKey: BUILTIN_TOOLS_GROUP_KEY
   },
   {
     route: '/settings/ocr',
     titleKey: 'settings.tool.file_processing.features.image_to_text.title',
     icon: createElement(ScanText),
-    groupKey: 'settings.menuGroups.capabilities'
+    groupKey: BUILTIN_TOOLS_GROUP_KEY
   },
   {
     route: '/settings/general',

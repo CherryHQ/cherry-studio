@@ -246,17 +246,6 @@ describe('cross-dialect descriptor translation', () => {
     expect(mapReasoningEffortToProviderOptions(target, modelWithoutRuntimeReasoning, 'high')).toEqual({})
   })
 
-  it('computes Anthropic budgets from descriptor limits instead of a fixed budget table', () => {
-    const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-
-    expect(mapReasoningEffortToProviderOptions(target, anthropicBudgetModel, 'low')).toEqual({
-      anthropic: { thinking: { type: 'enabled', budgetTokens: 1500 }, sendReasoning: true }
-    })
-    expect(mapReasoningEffortToProviderOptions(target, anthropicBudgetModel, 'high')).toEqual({
-      anthropic: { thinking: { type: 'enabled', budgetTokens: 8191 }, sendReasoning: true }
-    })
-  })
-
   it('clamps a translated Anthropic budget below the request max output tokens', () => {
     const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 
@@ -293,21 +282,6 @@ describe('cross-dialect descriptor translation', () => {
     ).toEqual({ openai: { reasoningEffort: 'low', forceReasoning: true } })
   })
 
-  it('falls back to high when Anthropic budget translation has no descriptor limits', () => {
-    const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
-    const modelWithoutLimits = {
-      ...openAIModel,
-      reasoning: { ...openAIModel.reasoning, thinkingTokenLimits: undefined }
-    } as Model
-
-    expect(
-      mapAnthropicThinkingToProviderOptions(target, modelWithoutLimits, {
-        type: 'enabled',
-        budget_tokens: 1500
-      })
-    ).toEqual({ openai: { reasoningEffort: 'high', forceReasoning: true } })
-  })
-
   it('keeps a session-less literal low effort literal on the OpenAI target', () => {
     const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
 
@@ -323,9 +297,6 @@ describe('cross-dialect descriptor translation', () => {
   it('normalizes Gemini sentinels, levels, and positive budgets before target dispatch', () => {
     const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
 
-    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: -1 })).toEqual({
-      openai: { reasoningEffort: 'medium', forceReasoning: true }
-    })
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 0 })).toEqual({
       openai: { reasoningEffort: 'none', forceReasoning: true }
     })

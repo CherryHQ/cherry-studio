@@ -5,6 +5,7 @@ import { agentHandlers } from './agent'
 import { aiHandlers } from './ai'
 import { apiGatewayHandlers } from './apiGateway'
 import { appHandlers } from './app'
+import { assistantHandlers } from './assistant'
 import { backupHandlers } from './backup'
 import { binaryHandlers } from './binary'
 import { browserHandlers } from './browser'
@@ -98,6 +99,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...pdfjsHandlers,
   ...preferenceHandlers,
   ...printHandlers,
+  ...assistantHandlers,
   ...profileHandlers,
   ...proxyHandlers,
   ...providerHandlers,

@@ -3,6 +3,7 @@ import { agentRequestSchemas } from './agent'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { type ApiGatewayEventSchemas, apiGatewayRequestSchemas } from './apiGateway'
 import { type AppEventSchemas, appRequestSchemas } from './app'
+import { assistantRequestSchemas } from './assistant'
 import { type BackupEventSchemas, backupRequestSchemas } from './backup'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { type BrowserEventSchemas, browserRequestSchemas } from './browser'
@@ -94,6 +95,7 @@ export const ipcRequestSchemas = {
   ...pdfjsRequestSchemas,
   ...preferenceRequestSchemas,
   ...printRequestSchemas,
+  ...assistantRequestSchemas,
   ...profileRequestSchemas,
   ...proxyRequestSchemas,
   ...providerRequestSchemas,

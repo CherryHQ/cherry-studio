@@ -7,9 +7,9 @@
  * pollute the user's persistent chat history.
  *
  * Lifecycle:
- *   - On mount (with `enabled: true`): POST /temporary/topics
+ *   - On mount (with `enabled: true`): `ai.temporary_topic.create`
  *   - On unmount / when `enabled` flips false / when `assistantId` changes:
- *     DELETE /temporary/topics/:id
+ *     `ai.temporary_topic.delete`
  *   - Consumers can call `reset()` to drop the current topic and lease a
  *     fresh one (used by "new conversation" actions in the mini window).
  *
@@ -25,6 +25,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 
 const logger = loggerService.withContext('useTemporaryTopic')
@@ -79,12 +80,12 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
     const body = assistantId ? { assistantId } : {}
 
-    void dataApiService
-      .post('/temporary/topics', { body })
+    void ipcApi
+      .request('ai.temporary_topic.create', body)
       .then((topic) => {
         activeIdRef.current = topic.id
         if (cancelled) {
-          void dataApiService.delete(`/temporary/topics/${topic.id}`).catch((err) => {
+          void ipcApi.request('ai.temporary_topic.delete', { id: topic.id }).catch((err) => {
             logger.warn('Failed to cleanup racing temporary topic', err as Error)
           })
           return
@@ -102,7 +103,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
       const idToCleanup = activeIdRef.current
       activeIdRef.current = null
       if (idToCleanup) {
-        void dataApiService.delete(`/temporary/topics/${idToCleanup}`).catch((err) => {
+        void ipcApi.request('ai.temporary_topic.delete', { id: idToCleanup }).catch((err) => {
           logger.warn('Failed to release temporary topic on unmount', err as Error)
         })
       }
@@ -116,8 +117,8 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
   const persist = useCallback(async (initialName?: string) => {
     const id = activeIdRef.current
     if (!id) return
-    await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
-    // Clear before unmount so cleanup skips the now-pointless DELETE.
+    await ipcApi.request('ai.temporary_topic.persist', { id })
+    // Clear before unmount so cleanup skips the now-pointless delete.
     activeIdRef.current = null
     logger.debug('Persisted temporary topic', { topicId: id })
 

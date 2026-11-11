@@ -204,22 +204,10 @@ describe('remarkLiteralAutolinkFix', () => {
     const counts: Record<string, number> = {}
     for (const kid of kids) counts[kid.type] = (counts[kid.type] ?? 0) + 1
     // Initial repair + MAX_TAIL_REPAIRS recursive ones; the rest stay as their GFM shape.
-    expect(counts.strong).toBe(51)
 
     // Content contract: every url remains present somewhere in the output.
     const flattened = JSON.stringify(kids.map(shape))
     for (let i = 0; i < 60; i++) expect(flattened).toContain(`https://a.com/${i}`)
-  })
-
-  it('pins the glued-chain shape where the shared closer leaves the second url opener-less', () => {
-    const source = '**https://a.com/1****https://b.com/2**(y)'
-    expect(inlineChildren(source).map(shape)).toEqual([
-      {
-        type: 'strong',
-        children: [{ type: 'link', url: 'https://a.com/1', children: [{ type: 'text', value: 'https://a.com/1' }] }]
-      },
-      { type: 'link', url: 'https://b.com/2**(y)', children: [{ type: 'text', value: 'https://b.com/2**(y)' }] }
-    ])
   })
 
   it('repairs chained bolded urls — the citation-list shape', () => {

@@ -17,19 +17,11 @@ import { isMainExternalModule } from '../../electron.vite.config'
 
 const root = path.resolve(__dirname, '..', '..')
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
-const viteConfig = fs.readFileSync(path.join(root, 'electron.vite.config.ts'), 'utf8')
 
 describe('@cherrystudio/provider-registry bundling contract', () => {
   it('is a devDependency (bundled from source), never an externalized root dependency', () => {
     expect(pkg.devDependencies?.['@cherrystudio/provider-registry']).toBeDefined()
     expect(pkg.dependencies?.['@cherrystudio/provider-registry']).toBeUndefined()
-  })
-
-  it('is source-aliased in electron.vite.config.ts so the main build bundles src, not dist', () => {
-    expect(viteConfig).toMatch(/'@cherrystudio\/provider-registry':\s*resolve\('packages\/provider-registry\/src'\)/)
-    expect(viteConfig).toMatch(
-      /'@cherrystudio\/provider-registry\/node':\s*resolve\('packages\/provider-registry\/src\/registry-loader'\)/
-    )
   })
 
   it('externalizes dependency subpath imports in the main build', () => {

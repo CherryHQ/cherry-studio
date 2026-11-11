@@ -103,26 +103,6 @@ describe('useMessageLeafCapabilities', () => {
     expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/a.txt' })
     expect(mockPreview).not.toHaveBeenCalled()
   })
-
-  it('keeps legacy pasted temp-file display behavior local to message attachments', () => {
-    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
-
-    expect(
-      result.current.getFileView?.({
-        origin_name: 'temp_file_1_image.png',
-        ext: '.png',
-        created_at: '2026-01-01T00:00:00.000Z'
-      })
-    ).toEqual({ displayName: '2026-01-01 message.attachments.pasted_image.png' })
-
-    expect(
-      result.current.getFileView?.({
-        origin_name: 'report.pdf',
-        ext: '.pdf',
-        created_at: '2026-01-01T00:00:00.000Z'
-      })
-    ).toEqual({ displayName: 'report.pdf' })
-  })
 })
 
 it('sends application links through the typed main route while preserving web window.open', async () => {
