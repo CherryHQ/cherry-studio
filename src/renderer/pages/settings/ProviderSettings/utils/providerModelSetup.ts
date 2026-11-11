@@ -1,3 +1,4 @@
+import { healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import type { BulkUpdateModelsDto, CreateModelsDto } from '@shared/data/api/schemas/models'
@@ -6,7 +7,6 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { chunkArray } from './chunkArray'
-import { healthCheckErrorToDisplayString } from './healthCheck'
 import { resolveCreateModelEndpointTypes, toCreateModelDto } from './modelSync'
 
 interface PersistProviderModelsOptions {

@@ -8,7 +8,10 @@ export function createPiIdentityExtension(agentDataPath: string, sessionId?: str
   const builder = new PromptBuilder()
   return (pi) => {
     pi.on('before_agent_start', async (event) => {
-      event.systemPromptOptions.sections.agent_identity = await builder.buildMemoriesSection(agentDataPath)
+      const { text, resources } = await builder.buildMemoriesContext(agentDataPath)
+      event.systemPromptOptions.sections.agent_identity = text
+      event.systemPromptOptions.sectionSources ??= {}
+      event.systemPromptOptions.sectionSources.agent_identity = { kind: 'memory-files', resources }
     })
     pi.on('context_with_system', async (event, ctx) => {
       if (!sessionId) return

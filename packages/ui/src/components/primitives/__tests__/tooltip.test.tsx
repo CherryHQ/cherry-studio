@@ -330,6 +330,7 @@ describe('Tooltip', () => {
       )
 
       const content = getTooltipContentElement('dark-safe')
+      // Tooltips contrast with the active theme: dark in light mode and light in dark mode.
       expect(content).toHaveClass('bg-neutral-900', 'text-neutral-50', 'dark:bg-neutral-100', 'dark:text-neutral-900')
     })
 

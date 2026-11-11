@@ -25,6 +25,7 @@ import { type AiUsageRecordRow, aiUsageRecordTable, type InsertAiUsageRecordRow 
 import { messageTable } from '@data/db/schemas/message'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 import type {
   AiUsageRecordGroupBy,
   AiUsageRecordGroupIdentity,
@@ -1377,6 +1378,35 @@ function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataA
 }
 
 export class AiUsageRecordService {
+  private readonly invocationsRecorded = new Emitter<void>()
+  readonly onInvocationsRecorded = this.invocationsRecorded.event
+
+  associateInvocation(requestId: string, messageId: string): void {
+    try {
+      const result = application.get('DbService').withWriteTx((tx) => {
+        const row = tx.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, requestId)).get()
+        if (!row) return
+        if (row.messageId) {
+          if (row.messageKind !== 'agent-session' || row.messageId !== messageId)
+            throw new Error('Provider invocation already belongs to another message')
+          return
+        }
+        tx.update(aiUsageRecordTable)
+          .set({ messageKind: 'agent-session', messageId })
+          .where(eq(aiUsageRecordTable.id, row.id))
+          .run()
+        return { target: rebuildMessageUsageProjectionTx(tx, { kind: 'agent-session', id: messageId })?.target }
+      })
+      if (!result) return
+      notifyDataApiDataChange([
+        ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
+        ...messageReadModelEffects(result.target ? [result.target] : [])
+      ])
+    } catch (error) {
+      logger.error('associateInvocation failed', error as Error, { requestId, messageId })
+    }
+  }
+
   recordInvocation(input: RecordAiInvocationInput): void {
     this.recordInvocations([input])
   }
@@ -1392,6 +1422,7 @@ export class AiUsageRecordService {
         ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
         ...messageReadModelEffects(result.affectedMessages)
       ])
+      this.invocationsRecorded.fire()
     } catch (err) {
       logger.error('recordInvocations failed', err as Error, { requestIds: inputs.map((input) => input.requestId) })
     }
