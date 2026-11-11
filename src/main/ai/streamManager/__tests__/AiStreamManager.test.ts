@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import { createConnection, createServer } from 'node:net'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
@@ -3777,6 +3778,73 @@ describe('AiStreamManager', () => {
   // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
 
   describe('stream errors', () => {
+    it('preserves partial messages while distinguishing local storage failure from a real socket reset', async () => {
+      vi.useRealTimers()
+      const server = createServer((socket) => socket.once('data', () => socket.resetAndDestroy()))
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('Expected TCP address')
+      const socket = createConnection(address.port, '127.0.0.1')
+      const reset = new Promise<NodeJS.ErrnoException>((resolve) => socket.once('error', resolve))
+      socket.once('connect', () => socket.write('request'))
+      const transport = await reset
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+      expect(transport.code).toBe('ECONNRESET')
+      const storage = Object.assign(
+        new Error('Claude Code session storage could not be opened', {
+          cause: new Error('native-storage-missing')
+        }),
+        { name: 'ClaudeCodeStorageOpenError', i18nKey: 'claude_code_storage_open_failed' }
+      )
+      const results: SerializedError[] = []
+      const bodies: unknown[] = []
+      for (const [index, failure] of [storage, transport].entries()) {
+        let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+        mockStreamText.mockResolvedValueOnce({
+          kind: 'messages',
+          stream: new ReadableStream({
+            start: (value) => {
+              controller = value
+            }
+          })
+        })
+        const topicId = `failure-${index}`
+        const listener = new FakeListener(topicId)
+        const writes: PersistAssistantInput[] = []
+        const persistence = new PersistenceListener({
+          topicId,
+          backend: {
+            kind: 'test',
+            persistAssistant: (input) => {
+              writes.push(input)
+            }
+          },
+          onPersistFailed: (error) => {
+            throw new Error(error.message ?? 'Persistence failed')
+          }
+        })
+        startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [listener, persistence] })
+        controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Partial answer' }] })
+        await vi.waitFor(() =>
+          expect(mgr.inspect(topicId)?.executions[0].finalMessage?.parts).toContainEqual(
+            expect.objectContaining({ type: 'text', text: 'Partial answer' })
+          )
+        )
+        controller.enqueue({ type: 'error', error: failure })
+        await vi.waitFor(() => expect(writes).toHaveLength(1))
+        const parts = writes[0].finalMessage!.parts
+        bodies.push(parts.filter((part) => part.type === 'text'))
+        const errors = parts.filter((part) => part.type === 'data-error')
+        expect(errors).toHaveLength(1)
+        results.push(errors[0].data as SerializedError)
+      }
+      expect(bodies[0]).toEqual(bodies[1])
+      expect(bodies[0]).toEqual([expect.objectContaining({ type: 'text', text: 'Partial answer' })])
+      expect(results[0]).toMatchObject({ i18nKey: 'claude_code_storage_open_failed', streamStage: 'response-stream' })
+      expect(results[1].i18nKey).toBeUndefined()
+      expect(results[1]).toMatchObject({ streamStage: 'response-stream' })
+    })
+
     it.each(['reason', 'abort-error', 'real-error'] as const)(
       'keeps abort-shaped stream rejections low-noise after Stop: %s',
       async (kind) => {

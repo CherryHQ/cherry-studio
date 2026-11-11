@@ -6,7 +6,7 @@ vi.mock('@renderer/services/toast', (importOriginal) => importOriginal())
 vi.mock('@cherrystudio/ui', async () => import('@cherrystudio/ui/components/primitives/toast'))
 
 vi.mock('@renderer/i18n/resolver', () => ({
-  default: { t: (key: string) => enUS[key as keyof typeof enUS] ?? key }
+  default: { t: (key: string) => enUS[key as keyof typeof enUS] ?? key, exists: (key: string) => key in enUS }
 }))
 
 import { toast } from '../toast'
@@ -66,4 +66,21 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
   expect(shown.action?.label).toBe(enUS['toast.error.retry'])
   await shown.action!.onClick()
   expect(retry).toHaveBeenCalledOnce()
+})
+
+it('shows local storage guidance while preserving transport diagnosis', () => {
+  const local = toast.errorFromException({
+    name: 'Error',
+    message: 'storage failed',
+    i18nKey: 'claude_code_storage_open_failed',
+    streamStage: 'response-stream'
+  })
+  const transport = toast.errorFromException({
+    name: 'Error',
+    message: 'read ECONNRESET',
+    streamStage: 'response-stream'
+  })
+  const { toasts } = toast.getToastQueue()
+  expect(toasts.find((item) => item.key === local)?.title).toBe(enUS['error.claude_code_storage_open_failed'])
+  expect(toasts.find((item) => item.key === transport)?.title).toBe(enUS['error.diagnosis.stream'])
 })

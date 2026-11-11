@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url'
 import { startup, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -169,6 +170,42 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
   }
   return { ...test, sessionId, input, connect, events, wait, nativeInputs }
 }
+
+it('preserves and logs the diagnostic when a native session cannot be opened', async () => {
+  const test = await desktop()
+  const request = await ports.build()
+  ports.build.mockResolvedValue({ ...request, options: { ...request.options, resume: randomUUID() } })
+  const error = await test.connect().catch((failure: unknown) => failure)
+  expect(error).toMatchObject({ i18nKey: 'claude_code_storage_open_failed', cause: expect.any(Error) })
+  expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+    'Claude Code storage open failed',
+    (error as Error).cause,
+    expect.objectContaining({ operation: 'open', code: 'native-storage-unavailable' })
+  )
+})
+
+it('does not classify a create rejection as a storage-open failure', async () => {
+  const test = await desktop()
+  const request = await ports.build()
+  ports.build.mockResolvedValue({ ...request, options: { ...request.options, cwd: 'relative' } })
+  const error = await test.connect().catch((failure: unknown) => failure)
+  expect(error).toBeInstanceOf(Error)
+  expect(error).not.toHaveProperty('i18nKey')
+})
+
+it('does not attribute a concurrent diagnostic to a failed rotation', async () => {
+  const test = await desktop()
+  const connection = await test.connect()
+  const internal = connection as unknown as {
+    context: { id: string }
+    handleControl: (control: unknown, contextId: string) => Promise<unknown>
+  }
+  const error = await internal
+    .handleControl({ type: 'session', sessionId: randomUUID() }, internal.context.id)
+    .catch((failure: unknown) => failure)
+  expect(error).toMatchObject({ i18nKey: 'claude_code_storage_open_failed' })
+  expect((error as Error).cause).toBeUndefined()
+})
 
 it('keeps both real SDK background notifications in one persisted Main reply until the final summary', async () => {
   const test = await desktop()

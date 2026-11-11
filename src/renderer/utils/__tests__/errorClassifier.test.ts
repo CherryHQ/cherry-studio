@@ -926,3 +926,12 @@ it('uses the terminal structured quota identity ahead of copied retry text, pres
   ])
   expect(classifyError(unmarkedTerminal).category).toBe('rate_limit')
 })
+
+it('keeps local storage failures distinct from interrupted response streams', () => {
+  const error = makeError({
+    message: 'Claude Code session storage could not be opened',
+    streamStage: 'response-stream'
+  })
+  expect(classifyError({ ...error, i18nKey: 'claude_code_storage_open_failed' }).category).not.toBe('stream')
+  expect(classifyError(error).category).toBe('stream')
+})

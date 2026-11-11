@@ -47,14 +47,20 @@ vi.mock('react-i18next', () => ({
     i18nKey: string
     values?: Record<string, string>
     components?: Record<string, React.ReactElement>
-  }) => (
-    <>
-      {i18nKey}
-      {components?.provider &&
-        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Trans tag interpolation
-        React.cloneElement(components.provider, undefined, values?.provider)}
-    </>
-  ),
+  }) => {
+    const translation = mocks.translations.get(i18nKey) ?? i18nKey
+    const [before, after] = translation.split(/<provider>.*?<\/provider>/)
+    return (
+      <>
+        {before}
+        {after !== undefined &&
+          components?.provider &&
+          // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Trans tag interpolation
+          React.cloneElement(components.provider, undefined, values?.provider)}
+        {after}
+      </>
+    )
+  },
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       let translation = mocks.translations.get(key) ?? key
@@ -99,6 +105,7 @@ describe('ErrorBlock', () => {
     mocks.translations.clear()
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
     mocks.translations.set('HTTP 413', 'Request body too large')
+    mocks.translations.set('error.chat.no_api_key', enUS['error.chat.no_api_key'])
     vi.clearAllMocks()
   })
 
@@ -127,6 +134,44 @@ describe('ErrorBlock', () => {
       if (detail) expect(screen.getByText(detail, { exact: true })).toBeInTheDocument()
     }
   )
+
+  it('shows the storage-open diagnosis with an identified provider', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys.add('error.claude_code_storage_open_failed')
+    render(
+      <ErrorBlock
+        partId="part"
+        error={{
+          name: 'Error',
+          message: 'storage failed',
+          stack: null,
+          i18nKey: 'claude_code_storage_open_failed',
+          providerId: 'openai',
+          streamStage: 'response-stream'
+        }}
+        message={message}
+      />
+    )
+    expect(screen.getAllByText(enUS['error.claude_code_storage_open_failed']).length).toBeGreaterThan(0)
+    expect(screen.queryByText(enUS['error.diagnosis.unknown'])).not.toBeInTheDocument()
+    expect(screen.queryByText(enUS['error.diagnosis.stream'])).not.toBeInTheDocument()
+  })
+
+  it('keeps provider-tagged translations on the classification and Trans path', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.translations.set('error.test_provider', 'Check <provider>{{provider}}</provider> settings')
+    mocks.i18nKeys.add('error.test_provider')
+    render(
+      <ErrorBlock
+        partId="part"
+        error={{ name: 'Error', message: 'failed', stack: null, i18nKey: 'test_provider', providerId: 'openai' }}
+        message={message}
+      />
+    )
+    expect(screen.getByText(enUS['error.diagnosis.unknown'])).toBeInTheDocument()
+    expect(screen.getByText('openai')).toBeInTheDocument()
+    expect(screen.getByText(/Check/)).toHaveTextContent('Check openai settings')
+  })
 
   it('renders Groq entitlement copy and opens its provider settings', async () => {
     const user = userEvent.setup()
@@ -202,7 +247,7 @@ required service tier.`
       />
     )
 
-    expect(screen.getByText(`error.${i18nKey}`)).toBeInTheDocument()
+    expect(screen.getAllByText(`error.${i18nKey}`).length).toBeGreaterThan(0)
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 

@@ -4,6 +4,21 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
+  it('preserves the storage-open identity and diagnostic without assigning them to unrelated errors', () => {
+    const diagnostic = new Error('native storage unavailable')
+    const storage = Object.assign(new Error('Claude Code session storage could not be opened', { cause: diagnostic }), {
+      name: 'ClaudeCodeStorageOpenError',
+      i18nKey: 'claude_code_storage_open_failed'
+    })
+    expect(serializeError(storage)).toMatchObject({
+      i18nKey: 'claude_code_storage_open_failed',
+      cause: 'Error: native storage unavailable'
+    })
+    const unrelated = serializeError(new Error('unrelated'))
+    expect(unrelated.i18nKey).toBeUndefined()
+    expect(unrelated.cause).toBeNull()
+  })
+
   describe('unknown thrown values', () => {
     it('serializes only the safe message from a structured provider event', () => {
       const result = serializeError({

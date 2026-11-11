@@ -31,6 +31,7 @@ import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@ma
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -83,6 +84,15 @@ import type { McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
 import { claudeWorkspaceRelocation } from './workspaceRelocation'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
+class ClaudeCodeStorageOpenError extends Error {
+  readonly i18nKey = 'claude_code_storage_open_failed'
+
+  constructor(cause?: unknown) {
+    super('Claude Code session storage could not be opened', { cause })
+    this.name = 'ClaudeCodeStorageOpenError'
+  }
+}
+
 const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
 
 function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
@@ -237,6 +247,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const { resume, cwd, ...nativeOptions } = options
     if (!cwd) throw new Error('Claude Code workspace is unavailable')
     const config = { ...nativeOptions, cwd }
+    let capture: { error?: unknown } | undefined = {}
     this.runtime = createClaudeCodeRuntime({
       backendId: runtimeId(this.context.backendId),
       configDir: resolveClaudeConfigDirectory(options.env),
@@ -244,12 +255,27 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       load: async () => config,
       onError: (error) => {
         this.nativeError = error
+        if (capture) capture.error = error
       }
     })
     const opened = resume
       ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(resume) })
       : await this.runtime.create(config)
-    if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+    const diagnostic = capture.error
+    capture = undefined
+    if (opened.status !== 'confirmed') {
+      if (opened.error.operation === 'open') {
+        const context = {
+          operation: 'open',
+          code: opened.error.code,
+          diagnostic: diagnostic ? chatErrorContext(diagnostic) : undefined
+        }
+        if (diagnostic instanceof Error) logger.error('Claude Code storage open failed', diagnostic, context)
+        else logger.error('Claude Code storage open failed', context)
+        throw new ClaudeCodeStorageOpenError(diagnostic)
+      }
+      throw new Error(opened.error.message)
+    }
     this.handle = opened.value
     this.sdkModelId = request.sdkModelId
     this.mcpToolMetadata = request.settings.mcpToolMetadata
@@ -637,7 +663,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           backendId: this.handle!.thread.backendId,
           id: runtimeId(control.sessionId)
         })
-        if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+        if (opened.status !== 'confirmed') {
+          if (opened.error.operation === 'open') {
+            // Invocation-level attribution requires an operation-scoped runtime diagnostic.
+            // That runtime contract change is outside this fix.
+            logger.error('Claude Code storage open failed', { operation: 'open', code: opened.error.code })
+            throw new ClaudeCodeStorageOpenError()
+          }
+          throw new Error(opened.error.message)
+        }
         let context: NonNullable<typeof this.context>
         try {
           context = prepareClaudeBranch(
