@@ -818,10 +818,10 @@ describe('local protocol processes', () => {
     const invocations = events.flatMap((event) => (event.type === 'local-turn-usage' ? [event.summary] : []))
     expect(invocations).toHaveLength(2)
     expect(invocations[0].usage).toEqual({
-      inputTokens: 150,
-      outputTokens: 25,
-      totalTokens: 175,
-      noCacheTokens: 100,
+      inputTokens: 100,
+      outputTokens: 20,
+      totalTokens: 120,
+      noCacheTokens: 50,
       reasoningTokens: 5,
       cacheReadTokens: 40,
       cacheWriteTokens: 10

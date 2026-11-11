@@ -16,7 +16,7 @@ import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenc
 import type { DoctorFixResult } from '@shared/types/doctor'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
 import { doctorFixMeta } from '@shared/utils/doctor'
-import { isSensitiveKey, redactDeep, redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
+import { isCredentialFieldKey, redactDeep, redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
 /** Entities whose PATCH handlers already whitelist mutable fields and never accept credentials. */
 const DATA_API_PATCH_PATHS: readonly RegExp[] = [
@@ -94,7 +94,7 @@ function containsSecretMaterial(value: unknown): boolean {
   if (typeof value === 'string') return redactTextForModel(value) !== value
   if (Array.isArray(value)) return value.some(containsSecretMaterial)
   if (typeof value !== 'object' || value === null) return false
-  return Object.entries(value).some(([key, item]) => isSensitiveKey(key) || containsSecretMaterial(item))
+  return Object.entries(value).some(([key, item]) => isCredentialFieldKey(key) || containsSecretMaterial(item))
 }
 
 /** `auto` runs without a click: only catalog fixes that revert on their own and need no relaunch. */
@@ -156,7 +156,7 @@ export function assertNoSecretFields(body: Record<string, unknown>): void {
     }
     if (typeof value !== 'object' || value === null) return
     for (const [key, item] of Object.entries(value)) {
-      if (isSensitiveKey(key)) {
+      if (isCredentialFieldKey(key)) {
         throw new Error(
           `Refusing to write credential field "${[...trail, key].join('.')}"; ask the user to enter it in Settings`
         )

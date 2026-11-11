@@ -145,7 +145,7 @@ const finish = () => {
                 ? {
                     inputTokens: 100,
                     outputTokens: 20,
-                    totalTokens: 175,
+                    totalTokens: 120,
                     thoughtTokens: 5,
                     cachedReadTokens: 40,
                     cachedWriteTokens: 10

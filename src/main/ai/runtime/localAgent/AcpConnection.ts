@@ -89,6 +89,11 @@ export class AcpConnection extends LocalConnection {
   private readonly approvedWrites: Array<{ path: string; content: string }> = []
   private readonly toolInputs = new Map<string, LocalAcpTool>()
 
+  /** A non-resumable ACP session cannot be restored after reaping, so the process outlives the idle TTL. */
+  get retainWhileIdle(): boolean {
+    return this.localSessionInfo.resume !== true
+  }
+
   async authenticate(methodId: string): Promise<void> {
     const method = this.localSessionInfo.protocolInfo?.authMethods?.find((method) => method.id === methodId)
     if (!this.connection || !method) throw new Error('Unsupported authentication method')
@@ -824,16 +829,20 @@ export class AcpConnection extends LocalConnection {
       })
       const usage = response.usage
       if (usage) {
+        // ACP reports the inclusive totals and the cache detail separately (glm-acp-agent@1.17.0
+        // forwards provider prompt/completion tokens verbatim), so details must not be added again.
+        const cachedRead = usage.cachedReadTokens ?? 0
+        const cachedWrite = usage.cachedWriteTokens ?? 0
         const summary = LocalAgentTurnUsageSchema.safeParse({
           nativeSessionId: this.nativeId,
           model,
           reportedAt: Date.now(),
           correlation: this.gatewayLease ? 'gateway' : 'unknown',
           usage: {
-            inputTokens: usage.inputTokens + (usage.cachedReadTokens ?? 0) + (usage.cachedWriteTokens ?? 0),
-            outputTokens: usage.outputTokens + (usage.thoughtTokens ?? 0),
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
             totalTokens: usage.totalTokens,
-            noCacheTokens: usage.inputTokens,
+            noCacheTokens: Math.max(0, usage.inputTokens - cachedRead - cachedWrite),
             ...(usage.thoughtTokens != null ? { reasoningTokens: usage.thoughtTokens } : {}),
             ...(usage.cachedReadTokens != null ? { cacheReadTokens: usage.cachedReadTokens } : {}),
             ...(usage.cachedWriteTokens != null ? { cacheWriteTokens: usage.cachedWriteTokens } : {})

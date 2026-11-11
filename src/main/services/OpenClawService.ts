@@ -893,7 +893,12 @@ export class OpenClawService extends BaseService {
     }
     const started = await this.startGateway()
     if (!started.success) throw new Error(started.message)
-    signal.throwIfAborted()
+    try {
+      signal.throwIfAborted()
+    } catch (error) {
+      if (!this.gatewayLeases.size) await this.stopGateway()
+      throw error
+    }
     const lease = Symbol()
     this.gatewayLeases.add(lease)
     this.loadAuthTokenFromConfig()

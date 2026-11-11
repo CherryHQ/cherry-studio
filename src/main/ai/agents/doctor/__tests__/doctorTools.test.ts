@@ -133,21 +133,43 @@ describe('doctor data_api tool', () => {
     await client.close()
   })
 
-  it.each(['env', 'args'])('refuses opaque %s overrides before proposing a write', async (field) => {
+  it.each([
+    { field: 'env', value: { MODEL: 'opaque-value' } },
+    { field: 'args', value: ['--opaque-value'] }
+  ])('accepts credential-free $field overrides', async ({ field, value }) => {
     const client = await connect()
     const result = await client.callTool({
       name: 'data_api',
       arguments: {
         method: 'PATCH',
         path: '/mcp-servers/s1',
-        body: { [field]: field === 'env' ? { MODEL: 'opaque-value' } : ['opaque-value'] },
+        body: { [field]: value },
+        summary: 'change launch configuration'
+      }
+    })
+    expect(result.isError).toBeFalsy()
+    expect(mocks.requestWrite).toHaveBeenCalledWith(
+      'session-1',
+      { kind: 'data_api_patch', path: '/mcp-servers/s1', body: { [field]: value } },
+      'change launch configuration'
+    )
+    await client.close()
+  })
+
+  it('still refuses a credential field inside an env override', async () => {
+    const client = await connect()
+    const result = await client.callTool({
+      name: 'data_api',
+      arguments: {
+        method: 'PATCH',
+        path: '/mcp-servers/s1',
+        body: { env: { OPENAI_API_KEY: 'sk-1' } },
         summary: 'change launch configuration'
       }
     })
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain(`credential field "${field}"`)
+    expect(text(result)).toContain('env.OPENAI_API_KEY')
     expect(mocks.requestWrite).not.toHaveBeenCalled()
-    expect(mocks.handleRequest).not.toHaveBeenCalled()
     await client.close()
   })
 

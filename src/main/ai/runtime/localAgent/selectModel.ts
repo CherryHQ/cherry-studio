@@ -95,6 +95,7 @@ export async function selectLocalAgentModel(
       // Re-read after queued I/O so an enable or environment edit is not overwritten.
       const current = agentService.getAgent(agentId)?.configuration?.localRuntime
       if (!current) throw new Error(t('code_cli.model.agent_missing'))
+      if (hasConfigOverrides(current.env, shellEnv)) throw new Error(t('code_cli.model.environment_mismatch'))
       const updated = agentService.updateAgent(agentId, {
         configuration: {
           localRuntime: {

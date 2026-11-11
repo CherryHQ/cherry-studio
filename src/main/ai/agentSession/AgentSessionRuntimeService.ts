@@ -60,6 +60,7 @@ import {
 } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import { getProviderModelId, type ExecutionId } from '@shared/ai/executionIdentity'
+import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
@@ -70,8 +71,7 @@ import {
   createUniqueModelId,
   parseUniqueModelId,
   UniqueModelIdSchema,
-  type ServiceTierSelection,
-  type UniqueModelId
+  type ServiceTierSelection
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -318,7 +318,7 @@ type AgentSessionRuntimeEntry = {
   /** Synchronous terminal commits; later native changes update these rows directly. */
   persistedMessageIds?: Set<string>
   contextUsageEpoch?: number
-  contextUsageModel?: UniqueModelId
+  contextUsageModel?: ExecutionId
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -2154,7 +2154,7 @@ export class AgentSessionRuntimeService extends BaseService {
       await this.closeRuntimeConnection(connection, entry.sessionId, false, interrupt)
       return false
     }
-    entry.contextUsageModel = getProviderModelId(target.modelId)
+    entry.contextUsageModel = target.modelId
     entry.usageCapture = connection.usageCapture
     this.resetConnectionRuntimeState(entry, connection)
     // Priming opens an idle connection only to populate connection-local metadata such as slash
@@ -2405,9 +2405,7 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       }
       case 'local-session-info':
-        application
-          .get('IpcApiService')
-          .broadcast('ai.local_agents.session_updated', { sessionId: entry.sessionId, info: event.info })
+        this.publishLocalSessionInfo(entry, event.info)
         break
       case 'supported-commands':
         // SDK pushed a refreshed catalog (`commands_changed`) — replace the cached list so the
@@ -3382,6 +3380,7 @@ export class AgentSessionRuntimeService extends BaseService {
         sessionId: entry.sessionId,
         assistantMessageId,
         modelId: getProviderModelId(modelId),
+        localTurnUsage: () => currentTurn.localTurnUsage,
         runtimeResumeToken: () => entry.lastResumeToken,
         forkAnchor: () => currentTurn.forkAnchor,
         projection: () =>
@@ -3426,6 +3425,12 @@ export class AgentSessionRuntimeService extends BaseService {
   getLocalSessionInfo(sessionId: string) {
     const entry = this.entries.get(sessionId)
     return entry ? (this.currentConnection(entry)?.localSessionInfo ?? null) : null
+  }
+
+  /** Push the live capabilities, or null when the connection that owned them is gone. */
+  private publishLocalSessionInfo(entry: AgentSessionRuntimeEntry, info: LocalAgentSessionInfo | null): void {
+    if (this.isShuttingDown) return
+    application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId: entry.sessionId, info })
   }
 
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
@@ -3503,6 +3508,7 @@ export class AgentSessionRuntimeService extends BaseService {
         sessionId: entry.sessionId,
         assistantMessageId: turn.assistantMessageId,
         modelId: getProviderModelId(turn.modelId),
+        localTurnUsage: () => turn.localTurnUsage,
         runtimeResumeToken: () => entry.lastResumeToken,
         projection: () =>
           turn.projection ? this.rootCheckpoint(entry, turn.projection, turn.assistantMessageId) : undefined,
@@ -3545,7 +3551,10 @@ export class AgentSessionRuntimeService extends BaseService {
   ): AgentRuntimeConnection | undefined {
     const connection = this.currentConnection(entry)
     if (connection && resetRuntimeState) this.resetConnectionRuntimeState(entry, connection)
-    if (connection) this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
+    if (connection) {
+      this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
+      this.publishLocalSessionInfo(entry, null)
+    }
     entry.connectionLoop = undefined
     entry.connectionGeneration = undefined
     return connection
