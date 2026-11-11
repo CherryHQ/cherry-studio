@@ -1342,7 +1342,11 @@ it.each([8_000, 12_000, 22_000])(
     request.reply.finish()
     await expect.poll(() => run.observed).toEqual(['Persist this paused answer'])
     const nativeSessionId = inputs[0].session_id
-    const archiveDirectory = path.join(test.configDir, 'projects', test.options.cwd.replace(/[^a-zA-Z0-9]/g, '-'))
+    const archiveDirectory = path.join(
+      test.configDir,
+      'projects',
+      (await realpath(test.options.cwd)).replace(/[^a-zA-Z0-9]/g, '-')
+    )
     await mkdir(archiveDirectory, { recursive: true })
     const userEntry = {
       type: 'user',
