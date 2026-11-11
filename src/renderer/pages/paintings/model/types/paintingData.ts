@@ -36,6 +36,8 @@ export interface PaintingData {
   files: FileMetadata[]
   inputFiles?: FileEntry[]
   persistedAt?: string
+  /** Shared id of a multi-model send's rows; unset for single-model generations. */
+  batchId?: string | null
   generationStatus?: PaintingGenerationStatus | null
   generationTaskId?: string | null
   generationError?: string | null

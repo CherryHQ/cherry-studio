@@ -66,6 +66,8 @@ function rowToPainting(row: PaintingRow, files: PaintingFiles, fileDataFingerpri
     modelId: row.modelId,
     prompt: row.prompt,
     files,
+    batchId: row.batchId,
+    params: row.params,
     ...(fileDataFingerprint ? { fileDataFingerprint } : {}),
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
@@ -234,7 +236,9 @@ class PaintingService {
               id: dto.id,
               providerId: dto.providerId,
               modelId: normalizeModelId(dto.providerId, dto.modelId),
-              prompt: dto.prompt
+              prompt: dto.prompt,
+              batchId: dto.batchId ?? null,
+              params: dto.params ?? null
             },
             {
               pkColumn: paintingTable.id,

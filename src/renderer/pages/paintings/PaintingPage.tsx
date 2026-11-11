@@ -6,11 +6,13 @@ import { useCache } from '@data/hooks/useCache'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 
 import Artboard from './components/Artboard'
+import PaintingBatchGrid from './components/PaintingBatchGrid'
 import PaintingComposer from './components/PaintingComposer'
 import PaintingStrip from './components/PaintingStrip'
 import PaintingTemplateShowcase from './components/PaintingTemplateShowcase'
+import { usePaintingBatch } from './hooks/usePaintingBatch'
 import { usePaintingDraftDefaults } from './hooks/usePaintingDraftDefaults'
-import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
+import { type MaterializeInputs, usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
 import { usePaintingHistory } from './hooks/usePaintingHistory'
 import { usePaintingInitialDraft } from './hooks/usePaintingInitialDraft'
 import { usePaintingList } from './hooks/usePaintingList'
@@ -19,10 +21,13 @@ import { usePaintingModelSwitch } from './hooks/usePaintingModelSwitch'
 import { usePaintingProviderOptions } from './hooks/usePaintingProviderOptions'
 import { usePaintingResultSync } from './hooks/usePaintingResultSync'
 import { usePaintingTemplateCatalog } from './hooks/usePaintingTemplateCatalog'
+import { isSamePaintingTarget, type PaintingTarget } from './model/paintingBatch'
 import { createDefaultPainting } from './model/paintingPipeline'
 import type { PaintingData } from './model/types/paintingData'
 import { cacheToPaintingGenerationState } from './model/utils/paintingGenerationParams'
 import { paintingClasses } from './paintingPrimitives'
+
+const NO_EXTRA_TARGETS: PaintingTarget[] = []
 
 const PaintingPage: FC = () => {
   const { t } = useTranslation()
@@ -83,19 +88,86 @@ const PaintingPage: FC = () => {
     ensureCurrentCatalog: modelCatalog.ensureCurrentCatalog
   })
 
+  const batch = usePaintingBatch()
+  const { running: batchRunning, dismiss: dismissBatch, submit: submitBatch } = batch
+  // Extra models live with the draft they were picked for, so a different painting starts from its own model alone.
+  const [extraTargetsState, setExtraTargetsState] = useState<{ paintingId: string; targets: PaintingTarget[] }>()
+  const extraTargets =
+    extraTargetsState?.paintingId === currentPainting.id ? extraTargetsState.targets : NO_EXTRA_TARGETS
+  const primaryTarget = useMemo<PaintingTarget | undefined>(
+    () =>
+      composerPainting.providerId && composerPainting.model
+        ? { providerId: composerPainting.providerId, modelId: composerPainting.model }
+        : undefined,
+    [composerPainting.providerId, composerPainting.model]
+  )
+  const targets = useMemo(
+    () =>
+      primaryTarget
+        ? [primaryTarget, ...extraTargets.filter((target) => !isSamePaintingTarget(target, primaryTarget))]
+        : [],
+    [extraTargets, primaryTarget]
+  )
+
+  // Leaving the painting drops its batch view; the batch's rows stay in history.
+  useEffect(() => {
+    dismissBatch()
+  }, [currentPainting.id, dismissBatch])
+
   const showTemplateShowcase =
     !currentPainting.persistedAt &&
     currentPainting.files.length === 0 &&
     !submitting &&
     !generating &&
     !currentPainting.generationStatus &&
-    !liveGenerationState.generationStatus
+    !liveGenerationState.generationStatus &&
+    batch.columns.length === 0
 
   const switchModel = usePaintingModelSwitch({
     painting: currentPainting,
     onPaintingChange: patchPainting,
     ensureProviderCatalog: modelCatalog.ensureProviderCatalog
   })
+
+  const selectTargets = useCallback(
+    (selected: PaintingTarget[]) => {
+      if (selected.length === 0) return
+      const nextPrimary = (primaryTarget && selected.find((t) => isSamePaintingTarget(t, primaryTarget))) ?? selected[0]
+      if (!primaryTarget || !isSamePaintingTarget(nextPrimary, primaryTarget)) void switchModel(nextPrimary)
+      setExtraTargetsState({
+        paintingId: currentPainting.id,
+        targets: selected.filter((target) => !isSamePaintingTarget(target, nextPrimary))
+      })
+    },
+    [currentPainting.id, primaryTarget, switchModel]
+  )
+
+  const generateFromComposer = useCallback(
+    (materialize: MaterializeInputs) => {
+      if (primaryTarget && targets.length > 1) {
+        return submitBatch({
+          targets,
+          primary: primaryTarget,
+          prompt: composerPainting.prompt,
+          mode: composerPainting.mode,
+          draftParams: composerPainting.params ?? {},
+          materialize
+        })
+      }
+      dismissBatch()
+      return submit(materialize)
+    },
+    [
+      composerPainting.mode,
+      composerPainting.params,
+      composerPainting.prompt,
+      dismissBatch,
+      primaryTarget,
+      submit,
+      submitBatch,
+      targets
+    ]
+  )
 
   const list = usePaintingList({
     painting: currentPainting,
@@ -109,7 +181,10 @@ const PaintingPage: FC = () => {
   // it only persists output files and New can save editable fields independently.
   const busy = list.saving || preparing
 
-  const onCancel = useCallback(() => cancelGeneration(currentPainting.id), [cancelGeneration, currentPainting.id])
+  const onCancel = useCallback(
+    () => (batchRunning ? batch.cancelAll() : cancelGeneration(currentPainting.id)),
+    [batch, batchRunning, cancelGeneration, currentPainting.id]
+  )
   const saveCurrentRef = useRef(list.saveCurrent)
   saveCurrentRef.current = list.saveCurrent
   const hasGeneratedImages = composerPainting.files.length > 0
@@ -152,7 +227,17 @@ const PaintingPage: FC = () => {
 
               <div className={paintingClasses.centerPane} data-composer-stage="">
                 <div className={paintingClasses.centerStage}>
-                  {!showTemplateShowcase && <Artboard painting={composerPainting} isLoading={generating} />}
+                  {!showTemplateShowcase &&
+                    (batch.columns.length > 0 ? (
+                      <PaintingBatchGrid
+                        columns={batch.columns}
+                        onRegenerate={batch.regenerate}
+                        onCancel={batch.cancel}
+                        onRemove={batch.remove}
+                      />
+                    ) : (
+                      <Artboard painting={composerPainting} isLoading={generating} />
+                    ))}
                 </div>
                 {showTemplateShowcase && (
                   <section
@@ -216,12 +301,13 @@ const PaintingPage: FC = () => {
                       <QuickPanelProvider>
                         <PaintingComposer
                           painting={composerPainting}
-                          generating={generating}
-                          submitting={submitting}
+                          generating={generating || batchRunning}
+                          submitting={submitting || batch.preparing}
                           onPromptChange={(prompt) => patchPainting({ prompt })}
-                          onGenerate={submit}
+                          onGenerate={generateFromComposer}
                           onCancel={onCancel}
-                          onModelSelect={switchModel}
+                          targets={targets}
+                          onTargetsSelect={selectTargets}
                           onConfigChange={patchPainting}
                           onGenerateRandomSeed={(key) =>
                             patchPainting({
