@@ -102,7 +102,9 @@ interface KnowledgePageContextValue {
   submitRenameBase: (name: string) => Promise<void>
   submitRenameGroup: (name: string) => Promise<void>
   moveBase: (baseId: string, groupId: string | null) => Promise<void>
+  moveBases: (baseIds: string[], groupId: string | null) => Promise<void>
   deleteBase: (baseId: string) => Promise<void>
+  deleteBases: (baseIds: string[]) => Promise<void>
   deleteGroup: (groupId: string) => Promise<void>
 }
 
@@ -122,7 +124,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
   const { restoreBase, isRestoring: isRestoringBase } = useRestoreKnowledgeBase()
   const { updateBase, isUpdating: isUpdatingBase } = useUpdateKnowledgeBase()
   const { updateGroup, isUpdating: isUpdatingGroup } = useUpdateKnowledgeGroup()
-  const { deleteBase } = useDeleteKnowledgeBase()
+  const { deleteBase, deleteBases } = useDeleteKnowledgeBase()
   const { deleteGroup } = useDeleteKnowledgeGroup()
   const selectedBaseId = baseId ?? ''
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
@@ -389,6 +391,20 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
     [t, updateBase]
   )
 
+  const moveBases = useCallback(
+    async (baseIds: string[], groupId: string | null) => {
+      try {
+        for (const baseId of baseIds) {
+          await updateBase(baseId, { groupId })
+        }
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_move')))
+        throw error
+      }
+    },
+    [t, updateBase]
+  )
+
   const submitCreateGroup = useCallback(
     async (name: string) => {
       const group = await createGroup(name)
@@ -449,6 +465,18 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       }
     },
     [deleteBase, t]
+  )
+
+  const handleDeleteBases = useCallback(
+    async (baseIds: string[]) => {
+      try {
+        await deleteBases(baseIds)
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_delete')))
+        throw error
+      }
+    },
+    [deleteBases, t]
   )
 
   const handleDeleteGroup = useCallback(
@@ -524,7 +552,9 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       submitRenameBase,
       submitRenameGroup,
       moveBase,
+      moveBases,
       deleteBase: handleDeleteBase,
+      deleteBases: handleDeleteBases,
       deleteGroup: handleDeleteGroup
     }),
     [
@@ -542,6 +572,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       handleCreateBaseDialogOpenChange,
       handleCreateGroupDialogOpenChange,
       handleDeleteBase,
+      handleDeleteBases,
       handleDeleteGroup,
       handleSetActiveTab,
       handleRenameBaseDialogOpenChange,
@@ -569,6 +600,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       isRestoringBase,
       filePreview,
       moveBase,
+      moveBases,
       openAddSourceDialog,
       closeItemChunks,
       openFilePreview,

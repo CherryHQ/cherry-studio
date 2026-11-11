@@ -703,6 +703,7 @@ describe('KnowledgePage', () => {
     })
     mockUseDeleteKnowledgeBase.mockReturnValue({
       deleteBase: vi.fn(),
+      deleteBases: vi.fn(),
       isDeleting: false,
       deleteError: undefined
     })
@@ -1624,6 +1625,7 @@ describe('KnowledgePage', () => {
     })
     mockUseDeleteKnowledgeBase.mockReturnValue({
       deleteBase,
+      deleteBases: vi.fn(),
       isDeleting: false,
       deleteError: undefined
     })
@@ -1983,6 +1985,7 @@ describe('KnowledgePage', () => {
     })
     mockUseDeleteKnowledgeBase.mockReturnValue({
       deleteBase,
+      deleteBases: vi.fn(),
       isDeleting: false,
       deleteError: undefined
     })
