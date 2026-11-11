@@ -1858,6 +1858,90 @@ describe('AiService tool approval', () => {
     )
   })
 
+  describe('read_file tool gating', () => {
+    const builtinReadFile = { description: 'builtin read_file', execute: async () => ({}) }
+    const callerReadFile = { description: 'caller-owned read_file' }
+    const retainedAttachment = { fileEntryId: 'entry-1', handle: 'notes.txt', displayName: 'notes.txt' }
+    const fileMessage = {
+      id: 'user-1',
+      role: 'user',
+      parts: [
+        {
+          type: 'file',
+          mediaType: 'text/plain',
+          filename: 'notes.txt',
+          url: 'file://notes.txt',
+          providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+        }
+      ]
+    }
+
+    function mockAgentParams(overrides: Record<string, unknown>) {
+      return {
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+        provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+        model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+        tools: { read_file: builtinReadFile },
+        plugins: [],
+        system: undefined,
+        options: {},
+        hookParts: [],
+        assistant: undefined,
+        nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+        fileAttachments: [retainedAttachment],
+        ...overrides
+      }
+    }
+
+    async function streamedToolNames(request: Record<string, unknown>): Promise<string[]> {
+      const service = createService()
+      vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue(
+        mockAgentParams(request.params as Record<string, unknown>)
+      )
+      await service.streamText({
+        conversation: { id: 'conversation-1', topicId: 'topic-1' },
+        trigger: 'submit-message',
+        messages: [fileMessage],
+        requestOptions: { signal: new AbortController().signal },
+        ...(request.request as Record<string, unknown>)
+      } as never)
+      // Agent.stream builds the AI SDK agent inside its async pump, after streamText returns.
+      await vi.waitFor(() => expect(mockCreateAgent).toHaveBeenCalled())
+      const agentOptions = mockCreateAgent.mock.calls[0][0] as {
+        agentSettings: { tools?: Record<string, unknown> }
+      }
+      return Object.keys(agentOptions.agentSettings.tools ?? {})
+    }
+
+    it('drops the builtin read_file when every attachment is fully inline and nothing can fold it', async () => {
+      const names = await streamedToolNames({ params: { inLoopCompactionActive: false } })
+      expect(names).not.toContain('read_file')
+    })
+
+    it('keeps read_file while in-loop compaction can still fold an inline attachment mid-request', async () => {
+      const names = await streamedToolNames({ params: { inLoopCompactionActive: true } })
+      expect(names).toContain('read_file')
+    })
+
+    it('keeps read_file when an inline attachment was capped', async () => {
+      mockPrepareChatMessages.mockImplementationOnce(async (messages, ctx) => {
+        ;(ctx as { onTruncated?: (handle: string) => void }).onTruncated?.('notes.txt')
+        return messages
+      })
+      const names = await streamedToolNames({ params: { inLoopCompactionActive: false } })
+      expect(names).toContain('read_file')
+    })
+
+    it('never drops a caller-owned read_file supplied through callOverrides', async () => {
+      const names = await streamedToolNames({
+        params: { tools: { read_file: callerReadFile }, fileAttachments: [], inLoopCompactionActive: false },
+        request: { callOverrides: { tools: { read_file: callerReadFile } }, contextOwner: 'caller' }
+      })
+      expect(names).toContain('read_file')
+    })
+  })
+
   it('checks rerank models with rerank before embedding or text generation', async () => {
     const service = createService()
     const rerankSpy = vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [{ originalIndex: 0, score: 1 }] })
