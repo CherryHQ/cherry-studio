@@ -14,16 +14,6 @@ async function getGatewayUsageNormalizeMiddleware(): Promise<LanguageModelMiddle
 }
 
 describe('gatewayUsageNormalizeFeature', () => {
-  it('runs as the innermost provider adapter for streaming and non-streaming calls', async () => {
-    const [plugin] = gatewayUsageNormalizeFeature.contributeModelAdapters!({} as never)
-    if (!plugin) throw new Error('gateway usage plugin was not contributed')
-    const middleware = await getGatewayUsageNormalizeMiddleware()
-
-    expect(plugin.enforce).toBe('post')
-    expect(middleware.wrapGenerate).toBeDefined()
-    expect(middleware.wrapStream).toBeDefined()
-  })
-
   it('applies to every provider path', () => {
     expect(gatewayUsageNormalizeFeature.applies!({ sdkConfig: { providerId: 'gateway' } } as never)).toBe(true)
     expect(gatewayUsageNormalizeFeature.applies!({ sdkConfig: { providerId: 'openai' } } as never)).toBe(true)

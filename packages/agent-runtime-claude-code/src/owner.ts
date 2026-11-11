@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
+import path from 'node:path'
 
 import {
   query,
@@ -52,6 +54,14 @@ interface Input {
   state: InputState & { inputId: InputId }
   message: SDKUserMessage
   resolve: (result: SubmitResult) => void
+}
+
+// Any explicit CLAUDE_CONFIG_DIR, even the CLI's own default, re-keys the macOS Keychain
+// credential and hides an existing `claude /login`, so only a non-default directory is passed.
+function childEnvironment(env: ClaudeSessionOptions['env'], configDir: string) {
+  const childEnv: Record<string, string | undefined> = { ...env, CLAUDE_CONFIG_DIR: configDir }
+  if (path.resolve(configDir) === path.join(homedir(), '.claude')) delete childEnv.CLAUDE_CONFIG_DIR
+  return childEnv
 }
 
 export class ClaudeOwner {
@@ -213,7 +223,7 @@ export class ClaudeOwner {
           prompt: this.inputStream(),
           options: {
             ...this.config,
-            env: { ...this.config.env, CLAUDE_CONFIG_DIR: this.runtime.configDir },
+            env: childEnvironment(this.config.env, this.runtime.configDir),
             permissionMode: this.config.permissionMode ?? 'default',
             sessionId: this.fresh ? this.activeSession : undefined,
             resume: this.fresh ? undefined : this.activeSession,
@@ -484,7 +494,6 @@ export class ClaudeOwner {
     const projection =
       commandInput?.projection ?? (agentId ? this.projection(task?.sessionId ?? this.activeSession, agentId) : root)
     if (!agentId && 'parent_tool_use_id' in message && message.parent_tool_use_id) {
-      root.publish([{ type: 'gap', reason: 'mapping-reset' }])
       return
     }
     const events: ObservationPayload[] = []
@@ -535,12 +544,13 @@ export class ClaudeOwner {
           }
         })
     }
-    if (!agentId && message.type === 'system' && message.subtype === 'compact_boundary') {
+    const compactedContext =
+      !agentId && message.type === 'system' && message.subtype === 'compact_boundary'
+        ? { status: 'unknown' as const, error: runtimeError('contextUsage', 'compacted') }
+        : undefined
+    if (compactedContext) {
       this.contextEpoch++
-      events.push({
-        type: 'context.changed',
-        result: { status: 'unknown', error: runtimeError('contextUsage', 'compacted') }
-      })
+      events.push({ type: 'context.changed', result: compactedContext })
     }
     if (message.type === 'assistant') {
       events.push(...projection.remove(message.supersedes ?? []))
@@ -563,6 +573,7 @@ export class ClaudeOwner {
           break
         case 'compact_boundary':
           events.push({ type: 'gap', reason: 'mapping-reset' })
+          if (compactedContext) events.push({ ...projection.feed.snapshot, contextUsage: compactedContext })
           break
         case 'permission_denied':
           events.push(...projection.deny(message.tool_use_id))

@@ -10,6 +10,7 @@ import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsen
 import App from '@renderer/components/MiniApp/MiniApp'
 import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 import { useTabs } from '@renderer/hooks/tab'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
@@ -36,6 +37,7 @@ const MiniAppsPage: FC = () => {
   const [newAppOpen, setNewAppOpen] = useState(false)
   // Non-null mounts the consent dialog for that builtin app; the toolbar has no install entry.
   const [install, setInstall] = useState<{ builtinAppId: string } | null>(null)
+  const installPanel = useExitPresence(install)
   const [editingApp, setEditingApp] = useState<MiniApp | null>(null)
   const {
     allApps,
@@ -93,6 +95,7 @@ const MiniAppsPage: FC = () => {
   }, [])
   const visibility = useMiniAppVisibility()
   const droppedInstall = useMiniAppInstallPreview(() => undefined)
+  const droppedPreview = useExitPresence(droppedInstall.preview)
   const packageDropzone = useMiniAppPackageDrop(droppedInstall.settle)
   const hasOpenDialog =
     settingsOpen || newAppOpen || editingApp !== null || install !== null || droppedInstall.preview !== null
@@ -151,7 +154,7 @@ const MiniAppsPage: FC = () => {
           className="pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-xl border-2 border-border-strong border-dashed bg-card">
           <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
             <span className="flex size-12 items-center justify-center rounded-full bg-accent">
-              <PackagePlus className="size-6 text-foreground-secondary" strokeWidth={1.5} />
+              <PackagePlus className="size-6 text-muted-foreground" strokeWidth={1.5} />
             </span>
             <p className="font-medium text-foreground text-sm">{t('miniApp.install.drop_here')}</p>
             <p className="text-muted-foreground text-xs">{t('miniApp.install.pick_hint')}</p>
@@ -167,7 +170,12 @@ const MiniAppsPage: FC = () => {
         <div className="flex shrink-0 items-start justify-end p-3">
           <div className="flex items-center gap-1">
             <Tooltip content={t('miniApp.add.title')}>
-              <Button variant="ghost" size="icon-sm" aria-label={t('miniApp.add.title')} onClick={openCreateAppPanel}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('miniApp.add.title')}
+                onClick={openCreateAppPanel}
+                className="text-muted-foreground">
                 <Plus size={14} />
               </Button>
             </Tooltip>
@@ -175,7 +183,8 @@ const MiniAppsPage: FC = () => {
               variant="ghost"
               size="icon-sm"
               aria-label={t('settings.miniApps.display_title')}
-              onClick={() => setSettingsOpen(true)}>
+              onClick={() => setSettingsOpen(true)}
+              className="text-muted-foreground">
               <Menu size={14} />
             </Button>
           </div>
@@ -195,7 +204,10 @@ const MiniAppsPage: FC = () => {
         </div>
 
         {/* Body: loading / error / empty / grid */}
-        <ScrollArea viewportProps={{ className: 'px-8 pb-10' }} className="min-h-0 flex-1">
+        <ScrollArea
+          contentProps={{ className: 'px-8 pb-10' }}
+
+          className="min-h-0 flex-1">
           <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col">
             {isLoading ? (
               <div className="flex flex-1 items-center justify-center">
@@ -286,11 +298,22 @@ const MiniAppsPage: FC = () => {
           </div>
         </MiniAppSettingsPanel>
         <NewMiniAppPanel open={newAppOpen || editingApp != null} app={editingApp} onClose={closeCustomAppPanel} />
-        {/* Mounted only while open: unmounting is one of the panel's cancel paths. */}
-        {install && <InstallMiniAppPanel builtinAppId={install.builtinAppId} onClose={() => setInstall(null)} />}
-        {droppedInstall.preview && (
+        {installPanel.value && (
+          <InstallMiniAppPanel
+            open={install !== null}
+            builtinAppId={installPanel.value.builtinAppId}
+            onClose={() => setInstall(null)}
+          />
+        )}
+        {droppedPreview.value && (
           <InstallConsentDialog
-            preview={droppedInstall.preview}
+            key={
+              droppedPreview.value.kind === 'upgrade'
+                ? droppedPreview.value.update.updateToken
+                : droppedPreview.value.installToken
+            }
+            open={droppedInstall.preview !== null}
+            preview={droppedPreview.value}
             busy={droppedInstall.busy}
             onCancel={droppedInstall.cancelPreview}
             onConfirm={droppedInstall.confirm}

@@ -801,6 +801,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (turn && correlation && !responseId) this.bindUsage(entry, correlation, turn)
     return {
       agentSessionId: sessionId,
+      traceContext: this.sessionTraceContext(entry, turn?.modelId),
       ...(turn ? { assistantMessageId: turn.assistantMessageId } : {}),
       source:
         sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot ?? entry.messageSnapshot) ??
@@ -810,10 +811,14 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private bindUsage(entry: AgentSessionRuntimeEntry, responseId: string, turn: AgentSessionTurn): void {
-    ;(entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(responseId, turn.assistantMessageId, () => {
-      const reply = getAgentSessionRuntimeReply(entry.runtimeState, turn)
+    const { assistantMessageId } = turn
+    // Owners live as long as the session (Pi never idle-closes); a collected turn is no longer a reply.
+    const turnRef = new WeakRef(turn)
+    ;(entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(responseId, assistantMessageId, () => {
+      const current = turnRef.deref()
+      const reply = current && getAgentSessionRuntimeReply(entry.runtimeState, current)
       return (
-        entry.persistedMessageIds?.has(turn.assistantMessageId) === true ||
+        entry.persistedMessageIds?.has(assistantMessageId) === true ||
         (reply !== undefined && reply.delivery.kind !== 'reserved' && reply.delivery.kind !== 'failed')
       )
     })
