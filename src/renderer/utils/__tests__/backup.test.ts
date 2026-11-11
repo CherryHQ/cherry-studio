@@ -1,12 +1,14 @@
-import { describe, expect, it, vi } from 'vitest'
+import { createInstance } from 'i18next'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import en from '@renderer/i18n/locales/en-us.json'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
   BACKUP_BACKGROUND_TASKS_ERROR_CODE,
   BACKUP_DISK_FULL_ERROR_CODE
 } from '@shared/types/backup'
 
-import { getLocalizedBackupErrorMessage } from '../backup'
+import { getBackupErrorTitleKey, getLocalizedBackupErrorMessage } from '../backup'
 
 const mocks = vi.hoisted(() => ({
   t: vi.fn((key: string, options?: { available?: string }) =>
@@ -141,5 +143,120 @@ describe('getLocalizedBackupErrorMessage', () => {
       'localized:message.backup.failed'
     )
     expect(getLocalizedBackupErrorMessage(new Error('401 Unauthorized'))).toBe('localized:message.backup.failed')
+  })
+})
+
+describe('migration mismatch diagnostics', () => {
+  afterEach(() => {
+    mocks.t.mockImplementation((key: string, options?: { available?: string }) =>
+      options?.available ? `localized:${key}:${options.available}` : `localized:${key}`
+    )
+  })
+
+  const payload = {
+    v: 1,
+    backupAppVersion: '2.0.0',
+    backupPlatform: 'darwin',
+    backupArch: 'arm64',
+    currentAppVersion: '2.0.0',
+    appliedCount: 2,
+    bundledCount: 3,
+    firstDifferingIndex: 1,
+    reason: 'hash',
+    bundledTag: '0001_example'
+  }
+  const marker = 'BACKUP_MIGRATION_MISMATCH'
+  const wrapped = (value: unknown) =>
+    new Error(`Error invoking remote method 'backup:restore': Error: ${marker}:${JSON.stringify(value)}`)
+
+  it('renders actual translated diagnostics from an Electron wrapper', async () => {
+    const instance = createInstance()
+    await instance.init({
+      lng: 'en',
+      resources: { en: { translation: en } },
+      keySeparator: false,
+      interpolation: { escapeValue: false }
+    })
+    mocks.t.mockImplementation(instance.t.bind(instance))
+    const result = getLocalizedBackupErrorMessage(wrapped(payload))
+    expect(result).toContain('Backup app: 2.0.0 (darwin/arm64); current app: 2.0.0')
+    expect(result).toContain("entry 2, this build's migration 0001_example; SQL checksum differs")
+    expect(result).toContain('Restore stopped before replacing your data')
+  })
+
+  it('renders unknown metadata while preserving migration counts and the entry number', async () => {
+    const instance = createInstance()
+    await instance.init({
+      lng: 'en',
+      resources: { en: { translation: en } },
+      keySeparator: false,
+      interpolation: { escapeValue: false }
+    })
+    mocks.t.mockImplementation(instance.t.bind(instance))
+    const result = getLocalizedBackupErrorMessage(
+      wrapped({ ...payload, backupAppVersion: null, backupPlatform: null, backupArch: null, bundledTag: null })
+    )
+
+    expect(result).toContain('Backup app: Unknown (Unknown/Unknown); current app: 2.0.0')
+    expect(result).toContain('Applied migrations: 2; bundled migrations: 3')
+    expect(result).toContain("First difference: entry 2, this build's migration Unknown; SQL checksum differs")
+  })
+
+  it.each([
+    ['hash', 'SQL checksum differs'],
+    ['timestamp', 'migration timestamp differs'],
+    ['hash_and_timestamp', 'SQL checksum and migration timestamp differ']
+  ])('renders the %s difference', async (reason, difference) => {
+    const instance = createInstance()
+    await instance.init({
+      lng: 'en',
+      resources: { en: { translation: en } },
+      keySeparator: false,
+      interpolation: { escapeValue: false }
+    })
+    mocks.t.mockImplementation(instance.t.bind(instance))
+    expect(getLocalizedBackupErrorMessage(wrapped({ ...payload, reason }))).toContain(difference)
+  })
+
+  it('renders an overflow with the first extra entry', async () => {
+    const instance = createInstance()
+    await instance.init({
+      lng: 'en',
+      resources: { en: { translation: en } },
+      keySeparator: false,
+      interpolation: { escapeValue: false }
+    })
+    mocks.t.mockImplementation(instance.t.bind(instance))
+    const result = getLocalizedBackupErrorMessage(
+      wrapped({ ...payload, reason: 'count_overflow', bundledCount: 1, bundledTag: null })
+    )
+    expect(result).toContain('First extra entry: 2; this installation has no bundled migration at that position')
+    expect(result).not.toContain('0001_example')
+  })
+
+  it.each([
+    ':not-json',
+    ':',
+    ':{}',
+    ':' + JSON.stringify({ ...payload, v: 2 }),
+    ':' + JSON.stringify({ ...payload, appliedCount: '2' }),
+    ':' + JSON.stringify({ ...payload, firstDifferingIndex: 2 }),
+    ':' + 'x'.repeat(2048) + JSON.stringify(payload)
+  ])('falls back safely for invalid payload %s', (suffix) => {
+    const error = new Error(`${marker}${suffix} BACKUP_NEWER_VERSION`)
+    expect(getLocalizedBackupErrorMessage(error)).toBe('localized:backup.error.migration_mismatch')
+    expect(getBackupErrorTitleKey(error)).toBe('backup.error.migration_mismatch_title')
+  })
+
+  it('does not recognize a lookalike marker', () => {
+    const error = new Error('BACKUP_MIGRATION_MISMATCHED:secret')
+    expect(getLocalizedBackupErrorMessage(error)).toBe('localized:message.backup.failed')
+    expect(getBackupErrorTitleKey(error)).toBe('error.backup.file_format')
+  })
+
+  it('retains newer-version classification', () => {
+    expect(getLocalizedBackupErrorMessage(new Error('BACKUP_NEWER_VERSION'))).toBe(
+      'localized:backup.error.newer_version'
+    )
   })
 })

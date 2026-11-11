@@ -61,7 +61,21 @@ export type AutoBackupSnapshot = {
 export const BACKUP_ACTIVE_WRITERS_ERROR_CODE = 'BACKUP_ACTIVE_WRITERS'
 export const BACKUP_BACKGROUND_TASKS_ERROR_CODE = 'BACKUP_BACKGROUND_TASKS'
 export const BACKUP_DISK_FULL_ERROR_CODE = 'BACKUP_DISK_FULL'
+export const BACKUP_MIGRATION_MISMATCH_ERROR_CODE = 'BACKUP_MIGRATION_MISMATCH'
 export const BACKUP_NEWER_VERSION_ERROR_CODE = 'BACKUP_NEWER_VERSION'
 export const BACKUP_OPERATION_BUSY_ERROR_CODE = 'BACKUP_OPERATION_BUSY'
 
 export const BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE = 'BACKUP_WEBDAV_TOO_LARGE'
+
+export type BackupMigrationMismatchDetails = {
+  v: 1
+  backupAppVersion: string | null
+  backupPlatform: string | null
+  backupArch: string | null
+  currentAppVersion: string | null
+  appliedCount: number
+  bundledCount: number
+  firstDifferingIndex: number
+  reason: 'hash' | 'timestamp' | 'hash_and_timestamp' | 'count_overflow'
+  bundledTag: string | null
+}
