@@ -36,8 +36,7 @@ it('dispatches one validated platform and retains the machine-readable verdict a
 
 it('keeps unrelated workflow diagnostics blocking the CI gate', () => {
   const ci = parse(readFileSync(resolve(__dirname, '../../../../.github/workflows/ci.yml'), 'utf8'))
-  expect(ci.jobs['basic-checks'].needs).toContain('repository-checks')
-  const lint = ci.jobs['repository-checks'].steps.find(
+  const lint = ci.jobs['basic-checks'].steps.find(
     (step: { name?: string }) => step.name === 'Lint GitHub Actions workflows'
   )
   expect(lint.with?.args ?? '').not.toContain('-ignore')
