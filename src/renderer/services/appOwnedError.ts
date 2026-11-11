@@ -3,7 +3,7 @@ import type { i18n } from 'i18next'
 import type { SerializedError } from '@renderer/types/error'
 
 // Verify that each translation has no tags or interpolation before adding a key.
-const APP_OWNED_TOAST_KEYS = new Set(['claude_code_branch_runtime_mismatch'])
+const APP_OWNED_TOAST_KEYS = new Set(['branch_runtime_mismatch'])
 
 export function resolveAppOwnedError(error: SerializedError, i18n: i18n) {
   const key = error.i18nKey

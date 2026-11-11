@@ -1,7 +1,7 @@
 import { APICallError, NoSuchToolError, RetryError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { ClaudeCodeBranchRuntimeMismatchError } from '../../runtime/claudeCode/claudeContext'
+import { BranchRuntimeMismatchError } from '../../runtime/branchRuntimeMismatch'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
@@ -321,11 +321,11 @@ describe('serializeError', () => {
 
 it('preserves branch mismatch identity and log message through JSON', () => {
   const message = 'The selected branch belongs to another runtime backend'
-  const serialized = JSON.parse(JSON.stringify(serializeError(new ClaudeCodeBranchRuntimeMismatchError(message))))
+  const serialized = JSON.parse(JSON.stringify(serializeError(new BranchRuntimeMismatchError(message))))
   expect(serialized).toMatchObject({
-    name: 'ClaudeCodeBranchRuntimeMismatchError',
+    name: 'BranchRuntimeMismatchError',
     message,
-    i18nKey: 'claude_code_branch_runtime_mismatch',
-    detailI18nKey: 'claude_code_branch_runtime_mismatch_detail'
+    i18nKey: 'branch_runtime_mismatch',
+    detailI18nKey: 'branch_runtime_mismatch_detail'
   })
 })

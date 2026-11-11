@@ -932,6 +932,6 @@ it('classifies the app-owned mismatch separately from a response stream interrup
     message: 'The selected branch belongs to another runtime backend',
     streamStage: 'response-stream'
   })
-  expect(classifyError({ ...error, i18nKey: 'claude_code_branch_runtime_mismatch' }).category).toBe('unknown')
+  expect(classifyError({ ...error, i18nKey: 'branch_runtime_mismatch' }).category).toBe('unknown')
   expect(classifyError(error).category).toBe('stream')
 })

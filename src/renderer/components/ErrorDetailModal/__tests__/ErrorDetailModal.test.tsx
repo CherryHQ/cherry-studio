@@ -112,9 +112,8 @@ const translations: Record<string, string> = {
   'common.none': 'None',
   'common.retry': 'Retry',
   'error.detail': 'Error Details',
-  'error.claude_code_branch_runtime_mismatch':
-    'This conversation branch cannot continue with the current agent settings.',
-  'error.claude_code_branch_runtime_mismatch_detail':
+  'error.branch_runtime_mismatch': 'This conversation branch cannot continue with the current agent settings.',
+  'error.branch_runtime_mismatch_detail':
     'This branch was created with a different agent type or settings. Start a new conversation, or restore the original agent and settings. This is not a network problem.',
   'error.diagnosis.view_details': 'View Details',
   'error.diagnostic_report.action': 'Report a problem',
@@ -358,15 +357,15 @@ describe('ErrorDetailContent diagnostics', () => {
     const onOpenDiagnosticReport = vi.fn()
     const raw = 'The selected branch belongs to another runtime backend'
     const stack = 'at prepareClaudeBranch'
-    const title = translations['error.claude_code_branch_runtime_mismatch']
-    const detail = translations['error.claude_code_branch_runtime_mismatch_detail']
+    const title = translations['error.branch_runtime_mismatch']
+    const detail = translations['error.branch_runtime_mismatch_detail']
     renderErrorDetailContent({
       error: {
-        name: 'ClaudeCodeBranchRuntimeMismatchError',
+        name: 'BranchRuntimeMismatchError',
         message: raw,
         stack,
-        i18nKey: 'claude_code_branch_runtime_mismatch',
-        detailI18nKey: 'claude_code_branch_runtime_mismatch_detail'
+        i18nKey: 'branch_runtime_mismatch',
+        detailI18nKey: 'branch_runtime_mismatch_detail'
       },
       localizedErrorMessage: raw,
       diagnosticReport: { location: 'home' },

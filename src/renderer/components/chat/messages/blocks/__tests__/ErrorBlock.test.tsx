@@ -792,13 +792,13 @@ it.each([
       partId="part"
       message={message}
       error={{
-        name: 'ClaudeCodeBranchRuntimeMismatchError',
+        name: 'BranchRuntimeMismatchError',
         message: raw,
         stack: null,
         providerId: 'openai',
         streamStage: 'response-stream',
-        i18nKey: 'claude_code_branch_runtime_mismatch',
-        detailI18nKey: 'claude_code_branch_runtime_mismatch_detail'
+        i18nKey: 'branch_runtime_mismatch',
+        detailI18nKey: 'branch_runtime_mismatch_detail'
       }}
     />
   )

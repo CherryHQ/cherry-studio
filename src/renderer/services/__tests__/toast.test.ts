@@ -77,11 +77,11 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
 })
 
 const mismatch = {
-  name: 'ClaudeCodeBranchRuntimeMismatchError',
+  name: 'BranchRuntimeMismatchError',
   message: 'The selected branch belongs to another runtime backend',
   stack: 'at prepareClaudeBranch',
-  i18nKey: 'claude_code_branch_runtime_mismatch',
-  detailI18nKey: 'claude_code_branch_runtime_mismatch_detail',
+  i18nKey: 'branch_runtime_mismatch',
+  detailI18nKey: 'branch_runtime_mismatch_detail',
   streamStage: 'response-stream'
 }
 
@@ -103,7 +103,7 @@ it('shows the localized branch mismatch without a retry or internal details', ()
   expect(shown.title).not.toBe(enUS['error.diagnosis.stream'])
   expect(shown.title).not.toBe(enUS['error.diagnosis.network'])
   expect(JSON.stringify([shown.title, shown.description, shown.details])).not.toMatch(
-    /another runtime backend|ClaudeCodeBranchRuntimeMismatchError|at prepareClaudeBranch/
+    /another runtime backend|BranchRuntimeMismatchError|at prepareClaudeBranch/
   )
 })
 
