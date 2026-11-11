@@ -11,6 +11,7 @@ import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
 import { closeSettings } from '../helpers/settings'
 import { agentFilePreview } from '../scenarios/agentFilePreview'
+import { agentGlobalInstallApproval } from '../scenarios/agentGlobalInstallApproval'
 async function ensureAgentModel(
   app: Parameters<typeof ensureCustomChatProvider>[0],
   page: Parameters<typeof ensureCustomChatProvider>[1]
@@ -99,6 +100,11 @@ test(...caseDefinition('MP-19'), async ({ app, mainWindow }, testInfo) => {
 test(...caseDefinition('MP-51'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(5 * 60_000)
   await agentPermissionDecisions(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-152'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(10 * 60_000)
+  await agentGlobalInstallApproval(app, mainWindow, testInfo)
 })
 
 test(...caseDefinition('MP-52'), async ({ app, mainWindow: page }, testInfo) => {
