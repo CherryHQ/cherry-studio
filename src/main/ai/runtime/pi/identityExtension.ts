@@ -9,7 +9,10 @@ export function createPiIdentityExtension(agentDataPath: string, sessionId?: str
   return (pi) => {
     pi.on('before_agent_start', async (event) => {
       const migrated = sessionId ? await application.get('MemoryMigrationService').ensureSession(sessionId) : false
-      event.systemPromptOptions.sections.agent_identity = await builder.buildMemoriesSection(agentDataPath, !migrated)
+      const { text, resources } = await builder.buildMemoriesContext(agentDataPath, !migrated)
+      event.systemPromptOptions.sections.agent_identity = text
+      event.systemPromptOptions.sectionSources ??= {}
+      event.systemPromptOptions.sectionSources.agent_identity = { kind: 'memory-files', resources }
     })
     pi.on('context_with_system', async (event, ctx) => {
       if (!sessionId) return

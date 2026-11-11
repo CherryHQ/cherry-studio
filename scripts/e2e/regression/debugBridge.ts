@@ -1,7 +1,11 @@
+import { execFileSync } from 'node:child_process'
+
 import { evaluateCdpExpression } from './cdpClient'
 import { CHERRYIN_CALLBACK } from './cherryInOauth'
 import { type AppRecord, readCdpTargets } from './lifecycle'
+import { isPathInside, type RunPaths } from './paths'
 import { assertOwnedProcess, findListeningPid, isAlive, MAIN_INSPECTOR_PORT } from './process'
+import { registerWindowsNotificationShortcut } from './windowsNotificationShortcut'
 
 interface InspectorTarget {
   type: string
@@ -46,6 +50,172 @@ export async function inspectOwnedAppEnvironment(record: AppRecord): Promise<{
     const { app } = process.mainModule.require('electron')
     return { version: app.getVersion(), locale: app.getLocale(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }
   })()`
+  )
+}
+
+export async function isOwnedGlobalShortcutRegistered(record: AppRecord, accelerator: string): Promise<boolean> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `process.mainModule.require('electron').globalShortcut.isRegistered(${JSON.stringify(accelerator)})`
+  )
+}
+
+export async function inspectOwnedWindowsByUrl(
+  record: AppRecord,
+  url: string
+): Promise<
+  {
+    id: number
+    visible: boolean
+    focused: boolean
+    minimized: boolean
+    bounds: { x: number; y: number; width: number; height: number }
+  }[]
+> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `process.mainModule.require('electron').BrowserWindow.getAllWindows()
+      .filter(window => window.webContents.getURL() === ${JSON.stringify(url)}).slice(0, 8)
+      .map(window => ({ id: window.id, visible: window.isVisible(), focused: window.isFocused(),
+        minimized: window.isMinimized(), bounds: window.getBounds() }))`
+  )
+}
+
+export async function prepareOwnedMacNotifications(record: AppRecord): Promise<void> {
+  if (record.platform !== 'macos') throw new Error('Native macOS notification preparation requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  await evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(async () => { await process.mainModule.require('electron').Notification.getHistory(); return true })()`
+  )
+}
+
+export async function prepareOwnedWindowsNotifications(record: AppRecord, paths: RunPaths): Promise<void> {
+  if (record.platform !== 'windows' || record.mode !== 'branch')
+    throw new Error('Notification shortcut preparation requires a Windows development run')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const source = await evaluateCdpExpression<string>(
+    await ownedMainInspectorUrl(record),
+    `(async () => {
+      const { Notification, shell } = process.mainModule.require('electron')
+      const { readdirSync } = process.mainModule.require('node:fs')
+      const { join, normalize } = process.mainModule.require('node:path')
+      if (!Notification.isSupported()) throw new Error('Windows notifications are unsupported')
+      const programs = join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs')
+      const deadline = Date.now() + 10000
+      do {
+        for (const name of readdirSync(programs).filter(name => name.endsWith('.lnk'))) {
+          const path = join(programs, name)
+          try {
+            const link = shell.readShortcutLink(path)
+            if (normalize(link.target).toLowerCase() === normalize(process.execPath).toLowerCase() &&
+                link.appUserModelId.endsWith('.Development') && link.appUserModelId.length <= 128 &&
+                !/\\s/.test(link.appUserModelId) && link.toastActivatorClsid) return path
+          } catch {}
+        }
+        await new Promise(resolve => setTimeout(resolve, 100))
+      } while (Date.now() < deadline)
+      throw new Error('The SDK did not register a valid isolated notification shortcut')
+    })()`
+  )
+  const programs = execFileSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      '[Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)'
+    ],
+    { encoding: 'utf8', timeout: 10_000, windowsHide: true }
+  ).trim()
+  registerWindowsNotificationShortcut(paths, source, programs)
+}
+
+export async function inspectOwnedNotificationHistory(record: AppRecord, text: string): Promise<string[]> {
+  if (record.platform !== 'macos') throw new Error('Notification history inspection requires macOS')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(async () => {
+      const history = await process.mainModule.require('electron').Notification.getHistory()
+      return history.filter(notification => notification.body.includes(${JSON.stringify(text)}))
+        .map(notification => notification.id)
+    })()`
+  )
+}
+
+export async function requestOwnedAppQuit(record: AppRecord): Promise<void> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  await evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(() => {
+      const { app } = process.mainModule.require('electron')
+      setImmediate(() => app.quit())
+      return true
+    })()`
+  )
+}
+
+export async function hasOwnedAppActiveTasks(record: AppRecord): Promise<boolean> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(() => {
+      const application = Object.values(process.mainModule.require('node:module')._cache)
+        .map(module => module.exports?.application).find(candidate => candidate?.getPath)
+      return application.get('RuntimeActivityService').hasActiveTasks()
+    })()`
+  )
+}
+
+export async function assertOwnedAppIsolation(record: AppRecord, homeDirectory: string): Promise<void> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const directories = await evaluateCdpExpression<Record<string, string | undefined>>(
+    await ownedMainInspectorUrl(record),
+    `(() => {
+      const application = Object.values(process.mainModule.require('node:module')._cache)
+        .map(module => module.exports?.application).find(candidate => candidate?.getPath)
+      return {
+        home: application.getPath('sys.home'), temp: application.getPath('sys.temp'),
+        appData: application.getPath('sys.appdata'),
+        claude: process.env.CLAUDE_CONFIG_DIR, codex: process.env.CODEX_HOME
+      }
+    })()`
+  )
+  const required = ['home', 'temp', 'claude', 'codex']
+  if (record.platform === 'windows') required.push('appData')
+  for (const key of required) {
+    const directory = directories[key]
+    if (!directory || !isPathInside(homeDirectory, directory)) {
+      throw new Error(`Regression ${key} directory is outside the isolated profile; restart the regression app`)
+    }
+  }
+}
+
+export async function setOwnedMainWindowFocus(record: AppRecord, focused: boolean): Promise<{ focused: boolean }> {
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  return evaluateCdpExpression(
+    await ownedMainInspectorUrl(record),
+    `(() => {
+      const { app, BrowserWindow } = process.mainModule.require('electron')
+      const window = BrowserWindow.getAllWindows().find(candidate =>
+        new URL(candidate.webContents.getURL()).pathname.endsWith(${JSON.stringify(MAIN_WINDOW_PATH)}))
+      if (!window) throw new Error('Owned main window is unavailable')
+      if (${JSON.stringify(focused)}) {
+        if (${JSON.stringify(record.platform)} === 'macos') {
+          app.show()
+          app.focus({ steal: true })
+        }
+        window.show()
+        window.focus()
+        window.webContents.focus()
+      } else {
+        window.blur()
+      }
+      return { focused: window.isFocused() }
+    })()`
   )
 }
 

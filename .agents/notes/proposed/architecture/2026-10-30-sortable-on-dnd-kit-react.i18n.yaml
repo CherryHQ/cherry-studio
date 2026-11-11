@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-30-sortable-on-dnd-kit-react.md
-2026-10-30-sortable-on-dnd-kit-react.md: 5d6d4c99b5fb9cf0e46ac7ce3badbde253d7f5f6
-2026-10-30-sortable-on-dnd-kit-react.zh.md: 3ca0403ac5b34788d844a64e0a0874ce6267898e

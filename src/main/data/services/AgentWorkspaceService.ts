@@ -60,6 +60,21 @@ function normalizeWorkspaceName(rawName: string): string {
 }
 
 export class AgentWorkspaceService {
+  relocateSystemWorkspaceTx(tx: DbOrTx, id: string, oldPath: string, newPath: string): void {
+    const result = tx
+      .update(agentWorkspaceTable)
+      .set({ path: newPath, updatedAt: agentWorkspaceTable.updatedAt })
+      .where(
+        and(
+          eq(agentWorkspaceTable.id, id),
+          eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM),
+          eq(agentWorkspaceTable.path, oldPath)
+        )
+      )
+      .run()
+    if (result.changes !== 1) throw new Error('System workspace changed during relocation')
+  }
+
   listStorageClaims(): { path: string; type: string }[] {
     return application
       .get('DbService')

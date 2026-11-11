@@ -140,7 +140,9 @@ async function run(request: Request, profileConfig?: ProfileConfig): Promise<voi
       result.environment.timezone.renderer
     )
     mkdirSync(join(out, 'screenshots'), { recursive: true })
-    const context = createScenarioContext(page, result, out, secrets, persist, () => ensureChinese(page, true))
+    const context = createScenarioContext(page, result, out, secrets, persist, () =>
+      ensureChinese(page, true, { requireVisibleMarker: false })
+    )
     phase('steps')
     const started = Date.now()
     try {
@@ -160,7 +162,7 @@ async function run(request: Request, profileConfig?: ProfileConfig): Promise<voi
     } finally {
       result.timings.stepsSeconds = (Date.now() - started) / 1000
       if (!page.isClosed() && browser.isConnected()) {
-        await ensureChinese(page).catch(failure)
+        await ensureChinese(page, false, { requireVisibleMarker: false }).catch(failure)
         await collectEnvironment(page, record, result).catch(failure)
         try {
           verifyTimezone(

@@ -1,5 +1,6 @@
 import type { Locator } from '@playwright/test'
 
+import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { expect, test } from './fixtures/electron.fixture'
 
 // Playwright visibility alone accepts opacity: 0, including transparent ancestors.
@@ -22,19 +23,21 @@ test('message and conversation actions remain usable without hover', async ({ ma
   const topicName = `Touch actions ${Date.now()}`
   const question = 'Touch action regression question'
   const historicalAnswer = 'Historical answer for touch actions'
-  const preferences = await mainWindow.evaluate(async () => {
+  const preferences = await mainWindow.evaluate(async (policyVersion) => {
     const previous = {
+      'app.privacy.policy_version': await window.api.preference.get('app.privacy.policy_version'),
       'app.language': await window.api.preference.get('app.language'),
       'app.onboarding.provider_setup.status': await window.api.preference.get('app.onboarding.provider_setup.status'),
       'chat.message.style': await window.api.preference.get('chat.message.style')
     }
     await window.api.preference.setMultiple({
+      'app.privacy.policy_version': policyVersion,
       'app.language': 'en-US',
       'app.onboarding.provider_setup.status': 'skipped',
       'chat.message.style': 'plain'
     })
     return previous
-  })
+  }, LATEST_PRIVACY_POLICY_VERSION)
   const assistantId = await mainWindow.evaluate(
     async ({ topicName, question, historicalAnswer }) => {
       const assistantResponse = await window.api.dataApi.request({

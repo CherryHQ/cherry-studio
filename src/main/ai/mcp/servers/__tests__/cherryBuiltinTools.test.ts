@@ -800,6 +800,14 @@ describe('createCherryToolsServer tool registration', () => {
     )
   })
 
+  it('advertises cron timeout_minutes as a concrete number for Gemini-compatible runtimes', async () => {
+    const cron = (await listCherryTools(['kb-1'])).find(({ name }) => name === 'cron')!
+    const properties = cron.inputSchema.properties as Record<string, Record<string, unknown>>
+
+    expect(properties.timeout_minutes).toMatchObject({ type: 'number' })
+    expect(properties.timeout_minutes).not.toHaveProperty('anyOf')
+  })
+
   it('exposes CLI management to the built-in Assistant', async () => {
     const client = await connectCherryTools(() => ({ allKnowledgeBases: true, baseIds: [] }))
     const names = (await client.listTools()).tools.map((tool) => tool.name)

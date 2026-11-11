@@ -204,6 +204,11 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'permission'
   }
 
+  // Invalid inline image payloads are request errors; only a real 429 may carry rate-limit wording.
+  if (status !== 429 && /inlinedata.{0,80}not valid base64|image\/[a-z0-9.+-]+ inlinedata is not valid/.test(msg)) {
+    return 'bad_request'
+  }
+
   // Rate limit (429 / "too many requests")
   if (status === 429 || /rate[_ -]?limit/.test(msg) || msg.includes('too many requests')) {
     return 'rate_limit'
@@ -238,7 +243,8 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('finishreason: safety') ||
     msg.includes('"safety"') ||
     msg.includes('recitation') ||
-    msg.includes('blocked by safety')
+    msg.includes('blocked by safety') ||
+    /\bblocked by (?:our |the )?content filter(?:ing)?\b/.test(msg)
   ) {
     return 'content'
   }
@@ -351,7 +357,9 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
 
   // Require a model-specific phrase so deprecated parameters do not look like retired models.
   if (
-    (msg.includes('deprecated') && msg.includes('model')) ||
+    /\bmodel(?:\s+(?:`[^`\r\n]+`|'[^'\r\n]+'|"[^"\r\n]+"|[^\s`'",;]+))?\s+(?:has\s+been|have\s+been|is|are|was|will\s+be)\s+deprecated\b/.test(
+      msg
+    ) ||
     msg.includes('model has been retired') ||
     msg.includes('model is retired') ||
     msg.includes('model has been sunset') ||
@@ -372,6 +380,8 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
 
   if (
     msg.includes('unexpected token') ||
+    msg.includes('failed to process successful response') ||
+    msg.includes('api returned an empty or malformed response') ||
     msg.includes('invalid response') ||
     msg.includes('parse error') ||
     (!requestParseFailure && msg.includes('failed to parse')) ||

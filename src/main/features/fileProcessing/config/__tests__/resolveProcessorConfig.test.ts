@@ -88,6 +88,28 @@ describe('resolveProcessorConfig', () => {
     })
   })
 
+  it('merges Doc2X export options into the main-process capability config', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
+      doc2x: {
+        capabilities: {
+          document_to_markdown: {
+            modelId: 'v3-2026',
+            formulaLevel: 2,
+            mergeCrossPageForms: true
+          }
+        }
+      }
+    })
+
+    expect(getFileProcessorConfigById('doc2x').capabilities[0]).toEqual(
+      expect.objectContaining({
+        modelId: 'v3-2026',
+        formulaLevel: 2,
+        mergeCrossPageForms: true
+      })
+    )
+  })
+
   it('getFileProcessorConfigById throws notFound for an unknown processor id', () => {
     expect(() => getFileProcessorConfigById('missing' as never)).toThrowError('File processor not found: missing')
   })

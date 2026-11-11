@@ -94,7 +94,7 @@ export class WebMcpTools {
   }
 
   async list(options: CommandOptions = {}) {
-    await this.session.send('Runtime.enable', undefined, options)
+    await this.session.enableRuntime(options)
     const lifetime = this.lifetime
     if (!this.capability) {
       try {

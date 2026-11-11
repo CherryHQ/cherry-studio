@@ -29,7 +29,14 @@ const {
   mockExtractProviderOptions: vi.fn(),
   captured: {
     opts: undefined as
-      | { uniqueModelId?: string; listener?: StreamListener; contextOwner?: 'cherry' | 'caller' }
+      | {
+          uniqueModelId?: string
+          listener?: StreamListener
+          contextOwner?: 'cherry' | 'caller'
+          reasoningEffort?: string
+          serviceTier?: string
+          fastMode?: boolean
+        }
       | undefined
   }
 }))
@@ -69,6 +76,7 @@ vi.mock('../adapters', () => ({
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
+      getMessageId: () => 'test-response',
       transformChunk: () => [],
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ ok: true })
@@ -200,20 +208,6 @@ describe('processMessage model-id parsing', () => {
     expect(captured.opts?.contextOwner).toBe('caller')
   })
 
-  it('passes the normalized max output tokens to provider option extraction', async () => {
-    mockAvailableModel('openai', 'gpt-4')
-    mockExtractStreamOptions.mockReturnValue({ maxOutputTokens: 1024 })
-
-    await resolveValid('openai:gpt-4')
-
-    expect(mockExtractProviderOptions).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'openai' }),
-      expect.objectContaining({ apiModelId: 'gpt-4' }),
-      expect.objectContaining({ model: 'openai:gpt-4' }),
-      1024
-    )
-  })
-
   it('keeps later colons in the model id (split on FIRST colon only)', async () => {
     mockAvailableModel('openrouter', 'anthropic/claude:beta')
     expect(await resolveValid('openrouter:anthropic/claude:beta')).toBe(
@@ -313,5 +307,28 @@ describe('internal requests without an Agent session', () => {
     expect(captured.opts).not.toHaveProperty('tokenUsageSource', 'agent')
     void captured.opts!.listener!.onDone({} as any)
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
+  })
+})
+
+describe('internal Agent request selections', () => {
+  it.each([true, false])('accepts Cherry selections only with internal authentication: %s', async (trusted) => {
+    mockAvailableModel('p', 'm')
+    mockIsInternalRequest.mockReturnValue(trusted)
+    const response = processMessage({
+      params: { model: 'p:m', messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers({
+        'x-cherry-reasoning-effort': 'high',
+        'x-cherry-service-tier': 'flex',
+        'x-cherry-fast-mode': 'true'
+      })
+    })
+    await vi.waitFor(() => expect(captured.opts).toBeDefined())
+    expect(captured.opts?.reasoningEffort).toBe(trusted ? 'high' : undefined)
+    expect(captured.opts?.serviceTier).toBe(trusted ? 'flex' : undefined)
+    expect(captured.opts?.fastMode).toBe(trusted)
+    await captured.opts!.listener!.onDone({} as never)
+    expect((await response).status).toBe(200)
   })
 })

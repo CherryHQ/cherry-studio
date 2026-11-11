@@ -17,6 +17,7 @@ const logger = loggerService.withContext('LocalModelsSection')
 const CARD_NOTICE_KEYS = {
   downloadFailed: 'settings.dependencies.localModels.notice.downloadFailed',
   incompleteCache: 'settings.dependencies.localModels.notice.incompleteCache',
+  missingRuntime: 'settings.dependencies.localModels.notice.missingRuntime',
   removeFailed: 'settings.dependencies.localModels.notice.removeFailed',
   inUse: 'settings.dependencies.localModels.notice.inUse'
 } as const
@@ -100,7 +101,9 @@ function useLocalModelCard(id: LocalModelBundleId) {
         ? localModel.errorCode === 'incomplete_cache'
           ? 'incompleteCache'
           : 'downloadFailed'
-        : null),
+        : localModel.hintCode === 'missing_shared_runtime'
+          ? 'missingRuntime'
+          : null),
     download,
     remove
   }
@@ -180,7 +183,8 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
                 return
               await remove()
             }}
-            aria-label={t('settings.dependencies.localModels.remove')}>
+            aria-label={t('settings.dependencies.localModels.remove')}
+            className="text-muted-foreground">
             <Trash2 className="size-3.5" />
           </Button>
         )}
@@ -206,7 +210,7 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
 
       {!ready && (
         <div className="mt-auto pt-3">
-          <div className="border-border border-t pt-3">
+          <div className="pt-3">
             {downloading ? (
               <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={() => void cancel()}>
                 <X className="size-3.5" />
