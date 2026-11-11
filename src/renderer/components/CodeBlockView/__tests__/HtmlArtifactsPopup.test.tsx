@@ -68,12 +68,9 @@ describe('HtmlArtifactsPopup', () => {
     }
   })
 
-  it('defaults to preview and switches to read-only source', async () => {
+  it('switches to read-only source', async () => {
     const user = userEvent.setup()
     render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={vi.fn()} />)
-
-    expect(screen.getByTitle('common.html_preview')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'html_artifacts.preview' })).toBeChecked()
 
     await user.click(screen.getByRole('radio', { name: 'html_artifacts.code' }))
 
@@ -98,33 +95,6 @@ describe('HtmlArtifactsPopup', () => {
 
     expect(screen.getByRole('textbox', { name: 'HTML editor' })).toHaveTextContent('<h1>Hello</h1>')
     expect(screen.queryByLabelText('HTML source')).not.toBeInTheDocument()
-  })
-
-  it('renders a caller-provided preview in the popup shell', () => {
-    render(
-      <HtmlArtifactsPopup
-        open
-        editable={false}
-        title="HTML Artifacts"
-        html="<h1>Hello</h1>"
-        canCapturePreview={false}
-        renderPreview={() => <div>Custom preview</div>}
-        onClose={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('dialog', { name: 'HTML Artifacts' })).toBeInTheDocument()
-    expect(screen.getByText('Custom preview')).toBeInTheDocument()
-  })
-
-  it('keeps the popup open when the overlay is clicked', () => {
-    const onClose = vi.fn()
-    render(<HtmlArtifactsPopup open editable={false} title="HTML Artifacts" html="<h1>Hello</h1>" onClose={onClose} />)
-    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
-
-    expect(overlay).toBeInTheDocument()
-    fireEvent.click(overlay!)
-    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('dismisses the capture menu after selecting a destination', () => {

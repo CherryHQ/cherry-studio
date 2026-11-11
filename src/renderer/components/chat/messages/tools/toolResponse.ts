@@ -1,3 +1,4 @@
+import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
@@ -62,6 +63,14 @@ export function getCanonicalToolName(part: CherryMessagePart): string | undefine
   const toolPart = part as unknown as ToolResponsePart
   const toolName = getToolName(toolPart).trim()
   if (!toolName) return undefined
+  if (
+    toolPart.callProviderMetadata?.cherry?.transport === PI_AGENT_TRANSPORT &&
+    toolName === 'edit' &&
+    isRecord(toolPart.input) &&
+    Array.isArray(toolPart.input.edits)
+  ) {
+    return AgentToolsType.MultiEdit
+  }
   return hasCherryTransport(toolPart.callProviderMetadata)
     ? (CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(toolName) ?? toolName)
     : toolName
@@ -204,6 +213,27 @@ function normalizeErrorOutput(part: ToolResponsePart): unknown {
   return normalizeToolErrorResponse(part.errorText)
 }
 
+function normalizeToolInput(part: ToolResponsePart): unknown {
+  const input = part.input
+  if (part.callProviderMetadata?.cherry?.transport !== PI_AGENT_TRANSPORT || !isRecord(input)) return input
+  const name = getToolName(part)
+  if (name !== 'read' && name !== 'write' && name !== 'edit') return input
+  if (name === 'edit' && Array.isArray(input.edits)) {
+    return {
+      ...input,
+      file_path: input.path,
+      edits: input.edits.map((edit) =>
+        isRecord(edit) ? { ...edit, old_string: edit.oldText, new_string: edit.newText } : edit
+      )
+    }
+  }
+  return {
+    ...input,
+    file_path: input.path,
+    ...(name === 'edit' ? { old_string: input.oldText, new_string: input.newText } : {})
+  }
+}
+
 export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: string): ToolResponseLike | null {
   if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) return null
 
@@ -234,13 +264,19 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     (status === 'streaming' || status === 'invoking') && typeof toolPart.input === 'string' ? toolPart.input : undefined
 
   if (toolType === 'mcp') {
+    const piResult = toolPart.state === 'output-error' ? toolPart.resultProviderMetadata?.pi?.result : toolPart.output
+    const mcpResult = CallToolResultSchema.safeParse(
+      toolPart.callProviderMetadata?.cherry?.transport === PI_AGENT_TRANSPORT && isRecord(piResult)
+        ? piResult.structuredContent
+        : undefined
+    )
     const tool = buildMcpToolDescriptor(toolName, metadata)
     const mcpResponse: McpToolResponse = {
       id: toolCallId,
       tool,
       arguments: toolPart.input as McpToolResponse['arguments'],
       status,
-      response,
+      response: mcpResult.success ? mcpResult.data : response,
       ...(approval ? { approval } : {}),
       toolCallId,
       ...(parentToolUseId ? { parentToolUseId } : {}),
@@ -253,7 +289,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const normalResponse: NormalToolResponse = {
     id: toolCallId,
     tool,
-    arguments: toolPart.input as NormalToolResponse['arguments'],
+    arguments: normalizeToolInput(toolPart) as NormalToolResponse['arguments'],
     status,
     response,
     ...(approval ? { approval } : {}),

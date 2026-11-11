@@ -1,5 +1,5 @@
 import { Bot, ChevronDown, CircleSlash, Folder } from 'lucide-react'
-import { type FC, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type FC, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -416,6 +416,7 @@ const TaskSessionReuseField: FC<{
 }
 
 type TaskFormDialogProps = {
+  agentNotice?: ReactNode
   open: boolean
   agents: AgentInfo[]
   onOpenChange: (open: boolean) => void
@@ -557,7 +558,11 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
             {t(isEditing ? 'settings.scheduledTasks.editDescription' : 'settings.scheduledTasks.createDescription')}
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea viewportProps={{ className: 'p-1 pr-3' }} className="-m-1 max-h-[60vh]">
+        {props.agentNotice}
+        <ScrollArea
+          contentProps={{ className: 'p-1 pr-3' }}
+
+          className="-m-1 max-h-[60vh]">
           <FieldGroup>
             <Field data-invalid={(submitted && !name.trim()) || undefined}>
               <FieldLabel required htmlFor="task-form-name">

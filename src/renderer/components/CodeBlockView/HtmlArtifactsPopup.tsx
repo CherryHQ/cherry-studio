@@ -415,7 +415,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
                         variant="ghost"
                         size="icon-sm"
                         aria-label={t('html_artifacts.capture.label')}
-                        className="[-webkit-app-region:no-drag]">
+                        className="[-webkit-app-region:no-drag] text-muted-foreground">
                         <Camera className="size-3.5" />
                       </Button>
                     </PopoverTrigger>
@@ -440,10 +440,14 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
                 onClick={() => setIsFullscreen(!isFullscreen)}
                 variant="ghost"
                 size="icon-sm"
-                className="[-webkit-app-region:no-drag]">
+                className="[-webkit-app-region:no-drag] text-muted-foreground">
                 {isFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
               </Button>
-              <Button onClick={onClose} variant="ghost" size="icon-sm" className="[-webkit-app-region:no-drag]">
+              <Button
+                onClick={onClose}
+                variant="ghost"
+                size="icon-sm"
+                className="[-webkit-app-region:no-drag] text-muted-foreground">
                 <X className="size-3.5" />
               </Button>
             </div>

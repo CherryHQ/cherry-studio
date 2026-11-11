@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react'
-import { Code2, Compass, DownloadIcon, Eye, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
+import { Check, Code2, Compass, DownloadIcon, Eye, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   lazy,
   memo,
@@ -38,6 +38,8 @@ import {
 } from '@renderer/components/CodeBlockView/HtmlArtifactPreviewSurface'
 import HtmlPreviewFrame, { HTML_PREVIEW_RESTRICTED_CSP } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -533,6 +535,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
   const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview')
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [previewHeight, setPreviewHeight] = useState(INITIAL_PREVIEW_HEIGHT)
+  const [copied, setCopiedTemporarily] = useTemporaryValue(false)
   const hasContent = html.trim().length > 0
   const previewHtml = useStreamingPacedHtml(html, isStreaming)
   const requiresUserConsent = useMemo(
@@ -599,6 +602,18 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
     }
   }
 
+  const handleCopySource = async () => {
+    try {
+      await navigator.clipboard.writeText(html)
+      toast.success(t('code_block.copy.success'))
+      setCopiedTemporarily(true)
+    } catch (error) {
+      logger.error('Failed to copy HTML artifact source', error as Error)
+      toast.error(t('code_block.copy.failed'))
+      setCopiedTemporarily(false)
+    }
+  }
+
   useLayoutEffect(() => {
     syncPopup({
       artifactId,
@@ -661,7 +676,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      className="size-6"
+                      className="size-6 text-muted-foreground"
                       aria-label={t('preview.zoom_out')}
                       disabled={zoom <= MIN_ZOOM}
                       onClick={handleZoomOut}>
@@ -684,7 +699,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      className="size-6"
+                      className="size-6 text-muted-foreground"
                       aria-label={t('preview.zoom_in')}
                       disabled={zoom >= MAX_ZOOM}
                       onClick={handleZoomIn}>
@@ -699,7 +714,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="size-6"
+                  className="size-6 text-muted-foreground"
                   aria-label={t('chat.artifacts.button.openExternal')}
                   disabled={!hasContent}
                   onClick={handleOpenExternal}>
@@ -711,20 +726,34 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="size-6"
+                  className="size-6 text-muted-foreground"
                   aria-label={t('code_block.download.label')}
                   disabled={!hasContent}
                   onClick={handleDownload}>
                   <DownloadIcon className="size-3" />
                 </Button>
               </Tooltip>
+              {showCode && (
+                <Tooltip content={t('code_block.copy.source')} delay={500}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-6 text-muted-foreground"
+                    aria-label={t('code_block.copy.source')}
+                    disabled={!hasContent}
+                    onClick={handleCopySource}>
+                    {copied ? <Check className="lucide-custom size-3 text-success" /> : <CopyIcon className="size-3" />}
+                  </Button>
+                </Tooltip>
+              )}
               {!showCode && (
                 <Tooltip content={t('common.maximize')} delay={500}>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="size-6"
+                    className="size-6 text-muted-foreground"
                     aria-label={t('common.maximize')}
                     onClick={handleOpenPopup}>
                     <Maximize2 className="size-3" />
@@ -737,7 +766,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="size-6"
+                  className="size-6 text-muted-foreground"
                   aria-label={toggleLabel}
                   aria-pressed={showCode}
                   onClick={handleToggle}>

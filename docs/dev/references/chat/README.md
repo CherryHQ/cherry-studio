@@ -30,6 +30,19 @@ The repository previously carried target-architecture documents for a generic
 adapter layer and root package barrel. Those APIs did not land; the current
 reference set documents implemented behavior only.
 
+## Agent mode controls
+
+The Agent composer exposes Plan as an independent Quick Panel toggle on harnesses
+that support it. Shift+Tab switches ordinary/Plan without changing the draft;
+open-panel and prompt-variable navigation take priority. Plan is absent from the
+composer's Permission Mode submenu. The toggle still saves the native Agent
+permission mode (`plan` or `default`).
+
+Goal is selected separately in the Quick Panel through the existing native
+`/goal` command. Selection prefixes the draft once and leaves submission to the
+user. Pi and Durable provide a static command entry; Claude uses its live SDK
+catalog. Draft keywords and the input placeholder do not suggest modes.
+
 ## Documents
 
 | Document | What it covers |

@@ -217,7 +217,6 @@ export async function buildClaudeCodeSessionSettings(
   // `dispose` drops any approval still pending for this session when the
   // stream exits abnormally.
   const approvalEmitter = sessionState().getToolApprovalEmitterHolder(session.id)
-  const steerHolder = sessionState().getSteerHolder(session.id)
   // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
   // not passed in; the holders above are created here only to expose them on `settings`.
   const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
@@ -360,7 +359,6 @@ export async function buildClaudeCodeSessionSettings(
     canUseTool,
     hooks,
     approvalEmitter,
-    steerHolder,
     toolPolicySnapshot,
     warmQueryKey: session.id,
     ...(mcpToolMetadata ? { mcpToolMetadata } : {}),

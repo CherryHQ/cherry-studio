@@ -4,6 +4,8 @@ Status: proposed
 
 [English](2026-10-14-agent-runtime-background-subagent.md) | 中文
 
+旧 Pi 执行器的源码／测试链接固定在收缩前的 `46d76e4`，仅保留历史证据。现行实现及测试归属见[运行时边界收缩方案](../simplification/2026-11-05-agent-runtime-boundary-ownership.md)第 11 节；这些旧入口已退出生产路径。
+
 ## Problem
 
 前台子智能体通过阻塞的工具调用返回报告。独立任务还需要跨越父会话当前轮次继续运行、无需轮询即可汇报，并接收后续指令。如果只把这类工作当作普通工具结果，调用返回后就失去了生命周期控制；如果把每条子会话回复都当作父会话输入，又会造成重复投递、意外唤醒和错误的 goal 计量。
@@ -149,7 +151,7 @@ active 且已武装的 goal 用完预算后，拒绝新的后台派出和续接�
 
 ## Current evidence
 
-[包 README](../../../../packages/agent-runtime-pi/README.md)说明当前入口。[子智能体控制](../../../../packages/agent-runtime-pi/src/subagent.ts)、[原生子存储](../../../../packages/agent-runtime-pi/src/subagentSession.ts)、[运行执行](../../../../packages/agent-runtime-pi/src/subagentRun.ts)、[注册表/恢复](../../../../packages/agent-runtime-pi/src/subagentRegistry.ts)和[投递](../../../../packages/agent-runtime-pi/src/subagentDelivery.ts)实现上述 Pi 专属行为。[Goal 状态](../../../../packages/agent-runtime-pi/src/goalState.ts)和[goal 执行](../../../../packages/agent-runtime-pi/src/goalExtension.ts)拥有计量与预算转换。
+[包 README](../../../../packages/agent-runtime-pi/README.md)说明当前入口。[子智能体控制](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagent.ts)、[原生子存储](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagentSession.ts)、[运行执行](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagentRun.ts)、[注册表/恢复](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagentRegistry.ts)和[投递](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagentDelivery.ts)实现上述 Pi 专属行为。[Goal 状态](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/goalState.ts)和[goal 执行](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/goalExtension.ts)拥有计量与预算转换。
 
 列出的 `gateway*.test.ts` 位于 `src/main/ai/runtime/pi/`，包测试位于 `packages/agent-runtime-pi/tests/`。这些测试通过测试提供商和受控时序覆盖原生 Pi 与 Cherry 模型 binding。[接入 README](../../../../src/main/ai/runtime/pi/README.md)明确说明桌面连接仍使用原有路径。源码覆盖、真实提供商验收、Electron 行为和打包加载属于不同证据层级，见 [harness 证据](../testing/2026-10-17-agent-harness-evidence.md)。本次文档迁移未重跑这些执行测试。
 
