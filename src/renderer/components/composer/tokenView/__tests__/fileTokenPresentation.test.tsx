@@ -48,6 +48,13 @@ describe('getFileTokenPresentation image previewUrl', () => {
 
     expect(getFileTokenPresentation(editRoundTrip, 'image').previewUrl).toBeDefined()
   })
+
+  it('degrades malformed file extension and fallback-label metadata instead of throwing', () => {
+    const malformedAttachment = imageAttachment({ ext: { invalid: true } as never })
+
+    expect(() => getFileTokenPresentation(malformedAttachment, { invalid: true } as never)).not.toThrow()
+    expect(getFileTokenPresentation(malformedAttachment, { invalid: true } as never).typeLabel).toBe('IMAGE')
+  })
 })
 
 describe('getFileTokenPresentation icon', () => {

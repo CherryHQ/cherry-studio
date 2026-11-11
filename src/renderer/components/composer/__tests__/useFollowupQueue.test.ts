@@ -21,8 +21,8 @@ describe('useFollowupQueue', () => {
       useFollowupQueue({ scopeKey: 's1', status: undefined, lastCompletedAt: null, onDrain: vi.fn() })
     )
 
-    act(() => result.current.enqueue(draft('a'), payload('a')))
-    act(() => result.current.enqueue(draft('b'), payload('b')))
+    act(() => void result.current.enqueue(draft('a'), payload('a')))
+    act(() => void result.current.enqueue(draft('b'), payload('b')))
 
     expect(result.current.items.map((i) => i.draft.text)).toEqual(['a', 'b'])
     expect(result.current.items.map((i) => i.payload.text)).toEqual(['a', 'b'])
@@ -37,8 +37,8 @@ describe('useFollowupQueue', () => {
       useFollowupQueue({ scopeKey: 's1', status: undefined, lastCompletedAt: null, onDrain: vi.fn() })
     )
 
-    act(() => result.current.enqueue(draft('a'), payload('a')))
-    act(() => result.current.enqueue(draft('b'), payload('b')))
+    act(() => void result.current.enqueue(draft('a'), payload('a')))
+    act(() => void result.current.enqueue(draft('b'), payload('b')))
     const [first, second] = result.current.items
 
     act(() => result.current.reorder([second, first]))
@@ -524,5 +524,307 @@ describe('editing a queued item from the composer', () => {
 
     expect(editingMessage.restore).not.toHaveBeenCalled()
     expect(result.current.items.map((entry) => entry.id)).toEqual(['a'])
+  })
+})
+
+describe('feature recovery on the current completion contract', () => {
+  beforeEach(() => MockCacheUtils.resetMocks())
+  it.each(['false', 'reject', 'success'] as const)(
+    'settles a removed manual steer (%s) and releases deferred completion',
+    async (outcome) => {
+      cacheService.setCasual('followup-queue.s1', [item('h1', 'first'), item('h2', 'second')])
+      let finish!: (sent: boolean) => void
+      let fail!: (error: Error) => void
+      const onDrain = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<boolean>((resolve, reject) => {
+              finish = resolve
+              fail = reject
+            })
+        )
+        .mockResolvedValue(true)
+      const { result, rerender } = renderHook(
+        ({ done }) =>
+          useFollowupQueue({
+            scopeKey: 's1',
+            status: done ? 'done' : 'streaming',
+            lastCompletedAt: done ? 100 : null,
+            onDrain
+          }),
+        { initialProps: { done: false } }
+      )
+      act(() => {
+        void result.current.sendId('h2')
+      })
+      act(() => result.current.removeId('h2'))
+      act(() => rerender({ done: true }))
+      expect(onDrain).toHaveBeenCalledTimes(1)
+      await act(async () => {
+        if (outcome === 'reject') fail(new Error('not accepted'))
+        else finish(outcome === 'success')
+      })
+      // A steer dispatched before completion does not own that later completion.
+      expect(onDrain.mock.calls.map(([p]) => p.text)).toEqual(['second', 'first'])
+      expect(result.current.items).toEqual([])
+      expect(result.current.failedItemId).toBeNull()
+      expect(result.current.paused).toBe(false)
+    }
+  )
+
+  it.each(['remount', 'scope-switch'] as const)('reconciles removed failed steer after %s', async (mode) => {
+    cacheService.setCasual('followup-queue.s1', [item('h1', 'first'), item('h2', 'second')])
+    let finish!: (sent: boolean) => void
+    const onDrain = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve
+          })
+      )
+      .mockResolvedValue(true)
+    const mount = () =>
+      renderHook(
+        ({ scopeKey, done }) =>
+          useFollowupQueue({
+            scopeKey,
+            status: done ? 'done' : 'streaming',
+            lastCompletedAt: done ? 100 : null,
+            onDrain
+          }),
+        { initialProps: { scopeKey: 's1', done: false } }
+      )
+    const old = mount()
+    act(() => {
+      void old.result.current.sendId('h2')
+    })
+    act(() => old.result.current.removeId('h2'))
+    if (mode === 'remount') old.unmount()
+    else act(() => old.rerender({ scopeKey: 's2', done: false }))
+    const current = mode === 'remount' ? mount() : old
+    act(() => current.rerender({ scopeKey: 's1', done: true }))
+    await act(async () => finish(false))
+    expect(onDrain.mock.calls.map(([p]) => p.text)).toEqual(['second', 'first'])
+    expect(current.result.current.items).toEqual([])
+    expect(current.result.current.failedItemId).toBeNull()
+  })
+
+  it('retries a failed draft, then waits for the next completion before draining another', async () => {
+    cacheService.setCasual('followup-queue.s1', [item('h1', 'first'), item('h2', 'second')])
+    const onDrain = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    const { result, rerender } = renderHook(
+      ({ time }) => useFollowupQueue({ scopeKey: 's1', status: 'done', lastCompletedAt: time, onDrain }),
+      { initialProps: { time: 100 } }
+    )
+    await act(async () => {})
+    expect(result.current.failedItemId).toBe('h1')
+    expect(result.current.paused).toBe(true)
+    await act(async () => result.current.retryFailed())
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
+    expect(result.current.items.map((i) => i.id)).toEqual(['h2'])
+    expect(onDrain).toHaveBeenCalledTimes(2)
+    await act(async () => rerender({ time: 200 }))
+    expect(onDrain).toHaveBeenCalledTimes(3)
+  })
+
+  it('Skip continues explicitly and Abort drops remaining failed drafts', async () => {
+    cacheService.setCasual('followup-queue.s1', [item('h1', 'first'), item('h2', 'second')])
+    const onDrain = vi.fn().mockResolvedValue(false)
+    const { result } = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', status: 'done', lastCompletedAt: 100, onDrain })
+    )
+    await act(async () => {})
+    await act(async () => result.current.skipFailed())
+    expect(onDrain.mock.calls.map(([p]) => p.text)).toEqual(['first', 'second'])
+    expect(result.current.failedItemId).toBe('h2')
+    act(() => result.current.clear())
+    expect(result.current.items).toEqual([])
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
+  })
+
+  it('rejects overflow without losing the draft and filters malformed cache rows', () => {
+    cacheService.setCasual('followup-queue.s1', [item('good', 'ok'), { id: 'bad', draft: null, payload: payload('x') }])
+    const { result } = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', status: undefined, lastCompletedAt: null, onDrain: vi.fn() })
+    )
+    expect(result.current.items.map((i) => i.id)).toEqual(['good'])
+    act(() => {
+      for (let i = 1; i < 20; i++) expect(result.current.enqueue(draft(String(i)), payload(String(i)))).toBe('ok')
+      expect(result.current.enqueue(draft('rejected'), payload('rejected'))).toBe('full')
+    })
+    expect(result.current.items).toHaveLength(20)
+    const stale = result.current.items
+    act(() => cacheService.setCasual('followup-queue.s1', []))
+    act(() => result.current.reorder(stale))
+    expect(result.current.items).toEqual([])
+  })
+})
+
+describe('failed admission dismissal and retry pause ownership', () => {
+  beforeEach(() => MockCacheUtils.resetMocks())
+  it.each(['remove', 'edit', 'message-edit'] as const)(
+    'does not auto-send the next draft after %s of a failed head',
+    async (mode) => {
+      cacheService.setCasual('followup-queue.s1', [item('a', 'first'), item('b', 'second')])
+      const onDrain = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+      const { result, rerender } = renderHook(
+        ({ time }) => useFollowupQueue({ scopeKey: 's1', status: 'done', lastCompletedAt: time, onDrain }),
+        { initialProps: { time: 100 } }
+      )
+      await act(async () => {})
+      expect(result.current.failedItemId).toBe('a')
+      await act(async () => {
+        if (mode === 'remove') result.current.removeId('a')
+        else
+          result.current.editItem('a', {
+            editingMessage: mode === 'message-edit',
+            getDraft: () => draft(''),
+            buildPayload: () => null,
+            hasFiles: false,
+            restore: vi.fn()
+          })
+      })
+      expect(onDrain.mock.calls.map(([p]) => p.text)).toEqual(['first'])
+      expect(result.current.items.map((i) => i.id)).toEqual(['b'])
+      expect(result.current.failedItemId).toBeNull()
+      await act(async () => rerender({ time: 200 }))
+      expect(onDrain.mock.calls.map(([p]) => p.text)).toEqual(['first', 'second'])
+    }
+  )
+  it.each(['pause', 'clear-and-pause'] as const)('retains a newer user %s when an old Retry succeeds', async (mode) => {
+    cacheService.setCasual('followup-queue.s1', [item('a', 'first')])
+    let finish!: (sent: boolean) => void
+    const onDrain = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finish = resolve
+          })
+      )
+      .mockResolvedValue(true)
+    const { result, rerender } = renderHook(
+      ({ time }) => useFollowupQueue({ scopeKey: 's1', status: 'done', lastCompletedAt: time, onDrain }),
+      { initialProps: { time: 100 } }
+    )
+    await act(async () => {})
+    act(() => result.current.retryFailed())
+    act(() => {
+      if (mode === 'clear-and-pause') result.current.clear()
+      result.current.enqueue(draft('new'), payload('new'))
+      result.current.setPaused(true)
+    })
+    await act(async () => finish(true))
+    expect(result.current.paused).toBe(true)
+    await act(async () => rerender({ time: 200 }))
+    expect(onDrain.mock.calls.map(([p]) => p.text)).toEqual(['first', 'first'])
+    expect(result.current.items.map((i) => i.payload.text)).toEqual(['new'])
+  })
+})
+
+describe('retry admission recovery boundaries', () => {
+  beforeEach(() => MockCacheUtils.resetMocks())
+  it.each(['false', 'reject'] as const)('reinstates failure controls when Retry returns %s', async (outcome) => {
+    cacheService.setCasual('followup-queue.s1', [item('a', 'first'), item('b', 'second')])
+    const onDrain = vi.fn().mockResolvedValueOnce(false)
+    if (outcome === 'reject') onDrain.mockRejectedValueOnce(new Error('retry failed'))
+    else onDrain.mockResolvedValueOnce(false)
+    const { result } = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', status: 'done', lastCompletedAt: 100, onDrain })
+    )
+    await act(async () => {})
+    await act(async () => result.current.retryFailed())
+    expect(result.current.failedItemId).toBe('a')
+    expect(result.current.paused).toBe(true)
+    expect(result.current.items.map((i) => i.id)).toEqual(['a', 'b'])
+    expect(onDrain).toHaveBeenCalledTimes(2)
+  })
+  it('persists a dismissed completion across remount without blocking the next completion', async () => {
+    cacheService.setCasual('followup-queue.s1', [item('a', 'first'), item('b', 'second')])
+    const onDrain = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    const mount = () =>
+      renderHook(({ time }) => useFollowupQueue({ scopeKey: 's1', status: 'done', lastCompletedAt: time, onDrain }), {
+        initialProps: { time: 100 }
+      })
+    const first = mount()
+    await act(async () => {})
+    act(() => first.result.current.removeId('a'))
+    first.unmount()
+    const next = mount()
+    await act(async () => {})
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    await act(async () => next.rerender({ time: 200 }))
+    expect(onDrain).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('Blob-backed followup attachments', () => {
+  beforeEach(() => MockCacheUtils.resetMocks())
+
+  it.each([true, false])('keeps generated-image bytes through queueing and drain acceptance=%s', async (accepted) => {
+    const blob = new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' })
+    const queued = {
+      ...payload('follow up'),
+      attachments: [
+        {
+          blob,
+          name: 'generated',
+          origin_name: 'generated.png',
+          ext: '.png',
+          type: 'image',
+          size: blob.size,
+          fileTokenSourceId: 'generated-1'
+        }
+      ]
+    }
+    const onDrain = vi.fn().mockResolvedValue(accepted)
+    const onDrainFailed = vi.fn()
+    const { result, rerender } = renderHook(
+      ({ done }) =>
+        useFollowupQueue({
+          scopeKey: 'blob',
+          status: done ? 'done' : 'streaming',
+          lastCompletedAt: done ? 100 : null,
+          onDrain,
+          onDrainFailed
+        }),
+      { initialProps: { done: false } }
+    )
+    act(() => {
+      expect(result.current.enqueue(draft('follow up'), queued)).toBe('ok')
+    })
+    expect(result.current.items).toHaveLength(1)
+    expect(result.current.items[0].payload.attachments?.[0].blob).toBe(blob)
+    expect(onDrain).not.toHaveBeenCalled()
+    await act(async () => {
+      rerender({ done: true })
+    })
+    expect(onDrain).toHaveBeenCalledExactlyOnceWith(queued)
+    if (accepted) {
+      expect(result.current.items).toEqual([])
+      expect(onDrainFailed).not.toHaveBeenCalled()
+    } else {
+      expect(result.current.items).toHaveLength(1)
+      expect(result.current.items[0].payload.attachments?.[0].blob).toBe(blob)
+      expect(result.current.paused).toBe(true)
+      expect(onDrainFailed).toHaveBeenCalledOnce()
+    }
+  })
+
+  it('rejects pathless attachment objects that only imitate a Blob', () => {
+    const invalid = {
+      ...item('invalid', 'bad'),
+      payload: { ...payload('bad'), attachments: [{ blob: { size: 3, type: 'image/png' } }] }
+    }
+    cacheService.setCasual('followup-queue.blob', [invalid])
+    const { result } = renderHook(() =>
+      useFollowupQueue({ scopeKey: 'blob', status: 'streaming', lastCompletedAt: null, onDrain: vi.fn() })
+    )
+    expect(result.current.items).toEqual([])
   })
 })

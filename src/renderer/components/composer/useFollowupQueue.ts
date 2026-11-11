@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { cacheService } from '@data/CacheService'
+import { isComposerTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { ComposerQueuedMessagePayload, TopicStreamStatus } from '@shared/ai/transport'
 
 import type { ComposerSerializedDraft } from './tokens'
@@ -18,6 +19,8 @@ const QUEUE_TTL = 24 * 60 * 60 * 1000
 const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
 const drainedKeyFor = (scopeKey: string) => `followup-queue-drained.${scopeKey}`
 const pausedKeyFor = (scopeKey: string) => `followup-queue-paused.${scopeKey}`
+export const QUEUE_LIMIT = 20
+const failedKeyFor = (scopeKey: string) => `followup-queue-failed.${scopeKey}`
 const EMPTY_QUEUE: FollowupQueueItem[] = []
 
 interface CompletionState {
@@ -27,13 +30,114 @@ interface CompletionState {
 }
 
 const EMPTY_COMPLETION: CompletionState = { completedAt: undefined, consumed: false, pendingIds: [] }
-const loadCompletion = (scopeKey: string): CompletionState =>
-  cacheService.getCasual<CompletionState>(drainedKeyFor(scopeKey)) ?? EMPTY_COMPLETION
+const loadCompletion = (scopeKey: string): CompletionState => {
+  const value = cacheService.getCasual<CompletionState>(drainedKeyFor(scopeKey))
+  return value && Array.isArray(value.pendingIds) ? value : EMPTY_COMPLETION
+}
 
-/** Load + validate a persisted queue (the cache holds arbitrary JSON; guard non-array entries). */
+/** Cache validation snapshots to keep filtered arrays stable across renders. */
+class FollowupQueueValidationService {
+  private readonly snapshots = new WeakMap<object, FollowupQueueItem[]>()
+  read(value: unknown): FollowupQueueItem[] {
+    if (!Array.isArray(value)) return EMPTY_QUEUE
+    const known = this.snapshots.get(value)
+    if (known) return known
+    const items = value.filter((item) => {
+      if (item == null || typeof item !== 'object' || Array.isArray(item)) return false
+      const candidate = item as { id?: unknown; draft?: unknown; payload?: unknown }
+      if (typeof candidate.id !== 'string' || candidate.id.length === 0) return false
+      if (candidate.payload == null || typeof candidate.payload !== 'object') return false
+      // The dock preview + edit-restore assume the draft shape (`tokens.some`,
+      // `text.trim` throw otherwise), so entries with a misshapen draft go too.
+      const draft = candidate.draft as { text?: unknown; tokens?: unknown } | null
+      if (
+        draft === null ||
+        typeof draft !== 'object' ||
+        Array.isArray(draft) ||
+        typeof draft.text !== 'string' ||
+        !Array.isArray(draft.tokens)
+      )
+        return false
+      // Null token elements throw on `.kind` access in the dock filter, and the
+      // edit-restore path maps `mentionedModels` / reads message parts — non-array
+      // shapes there throw or corrupt the restore, so reject them as well. Token
+      // objects additionally need a string id (the skill restore reads
+      // `token.id.startsWith`, React uses it as the chip key), a known kind (the
+      // dock renders via a per-kind component map with no fallback, so an
+      // unknown kind crashes), and a string label (rendered as a React child).
+      // Optional display fields must be strings when present — the token views
+      // read them as tooltip/aria text.
+      const isOptionalString = (value: unknown): boolean => value == null || typeof value === 'string'
+      if (
+        draft.tokens.some((token) => {
+          if (token == null || typeof token !== 'object' || Array.isArray(token)) return true
+          const record = token as {
+            id?: unknown
+            kind?: unknown
+            label?: unknown
+            icon?: unknown
+            description?: unknown
+            promptText?: unknown
+          }
+          return (
+            typeof record.id !== 'string' ||
+            !isComposerTokenKind(record.kind) ||
+            typeof record.label !== 'string' ||
+            !isOptionalString(record.icon) ||
+            !isOptionalString(record.description) ||
+            !isOptionalString(record.promptText)
+          )
+        })
+      )
+        return false
+      const queuePayload = candidate.payload as {
+        text?: unknown
+        attachments?: unknown
+        userMessageParts?: unknown
+        mentionedModels?: unknown
+      }
+      // Null elements throw on property access downstream (`part.type` in the
+      // knowledge-base extractor, `attachment.path` in file-part building), and
+      // a text part without string text throws in history-text extraction.
+      // The queue lives in the per-window memory cache, so owned Blobs survive
+      // enqueue/reload just like composer drafts. The send-time file bridge
+      // accepts either a path or a Blob (generated-image references have no
+      // path). Reject only attachments with neither supported backing source.
+      const isObjectList = (value: unknown): value is object[] =>
+        Array.isArray(value) &&
+        value.every((element) => element !== null && typeof element === 'object' && !Array.isArray(element))
+      const isAttachmentList = (value: unknown): value is object[] =>
+        isObjectList(value) &&
+        value.every((element) => {
+          const { path, blob } = element as { path?: unknown; blob?: unknown }
+          return (typeof path === 'string' && path.length > 0) || blob instanceof Blob
+        })
+      const isPartList = (value: unknown): value is object[] =>
+        isObjectList(value) &&
+        value.every((element) => {
+          const part = element as { type?: unknown; text?: unknown }
+          return typeof part.type === 'string' && (part.type !== 'text' || typeof part.text === 'string')
+        })
+      // `text` is required by ComposerQueuedMessagePayload (the builder always
+      // sets it, `''` for attachment-only sends); the send path hands it to
+      // onSend untouched. `userMessageParts` is likewise always an array from
+      // the builder, and both send (`[...parts]` spread) and edit restoration
+      // (`part.type` reads) assume it.
+      if (typeof queuePayload.text !== 'string') return false
+      if (!isPartList(queuePayload.userMessageParts)) return false
+      return (
+        (queuePayload.attachments == null || isAttachmentList(queuePayload.attachments)) &&
+        (queuePayload.mentionedModels == null || Array.isArray(queuePayload.mentionedModels))
+      )
+    }) as FollowupQueueItem[]
+    const stable = items.length === value.length ? value : items
+    this.snapshots.set(value, stable)
+    return stable
+  }
+}
+const followupQueueValidationService = new FollowupQueueValidationService()
 function loadQueue(scopeKey: string): FollowupQueueItem[] {
-  const cached = cacheService.getCasual<FollowupQueueItem[]>(keyFor(scopeKey))
-  return Array.isArray(cached) ? cached : EMPTY_QUEUE
+  return followupQueueValidationService.read(cacheService.getCasual(keyFor(scopeKey)))
 }
 
 function loadPaused(scopeKey: string): boolean {
@@ -63,7 +167,7 @@ export interface FollowupEditOptions {
 
 export interface FollowupQueueController {
   items: FollowupQueueItem[]
-  enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => void
+  enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => 'ok' | 'full'
   sendId: (id: string) => Promise<boolean>
   removeId: (id: string) => void
   reorder: (nextItems: FollowupQueueItem[]) => void
@@ -74,6 +178,12 @@ export interface FollowupQueueController {
   /** Moves a queued item into the composer, returning any draft already taken to its queue slot. */
   editItem(id: string, options: FollowupEditOptions): void
   releaseEdit(): void
+  clear: () => void
+  failedItemId: string | null
+  retryFailed: () => void
+  skipFailed: () => void
+  drainingId: string | null
+  hasLiveSend: () => boolean
   paused: boolean
   setPaused: (paused: boolean) => void
 }
@@ -96,6 +206,7 @@ export function useFollowupQueue({
       scopeKey,
       items: loadQueue(scopeKey),
       paused: loadPaused(scopeKey),
+      failedItemId: cacheService.getCasual<string>(failedKeyFor(scopeKey)) ?? null,
       completion: loadCompletion(scopeKey)
     }),
     [scopeKey]
@@ -133,6 +244,7 @@ export function useFollowupQueue({
         current.scopeKey === next.scopeKey &&
         current.items === next.items &&
         current.paused === next.paused &&
+        current.failedItemId === next.failedItemId &&
         current.completion === next.completion
           ? current
           : next
@@ -141,8 +253,10 @@ export function useFollowupQueue({
     const unsubscribeQueue = cacheService.subscribe(keyFor(scopeKey), reload)
     const unsubscribePaused = cacheService.subscribe(pausedKeyFor(scopeKey), reload)
     const unsubscribeCompletion = cacheService.subscribe(drainedKeyFor(scopeKey), reload)
+    const unsubscribeFailed = cacheService.subscribe(failedKeyFor(scopeKey), reload)
     reload()
     return () => {
+      unsubscribeFailed()
       unsubscribeQueue()
       unsubscribePaused()
       unsubscribeCompletion()
@@ -156,17 +270,41 @@ export function useFollowupQueue({
   const setPaused = useCallback((paused: boolean) => cacheService.setCasual(pausedKeyFor(scopeKey), paused), [scopeKey])
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
-      persist([...loadQueue(scopeKey), { id: crypto.randomUUID(), draft, payload }])
+      const current = loadQueue(scopeKey)
+      if (current.length >= QUEUE_LIMIT) return 'full'
+      persist([...current, { id: crypto.randomUUID(), draft, payload }])
+      return 'ok' as const
     },
     [persist, scopeKey]
+  )
+  const dismissFailure = useCallback(
+    (id: string) => {
+      if (cacheService.getCasual(failedKeyFor(scopeKey)) !== id) return
+      // Removing/editing a failed draft is not Skip. Retire the observed completion before
+      // resuming so the effect cannot send its successor until another turn completes.
+      const completion = loadCompletion(scopeKey)
+      cacheService.setCasual(
+        drainedKeyFor(scopeKey),
+        {
+          ...completion,
+          completedAt: status === 'done' ? (lastCompletedAt ?? completion.completedAt) : completion.completedAt,
+          consumed: true
+        },
+        completion.pendingIds.length > 0 ? undefined : QUEUE_TTL
+      )
+      cacheService.setCasual(failedKeyFor(scopeKey), null)
+      setPaused(false)
+    },
+    [scopeKey, status, lastCompletedAt, setPaused]
   )
   const removeId = useCallback(
     (id: string) => {
       if (takenRef.current?.scopeKey === scopeKey && takenRef.current.item.id === id) takenRef.current = null
       const current = loadQueue(scopeKey)
       if (current.some((item) => item.id === id)) persist(current.filter((item) => item.id !== id))
+      dismissFailure(id)
     },
-    [persist, scopeKey]
+    [persist, scopeKey, dismissFailure]
   )
 
   const releaseEdit = useCallback(() => {
@@ -211,9 +349,12 @@ export function useFollowupQueue({
         if (payload) return { draft, payload: { ...payload, chatTarget: taken.payload.chatTarget } }
         return !draft.text.trim() && !hasFiles ? { draft: taken.draft, payload: taken.payload } : null
       })
-      if (incoming) restore(incoming)
+      if (incoming) {
+        dismissFailure(incoming.id)
+        restore(incoming)
+      }
     },
-    [releaseEdit, removeId, scopeKey, takeForEdit]
+    [releaseEdit, removeId, scopeKey, takeForEdit, dismissFailure]
   )
 
   const sendItem = useCallback(
@@ -229,6 +370,9 @@ export function useFollowupQueue({
         consumed: completedAt == null || completedAt === drained.completedAt ? drained.consumed : false,
         pendingIds: [...drained.pendingIds, id]
       })
+      // Release the failure pause at dispatch, but retain its row identity while pending
+      // so remounts keep the recovery controls locked. Settlement must not undo a newer Pause.
+      if (cacheService.getCasual(failedKeyFor(scopeKey)) === id) setPaused(false)
       const reportFailure = onDrainFailedRef.current
       let sent = false
       try {
@@ -238,8 +382,16 @@ export function useFollowupQueue({
           // Both rejected sends and explicit failures retain the draft for retry.
         }
         if (sent) {
-          removeId(id)
-        } else {
+          // Successful admission removes only its own row/failure marker. Unlike an explicit
+          // Remove/Edit, it must not change a pause chosen while this send was pending.
+          persist(loadQueue(scopeKey).filter((entry) => entry.id !== id))
+          if (cacheService.getCasual(failedKeyFor(scopeKey)) === id) {
+            cacheService.setCasual(failedKeyFor(scopeKey), null)
+          }
+        } else if (loadQueue(scopeKey).some((entry) => entry.id === id)) {
+          // A removed pending row has no draft to retry. Settlement below still
+          // notifies the owner so its deferred completion can drain the next head.
+          cacheService.setCasual(failedKeyFor(scopeKey), id, QUEUE_TTL)
           setPaused(true)
           reportFailure?.()
         }
@@ -260,7 +412,7 @@ export function useFollowupQueue({
         )
       }
     },
-    [scopeKey, removeId, setPaused]
+    [scopeKey, persist, setPaused]
   )
   const sendId = useCallback(
     (id: string) => sendItem(id, status === 'done' ? (lastCompletedAt ?? undefined) : undefined),
@@ -277,10 +429,34 @@ export function useFollowupQueue({
 
   return {
     items: state.items,
+    clear: () => {
+      persist([])
+      cacheService.setCasual(failedKeyFor(scopeKey), null)
+      setPaused(false)
+      releaseEdit()
+    },
+    failedItemId: state.failedItemId,
+    retryFailed: () => {
+      const id = cacheService.getCasual<string>(failedKeyFor(scopeKey))
+      if (!id || loadCompletion(scopeKey).pendingIds.includes(id)) return
+      void sendId(id)
+    },
+    skipFailed: () => {
+      const id = cacheService.getCasual<string>(failedKeyFor(scopeKey))
+      if (!id || loadCompletion(scopeKey).pendingIds.includes(id)) return
+      removeId(id)
+      const next = loadQueue(scopeKey)[0]
+      if (next) void sendId(next.id)
+    },
+    drainingId: state.completion.pendingIds[0] ?? null,
+    hasLiveSend: () => loadCompletion(scopeKey).pendingIds.length > 0,
     enqueue,
     sendId,
     removeId,
-    reorder: persist,
+    reorder: (next) => {
+      const ids = new Set(loadQueue(scopeKey).map((item) => item.id))
+      persist(next.filter((item) => ids.has(item.id)))
+    },
     takeForEdit,
     editItem,
     releaseEdit,
