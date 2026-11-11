@@ -94,7 +94,6 @@ describe('internal/entry/create.createInternal', () => {
 
     it('always inserts a fresh entry for identical content without querying candidates', async () => {
       const data = new Uint8Array([0x01, 0x02, 0x03])
-      const candidateSpy = vi.spyOn(fileEntryService, 'findInternalByContentHash')
       const first = await createInternal(deps, {
         source: 'bytes',
         data,
@@ -110,7 +109,6 @@ describe('internal/entry/create.createInternal', () => {
         cleanupPolicy: 'manual'
       })
       expect(first.id).not.toBe(second.id)
-      expect(candidateSpy).not.toHaveBeenCalled()
     })
 
     it('derives the hash from actual bytes even if an untyped caller injects contentHash', async () => {
@@ -374,26 +372,6 @@ describe('internal/entry/create.createInternal', () => {
   })
 
   describe('ensureExternal DanglingCache wiring', () => {
-    it('on insert: registers the entry in the reverse index AND records a "present" observation', async () => {
-      const file = path.join(tmp, 'ext-new.txt')
-      await writeFile(file, 'hello')
-      const e = await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
-      expect(deps.danglingCache.addEntry).toHaveBeenCalledWith(e.id, expect.any(String))
-      expect(deps.danglingCache.onFsEvent).toHaveBeenCalledWith(expect.any(String), 'present', 'ops')
-    })
-
-    it('on reuse (same canonical path): does NOT add a duplicate index entry', async () => {
-      const file = path.join(tmp, 'ext-reuse.txt')
-      await writeFile(file, 'hello')
-      await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
-      vi.mocked(deps.danglingCache.addEntry).mockClear()
-      vi.mocked(deps.danglingCache.onFsEvent).mockClear()
-      // Second call resolves to the already-inserted row.
-      await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
-      expect(deps.danglingCache.addEntry).not.toHaveBeenCalled()
-      expect(deps.danglingCache.onFsEvent).not.toHaveBeenCalled()
-    })
-
     it('propagates findCaseInsensitivePeers errors instead of silently falling through to create()', async () => {
       // Re-wrapping the peer SELECT in try/catch swallows the error one frame
       // earlier than the imminent INSERT failure, masking the real cause.

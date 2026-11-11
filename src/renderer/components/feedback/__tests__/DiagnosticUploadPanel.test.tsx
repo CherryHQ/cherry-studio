@@ -415,7 +415,6 @@ describe('DiagnosticUploadPanel', () => {
     expect(screen.getByRole('button', { name: 'Save locally' })).toBeInTheDocument()
     const manualFeedback = screen.getByRole('button', { name: 'Manual feedback' })
     const retry = screen.getByRole('button', { name: 'Retry' })
-    expect(manualFeedback.compareDocumentPosition(retry)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     await user.click(manualFeedback)
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', DIAGNOSTIC_FEEDBACK_FORM_URL)

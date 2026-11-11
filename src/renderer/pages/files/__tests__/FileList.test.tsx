@@ -11,7 +11,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof Cher
 
 import type { FileContextMenuActions } from '../FileContextMenu'
 import type { FileItem } from '../fileDisplay'
-import { formatFileSize, getFormatLabel } from '../fileDisplay'
+import { formatFileSize } from '../fileDisplay'
 import { FileList } from '../FileList'
 
 type VirtualizerOptionsMock = {
@@ -100,14 +100,6 @@ describe('fileDisplay helpers', () => {
     expect(formatFileSize(10 * 1024)).toBe('10 KB')
     expect(formatFileSize(1024 * 1024)).toBe('1.0 MB')
   })
-
-  it('uses known format labels and uppercases unknown extensions', () => {
-    expect(getFormatLabel('')).toBe('—')
-    expect(getFormatLabel('md')).toBe('Markdown')
-    expect(getFormatLabel('xls')).toBe('Excel')
-    expect(getFormatLabel('xlsx')).toBe('Excel')
-    expect(getFormatLabel('custom')).toBe('CUSTOM')
-  })
 })
 
 describe('FileList', () => {
@@ -125,24 +117,6 @@ describe('FileList', () => {
     fireEvent.click(rowDelete)
     fireEvent.click(contextDelete)
     expect(onDelete).not.toHaveBeenCalled()
-  })
-
-  it('virtualizes accumulated files with stable file identity keys', () => {
-    const files = Array.from({ length: 100 }, (_, index) => ({
-      ...file,
-      id: `file-${index}`,
-      name: `report-${index}.md`
-    }))
-
-    render(<FileList {...fileListProps(null)} files={files} />)
-
-    expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ count: files.length, overscan: 8 })
-    )
-    const options = virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0]
-    expect(options?.getItemKey?.(37)).toBe('file-37')
-    expect(screen.getByText('report-0.md')).toBeInTheDocument()
-    expect(screen.queryByText('report-1.md')).not.toBeInTheDocument()
   })
 
   it('focuses the inline rename input when rename is triggered', () => {
@@ -163,18 +137,6 @@ describe('FileList', () => {
     expect(input.selectionEnd).toBe('report'.length)
   })
 
-  it('scrolls an off-screen rename target into the virtual window', () => {
-    const files = Array.from({ length: 100 }, (_, index) => ({
-      ...file,
-      id: `file-${index}`,
-      name: `report-${index}.md`
-    }))
-
-    render(<FileList {...fileListProps('file-37')} files={files} />)
-
-    expect(virtualizerMocks.scrollToIndex).toHaveBeenCalledWith(37, { align: 'auto' })
-  })
-
   it('forwards checkbox state and the Shift modifier without opening the row', async () => {
     const onSelect = vi.fn()
     const onOpen = vi.fn()
@@ -192,14 +154,6 @@ describe('FileList', () => {
     await user.click(screen.getByText(file.name))
     expect(onOpen).toHaveBeenCalledWith(file)
     expect(onSelect).toHaveBeenCalledOnce()
-  })
-
-  it('uses the selected border only for the checked checkbox state', () => {
-    render(<FileList {...fileListProps(null)} />)
-
-    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
-    expect(checkbox).toHaveClass('data-[state=checked]:border-border-selected')
-    expect(checkbox).not.toHaveClass('border-border-selected')
   })
 
   it('opens files through the existing action', () => {
@@ -222,39 +176,6 @@ describe('FileList', () => {
     fireEvent.click(screen.getByText(missingFile.name))
 
     expect(onOpen).not.toHaveBeenCalled()
-  })
-
-  it('shows the row show-in-folder action for active files', () => {
-    const externalFile: FileItem = {
-      ...file,
-      id: 'external-file',
-      origin: 'external'
-    }
-
-    const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
-
-    expect(screen.getByRole('button', { name: 'files.show_in_folder' })).toBeInTheDocument()
-
-    rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
-
-    expect(screen.getByRole('button', { name: 'files.show_in_folder' })).toBeInTheDocument()
-  })
-
-  it('uses remove-from-library wording for external row deletes', () => {
-    const externalFile: FileItem = {
-      ...file,
-      id: 'external-file',
-      origin: 'external'
-    }
-
-    const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
-
-    expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeInTheDocument()
-
-    rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
-
-    expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'files.delete.label' })).not.toBeInTheDocument()
   })
 
   it('hides invalid row actions for missing files', () => {

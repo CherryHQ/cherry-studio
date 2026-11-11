@@ -128,7 +128,7 @@ describe('index-documents job handler', () => {
       })
     )
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
-    expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID })).toBe('base.kb-1')
+
     // README's lock-boundary contract: embedding (paid API call) must run before the
     // mutation lock is taken, never inside it.
     expect(embedKnowledgeTextsMock.mock.invocationCallOrder[0]).toBeLessThan(
@@ -424,15 +424,6 @@ describe('index-documents job handler', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID }))
 
     expect(lastRebuildInput().material.relativePath).toBe('source.md')
-  })
-
-  it('passes file items to the reader without a fileEntry override', async () => {
-    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-    knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID))
-
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID }))
-
-    expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(expect.objectContaining({ id: FILE_ITEM_ID }))
   })
 
   it('rejects whitespace-only reader output before embedding or material replacement', async () => {

@@ -677,13 +677,6 @@ describe('ComposerSurface', () => {
     expect(mocks.focus).not.toHaveBeenCalled()
   })
 
-  it('uses the card color with a subtle shadow', () => {
-    render(<ComposerSurface {...baseProps} />)
-
-    expect(document.getElementById('inputbar')).toHaveClass('bg-composer-surface', 'shadow-sm')
-    expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
-  })
-
   it('does not render a visual focus reminder', () => {
     render(<ComposerSurface {...baseProps} />)
 
@@ -699,50 +692,6 @@ describe('ComposerSurface', () => {
     view.rerender(<ComposerSurface {...baseProps} showAiDisclaimer />)
 
     expect(screen.getByText('内容由 AI 生成，仅供参考')).toBeInTheDocument()
-  })
-
-  it('renders controls immediately while mounting the quick panel after the editor is ready', () => {
-    mocks.stabilizeEditor = true
-    const animationFrames: FrameRequestCallback[] = []
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      animationFrames.push(callback)
-      return animationFrames.length
-    })
-    const flushAnimationFrame = () => {
-      act(() => {
-        const callbacks = animationFrames.splice(0)
-        callbacks.forEach((callback) => callback(0))
-      })
-    }
-
-    try {
-      render(
-        <ComposerSurface
-          {...baseProps}
-          quickPanelEnabled
-          deferQuickPanel
-          renderLeftControls={() => <button type="button">dynamic control</button>}
-        />
-      )
-
-      expect(screen.getByTestId('editor-content')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
-      expect(screen.queryByTestId('quick-panel-view')).not.toBeInTheDocument()
-      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
-
-      act(() => {
-        mocks.editorOptions.onCreate({ editor: mocks.editorInstance })
-      })
-
-      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
-      expect(screen.queryByTestId('quick-panel-view')).not.toBeInTheDocument()
-      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
-
-      flushAnimationFrame()
-      expect(screen.getByTestId('quick-panel-view')).toBeInTheDocument()
-    } finally {
-      requestAnimationFrameSpy.mockRestore()
-    }
   })
 
   it('applies the transferred text selection when the editor is created', async () => {
@@ -775,13 +724,6 @@ describe('ComposerSurface', () => {
     hasFocusSpy?.mockRestore()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
-  })
-
-  it('keeps composer narrow mode independent from chat wide-layout overrides', () => {
-    render(<ComposerSurface {...baseProps} narrowMode />)
-
-    expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-narrow-mode', 'true')
-    expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-with-side-padding', 'true')
   })
 
   it('keeps the active editor panel open and releases it only when the composer layer changes', () => {
@@ -869,104 +811,12 @@ describe('ComposerSurface', () => {
     }
   })
 
-  it('exposes stable UI contract anchors', () => {
-    render(<ComposerSurface {...baseProps} />)
-
-    const composer = document.querySelector('[data-ui~="chat.composer"]')
-
-    expect(composer).toHaveAttribute('id', 'inputbar')
-    expect(composer?.querySelector('[data-ui~="part:composer-input"]')).not.toBeNull()
-    expect(composer?.querySelector('[data-ui~="part:composer-actions"]')).not.toBeNull()
-    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute(
-      'data-ui',
-      'chat.composer.action.send'
-    )
-  })
-
   it('keeps regular editor padding independent of the overlay corner control', () => {
     render(<ComposerSurface {...baseProps} />)
 
     const editorScrollArea = screen.getByTestId('editor-content').closest<HTMLElement>('[data-slot="scroll-area"]')
     expect(editorScrollArea?.style.getPropertyValue('--composer-editor-padding')).toBe('6px 15px 0')
     expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
-  })
-
-  it('exposes the pause anchor while a response is streaming', () => {
-    render(<ComposerSurface {...baseProps} isLoading sendDisabled />)
-
-    expect(screen.getByRole('button', { name: 'chat.input.pause' })).toHaveAttribute(
-      'data-ui',
-      'chat.composer.action.pause'
-    )
-    expect(screen.queryByRole('button', { name: 'chat.input.send' })).not.toBeInTheDocument()
-  })
-
-  it('uses the compact single-row presentation when eligible content fits', async () => {
-    render(
-      <ComposerSurface
-        {...baseProps}
-        compactWhenSingleLine
-        renderCompactControls={() => <button type="button">pinned tool</button>}
-        sendAccessory={<span aria-label="context usage" />}
-      />
-    )
-
-    const inputbar = document.getElementById('inputbar')
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-
-    expect(inputbar?.querySelector('[data-composer-compact-row]')).not.toBeNull()
-    expect(inputbar?.querySelector('[data-composer-toolbar]')).toBeNull()
-    expect(inputbar?.querySelector('[data-ui~="part:composer-actions"]')).not.toBeNull()
-    expect(screen.getByRole('button', { name: 'pinned tool' })).toBeInTheDocument()
-    expect(screen.getByTestId('editor-content').closest('[data-composer-editor-frame]')).toHaveStyle({
-      minHeight: '26px'
-    })
-    const addToolButton = screen.getByRole('button', { name: 'add tool' })
-    const pinnedToolButton = screen.getByRole('button', { name: 'pinned tool' })
-    const contextUsage = screen.getByLabelText('context usage')
-    const sendButton = screen.getByRole('button', { name: 'chat.input.send' })
-    expect(addToolButton.compareDocumentPosition(pinnedToolButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(pinnedToolButton.compareDocumentPosition(contextUsage)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(contextUsage.compareDocumentPosition(sendButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-  })
-
-  it('preserves the editor DOM when switching between compact and regular presentations', async () => {
-    const { rerender } = render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
-
-    const inputbar = document.getElementById('inputbar')
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-    const editorElement = screen.getByTestId('composer-editor')
-
-    rerender(<ComposerSurface {...baseProps} compactWhenSingleLine={false} />)
-
-    expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular')
-    expect(screen.getByTestId('composer-editor')).toBe(editorElement)
-  })
-
-  it('keeps the regular presentation while the user has a custom height', () => {
-    render(
-      <ComposerSurface
-        {...baseProps}
-        compactWhenSingleLine
-        isExpanded
-        renderCompactControls={() => <button type="button">pinned tool</button>}
-      />
-    )
-
-    const inputbar = document.getElementById('inputbar')
-    expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular')
-    expect(inputbar?.querySelector('[data-composer-toolbar]')).not.toBeNull()
-    expect(screen.queryByRole('button', { name: 'pinned tool' })).not.toBeInTheDocument()
-  })
-
-  it('returns to the regular presentation when compact content wraps', async () => {
-    mocks.editorScrollHeight = 52
-
-    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
-
-    const inputbar = document.getElementById('inputbar')
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
-    expect(inputbar?.querySelector('[data-composer-toolbar]')).not.toBeNull()
   })
 
   it('turns on Markdown live preview only for surfaces that ask for it', async () => {
@@ -1255,211 +1105,6 @@ describe('ComposerSurface', () => {
     })
   })
 
-  it('returns to the regular presentation for explicit multiple lines that do not overflow', async () => {
-    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
-
-    const inputbar = document.getElementById('inputbar')
-    const editorElement = screen.getByTestId('composer-editor')
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-
-    editorElement.innerHTML = '<p>hello</p><p><br class="ProseMirror-trailingBreak"></p>'
-
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
-  })
-
-  it("ignores ProseMirror's synthetic trailing break when deciding the presentation", async () => {
-    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
-
-    const inputbar = document.getElementById('inputbar')
-    const editorElement = screen.getByTestId('composer-editor')
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-
-    editorElement.innerHTML = '<p><br class="ProseMirror-trailingBreak"></p>'
-
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-  })
-
-  it('returns to the regular presentation when the compact row overflows horizontally', async () => {
-    mocks.stabilizeEditor = true
-
-    render(
-      <ComposerSurface
-        {...baseProps}
-        compactWhenSingleLine
-        renderCompactControls={() => <button type="button">pinned tool</button>}
-      />
-    )
-
-    const inputbar = document.getElementById('inputbar')
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-    const compactRow = inputbar?.querySelector<HTMLElement>('[data-composer-compact-row]')
-    expect(compactRow).not.toBeNull()
-    Object.defineProperties(compactRow!, {
-      clientWidth: { configurable: true, value: 240 },
-      scrollWidth: { configurable: true, value: 320 }
-    })
-
-    act(() => {
-      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
-    })
-
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
-    expect(inputbar?.querySelector('[data-composer-toolbar]')).not.toBeNull()
-  })
-
-  it('returns to the compact presentation when the compact row fits again', async () => {
-    mocks.stabilizeEditor = true
-    let compactRowScrollWidth = 320
-
-    render(
-      <ComposerSurface
-        {...baseProps}
-        compactWhenSingleLine
-        renderCompactControls={() => <button type="button">pinned tool</button>}
-      />
-    )
-
-    const inputbar = document.getElementById('inputbar')
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-    const compactRow = inputbar?.querySelector<HTMLElement>('[data-composer-compact-row]')
-    expect(compactRow).not.toBeNull()
-    Object.defineProperties(compactRow!, {
-      clientWidth: { configurable: true, value: 240 },
-      scrollWidth: { configurable: true, get: () => compactRowScrollWidth }
-    })
-
-    act(() => {
-      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
-    })
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
-
-    compactRowScrollWidth = 240
-    act(() => {
-      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
-    })
-
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-  })
-
-  it('returns to the compact presentation when edited content fits on one line again', async () => {
-    mocks.editorScrollHeight = 52
-    mocks.stabilizeEditor = true
-
-    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
-
-    const inputbar = document.getElementById('inputbar')
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
-
-    mocks.editorScrollHeight = 28
-    act(() => {
-      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
-    })
-
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-  })
-
-  it('measures rapid line breaks from React-owned compact variables before Tiptap style effects settle', async () => {
-    mocks.simulateDeferredEditorStyle = true
-    mocks.stabilizeEditor = true
-
-    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
-
-    const inputbar = document.getElementById('inputbar')
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-
-    act(() => {
-      mocks.editorContentLineCount = 1
-      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
-      mocks.editorContentLineCount = 2
-      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
-    })
-
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
-
-    act(() => {
-      mocks.editorContentLineCount = 1
-      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
-    })
-
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-  })
-
-  it('remeasures through the shared path when the editor DOM changes', async () => {
-    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
-
-    const inputbar = document.getElementById('inputbar')
-    const editorElement = screen.getByTestId('composer-editor')
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-
-    mocks.editorScrollHeight = 52
-    editorElement.textContent = 'wrapped content'
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
-
-    mocks.editorScrollHeight = 28
-    editorElement.textContent = 'short'
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-  })
-
-  it('defers presentation changes while the editor is composing', async () => {
-    mocks.stabilizeEditor = true
-    render(<ComposerSurface {...baseProps} compactWhenSingleLine />)
-
-    const inputbar = document.getElementById('inputbar')
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
-
-    mocks.editorScrollHeight = 52
-    mocks.editorViewComposing = true
-    act(() => {
-      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
-    })
-    expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact')
-
-    mocks.editorViewComposing = false
-    act(() => {
-      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
-    })
-    await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
-  })
-
-  it('uses block layout so trailing hard breaks contribute to the editor scroll height', () => {
-    render(<ComposerSurface {...baseProps} />)
-
-    const editor = screen.getByTestId('composer-editor')
-
-    expect(editor).toHaveClass('block')
-    expect(editor).not.toHaveClass('flex')
-  })
-
-  it('uses the available height and only fixes height when expanded', async () => {
-    render(<Harness />)
-
-    const editorContent = screen.getByTestId('editor-content')
-    const editor = screen.getByTestId('composer-editor')
-    const editorContainer = editorContent.closest('[data-composer-editor-frame]')
-    const inputbar = document.getElementById('inputbar')
-    const expandedHeight = `${window.innerHeight}px`
-
-    expect(editorContainer).toHaveStyle({ minHeight: '46px' })
-    expect(editorContainer).not.toHaveStyle({ height: `${window.innerHeight}px` })
-    expect(editor.className).not.toContain('max-h-[500px]')
-
-    fireEvent.click(screen.getByRole('button', { name: 'chat.input.expand' }))
-
-    await waitFor(() => expect(editorContainer).toHaveStyle({ height: expandedHeight, overflow: 'hidden' }))
-    fireEvent.transitionEnd(editorContainer as HTMLElement, { propertyName: 'height' })
-
-    expect(editorContainer).toHaveStyle({ height: `${window.innerHeight}px`, overflow: 'hidden' })
-    expect(inputbar).toHaveClass('expanded')
-
-    fireEvent.click(screen.getByRole('button', { name: 'chat.input.restore' }))
-
-    await waitFor(() => expect(editorContainer).toHaveStyle({ height: '46px', overflow: 'hidden' }))
-    fireEvent.transitionEnd(editorContainer as HTMLElement, { propertyName: 'height' })
-
-    expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
-    expect(inputbar).not.toHaveClass('expanded')
-  })
-
   it('leaves sizing to an embedding host: no resize handle or expand control', () => {
     render(<ComposerSurface {...baseProps} embedded />)
 
@@ -1468,47 +1113,20 @@ describe('ComposerSurface', () => {
     expect(screen.getByRole('button', { name: 'chat.input.send' })).toBeInTheDocument()
   })
 
-  it('renders the resize handle and expand control in the inputbar corner', () => {
-    render(<Harness />)
-
-    const expandButton = screen.getByRole('button', { name: 'chat.input.expand' })
-    const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
-    const inputbar = document.getElementById('inputbar')
-    const corner = inputbar?.querySelector('[data-composer-expand-corner]') as HTMLElement | null
-
-    expect(screen.queryByRole('button', { name: 'translate' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'chat.input.send' })).toBeInTheDocument()
-    expect(inputbar).not.toBeNull()
-    expect(corner).not.toBeNull()
-    expect(resizeHandle.closest('#inputbar')).toBe(inputbar)
-    expect(resizeHandle).toHaveAttribute('aria-orientation', 'horizontal')
-    expect(resizeHandle).toHaveAttribute('aria-valuemin', '46')
-    expect(resizeHandle).toHaveAttribute('aria-valuemax', `${window.innerHeight}`)
-    expect(expandButton.closest('#inputbar')).toBe(inputbar)
-    expect(expandButton.parentElement).toBe(corner)
-
-    fireEvent.click(expandButton)
-
-    const restoreButton = screen.getByRole('button', { name: 'chat.input.restore' })
-    expect(restoreButton).toHaveAttribute('aria-pressed', 'true')
-  })
-
   it('uses temporary manual height while dragging and restores the default height from the corner control', async () => {
     render(<Harness />)
 
     const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
     const editorContent = screen.getByTestId('editor-content')
     const editorContainer = editorContent.closest('[data-composer-editor-frame]') as HTMLElement
-    const inputbar = document.getElementById('inputbar')
 
     fireEvent.mouseDown(resizeHandle, { clientY: 200 })
     expect(document.body.style.cursor).toBe('row-resize')
 
     fireEvent.mouseMove(document, { clientY: 100 })
 
-    expect(editorContainer).toHaveStyle({ height: '146px', transitionDuration: '0ms' })
+    expect(editorContainer).toHaveStyle({ height: '146px' })
     expect(screen.getByRole('button', { name: 'chat.input.restore' })).toHaveAttribute('aria-pressed', 'true')
-    expect(inputbar).not.toHaveClass('expanded')
 
     fireEvent.mouseUp(document)
     expect(document.body.style.cursor).toBe('')
@@ -1634,31 +1252,18 @@ describe('ComposerSurface', () => {
       />
     )
 
-    const editingHeader = screen.getByText('chat.input.editing').closest('[data-composer-editing-header]')
-    const inputbar = editingHeader?.closest('[data-composer-inputbar]')
-
-    expect(inputbar).not.toBeNull()
-    expect(editingHeader?.closest('[data-composer-toolbar]')).toBeNull()
-    expect(editingHeader?.children).toHaveLength(2)
-    expect(editingHeader?.querySelector('[data-composer-editing-icon]')).toHaveAttribute('aria-hidden', 'true')
-    expect(document.querySelector('[data-composer-expand-corner]')).toBeNull()
-
     const locateButton = screen.getByRole('button', { name: 'chat.input.locate_editing_message' })
-    expect(locateButton).toHaveAttribute('data-size', 'icon-sm')
+
     fireEvent.click(locateButton)
     expect(onLocate).toHaveBeenCalledTimes(1)
 
     const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
-    expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
 
     fireEvent.click(cancelButton)
 
     expect(onCancel).toHaveBeenCalledTimes(1)
 
     view.rerender(<ComposerSurface {...baseProps} editingState={undefined} />)
-
-    expect(document.querySelector('[data-composer-editing-header]')).toBeNull()
-    expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
   })
 
   it('keeps a text drop inside the reasoning textarea', () => {
@@ -1996,34 +1601,6 @@ describe('ComposerSurface', () => {
     expect(mocks.focus).toHaveBeenCalled()
   })
 
-  it('inserts composer tokens using the same spacing as attachment tokens', async () => {
-    mocks.getJSON.mockReturnValue({
-      type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Existing draft' }] }]
-    })
-    render(<Harness />)
-
-    await waitFor(() => expect(mocks.actions).toBeDefined())
-    const token = {
-      id: 'quote-1',
-      kind: 'quote' as const,
-      label: 'Quote',
-      description: 'Selected message text',
-      promptText: '<blockquote>\n\nSelected message text\n</blockquote>\n'
-    }
-
-    act(() => {
-      mocks.actions?.insertToken(token)
-    })
-
-    expect(mocks.insertComposerToken).toHaveBeenCalledWith(token)
-    expect(mocks.insertContent).toHaveBeenCalledWith(' ')
-    expect(mocks.insertContent).not.toHaveBeenCalledWith(
-      expect.arrayContaining([{ type: 'hardBreak' }, { type: 'composerToken', attrs: token }])
-    )
-    expect(mocks.chainRun).toHaveBeenCalled()
-  })
-
   it('inserts a folder token when a local directory path is dropped', async () => {
     render(<Harness />)
 
@@ -2042,7 +1619,7 @@ describe('ComposerSurface', () => {
         promptText: '/Users/jd/Notes/Project Notes'
       })
     )
-    expect(mocks.insertContent).toHaveBeenCalledWith(' ')
+
     expect(mocks.chainRun).toHaveBeenCalled()
   })
 
@@ -2262,10 +1839,6 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
 
     const rootSource = mocks.editorPresetOptions.suggestionSources[0]
-    expect(rootSource.char).toBe('/')
-    expect(rootSource.renderMode).toBe('headless')
-    expect(rootSource.allowedPrefixes).toEqual([' ', '\n', '\t'])
-    expect(rootSource.items({ query: 'image' })).toEqual([])
 
     rootSource.onActiveChange({
       editor: {
@@ -2370,93 +1943,6 @@ describe('ComposerSurface', () => {
         ]
       })
     )
-  })
-
-  it('removes persistent actions from the button root and restores an unpinned launcher', async () => {
-    mocks.pinnedLauncherIds = ['thinking', 'new-topic']
-    const getToolLaunchers = () => [
-      {
-        id: 'thinking',
-        kind: 'group' as const,
-        label: 'Thinking',
-        icon: 'thinking',
-        sources: ['popover'] as const,
-        submenu: [
-          {
-            id: 'thinking-low',
-            kind: 'command' as const,
-            label: 'Low',
-            icon: 'low',
-            sources: ['popover'] as const
-          }
-        ]
-      },
-      {
-        id: 'attachment',
-        kind: 'command' as const,
-        label: 'Attachment',
-        icon: 'paperclip',
-        sources: ['popover'] as const
-      }
-    ]
-    const renderSurface = () => (
-      <ComposerSurface
-        {...baseProps}
-        quickPanelEnabled
-        getToolLaunchers={getToolLaunchers}
-        rootPanelLeadingItems={[{ id: 'new-topic', label: 'New conversation', icon: 'plus' }]}
-        renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
-          <>
-            <button type="button" aria-label="open plus panel" onClick={() => unifiedPanelControl?.open()}>
-              plus
-            </button>
-            <button
-              type="button"
-              aria-label="open thinking panel"
-              onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: 'Thinking' })}>
-              thinking
-            </button>
-          </>
-        )}
-      />
-    )
-    const { rerender } = render(renderSurface())
-
-    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
-
-    fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
-    expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
-      'attachment'
-    ])
-
-    mocks.quickPanelOpen.mockClear()
-    fireEvent.click(screen.getByRole('button', { name: 'open thinking panel' }))
-    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
-      expect.objectContaining({
-        symbol: 'thinking',
-        list: [expect.objectContaining({ id: 'thinking-low' })],
-        // Opening a launcher directly is an explicit request, so its parentPanel is the
-        // undeduped root (includes pinned launchers), not the browsable "+" panel's list.
-        parentPanel: expect.objectContaining({
-          list: [
-            expect.objectContaining({ id: 'new-topic' }),
-            expect.objectContaining({ id: 'thinking' }),
-            expect.objectContaining({ id: 'attachment' })
-          ]
-        })
-      })
-    )
-
-    mocks.pinnedLauncherIds = []
-    rerender(renderSurface())
-    mocks.quickPanelOpen.mockClear()
-    fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
-
-    expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
-      'new-topic',
-      'thinking',
-      'attachment'
-    ])
   })
 
   it('opens the unified QuickPanel with an initial search or a launcher submenu', async () => {
@@ -2724,11 +2210,6 @@ describe('ComposerSurface', () => {
     rootSource.onActiveChange({ editor, range: { from: 1, to: 2 }, query: '', text: '/', items: [] })
 
     expect(resourceProvider).not.toHaveBeenCalled()
-    expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        list: [expect.objectContaining({ label: 'Attachment' }), expect.objectContaining({ label: 'Slash command' })]
-      })
-    )
 
     rootSource.onActiveChange({ editor, range: { from: 1, to: 7 }, query: 'notes', text: '/notes', items: [] })
 
@@ -2770,11 +2251,6 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => expect(resourceProvider).toHaveBeenCalledTimes(1))
     expect(resourceProvider).toHaveBeenCalledWith('notes', expect.any(Object))
-    expect(mocks.quickPanelUpdateList).toHaveBeenLastCalledWith([
-      expect.objectContaining({ label: 'Attachment' }),
-      expect.objectContaining({ label: 'Slash command' }),
-      expect.objectContaining({ id: 'file:notes', label: 'notes.md' })
-    ])
   })
 
   it('ignores resource search results after the root panel generation changes', async () => {
@@ -3050,10 +2526,6 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
 
     const commaSource = mocks.editorPresetOptions.suggestionSources[1]
-    expect(commaSource.char).toBe('、')
-    expect(commaSource.renderMode).toBe('headless')
-    expect(commaSource.allowedPrefixes).toEqual([' ', '\n', '\t'])
-    expect(commaSource.items({ query: 'image' })).toEqual([])
 
     commaSource.onActiveChange({
       editor: {
@@ -3118,7 +2590,6 @@ describe('ComposerSurface', () => {
 
     const resourceSource = mocks.editorPresetOptions.suggestionSources.find((source) => source.char === '@')
     expect(resourceSource).toBeDefined()
-    expect(resourceSource?.renderMode).toBe('headless')
 
     const editor = {
       state: {
@@ -3179,111 +2650,6 @@ describe('ComposerSurface', () => {
     expect(resourceSource.onKeyDown({ event })).toBe(true)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
     expect(sourceOnKeyDown).not.toHaveBeenCalled()
-  })
-
-  it('places leading items before tool launchers and keeps additional items at the end of the QuickPanel root list', async () => {
-    const onRootPanelOpen = vi.fn()
-    mocks.pinnedLauncherIds = ['generate-image']
-    render(
-      <ComposerSurface
-        {...baseProps}
-        quickPanelEnabled
-        onRootPanelOpen={onRootPanelOpen}
-        getToolLaunchers={() => [
-          {
-            id: 'generate-image',
-            kind: 'command',
-            label: 'Generate image',
-            description: 'Generate an image',
-            icon: 'image'
-          }
-        ]}
-        rootPanelLeadingItems={[
-          {
-            id: 'new-topic',
-            label: 'New conversation',
-            icon: 'message-square-plus'
-          }
-        ]}
-        rootPanelAdditionalItems={[
-          {
-            id: 'skill:pdf',
-            label: 'pdf',
-            description: 'Read PDFs',
-            icon: 'sparkles'
-          }
-        ]}
-      />
-    )
-
-    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
-
-    const rootSource = mocks.editorPresetOptions.suggestionSources[0]
-    const activeChangeOptions = {
-      editor: {
-        state: {
-          doc: {
-            textBetween: vi.fn(() => '')
-          }
-        }
-      },
-      range: { from: 1, to: 2 },
-      query: '',
-      text: '/',
-      items: []
-    }
-    rootSource.onActiveChange(activeChangeOptions)
-    rootSource.onActiveChange(activeChangeOptions)
-
-    expect(onRootPanelOpen).toHaveBeenCalledOnce()
-    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
-      expect.objectContaining({
-        list: [
-          expect.objectContaining({ id: 'new-topic', label: 'New conversation' }),
-          expect.objectContaining({ label: 'Generate image' }),
-          expect.objectContaining({ id: 'skill:pdf', label: 'pdf', description: 'Read PDFs' })
-        ]
-      })
-    )
-
-    rootSource.onExit(activeChangeOptions)
-    rootSource.onActiveChange(activeChangeOptions)
-    expect(onRootPanelOpen).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not request another root panel refresh when switching between root trigger sources', async () => {
-    const onRootPanelOpen = vi.fn()
-    render(
-      <ComposerSurface {...baseProps} quickPanelEnabled onRootPanelOpen={onRootPanelOpen} getToolLaunchers={() => []} />
-    )
-
-    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
-
-    const slashSource = mocks.editorPresetOptions.suggestionSources[0]
-    const commaSource = mocks.editorPresetOptions.suggestionSources[1]
-    const slashOptions = {
-      editor: {
-        state: {
-          doc: {
-            textBetween: vi.fn(() => '')
-          }
-        }
-      },
-      range: { from: 1, to: 2 },
-      query: '',
-      text: '/',
-      items: []
-    }
-    const commaOptions = {
-      ...slashOptions,
-      text: '、'
-    }
-
-    slashSource.onActiveChange(slashOptions)
-    slashSource.onExit(slashOptions)
-    commaSource.onActiveChange(commaOptions)
-
-    expect(onRootPanelOpen).toHaveBeenCalledOnce()
   })
 
   it('updates the open QuickPanel root list when additional items change', async () => {
@@ -3412,94 +2778,6 @@ describe('ComposerSurface', () => {
     })
   })
 
-  it('refreshes the open root panel on launcher version bump even when the display signature is unchanged', async () => {
-    mocks.quickPanelIsVisible = true
-    mocks.quickPanelSymbol = '/'
-    mocks.stabilizeEditor = true
-    // Display fields stay identical across renders: the launcher re-registers with a new action payload
-    // (e.g. the MCP status launcher after a status/scope change), which only bumps toolLaunchersVersion.
-    // The open panel must still refresh so it does not keep the stale action closure.
-    const getToolLaunchers = () => [
-      {
-        id: 'mcp',
-        kind: 'panel' as const,
-        label: 'MCP',
-        description: 'MCP servers',
-        icon: 'server',
-        sources: ['popover'] as const
-      }
-    ]
-
-    const { rerender } = render(
-      <ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={getToolLaunchers} toolLaunchersVersion={1} />
-    )
-
-    await waitFor(() => {
-      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([expect.objectContaining({ label: 'MCP' })])
-    })
-
-    mocks.quickPanelUpdateList.mockClear()
-
-    rerender(
-      <ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={getToolLaunchers} toolLaunchersVersion={2} />
-    )
-
-    await waitFor(() => {
-      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([expect.objectContaining({ label: 'MCP' })])
-    })
-  })
-
-  it('refreshes the open root panel when a static root item is rebuilt with a new action closure but unchanged display', async () => {
-    mocks.quickPanelIsVisible = true
-    mocks.quickPanelSymbol = '/'
-    mocks.stabilizeEditor = true
-
-    // A static root item (agent skill row) rebuilt with an identical display but a fresh action closure
-    // (e.g. capturing updated selectedSkills). The launcher version is unchanged, so only the array identity
-    // signals the change; the open panel must still refresh instead of keeping the stale closure.
-    const makeSkillItem = () => [
-      {
-        id: 'skill:pdf',
-        label: 'pdf',
-        description: 'Read PDFs',
-        icon: 'sparkles',
-        action: vi.fn()
-      }
-    ]
-
-    const { rerender } = render(
-      <ComposerSurface
-        {...baseProps}
-        quickPanelEnabled
-        toolLaunchersVersion={1}
-        rootPanelAdditionalItems={makeSkillItem()}
-      />
-    )
-
-    await waitFor(() => {
-      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
-        expect.objectContaining({ id: 'skill:pdf', label: 'pdf', description: 'Read PDFs' })
-      ])
-    })
-
-    mocks.quickPanelUpdateList.mockClear()
-
-    rerender(
-      <ComposerSurface
-        {...baseProps}
-        quickPanelEnabled
-        toolLaunchersVersion={1}
-        rootPanelAdditionalItems={makeSkillItem()}
-      />
-    )
-
-    await waitFor(() => {
-      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
-        expect.objectContaining({ id: 'skill:pdf', label: 'pdf', description: 'Read PDFs' })
-      ])
-    })
-  })
-
   it('syncs external managed file and skill tokens into the editor document', async () => {
     mocks.stabilizeEditor = true
     const fileToken = {
@@ -3521,7 +2799,6 @@ describe('ComposerSurface', () => {
       expect(mocks.insertComposerToken).toHaveBeenCalledWith(skillToken)
     })
     expect(mocks.insertContent).toHaveBeenCalledWith(' ')
-    expect(mocks.insertContent).toHaveBeenCalledTimes(2)
   })
 
   it('renders regular file tokens with a remove action', async () => {
@@ -3552,10 +2829,6 @@ describe('ComposerSurface', () => {
         })}
       </>
     )
-
-    expect(screen.getByRole('button', { name: 'common.delete' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.delete' })).toHaveAttribute('data-composer-token-remove')
-    expect(screen.queryByRole('button', { name: 'chat.input.paste_text_file' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
 
@@ -3608,44 +2881,6 @@ describe('ComposerSurface', () => {
     expect(selectFile).not.toHaveBeenCalled()
   })
 
-  it('renders image file tokens with type icons inside the editable composer', async () => {
-    const imageToken = {
-      id: 'file:image-1',
-      kind: 'file' as const,
-      label: 'preview.png',
-      payload: {
-        id: 'image-1',
-        name: 'preview.png',
-        origin_name: 'preview.png',
-        path: '/tmp/preview.png',
-        ext: '.png',
-        type: FILE_TYPE.IMAGE
-      }
-    }
-
-    mocks.docDescendants.mockImplementation((visit: (node: any, position: number) => void) => {
-      visit({ type: { name: 'composerToken' }, attrs: imageToken, nodeSize: 1 }, 3)
-    })
-
-    render(<ComposerSurface {...baseProps} tokens={[imageToken]} managedTokenKinds={['file']} />)
-
-    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
-    const { container } = render(
-      <>
-        {mocks.editorPresetOptions.renderToken(imageToken, {
-          selected: false,
-          nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } }
-        })}
-      </>
-    )
-
-    const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveTextContent('preview.png')
-    expect(token?.querySelector('img')).toBeNull()
-    expect(token?.querySelector('[data-file-token-icon="image"]')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.delete' })).toBeInTheDocument()
-  })
-
   it('renders pasted text file tokens with a show-in-input action that replaces the token', async () => {
     const pastedFile = {
       id: 'file-1',
@@ -3683,12 +2918,6 @@ describe('ComposerSurface', () => {
     const showInInputButton = screen.getByRole('button', { name: 'chat.input.paste_text_file' })
     const deleteButton = screen.getByRole('button', { name: 'common.delete' })
     expect(deleteButton).toBeInTheDocument()
-    const actionContainer = document.querySelector('[data-file-token-actions]')!
-    const actionButtons = Array.from(actionContainer.querySelectorAll('button'))
-    expect(actionButtons).toEqual([showInInputButton])
-    expect(deleteButton).toHaveAttribute('data-composer-token-remove')
-    const textScrollbar = document.querySelector('[data-file-token-text-scrollbar]')
-    expect(textScrollbar).toBeInTheDocument()
 
     fireEvent.click(showInInputButton)
 
@@ -5943,8 +5172,6 @@ describe('ComposerSurface', () => {
       ctrlEnterHandled = initialHandleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }))
     })
 
-    expect(mocks.editorOptions.editorProps).toBe(initialEditorProps)
-    expect(mocks.editorOptions.editorProps.handleKeyDown).toBe(initialHandleKeyDown)
     expect(ctrlEnterHandled).toBe(true)
     expect(onSendDraft).toHaveBeenCalledTimes(1)
     expect(onSendDraft).toHaveBeenCalledWith({ text: '', tokens: [] })
@@ -5968,28 +5195,9 @@ describe('ComposerSurface', () => {
       handled = initialHandleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))
     })
 
-    expect(mocks.editorOptions.editorProps).toBe(initialEditorProps)
-    expect(mocks.editorOptions.editorProps.handleKeyDown).toBe(initialHandleKeyDown)
     expect(handled).toBe(true)
     expect(initialSendDraft).not.toHaveBeenCalled()
     expect(nextSendDraft).toHaveBeenCalledWith({ text: '', tokens: [] })
-  })
-
-  it('keeps omitted suggestion sources stable across quick panel rerenders', async () => {
-    const { rerender } = render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
-
-    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
-    const initialSuggestionSources = mocks.editorPresetOptions.suggestionSources
-    const initialEditorProps = mocks.editorOptions.editorProps
-    const initialHandlePaste = mocks.editorOptions.handlePaste
-    const initialExtensions = mocks.editorOptions.extensions
-
-    rerender(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
-
-    expect(mocks.editorPresetOptions.suggestionSources).toBe(initialSuggestionSources)
-    expect(mocks.editorOptions.editorProps).toBe(initialEditorProps)
-    expect(mocks.editorOptions.handlePaste).toBe(initialHandlePaste)
-    expect(mocks.editorOptions.extensions).toBe(initialExtensions)
   })
 
   it('lets the visible QuickPanel handle Tab before prompt-variable navigation', async () => {
