@@ -34,14 +34,18 @@ export async function openSettingsSection(page: Page, section: string): Promise<
   await dismissOnboarding(page)
   await page.keyboard.press('Escape')
   await closeOpenSettingsDrawer(page)
-  const sectionButton = page
-    .locator('[data-ui~="settings.navigation"] [data-slot="menu-item"]')
-    .filter({ hasText: section })
-    .first()
-  if (!(await sectionButton.isVisible().catch(() => false))) {
-    await selectSidebarApp(page, 'Settings')
+  await selectSidebarApp(page, 'Settings')
+  const navigation = page.locator('[data-ui~="settings.navigation"]:visible')
+  const sectionButton = navigation.locator('[data-slot="menu-item"]').filter({ hasText: section }).first()
+  if (await sectionButton.count()) {
+    await sectionButton.click()
+    return
   }
-  await sectionButton.click()
+  await navigation.getByRole('button', { name: 'Built-in Tools', exact: true }).click()
+  await page
+    .getByRole('navigation', { name: 'Built-in Tools', exact: true })
+    .getByRole('button', { name: section, exact: true })
+    .click()
 }
 
 export async function closeSettings(page: Page): Promise<void> {

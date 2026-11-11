@@ -77,6 +77,7 @@ const mocks = vi.hoisted(() => ({
   unifiedPanelOpen: vi.fn(),
   unifiedPanelAvailable: true,
   pinnedToolIds: ['composer:new-conversation', 'web-search'] as string[],
+  renderAsMarkdown: false,
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   chatWrite: undefined as any,
@@ -529,6 +530,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
       'chat.input.toolbar.pinned_tools': mocks.pinnedToolIds,
+      'chat.message.render_as_markdown': mocks.renderAsMarkdown,
       'topic.tab.display_mode': mocks.topicLayout === 'classic' ? 'assistant' : 'time'
     }
     return [values[key]]
@@ -856,6 +858,7 @@ describe('ChatComposer', () => {
     mocks.unifiedPanelOpen.mockReset()
     mocks.unifiedPanelAvailable = true
     mocks.pinnedToolIds = ['composer:new-conversation', 'web-search']
+    mocks.renderAsMarkdown = false
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.chatWrite = undefined
@@ -897,6 +900,13 @@ describe('ChatComposer', () => {
   afterEach(() => {
     globalThis.fetch = originalFetch
     globalThis.ResizeObserver = originalResizeObserver
+  })
+
+  it.each([true, false])('renders Markdown in place only while user messages render as Markdown (%s)', (enabled) => {
+    mocks.renderAsMarkdown = enabled
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.markdownLivePreview).toBe(enabled)
   })
 
   it('blocks sending and shows the quota notice while the current model is out of quota', () => {
