@@ -1179,9 +1179,10 @@ The Agent browser group opt-out remains independent. Disabling Agent control lea
 `app.browser.open_links_in_browser` also defaults true when unset. When enabled, ordinary HTTP(S) clicks in Agent
 message links open the current session's right browser pane through the message action provider;
 other website links open `/app/browser` tabs through main-window navigation, sharing the browser profile and history. Shell link
-IPC, host-window link interception, app menu links and external mini-app popups use that policy. Explicit
-external-browser buttons use a separate IPC command; OAuth authorization and non-HTTP schemes retain
-their existing handling.
+IPC, host-window link interception, app menu links and non-popup mini-app links use that policy. HTTP(S)
+`new-window` popups from website MiniApps remain in the originating `persist:webview` session so authentication
+cookies and opener callbacks are preserved. Explicit external-browser buttons use a separate IPC command;
+non-HTTP schemes retain their existing handling.
 
 `app.browser.auto_open_panel` defaults to `true` and controls tool-driven opening of the right-side browser panel
 in Agent sessions and Assistant topics. When disabled, browser tools continue operating without opening the panel

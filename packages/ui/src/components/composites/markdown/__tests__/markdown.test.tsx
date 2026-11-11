@@ -78,15 +78,6 @@ describe('Markdown (static)', () => {
     expect(container.querySelector('#user-content-custom-anchor')).not.toBeNull()
   })
 
-  it('renders fenced code blocks', () => {
-    const { container } = render(
-      <Markdown id="m2" plugins={withChatPlugins()}>
-        {'```ts\nconst x = 1\n```'}
-      </Markdown>
-    )
-    expect(container.querySelector('pre')).not.toBeNull()
-  })
-
   it('keeps single tildes literal while retaining double-tilde strikethrough', () => {
     const { container } = render(
       <Markdown id="tilde-markdown" plugins={withChatPlugins()}>

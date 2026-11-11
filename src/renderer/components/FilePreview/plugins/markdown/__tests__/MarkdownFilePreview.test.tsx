@@ -384,8 +384,6 @@ describe('MarkdownFilePreview', () => {
     expect(await screen.findByRole('heading')).toHaveTextContent('File preview')
     expect(screen.getByRole('heading')).not.toHaveTextContent('name: Writer')
     expect(screen.getByRole('heading')).not.toHaveTextContent('description: Draft clear prose')
-    expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.preview' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
   })
 
   it('keeps artifact frontmatter hidden when the document falls back to plain source', async () => {

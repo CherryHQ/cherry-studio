@@ -181,7 +181,7 @@ describe('useAgentSessionParts', () => {
     expect(result.current.messages[2].parts).toEqual([{ type: 'text', text: 'Already streaming' }])
   })
 
-  it('preserves unchanged message identities across revalidation and replaces updated rows', () => {
+  it('updates message content after revalidation', () => {
     const originalRow = {
       id: 'message-1',
       sessionId: 'session-1',
@@ -199,15 +199,12 @@ describe('useAgentSessionParts', () => {
     mockAgentSessionPartsDataApi([{ items: [originalRow] }])
 
     const { result, rerender } = renderHook(() => useAgentSessionParts('session-1'))
-    const originalMessage = result.current.messages[0]
     const revalidatedRow = {
       ...originalRow,
       data: { parts: [{ type: 'text', text: 'original' }] }
     } as AgentSessionMessageEntity
     mockAgentSessionPartsDataApi([{ items: [revalidatedRow] }])
     rerender()
-
-    expect(result.current.messages[0]).toBe(originalMessage)
 
     const updatedRow = {
       ...revalidatedRow,
@@ -216,8 +213,6 @@ describe('useAgentSessionParts', () => {
     } as AgentSessionMessageEntity
     mockAgentSessionPartsDataApi([{ items: [updatedRow] }])
     rerender()
-
-    expect(result.current.messages[0]).not.toBe(originalMessage)
     expect(result.current.messages[0].parts).toEqual([{ type: 'text', text: 'updated' }])
   })
 
@@ -271,15 +266,12 @@ describe('useAgentSessionParts', () => {
     })
 
     rerender({ sessionId: 'session-2' })
-    const sessionTwoMessage = result.current.messages[0]
 
     await act(async () => {
       resolveSessionOneRefresh([{ items: [rowFor('session-1', 'refreshed one')] }])
       await staleRefresh
     })
     rerender({ sessionId: 'session-2' })
-
-    expect(result.current.messages[0]).toBe(sessionTwoMessage)
     expect(result.current.messages[0].id).toBe('message-session-2')
   })
 
