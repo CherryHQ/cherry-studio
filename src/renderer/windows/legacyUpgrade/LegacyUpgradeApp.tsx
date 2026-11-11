@@ -1,15 +1,7 @@
 import { Download } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-  Button,
-  CircularProgress,
-  Spinner
-} from '@cherrystudio/ui'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button, Progress } from '@cherrystudio/ui'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { LegacyUpgradeChannels, type LegacyInstallState, type LegacyUpgradeScreen } from '@shared/types/legacyUpgrade'
 
@@ -72,19 +64,13 @@ export default function LegacyUpgradeApp({ screen }: { screen: LegacyUpgradeScre
         </p>
         {status && (
           <div className="mt-5 space-y-3" role="status" aria-live="polite">
-            <p className="text-sm text-muted-foreground">{status}</p>
-            {state.phase === 'downloading' &&
-              (state.percent === undefined ? (
-                <Spinner text={null} />
-              ) : (
-                <CircularProgress
-                  value={state.percent}
-                  size={48}
-                  strokeWidth={3}
-                  showLabel
-                  renderLabel={(percent) => `${percent}%`}
-                />
-              ))}
+            <div className="flex items-baseline justify-between gap-4 text-sm text-muted-foreground">
+              <p>{status}</p>
+              {state.phase === 'downloading' && state.percent !== undefined && (
+                <span className="shrink-0 tabular-nums">{state.percent}%</span>
+              )}
+            </div>
+            {state.phase === 'downloading' && <Progress value={state.percent} aria-label={install?.downloading} />}
           </div>
         )}
         {!active && (

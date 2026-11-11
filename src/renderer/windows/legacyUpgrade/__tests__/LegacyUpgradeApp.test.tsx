@@ -67,6 +67,7 @@ it('shows progress, cancellation and retry while never offering a second install
   expect(window.electron.ipcRenderer.invoke).toHaveBeenCalledWith('legacy-upgrade:install')
   await act(async () => publish({}, { phase: 'downloading', percent: 42 }))
   expect(screen.getByText('42%')).toBeVisible()
+  expect(screen.getByRole('progressbar', { name: installation.downloading })).toHaveAttribute('value', '42')
   expect(screen.getByRole('button', { name: installation.action })).toBeDisabled()
   await act(async () => fireEvent.click(screen.getByRole('button', { name: installation.cancel })))
   expect(window.electron.ipcRenderer.invoke).toHaveBeenCalledWith('legacy-upgrade:cancel')
