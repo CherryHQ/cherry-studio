@@ -157,6 +157,36 @@ describe('createComposerInputAdapter', () => {
     expect(currentEditor.state.selection.from).toBe(selectionBeforeInsert + 4)
   })
 
+  it('syncs a knowledge token without stealing focus or moving the mapped cursor', async () => {
+    const currentEditor = createEditor()
+    document.body.append(currentEditor.view.dom)
+    createComposerInputAdapter(currentEditor).insertText('Continue this prompt', { tokenizeVariables: false })
+    currentEditor.commands.setTextSelection(9)
+    const before = currentEditor.state.selection.from
+    const pickerRow = document.createElement('button')
+    document.body.append(pickerRow)
+    pickerRow.focus()
+    try {
+      expect(document.activeElement).toBe(pickerRow)
+      expect(
+        insertKnowledgeBaseTokenAtStart(currentEditor, {
+          id: 'knowledge:kb-1',
+          kind: 'knowledge',
+          label: 'KB One',
+          promptText: 'Search KB One.'
+        })
+      ).toBe(true)
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      expect(document.activeElement).toBe(pickerRow)
+      expect(currentEditor.state.selection.from).toBe(before + 2)
+      currentEditor.commands.insertContent('typed')
+      expect(serializeComposerDocument(currentEditor).text).toBe('Search KB One. Continuetyped this prompt')
+    } finally {
+      pickerRow.remove()
+      currentEditor.view.dom.remove()
+    }
+  })
+
   it('refreshes only the label of an existing token, preserving its prompt text and position', () => {
     const currentEditor = createEditor()
     insertKnowledgeBaseTokenAtStart(currentEditor, {

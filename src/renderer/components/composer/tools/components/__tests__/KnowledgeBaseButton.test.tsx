@@ -185,6 +185,7 @@ describe('KnowledgeBaseToolRuntime', () => {
     const launcher = createLauncherApi()
     const onSelect = vi.fn()
     const subscribeInput = vi.fn(() => vi.fn())
+    const focus = vi.fn()
 
     render(
       <KnowledgeBaseToolRuntime
@@ -202,11 +203,12 @@ describe('KnowledgeBaseToolRuntime', () => {
 
     rootSearchItem.action?.({
       context: { symbol: ComposerPanelSymbol.Root, close: vi.fn() },
-      inputAdapter: { getText: () => '', subscribeInput },
+      inputAdapter: { getText: () => '', subscribeInput, focus },
       item: rootSearchItem
     } as never)
 
     expect(onSelect).toHaveBeenCalledWith([mocks.knowledgeBases[0]])
     expect(subscribeInput).not.toHaveBeenCalled()
+    expect(focus).toHaveBeenCalledOnce()
   })
 })

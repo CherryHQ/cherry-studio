@@ -131,6 +131,7 @@ const useKnowledgeBaseToolController = ({
         const nextSelectedBases = configuredBasesRef.current.filter((candidate) => nextSelectedIds.has(candidate.id))
         selectedBasesRef.current = nextSelectedBases
         onSelectRef.current(nextSelectedBases)
+        inputAdapter?.focus()
         if (context.symbol === ComposerPanelSymbol.KnowledgeBase) {
           closeKnowledgeBasePanelOnNextInput({ context, inputAdapter })
         }
