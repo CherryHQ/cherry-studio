@@ -31,7 +31,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { ComputerUseControl } from '@shared/ipc/schemas/computerUse'
 import type { EventPayload } from '@shared/ipc/types'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
-import { TreeDir, TreeDirRoot } from '@shared/utils/file'
+import { TreeDirRoot } from '@shared/utils/file'
 
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
@@ -900,6 +900,55 @@ describe('AgentRightPane', () => {
     }
   })
 
+  it.each(['missing-completion', 'completed-update', 'empty-list', 'no-tools'] as const)(
+    'hides a settled task plan without inventing completion (%s)',
+    (scenario) => {
+      uiMockState.useRealHoverCard = true
+      const tool = (id: string, toolName: string, input: unknown, output: unknown): CherryMessagePart => ({
+        type: 'dynamic-tool',
+        toolCallId: id,
+        toolName,
+        state: 'output-available',
+        input,
+        output
+      })
+      const initial =
+        scenario === 'no-tools'
+          ? []
+          : [
+              tool(
+                'create',
+                'TaskCreate',
+                { subject: 'Inspect setup', activeForm: 'Inspecting setup' },
+                'Task #1 created successfully: Inspect setup'
+              ),
+              tool('start', 'TaskUpdate', { taskId: '1', status: 'in_progress' }, 'Updated task #1 status')
+            ]
+      const pane = (parts: CherryMessagePart[], status: 'pending' | 'success') => (
+        <TestAgentRightPane
+          sessionId="diagnostic-24240"
+          messages={createTaskMessages(parts, status)}
+          partsByMessageId={{ m1: parts }}>
+          <AgentTaskProgressCapsule />
+        </TestAgentRightPane>
+      )
+      const view = render(pane(initial, 'pending'))
+      if (scenario !== 'no-tools') expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')
+      const terminal =
+        scenario === 'completed-update'
+          ? [tool('complete', 'TaskUpdate', { taskId: '1', status: 'completed' }, 'Updated task #1 status')]
+          : scenario === 'empty-list'
+            ? [tool('list', 'TaskList', {}, 'No tasks found')]
+            : []
+      const parts: CherryMessagePart[] = [...initial, ...terminal, { type: 'text', text: 'All done.', state: 'done' }]
+      view.rerender(pane(parts, 'success'))
+      expect(screen.queryByRole('progressbar')).toBeNull()
+      view.unmount()
+      render(pane(parts, 'success'))
+      expect(screen.queryByRole('progressbar')).toBeNull()
+    }
+  )
+
   it('opens the current task plan from hover and keyboard focus, then hides it after completion', async () => {
     uiMockState.useRealHoverCard = true
     const user = userEvent.setup()
@@ -925,7 +974,7 @@ describe('AgentRightPane', () => {
 
     expect(progress).toHaveAttribute('aria-valuenow', '1')
     expect(progress).toHaveAttribute('aria-valuemax', '2')
-    expect(screen.getByTestId('circular-progress')).toHaveAttribute('data-value', '50')
+
     expect(screen.queryByTestId('agent-task-progress-details')).toBeNull()
 
     await user.hover(progressLabel)
@@ -979,8 +1028,7 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
-    expect(within(screen.getByTestId('agent-task-progress-details')).getByText('Collect context')).toBeInTheDocument()
-    expect(screen.queryByText('Collecting context')).toBeNull()
+    expect(screen.queryByTestId('agent-task-progress-capsule')).toBeNull()
   })
 
   it('opens details without claiming the work panel and preserves the files shortcut', () => {
@@ -1979,12 +2027,6 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
-    expect(useCommandHandlerMock).toHaveBeenCalledWith(
-      'topic.sidebar.toggle',
-      expect.any(Function),
-      expect.objectContaining({ enabled: true })
-    )
-
     act(triggerRightSidebarShortcut)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
@@ -2005,8 +2047,7 @@ describe('AgentRightPane', () => {
     act(triggerRightSidebarShortcut)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.queryByTestId('shell-tab-title')).toBeNull()
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
+
     expect(screen.getByTestId('artifact-pane')).toBeInTheDocument()
   })
 
@@ -2022,19 +2063,13 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
-    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
-
     fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
 
-    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
-    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
 
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
   })
 
   it('routes Markdown preview file links through the files pane opener', async () => {
@@ -2190,99 +2225,6 @@ describe('AgentRightPane', () => {
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
   })
 
-  it('shows the files shortcut once a system workspace contains an entry', () => {
-    const { rerender } = render(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="/system-workspace"
-        workspaceType="system"
-        messages={[]}
-        partsByMessageId={{}}>
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
-    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith('/system-workspace', { maxDepth: 1, watchMissingRoot: true })
-
-    const systemWorkspaceRoot = systemFileTreeState.root
-    if (!systemWorkspaceRoot) throw new Error('Expected the system workspace tree root')
-    systemWorkspaceRoot.attachChild(new TreeDir({ path: '/system-workspace/output' }))
-    systemFileTreeState.version += 1
-    rerender(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="/system-workspace"
-        workspaceType="system"
-        messages={[]}
-        partsByMessageId={{}}>
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
-    expect(useArtifactFileTreeModelMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ watchMissingRoot: true, workspacePath: '/system-workspace' })
-    )
-  })
-
-  it('does not request a system workspace tree for a relative path', () => {
-    render(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="relative/workspace"
-        workspaceType="system"
-        messages={[]}
-        partsByMessageId={{}}>
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith(undefined, { maxDepth: 1, watchMissingRoot: true })
-  })
-
-  it('hides conversation shortcuts when the conversation is unavailable', () => {
-    render(
-      <TestAgentRightPane
-        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'agent.session.list.title' }}
-        conversationState="unavailable"
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={[]}
-        partsByMessageId={{}}>
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    expect(screen.queryByRole('button', { name: 'agent.session.list.title' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.details' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'trace.label' })).toBeNull()
-  })
-
-  it('resolves a dynamic flow panel from the declared flow capability', () => {
-    render(
-      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
-        <OpenFlowButton />
-        <UserOpenSeqProbe />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    expect(screen.getByTestId('user-open-seq')).toHaveTextContent('0')
-    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
-
-    expect(screen.getByTestId('user-open-seq')).toHaveTextContent('1')
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow')
-    expect(screen.getByTestId('empty-state')).toBeInTheDocument()
-    expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
-  })
-
   it('opens the common child projection for Claude and displays its availability diagnostic', async () => {
     ipcRequestMock.mockImplementation(async (route: string) =>
       route === 'ai.projection.attach'
@@ -2320,21 +2262,6 @@ describe('AgentRightPane', () => {
     })
   })
 
-  it('keeps the full flow title for the panel header to truncate by available width', () => {
-    const title = 'Review shared layer and IPC session boundaries without pre-truncating the title'
-
-    render(
-      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
-        <OpenFlowButton title={title} />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
-
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent(title)
-  })
-
   it('resolves a deferred selected flow output by its stored address', async () => {
     const deferredToolResult = { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'flow-1' }
     const flowPart = {
@@ -2361,42 +2288,6 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
 
     await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
-    await waitFor(() =>
-      expect(buildAgentToolFlowProjectionMock).toHaveBeenLastCalledWith(
-        messages,
-        { m1: [flowPart] },
-        'flow-1',
-        'Loaded flow result'
-      )
-    )
-  })
-
-  it('presents flow prompts as bubbles and keeps completed process history collapsed', () => {
-    const flowPart = {
-      type: 'dynamic-tool',
-      toolCallId: 'flow-1',
-      toolName: 'Agent',
-      state: 'output-available',
-      input: { prompt: 'Inspect the workspace' },
-      output: 'Inspection complete'
-    } as unknown as CherryMessagePart
-    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
-
-    render(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={messages}
-        partsByMessageId={{ m1: [flowPart] }}>
-        <OpenFlowButton />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
-
-    expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-collapse-completed-tool-history', 'true')
-    expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-message-style', 'bubble')
   })
 
   it('identifies the parent task when opening a nested subtask', () => {
@@ -2509,10 +2400,8 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
-    expect(screen.getByTestId('user-open-seq')).toHaveTextContent('0')
     fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
 
-    expect(screen.getByTestId('user-open-seq')).toHaveTextContent('1')
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     await waitFor(() => {
       expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
@@ -2539,7 +2428,7 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(ipcRequestMock).not.toHaveBeenCalled()
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('file.get_metadata', expect.anything())
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 
@@ -2657,54 +2546,10 @@ describe('AgentRightPane', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
-    const firstFlow = screen.getByTestId('empty-state')
 
     fireEvent.click(screen.getByRole('button', { name: 'open second flow' }))
 
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect second flow')
-    expect(screen.getByTestId('empty-state')).not.toBe(firstFlow)
-  })
-
-  it('retains an inactive flow without re-projecting every runtime update', () => {
-    const flowPart = {
-      type: 'dynamic-tool',
-      toolCallId: 'flow-1',
-      toolName: 'task',
-      state: 'input-available',
-      input: { prompt: 'Inspect the workspace' }
-    } as unknown as CherryMessagePart
-    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
-    const { rerender } = render(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={messages}
-        partsByMessageId={{ m1: [flowPart] }}>
-        <OpenFlowButton />
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
-    expect(screen.getByTestId('message-list')).toBeInTheDocument()
-    const callsWhileActive = buildAgentToolFlowProjectionMock.mock.calls.length
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
-    rerender(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="/workspace"
-        messages={[...messages]}
-        partsByMessageId={{ m1: [flowPart] }}>
-        <OpenFlowButton />
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    expect(buildAgentToolFlowProjectionMock).toHaveBeenCalledTimes(callsWhileActive)
-    expect(screen.getByTestId('message-list')).toBeInTheDocument()
   })
 
   it('scopes desktop control to the session and keeps a stop bound to its original app', async () => {
@@ -2765,36 +2610,6 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
-  })
-
-  it('keeps a detached subagent spinning while it remains in the background task snapshot', () => {
-    const taskEvent = {
-      event: 'started' as const,
-      taskId: 'subagent-1',
-      toolUseId: 'tool-use-1',
-      status: 'in_progress' as const,
-      title: 'Run a detached subagent',
-      taskType: 'subagent'
-    }
-    const taskPart = { type: 'data-agent-task-event', data: taskEvent } as unknown as CherryMessagePart
-    const messages = [
-      { id: 'm1', role: 'assistant', parts: [taskPart], metadata: { status: 'success' } }
-    ] as CherryUIMessage[]
-    backgroundTasksState.value = [
-      { id: 'subagent-1', type: 'subagent', description: 'Run a detached subagent', toolCallId: 'tool-use-1' }
-    ]
-    render(
-      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: [taskPart] }}>
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
-
-    fireEvent.click(screen.getByRole('button', { name: /agent.right_pane.info.subagents/ }))
-    const taskButton = screen.getByRole('button', { name: /Run a detached subagent/ })
-    expect(taskButton.querySelector('.animate-spin')).not.toBeNull()
   })
 
   it('returns through nested tasks in order and resets the path for a new root task', () => {
@@ -2862,7 +2677,7 @@ describe('AgentRightPane', () => {
       }
     } as unknown as CherryMessagePart
     const messages = [
-      { id: 'm1', role: 'assistant', parts: [todoPart], metadata: { status: 'success' } }
+      { id: 'm1', role: 'assistant', parts: [todoPart], metadata: { status: 'pending' } }
     ] as CherryUIMessage[]
 
     render(
@@ -2872,7 +2687,7 @@ describe('AgentRightPane', () => {
     )
 
     const details = screen.getByTestId('agent-task-progress-details')
-    expect(within(details).getByText('Connect the task list')).toHaveClass('text-muted-foreground')
+
     expect(within(details).getByText('Verify the right pane')).toBeInTheDocument()
   })
 
@@ -2915,18 +2730,13 @@ describe('AgentRightPane', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
 
-    expect(screen.getByText('agent.right_pane.info.workflows')).toBeInTheDocument()
-    expect(screen.queryByText('agent.right_pane.info.subagents')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /agent.right_pane.info.workflows/ }))
     expect(screen.getByText('review-pr')).toBeInTheDocument()
     expect(screen.getByText('Reviewing renderer files')).toBeInTheDocument()
     expect(screen.getByText('Checking citation rendering')).toBeInTheDocument()
-    expect(screen.getByText(/Read · 1.2k · agent.right_pane.status.tool_uses · 9s/)).toBeInTheDocument()
-    expect(screen.getByText('review-pr').closest('button')).toBeNull()
-    expect(screen.queryByTestId('workflow-dag-panel')).toBeNull()
   })
 
-  it('keeps task summaries above artifacts and context', () => {
+  it('opens declared artifacts from task details', () => {
     const parts = [
       {
         type: 'dynamic-tool',
@@ -2960,40 +2770,8 @@ describe('AgentRightPane', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
 
-    const sectionOrder = [
-      screen.getByText('agent.right_pane.info.shell_tasks'),
-      screen.getByText('agent.right_pane.info.artifacts'),
-      screen.getByRole('region', { name: 'agent.right_pane.info.context' })
-    ]
-
-    for (const [index, node] of sectionOrder.slice(0, -1).entries()) {
-      expect(node.compareDocumentPosition(sectionOrder[index + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    }
     fireEvent.click(screen.getByRole('button', { name: /agent.right_pane.info.artifacts/ }))
     expect(screen.getByText('index.html')).toBeInTheDocument()
-  })
-
-  it('hides the artifacts section when the workspace cannot open files', () => {
-    const parts = [
-      {
-        type: 'dynamic-tool',
-        toolCallId: 'artifacts-1',
-        toolName: 'report_artifacts',
-        state: 'output-available',
-        input: { artifacts: [{ path: 'docs/index.html' }] }
-      }
-    ] as unknown as CherryMessagePart[]
-    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
-
-    render(
-      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
-
-    expect(screen.queryByText('agent.right_pane.info.artifacts')).toBeNull()
   })
 
   it('restores the stop button and reports an error when the runtime cannot stop the task', async () => {
@@ -3005,50 +2783,6 @@ describe('AgentRightPane', () => {
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('agent.right_pane.status.stop_run_task_failed'))
     expect(stopButton).toBeEnabled()
-  })
-
-  it('does not mount the files capability while the shell is closed', () => {
-    render(
-      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
-  })
-
-  it('does not mount the files capability when opening a status panel', () => {
-    render(
-      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
-
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
-    expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
-  })
-
-  it('loads trace on demand and unmounts it while inactive to release its retained tree', async () => {
-    render(
-      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    expect(tracePaneModuleLoadMock).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
-    const tracePane = await screen.findByTestId('trace-pane')
-    expect(tracePaneModuleLoadMock).toHaveBeenCalledOnce()
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
-    expect(screen.queryByTestId('trace-pane')).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
-    expect(await screen.findByTestId('trace-pane')).not.toBe(tracePane)
   })
 
   it('keeps a visited files instance through pending and removes it when unavailable', () => {

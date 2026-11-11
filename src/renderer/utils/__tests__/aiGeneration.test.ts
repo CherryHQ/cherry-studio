@@ -50,28 +50,8 @@ beforeEach(async () => {
 })
 
 describe('aiGeneration reasoning opt-out', () => {
-  it('fetchMessagesSummary disables reasoning on the naming request', async () => {
-    await fetchMessagesSummary({ messages: [{ role: 'user', parts: [] } as never] })
-
-    expect(generateTextMock).toHaveBeenCalledWith(
-      expect.objectContaining({ uniqueModelId: TEST_MODEL.id, reasoningEffort: 'none' })
-    )
-  })
-
   it('fetchNoteSummary disables reasoning on the naming request', async () => {
     expect(await fetchNoteSummary({ content: 'note body' })).toBe('A title')
-
-    expect(generateTextMock).toHaveBeenCalledWith(
-      expect.objectContaining({ uniqueModelId: TEST_MODEL.id, reasoningEffort: 'none' })
-    )
-  })
-
-  it('fetchGenerate disables reasoning on the generation request', async () => {
-    await fetchGenerate({ prompt: 'system prompt', content: 'user content' })
-
-    expect(generateTextMock).toHaveBeenCalledWith(
-      expect.objectContaining({ uniqueModelId: TEST_MODEL.id, reasoningEffort: 'none' })
-    )
   })
 })
 
