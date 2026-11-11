@@ -1,0 +1,1260 @@
+---
+description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
+sources:
+  - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/agentSession/relocateSystemWorkspaces.ts
+  - src/main/ai/runtime/workspaceRelocation.ts
+  - src/main/ai/agents/AgentWorkspaceStorageService.ts
+  - src/main/data/services/AgentSessionService.ts
+  - src/main/data/db/schemas/agentSession.ts
+  - src/main/ai/agents/runAgentTask.ts
+  - src/main/ai/agents/heartbeatSchedule.ts
+  - src/shared/ai/agentHeartbeat.ts
+  - src/main/ai/runtime/types.ts
+  - src/main/ai/runtime/claudeCode
+  - src/main/ai/runtime/pi
+  - src/main/ai/runtime/piDurable
+  - src/main/ai/agentSession/durableNativeContext.ts
+  - src/shared/ai/piBuiltinTools.ts
+  - packages/agent-behavior/src
+  - packages/agent-runtime-pi/src
+  - packages/agent-runtime-pi-durable/src
+  - src/main/ai/runtime/agentPrompt.ts
+  - src/main/ai/toolApproval/userDataSqliteGuard.ts
+  - src/main/ai/messages/readConversation.ts
+  - src/main/ai/mcp/servers/cherryAutonomyTools.ts
+---
+
+# Agent Session Runtime
+
+## Purpose
+
+Agent-session streams need a stable host for UI turns, persistence, live
+follow-ups (steers), and recovery. The host must not know whether the
+underlying agent uses a long-lived process, a websocket, one HTTP request
+per turn, or Claude Code's SDK `query`.
+
+The boundary is:
+
+- `AgentSessionRuntimeService` owns Cherry's UI/session lifecycle.
+- `AgentSessionRuntimeDriver` owns the concrete agent-session runtime lifecycle.
+
+The built-in drivers are Claude Code, Pi and Pi Durable. Their
+query/session transports, tool surfaces, approval gates, and resume formats are
+driver internals behind the same host contract.
+
+## Ownership
+
+| Owner | Responsibility |
+|---|---|
+| `AgentChatContextProvider` | Validates the agent session, persists the user row (plus a pending assistant row on a fresh turn), and either starts a turn or enqueues a follow-up through the runtime. |
+| `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, and delivery quiescing. |
+| `AgentLifecycleService` | Coordinates archive, restore, purge, workspace deletion, and Agent-side backup quiescing; see [Agent Lifecycle](./agent-lifecycle.md). |
+| `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, original input contexts across connection replacement, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
+| `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional `redirect` (mid-turn steer), `close`, and an event stream. |
+| `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
+| `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
+| Runtime packages | Interpret native input, task, completion, content and invocation evidence once, and publish captured typed batches. |
+| Runtime drivers | Map typed native facts into product events, bind product/native identities, and own one access/projection resource record per child. |
+| Usage capture | Each driver exposes provider-invocation capture according to its transport. Pi uses native providers through the internal gateway and one gateway-owned billing path; native totals serve context/UI statistics only. Gateway-backed calls use AiService middleware. |
+| Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
+
+## Context usage
+
+Each runtime package implements passive `ThreadHandle.contextUsage()` and publishes the same
+result through `context.changed` and snapshots. Main forwards the common result into a
+thread-scoped cache; renderer code does not parse native SDK categories or infer model capacity.
+Connection replacement, model changes and compaction invalidate cached readings. Late reads
+from an old connection cannot overwrite the new context, and child caches use child handles.
+
+The full model window is distinct from input limits and compaction thresholds. Counts state
+whether they are reported or estimated. Partial breakdowns are not rescaled to match a total,
+and deferred resources do not occupy current context. Unknown reserves or free capacity stay
+absent. Context reads neither submit input nor add billable usage records.
+
+Pi and Pi Durable record section and tool provenance while preparing native context. Their
+adapters expose individual memory-file fragments, skill catalog entries and tool schemas;
+MCP classification uses explicit origin metadata. Codemode-only tools are deferred, and skill
+bodies subsequently loaded through tools count as messages. Reads use committed provenance,
+not a new filesystem scan or prompt render. Older unannotated sections remain prompt estimates.
+
+## Heartbeat execution deadline
+
+In the agent's heartbeat settings, **Maximum Execution Time (minutes)** controls
+one heartbeat turn, independently of the interval between ticks. The saved
+`configuration.heartbeat_timeout_minutes` accepts 1–1440 minutes; existing
+agents retain the two-minute default. Schedule creation and startup repair derive
+`jobInputTemplate.timeoutMinutes` from this configuration, and `runAgentTask`
+enforces that deadline. Editing the schedule row directly is not a persistent
+configuration change. Updating the deadline preserves a circuit-breaker pause;
+use the heartbeat toggle off/on to reset that pause explicitly.
+
+## Background sessions and conversation navigation
+
+`agent_session.type` distinguishes `conversation` from `background`. Heartbeat
+runs create background sessions, including replacements after failed admission;
+owned child archives also use this classification and an `ownerSessionId` pointing
+to the root product session. Ordinary scheduled tasks retain their conversation
+behavior. The type is internal
+to Main and is not a renderer-controlled visibility flag.
+
+Conversation lists (including pins), latest-session selection, discovery search,
+and empty-session reuse only consider conversation sessions. The public
+session-by-id and message routes (reads, mutations, and workspace changes) apply
+that scope too, so a saved tab cannot restore a background session as an
+interactive conversation and a known background id is not addressable from the
+renderer surface. Runtime lookups retain access to all sessions through the
+internal `getById` method and service methods. Background activity publishes
+detail/message changes without invalidating the conversation navigation read
+models. Child output uses owner-scoped IPC attachment/control; it cannot open as
+an independent root. Parent trash/restore includes its child archives, hard deletion
+cascades their rows, and native-file retention includes their context identities.
+
+Each child archive is identified by `(parentContextId, nativeThreadId)` and inherits
+its backend from that parent context. The spawn tool-call ID records provenance;
+continuing the same native Thread reuses its archive.
+
+The appended migration classifies existing sessions only when retained job
+records identify heartbeat execution — the fire ran on a schedule whose
+template carries the heartbeat sentinel — and no retained job records identify
+a different use of the same session. Unknown history remains a conversation;
+classification never relies on a session name or workspace. Session/message
+data is retained, and subsequent job retention cannot change the
+classification.
+
+This is a bounded classification within the existing session model. Separating
+execution sessions from user-managed conversation membership is tracked in
+[issue #20635](https://github.com/CherryHQ/cherry-studio/issues/20635); background-session retention and a dedicated activity UI
+also require their own lifecycle and product decisions.
+
+## System prompt ownership
+
+`src/main/ai/runtime/agentPrompt.ts` is the single materializer for Cherry-owned Agent prompt policy. Every runtime passes the same Agent, workspace, agent-data path, channel state, and resolved citation guidance into `buildAgentRuntimePrompt()`, then maps its `{ base, append }` result into the runtime SDK.
+
+The common materializer owns Cherry policy content, semantic authority, and the ordering of blocks carried through its `append` result:
+
+1. instruction precedence when an Agent System Prompt exists;
+2. bootstrap, identity, and memory context from `PromptBuilder` (`SOUL.md`, `USER.md`, `memory/FACT.md`);
+3. variable-resolved Agent System Prompt text and its authority wrapper;
+4. context required when `system.md` replaces a native base;
+5. linked-channel security policy;
+6. citation markers for the lookup tools the runtime actually exposes;
+7. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
+8. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
+
+Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every runtime.
+
+Runtime adapters own only native mechanics:
+
+| Runtime-neutral Cherry policy | Runtime-specific carrier |
+|---|---|
+| `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps into its preset/custom prompt, Pi uses system/append overrides. |
+| Common append text and block order | Claude uses the preset's `append`; Pi uses `appendSystemPromptOverride`. |
+| Workspace instruction authority | Claude uses native `CLAUDE.md` / `AGENTS.md` loading with `claude-md-and-agents-md`; sealed sessions disable both through `settingSources: []`. Pi permits native context files. Semantic precedence stays common. |
+| Enabled managed skill content | Claude injects plugin/config representation; Pi uses `additionalSkillPaths`. |
+| Current workspace guarantee | Each driver supplies cwd/workspace context through its native base or the common custom-base compensation block. |
+| Coding/runtime handbook and native tool snippets | Owned by each runtime's native base, never copied into the common materializer. |
+
+Claude Code uses its bundled `agents-md@builtin` plugin to load workspace instructions. Nested `AGENTS.md` files follow the native text `Read` behavior; Cherry does not inject them before `Edit`, `Write`, or other tools. Sealed sessions retain `settingSources: []` and do not automatically load workspace instruction files.
+
+Do not add Cherry policy directly to one driver. Extend the common materializer, pass any runtime-derived capability fact into it, and add integration assertions for every registered runtime. This module is main-process orchestration, not a cross-process contract, so it does not belong in `@shared`.
+
+## Fresh turn
+
+1. Renderer sends `ai.stream.open` for topic `agent-session:<sessionId>`.
+2. `AgentChatContextProvider` validates the session:
+   - the session must have an agent and workspace;
+   - system workspaces are materialized under Cherry's managed root, while user
+     workspace paths must already resolve to a directory;
+   - the agent type must have a registered runtime driver;
+   - the agent must have a model.
+3. The provider atomically saves:
+   - a `user` message with the submitted parts;
+   - a pending `assistant` message with the selected model id.
+4. The provider calls `AgentSessionRuntimeService.beginTurn(...)`.
+5. `beginTurn()` returns:
+   - a runtime persistence listener;
+   - a runtime terminal listener;
+   - a trace flush listener for `agent-session:${sessionId}` history files;
+   - a `turnId`.
+   Follow-up messages are not queued here — they live on the session
+   entry's `runtimeState.queue`, appended by `enqueueUserMessage()`.
+6. The prepared model request includes:
+   - `runtime: { kind: 'agent-session', sessionId, turnId }`;
+   - `messageId` set to the pending assistant row;
+   - seed `messages`: the user row plus the empty assistant row.
+7. `AiStreamManager` starts the execution. `AiService.streamText()`
+   detects the runtime metadata and calls `openTurnStream()` instead of
+   building a generic `Agent`.
+8. `openTurnStream()` ensures there is a runtime connection and admits
+   the turn by calling `connection.send({ message })`.
+
+## Live follow-up
+
+### Message branches and execution targets
+
+Agent archives have one hidden root and `parentId` links. `agent_session.activeNodeId`
+selects the displayed path; it is separate from a runtime entry's captured execution
+head. The shared sibling navigator chooses the latest descendant of a sibling.
+Selection is a SQLite operation and never opens or resumes a harness.
+
+Dispatch captures its parent before asynchronous validation. If the parent has
+already advanced, a fresh send is rejected; merely viewing another branch does
+not retarget it. Before sending to another branch, the runtime closes an idle
+connection or rejects the send if work remains unsettled. Pending placeholders,
+queued turns and late output retain their originating branch.
+
+Renderer acknowledgements refresh the selected path from Main. Live assistant
+overlays apply only to messages on that path, so a late acknowledgement or stream
+chunk cannot insert another branch's answer into the current view.
+
+### Follow-up admission
+
+If the same topic already has a live stream, `AgentChatContextProvider`
+does **not** create a new assistant placeholder and does **not** call
+`beginTurn()` again. It persists the new user row, hands the message to
+`AgentSessionRuntimeService.enqueueUserMessage(sessionId, message)`, and
+returns a `PreparedDispatch` with `models: []` so `AiStreamManager.send()`
+takes the **inject** path — which for agent sessions only upserts the new
+subscriber onto the running stream (no message is injected into the
+execution; chat's abort-and-restart does not apply here).
+
+A live follow-up is a **steer**. Steering is queue-based, never an
+interrupt: the current turn is **never aborted** to apply a steer (a user
+Stop is now the only abort source). `enqueueUserMessage()`:
+
+1. **Open normal user turn + a driver that can steer** — calls
+   `connection.redirect({ message, systemReminder: true })`. The driver
+   submits the immutable input to the native queue. Claude Code uses SDK
+   `priority: 'next'`: native admission either folds it into the running turn
+   or starts a later turn. The host does not resend an accepted input. Its
+   `steer-boundary` carries input IDs from evidenced native request/response
+   membership, even if the preceding product turn has already settled. Claude's
+   correlated `requesting` status establishes this boundary before streamed content;
+   `started` alone is not placement evidence.
+   Pi consumes its own queue: unplaced inputs remaining after stop/error
+   receive native aborted evidence and are not automatically resent.
+2. **No redirect-eligible open normal turn, or a driver that cannot steer** —
+   appends the message and its `steer` flag to the session entry's `runtimeState.queue`
+   so the next turn can wrap it in a steer system-reminder
+   and schedules it once runtime ownership returns to `idle`.
+
+Before dispatch, Main stores each pending steer's original message, snapshot and headless
+policy on the session entry. Drivers receive the native command and return input IDs. Pi and
+Durable placement callbacks reserve the reply synchronously before the next provider request.
+The later boundary transfers the complete input context once. Unknown admission survives
+disconnect on this entry; its successor looks up the recorded native context/binding without
+resending. Connection generations fence stale callbacks, not the lifetime of unresolved input.
+Unavailable native evidence keeps the context unresolved. This retention covers a living
+process; the persisted native binding alone cannot recreate snapshot/headless attributes.
+
+Background notification generations whose native source calls belong to an unfinished reply resume
+that reply and keep its assistant message ID. Main records intermediate native success but holds
+product completion while that reply has undrained results. Empty display task lists and connection
+release do not settle it; confirmed result drainage, ordered content and final persistence do.
+Before terminal persistence begins, an error or pause replaces held intermediate success;
+later success cannot erase that failure or pause. Events after settlement cannot reopen the reply.
+The model still chooses foreground/background through the native tool arguments. A resident command
+can retain the connection without holding a reply open. A notification without proven ownership
+cannot reopen a settled reply.
+
+An independent receive-only autonomous generation never accepts a redirect. Follow-ups
+remain in `runtimeState.queue` until terminal persistence releases runtime ownership.
+The runtime's `autonomous-turn-state: started` event names why it opened the turn
+(`AutonomousTurnOrigin`: Claude Code waking after background work). The shared reply preparation path publishes it to the shared
+cache under `agent.session.turn_origin.${sessionId}.${messageId}` — live session
+status like the api-retry state, not conversation content — so the transcript can
+label a turn that has no user message above it while the session is open.
+If a user turn is live when the runtime starts its own — even an admitted one when runtime-owned work takes precedence — the user turn
+is deferred: its stream is suspended, the receive-only turn takes the connection, and
+the user turn is relaunched afterwards with its admission preserved (no re-send).
+Content the runtime produces for the deferred turn before its stream reopens is
+retained by that exact reply and delivered when its stream reopens.
+A normal turn whose stream is not yet open queues follow-ups for the same reason;
+steering is only valid after that turn's stream is `open`. Redirect also requires
+both the current turn and incoming input to be interactive. Delivery, channel,
+scheduled, and other headless-owned work cannot absorb or be absorbed by a steer;
+it must wait for its own turn so attribution and authorization remain attached to
+the work's provenance.
+
+When a steer **is** injected mid-turn, the driver emits a `steer-boundary` just
+before the model's post-steer assistant message. The host then **rolls** the
+assistant row: it finalises the pre-steer parts as one row (A1a), opens a fresh
+continuation row (A2), and replays the buffered post-steer chunks into A2 — so
+the steer user message sorts between the two assistant rows instead of dangling
+after the whole turn. `willContinueTopic()` keeps the topic stream alive across
+the roll (and across a mid-flight compaction) so the continuation carries the
+renderer listeners.
+The source row's terminal event is marked `row-roll`; lifecycle consumers must
+not treat it as completion of the work that continues in A2.
+
+## Cross-Session delivery
+
+Agent Sessions communicate through the same host-owned message and runtime path; provider
+processes never connect to one another. A delivery is an ordinary `agent_session_message` in the
+receiver Session plus Main-authored routing and lifecycle metadata. The database records work still
+owed. `AgentSessionDeliveryService` schedules directly from durable `accepted` rows; delivery never
+enters the runtime's process-local follow-up queue.
+
+### Tool contract
+
+Each `cherry-tools` instance receives its trusted `agentId` and `sessionId` from `settingsBuilder`
+and exposes the session tools below:
+
+- `session_list` — deterministically enumerate visible Sessions and filter by Agent;
+- `session_read` — read a Chat topic, Agent Session, or live temporary conversation by its ID,
+  using the existing storage query rules. The caller does not supply a conversation type;
+  ambiguous IDs fail rather than selecting the first matching store;
+- `session_rename` — rename the current Session by default, or an explicit `session_id`,
+  including another Agent's Session. The trimmed `title` must contain 1–255 characters.
+  Missing and trashed Sessions are rejected. The saved name is marked manually
+  edited so automatic naming cannot overwrite it; existing read-model notifications
+  refresh the Session list and detail views;
+- `agent_list` — discover Agents independently of their Sessions, with public identity, runtime
+  availability, and whether a model is configured;
+- `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
+  Session metadata, returning evidence snippets rather than adding an embedding dependency. Agent
+  filters are applied before either search limit. The final limit counts distinct Sessions, each
+  Session keeps its strongest message evidence, and `metadataMatches` identifies name/description
+  hits instead of overloading an empty message-match list;
+- `session_create` — atomically create a Session plus its first completion request, optionally
+  choosing another Agent with `target_agent_id`;
+- `session_send` — send one-way or request an asynchronous terminal completion;
+- `session_deliveries` — inspect incoming and outgoing request/result state.
+
+`session_send` has one asynchronous contract:
+
+```ts
+type SessionSendInput = {
+  target_session_id: string
+  message: string
+  reply?: 'none' | 'completion'
+}
+```
+
+`reply: 'none'` is one-way. `reply: 'completion'` creates one frozen terminal result in the sender
+Session. Every request owns one independent target turn; delivery never redirects into an active
+turn and never enters the runtime's process-local follow-up queue. The tool returns after the
+durable request reaches `accepted`; it never waits for scheduling or target execution.
+
+`session_create` reuses the same completion-request path. Omitting `target_agent_id` creates a
+same-Agent Session; providing it creates a Session owned by the selected Agent. The sender remains
+the trusted calling Agent/Session. A same-Agent Session continues the sender's workspace; a
+cross-Agent Session continues the target Agent's most recent workspace, falling back to the
+sender's workspace when that Agent has no Session. The model is not a tool argument because
+Sessions use their owning Agent's model.
+
+### Deliberate security ceiling
+
+`session_send` and `session_create` follow the calling Session's permission mode: interactive calls
+are auto-approved in `auto` and `bypassPermissions`, including the first send; other modes require
+per-call approval. Existing Agents in either automatic mode adopt this behavior without migration.
+Claude SDK approval requests, including explicit `permissions.ask` rules, still require a user
+decision in automatic modes; ordinary delegation is approved by `PreToolUse` before that callback.
+A headless delivery, channel turn, scheduled turn, or execution without an approval responder is
+denied in every mode before either tool runs. Runtime-generated completion
+results do not call a model tool and route only to the immutable sender Session stored on the
+accepted request.
+
+This deliberately limits delegation to one hop from an interactive Session. A Session started
+by a delivery cannot initiate another `session_send` or `session_create`; it can only finish its own
+request and let the runtime return the result. The limit prevents unattended A -> B -> A loops and a
+prompt-injected Agent from using a more privileged Agent as a confused deputy without introducing a
+speculative ACL subsystem. Upgrade only when the product requires unattended multi-hop
+collaboration; that upgrade must add an explicit Agent allowlist/delegation policy plus trusted trace
+ancestry, depth/cycle checks, and a total-call/rate budget before relaxing the headless denial.
+
+List, search, rename, send, create, and delivery-query visibility share one authorization boundary. Channel,
+scheduled, and delivery-triggered turns are denied in code; Task sub-agents may discover Sessions
+and delegate under the calling Session's permission mode and interaction boundary. Knowing a Session or message id never grants
+access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor.
+
+`session_rename` is auto-approved within this interactive boundary. It changes only
+Session name metadata and does not create a delivery or start a target turn.
+
+`session_read` shares this caller authorization boundary. It reads current source data, without a
+cutoff or snapshot. Topic queries retain branch and sibling options; Agent Session queries
+page the selected path, or the prefix ending at an explicit message anchor.
+Temporary conversations retain their in-memory lifetime and list
+semantics. Exact message reads check conversation membership. A `tool_call_id` with `message_id`
+uses the same persisted tool-output reconstruction as the renderer, including its explicit fallback
+when an offloaded blob is missing. Reading history does not grant filesystem attachment access.
+
+### Durable row shape
+
+The target Session id remains the message row's existing `sessionId`. Trusted sender/receiver IDs,
+reply policy, optional display snapshots, result provenance, outcome, error, and status
+timestamp live in the Main-authored `delivery` JSON. Names are display-only snapshots and never
+participate in routing or authorization.
+
+Completion requests also retain a Main-private `deliveryReplyAnchor` in message
+data. Results and failure replies append to that sending branch's tip even if the
+caller later selects another branch. Public message reads omit this routing field.
+
+Only state used by queries, indexes, compare-and-set transitions, or constraints is promoted to a
+regular column:
+
+```text
+delivery_status             accepted | delivering | consumed | failed
+delivery_turn_ref           assistant placeholder id while delivering; NULL otherwise
+delivery_in_reply_to        result -> request id; NULL for requests
+delivery_sender_session_id  outgoing-delivery query key
+```
+
+Use plain indexes on `delivery_status` and `delivery_turn_ref`. Index
+`(delivery_sender_session_id, created_at, id)` for the outgoing ledger. A nullable ordinary unique
+index on `delivery_in_reply_to` guarantees at most one result per request because SQLite permits
+multiple `NULL` values. A separate `deliveryKind` column is unnecessary:
+`delivery_in_reply_to IS NULL` identifies a request, and non-NULL identifies a result.
+
+The lifecycle is:
+
+```text
+accepted   durable intent committed; runtime has not acknowledged scheduling
+delivering bound to one durable turn reference
+consumed   target terminally processed the input; any required result exists
+failed     permanent routing/admission failure; no automatic retry
+```
+
+SQLite `accepted` rows are the only delivery queue. `AgentSessionDeliveryService` owns scheduling,
+state transitions, finalization, recovery, and shutdown coordination; `AgentSessionMessageService`
+provides synchronous transaction primitives for the message table. Busy, write-quiesced, and
+shutting-down targets remain `accepted` until a known wake event. A temporarily inaccessible
+workspace also remains `accepted` instead of destroying durable intent; missing paths and permanent
+permission failures are routing errors. Workspace probes are time-bounded so an unreachable mount
+cannot hold backup quiescing indefinitely, and repeated checks share the same underlying non-abortable
+filesystem probe until it settles. Filesystem availability has no reliable app event, so the lifecycle
+owner runs a low-frequency recoverable-row sweep as a fallback in addition to ordinary
+terminal/idle/quiesce-release kicks. Permanent routing
+errors and unknown admission failures enter structured `failed` terminal state rather than retrying
+forever.
+
+### Completion results
+
+A completion result is a second ordinary message row in the caller Session:
+
+```text
+request row: receiver Session, delivery_in_reply_to = NULL
+result row:  caller Session,   delivery_in_reply_to = request.id
+```
+
+The result row stores a frozen projection of the terminal assistant output in its own `data.parts`
+and keeps `sourceMessageId` only as non-authoritative provenance, without a foreign key. Do not use
+a reference-only result: Agent Session messages are editable and deletable, Session deletion
+cascades their messages, and FTS/UI/export read row-local data. A source reference would therefore
+make historical results mutable or missing and require a second cross-Session hydration path.
+
+These product storage operations do not grant UI permissions: in Agent/Work, assistant replies
+offer no Delete action. User-message deletion retains its existing guards, including the native
+input binding lock. Deleting a product record does not rewind native history.
+
+Only safe deliverables are copied: terminal text and managed file references. Reasoning, tool
+calls/results, approval state, hidden prompts, and unmanaged local paths are not result content.
+
+The target Agent never calls a reply tool. Runtime finalization derives the destination from the
+accepted request's immutable sender Session, preventing model-authored reply spoofing.
+
+### Acceptance, execution, and finalization
+
+No database transaction remains open while an Agent works:
+
+```text
+Transaction A (short)
+  revalidate runtime-bound sender and target authorization
+  insert request(status = accepted)
+COMMIT
+
+No transaction
+  dispatch, stream, and run tools for any duration
+
+Terminal persistence (existing listener)
+  persist the canonical terminal assistant row
+
+Finalizer transaction (short, idempotent)
+  reread the request in its expected state
+  if reply = completion:
+    copy the safe terminal projection into one result(status = accepted)
+    set result.inReplyTo = request.id
+  mark request consumed with structured outcome
+COMMIT
+
+After commit
+  dispatch the result through the ordinary delivery path
+```
+
+Terminal persistence must run before the finalizer. The finalizer treats a unique-result conflict
+as already completed, so a crash after terminal persistence but before or during finalization can
+rerun it without creating a second result. The Agent Session backend persists an empty terminal row when accumulation produced no final
+snapshot; ordinary chat keeps skipping an empty successful reply. If live terminal persistence
+throws, the Agent Session backend best-effort advances the placeholder from `pending` to `error`
+before the generic terminal event runs. If that repair also fails transiently, the recoverable-row sweep retries it once neither the runtime,
+a live stream, nor terminal persistence owns the placeholder. The runtime resume token remains
+owned by the live CLI session rather than being cleared only in SQLite. Result dispatch remains
+outside the transaction.
+
+After asynchronous validation and while holding the target topic's dispatch lock, one synchronous
+transaction persists the user row and pending assistant placeholder and CAS-claims
+`accepted -> delivering` with `delivery_turn_ref = assistant.id`. A database CHECK enforces that
+`delivering` has a non-null turn reference and every other state has a null reference. The
+transaction rolls back all three writes when the CAS loses. Only after commit does the owner call
+`beginTurn` / `AiStreamManager.send`, so crash recovery never mistakes an unowned turn for
+redispatchable intent. Because `send()` installs its live stream before its final lifecycle callback,
+a thrown callback is treated as post-handoff when `hasLiveStream(topicId)` is already true; only a
+throw with no live stream is finalized as `TURN_START_FAILED`.
+
+Validation captures the owning Agent's update timestamp. The claim transaction verifies both the
+Session-to-Agent binding and that timestamp before writing either placeholder; a concurrent Agent
+model/configuration edit leaves the request `accepted` and reruns validation with the new state.
+One kick performs at most one immediate revalidation; a deterministic mismatch then yields so
+backup and shutdown drains cannot be held by a synchronous retry loop. Legacy `cherry-claw` Agent
+rows compare using their effective `claude-code` runtime type.
+
+Session deletion is a mixed operation and therefore uses the IpcApi
+`ai.agent.session.delete`, not DataApi DELETE. `AgentLifecycleService` calls the data service
+for one transaction that creates exact failure results before cascading target rows, then closes the
+deleted Sessions' runtimes before kicking only those returned result rows. A caller that has already
+been deleted cannot receive a result; that terminal routing failure is recorded rather than retried.
+
+### Recovery
+
+During lifecycle initialization the delivery owner scans `accepted` and `delivering` rows in
+`(createdAt, id)` order. Accepted rows already are the queue and remain untouched until the
+system-wide ready hook kicks them through the per-topic dispatch lock. For `delivering`, inspect the
+indexed `delivery_turn_ref`:
+
+- placeholder absent — mark `failed(DELIVERY_TURN_DELETED)` and never replay the request; absence is
+  evidence of deletion, not proof that execution never started;
+- placeholder still `pending` — execution may already have produced external side effects;
+  terminalize interrupted parts, discard the Session resume token, finalize `interrupted`, and do
+  not rerun the Agent;
+- placeholder terminal — run only the idempotent finalizer.
+
+The generic pending-assistant sweep excludes rows referenced by `delivery_turn_ref`; therefore its
+write set and delivery recovery's write set are disjoint and their relative initialization order is
+irrelevant. Delivery kicks, deletion handlers, and terminal finalization are tracked by the owner;
+`onStop` suppresses new kicks and joins admitted handoffs. Backup pause/drain includes the delivery
+owner alongside the stream manager and runtime.
+
+The system guarantees durable accepted intent and, for each completion request, exactly one durable
+result row once a terminal outcome is known. Scheduling is recoverable, but arbitrary model/tool
+execution is not exactly-once. There is no automatic replay after an ambiguous in-flight crash,
+there is no finite result-latency bound while the caller is blocked on interaction, and caller-side
+resubmission without a future idempotency key may create a distinct request.
+
+The Claude Code adapter prepends a versioned delivery envelope to the current SDK user input. Stable
+delivery/content markers carry an unpredictable per-materialization boundary and an explicit notice
+that only the metadata is host-authored while the body is untrusted. Literal `system-reminder` tags
+are defanged without otherwise rewriting model-authored Unicode content. The envelope is
+informational context, not authority: database metadata remains the source of truth, and the random
+boundary prevents model text that imitates an envelope from changing trusted routing fields.
+
+## Starting the next runtime turn
+
+`agentSessionRuntimeState` decides when a queued input or reserved reply can start.
+A queued successor waits for the current reply's terminal persistence. A steer successor
+waits for its source row to persist; a deferred user reply waits for both the autonomous
+reply's persistence and the native ownership release. Suspension must finish before a
+replacement stream opens. Async launch completion only releases its captured launch target;
+it cannot choose another reply or settle a newer one.
+
+Before asynchronous preparation, each reply has a `turnId`, assistant message ID, input,
+frozen model/author/headless context, and its own delivery, admission, control buffer and
+native terminal facts. `prepareReply()` handles queued, steer, autonomous and resumed replies:
+
+1. save a reserved assistant placeholder with its preallocated ID;
+2. refresh trace context, then recheck the captured reply and session;
+3. open `AiStreamManager.startRuntimeTurn()` with that reply's seed messages and listeners;
+4. publish its projection and buffered controls; send input only if it has not been admitted.
+
+The runtime connection may stay on the entry. What that means is driver specific:
+Claude Code retains its SDK Query/input queue, while another driver may reconnect per turn.
+
+A failure before native admission settles the queued work and terminates the held topic
+stream; the saved user row remains available for resend. An admitted reply retains its
+projection, controls, input context and usage associations after preparation or terminal
+persistence fails. Preparation failure is not native completion. Native completion/release
+can retry preparation for that same identity; repeated failure does not start a retry loop.
+An explicit close retries final persistence. A failed reply never lends its facts to the
+waiting user reply, and admitted input is never resent by these retries.
+
+`RootMessageProjection` owns content and display additions before a stream opens. Its
+checkpoint excludes other replies whose bodies have not committed. Response IDs bind usage
+to the reserved reply immediately, while the message foreign key waits for the row to exist;
+usage itself is recorded at once. Opening a stream does not infer content or accounting ownership.
+Compaction completion anchors use this same projection/control delivery path, including when
+the stream has not opened. A direct stream enqueue would omit the anchor from the final saved
+message and leave a successful compaction looking like an empty response after reload.
+
+Background generation reuses an existing assistant message; it never creates a standalone
+background-continuation row or header badge. A new execution reopens the message's stream while
+retaining its existing body, native projection, author snapshot and billing identity. Running
+commands may remain detached without blocking Send. Once a new user input is admitted, its reply
+owns subsequent generation. Before admission, native call ownership or the last projected reply
+keeps an older notification out of the reserved user's reply. Goal rounds retain their separate
+turns and labels. Background origin metadata remains internal to automatic read-aloud eligibility.
+
+## Resume token persistence
+
+Drivers may emit:
+
+```ts
+{ type: 'resume-token'; token: string }
+```
+
+The host treats the value as opaque. It stores it as
+`entry.lastResumeToken` and passes `runtimeResumeToken` to
+`AgentSessionMessageBackend`, so the final assistant row receives the
+latest resume token at terminal time.
+
+This also covers error turns: if a driver emitted a resume token and then
+failed, the assistant error row still records that token so the next
+connection can recover from the newest driver-known state.
+
+User rows do not need a resume token. Resume lookup follows the captured branch,
+not the globally newest assistant row. An edited Pi input carries its intended
+native identity and resolves through its branch binding, without falling back to
+the shared prefix's original context. Confirmed native progress marks the
+binding as `bound`; the product message tree owns the published branch head.
+
+For Pi, root execution uses the common Runtime's `create/open/observe/input.submit` path.
+Main keeps two private identities on the user message: the captured `inputContextId` and the
+evidenced `nativeInputId`. Connections consume native receipts and outcomes; response projection
+persists content and its source mapping. Explicit non-admission releases an unconfirmed binding,
+while an unknown result retains it without automatic resubmission. Observation snapshots establish the live
+projection baseline and never replace or replay the product archive. Lost observations fail closed.
+A bound or previously submitted context requires exactly one existing native file with the expected
+ID. A missing or ambiguous file is an error, not permission to recreate from display history.
+Only a never-submitted intent can stay unflushed; local commands persist their native state before
+acknowledgement, even without a model prompt. Resume tokens are published after native persistence.
+On startup, the runtime owner terminalizes abandoned Pi product placeholders without clearing native
+identities or replaying their inputs. Rows owned by persisted delivery turns remain with delivery recovery.
+
+For Claude Code, the resume token is the SDK `session_id`. The driver
+maps it to `options.resume`. This is separate from the SDK's file
+checkpointing / `rewindFiles()` feature, which uses user-message UUIDs
+to restore files and is not integrated into desktop history actions. Fork and
+edit/resend preserve the current file state. After `/clear`, the driver prepares
+a successor context at the current product head before switching the active
+native handle/context; results from the retired native session cannot overwrite
+the successor checkpoint.
+
+## Native user-data SQLite guard
+
+`userDataSqliteGuard.ts` is the single policy source that protects Cherry Studio's SQLite files
+across Claude Code and Pi. Native structured write tools cannot bypass it through a permission
+mode: Claude calls it from the common `PreToolUse` guard table, Pi calls it in the shared native and
+code-mode authorizer before Full Access handling.
+
+The main application database and its `-wal`, `-shm`, and `-journal` sidecars are always protected.
+Existing symlink and hard-link aliases to those files are protected by canonical path and file
+identity checks.
+Other `.db` and `.sqlite` files and their sidecars below `userData` are protected unless the session
+workspace is a strict descendant of `userData` and the target stays inside that workspace. A
+workspace equal to or above `userData` creates no exception, and the Agent data directory is not an
+exception by itself. Structured read tools are unaffected.
+
+Shell inspection is deliberately best-effort. It recognizes literal quoted or unquoted tokens,
+control separators, paths relative to the initial cwd, absolute and literal home paths, SQLite
+`file:` URIs, sidecars, and option values after `=`. For direct Python, Node.js, and Bun commands,
+it also checks path literals embedded in inline code; ordinary interpreter use in the workspace
+remains available. It does not model `cd`, expand arbitrary variables or globs, inspect
+substitutions, evaluate constructed interpreter paths, or read script contents. A literal match is
+denied even when the command appears read-only.
+
+This hook is a tool-call policy boundary, not a sandbox or an operating-system security boundary.
+It does not inspect third-party MCP argument schemas, constrain child processes, or promise safety
+against a same-user local process replacing a checked path before use (TOCTOU). A stronger guarantee
+requires enforcement at the execution or sandbox boundary.
+
+## Claude Code driver
+
+Normal multi-turn chat does not use `continue: true` and does not rely
+on cwd-based session discovery.
+
+When `ClaudeCodeRuntimeDriver.connect()` needs to create a query, it
+asks `buildClaudeCodeQueryRequestForAgentSession(sessionId, resumeToken)`.
+The builder uses the first available value:
+
+1. explicit resume token from the host;
+2. latest persisted agent-session resume token from
+   `agentSessionMessageService.getLastRuntimeResumeToken(session.id)`;
+3. no resume id for a brand-new SDK session.
+
+The driver uses `@cherrystudio/agent-runtime-claude-code`. The package owns
+one SDK Query and input queue per native root. A prewarmed Query transfers
+from `ClaudeCodeWarmQueryManager.consume(...)` to that owner with its captured
+credentials and process-exit barrier; otherwise the package starts it.
+The desktop reserves or restores a Claude backend/context before dispatch.
+It consumes paired native/common observations without a second Query iterator.
+
+Cherry-managed models always use the internal gateway, including Anthropic
+models and same-provider background model slots. The subprocess receives only
+the gateway credential and provider-prefixed model IDs. Provider execution owns
+upstream credentials, headers, key rotation and billing; editing those upstream
+settings does not invalidate a warm Query's gateway identity. Explicit external
+CLI subscription login retains native authentication. See the gateway's
+[internal endpoint policy](../api-gateway/README.md#internal-listener-for-cherry-consumers).
+
+Root content passes through `ThreadMessageProjection` and `RootMessageProjection`.
+Native replacements retain product ownership across steer boundaries; explicit
+retractions persist with the context checkpoint. The runtime adapter preserves ordered
+AI SDK message parts, including tool output, reasoning signatures, files and citations.
+Deleting a product reply removes its root source ownership and records native-source
+tombstones in the same database transaction. Cached checkpoints cannot overwrite those
+tombstones; live projections and reconnect recovery exclude deleted owners, including
+older dangling checkpoints, so replay cannot attach deleted content to a later reply.
+Main adds Cherry display metadata before publishing `CherryUIMessage`.
+All Agent drivers use the `messages` source for the entire execution. `RootMessageProjection`
+owns host approval and data-part display; `pipeMessageStream` forwards its body with
+execution metadata and never accumulates a second text/tool body. Publishing, listeners and persistence receive the same
+`CherryUIMessage`. The package's `ClaudeControlState` owns native lifecycle interpretation;
+Main's `ClaudeRuntimeState` only maps typed facts to product events. `ClaudeMessageMetadata`
+decorates normalized SDK messages without retaining content or constructing an archive. No Claude chunk adapter remains.
+Child attachment reads the native archive once to recover its actual prompt, which the live SDK
+feed omits. Subsequent content follows the observer; there is no transcript polling loop.
+
+Each child uses its own `ChildThreadProjection`, context and archive, including
+nested children under their immediate parent. Parent completion and window detach
+do not stop child persistence. Claude no longer writes child bodies into the
+parent's background-flow parts; saved historical flows remain readable.
+After a failed cold attachment, Claude retries the saved session-scoped native binding
+when it belongs to the current backend. The root's native creation lookup need not retain
+a nested or historical child's origin; retrying that existing access never resubmits its task.
+Root and child views both use `ai.projection.*`, without a renderer runtime allowlist.
+The child view's `canSubmit` comes from native `ThreadHandle.input` availability.
+Claude children remain observation-only; parent Agent/SendMessage tools own their continuation.
+Root projection also retains compact task lifecycle state on the spawning tool's
+message, so completion can update a settled parent without copying the child report.
+
+The settings builder explicitly passes `permissionMode: 'default'` when the Agent
+has no configured mode, preserving manual approval independently of SDK defaults.
+An explicitly configured mode, including `auto`, takes precedence.
+
+On Linux, the final subprocess environment must contain a non-empty
+`DBUS_SESSION_BUS_ADDRESS`. If it does not, environment construction returns
+actionable setup guidance before the SDK query is created, so no Claude Code
+child is launched. This check does not probe whether a non-empty bus address
+is reachable.
+
+Starting a query (warm or cold) registers the agent's MCP servers and lists
+their tools. That listing is **cache-only** — it never connects to an upstream
+MCP server — so a dead or slow server cannot block startup. See
+[Tool Registry → Tool catalog reads never block on MCP](./tool-registry.md#tool-catalog-reads-never-block-on-mcp).
+
+The package interprets Claude SDK frames once and delivers typed control facts beside content:
+
+- `response-start` carries native response identity for attribution; content projection remains
+  replacement-aware and each child keeps an independent body writer.
+- `invocations` contains completed per-response SDK usage/timing evidence. Main applies frozen
+  pricing and product attribution only for external-CLI subscription capture; Gateway has its
+  own single billing writer. The initial baseline emits no historical invocations.
+  A task notification finalizes only its correlated, completed response. Unscoped task
+  updates do not finalize usage, and a root result leaves active child responses pending.
+- `session` updates the native binding and opaque resume token, including before failure.
+- Top-level input usage is published by the package as a common `context.changed` reading
+  marked `last-request`, excluding output and cumulative billing. The host's post-turn
+  `getContextUsage()` pull replaces it with the native current-context estimate.
+- `result` carries cumulative display usage, native identity and a typed failure when present.
+  Main publishes the corresponding body before ending the product turn. A replayed
+  task-notification result cannot settle a user turn; a result belonging to an active
+  autonomous wake can settle that wake.
+- `input-boundary` carries input IDs joined from command and response membership. Command
+  admission alone does not prove placement, and several inputs may share one response.
+- Compaction, retries, background task membership and task progress are already normalized
+  native facts. The initial baseline includes current background occupancy. A slow observer
+  receives unseen terminal/control facts after their body, or an explicit unrecoverable gap.
+- Permission denial and explicit retractions are applied by the native projection. Main's
+  metadata decorator handles display-only MCP metadata, reminders and thinking timing.
+  Each reasoning block stops its timer at the block's end, independently of later answer
+  generation; native message replacement preserves the completed block timings.
+
+The settings builder also installs `PostToolUse` and
+`PostToolUseFailure` hooks. Their SDK-reported `duration_ms` is forwarded to
+the active message's `AiStreamManager` timing collector. It is not inferred
+from assistant/user chunks and it excludes the permission prompt. A hook that
+fires with no active UI turn is not attached to the last message.
+
+The result's cumulative `modelUsage`, duration, and total cost are
+reconciliation-only and are never divided across requests. For external-CLI subscription
+calls, `SDKPartialAssistantMessage.ttft_ms` supplies per-request TTFT.
+Completion is TTFT plus the monotonic interval from `message_start` to the
+terminal delta/stop; reasoning duration is measured between reasoning and the
+first non-reasoning output. If a step omits `ttft_ms`, TTFT and completion stay
+null rather than treating stream-only duration as the whole provider call.
+Both native subscription and gateway invocations join to product messages through the
+native API response ID. The gateway freezes credentials, prices and source at
+request start, but waits for native response ownership before recording its
+message association. Usage and ownership may arrive in either order. If the
+connection closes without ownership evidence, usage is retained without a
+message association. See
+[AI Usage Records](./ai-usage-records.md#agent-runtime-ownership).
+
+Tool timing and provider usage have separate owners: the post-tool hooks never
+write `ai_usage_record`, and SDK assistant usage never manufactures a tool
+span. The message performance view joins both read models only in the
+renderer.
+
+`reconcile()` carries live agent edits onto the warm connection: a
+`permission-mode` change awaits the SDK `setPermissionMode` before mutating
+the snapshot (short-circuiting an unchanged mode). It applies during an active
+turn too: the SDK keeps the turn running and governs its next tool call by the
+new mode. A `tool-policy`
+change refreshes the snapshot's disabled set in place. Concurrent push/pull
+reconciles are serialized per connection. A rejected update is failed closed
+by the host (the connection is torn down) rather than left running under the
+old policy.
+
+## pi driver resource boundary
+
+pi runs in-process through the SDK, but Cherry still owns the runtime boundary.
+The driver must not import the user's standalone pi setup from `~/.pi/agent`
+(apart from the Windows `shellPath` field below), and must not silently trust
+executable or prompt resources from a workspace.
+
+Allowed in v1:
+
+- Cherry-owned pi home under `Data/Agents/.pi`: `application.getPath('feature.agents.pi.root')`,
+  passed explicitly as `agentDir`. This is not a prompt/skill import surface.
+- Cherry-owned pi sessions: `application.getPath('feature.agents.pi.sessions')`,
+  passed explicitly as `sessionDir`. The resume token is the pi session id;
+  reopen resolves it by scanning this directory for `*_<id>.jsonl`, so the
+  directory can be relocated without invalidating stored tokens.
+- Cherry's runtime-neutral Agent prompt, materialized by `buildAgentRuntimePrompt()` and injected
+  through `systemPromptOverride` and `appendSystemPromptOverride`. The materializer uses
+  `PromptBuilder` for workspace `system.md` and the current agent data directory's `SOUL.md`,
+  `USER.md`, and `memory/FACT.md`, and adds the same instruction authority, channel security,
+  citation, artifact-reporting, and language contracts as the Claude Code runtime.
+  These files are a **connection-lifetime snapshot**: editing them deliberately
+  does not invalidate a warm connection or its provider prompt cache. Changes
+  apply when that connection is naturally rebuilt or the session is reopened.
+- A native Pi provider bound to the internal gateway for model requests, plus inline Cherry-owned
+  extensions for tool approval/policy enforcement.
+- The complete runtime-neutral result of `buildAgentMcpServers()` — Cherry
+  knowledge, memory, skills, assistant/autonomy tools, plus the agent's selected
+  MCP servers — converted uniformly to pi `customTools` through an in-memory MCP
+  bridge. Every adapted call therefore uses the same naming, metadata, abort,
+  and error translation path. A server that cannot connect or list tools is logged
+  and omitted, preserving the existing best-effort MCP availability contract; a
+  duplicate normalized tool identity is different — it makes approval/routing
+  ambiguous, so startup closes all bridge clients and fails materialization.
+  The approval extension still distinguishes Cherry-owned
+  safe tools, Cherry tools that always require approval, and third-party MCP
+  tools; `disabledTools` hard-blocks every class.
+- New pi agents start in `acceptEdits`: reads and writes inside the selected
+  workspace and current agent data directory do not prompt repeatedly. Shell,
+  third-party MCP, Cherry approval-required mutations, external paths, and
+  symlink escapes remain gated. `bypassPermissions` does not override the
+  runtime-neutral Cherry approval-required policy. Pi exposes neither `plan`
+  nor `auto`: the latter depends on Claude's model-side approval classifier,
+  which the Pi approval gate does not implement.
+- The agent's enabled Cherry-managed skills, passed explicitly as
+  `additionalSkillPaths` (their canonical `{dataPath}/Skills/<folderName>` dirs).
+  These load even under `noSkills` because the paths are Cherry-owned and
+  resolved from the `agent_skill` join, not discovered from disk.
+- Workspace context files discovered from the cwd ancestry (`AGENTS.md`,
+  `AGENTS.MD`, `CLAUDE.md`, `CLAUDE.MD`). The workspace is trusted because the
+  user picked it by hand in Cherry — there is no separate "do you trust this
+  project?" prompt, matching the claude driver's `project` context source.
+  Context files are workspace **text**, a different trust class than executable
+  extensions (which stay off). This is the only project-discovered resource pi
+  loads; everything else below is still disabled.
+- On Windows, the top-level `shellPath` from the user's global pi
+  `settings.json` — read as a single field, validated to name an available
+  `bash.exe`, and passed to the in-memory settings manager and the managed Bash
+  tool. Without it pi resolves `bash` from PATH and silently lands in the WSL
+  shim. An invalid configured path fails startup rather than switching
+  execution environments behind the user's back; an absent one falls back to
+  Cherry's own Git Bash discovery.
+
+On Windows, Pi and Pi Durable also expose the native `powershell` tool. Pi searches
+for `pwsh.exe` before Windows PowerShell; Durable tries `pwsh`, then `powershell`
+when the executable cannot start. PowerShell runs independently of Bash discovery.
+The edit dialog shows its enable/disable control only on Windows. Both shell tools
+share Cherry's binary execution environment, approval gate, global-install restriction
+and user-data SQLite guard; only Bash commands use RTK rewriting. A failed command
+is not retried under a different shell.
+
+Disallowed in v1 unless Cherry adds an explicit trust/import flow:
+
+- User-global pi resources under the standalone pi home (`~/.pi/agent`) other
+  than the `shellPath` field above, or user skill folders such as
+  `~/.agents/skills`.
+- Disk prompts from any pi home, including Cherry-owned `SYSTEM.md` and
+  `APPEND_SYSTEM.md`; Cherry's `PromptBuilder` is the only persona source.
+- Workspace project resources: `.pi/extensions`, `.pi/skills`, `.pi/prompts`,
+  `.pi/themes`, `.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md`.
+- Project `.agents/skills` discovered from the cwd ancestry.
+
+The implementation enforces this by creating pi `SettingsManager` with
+`projectTrusted: true` (the user-selected workspace is trusted, so its context
+files load — parity with the claude driver), then constructing
+`DefaultResourceLoader` with `noExtensions`, `noSkills`,
+`noPromptTemplates`, and `noThemes` — but `noContextFiles: false`, the one
+project-discovered surface pi is allowed. Cherry's prompt overrides suppress
+pi-home `SYSTEM.md` discovery. Inline extension factories still load because
+they are passed by Cherry code, not discovered from disk; likewise enabled
+managed skills load via `additionalSkillPaths` because Cherry supplies those
+paths explicitly.
+
+The trust boundary is therefore **executable/prompt resources off, workspace
+text on**: `noExtensions`/`noSkills`/`noPromptTemplates`/`noThemes` keep arbitrary
+code and Cherry-managed resources from being disk-discovered, while
+`projectTrusted: true` + `noContextFiles: false` load only the workspace's own
+`AGENTS.md`/`CLAUDE.md` text. If future work enables the still-disabled workspace
+resources (extensions, project skills/prompts/themes), it must add a Cherry-owned
+trust prompt and persisted decision first, then selectively pass that decision
+into pi resource loading rather than widening the `no*` flags wholesale.
+
+Before constructing the prompt or SDK session, Pi startup prepares the captured
+session workspace: it creates an app-owned system directory or validates that a
+user directory exists, preventing missing system directories from aborting startup.
+
+Connection startup uses an optimistic materialization snapshot. Cherry warms
+the MCP catalog, captures every reconcilable database/catalog fact, constructs
+the runtime from that captured provider, model, skill paths,
+MCP rows, and linked channel, then captures those facts again before publishing
+the connection.
+If the signatures differ, startup fails closed before publishing the connection.
+The internal gateway resolves upstream credentials for each native Pi request through Cherry's provider path. Prompt-file content is deliberately
+outside this signature because it follows the connection-lifetime cache
+contract above.
+
+Warm Pi reconciles serialize push and pull calls per connection so a slower
+older snapshot cannot overwrite a newer policy result. `permission_mode` is
+live policy and applies at once, including to the active turn's next tool call. `disabledTools` has two jobs:
+the live gate applies newly disabled tools immediately, while the spawn-time
+`excludeTools` list controls which tools the model can see. It therefore remains
+a rebuild-signature fact; adding or removing a disabled tool returns `rebuild`
+after any applicable live tightening has landed.
+
+### Pi conversation compaction
+
+The desktop Pi connection installs `agent-behavior` through the Runtime adapter.
+The shared context handlers request a summary from `piBehaviorHost.ts`, which makes
+one native model request through Cherry's gateway without starting another agent
+loop. Automatic compaction and `/compact` use this same path; text following
+`/compact` becomes summary instructions, never another user turn. An empty or
+failed summary cancels compaction without a second native fallback.
+
+Pi retains its native JSONL history and writes the compaction boundary. Product
+messages remain a display projection. The shared `vcc_recall` tool searches the
+current conversation history, including after reopening; it cannot select an
+arbitrary session file. Recall is allowed as a metadata tool, unless explicitly
+disabled. Disabling recall does not disable compaction.
+
+The previous pi-vcc dependency, patch, ESM bundle and configuration override are
+removed. There is no `/pi-vcc` command or separate compaction toggle. Tests in
+`PiRuntimeConnection.test.ts` cover instruction forwarding and product input
+boundaries, while the package behavior tests cover declined summaries and
+reopening native compaction history. Electron acceptance is checked separately.
+
+### Pi behavior host
+
+`piBehaviorHost.ts` implements the existing `HostPorts` using Cherry services.
+Approvals and questions use existing cards; approval outcomes stay in message
+parts. Environment facts (disabled tools, protected paths, delegation attendance
+and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
+whether to run, ask or block. No new approval table is required.
+
+Runtime content uses whole native SDK messages. Pi and Claude decode deltas once at
+the adapter source; Durable materializes committed native view revisions directly.
+Tool results and preliminary progress update the originating tool part, while activity
+and input outcomes remain separate facts within the same captured delivery. Concrete observations
+include aliases and live/history provenance with their content. Delivery modes and Durable commit
+revisions stay internal; consumers receive the captured body, input outcomes and completion facts.
+Input facts retain native input bindings without duplicating product reply identity. Initial baselines do not replay
+completion or charges; overflow recovery retains unseen control facts after their matching body.
+Main never fetches mutable alias state later or guesses whether a snapshot is live. Claude's
+package also owns permission denial, native archives and SDK invocation aggregation; its Main
+decorator retains only display metadata. Main still freezes pricing and owns usage attribution.
+Local `/goal` answers publish complete host message projections. They remain visible
+outside native model history, including when no model turn starts.
+
+Child reply composition belongs to Main: only observed user-message placement starts
+a new reply boundary. Queued inputs do not split the current reply. Existing split
+archive rows retain their IDs and branch edges; a versioned checkpoint composes them
+using native-proven part mappings. Missing native evidence leaves saved rows readable.
+Renderer and reopened views consume the same composition through shared projection.
+
+The Pi facet resolves behavior call keys to native tool ids. Each child has one
+Main observation owner and an independent product archive. Its panel receives a
+snapshot and ordered message/part patches through IpcApi and uses the shared message
+renderer. Parent parts retain task metadata and the navigation entry; they no longer
+carry child output. Foreground completion can continue the same child in the background.
+User stop still observes the shared ownership rules; closing a panel only detaches its subscriber.
+
+Child attachment waits for the shared root connection, then calls the concrete
+`openChild(toolCallId, signal?)`. The package owns pending creation and returns its stable creation
+origin, actual parent and access together. Main joins concurrent attachment through one child
+resource record. Failed creation or owner closure ends the wait; parent reply completion does not
+close independently running children. Failed attachment releases its lease and can retry, while
+failed final persistence retains the resource and its unflushed output. A detached or
+destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
+and orders evidenced rows by committed native history followed by live content, correcting saved
+parent links when necessary; rows outside current native/live coverage remain retained in place.
+
+`PiRuntimeConnection` remains responsible for product branch bindings, input
+persistence, product message views and configuration reconciliation. It can retire after
+`AgentSessionRuntimeService` consumes the common Runtime directly; enabling
+shared behavior does not by itself replace those responsibilities. A reopened root
+restores identity-checked child files without starting execution. Saved output remains
+readable when native access cannot be restored. A child's native initialization failure is isolated
+from the parent and healthy siblings and leaves completed task results unchanged. Successful root
+opening clears startup failure state while keeping diagnostics in the log. Child input goes through that owner;
+its archive cannot open as an independent writable root. Public projection code consumes
+`ThreadHandle`; Pi history reads and input dispatch stay in the Pi connection.
+
+### Pi Durable behavior host
+
+`PiDurableRuntimeDriver` owns one native backend per store and connections borrow root accesses. `DurableBackend` installs the same `agent-behavior` rules and routes host ports by the native conversation ownership tree through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
+question cards and tool rendering. Native SQLite owns execution history and task state;
+the existing backend/context tables bind it to product sessions. Strict identity checks
+prevent a missing store from silently becoming a fresh conversation.
+
+Children use the same independent projection/archive and `ai.projection.*` transport.
+Background occupancy retains the native owner. Attributed background-result facts keep the owning
+Main reply open through child reports and parent summarization; notifications without a new input
+boundary append to that same reply. A continuation uses its current triggering call, not the child's
+immutable creation call. Historical input snapshots update saved facts without reassigning old responses.
+`durable.observe` carries content, input outcomes, background-result facts and foreground completion
+from the same native commit revision. Unresolved accepted/native-only input, admission, foreground work or compaction
+keeps settlement pending. Main has no pending-input polling loop and never derives completion
+from idle activity or an empty product-input map.
+
+Native submission and assistant metadata carry the consuming run's stable identity.
+Ordinary steer may start a later run after normal completion; it has no run-only constraint.
+Background continuation keeps the child identity. Independent continuation of a completed
+foreground child is rejected because native tool ownership is immutable. Successful committed boundaries support ownerless same-storage desktop forks; each root retains its own model options, approvals, extensions and environment. Before shared recovery resumes unfinished roots, their stored request selections and Main projection consumers are restored. Final release closes the backend once and drains observations before product writers stop. Edit and resend retains sibling-message branches, preparing an ownerless native fork at the predecessor or a fresh context for the first input. File rewind and `vcc_recall` remain unavailable. See the
+[driver README](../../../../src/main/ai/runtime/piDurable/README.md) for storage and recovery boundaries.
+
+### Pi code mode
+
+Pi 1.0 supplies the native `codemode`, `tool_search`, and MCP extensions. Cherry
+injects its managed Bash definition, adds PowerShell on Windows, and mounts the session's complete MCP
+server set through an in-memory transport. Pi owns discovery, tool definitions,
+structured results, cancellation, and MCP connection teardown. Disk-discovered
+Pi MCP configuration stays disabled; Cherry remains the configuration owner.
+
+`codemode` runs JavaScript in QuickJS with no Node, filesystem, or network
+access. Scripts call `tools.<identifier>(args)` and discover deferred MCP tools
+through `searchTools`, `describeTool`, `describeNamespace`, or `ALL_TOOLS`.
+Native file and shell tools remain available both directly and from scripts.
+Every nested call emits its own tool events and passes Cherry's `tool_call`
+approval extension, including disabled-tool, SQLite, global-install, and
+permission-mode policies. The script itself needs no separate approval because
+all outward effects pass through those tool calls.
+
+Scripts have no default time limit. An explicit `timeout_ms` includes time spent
+waiting for tool approval and cancels pending calls when it expires. Native MCP
+may save large text results to a temporary file; reading that file outside the
+workspace follows the normal approval policy.
+
+Pi sanitizes MCP identifiers to `[A-Za-z0-9_]`; Cherry uses those identifiers for
+policy and disabled-tool lookups. A stored `tool_exec` disable applies to
+`codemode`. Historical `tool_call`/`tool_exec` results remain readable, while new
+MCP tool results retain their structured payloads and Cherry citation metadata.
+Closing a connection emits `session_shutdown` before disposing the SDK session.
+
+## Managed workspace relocation
+
+At startup, `AgentSessionRuntimeService` registers runtime drivers, repairs relocated
+system workspaces, then performs fork, crash-message, delivery, and native-session
+recovery. BeforeReady database initialization already precedes this WhenReady hook;
+relocation does not add a second lifecycle service or cross-phase dependencies.
+
+`relocateSystemWorkspaces` owns the workspace repair and file publication journal.
+Each driver's `workspaceRelocation` capability owns its artifact allowlist, native
+history validation, and checkpoint remapping. Adapters stage files through the
+coordinator and return opaque checkpoint replacements; `AgentSessionMessageService`
+persists those replacements under the same transaction as the workspace path update,
+without interpreting native fields. Claude's filesystem capability is available
+through its lazy driver without starting a runtime connection.
+
+The versioned journal preserves backups until the database path identifies a committed
+relocation. Interrupted operations roll back or finish cleanup after ownership and
+digest checks. Active and archived workspaces retain their contents and timestamps;
+user-selected workspaces are not rebased. `AgentWorkspaceStorageService` owns failed
+relocation admission blocks. Workspace guards consult that owner, and verified recovery
+removes the block. Pending retired-runtime sessions defer native-history work to the
+existing migration below.
+
+## Retired Agent runtime migration
+
+Existing DSH agents are converted to Pi by `RetiredAgentRuntimeSeeder`, including archived
+agents. IDs, models, workspaces, message content, and resource links are preserved. Plan
+permissions become `default`; equivalent disabled file/shell tools keep their restrictions.
+Legacy MCP restrictions are mapped against the actual tool catalog before Pi starts; an
+unresolved restriction blocks startup and asks the user to reconfigure tool access.
+CodeMate's separately installed DeepSeek Harness tool is unchanged.
+
+The seeder records each affected session in `app_state` and leaves native tokens intact.
+Fork recovery retires already-published retired-runtime journals without deleting their files.
+After fork recovery and crash-message reconciliation, `retiredSessionHistory` imports the
+persisted Cherry transcript through Pi's `SessionManager`, validates the generated file,
+and transactionally replaces resume tokens, fork checkpoints, and edited native identities
+while binding the imported native context to the product root branch.
+Tools appear as historical text and are never executed during import. Attachments retain
+managed file paths. Native DSH goals and child-process state are not carried over.
+
+A failed import retains its progress marker and original message metadata. Startup continues
+for other sessions; validation, connection, editing, and forking retry the import before
+using that session. No failed conversion silently starts an empty context. The original DSH
+files remain untouched. Restoring an older backup repeats the same conversion.
+
+Pi model calls use native Pi protocols against Cherry's internal gateway. The gateway resolves
+the configured provider/model and owns credentials, request options and billing through Cherry's
+provider execution path. Pi remains the sole tool executor and loop owner. Its session retry policy
+owns retries; the native HTTP client and gateway do not retry the same request independently.
+
+## Internal Agent continuation normalization
+
+When a Cherry-internal Agent Session request enters the API gateway in Anthropic Messages format, the gateway appends an ephemeral user continuation after conversion if the final assistant attachment has an empty parts array, or contains only text, reasoning, and terminal local tool parts and ends in text or reasoning. A terminal local tool has `providerExecuted !== true` and state `output-error`, `output-denied`, or `output-available` with `preliminary !== true`. Eligibility depends on part types and order, not text length; empty text or reasoning does not prevent continuation. Attachments ending in a tool, or containing pending, preliminary, or provider-executed tools, data parts, files, sources, step markers, or other unsupported parts, do not receive this continuation. This normalization expresses sampling intent and does not validate provider-specific content requirements, including the handling of empty or redacted-only assistant content.
+The Agent request itself proves that Claude Code's standard loop intends another
+sample, so this normalization is independent of the target provider, endpoint,
+and model. The original assistant attachment is preserved and the caller's params
+are not mutated. The continuation is never written to the database, the SDK
+transcript's user-visible history, or the renderer. Native subscription requests
+bypass the gateway, and external gateway requests remain unchanged so their
+callers can intentionally use assistant prefill.
+
+## Native resume failures
+
+Claude Code surfaces native resume failures, including missing conversations and
+duplicate tool-use IDs. The adapter does not discard the resume token and replay
+the pending input into a fresh conversation. Native history and its recovery
+semantics belong to the harness.
+
+Forked sessions use the same persisted native resume-token path as other Agent
+sessions. Cherry does not rebuild their context from visible messages when native
+history is unavailable. See [Agent Session Fork](./agent-session-fork.md) for the
+separate publication and file-resource recovery path.
+
+## Idle and shutdown
+
+After a turn reaches terminal state, the runtime entry becomes `idle`.
+For a short idle window it keeps:
+
+- the runtime connection, if it is still alive;
+- `lastResumeToken`;
+- the session entry's `runtimeState.queue`.
+
+If a new turn arrives during that window, `beginTurn()` reuses the same
+entry and only swaps the current UI turn plus the UI pending queue.
+
+Pi and Pi Durable declare `retainWhileIdle`: their in-process owners remain available beyond the idle TTL.
+Explicit close, branch replacement, configuration rebuild, and service shutdown still retire it.
+For other connections, when the idle timer expires, the runtime closes the entry:
+
+- clears `runtimeState.queue`;
+- closes the runtime connection;
+- prewarms Claude Code when a latest resume token is known.
+
+Service stop and destroy close all runtime entries. User Stop additionally invokes an
+optional connection `interrupt()` before closing. Durable shutdown preserves ordinary
+unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's
+`onOpen` before native resume, disarming goals and stopping interrupted background children.
+Repeated `closeSession()` calls join the in-flight close. A closing session rejects new
+input and replacement turns until the old reply releases ownership. Teardown joins a pending
+`driver.connect()` and closes a late connection before completing. It keeps the current
+connection's fact consumer alive through native observation drain, waits for the captured
+stream persistence loops, then flushes each owned projection. Only after that flush does it
+clear the entry. No projection write may follow the final flush.
+
+Failed native close or final persistence retains the owner and blocks archive/backup safety.
+A later close retries retained data without another send. Late successful native teardown
+retries the remaining close work. Unknown-admission input contexts remain on the session even
+after a successful close, for lookup on reconnect. These are process-lifetime guarantees;
+unsaved product context is not reconstructed from the native binding after a process crash.
+
+`ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
+through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,
+dropping it on `exit`. Both consuming services `@DependsOn` it, so it initialises first and therefore
+stops last — after their queries are closed — instead of relying on registry order.
+
+Graceful cleanup is the close path: warm handles use their async-dispose contract, live queries call
+`close()` and await `return()`, and the shared `AbortController` signals the child. Its own `onStop()`
+then synchronously sends `SIGTERM` to whatever handle is still registered — a best-effort sweep for
+children the connection and warm-query abstractions lost track of. It waits for nothing and escalates
+to nothing: shutdown can be cut short by the OS at any point, so a child that must not outlive the app
+cannot depend on this running. No process-name lookup or machine-wide kill is used.
+
+Survival past an abrupt exit is the CLI's own responsibility, and it honours it. Holding its stdin as
+a pipe is what arms this: when the app dies the write end closes and the CLI sees EOF. Measured on
+macOS arm64 with SDK 0.3.220 — `SIGKILL` on the parent leaves the CLI reparented to PID 1 and it exits
+by itself ~240ms later; closing only its stdin while the parent stays alive exits it cleanly (code 0)
+within ~2s. So the sweep above is an accelerator and a net for lost handles, never the mechanism that
+keeps a CLI from outliving the app. Never spawn the CLI with `detached` or with stdin redirected away
+from the app — either would disarm this.
+
+## Write quiesce
+
+For backup restore (#16849) the runtime and delivery owner expose `pause(reason?): Disposable` +
+`drainInFlight({ timeoutMs }) → { stragglerIds }` + `listActiveWork()`, the same
+contract as `AiStreamManager` and `JobManager` (see
+[stream-manager.md](./stream-manager.md#write-quiesce-pause--draininflight) for the
+contract and the orchestration order). A single reducer-scheduled launch gate covers queue
+consumption and all reply preparation before placeholder writes. Suppression retains the exact
+queued input or reply; the last pause hold resumes it once. In-flight preparation is drained
+through its stream-manager handoff. New-turn admission through `prepareDispatch` /
+`beginTurn` is gated upstream by `AiStreamManager`. The drain awaits
+`inFlightTurnStarts` — launches admitted before the pause, through their placeholder
+write and `startRuntimeTurn` handoff — plus runtime close barriers that may still flush external state
+after their entry is removed. Native projection refreshes replace saved bodies synchronously; root
+terminal writes belong to `AiStreamManager`'s drain. Child input is rejected while paused or shutting
+down and is registered before dispatch. The runtime drain waits for admitted child input, then asks
+the owning connection to settle native work, await queued observation delivery and in-flight callbacks,
+then read committed archives and perform the final flush, including work continuing after an
+input acknowledgement. No projection writer may run after that flush until resume. Closing
+also detaches observation and releases access last; `Observation.stop()` alone is not a drain. Timeouts and failed archive flushes report the root as a straggler;
+a later drain can retry. Retained root delivery failures and unsuccessful session closes also report
+the session as a straggler rather than a successful drain. This is distinct from the BaseService lifecycle pause and never touches service state.
+The repository's Claude Agent SDK 0.3.311 patch forwards the existing host-only native idle event
+after background work. The adapter needs that authoritative fact to release background occupancy;
+missing idle evidence remains a straggler instead of allowing backup. The patch changes only the
+JavaScript iterator filter, preserving SDK state bookkeeping and the CLI executable.
+`AgentSessionDeliveryService` suppresses accepted-row kicks while a
+hold is live, tracks validation/claim/send handoffs in its drain set,
+rechecks the hold and target busy/live state after asynchronous validation before any transaction, then re-kicks
+suppressed target Sessions when the final hold releases. Runtime `closeSession()` also emits the
+generic idle event so accepted work blocked by a stopped turn is not stranded.
+Per-Session kicks use a rerun latch: an idle/terminal wake arriving while the previous single-flight
+kick unwinds is replayed after ownership releases rather than being dropped as a duplicate.
+
+BackupManager reaches these Agent-specific participants through `AgentLifecycleService`.
+The lifecycle owner separately tracks archive/restore/purge work and aggregates it with
+Channel, Delivery, and Runtime drains. Its ingress barrier precedes execution pause;
+see [Backup and shutdown](./agent-lifecycle.md#backup-and-shutdown).
+
+## Verification
+
+Focused tests:
+
+- `src/main/ai/streamManager/context/__tests__/AgentChatContextProvider.test.ts`
+- `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`
+- `src/main/ai/agentSession/__tests__/AgentSessionDeliveryService.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`
+- `src/main/ai/__tests__/AiService.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/ClaudeRuntimeState.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/transcriptReplay.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeWarmQueryManager.test.ts`
+- `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`
+
+Cross-Session delivery acceptance tests additionally pin these crash and security boundaries:
+
+- crash after terminal persistence but before result finalization creates exactly one result after
+  recovery and never reruns the target turn;
+- a `pending` assistant placeholder at recovery produces an `interrupted` result without replaying
+  model or tool execution;
+- recovery of a completion request while the target Session is busy cannot bind another turn's
+  terminal output;
+- write quiesce and target-busy gates leave delivery `accepted` until their explicit wake event;
+- repeated finalization returns the existing result, while the unique `delivery_in_reply_to` index
+  prevents a second result row;
+- deleting a target Session first creates failure results for pending completion requests;
+- deleting an accepted request cannot leave an in-memory entry because delivery has no runtime FIFO;
+- a missing `delivery_turn_ref` target fails recovery without replaying model/tool work;
+- interactive `session_send` and `session_create` follow the permission mode, while headless calls are denied in every mode
+  and runtime-generated completion delivery remains allowed;
+- concurrent dispatch attempts for one durable message atomically persist one placeholder plus one
+  CAS owner before producing one send;
+- list, search, send, and deliveries queries enforce the same visibility rules.

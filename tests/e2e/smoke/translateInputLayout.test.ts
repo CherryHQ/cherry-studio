@@ -1,18 +1,21 @@
+import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { expect, test } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
 
 test('translation input keeps idle dictation and copy beside the first text line', async ({ mainWindow }) => {
-  const preferences = await mainWindow.evaluate(async () => {
+  const preferences = await mainWindow.evaluate(async (policyVersion) => {
     const previous = {
+      'app.privacy.policy_version': await window.api.preference.get('app.privacy.policy_version'),
       'app.language': await window.api.preference.get('app.language'),
       'app.onboarding.provider_setup.status': await window.api.preference.get('app.onboarding.provider_setup.status')
     }
     await window.api.preference.setMultiple({
+      'app.privacy.policy_version': policyVersion,
       'app.language': 'en-US',
       'app.onboarding.provider_setup.status': 'skipped'
     })
     return previous
-  })
+  }, LATEST_PRIVACY_POLICY_VERSION)
   const originalViewport = mainWindow.viewportSize()
 
   try {

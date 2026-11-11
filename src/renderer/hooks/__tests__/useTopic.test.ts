@@ -12,9 +12,12 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import i18n from '@renderer/i18n/resolver'
 import type { Topic } from '@renderer/types/topic'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { trashErrorCodes } from '@shared/ipc/errors/trash'
 
 import {
   getTopicMessages,
@@ -376,10 +379,12 @@ describe('useTopicMutations', () => {
   })
 
   it('deletes a topic and closes the matching assistant conversation tab', async () => {
+    mockIpcRequest.mockResolvedValue({ deletedIds: ['topic-a'], deletedCount: 1 })
     const { result } = renderHook(() => useTopicMutations())
-    await act(async () => result.current.deleteTopic('topic-a'))
+    const outcome = await act(async () => result.current.deleteTopic('topic-a'))
 
     expect(mockIpcRequest).toHaveBeenCalledWith('trash.topic.archive', { topicIds: ['topic-a'] })
+    expect(outcome).toEqual({ deletedIds: ['topic-a'], deletedCount: 1 })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
   })
 
@@ -388,17 +393,89 @@ describe('useTopicMutations', () => {
     MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics/:id', deleteTrigger)
 
     const { result } = renderHook(() => useTopicMutations())
-    await act(async () => result.current.deleteTopic('topic-a', { permanent: true }))
+    const outcome = await act(async () => result.current.deleteTopic('topic-a', { permanent: true }))
 
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'topic-a' }, query: { permanent: true } })
     expect(mockIpcRequest).not.toHaveBeenCalled()
+    expect(outcome).toEqual({ deletedIds: ['topic-a'], deletedCount: 1 })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
   })
 
   it('deletes active Topics through the guarded lifecycle command and closes their tabs', async () => {
+    mockIpcRequest.mockResolvedValue({ deletedIds: ['topic-a'], deletedCount: 1 })
     const { result } = renderHook(() => useTopicMutations())
-    await act(async () => result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' }))
+    const outcome = await act(async () =>
+      result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' })
+    )
     expect(mockIpcRequest).toHaveBeenCalledWith('trash.topic.delete_permanently', { topicIds: ['topic-a'] })
+    expect(outcome).toEqual({ deletedIds: ['topic-a'], deletedCount: 1 })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
+  })
+
+  it('does not close a topic tab when the lifecycle command deletes nothing', async () => {
+    mockIpcRequest.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    const outcome = await act(async () =>
+      result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' })
+    )
+
+    expect(outcome).toEqual({ deletedIds: [], deletedCount: 0 })
+    expect(invalidate).toHaveBeenCalledWith('/topics')
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+  })
+
+  it('closes the deleted topic tab when list refresh fails after the deletion commits', async () => {
+    mockIpcRequest.mockResolvedValue({ deletedIds: ['topic-a'], deletedCount: 1 })
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    invalidate.mockRejectedValueOnce(new Error('refresh failed'))
+
+    const outcome = await act(async () =>
+      result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' })
+    )
+
+    expect(outcome).toEqual({ deletedIds: ['topic-a'], deletedCount: 1 })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
+  })
+
+  it('keeps the mutation error when topic refresh also fails', async () => {
+    const staleError = DataApiErrorFactory.notFound('Topic', 'topic-a')
+    mockIpcRequest.mockRejectedValue(staleError)
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    invalidate.mockRejectedValueOnce(new Error('refresh failed'))
+
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' })
+      } catch (error) {
+        caught = error
+      }
+    })
+
+    expect(caught).toBe(staleError)
+    expect(invalidate).toHaveBeenCalledWith('/topics')
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+  })
+
+  it('refreshes and throws the pinned-topic message without closing tabs', async () => {
+    mockIpcRequest.mockRejectedValue(new IpcError(trashErrorCodes.TRASH_TOPIC_PINNED, 'Topic is pinned'))
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' })
+      } catch (error) {
+        caught = error
+      }
+    })
+
+    expect(caught).toEqual(new Error(i18n.t('recycle_bin.delete.pinned')))
+    expect(invalidate).toHaveBeenCalledWith('/topics')
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
   })
 
   it('refreshes the topic list and keeps the tab open when deletion finds stale data', async () => {

@@ -2,6 +2,7 @@ import { APICallError, RetryError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
+import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionForkError } from '@main/ai/runtime/fork/checkpoint'
 import { AiStreamAdmissionError } from '@main/ai/streamManager'
@@ -17,6 +18,7 @@ const {
   fileEntryService,
   messageService,
   createAgent,
+  createBuiltinAssistantSession,
   createBuiltinSkillSession,
   createBuiltinSupportSession,
   openRequestPath
@@ -27,6 +29,7 @@ const {
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn(),
+  createBuiltinAssistantSession: vi.fn(),
   createBuiltinSkillSession: vi.fn(),
   createBuiltinSupportSession: vi.fn(),
   openRequestPath: vi.fn()
@@ -38,6 +41,7 @@ vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/services/file', () => ({ openRequestPath }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
+vi.mock('@main/ai/agents/createBuiltinAssistantSession', () => ({ createBuiltinAssistantSession }))
 vi.mock('@main/ai/agents/createBuiltinSkillSession', () => ({ createBuiltinSkillSession }))
 vi.mock('@main/ai/agents/createBuiltinSupportSession', () => ({ createBuiltinSupportSession }))
 vi.mock('@main/ai/agents/AgentLifecycleService', () => ({
@@ -62,7 +66,7 @@ const aiService = {
 }
 
 const aiStreamManager = {
-  dispatch: vi.fn(),
+  dispatchCommand: vi.fn(),
   attach: vi.fn(),
   detach: vi.fn(),
   abort: vi.fn(),
@@ -263,6 +267,16 @@ describe('aiHandlers', () => {
     expect(result).toEqual({ sessionId: 'feedback-session' })
   })
 
+  it('reports a missing workspace as a branchable Assistant-session error', async () => {
+    createBuiltinAssistantSession.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('Workspace', 'gone')
+    })
+
+    await expect(
+      aiHandlers['ai.agent.assistant_session.create']({ workspace: { type: 'user', workspaceId: 'gone' } }, ctx)
+    ).rejects.toMatchObject({ code: aiErrorCodes.AI_AGENT_WORKSPACE_NOT_FOUND })
+  })
+
   it('delegates Skill-session creation with the selected Skill and returns its id', async () => {
     const result = await aiHandlers['ai.agent.skill_session.create']({ skillId: 'skill-1' }, ctx)
 
@@ -450,42 +464,63 @@ describe('aiHandlers — streaming', () => {
       userMessageParts: [{ type: 'text', text: 'Replacement' }]
     } as never
 
-    aiStreamManager.dispatch.mockRejectedValueOnce(new AgentSessionForkError('unsupported_checkpoint'))
+    aiStreamManager.dispatchCommand.mockRejectedValueOnce(new AgentSessionForkError('unsupported_checkpoint'))
     await expect(aiHandlers['ai.agent.session.edit_resend'](input, ctx)).rejects.toMatchObject({
       code: aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED,
       data: { reason: 'checkpoint_unsupported' }
     })
 
-    aiStreamManager.dispatch.mockRejectedValueOnce(new AgentSessionForkError('workspace_changed'))
+    aiStreamManager.dispatchCommand.mockRejectedValueOnce(new AgentSessionForkError('workspace_changed'))
     await expect(aiHandlers['ai.agent.session.edit_resend'](input, ctx)).rejects.toMatchObject({
       code: aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED,
       data: { reason: 'workspace_changed' }
     })
   })
 
-  it('stream_open resolves the sender WebContents and dispatches to AiStreamManager', async () => {
-    const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] }
-    aiStreamManager.dispatch.mockResolvedValue({ mode: 'started' })
+  it.each([
+    {
+      route: 'ai.stream.open',
+      input: { trigger: 'submit-message', topicId: 't', userMessageParts: [] },
+      command: { trigger: 'submit-message', topicId: 't', userMessageParts: [] }
+    },
+    {
+      route: 'ai.agent.session.edit_resend',
+      input: {
+        sessionId: 'session-1',
+        target: { messageId: 'user-1', version: 'version-1' },
+        userMessageParts: [{ type: 'text', text: 'Replacement' }]
+      },
+      command: {
+        trigger: 'edit-agent-message',
+        topicId: 'agent-session:session-1',
+        editTarget: { messageId: 'user-1', version: 'version-1' },
+        userMessageParts: [{ type: 'text', text: 'Replacement' }]
+      }
+    }
+  ] as const)('$route binds interaction requests to the managed sender window', async ({ route, input, command }) => {
+    aiStreamManager.dispatchCommand.mockResolvedValue({ mode: 'started' })
 
-    const result = await aiHandlers['ai.stream.open'](req as never, { senderId: 'w1' })
+    const result = await aiHandlers[route](input as never, { senderId: 'w1' })
 
-    expect(windowManager.getWindow).toHaveBeenCalledWith('w1')
-    expect(aiStreamManager.dispatch).toHaveBeenCalledTimes(1)
-    // Second arg is the parsed request; first is the freshly built WebContentsListener.
-    expect(aiStreamManager.dispatch.mock.calls[0][1]).toEqual({ ...req, interactionWindowId: 'w1' })
+    expect(aiStreamManager.dispatchCommand.mock.calls.map(([request]) => request)).toEqual([
+      { ...command, interactionWindowId: 'w1' }
+    ])
     expect(result).toEqual({ mode: 'started' })
   })
 
-  it('stream_open throws when the sender is not a managed window', async () => {
-    windowManager.getWindow.mockReturnValue(undefined)
-    await expect(aiHandlers['ai.stream.open']({ topicId: 't' } as never, { senderId: null })).rejects.toThrow(
-      'requires a managed window'
-    )
-    expect(aiStreamManager.dispatch).not.toHaveBeenCalled()
-  })
+  it.each(['ai.stream.open', 'ai.agent.session.edit_resend'] as const)(
+    '%s rejects input from an unmanaged sender window',
+    async (route) => {
+      windowManager.getWindow.mockReturnValue(undefined)
+      await expect(
+        aiHandlers[route]({ topicId: 't', sessionId: 'session-1' } as never, { senderId: null })
+      ).rejects.toThrow('requires a managed window')
+      expect(aiStreamManager.dispatchCommand).not.toHaveBeenCalled()
+    }
+  )
 
   it('stream_open exposes a branchable admission reason without leaking a hardcoded message', async () => {
-    aiStreamManager.dispatch.mockRejectedValue(
+    aiStreamManager.dispatchCommand.mockRejectedValue(
       new AiStreamAdmissionError(aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP)
     )
 
@@ -868,5 +903,17 @@ describe('aiHandlers — agent task commands', () => {
     const error = await aiHandlers['ai.agent.task.run']({ agentId: 'agent-1', taskId: 'gone' }, ctx).catch((e) => e)
     expect(error).toBeInstanceOf(IpcError)
     expect(error.code).toBe(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND)
+  })
+})
+
+describe('aiHandlers — temporary topics', () => {
+  it('releases a leased temporary topic on delete', async () => {
+    const topic = await aiHandlers['ai.temporary_topic.create']({ name: 'Quick question' }, ctx)
+    expect(temporaryChatService.hasTopic(topic.id)).toBe(true)
+
+    await aiHandlers['ai.temporary_topic.delete']({ id: topic.id }, ctx)
+
+    expect(temporaryChatService.hasTopic(topic.id)).toBe(false)
+    await expect(aiHandlers['ai.temporary_topic.persist']({ id: topic.id }, ctx)).rejects.toThrow(/not found/i)
   })
 })
