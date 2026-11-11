@@ -1703,6 +1703,83 @@ describe('mediaFfmpegHandlers frame destinations', () => {
   })
 })
 
+describe('mediaFfmpegHandlers scene scan timeout', () => {
+  const sceneInput = {
+    filePath: '/long.mp4',
+    durationMs: 10_000,
+    sampleFps: SCENE_SAMPLE_FPS,
+    scoreThreshold: SCENE_SCORE_THRESHOLD,
+    scanEdgePx: SCENE_SCAN_EDGE_PX,
+    maxCandidates: 16
+  }
+
+  afterEach(() => {
+    spawnControl.replacement = null
+    spawnControl.calls = 0
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    disposeMediaChildren()
+  })
+
+  /** A scan that reports two cuts and keeps running until it is killed. */
+  function runningScan() {
+    const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+    const scan = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+    const closeScan = () => queueMicrotask(() => scan.emit('close', null))
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = (command: unknown) => {
+      // Windows kills through taskkill; POSIX through process.kill.
+      if (command === 'taskkill') {
+        closeScan()
+        return Object.assign(new EventEmitter(), { pid: 424243 })
+      }
+      queueMicrotask(() =>
+        scan.stderr.emit(
+          'data',
+          [
+            '[Parsed_metadata_4 @ 0x1] frame:0 pts:10 pts_time:1.25',
+            '[Parsed_metadata_4 @ 0x1] lavfi.scene_score=0.81',
+            '[Parsed_metadata_4 @ 0x1] frame:1 pts:44 pts_time:5.5',
+            '[Parsed_metadata_4 @ 0x1] lavfi.scene_score=0.64',
+            ''
+          ].join('\n')
+        )
+      )
+      return scan
+    }
+    vi.spyOn(process, 'kill').mockImplementation(() => {
+      closeScan()
+      return true
+    })
+  }
+
+  it('keeps the cuts found before a long scan times out', async () => {
+    vi.useFakeTimers()
+    runningScan()
+
+    const scanning = mediaFfmpegHandlers.detectSceneChanges(sceneInput, context())
+    await vi.advanceTimersByTimeAsync(120_000)
+
+    await expect(scanning).resolves.toEqual({
+      changes: [
+        { timestampMs: 1_250, score: 0.81 },
+        { timestampMs: 5_500, score: 0.64 }
+      ]
+    })
+  })
+
+  it('still rejects a scan cancelled before the timeout', async () => {
+    runningScan()
+    const controller = new AbortController()
+
+    const scanning = mediaFfmpegHandlers.detectSceneChanges(sceneInput, context(controller.signal))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    controller.abort(new DOMException('Aborted', 'AbortError'))
+
+    await expect(scanning).rejects.toMatchObject({ name: 'AbortError' })
+  })
+})
+
 async function waitForFile(filePath: string): Promise<void> {
   const deadline = Date.now() + 5_000
   while (!existsSync(filePath)) {
