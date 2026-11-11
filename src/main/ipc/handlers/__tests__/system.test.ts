@@ -1,8 +1,7 @@
-import { createMockApplication } from '@test-mocks/main/application'
+import { createMockApplication, MockApplicationUtils } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  appGetMock,
   getDeviceTypeMock,
   getCountryMock,
   getFontsMock,
@@ -17,7 +16,6 @@ const {
   requestScreenCaptureMock,
   openScreenCaptureSettingsMock
 } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
   getDeviceTypeMock: vi.fn(),
   getCountryMock: vi.fn(),
   getFontsMock: vi.fn(),
@@ -33,7 +31,6 @@ const {
   openScreenCaptureSettingsMock: vi.fn()
 }))
 
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@main/utils/system', () => ({ getDeviceType: getDeviceTypeMock }))
 vi.mock('@main/services/RegionService', () => ({ regionService: { getCountry: getCountryMock } }))
 vi.mock('@main/services/file', () => ({ openRequestPath: openRequestPathMock }))
@@ -62,8 +59,14 @@ import { systemRequestSchemas } from '@shared/ipc/schemas/system'
 import { systemHandlers } from '../system'
 
 const navigation = createMockApplication().get('MainWindowService') as { openWebsite: (url: string) => Promise<void> }
-const toggleDevTools = vi.fn()
-const windowManager = { getWindow: vi.fn(() => ({ webContents: { toggleDevTools } })) }
+const webContents = {
+  isDevToolsOpened: vi.fn(() => false),
+  openDevTools: vi.fn(),
+  closeDevTools: vi.fn()
+}
+const windowManager = {
+  getWindow: vi.fn((): { webContents: typeof webContents } | undefined => ({ webContents }))
+}
 
 const ctx = (senderId: string | null) => ({ senderId })
 
@@ -71,11 +74,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   platform.isMac = true
   nativeThemeMock.shouldUseDarkColors = false
-  appGetMock.mockImplementation((name: string) => {
-    if (name === 'WindowManager') return windowManager
-    if (name === 'MainWindowService') return navigation
-    throw new Error(`Unexpected application.get(${name})`)
-  })
+  MockApplicationUtils.resetServices()
+  MockApplicationUtils.setService('WindowManager', windowManager)
+  webContents.isDevToolsOpened.mockReturnValue(false)
 })
 
 describe('systemHandlers', () => {
@@ -106,15 +107,35 @@ describe('systemHandlers', () => {
     expect(await systemHandlers['system.get_fonts'](undefined, ctx('w1'))).toEqual([])
   })
 
-  it('toggle_dev_tools toggles the caller window resolved from senderId', async () => {
+  it('opens the caller window DevTools docked at the bottom', async () => {
     await systemHandlers['system.toggle_dev_tools'](undefined, ctx('w1'))
+
     expect(windowManager.getWindow).toHaveBeenCalledWith('w1')
-    expect(toggleDevTools).toHaveBeenCalledOnce()
+    expect(webContents.openDevTools).toHaveBeenCalledWith({ mode: 'bottom' })
+    expect(webContents.closeDevTools).not.toHaveBeenCalled()
   })
 
-  it('toggle_dev_tools is a no-op when the caller is not a tracked window', async () => {
+  it('closes DevTools when they are already open', async () => {
+    webContents.isDevToolsOpened.mockReturnValue(true)
+
+    await systemHandlers['system.toggle_dev_tools'](undefined, ctx('w1'))
+
+    expect(webContents.closeDevTools).toHaveBeenCalledOnce()
+    expect(webContents.openDevTools).not.toHaveBeenCalled()
+  })
+
+  it('toggle_dev_tools is a no-op without a caller window', async () => {
     await systemHandlers['system.toggle_dev_tools'](undefined, ctx(null))
     expect(windowManager.getWindow).not.toHaveBeenCalled()
+  })
+
+  it('toggle_dev_tools is a no-op when the caller window is gone', async () => {
+    windowManager.getWindow.mockReturnValueOnce(undefined)
+
+    await systemHandlers['system.toggle_dev_tools'](undefined, ctx('closed-window'))
+
+    expect(webContents.openDevTools).not.toHaveBeenCalled()
+    expect(webContents.closeDevTools).not.toHaveBeenCalled()
   })
 
   it('mac.is_process_trusted queries systemPreferences on darwin', async () => {

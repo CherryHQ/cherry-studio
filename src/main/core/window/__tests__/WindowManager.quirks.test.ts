@@ -142,6 +142,7 @@ const dockSpies = vi.hoisted(() => ({
   show: vi.fn(() => Promise.resolve()),
   hide: vi.fn()
 }))
+const dockState = { visible: true, lastShowAt: Number.NEGATIVE_INFINITY }
 
 vi.mock('electron', () => {
   class BrowserWindowMock {
@@ -328,11 +329,23 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
     createdWindows.length = 0
     allWindows.length = 0
     vi.useFakeTimers()
+    dockState.visible = true
+    dockState.lastShowAt = Number.NEGATIVE_INFINITY
+    dockSpies.show.mockImplementation(() => {
+      dockState.lastShowAt = Date.now()
+      dockState.visible = true
+      return Promise.resolve()
+    })
+    dockSpies.hide.mockImplementation(() => {
+      // Electron 45.2.2 ignores hide for one second after the most recent show.
+      if (Date.now() - dockState.lastShowAt >= 1_000) dockState.visible = false
+    })
     wm = new WindowManager()
     void wm._doInit()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await wm._doDestroy()
     vi.useRealTimers()
     vi.clearAllMocks()
   })
@@ -764,57 +777,157 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
     })
   })
 
-  // ─── macOS Dock visibility aggregation ─────────────────────
-  //
-  // Regression coverage for issue #18186: a resident SubWindow-like window
-  // (behavior.macShowInDock: false) must NOT keep the Dock icon alive when the
-  // Main-like window opts out via setMacShowInDockByType(Main, false). Before the
-  // registry fix, SubWindow omitted the flag and windowContributesToDock() fell
-  // through to the `!== false` default (true), so updateDockVisibility()'s some()
-  // never resolved to hide. These tests exercise the real aggregation path that
-  // MainWindowService.test.ts cannot (it mocks WindowManager entirely).
+  // A resident helper must not keep the Dock visible after Main opts into tray mode.
+  // Model Electron's native cooldown so assertions verify actual visibility.
   describe('Dock visibility aggregation (macShowInDock + setMacShowInDockByType)', () => {
-    beforeEach(() => {
-      // isMac already true for this suite (resetPlatform in outer beforeEach).
-      // Clear any dock calls captured during window creation so assertions target
-      // the explicit setMacShowInDockByType transitions below.
-      dockSpies.show.mockClear()
-      dockSpies.hide.mockClear()
-    })
-
-    it('hides the Dock when the only contributing type opts out (baseline)', () => {
-      // Single Main-like window contributes by default.
+    it('hides after a rapid show and close-to-tray, including repeated hide requests', async () => {
       wm.open('dockVisible' as never)
-      dockSpies.hide.mockClear()
+      expect(dockState.visible).toBe(true)
 
-      // Close-to-tray: Main opts out of Dock contribution.
+      await vi.advanceTimersByTimeAsync(50)
       wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+      wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+      await vi.advanceTimersByTimeAsync(1_200)
 
-      // No window contributes anymore → Dock must hide.
-      expect(dockSpies.hide).toHaveBeenCalledTimes(1)
+      expect(dockState.visible).toBe(false)
     })
 
-    it('keeps the Dock visible while a contributing window still exists', () => {
+    it('keeps the Dock visible while a contributing window still exists', async () => {
       wm.open('dockVisible' as never)
-      dockSpies.hide.mockClear()
-
-      // No override change → Main still contributes → Dock stays visible.
-      expect(dockSpies.hide).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1_200)
+      expect(dockState.visible).toBe(true)
     })
 
-    it('hides the Dock even with a resident SubWindow-like (macShowInDock:false) present (#18186)', () => {
-      // The regression scenario: Main-like + a resident hidden SubWindow-like.
-      // SubWindow-like declares macShowInDock:false, so it must not pin the Dock.
+    it('hides despite a resident non-contributing SubWindow-like window (#18186)', async () => {
       wm.open('dockVisible' as never)
       wm.open('dockHidden' as never)
-      dockSpies.hide.mockClear()
-
-      // Main-like enters tray mode (close-to-tray).
       wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+      await vi.advanceTimersByTimeAsync(1_200)
+      expect(dockState.visible).toBe(false)
+    })
 
-      // Despite the resident SubWindow-like existing, its macShowInDock:false means
-      // it does not contribute — Dock aggregates to hidden.
-      expect(dockSpies.hide).toHaveBeenCalledTimes(1)
+    it('cancels an old hide when reopened and honors the next close', async () => {
+      wm.open('dockVisible' as never)
+      wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+      await vi.advanceTimersByTimeAsync(500)
+      wm.behavior.setMacShowInDockByType('dockVisible' as never, true)
+      await vi.advanceTimersByTimeAsync(1_200)
+      expect(dockState.visible).toBe(true)
+
+      wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+      expect(dockState.visible).toBe(false)
+    })
+
+    it.each([100, 1_500])('honors tray intent when native show completes after %i ms', async (showDelay) => {
+      let finishShow!: () => void
+      dockSpies.show.mockImplementationOnce(() => {
+        dockState.lastShowAt = Date.now()
+        return new Promise<void>((resolve) => {
+          finishShow = () => {
+            dockState.visible = true
+            resolve()
+          }
+        })
+      })
+      wm.open('dockVisible' as never)
+      wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+      await vi.advanceTimersByTimeAsync(showDelay)
+      finishShow()
+      await vi.advanceTimersByTimeAsync(1_200)
+      expect(dockState.visible).toBe(false)
+    })
+
+    it.each(['stop', 'destroy'] as const)('cancels delayed hiding on service %s', async (operation) => {
+      wm.open('dockVisible' as never)
+      wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+      await Promise.resolve()
+      if (operation === 'stop') await wm._doStop()
+      else await wm._doDestroy()
+      expect(vi.getTimerCount()).toBe(0)
+
+      await vi.advanceTimersByTimeAsync(1_200)
+      expect(dockState.visible).toBe(true)
+    })
+
+    it('resumes a pending tray hide when the stopped service is initialized again', async () => {
+      wm.open('dockVisible' as never)
+      await Promise.resolve()
+      wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+      await vi.advanceTimersByTimeAsync(200)
+      await wm._doStop()
+      expect(dockState.visible).toBe(true)
+
+      await wm._doInit()
+      await vi.advanceTimersByTimeAsync(1_200)
+      expect(dockState.visible).toBe(false)
+    })
+
+    it.each(['stop', 'destroy'] as const)('ignores late show completion after service %s', async (operation) => {
+      let finishShow!: () => void
+      dockSpies.show.mockImplementationOnce(() => {
+        dockState.lastShowAt = Date.now()
+        return new Promise<void>((resolve) => {
+          finishShow = () => {
+            dockState.visible = true
+            resolve()
+          }
+        })
+      })
+      wm.open('dockVisible' as never)
+      wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+      if (operation === 'stop') await wm._doStop()
+      else await wm._doDestroy()
+      await vi.advanceTimersByTimeAsync(1_200)
+      finishShow()
+      await Promise.resolve()
+      expect(dockState.visible).toBe(true)
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('hides while a window holds it and restores when that window hides', async () => {
+      wm.open('dockVisible' as never)
+      const holderId = wm.open('dockHidden' as never)
+      wm.behavior.hideMacDockWhileShown(holderId)
+      await vi.advanceTimersByTimeAsync(1_200)
+      expect(dockState.visible).toBe(false)
+
+      createdWindows[1].emit('hide')
+      expect(dockState.visible).toBe(true)
+    })
+
+    it('releases the hold when a pooled holder returns to its pool', async () => {
+      wm.open('dockVisible' as never)
+      const holderId = wm.open('action' as never)
+      wm.behavior.hideMacDockWhileShown(holderId)
+      await vi.advanceTimersByTimeAsync(1_200)
+      expect(dockState.visible).toBe(false)
+
+      wm.close(holderId)
+      expect(dockState.visible).toBe(true)
+    })
+
+    it('stays hidden after the hold ends when no window wants the Dock', async () => {
+      wm.open('dockVisible' as never)
+      const holderId = wm.open('dockHidden' as never)
+      wm.behavior.setMacShowInDockByType('dockVisible' as never, false)
+      wm.behavior.hideMacDockWhileShown(holderId)
+      await vi.advanceTimersByTimeAsync(1_200)
+      createdWindows[1].emit('hide')
+      expect(dockState.visible).toBe(false)
+    })
+
+    it('stays hidden until the last holder lets go', async () => {
+      wm.open('dockVisible' as never)
+      const firstId = wm.open('dockHidden' as never)
+      const secondId = wm.open('dockHidden' as never)
+      wm.behavior.hideMacDockWhileShown(firstId)
+      wm.behavior.hideMacDockWhileShown(secondId)
+      await vi.advanceTimersByTimeAsync(1_200)
+
+      createdWindows[1].emit('hide')
+      expect(dockState.visible).toBe(false)
+      createdWindows[2].emit('hide')
+      expect(dockState.visible).toBe(true)
     })
   })
 })

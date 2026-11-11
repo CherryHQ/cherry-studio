@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 
-import { MODEL_DISPLAY_TAGS, type ModelDisplayTag, modelMatchesDisplayTag } from '@renderer/components/tags/Model'
+import { MODEL_DISPLAY_TAGS, type ModelDisplayTag, getModelDisplayTags } from '@renderer/components/tags/Model'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -16,7 +16,10 @@ const initialTagSelection = Object.fromEntries(MODEL_SELECTOR_TAGS.map((tag) => 
 /**
  * 标签筛选 hook，仅关注标签过滤逻辑
  */
-export function useModelTagFilter() {
+export function useModelTagFilter(
+  getTags: (model: Model, provider?: Provider) => readonly ModelSelectorTag[] = (model, provider) =>
+    getModelDisplayTags(model, undefined, provider)
+) {
   const [tagSelection, setTagSelection] = useState<Record<ModelSelectorTag, boolean>>(initialTagSelection)
 
   const selectedTags = useMemo(() => MODEL_SELECTOR_TAGS.filter((tag) => tagSelection[tag]), [tagSelection])
@@ -32,9 +35,10 @@ export function useModelTagFilter() {
   const tagFilter = useCallback(
     (model: Model, provider?: Provider) => {
       if (selectedTags.length === 0) return true
-      return selectedTags.every((tag) => modelMatchesDisplayTag(model, tag, provider))
+      const tags = getTags(model, provider)
+      return selectedTags.every((tag) => tags.includes(tag))
     },
-    [selectedTags]
+    [getTags, selectedTags]
   )
 
   return {

@@ -31,7 +31,7 @@ import { topicService } from './TopicService'
 import { isConversationActivityRole } from './utils/activityTime'
 import { insertWithOrderKey } from './utils/orderKey'
 
-const logger = loggerService.withContext('DataApi:TemporaryChatService')
+const logger = loggerService.withContext('TemporaryChatService')
 
 const VALID_ROLES: readonly MessageRole[] = ['user', 'assistant', 'system']
 const ACCEPTED_STATUSES: readonly MessageStatus[] = ['success', 'error', 'paused']

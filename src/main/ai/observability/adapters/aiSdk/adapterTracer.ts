@@ -6,7 +6,7 @@
  * Cherry-owned root spans use `startAiTurnTrace`.
  */
 
-import type { Span, Tracer } from '@opentelemetry/api'
+import { context as otelContext, trace, type Context, type Span, type Tracer } from '@opentelemetry/api'
 
 import { loggerService } from '@logger'
 
@@ -19,7 +19,8 @@ export class AdapterTracer {
   constructor(
     private readonly inner: Tracer,
     private readonly topicId: string,
-    private readonly modelName?: string
+    private readonly modelName?: string,
+    private readonly parentContext?: Context
   ) {}
 
   private instrumentSpan(span: Span, name: string): Span {
@@ -44,7 +45,9 @@ export class AdapterTracer {
   }
 
   startSpan: Tracer['startSpan'] = (name, options, context) => {
-    const span = this.inner.startSpan(name, options, context)
+    const activeContext = context ?? otelContext.active()
+    const parent = trace.getSpanContext(activeContext) ? activeContext : (this.parentContext ?? activeContext)
+    const span = this.inner.startSpan(name, options, parent)
     return this.instrumentSpan(span, name)
   }
 
@@ -55,9 +58,9 @@ export class AdapterTracer {
     if (fnIndex < 0) throw new Error('AdapterTracer.startActiveSpan: no callback provided')
 
     const fn = args[fnIndex] as (span: Span) => any
-    const forwarded = [...args]
-    forwarded[fnIndex] = (span: Span) => fn(this.instrumentSpan(span, name))
-
-    return (this.inner.startActiveSpan as any)(name, ...forwarded)
+    const options = fnIndex === 0 ? {} : args[0]
+    const activeContext = fnIndex === 2 ? (args[1] as Context) : otelContext.active()
+    const parent = trace.getSpanContext(activeContext) ? activeContext : (this.parentContext ?? activeContext)
+    return this.inner.startActiveSpan(name, options, parent, (span) => fn(this.instrumentSpan(span, name)))
   }) as Tracer['startActiveSpan']
 }

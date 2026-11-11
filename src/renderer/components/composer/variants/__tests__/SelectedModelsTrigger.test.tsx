@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -54,11 +55,7 @@ vi.mock('@cherrystudio/ui', () => {
         </div>
       ) : null
     },
-    Scrollbar: ({ children, ...props }: { children?: ReactNode }) => (
-      <div data-scrolling="false" {...props}>
-        {children}
-      </div>
-    )
+    ScrollArea: MockCherrystudioUI.ScrollArea
   }
 })
 
@@ -166,7 +163,6 @@ describe('SelectedModelsTrigger', () => {
     openSelectedModelsPopover()
 
     expect(screen.getByTestId('selected-models-popover')).toHaveTextContent('Model A')
-    expect(screen.getByTestId('selected-models-list')).toHaveAttribute('data-scrolling', 'false')
     expect(screen.getByTestId('selected-models-popover')).toHaveTextContent('Provider A')
     const firstRow = screen.getByTestId('selected-model-row-provider-a::model-a')
     const tag = screen.getByTestId(`model-tag-${MODEL_CAPABILITY.IMAGE_RECOGNITION}`)
