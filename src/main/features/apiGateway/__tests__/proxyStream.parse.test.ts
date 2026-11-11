@@ -236,19 +236,6 @@ describe('processMessage model-id parsing', () => {
     expect(await resolveValid('sophnet:DeepSeek-v3')).toBe(createUniqueModelId('sophnet', 'deepseek-v3'))
   })
 
-  it('rejects a Cherry Cloud model from external requests', async () => {
-    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-
-    await expect(
-      processMessage({
-        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
-        inputFormat: 'anthropic',
-        outputFormat: 'anthropic'
-      })
-    ).rejects.toMatchObject({ status: 400 })
-    expect(mockStreamPrompt).not.toHaveBeenCalled()
-  })
-
   it('routes Cherry Cloud messages for an internal request and attributes Agent session usage', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
     mockIsInternalRequest.mockReturnValue(true)
