@@ -1,8 +1,9 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
-import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { RecordAiInvocationInput, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
+import type { AgentRuntimeTraceContext } from '@main/ai/observability'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -24,13 +25,17 @@ export interface AiTransportOptions {
 /** In-process-only usage correlation; never accepted on renderer IPC schemas. */
 export interface InProcessUsageContext {
   agentSessionId: string
+  /** Trusted runtime parent for provider spans crossing the local HTTP gateway. */
+  traceContext?: AgentRuntimeTraceContext
   /** Assistant message that owns this request: a reserved steer continuation or the active turn. */
-  assistantMessageId: string
+  assistantMessageId?: string
   /** Immutable source captured by the owning Agent turn. `null` means intentionally unavailable. */
   source: SourceSnapshot | null
+  /** Native correlation can arrive after the provider finishes. Captured prices and credentials stay immutable. */
+  recordInvocation?: (input: RecordAiInvocationInput) => void
 }
 
-/** Identifies which layer owns history shaping for an in-process AI request. */
+/** Identifies which layer owns prompts, tools, and history shaping for an in-process AI request. */
 export type ContextOwner = 'cherry' | 'caller'
 
 /**
@@ -96,7 +101,8 @@ export interface AiChatRequest extends AiRequest {
   knowledgeBaseIds?: string[]
   /**
    * Main-internal context ownership. Omitted means Cherry-managed; caller-owned
-   * requests bypass Cherry's history truncation, pruning, and compaction.
+   * requests supply their own prompts/tools and use a single model invocation
+   * without Cherry's history shaping, tool execution, repair, or retries.
    * This field is intentionally absent from renderer IPC schemas.
    */
   contextOwner?: ContextOwner

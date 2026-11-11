@@ -1,4 +1,5 @@
 import type * as NodeFs from 'node:fs'
+import { resolve as resolvePath } from 'node:path'
 import path from 'node:path'
 
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
@@ -24,7 +25,7 @@ const {
   mockGetPathStatus: vi.fn(),
   mockMkdir: vi.fn(),
   mockRealpath: vi.fn(),
-  mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
+  mockGetPath: vi.fn(() => resolvePath('/tmp/managed-workspaces')),
   mockPreferenceGet: vi.fn(() => undefined),
   mockListOrOutlineKnowledge: vi.fn(),
   mockEnsureManagedDirectory: vi.fn()
@@ -121,7 +122,7 @@ const session = {
   workspace: {
     id: 'ws-1',
     name: 'Workspace',
-    path: '/tmp/workspace',
+    path: resolvePath('/tmp/workspace'),
     type: 'user',
     orderKey: 'a0',
     createdAt: '2026-05-20T00:00:00.000Z',
@@ -442,7 +443,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     mockGetPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
 
     await expect(
-      prepareClaudeCodeWorkspaceDirectory(makeSession('/tmp/user-workspace', 'user'))
+      prepareClaudeCodeWorkspaceDirectory(makeSession(resolvePath('/tmp/user-workspace'), 'user'))
     ).rejects.toBeInstanceOf(AgentSessionWorkspaceError)
 
     expect(mockMkdir).not.toHaveBeenCalled()
@@ -459,9 +460,9 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
   })
 
   it('rejects system workspace paths outside the managed root', async () => {
-    await expect(prepareClaudeCodeWorkspaceDirectory(makeSession('/tmp/outside', 'system'))).rejects.toBeInstanceOf(
-      AgentSessionWorkspaceError
-    )
+    await expect(
+      prepareClaudeCodeWorkspaceDirectory(makeSession(resolvePath('/tmp/outside'), 'system'))
+    ).rejects.toBeInstanceOf(AgentSessionWorkspaceError)
 
     expect(mockGetPathStatus).not.toHaveBeenCalled()
     expect(mockMkdir).not.toHaveBeenCalled()
@@ -486,7 +487,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
   it('keeps assertClaudeCodeWorkspaceDirectory as pure validation', async () => {
     mockGetPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
 
-    await expect(assertClaudeCodeWorkspaceDirectory('sess-1', '/tmp/missing')).rejects.toBeInstanceOf(
+    await expect(assertClaudeCodeWorkspaceDirectory('sess-1', resolvePath('/tmp/missing'))).rejects.toBeInstanceOf(
       AgentSessionWorkspaceError
     )
 

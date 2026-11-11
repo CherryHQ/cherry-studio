@@ -11,7 +11,7 @@
  * @see https://ai.google.dev/api/generate-content#method:-models.streamgeneratecontent
  */
 
-import type { FinishReason, UIMessageChunk } from 'ai'
+import type { FinishReason, ProviderMetadata, UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
 
@@ -90,13 +90,14 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     logger.silly('AiSdkToGeminiSse - Processing chunk', { type: chunk.type })
     switch (chunk.type) {
       case 'text-delta':
-        this.appendText(chunk.delta || '', false)
+        this.appendText(chunk.delta || '', false, chunk.providerMetadata)
         break
 
       case 'reasoning-delta':
-        this.appendText(chunk.delta || '', true)
+        this.appendText(chunk.delta || '', true, chunk.providerMetadata)
         break
 
+      case 'tool-input-error':
       case 'tool-input-available': {
         // Gemini 3 requires the model's thought signature echoed back on the next
         // function-calling turn; the Google provider surfaces it on the tool call's
@@ -129,15 +130,23 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
   }
 
   /** Accumulate a text/thought delta (merged into the trailing like-kind part) and stream it. */
-  private appendText(text: string, thought: boolean): void {
-    if (!text) return
+  private appendText(text: string, thought: boolean, metadata?: ProviderMetadata): void {
+    const signature = metadata?.google?.thoughtSignature
+    const thoughtSignature = typeof signature === 'string' ? signature : undefined
+    if (!text && thoughtSignature === undefined) return
+    const part: GeminiResponsePart = {
+      text,
+      ...(thought && { thought: true }),
+      ...(thoughtSignature !== undefined && { thoughtSignature })
+    }
     const last = this.accumulatedParts[this.accumulatedParts.length - 1]
     if (last && last.functionCall === undefined && (last.thought ?? false) === thought) {
       last.text = (last.text ?? '') + text
+      if (thoughtSignature !== undefined) last.thoughtSignature = thoughtSignature
     } else {
-      this.accumulatedParts.push(thought ? { text, thought: true } : { text })
+      this.accumulatedParts.push({ ...part })
     }
-    this.emitParts([thought ? { text, thought: true } : { text }])
+    this.emitParts([part])
   }
 
   private appendFunctionCall(name: string, args: unknown, thoughtSignature?: string): void {
@@ -195,7 +204,8 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     this.emit({
       candidates: [{ content: { role: 'model', parts: [] }, finishReason: this.finishReason, index: 0 }],
       usageMetadata: this.buildUsageMetadata(),
-      modelVersion: this.state.model
+      modelVersion: this.state.model,
+      responseId: this.state.messageId
     })
   }
 
@@ -209,7 +219,8 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
         }
       ],
       usageMetadata: this.buildUsageMetadata(),
-      modelVersion: this.state.model
+      modelVersion: this.state.model,
+      responseId: this.state.messageId
     }
   }
 }

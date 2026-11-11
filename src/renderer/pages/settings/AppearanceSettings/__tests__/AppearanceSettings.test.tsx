@@ -11,15 +11,6 @@ import AppearanceSettings, { confirmMenuPresentationModeChange } from '../Appear
 
 const t = (key: string) => key
 
-const i18nMock = vi.hoisted(() => ({
-  language: 'zh-CN',
-  resolvedLanguage: 'zh-CN'
-}))
-
-vi.mock('@renderer/i18n/resolver', () => ({
-  default: i18nMock
-}))
-
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 const themeMocks = vi.hoisted(() => ({ setTheme: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
@@ -111,13 +102,6 @@ vi.mock('@cherrystudio/ui', async () => {
           )
         )
       ),
-    Select: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
-    SelectContent: passthrough('div'),
-    SelectItem: ({ children, value, ...props }: any) =>
-      React.createElement('div', { ...props, 'data-value': value }, children),
-    SelectTrigger: ({ children, size, ...props }: any) =>
-      React.createElement('button', { ...props, 'data-size': size, role: 'combobox', type: 'button' }, children),
-    SelectValue: () => null,
     Switch: ({ checked, onCheckedChange, ...props }: any) =>
       React.createElement('input', {
         ...props,
@@ -193,10 +177,6 @@ vi.mock('@renderer/components/SettingsPrimitives', async () => {
     SettingTitle: passthrough('h2')
   }
 })
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: { children?: React.ReactNode }) => <div {...props}>{children}</div>
-}))
 
 vi.mock('@renderer/components/icons/ResetIcon', () => ({
   default: (props: any) => <span data-testid="reset-icon" {...props} />
@@ -286,8 +266,6 @@ describe('AppearanceSettings menu presentation mode', () => {
 describe('AppearanceSettings selectors', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
-    i18nMock.language = 'zh-CN'
-    i18nMock.resolvedLanguage = 'zh-CN'
     mocks.request.mockReset()
     themeMocks.setTheme.mockReset()
     mocks.request.mockImplementation((route: string) => {
@@ -297,18 +275,11 @@ describe('AppearanceSettings selectors', () => {
     })
   })
 
-  it('shows the resolved i18n language when no app language preference is saved', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.language', null)
-
+  it('keeps the interface language picker out of appearance settings', () => {
     render(<AppearanceSettings />)
 
-    await waitFor(() => {
-      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
-      expect(mocks.request).toHaveBeenCalledWith('app.adjust_zoom', { delta: 0 })
-    })
-
-    expect(screen.getByRole('combobox', { name: /中文/ })).toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: /English/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /中文|English/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('common.language')).not.toBeInTheDocument()
   })
 
   it('does not render manual chat layout switches', async () => {
@@ -351,14 +322,11 @@ describe('AppearanceSettings selectors', () => {
     expect(themeMocks.setTheme).toHaveBeenCalledWith(ThemeMode.dark)
   })
 
-  it('places the theme group before the display and language group', () => {
+  it('places the theme group before the display group', () => {
     const { container } = render(<AppearanceSettings />)
     const groupTitles = Array.from(container.querySelectorAll('section > h2')).map((heading) => heading.textContent)
 
-    expect(groupTitles.slice(0, 2)).toEqual([
-      'settings.theme.title',
-      'settings.general.common.sections.display_language'
-    ])
+    expect(groupTitles.slice(0, 2)).toEqual(['settings.theme.title', 'settings.general.common.sections.display'])
   })
 
   it('routes each list position row to its own module preference', async () => {

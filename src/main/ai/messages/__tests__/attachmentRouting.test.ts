@@ -1,3 +1,13 @@
+vi.mock('../attachmentWorkerClient', async () => {
+  const { allocateInlineCaps } = await import('../attachmentInlineBudget')
+  return {
+    runAttachmentWorker: async (_type: string, input: { bodies: string[]; tokens: number }, signal?: AbortSignal) => {
+      signal?.throwIfAborted()
+      return allocateInlineCaps(input.bodies, input.tokens)
+    }
+  }
+})
+
 import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -68,7 +78,6 @@ const composerText = (text: string, ...fileTokenSourceIds: string[]): CherryMess
 })
 
 /** One token per character, so a test's `cap` reads directly as a character cap. */
-const charTokenizer = { id: 'chars', count: (text: string) => text.length }
 
 const run = (
   parts: CherryMessagePart[],
@@ -80,7 +89,7 @@ const run = (
     attachments: collectFileAttachments(messages),
     nativeSupport: ns,
     isToolCapable: opts.isToolCapable ?? true,
-    budget: opts.cap === undefined ? undefined : { tokens: opts.cap, tokenizer: charTokenizer }
+    budget: opts.cap === undefined ? undefined : { tokens: opts.cap }
   })
 }
 
@@ -337,7 +346,7 @@ describe('prepareChatMessages — routing', () => {
       attachments: collectFileAttachments(messages),
       nativeSupport: NONE,
       isToolCapable: true,
-      budget: { tokens: 60, tokenizer: charTokenizer }
+      budget: { tokens: 60 }
     })
 
     // b.txt fits whole, so a.txt takes the 40 it leaves behind rather than half.

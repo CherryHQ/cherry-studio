@@ -30,7 +30,7 @@ import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal }
  * server-side task continues but its result is discarded.
  */
 
-export const DEFAULT_DASHSCOPE_IMAGE_BASE_URL = 'https://dashscope.aliyuncs.com'
+export const DEFAULT_DASHSCOPE_IMAGE_BASE_URL = 'https://maas.qianwenaiapi.com'
 
 // undici abandons response headers after 300s, below a sync image model's submit budget;
 // an injected fetch has no such bound, so this only backs the global-fetch fallback.

@@ -1,0 +1,10 @@
+diff --git a/install.js b/install.js
+index ab69e574f894dc5676a701bc8a2c378eaba8f97e..136c9845e0d5cd059760a14f116b35f5df621a74 100644
+--- a/install.js
++++ b/install.js
+@@ -3,2 +3,4 @@
+ const { install } = require("./binary");
+-install(false);
++if (!process.env.CI) {
++  install(false);
++}

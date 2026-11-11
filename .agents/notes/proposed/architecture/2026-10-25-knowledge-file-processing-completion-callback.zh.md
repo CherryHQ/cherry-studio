@@ -4,6 +4,8 @@ Status: proposed
 
 [English](2026-10-25-knowledge-file-processing-completion-callback.md) | 中文
 
+已被 [FileProcessing 任务模型](../../implemented/architecture/2026-10-29-file-processing-task-model.md) 部分取代：条目现在等待任务的 `done` 而不是 `JobHandle`，从 `onDidChangeTask` 取进度而不是每 5 秒轮询一次，并通过 `cancelTask` 取消。
+
 ## 问题
 
 需要转换的文件通过 `knowledge.check-file-processing-result` 等待它的 FileProcessing 任务：这个任务每 5 秒排一次下一轮，直到 FileProcessing 任务结束。每一轮都是一行新的任务记录，而这条链还兼做三件事：
