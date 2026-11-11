@@ -448,6 +448,44 @@ describe('AgentChatContextProvider', () => {
     )
   })
 
+  it('hands the runtime the durable delivery row verbatim so naming reads raw sender text', async () => {
+    const deliveryMessage = {
+      id: 'delivery-1',
+      sessionId: 'session-1',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'delegated work' }] },
+      delivery: makeDeliveryEnvelope()
+    }
+
+    await provider.prepareDispatch(makeSubscriber(), openReq({ agentDeliveryMessage: deliveryMessage as never }))
+
+    // Naming still reads the sender's raw content, and the persisted row keeps it verbatim.
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', deliveryMessage.data)
+    expect(mocks.saveMessagesTx.mock.calls[0][1].messages[0]).toMatchObject({
+      id: 'delivery-1',
+      data: { parts: [{ type: 'text', text: 'delegated work' }] }
+    })
+
+    // The runtime derives the summary-naming text from this exact message, so it must be the raw
+    // durable row — a reminder-prefixed one makes naming skip the AI summary title.
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledTimes(1)
+    const turnUserMessage = mocks.runtimeBeginTurn.mock.calls[0][0].userMessage
+    expect(turnUserMessage.data.parts).toEqual([{ type: 'text', text: 'delegated work' }])
+  })
+
+  it('keeps a plain interactive turn user message unwrapped', async () => {
+    await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({ userMessageParts: [{ type: 'text', text: 'plain hello' }] })
+    )
+
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userMessage: expect.objectContaining({ data: { parts: [{ type: 'text', text: 'plain hello' }] } })
+      })
+    )
+  })
+
   it('rejects agent sessions without a registered runtime driver', async () => {
     runtimeDriverRegistry.clearForTest()
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })
