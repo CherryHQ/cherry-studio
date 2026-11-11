@@ -276,6 +276,13 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation']
   },
   {
+    id: 'MP-152',
+    title: 'Global install requires tool approval (deny, allow)',
+    tasks: ['agents'],
+    phase: 'agentRuntimes',
+    capabilities: ['desktopAutomation']
+  },
+  {
     id: 'MP-52',
     title: 'Sync Agent file edits with the side preview',
     tasks: ['agents'],
