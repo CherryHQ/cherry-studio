@@ -119,7 +119,6 @@ describe('AgentTaskJobHandler', () => {
     vi.clearAllMocks()
   })
 
-
   describe('resolveRetryPolicy', () => {
     const base = { agentId: 'a1', prompt: 'x', timeoutMinutes: 2, workspace: WORKSPACE_SOURCE, reuseRevision: 0 }
 
