@@ -1,3 +1,90 @@
+diff --git a/out/AppUpdater.js b/out/AppUpdater.js
+index 7358a8f0efca83c0e05186fa51f154592b66c8dd..34c35ca7b4a7bf89574836cbf239314024447b60 100644
+--- a/out/AppUpdater.js
++++ b/out/AppUpdater.js
+@@ -207,7 +207,7 @@ class AppUpdater extends events_1.EventEmitter {
+         }
+         else {
+             this.app = app;
+-            this.httpExecutor = null;
++            this.httpExecutor = new electronHttpExecutor_1.ElectronHttpExecutor((authInfo, callback) => this.emit("login", authInfo, callback));
+         }
+         const currentVersionString = this.app.version;
+         const currentVersion = (0, semver_1.parse)(currentVersionString);
+diff --git a/out/MacUpdater.d.ts b/out/MacUpdater.d.ts
+index 2940c797a5ea957a3e3acf12267f3e19d4ad216c..11edc8689e758922e1eb66658eaad0a6b5bd67b9 100644
+--- a/out/MacUpdater.d.ts
++++ b/out/MacUpdater.d.ts
+@@ -11,5 +11,7 @@ export declare class MacUpdater extends AppUpdater {
+     protected doDownloadUpdate(downloadUpdateOptions: DownloadUpdateOptions): Promise<Array<string>>;
+     private updateDownloaded;
+     private handleUpdateDownloaded;
++    /** Release native listeners and the staging server after the download has settled. */
++    dispose(): void;
+     quitAndInstall(): void;
+ }
+diff --git a/out/MacUpdater.js b/out/MacUpdater.js
+index 8f18dc5416c91835ded4e47f2358fba680c129ac..35a629185bbde1f83a3debdd41b1d161ef26bee1 100644
+--- a/out/MacUpdater.js
++++ b/out/MacUpdater.js
+@@ -15,14 +15,28 @@ class MacUpdater extends AppUpdater_1.AppUpdater {
+         super(options, app);
+         this.nativeUpdater = require("electron").autoUpdater;
+         this.squirrelDownloadedUpdate = false;
+-        this.nativeUpdater.on("error", it => {
++        this.disposed = false;
++        this.installListener = null;
++        this.nativeErrorListener = it => {
+             this._logger.warn(it);
+             this.emit("error", it);
+-        });
+-        this.nativeUpdater.on("update-downloaded", () => {
++        };
++        this.nativeUpdater.on("error", this.nativeErrorListener);
++        this.nativeDownloadedListener = () => {
+             this.squirrelDownloadedUpdate = true;
+             this.debug("nativeUpdater.update-downloaded");
+-        });
++        };
++        this.nativeUpdater.on("update-downloaded", this.nativeDownloadedListener);
++    }
++    dispose() {
++        this.disposed = true;
++        this.nativeUpdater.removeListener("error", this.nativeErrorListener);
++        this.nativeUpdater.removeListener("update-downloaded", this.nativeDownloadedListener);
++        if (this.installListener) {
++            this.nativeUpdater.removeListener("update-downloaded", this.installListener);
++            this.installListener = null;
++        }
++        this.closeServerIfExists();
+     }
+     debug(message) {
+         if (this._logger.debug != null) {
+@@ -225,6 +239,7 @@ class MacUpdater extends AppUpdater_1.AppUpdater {
+         });
+     }
+     handleUpdateDownloaded() {
++        if (this.disposed) return;
+         if (this.autoRunAppAfterInstall) {
+             this.nativeUpdater.quitAndInstall();
+         }
+@@ -234,13 +249,15 @@ class MacUpdater extends AppUpdater_1.AppUpdater {
+         this.closeServerIfExists();
+     }
+     quitAndInstall() {
++        if (this.disposed || this.installListener) return;
+         if (this.squirrelDownloadedUpdate) {
+             // update already fetched by Squirrel, it's ready to install
+             this.handleUpdateDownloaded();
+         }
+         else {
+             // Quit and install as soon as Squirrel get the update
+-            this.nativeUpdater.on("update-downloaded", () => this.handleUpdateDownloaded());
++            this.installListener = () => this.handleUpdateDownloaded();
++            this.nativeUpdater.once("update-downloaded", this.installListener);
+             if (!this.autoInstallOnAppQuit) {
+                 /**
+                  * If this was not `true` previously then MacUpdater.doDownloadUpdate()
 diff --git a/out/util.js b/out/util.js
 index 9294ffd6ca8f02c2e0f90c663e7e9cdc02c1ac37..f52107493e2995320ee4efd0eb2a8c9bf03291a2 100644
 --- a/out/util.js

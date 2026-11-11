@@ -18,6 +18,8 @@ Completed conversion status takes precedence over residual v1 files. A markerles
 
 The converter, migrators, renderer, export pipeline, migration IPC, remigration settings action, mapping generator, and exclusive dependencies are removed. Old pending remigration reset markers are quarantined without deleting v2 data. Transaction callers pass their database context to the migration-status reader before DbService readiness. The remaining migration-status reader preserves migrated users' provider access and the legacy file-cleanup seeder. OpenClaw's still-used provider projections remain with their consumer. Preference and BootConfig schema generation, backup restore, normal reset, and all shipped SQLite schema migrations remain intact.
 
+The proposed [preboot bridge installation](../../proposed/feature/2026-11-11-preboot-bridge-install.md) replaces only the browser-download interaction after validation; the current decision remains in force.
+
 ## Alternatives considered
 
 Keeping conversion indefinitely retains its runtime and maintenance cost. Starting a new empty profile hides existing data. A release-page link adds manual platform selection, and a latest-release link eventually points at a version without conversion. A fixed platform-specific installer provides a repeatable upgrade route.

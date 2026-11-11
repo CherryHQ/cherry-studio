@@ -20,13 +20,15 @@ export function getLegacyUpgradeDownloadUrl({
   arch,
   translated,
   portable,
-  version = LEGACY_UPGRADE_VERSION
+  version = LEGACY_UPGRADE_VERSION,
+  edition = 'global'
 }: {
   platform: NodeJS.Platform
   arch: string
   translated: boolean
   portable: boolean
   version?: typeof LEGACY_UPGRADE_VERSION | '1.9.12'
+  edition?: 'global' | 'cn'
 }): string {
   const nativeArch = translated ? 'arm64' : arch
   if (nativeArch !== 'arm64' && nativeArch !== 'x64') throw new Error(`Unsupported architecture: ${nativeArch}`)
@@ -48,7 +50,7 @@ export function getLegacyUpgradeDownloadUrl({
     asset = asset.replace(/^(mac|win|linux)-/, '')
     if (platform === 'linux' && nativeArch === 'x64') asset = 'x86_64.AppImage'
   }
-  return `https://github.com/CherryHQ/cherry-studio/releases/download/v${version}/Cherry-Studio-${version}-${asset}`
+  return `https://github.com/CherryHQ/cherry-studio/releases/download/v${version}/Cherry-Studio-${edition === 'cn' && version !== '1.9.12' ? 'CN-' : ''}${version}-${asset}`
 }
 
 function statIfPresent(file: string) {

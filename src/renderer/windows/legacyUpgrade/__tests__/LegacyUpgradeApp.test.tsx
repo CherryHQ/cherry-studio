@@ -1,8 +1,8 @@
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 
-import type { LegacyUpgradeScreen } from '@shared/types/legacyUpgrade'
+import type { LegacyInstallState, LegacyUpgradeScreen } from '@shared/types/legacyUpgrade'
 
 import LegacyUpgradeApp from '../LegacyUpgradeApp'
 
@@ -37,4 +37,52 @@ it('offers an exit without starting a download', () => {
   render(<LegacyUpgradeApp screen={copy} />)
   fireEvent.click(screen.getByRole('button', { name: 'Quit' }))
   expect(window.electron.ipcRenderer.invoke).toHaveBeenCalledExactlyOnceWith('legacy-upgrade:quit')
+})
+
+const installation = {
+  enabled: true,
+  prerequisite: false,
+  action: 'Install migration version',
+  detail: 'Restart into 2.1.0',
+  cancel: 'Cancel',
+  retry: 'Retry',
+  preparing: 'Preparing',
+  downloading: 'Downloading and verifying',
+  installing: 'Restarting',
+  failed: 'Install failed'
+}
+
+it('shows progress, cancellation and retry while never offering a second install during handoff', async () => {
+  let publish!: (event: unknown, state: LegacyInstallState) => void
+  vi.mocked(window.electron.ipcRenderer.on).mockImplementation((_channel, listener) => {
+    publish = (event, state) => listener(event as Electron.IpcRendererEvent, state)
+    return vi.fn()
+  })
+  vi.mocked(window.electron.ipcRenderer.invoke).mockImplementation(async (channel) =>
+    channel === 'legacy-upgrade:get-state' ? { phase: 'idle' } : undefined
+  )
+  render(<LegacyUpgradeApp screen={{ ...copy, installation }} />)
+  await screen.findByText(installation.detail)
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: installation.action })))
+  expect(window.electron.ipcRenderer.invoke).toHaveBeenCalledWith('legacy-upgrade:install')
+  await act(async () => publish({}, { phase: 'downloading', percent: 42 }))
+  expect(screen.getByText('42%')).toBeVisible()
+  expect(screen.getByRole('button', { name: installation.action })).toBeDisabled()
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: installation.cancel })))
+  expect(window.electron.ipcRenderer.invoke).toHaveBeenCalledWith('legacy-upgrade:cancel')
+  await act(async () => publish({}, { phase: 'failed' }))
+  expect(screen.getByRole('button', { name: installation.retry })).toBeEnabled()
+  await act(async () => publish({}, { phase: 'installing' }))
+  expect(screen.getByRole('button', { name: copy.quit })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: installation.cancel })).not.toBeInTheDocument()
+})
+
+it('uses the prerequisite installer instead of starting an unsafe bridge installation', async () => {
+  render(
+    <LegacyUpgradeApp screen={{ ...copy, installation: { ...installation, enabled: false, prerequisite: true } }} />
+  )
+  expect(screen.getByText(copy.prerequisite)).toBeVisible()
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: copy.downloadPrerequisite })))
+  expect(window.electron.ipcRenderer.invoke).toHaveBeenCalledWith('legacy-upgrade:download', 'prerequisite')
+  expect(screen.queryByRole('button', { name: installation.action })).not.toBeInTheDocument()
 })

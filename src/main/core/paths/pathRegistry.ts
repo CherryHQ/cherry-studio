@@ -296,6 +296,7 @@ export function buildPathRegistry() {
     'feature.ocr.paddleocr': path.join(appUserDataRuntime, 'models', 'pp-ocrv6'),
 
     // Version log
+    'feature.legacy_upgrade.cache': path.join(CHERRY_HOME, 'cache', 'legacy-upgrade'),
     'feature.version_log.file': path.join(appUserData, 'version.log'),
 
     // Backup restore promotion — the journal sidecar is owned by

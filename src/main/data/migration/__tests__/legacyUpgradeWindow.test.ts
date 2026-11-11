@@ -1,11 +1,14 @@
 import { EventEmitter } from 'node:events'
 
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
+import { app, autoUpdater, BrowserWindow, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
+import type { AppUpdater } from 'electron-updater'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { validateSender } from '@main/core/security/validateSender'
 import { LegacyUpgradeChannels, type LegacyUpgradeScreen } from '@shared/types/legacyUpgrade'
 
+import * as bridge from '../legacyBridgeInstaller'
+import { findLegacyBridgeTarget } from '../legacyBridgeTarget'
 import { showLegacyUpgradeWindow } from '../legacyUpgradeWindow'
 
 vi.mock('@main/core/security/validateSender', () => ({ validateSender: vi.fn(() => true) }))
@@ -24,7 +27,7 @@ const downloads = { bridge: 'https://example.com/2.1.0.dmg', prerequisite: 'http
 function createWindow() {
   let destroyed = false
   const window = Object.assign(new EventEmitter(), {
-    webContents: Object.assign(new EventEmitter(), { mainFrame: {}, setWindowOpenHandler: vi.fn() }),
+    webContents: Object.assign(new EventEmitter(), { mainFrame: {}, setWindowOpenHandler: vi.fn(), send: vi.fn() }),
     isDestroyed: () => destroyed,
     destroy: () => {
       destroyed = true
@@ -104,5 +107,47 @@ describe('preboot upgrade window boundary', () => {
     await rejected
     expect(handlers.size).toBe(0)
     expect(window.isDestroyed()).toBe(true)
+  })
+  it('rejects installation without an eligible target', async () => {
+    const closed = showLegacyUpgradeWindow(screen, downloads)
+    expect(() => handlers.get(LegacyUpgradeChannels.Install)!(event())).toThrow('unavailable')
+    handlers.get(LegacyUpgradeChannels.Quit)!(event())
+    await closed
+  })
+
+  it('protects native handoff from ordinary quit, but permits updater-owned exit and recovers on error', async () => {
+    const updater = Object.assign(new EventEmitter(), {
+      checkForUpdates: async () => ({ isUpdateAvailable: true, updateInfo: { version: '2.1.0' } }),
+      downloadUpdate: async () => [],
+      quitAndInstall: vi.fn()
+    })
+    vi.spyOn(bridge, 'createLegacyBridgeUpdater').mockReturnValue(updater as unknown as AppUpdater)
+    const closed = showLegacyUpgradeWindow(screen, downloads, findLegacyBridgeTarget('global', 'darwin', 'arm64'))
+    handlers.get(LegacyUpgradeChannels.GetScreen)!(event())
+    handlers.get(LegacyUpgradeChannels.Install)!(event())
+    await vi.waitFor(() =>
+      expect(handlers.get(LegacyUpgradeChannels.GetState)!(event())).toEqual({ phase: 'installing' })
+    )
+    const ordinaryClose = { preventDefault: vi.fn() }
+    window.emit('close', ordinaryClose)
+    expect(ordinaryClose.preventDefault).toHaveBeenCalledOnce()
+    handlers.get(LegacyUpgradeChannels.Quit)!(event())
+    expect(window.isDestroyed()).toBe(false)
+    const calls = vi.mocked(app.on).mock.calls as unknown as [string, (event: { preventDefault: () => void }) => void][]
+    const beforeQuit = calls.find(([name]) => name === 'before-quit')![1]
+    const ordinaryQuit = { preventDefault: vi.fn() }
+    beforeQuit(ordinaryQuit)
+    expect(ordinaryQuit.preventDefault).toHaveBeenCalledOnce()
+    autoUpdater.emit('before-quit-for-update')
+    const updateQuit = { preventDefault: vi.fn() }
+    beforeQuit(updateQuit)
+    window.emit('close', updateQuit)
+    expect(updateQuit.preventDefault).not.toHaveBeenCalled()
+    updater.emit('error', new Error('Native install rejected'))
+    expect(handlers.get(LegacyUpgradeChannels.GetState)!(event())).toEqual({ phase: 'failed' })
+    handlers.get(LegacyUpgradeChannels.Quit)!(event())
+    await closed
+    expect(window.isDestroyed()).toBe(true)
+    expect(handlers.size).toBe(0)
   })
 })

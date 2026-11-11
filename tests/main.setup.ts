@@ -113,6 +113,11 @@ vi.mock('electron', async () => {
       on: vi.fn(),
       removeListener: vi.fn()
     },
+    autoUpdater: Object.assign(new EventEmitter(), {
+      checkForUpdates: vi.fn(),
+      quitAndInstall: vi.fn(),
+      setFeedURL: vi.fn()
+    }),
     BrowserWindow: vi.fn(),
     dialog: {
       showErrorBox: vi.fn(),
