@@ -31,7 +31,7 @@ This automation-authored delivery falls inside the maintainer's instruction to s
 ## Verification
 
 - AC1 — Shared provider schema tests and main ProviderService update tests cover validation, nullable patch deletion, and persistence.
-- AC2 — Renderer PaintingSettings, paintingPipeline, canonicalGenerate, and paintingProviderRuntime tests cover effective values, inheritance, and request handling.
+- AC2 — Renderer `PaintingSettings` and `paintingPipeline` tests cover the effective value, inheritance, and the timeout handed to the generate path; `usePaintingModelSwitch` covers the draft state after a switch.
 - AC3 — ProviderApiOptionsDrawer, ProviderHeader, and useProviderMeta tests cover editor save, clear, failure, supported visibility, and unsupported providers; usePaintingModelSwitch tests cover merged draft state across switches.
 - AC4 — `i18n-check` and the web TypeScript check pass.
 - Regression — The node TypeScript check reports `AgentSessionRuntimeService.ts(1088,71)` TS2322 in an untouched file; the same error is reproducible on the untouched base tree and is unrelated to this change.

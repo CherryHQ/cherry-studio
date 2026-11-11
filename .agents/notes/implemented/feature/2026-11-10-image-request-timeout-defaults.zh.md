@@ -31,7 +31,7 @@ Status: implemented
 ## Verification
 
 - AC1 — 共享提供商 schema 测试与主进程 ProviderService 更新测试覆盖校验、可空 patch 删除和持久化。
-- AC2 — 渲染进程 PaintingSettings、paintingPipeline、canonicalGenerate 和 paintingProviderRuntime 测试覆盖有效值、继承和请求处理。
+- AC2 — 渲染进程 `PaintingSettings` 与 `paintingPipeline` 测试覆盖有效值、继承，以及交给生成路径的超时值；`usePaintingModelSwitch` 覆盖切换 provider 后的草稿状态。
 - AC3 — ProviderApiOptionsDrawer、ProviderHeader 和 useProviderMeta 测试覆盖编辑器保存、清除、失败、支持的可见性和不支持的提供商；usePaintingModelSwitch 测试覆盖切换后合并的草稿状态。
 - AC4 — `i18n-check` 和 Web TypeScript 检查通过。
 - Regression — Node TypeScript 检查在未修改的 `AgentSessionRuntimeService.ts(1088,71)` 报告 TS2322；未修改的基线树可复现相同错误，与本次变更无关。
