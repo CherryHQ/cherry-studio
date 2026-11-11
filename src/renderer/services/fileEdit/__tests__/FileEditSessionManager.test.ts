@@ -466,6 +466,25 @@ describe('file editing lifetime', () => {
     expect(lease.getSnapshot().saveError).toBeUndefined()
   })
 
+  it('surfaces a migration barrier on an explicit save when autosave is disabled', async () => {
+    const lease = await manager.acquire('notes', handle)
+    lease.setAutoSave(false)
+    failWrite = true
+    failWriteCode = fileErrorCodes.EDIT_MIGRATION_BLOCKED
+    lease.acceptEdit('b')
+    // An explicit Save overlapping the barrier must reject and latch saveError:
+    // with autosave off there is no scheduled retry to silently fulfill it.
+    await expect(lease.flush()).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MIGRATION_BLOCKED })
+    expect(lease.getSnapshot().saveError).toBeInstanceOf(IpcError)
+    await vi.advanceTimersByTimeAsync(30000)
+    expect(writes).toEqual([])
+    // The retained draft recovers through an explicit retry once the barrier lifts.
+    failWrite = false
+    await lease.flush()
+    expect(new TextDecoder().decode(disk.data)).toBe('b')
+    expect(lease.getSnapshot().saveError).toBeUndefined()
+  })
+
   it('falls back to explicit recovery when a migration barrier outlasts the retry budget', async () => {
     const lease = await manager.acquire('notes', handle)
     failWrite = true

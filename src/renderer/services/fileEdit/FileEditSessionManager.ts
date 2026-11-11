@@ -394,7 +394,12 @@ export class FileEditSessionManager {
         // for unrelated files until manual recovery. Retry instead; sealed
         // sessions (migration flush) keep the loud failure, and the retry
         // budget falls back to the same explicit-recovery behavior.
+        // Sessions without autosave (explicit-save owners, e.g. artifacts)
+        // also keep the loud failure: schedule() is a no-op for them, so a
+        // swallowed retry would leave an explicit Save unsaved with no error
+        // and no retry, and a release-time flush with no recovery warning.
         if (
+          session.autoSave &&
           !session.snapshot.sealed &&
           session.transientSaveRetries < MAX_TRANSIENT_SAVE_RETRIES &&
           error instanceof IpcError &&
