@@ -138,7 +138,8 @@ see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
   both trigger on one step, the clean steer yield takes precedence.
 - A streamed turn whose final step ends with `content-filter` and produced no
   text or tool call is converted into `ContentFilterTerminalError`. Its
-  `finishReason` lets the renderer classify it as a content error instead of
+  `finishReason` lets the renderer classify it as a content error, and the
+  stored execution failure record it as `content_filter`, instead of
   persisting an empty success, and its `i18nKey` (`error.content_filtered`)
   localizes the message. A filtered step that already streamed text still
   finishes normally.
