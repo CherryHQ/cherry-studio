@@ -1509,6 +1509,7 @@
   "error.claude_code_exit.start": "Не удалось запустить Claude Code. Ссылка на диагностику: {{reference}}",
   "error.claude_code_session_bus_missing": "Для Claude Code требуется активная шина сеанса Linux.",
   "error.claude_code_session_bus_missing_detail": "Установите DBUS_SESSION_BUS_ADDRESS в среде рабочего стола, из которой запускается Cherry Studio, а затем перезапустите приложение. Claude Code не был запущен.",
+  "error.claude_code_storage_open_failed": "Не удалось открыть хранилище сеанса Claude Code. Перезапустите приложение и проверьте, что папка данных агента доступна для чтения и в ней есть свободное место.",
   "error.content": "Содержание",
   "error.data": "данные",
   "error.detail": "Детали ошибки",
