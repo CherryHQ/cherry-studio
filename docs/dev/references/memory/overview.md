@@ -68,7 +68,7 @@ Durable progress lives in module-owned `app_state`; JobManager history can be re
 
 Topic deletion is conservative: both source and destination must be distinct managed topics; `MEMORY.md` cannot serve as either. The prompt and proposal schema use the same path rule; all active files must have been supplied, source text must remain verbatim in a written topic destination, and remaining Markdown/wiki links must no longer target the source. HTML links require manual review. Destinations and link edits save before removal. Partial saves remain recoverable. This does not prove semantic equivalence of model rewrites.
 
-The implementation remains a Draft stack. Focused lifecycle, migration, file-commit, settings, and cancellation regressions are covered. Native-platform, representative-model, and packaged-build acceptance remain incomplete. See [the module contract](../../../src/main/ai/memory/README.md) for boundaries.
+The implementation remains a Draft stack. Focused lifecycle, migration, file-commit, settings, and cancellation regressions are covered. Native-platform, representative-model, and packaged-build acceptance remain incomplete. See [the module contract](../../../../src/main/ai/memory/README.md) for boundaries.
 
 ### Knowledge Base (Assistant + Agent)
 
