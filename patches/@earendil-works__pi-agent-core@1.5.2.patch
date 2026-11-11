@@ -1,7 +1,10 @@
 diff --git a/dist/agent-loop.js b/dist/agent-loop.js
+index 48f56a2..b64b833 100644
 --- a/dist/agent-loop.js
 +++ b/dist/agent-loop.js
-@@ -668,6 +668,7 @@
+@@ -666,10 +666,11 @@ function createToolResultMessage(finalized) {
+         toolName: finalized.toolCall.name,
+         // Untyped tools (JS extensions) can return results without content; normalize
          // so the null never enters session history or provider payloads.
          content: finalized.result.content ?? [],
          details: finalized.result.details,
@@ -9,3 +12,5 @@ diff --git a/dist/agent-loop.js b/dist/agent-loop.js
          usage: finalized.result.usage,
          isError: finalized.isError,
          ...(finalized.durationMs === undefined ? {} : { durationMs: finalized.durationMs }),
+         timestamp: Date.now(),
+     };
