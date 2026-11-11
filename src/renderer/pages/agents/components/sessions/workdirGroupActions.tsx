@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { FolderOpen, SquarePen, Trash2 } from 'lucide-react'
+import { FolderOpen, Pin, PinOff, SquarePen, Trash2 } from 'lucide-react'
 
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -10,6 +10,10 @@ import { isMac, isWin } from '@renderer/utils/platform'
 export interface WorkdirGroupActionContext {
   canDelete: boolean
   canRename: boolean
+  canPin: boolean
+  pinned: boolean
+  pinDisabled?: boolean
+  onTogglePin: (group: ResourceListGroup) => void | Promise<void>
   deleteDisabled?: boolean
   group: ResourceListGroup
   onDelete: (group: ResourceListGroup) => void | Promise<void>
@@ -35,6 +39,22 @@ function getFileManagerName(t: TFunction) {
 workdirGroupActionRegistry.registerCommand({
   id: 'workdir-group.open',
   run: ({ onOpen, workdirPath }) => onOpen(workdirPath)
+})
+
+workdirGroupActionRegistry.registerCommand({
+  id: 'workdir-group.toggle-pin',
+  availability: ({ canPin, pinDisabled }) => ({ visible: canPin, enabled: !pinDisabled }),
+  run: ({ group, onTogglePin }) => onTogglePin(group)
+})
+
+workdirGroupActionRegistry.registerAction({
+  id: 'workdir-group.toggle-pin',
+  commandId: 'workdir-group.toggle-pin',
+  label: ({ pinned, t }) => t(pinned ? 'selector.common.unpin' : 'selector.common.pin'),
+  icon: ({ pinned }) => (pinned ? <PinOff size={14} /> : <Pin size={14} />),
+  group: 'pin',
+  order: 15,
+  surface: 'menu'
 })
 
 workdirGroupActionRegistry.registerCommand({

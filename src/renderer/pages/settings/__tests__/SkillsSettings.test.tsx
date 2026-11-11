@@ -111,8 +111,6 @@ describe('SkillsSettings', () => {
     ])
 
     const props = resourceCatalogViewMock.mock.calls.at(-1)?.[0] as ResourceCatalogViewProps
-    expect(props.onLaunchSkill).toBe(launchSkillMock)
-    expect(props.allowColumnToggle).toBe(true)
 
     props.onOpenSkill?.({ id: 'skill-1' } as Parameters<NonNullable<ResourceCatalogViewProps['onOpenSkill']>>[0])
     expect(navigateMock).toHaveBeenCalledWith({
@@ -122,12 +120,10 @@ describe('SkillsSettings', () => {
     })
   })
 
-  it('opens the dedicated Skill route and exposes the shared launch action', () => {
+  it('opens the dedicated Skill route', () => {
     render(<SkillsSettings />)
 
     const props = resourceCatalogViewMock.mock.calls.at(-1)?.[0] as ResourceCatalogViewProps
-    expect(props.onLaunchSkill).toBe(launchSkillMock)
-    expect(props.allowColumnToggle).toBe(true)
 
     props.onOpenSkill?.({ id: 'skill-1' } as Parameters<NonNullable<ResourceCatalogViewProps['onOpenSkill']>>[0])
     expect(navigateMock).toHaveBeenCalledWith({

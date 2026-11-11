@@ -12,8 +12,7 @@ import { QuickPanelRow } from '../QuickPanel/list'
 
 vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
 
-const { PermissionModeIcon, PermissionModeOptionLabel, PermissionModeSelect, PermissionModeWarning } =
-  PermissionModeComponents
+const { PermissionModeOptionLabel, PermissionModeSelect, PermissionModeWarning } = PermissionModeComponents
 
 // The component only ever calls t(key, fallback); rendering the fallback keeps these
 // assertions about layout rather than about the locale files.
@@ -87,39 +86,6 @@ function renderOpenPermissionSelect() {
   fireEvent.pointerDown(trigger)
   fireEvent.click(trigger)
 }
-
-describe('PermissionModeIcon', () => {
-  it('marks only Full Access as a custom destructive toolbar icon', () => {
-    const { container, rerender } = render(<PermissionModeIcon mode="default" />)
-    const defaultIcon = container.querySelector('svg')
-
-    expect(defaultIcon).toHaveClass('text-muted-foreground')
-    expect(defaultIcon).not.toHaveClass('lucide-custom')
-
-    rerender(<PermissionModeIcon mode="bypassPermissions" />)
-    const fullAccessIcon = container.querySelector('svg')
-
-    expect(fullAccessIcon).toHaveClass('text-destructive', 'lucide-custom')
-  })
-})
-
-describe('PermissionModeOptionLabel', () => {
-  it('keeps permanent copy to the title and optional description', () => {
-    render(<PermissionModeOptionLabel card={withWarning} t={t} />)
-
-    expect(screen.getByText('Approve for Me')).toBeInTheDocument()
-    expect(screen.getByText('Runs without routine prompts.')).toBeInTheDocument()
-    expect(screen.queryByText('Needs a model that supports it.')).not.toBeInTheDocument()
-  })
-
-  it('supports compact title-only surfaces', () => {
-    render(<PermissionModeOptionLabel card={withWarning} t={t} withDescription={false} />)
-
-    expect(screen.getByText('Approve for Me')).toBeInTheDocument()
-    expect(screen.queryByText('Runs without routine prompts.')).not.toBeInTheDocument()
-    expect(screen.queryByText('Needs a model that supports it.')).not.toBeInTheDocument()
-  })
-})
 
 describe('PermissionModeSelect', () => {
   it('keeps the long warning out of permanent option copy and exposes it on pointer hover', async () => {

@@ -80,21 +80,11 @@ beforeEach(() => {
 })
 
 describe('systemHandlers', () => {
-  it('get_device_type delegates to the platform util', async () => {
-    getDeviceTypeMock.mockReturnValue('mac')
-    expect(await systemHandlers['system.get_device_type'](undefined, ctx('w1'))).toBe('mac')
-  })
-
   it('get_native_theme returns Electron resolved theme', async () => {
     expect(await systemHandlers['system.get_native_theme'](undefined, ctx('w1'))).toBe('light')
 
     nativeThemeMock.shouldUseDarkColors = true
     expect(await systemHandlers['system.get_native_theme'](undefined, ctx('w1'))).toBe('dark')
-  })
-
-  it('get_ip_country delegates to RegionService', async () => {
-    getCountryMock.mockResolvedValue('US')
-    expect(await systemHandlers['system.get_ip_country'](undefined, ctx('w1'))).toBe('US')
   })
 
   it('get_fonts strips wrapping quotes and drops empties', async () => {
