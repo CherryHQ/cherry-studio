@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CommandShortcut } from '@renderer/components/command'
+import { ComputerUseAppIcon } from '@renderer/components/ComputerUseAppIcon'
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
@@ -366,6 +367,7 @@ export function AgentSessionDetailsSections({
               <div
                 key={JSON.stringify([row.ownerId, row.appId])}
                 className="flex min-w-0 items-center gap-2 px-1 py-2 text-xs">
+                <ComputerUseAppIcon app={{ name: name ?? row.label, identity: row.appIdentity }} />
                 <span title={name} className="min-w-0 flex-1 truncate">
                   {name}
                 </span>

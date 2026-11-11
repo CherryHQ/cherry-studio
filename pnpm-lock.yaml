@@ -500,8 +500,8 @@ importers:
         specifier: 1.4.0
         version: 1.4.0(typescript@5.9.3)
       '@cherrystudio/computer-use':
-        specifier: 0.1.10
-        version: 0.1.10
+        specifier: 0.1.11
+        version: 0.1.11
       '@cherrystudio/extension-table-plus':
         specifier: workspace:^
         version: link:packages/extension-table-plus
@@ -3155,38 +3155,38 @@ packages:
       typescript:
         optional: true
 
-  '@cherrystudio/computer-use-darwin-arm64@0.1.10':
-    resolution: {integrity: sha512-TMVt7/DUjsyBEZP1wanvkOTlzV3aA3SEmQ+xqRJMYAflWel2GiiS15T2zLUDyyNryxjjKOejyWughS7Kcf+dZQ==}
+  '@cherrystudio/computer-use-darwin-arm64@0.1.11':
+    resolution: {integrity: sha512-/dlR6orx3B5i+Q3uSVl0YlYyhdV7yDcBd5DbCxO6ie5sJS72c2m4Z291Dh8Alu4uqIGJ3+gZySPoMhxXKXx10g==}
     cpu: [arm64]
     os: [darwin]
 
-  '@cherrystudio/computer-use-darwin-x64@0.1.10':
-    resolution: {integrity: sha512-HvxaIS+4lr8ZGdTVfzRmedBZutkNMzyJwpfA4wr1Efshi07lOGJZKfeHzvrpuOaoX6N3R5jdSznUHNUJpB4aWQ==}
+  '@cherrystudio/computer-use-darwin-x64@0.1.11':
+    resolution: {integrity: sha512-K33+H/dulSDpbf0XkneFBLo7dXBN1MgP0CP8pdYqlsmxGPGSVUpeUbrthbV/Gt83RX739NfiBS5XWARH8YJmJQ==}
     cpu: [x64]
     os: [darwin]
 
-  '@cherrystudio/computer-use-linux-arm64@0.1.10':
-    resolution: {integrity: sha512-v8/jy9MfRF3ovaXtoE2X08PRyWPDkYIlVKo4q+9j/blM2qjk4hcM4cFM8AvwePhJAIw1mebxj1K+3rmT5DXhmQ==}
+  '@cherrystudio/computer-use-linux-arm64@0.1.11':
+    resolution: {integrity: sha512-ME8g9QfNBeR4hkoptSmvjIH+3odQsAADv4JLZvC+FKlH6gcSclJMGdS+jzp714S47+Oo2iUpGybFkYyYgDLuSA==}
     cpu: [arm64]
     os: [linux]
 
-  '@cherrystudio/computer-use-linux-x64@0.1.10':
-    resolution: {integrity: sha512-aQVrQrc0N6+HjQOr17jQxGU6yS5in4gxzMeh3GDZlHVrROzGw3Sqg7hduHddgvG8JzlrpE3riLrJ6h8SO/5o/A==}
+  '@cherrystudio/computer-use-linux-x64@0.1.11':
+    resolution: {integrity: sha512-lBM0BhPDWqJYvb3Jmh6hoZldc49pE9W01U3r5atut9VLgKQqy299Kkv4WnsskP/1HpDcAoxtxJ0Xrn8xjMw/MA==}
     cpu: [x64]
     os: [linux]
 
-  '@cherrystudio/computer-use-win32-arm64@0.1.10':
-    resolution: {integrity: sha512-Rh2JYJuHq6irJ+M2oeMmGu3djoXAWSic3FR3SWg7THJyPvEA3meJ9UCTJt+eLs1TiYujAaF7sMCXuwL26qD1VQ==}
+  '@cherrystudio/computer-use-win32-arm64@0.1.11':
+    resolution: {integrity: sha512-pSQIJIkXY5V8re6Ebi2foXtXka5b+TqojPjwvXf31JdzaXNw8PEhAfyvAEvqiD1m1jV4UM3w0ioygtDfu2paiw==}
     cpu: [arm64]
     os: [win32]
 
-  '@cherrystudio/computer-use-win32-x64@0.1.10':
-    resolution: {integrity: sha512-dUHxqM6ec+5e2I3fE9c5B6I0Mq24a7DhmWzoTLAG8LM+fT4usExMKkp3oGkvytrYiJNLeRXgciLNatesyLG5Aw==}
+  '@cherrystudio/computer-use-win32-x64@0.1.11':
+    resolution: {integrity: sha512-MMARob3qIzoBJm8gila3BATdgMiDPXbenSOlZ5O5yW1+YpHWKiAcZLd/dmUKa2nSCI07H6lUZ2Fuu2pWQ2KYdA==}
     cpu: [x64]
     os: [win32]
 
-  '@cherrystudio/computer-use@0.1.10':
-    resolution: {integrity: sha512-WicaibxZwqOcuCUs6nw5ZIBA9dK2YCfH4AySUy/j4f7nWIDQydq3uiQZEb+YGa9jbkS5BOH5gAqjy/prm8jlGA==}
+  '@cherrystudio/computer-use@0.1.11':
+    resolution: {integrity: sha512-Df+I2p4H6t7jkp/MiCMqUjPBoAz9orNbSWNxzKJmieZYE7D2vimSE4DvRZTnuaDvIGjiZOMDbiXR9ttT8hyjxQ==}
     engines: {node: '>=24'}
 
   '@cherrystudio/mlx-asr@https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac#path:distribution/asr':
@@ -17657,32 +17657,32 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
-  '@cherrystudio/computer-use-darwin-arm64@0.1.10':
+  '@cherrystudio/computer-use-darwin-arm64@0.1.11':
     optional: true
 
-  '@cherrystudio/computer-use-darwin-x64@0.1.10':
+  '@cherrystudio/computer-use-darwin-x64@0.1.11':
     optional: true
 
-  '@cherrystudio/computer-use-linux-arm64@0.1.10':
+  '@cherrystudio/computer-use-linux-arm64@0.1.11':
     optional: true
 
-  '@cherrystudio/computer-use-linux-x64@0.1.10':
+  '@cherrystudio/computer-use-linux-x64@0.1.11':
     optional: true
 
-  '@cherrystudio/computer-use-win32-arm64@0.1.10':
+  '@cherrystudio/computer-use-win32-arm64@0.1.11':
     optional: true
 
-  '@cherrystudio/computer-use-win32-x64@0.1.10':
+  '@cherrystudio/computer-use-win32-x64@0.1.11':
     optional: true
 
-  '@cherrystudio/computer-use@0.1.10':
+  '@cherrystudio/computer-use@0.1.11':
     optionalDependencies:
-      '@cherrystudio/computer-use-darwin-arm64': 0.1.10
-      '@cherrystudio/computer-use-darwin-x64': 0.1.10
-      '@cherrystudio/computer-use-linux-arm64': 0.1.10
-      '@cherrystudio/computer-use-linux-x64': 0.1.10
-      '@cherrystudio/computer-use-win32-arm64': 0.1.10
-      '@cherrystudio/computer-use-win32-x64': 0.1.10
+      '@cherrystudio/computer-use-darwin-arm64': 0.1.11
+      '@cherrystudio/computer-use-darwin-x64': 0.1.11
+      '@cherrystudio/computer-use-linux-arm64': 0.1.11
+      '@cherrystudio/computer-use-linux-x64': 0.1.11
+      '@cherrystudio/computer-use-win32-arm64': 0.1.11
+      '@cherrystudio/computer-use-win32-x64': 0.1.11
 
   '@cherrystudio/mlx-asr@https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac#path:distribution/asr': {}
 
