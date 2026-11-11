@@ -359,10 +359,14 @@ describe('trashPurgeJobHandler', () => {
       { endpoint: '/topics/:topicId/tree' },
       { endpoint: '/messages/:id' }
     ])
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
-      { endpoint: '/agent-sessions/:sessionId/messages/:messageId' }
-    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
+        { endpoint: '/agent-sessions/:sessionId/messages/:messageId' },
+        { endpoint: '/ai-usage-records/local', kind: 'membership' },
+        { endpoint: '/agent-sessions/:sessionId/cost', routeParams: { sessionId: 'session-expired' } }
+      ])
+    )
   })
 
   it('purges domains in RFC §6 order: topic → session → agent → assistant → painting → file entry', async () => {

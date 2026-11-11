@@ -117,6 +117,19 @@ themes. Resolve theme differences through semantic tokens; a component-local `da
 override a caller's semantic foreground. Fix conflicting defaults in the owning shared component instead of adding
 `!important` overrides to individual callers.
 
+### Action icon consistency
+
+- Neutral utility icons in the same card, toolbar, or action group use the same foreground role, normally
+  `muted-foreground`. Adding an action must preserve that group's existing icon treatment.
+- Primary and destructive buttons may inherit their variant's foreground; status icons use the matching feedback
+  role. Preserve brand artwork colors instead of applying utility-icon colors to logos.
+- An explicit Lucide color inside `Button` must follow its
+  [icon color contract](./packages/ui/README.md#icon-colors), including the `lucide-custom` marker. A foreground
+  utility alone does not override the button's inherited-icon rule.
+- Apply the same treatment to alternate icons: loading, start/stop, open, retry, and upgrade states.
+- Verify the rendered result beside adjacent controls in light and dark themes. Inspect computed icon colors when
+  inheritance is involved; a class name or a passing type check is not evidence of the displayed color.
+
 ## 4. Typography
 
 Use the shared body and heading font families for functional UI. Code-rendering components own their monospace
@@ -219,5 +232,6 @@ Before shipping new UI, check that it:
 - verifies rendered icon colors against their semantic roles in both themes, including rest, hover, keyboard
   focus, selected/open, and disabled states; utility class presence alone does not prove the resulting color;
 - provides accessible names for icon-only actions;
+- keeps adjacent action icons and their loading/state replacements visually consistent;
 - respects reduced motion;
 - keeps page-specific implementation choices out of the global design-system contract.

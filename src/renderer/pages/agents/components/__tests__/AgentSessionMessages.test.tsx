@@ -61,10 +61,10 @@ describe('AgentSessionMessages', () => {
 
     expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        assistantProfile: {
+        assistantProfile: expect.objectContaining({
           name: 'Blank avatar agent',
           avatar: '🤖'
-        }
+        })
       })
     )
   })

@@ -6,6 +6,9 @@ importers:
   .:
     configDependencies: {}
     packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 12.6.0
+        version: 12.6.0
       pnpm:
         specifier: 12.6.0
         version: 12.6.0
@@ -89,6 +92,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@pnpm/exe@12.6.0':
+    resolution: {integrity: sha512-CkNetlJZugjKp9vPvWqCm5ahORU6FfO46BlOqqSCKLJ+W6QcRgM0qmmPTvlgrXVvkAiH+9hE+mMp/wSaqcU5Aw==}
+    engines: {node: '>=18.*'}
+    hasBin: true
+
   pnpm@12.6.0:
     resolution: {integrity: sha512-PvaPlRyxEawgS0paFvCy3fDaVqluBBPoHYVdnwtV75JnFHCQKOHNAMQFwsX7e56OxNxGd3yAXQNzwvL/AP0g7A==}
     engines: {node: '>=18.*'}
@@ -138,6 +146,23 @@ snapshots:
   '@pnpm/exe.win32-x64@12.6.0':
     optional: true
 
+  '@pnpm/exe@12.6.0':
+    optionalDependencies:
+      '@pnpm/exe.android-arm64': 12.6.0
+      '@pnpm/exe.android-x64': 12.6.0
+      '@pnpm/exe.darwin-arm64': 12.6.0
+      '@pnpm/exe.darwin-x64': 12.6.0
+      '@pnpm/exe.freebsd-x64': 12.6.0
+      '@pnpm/exe.linux-arm64': 12.6.0
+      '@pnpm/exe.linux-arm64-musl': 12.6.0
+      '@pnpm/exe.linux-ppc64': 12.6.0
+      '@pnpm/exe.linux-riscv64': 12.6.0
+      '@pnpm/exe.linux-s390x': 12.6.0
+      '@pnpm/exe.linux-x64': 12.6.0
+      '@pnpm/exe.linux-x64-musl': 12.6.0
+      '@pnpm/exe.win32-arm64': 12.6.0
+      '@pnpm/exe.win32-x64': 12.6.0
+
   pnpm@12.6.0:
     optionalDependencies:
       '@pnpm/exe.android-arm64': 12.6.0
@@ -154,6 +179,7 @@ snapshots:
       '@pnpm/exe.linux-x64-musl': 12.6.0
       '@pnpm/exe.win32-arm64': 12.6.0
       '@pnpm/exe.win32-x64': 12.6.0
+
 ---
 lockfileVersion: '9.0'
 
@@ -256,6 +282,7 @@ patchedDependencies:
   motion-dom@12.42.0: 5c9bfe486d8d0472ab803d31133ec3a7e34aa8cadde01fdd9923e2dbbc170014
   ollama-ai-provider-v2@3.3.1: cdb5584635d0af18825b289f32f904dd939cca73d2a799115ee5737e651e1ff2
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
+  pi-acp@0.0.34: 3c37bae1800effa7b55b7492c46f87a3c60a2cb8bb541ffa622b5e8d784797d9
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
   rtf.js@3.0.9: 8f9a6825a5d8d1e4c4a5911165dc7e3398199e30ca7abc009df7bd0c612f3d24
   sherpa-onnx-node@1.13.6: 63432398c7e4f08be86944fdaf2b39cc5a8ce719db9ae38913d794d8bdcbcf0e
@@ -372,6 +399,9 @@ importers:
       range-parser:
         specifier: 1.2.1
         version: 1.2.1
+      read-cmd-shim:
+        specifier: ^6.0.0
+        version: 6.0.0
       registry-js:
         specifier: 1.16.1
         version: 1.16.1
@@ -400,6 +430,9 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ^1.5.0
+        version: 1.9.0(zod@4.4.3)
       '@ai-sdk/amazon-bedrock':
         specifier: ^4.0.96
         version: 4.0.96(patch_hash=7f2fa5c38067d9e6a9f575a279b30ca54ee5bfc4984d97ad2f13a7c2662d85ee)(zod@4.4.3)
@@ -877,6 +910,9 @@ importers:
       '@types/turndown':
         specifier: ^5.0.5
         version: 5.0.6
+      '@types/unbzip2-stream':
+        specifier: ^1.4.3
+        version: 1.4.3
       '@types/unist':
         specifier: 3.0.3
         version: 3.0.3
@@ -1303,6 +1339,9 @@ importers:
       pdfjs-dist:
         specifier: 5.4.296
         version: 5.4.296
+      pi-acp:
+        specifier: 0.0.34
+        version: 0.0.34(patch_hash=3c37bae1800effa7b55b7492c46f87a3c60a2cb8bb541ffa622b5e8d784797d9)
       postcss:
         specifier: 8.5.6
         version: 8.5.6
@@ -1447,6 +1486,9 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+      unbzip2-stream:
+        specifier: ^1.4.3
+        version: 1.4.3
       undici:
         specifier: 6.27.0
         version: 6.27.0
@@ -2431,6 +2473,16 @@ packages:
 
   '@adobe/css-tools@4.4.4':
     resolution: {integrity: sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==}
+
+  '@agentclientprotocol/sdk@0.26.0':
+    resolution: {integrity: sha512-ialrcI+RzKOYe+fw+TfpyTdRmEoqIkXLlwbTi6XgaXXfdhNcdod7TmE1VsTnG3yTlox8TMTSMQgWbLLbz3r86Q==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+
+  '@agentclientprotocol/sdk@1.9.0':
+    resolution: {integrity: sha512-saCOTPYBK1iqWqJFAYHXbg3+zCoFXyZZFoqQAwdTWkbrZZPpAETr80QOnYr2l+dzPwL0jpNhn3eDY8MoEIDbUA==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@agentclientprotocol/sdk@2.4.0':
     resolution: {integrity: sha512-7qJ8nnyj7WesC5ve185ioTpB2/svQoeGV4HA4nLEhgDUrcmBe54/08VcXc/oL4p14tDbxxECZzdYmUYQ+4l+Wg==}
@@ -8338,6 +8390,9 @@ packages:
   '@types/stream-json@1.7.8':
     resolution: {integrity: sha512-MU1OB1eFLcYWd1LjwKXrxdoPtXSRzRmAnnxs4Js/ayB5O/NvHraWwuOaqMWIebpYwM6khFlsJOHEhI9xK/ab4Q==}
 
+  '@types/through@0.0.33':
+    resolution: {integrity: sha512-HsJ+z3QuETzP3cswwtzt2vEIiHBk/dCcHGhbmG5X3ecnwFD/lPrMpliGXxSCg03L9AhrdwA4Oz/qfspkDW+xGQ==}
+
   '@types/tinycolor2@1.4.6':
     resolution: {integrity: sha512-iEN8J0BoMnsWBqjVbWH/c0G0Hh7O21lpR2/+PrvAVgWdzL7eexIFm4JN/Wn10PTcmNdtS6U67r499mlWMXOxNw==}
 
@@ -8349,6 +8404,9 @@ packages:
 
   '@types/turndown@5.0.6':
     resolution: {integrity: sha512-ru00MoyeeouE5BX4gRL+6m/BsDfbRayOskWqUvh7CLGW+UXxHQItqALa38kKnOiZPqJrtzJUgAC2+F0rL1S4Pg==}
+
+  '@types/unbzip2-stream@1.4.3':
+    resolution: {integrity: sha512-D8X5uuJRISqc8YtwL8jNW2FpPdUOCYXbfD6zNROCTbVXK9nawucxh10tVXE3MPjnHdRA1LvB0zDxVya/lBsnYw==}
 
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
@@ -13695,6 +13753,11 @@ packages:
   pend@1.2.0:
     resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
 
+  pi-acp@0.0.34:
+    resolution: {integrity: sha512-MrCp37UbpUzkTkzTIMJQf1RYrT+kr4fgGDGFoLmBN26UupuCZp0XxVIY+7XYsMo3yDnzDeZUJ0jPyM3Si6Bkkg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
@@ -14203,6 +14266,10 @@ packages:
   read-binary-file-arch@1.0.6:
     resolution: {integrity: sha512-BNg9EN3DD3GsDXX7Aa8O4p92sryjkmzYYgmgTAc6CA4uGLEDzFfxOxugu21akOxpcXHiEgsYkC6nPsQvLLLmEg==}
     hasBin: true
+
+  read-cmd-shim@6.0.0:
+    resolution: {integrity: sha512-1zM5HuOfagXCBWMN83fuFI/x+T/UhZ7k+KIzhrHXcQoeX5+7gmaDYjELQHmmzIodumBHeByBJT4QYS7ufAgs7A==}
+    engines: {node: ^20.17.0 || >=22.9.0}
 
   readable-stream@2.3.8:
     resolution: {integrity: sha512-8p0AUk4XODgIewSi0l8Epjs+EVnWiK7NoDIEGU0HhE7+ZyY8D1IMY7odu5lRrFXGg71L15KG8QrPmum45RTtdA==}
@@ -16148,6 +16215,14 @@ packages:
 snapshots:
 
   '@adobe/css-tools@4.4.4': {}
+
+  '@agentclientprotocol/sdk@0.26.0(zod@3.25.76)':
+    dependencies:
+      zod: 3.25.76
+
+  '@agentclientprotocol/sdk@1.9.0(zod@4.4.3)':
+    dependencies:
+      zod: 4.4.3
 
   '@agentclientprotocol/sdk@2.4.0(@modelcontextprotocol/server@2.3.0)(zod@4.4.3)':
     dependencies:
@@ -22758,6 +22833,10 @@ snapshots:
       '@types/node': 24.10.4
       '@types/stream-chain': 2.1.0
 
+  '@types/through@0.0.33':
+    dependencies:
+      '@types/node': 24.10.4
+
   '@types/tinycolor2@1.4.6': {}
 
   '@types/triple-beam@1.3.5': {}
@@ -22766,6 +22845,10 @@ snapshots:
     optional: true
 
   '@types/turndown@5.0.6': {}
+
+  '@types/unbzip2-stream@1.4.3':
+    dependencies:
+      '@types/through': 0.0.33
 
   '@types/unist@2.0.11': {}
 
@@ -29225,6 +29308,12 @@ snapshots:
 
   pend@1.2.0: {}
 
+  pi-acp@0.0.34(patch_hash=3c37bae1800effa7b55b7492c46f87a3c60a2cb8bb541ffa622b5e8d784797d9):
+    dependencies:
+      '@agentclientprotocol/sdk': 0.26.0(zod@3.25.76)
+      cross-spawn: 7.0.6
+      zod: 3.25.76
+
   picocolors@1.1.1: {}
 
   picomatch@4.0.4: {}
@@ -29780,6 +29869,8 @@ snapshots:
       debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
+
+  read-cmd-shim@6.0.0: {}
 
   readable-stream@2.3.8:
     dependencies:

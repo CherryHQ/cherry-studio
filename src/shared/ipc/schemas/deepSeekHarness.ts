@@ -10,23 +10,24 @@ import {
 import { defineRoute } from '../define'
 import { operationResultSchema } from './common'
 
+const configInput = z
+  .object({
+    mode: z.enum(['direct', 'gateway']),
+    uniqueModelId: UniqueModelIdSchema,
+    agentPreset: z.enum(DEEPSEEK_HARNESS_AGENT_PRESETS).default(DEFAULT_DEEPSEEK_HARNESS_SETTINGS.agentPreset),
+    permissionMode: z.enum(DEEPSEEK_HARNESS_PERMISSION_MODES).default(DEFAULT_DEEPSEEK_HARNESS_SETTINGS.permissionMode)
+  })
+  .strict()
+
 export const deepSeekHarnessRequestSchemas = {
   'deepseek_harness.start': defineRoute({
-    input: z
-      .object({
-        mode: z.enum(['direct', 'gateway']),
-        uniqueModelId: UniqueModelIdSchema,
-        agentPreset: z.enum(DEEPSEEK_HARNESS_AGENT_PRESETS).default(DEFAULT_DEEPSEEK_HARNESS_SETTINGS.agentPreset),
-        permissionMode: z
-          .enum(DEEPSEEK_HARNESS_PERMISSION_MODES)
-          .default(DEFAULT_DEEPSEEK_HARNESS_SETTINGS.permissionMode)
-      })
-      .strict(),
+    input: configInput,
     output: z.discriminatedUnion('success', [
       z.object({ success: z.literal(true), url: z.string().url() }),
       z.object({ success: z.literal(false), message: z.string() })
     ])
   }),
+  'deepseek_harness.apply_model': defineRoute({ input: configInput, output: operationResultSchema }),
   'deepseek_harness.stop': defineRoute({
     input: z.void(),
     output: operationResultSchema

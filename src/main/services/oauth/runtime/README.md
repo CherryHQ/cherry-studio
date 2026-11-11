@@ -12,6 +12,10 @@ owns the flow (authorize → callback → token exchange → persist → refresh
 the provider's enablement: a successful sign-in flips the provider `isEnabled`
 on, and logout flips it off (and resets `authConfig` to `api-key`).
 
+`authenticatedFetch` reports missing credentials and terminal refresh failures as
+HTTP 401 errors carrying the provider identity. Transient refresh failures retain
+their retry behavior and do not clear the saved session.
+
 It is **provider-scoped**, not a general OAuth system. The hard coupling is to
 the *provider* row in SQLite: tokens persist into that row's `authConfig`
 (`ProviderAuthConfigOAuthTokenStore` → `providerService.update(providerId, …)`),

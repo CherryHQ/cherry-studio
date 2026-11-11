@@ -210,3 +210,21 @@ export const useDeleteTask = () => {
   )
   return { deleteTask }
 }
+
+export const useTaskLogs = (agentId: string | null, taskId: string | null) => {
+  const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks/:taskId/logs', {
+    params: { agentId: agentId!, taskId: taskId! },
+    query: { limit: 50 },
+    enabled: !!(agentId && taskId),
+    swrOptions: { keepPreviousData: false }
+  })
+  useDataChange('/agents/:agentId/tasks/:taskId/logs', () => refetch(), {
+    routeParams: taskId ? { taskId } : undefined
+  })
+  return {
+    logs: data?.items ?? [],
+    total: data?.total ?? 0,
+    error,
+    isLoading
+  }
+}

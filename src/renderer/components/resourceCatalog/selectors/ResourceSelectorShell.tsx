@@ -34,6 +34,7 @@ export type ResourceSelectorShellItem = {
   name: string
   emoji?: string
   avatarSrc?: string
+  icon?: ReactNode
   description?: string
   groupId?: string
   groupName?: string
@@ -228,11 +229,13 @@ function ResourceSelectorOptionRowComponent<T extends ResourceSelectorShellItem>
   renderEditAction,
   renderPinAction
 }: ResourceSelectorOptionRowProps<T>) {
-  const leading = item.emoji ? (
-    <span className="flex size-5 shrink-0 items-center justify-center text-base leading-none">{item.emoji}</span>
-  ) : fallbackIcon ? (
-    <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>
-  ) : null
+  const leading =
+    item.icon ??
+    (item.emoji ? (
+      <span className="flex size-5 shrink-0 items-center justify-center text-base leading-none">{item.emoji}</span>
+    ) : fallbackIcon ? (
+      <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>
+    ) : null)
 
   const trailing = item.groupName ? (
     <div

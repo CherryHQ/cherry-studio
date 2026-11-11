@@ -86,6 +86,7 @@ vi.mock('electron', async () => {
             return '/mock/unknown'
         }
       }),
+      getAppPath: vi.fn(() => '/mock/app'),
       getVersion: vi.fn(() => '1.0.0'),
       getLocale: vi.fn(() => 'en-US'),
       getPreferredSystemLanguages: vi.fn(() => ['en-US']),

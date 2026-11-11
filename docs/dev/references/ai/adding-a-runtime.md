@@ -150,7 +150,7 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      - `compaction-start` / `compaction-complete` / `compaction-error`
        events if the runtime compacts its own history.
 
-3. **System prompt adapter** — call the runtime-neutral
+3. **System prompt adapter** — for Cherry-managed prompt runtimes, call the runtime-neutral
    `buildAgentRuntimePrompt()` from `src/main/ai/runtime/agentPrompt.ts`, then map its
    `{ base, append }` result into the SDK's native prompt representation. Pass resolved
    channel state and capability-gated citation guidance into the common materializer.
@@ -178,6 +178,13 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    files), add `feature.agents.<name>.*` keys to the path registry
    (`src/main/core/paths/`) instead of building paths ad hoc.
 
+Native CLI runtimes are an explicit exception to Cherry-owned prompt, model and skill
+injection: the CLI owns its settings, credentials, prompts, MCP and Skills. They may
+provide `getExecutionId(agent)` for a provider-free execution identity; returning
+`undefined` marks an unroutable Agent. Native connections declare
+`sessionCostScope: 'native-session'` when cumulative cost follows their resume token.
+See [Local Agent Runtime](./local-agent-runtime.md#ownership-and-routing).
+
 ## Step 3 — renderer
 
 Usually **nothing**. Selector options, edit/create dialogs, slash commands,
@@ -192,7 +199,7 @@ known exceptions, only if you need them:
 
 These are the choices nothing enforces:
 
-- **Cherry prompt policy is runtime-neutral.** Every driver must consume
+- **Cherry prompt policy is runtime-neutral.** Every Cherry-managed prompt driver must consume
   `buildAgentRuntimePrompt()` rather than assembling its own Cherry policy. A runtime may
   supply native workspace/context mechanics, but it may not omit or fork instruction authority,
   built-in Agent resolution, channel security, citation/artifact guidance, or response language.

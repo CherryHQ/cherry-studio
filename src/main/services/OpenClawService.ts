@@ -4,6 +4,8 @@ import fs from 'node:fs'
 import { Socket } from 'node:net'
 import path from 'node:path'
 
+import { Mutex } from 'async-mutex'
+
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -25,6 +27,7 @@ import {
 } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import type { BinaryAvailability } from '@shared/types/binary'
+import { CodeCli } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
@@ -411,6 +414,10 @@ export class OpenClawService extends BaseService {
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
   private gatewayProcess?: { child: ChildProcess; port: number }
+  /** Serializes config writes with the gateway lifecycle so neither observes a half-written file. */
+  private readonly configMutex = new Mutex()
+  /** Sessions holding the gateway open; the web UI and an idle release leave it running. */
+  private readonly gatewayLeases = new Set<symbol>()
   // Bumped by every setGatewayStatus; probes discard results from an older generation.
   private gatewayTransitionId = 0
 
@@ -861,6 +868,49 @@ export class OpenClawService extends BaseService {
     logger.warn('OpenClaw schema capability check failed', { summary })
     const details = summary ? `\n${summary}` : ''
     throw new OpenClawPreflightError('binary_incompatible', t('openclaw.errors.binary_incompatible', { details }))
+  }
+
+  /** Serialize a config write with the gateway lifecycle and drop the cached auth token. */
+  public async writeConfigFiles<T>(write: () => Promise<T>): Promise<T> {
+    return this.configMutex.runExclusive(async () => {
+      const result = await write()
+      this.gatewayAuthToken = ''
+      return result
+    })
+  }
+
+  /**
+   * Hold the gateway open for one agent session. The saved model is synced first so the spawned
+   * process reads the caller's choice; releasing the last lease stops the gateway it owns.
+   */
+  async acquireGateway(signal: AbortSignal) {
+    signal.throwIfAborted()
+    const state = application.get('PreferenceService').get('feature.code_cli.configs')?.[CodeCli.OPENCLAW]
+    const modelId = state?.current ? state.providers[state.current]?.modelId : undefined
+    if (modelId) {
+      const synced = await this.syncConfig(modelId)
+      if (!synced.success) throw new Error(synced.message)
+    }
+    const started = await this.startGateway()
+    if (!started.success) throw new Error(started.message)
+    try {
+      signal.throwIfAborted()
+    } catch (error) {
+      if (!this.gatewayLeases.size) await this.stopGateway()
+      throw error
+    }
+    const lease = Symbol()
+    this.gatewayLeases.add(lease)
+    this.loadAuthTokenFromConfig()
+    return {
+      url: this.gatewayUrl,
+      token: this.gatewayAuthToken,
+      dispose: async () => {
+        if (!this.gatewayLeases.delete(lease) || this.gatewayLeases.size) return
+        const stopped = await this.stopGateway()
+        if (!stopped.success) throw new Error(stopped.message)
+      }
+    }
   }
 
   /**

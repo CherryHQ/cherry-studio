@@ -1,8 +1,10 @@
+import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { canonicalizeFilePath, createFilePathHandle, parseWindowsPath } from '@shared/utils/file'
 
 export const FILE_PREVIEW_ROUTE = '/app/file-preview'
 export const FILE_PREVIEW_REFRESH_KEY = 'filePreviewRefreshKey'
+export const FILE_PREVIEW_SOURCE_LOCATION = 'filePreviewSourceLocation'
 
 export interface FilePreviewRouteSearch {
   path: AbsoluteFilePath | undefined
@@ -36,6 +38,16 @@ function normalizeUncFilePreviewPath(filePath: string): AbsoluteFilePath {
 export function getFilePreviewRefreshKey(metadata: Record<string, unknown> | undefined): number {
   const value = metadata?.[FILE_PREVIEW_REFRESH_KEY]
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
+}
+
+export function getFilePreviewSourceLocation(
+  metadata: Record<string, unknown> | undefined
+): FileSourceLocation | undefined {
+  const value = metadata?.[FILE_PREVIEW_SOURCE_LOCATION]
+  if (!value || typeof value !== 'object' || !('line' in value)) return undefined
+  return typeof value.line === 'number' && Number.isSafeInteger(value.line) && value.line > 0
+    ? (value as FileSourceLocation)
+    : undefined
 }
 
 export function normalizeFilePreviewPath(filePath: string): AbsoluteFilePath {

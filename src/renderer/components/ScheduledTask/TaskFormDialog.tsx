@@ -607,6 +607,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
               />
               <RowFlex className="flex-wrap items-center gap-2">
                 <AgentSelector
+                  excludeLocalAgents
                   value={agentId}
                   onChange={(nextAgentId) => {
                     setAgentId(nextAgentId)

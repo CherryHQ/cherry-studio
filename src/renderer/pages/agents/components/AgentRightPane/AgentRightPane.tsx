@@ -77,6 +77,7 @@ import { useAgentDesktopControls } from '@renderer/hooks/agent/useAgentDesktopCo
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionCost } from '@renderer/hooks/agent/useAgentSessionCost'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
@@ -87,6 +88,7 @@ import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRunti
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
+import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
 import type { ComposerFileReference } from '@renderer/types/selectionReference'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -262,7 +264,7 @@ interface AgentRightPaneActions {
   canOpenArtifactFile: boolean
   canPreviewInputFileInRightPane: boolean
   openAgentToolFlow: (input: AgentToolFlowOpenInput, nested?: boolean) => void
-  openArtifactFile: (path: string) => void
+  openArtifactFile: (path: string, sourceLocation?: FileSourceLocation) => void
   openFileFromPreview: (path: string) => void
   previewInputFileInRightPane: (input: MessageInputFilePreview) => void
   openBrowserUrl?: (url: string) => void
@@ -460,13 +462,15 @@ function AgentRightPaneActionsProvider({
     [canOpenAgentToolFlow, panelActions, replaceFlowTab]
   )
   const openArtifactFileTarget = useCallback(
-    (path: string, fromPreview: boolean) => {
+    (path: string, fromPreview: boolean, sourceLocation?: FileSourceLocation) => {
       if (!canOpenArtifactFile) return
       const requestId = artifactOpenRequestRef.current + 1
       artifactOpenRequestRef.current = requestId
-      const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
+      const resolved = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
+      const selection: ArtifactPaneFileSelection | null =
+        resolved && sourceLocation ? { ...resolved, sourceLocation, previewType: 'file', readOnly: true } : resolved
       const htmlUrl = selection ? toBrowsableHtmlUrl(getArtifactPaneSelectionPath(selection)) : null
-      if (htmlUrl) {
+      if (htmlUrl && !sourceLocation) {
         openBrowserUrl(htmlUrl)
         panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: true })
         return
@@ -509,7 +513,10 @@ function AgentRightPaneActionsProvider({
     },
     [artifactOpenRequestRef, canOpenArtifactFile, panelActions, openBrowserUrl, requestFileSelection, t, workspacePath]
   )
-  const openArtifactFile = useCallback((path: string) => openArtifactFileTarget(path, false), [openArtifactFileTarget])
+  const openArtifactFile = useCallback(
+    (path: string, sourceLocation?: FileSourceLocation) => openArtifactFileTarget(path, false, sourceLocation),
+    [openArtifactFileTarget]
+  )
   const openFileFromPreview = useCallback(
     (path: string) => openArtifactFileTarget(path, true),
     [openArtifactFileTarget]
@@ -808,6 +815,8 @@ function AgentRightPaneStateProvider({
   const applyFileSelection = useCallback<RequestFileSelection>(
     (selection, onAccepted, closeActive = !selection) => {
       if (!closeActive && isSameFileSelection(previewFileSelection, selection)) {
+        setPreviewFileSelection(selection)
+        setFileTabs((tabs) => tabs.map((tab) => (selection && isSameFileSelection(tab, selection) ? selection : tab)))
         onAccepted?.()
         return
       }
@@ -1654,6 +1663,7 @@ function AgentDetailsContent() {
   const details = useAgentSessionDetails()
   const status = useAgentRightPaneStatus()
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId, meta.model)
+  const cost = useAgentSessionCost(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const desktopControls = use(DesktopControlsContext)
   return (
@@ -1664,9 +1674,11 @@ function AgentDetailsContent() {
         stopDesktopControl={desktopControls?.stopApp}
         contextUsage={
           <AgentContextUsageSummary
+            cost={cost}
             usage={usage}
             percentage={percentage}
             isCompacting={compaction.status === 'compacting'}
+            className="rounded-md border border-border-subtle px-3 py-2"
           />
         }
         status={status}

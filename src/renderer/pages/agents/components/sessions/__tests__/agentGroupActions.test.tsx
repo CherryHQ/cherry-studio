@@ -8,6 +8,7 @@ describe('Agent group archive actions', () => {
   it.each([false, true])('resolves archive actions with protected=%s', (deleteSessionsOnly) => {
     const context: AgentGroupActionContext = {
       agentId: 'agent-a',
+      isLocalAgent: false,
       assistantIconType: 'emoji',
       deleteSessionsOnly,
       onArchiveSessions: vi.fn(),

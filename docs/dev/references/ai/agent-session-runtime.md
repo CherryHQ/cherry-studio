@@ -129,7 +129,7 @@ also require their own lifecycle and product decisions.
 
 ## System prompt ownership
 
-`src/main/ai/runtime/agentPrompt.ts` is the single materializer for Cherry-owned Agent prompt policy. Every runtime passes the same Agent, workspace, agent-data path, channel state, and resolved citation guidance into `buildAgentRuntimePrompt()`, then maps its `{ base, append }` result into the runtime SDK.
+`src/main/ai/runtime/agentPrompt.ts` is the single materializer for Cherry-owned Agent prompt policy. Every Cherry-managed prompt runtime passes the same Agent, workspace, agent-data path, channel state, and resolved citation guidance into `buildAgentRuntimePrompt()`, then maps its `{ base, append }` result into the runtime SDK.
 
 The common materializer owns Cherry policy content, semantic authority, and the ordering of blocks carried through its `append` result:
 
@@ -142,7 +142,7 @@ The common materializer owns Cherry policy content, semantic authority, and the 
 7. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
 8. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
 
-Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every runtime.
+Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every Cherry-managed prompt runtime.
 
 Runtime adapters own only native mechanics:
 
@@ -157,7 +157,12 @@ Runtime adapters own only native mechanics:
 
 Claude Code uses its bundled `agents-md@builtin` plugin to load workspace instructions. Nested `AGENTS.md` files follow the native text `Read` behavior; Cherry does not inject them before `Edit`, `Write`, or other tools. Sealed sessions retain `settingSources: []` and do not automatically load workspace instruction files.
 
-Do not add Cherry policy directly to one driver. Extend the common materializer, pass any runtime-derived capability fact into it, and add integration assertions for every registered runtime. This module is main-process orchestration, not a cross-process contract, so it does not belong in `@shared`.
+Do not add Cherry policy directly to one driver. Extend the common materializer, pass any runtime-derived capability fact into it, and add integration assertions for every Cherry-managed prompt runtime. This module is main-process orchestration, not a cross-process contract, so it does not belong in `@shared`.
+
+Native CLI runtimes retain their own prompt, model, MCP and Skills configuration;
+they do not consume this materializer. Their credentials and optional native model
+identifier are CLI-owned, and no Cherry provider/model row is required. See
+[Local Agent Runtime](./local-agent-runtime.md#ownership-and-routing).
 
 ## Fresh turn
 
@@ -167,7 +172,8 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    - system workspaces are materialized under Cherry's managed root, while user
      workspace paths must already resolve to a directory;
    - the agent type must have a registered runtime driver;
-   - the agent must have a model.
+   - Cherry-managed model runtimes require a model; native CLI runtimes validate
+     their own prerequisites and use a provider-free execution identity.
 3. The provider atomically saves:
    - a `user` message with the submitted parts;
    - a pending `assistant` message with the selected model id.
@@ -310,8 +316,9 @@ and exposes the session tools below:
   Missing and trashed Sessions are rejected. The saved name is marked manually
   edited so automatic naming cannot overwrite it; existing read-model notifications
   refresh the Session list and detail views;
-- `agent_list` — discover Agents independently of their Sessions, with public identity, runtime
-  availability, and whether a model is configured;
+- `agent_list` — discover Agents independently of their Sessions, excluding disabled local Agents.
+  Runtime availability means a driver is registered, not that CLI authentication or model access
+  has been verified. Local Agents report unchecked readiness instead of requiring a Cherry model;
 - `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
   Session metadata, returning evidence snippets rather than adding an embedding dependency. Agent
   filters are applied before either search limit. The final limit counts distinct Sessions, each
@@ -319,6 +326,8 @@ and exposes the session tools below:
   hits instead of overloading an empty message-match list;
 - `session_create` — atomically create a Session plus its first completion request, optionally
   choosing another Agent with `target_agent_id`;
+- `agent_delegate` — create a dedicated local Agent Session in the caller's project or an explicit
+  existing user `workspace_id`, with one durable completion request;
 - `session_send` — send one-way or request an asynchronous terminal completion;
 - `session_deliveries` — inspect incoming and outgoing request/result state.
 
@@ -344,9 +353,24 @@ cross-Agent Session continues the target Agent's most recent workspace, falling 
 sender's workspace when that Agent has no Session. The model is not a tool argument because
 Sessions use their owning Agent's model.
 
+`agent_delegate` requires an enabled local target and reuses its Agent Services configuration.
+It never inherits the target's previous project. Without a caller user workspace it creates a fresh
+managed workspace; a missing or non-user explicit workspace is rejected atomically. The receipt
+contains the request ID, target Session ID and resolved workspace. Its persisted request carries
+`delegation: true`; ordinary cross-Session messages do not. Target execution and result delivery
+reuse the existing delivery service. `AgentDelegationService` owns request-scoped inspection, cancellation and the ten-minute
+deadline. The parent task card reads live target approvals and reuses the existing permission
+and question controls, with task-local buttons instead of global permission hotkeys. Responses
+are checked against the owning request and dispatched with the target's original approval ID.
+Stopping the parent reply leaves work running; explicit cancellation, parent deletion or target
+disablement stops owned work. Cancellation checks the recorded assistant turn under the dispatch
+lock so a stale request cannot stop a later turn. Timeout results are failures and retain partial
+output; existing recovery reconciles interrupted turns without replay. Bundled Code Mate skills
+remain until real CLI replacement acceptance passes.
+
 ### Deliberate security ceiling
 
-`session_send` and `session_create` follow the calling Session's permission mode: interactive calls
+`session_send`, `session_create` and `agent_delegate` follow the calling Session's permission mode: interactive calls
 are auto-approved in `auto` and `bypassPermissions`, including the first send; other modes require
 per-call approval. Existing Agents in either automatic mode adopt this behavior without migration.
 Claude SDK approval requests, including explicit `permissions.ask` rules, still require a user
@@ -357,7 +381,7 @@ results do not call a model tool and route only to the immutable sender Session 
 accepted request.
 
 This deliberately limits delegation to one hop from an interactive Session. A Session started
-by a delivery cannot initiate another `session_send` or `session_create`; it can only finish its own
+by a delivery cannot initiate another `session_send`, `session_create` or `agent_delegate`; it can only finish its own
 request and let the runtime return the result. The limit prevents unattended A -> B -> A loops and a
 prompt-injected Agent from using a more privileged Agent as a confused deputy without introducing a
 speculative ACL subsystem. Upgrade only when the product requires unattended multi-hop
@@ -1166,7 +1190,7 @@ retries the remaining close work. Unknown-admission input contexts remain on the
 after a successful close, for lookup on reconnect. These are process-lifetime guarantees;
 unsaved product context is not reconstructed from the native binding after a process crash.
 
-`ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
+`ClaudeCodeProcessManager` owns CLI handles for the Cherry-managed Claude runtime. Each of its SDK `Options` objects routes
 through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,
 dropping it on `exit`. Both consuming services `@DependsOn` it, so it initialises first and therefore
 stops last — after their queries are closed — instead of relying on registry order.

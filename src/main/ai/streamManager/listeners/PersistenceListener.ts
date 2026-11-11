@@ -1,20 +1,20 @@
+import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 /**
  * Storage-agnostic terminal-event listener: filters by `modelId`, folds
  * errors into `finalMessage.parts`, carries message-owned runtime stats, and
  * delegates the write to a `PersistenceBackend`.
  */
-
-import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { getProviderModelId } from '@shared/ai/executionIdentity'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type {
   CherryMessagePart,
   CherryUIMessage,
   MessageRuntimeStatsInput,
   MessageRuntimeTiming
 } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
 import {
@@ -34,7 +34,7 @@ export interface PersistenceListenerOptions {
   /** Listener id namespace — typically the topic id. */
   topicId: string
   /** Multi-model: one listener per execution, filter by modelId. Undefined = single-model "any". */
-  modelId?: UniqueModelId
+  modelId?: ExecutionId
   backend: PersistenceBackend
   /** The content owner may normalize grouped sources before their checkpoint is saved. */
   prepareMessage?: (message: CherryUIMessage, status: 'success' | 'paused' | 'error') => CherryUIMessage | undefined
@@ -90,7 +90,7 @@ export class PersistenceListener implements StreamListener {
     return true
   }
 
-  private owns(modelId: UniqueModelId | undefined): boolean {
+  private owns(modelId: ExecutionId | undefined): boolean {
     return !modelId || !this.opts.modelId || modelId === this.opts.modelId
   }
 
@@ -130,7 +130,7 @@ export class PersistenceListener implements StreamListener {
       const saved = await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
         status,
-        modelId: this.opts.modelId,
+        modelId: this.opts.modelId ? getProviderModelId(this.opts.modelId) : undefined,
         ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
       })
       if (saved) result.persistence = { status: 'saved', message: saved }

@@ -16,6 +16,7 @@ import { toFileUrl } from '@shared/utils/file'
 
 import type { FilePreviewPluginProps } from '../../types'
 import { useOptionalFilePreviewNavigation } from '../../useFilePreviewNavigation'
+import TextFilePreview from '../text/TextFilePreview'
 import { type MarkdownFilePreviewMode, MarkdownFilePreviewToolbar } from './MarkdownFilePreviewToolbar'
 
 const logger = loggerService.withContext('MarkdownFilePreview')
@@ -151,7 +152,15 @@ function MarkdownPreviewContent({
   )
 }
 
-export default function MarkdownFilePreview({
+export default function MarkdownFilePreview(props: FilePreviewPluginProps) {
+  const { sourceLocation } = props
+  if (sourceLocation && Number.isInteger(sourceLocation.line) && sourceLocation.line > 0) {
+    return <TextFilePreview {...props} />
+  }
+  return <MarkdownRenderedPreview {...props} />
+}
+
+function MarkdownRenderedPreview({
   filePath,
   metadata,
   metadataRequest,

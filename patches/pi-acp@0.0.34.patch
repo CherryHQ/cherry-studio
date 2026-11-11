@@ -1,0 +1,69 @@
+diff --git a/dist/index.js b/dist/index.js
+index 64758f027a38a7ecbe7d6e05e88edcc72ee9f193..c5003f394d82e5829f9fb01e8c8677f0cbb8b842 100755
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -822,6 +822,7 @@ var PiAcpSession = class {
+   cancelRequested = false;
+   // Current in-flight turn (if any). Additional prompts are queued.
+   pendingTurn = null;
++  lastAssistantMessage;
+   turnQueue = [];
+   // Track tool call statuses and ensure they are monotonic (pending -> in_progress -> completed).
+   // Some pi events can arrive out of order (e.g. late toolcall_* deltas after execution starts),
+@@ -938,8 +939,13 @@ var PiAcpSession = class {
+   }
+   async settleTurn() {
+     await this.publishContextUsage();
+-    const reason = this.cancelRequested ? "cancelled" : "end_turn";
+-    this.pendingTurn?.resolve(reason);
++    const message = this.lastAssistantMessage;
++    const reason = this.cancelRequested ? "cancelled" : message?.stopReason === "length" ? "max_tokens" : "end_turn";
++    if (!this.cancelRequested && message?.stopReason === "error") {
++      this.pendingTurn?.reject(RequestError2.internalError({}, message.errorMessage || "Pi model request failed"));
++    } else {
++      this.pendingTurn?.resolve(reason);
++    }
+     this.pendingTurn = null;
+     this.inAgentLoop = false;
+     const next = this.turnQueue.shift();
+@@ -993,6 +999,7 @@ var PiAcpSession = class {
+   }
+   startTurn(t) {
+     this.cancelRequested = false;
++    this.lastAssistantMessage = undefined;
+     this.inAgentLoop = false;
+     this.pendingTurn = { resolve: t.resolve, reject: t.reject };
+     this.emit({
+@@ -1001,12 +1008,10 @@ var PiAcpSession = class {
+     });
+     this.proc.prompt(t.message, t.images).catch((err) => {
+       void this.flushEmits().finally(() => {
+-        const authErr = maybeAuthRequiredError(err);
+-        if (authErr) {
+-          this.pendingTurn?.reject(authErr);
++        if (this.cancelRequested) {
++          this.pendingTurn?.resolve("cancelled");
+         } else {
+-          const reason = this.cancelRequested ? "cancelled" : "error";
+-          this.pendingTurn?.resolve(reason);
++          this.pendingTurn?.reject(maybeAuthRequiredError(err) ?? RequestError2.internalError({}, String(err?.message ?? err)));
+         }
+         this.pendingTurn = null;
+         this.inAgentLoop = false;
+@@ -1281,6 +1286,7 @@ var PiAcpSession = class {
+         break;
+       }
+       case "agent_end": {
++        this.lastAssistantMessage = Array.isArray(ev.messages) ? ev.messages.findLast((message) => message?.role === "assistant") : undefined;
+         this.inAgentLoop = false;
+         break;
+       }
+@@ -1887,7 +1893,7 @@ function mergeCommands(a, b) {
+   }
+   return out;
+ }
+-var pkg = readNearestPackageJson(import.meta.url);
++var pkg = { name: "pi-acp", version: "0.0.34-cherry.1" };
+ var PiAcpAgent = class {
+   conn;
+   sessions = new SessionManager();

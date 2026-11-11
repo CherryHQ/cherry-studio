@@ -4,6 +4,7 @@ import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
+import { AgentDelegationService } from '@main/ai/agentSession/AgentDelegationService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
@@ -23,6 +24,8 @@ import {
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
+import { LocalAgentAuthService } from '@main/ai/runtime/localAgent/LocalAgentAuthService'
+import { LocalAgentInstallService } from '@main/ai/runtime/localAgent/LocalAgentInstallService'
 import { SkillSubscriptionService } from '@main/ai/skills/SkillSubscriptionService'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
@@ -49,6 +52,7 @@ import { BinaryManager } from '@main/services/binaryManager'
 import { CherryCloudNotificationService } from '@main/services/cherryCloud/CherryCloudNotificationService'
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
+import { CodeBuddyWebUiService } from '@main/services/CodeBuddyWebUiService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { ComputerUseService } from '@main/services/ComputerUseService'
@@ -58,6 +62,7 @@ import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
 import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
+import { LocalAgentWebUiService } from '@main/services/LocalAgentWebUiService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -141,6 +146,10 @@ export const services = {
   CherryCloudNotificationService,
   DeepSeekHarnessService,
   HermesDashboardService,
+  CodeBuddyWebUiService,
+  LocalAgentWebUiService,
+  LocalAgentInstallService,
+  LocalAgentAuthService,
   FileManager,
   FileEditService,
   AttachmentPresenceService,
@@ -189,6 +198,7 @@ export const services = {
   ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
+  AgentDelegationService,
   AgentSessionDeliveryService,
   AgentJobsService,
   AgentLifecycleService,

@@ -107,6 +107,41 @@ describe('Agent fork publication', () => {
     await rm(directory, { recursive: true, force: true })
   })
 
+  it('rejects unsupported runtimes without blaming missing checkpoints or changing history', async () => {
+    const driver = runtimeDriverRegistry.getAgentSessionDriver('pi')!
+    runtimeDriverRegistry.register({ ...driver, fork: undefined })
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ data: { parts: [{ type: 'text', text: 'Answer without a checkpoint' }] } })
+      .where(eq(agentSessionMessageTable.id, messageId))
+      .run()
+    const [user] = agentSessionMessageService.saveMessages({
+      sessionId,
+      messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question' }] } }]
+    })
+    const before = agentSessionMessageService.listSessionMessages(sessionId).items
+    const operations = new AgentSessionForkOperations()
+    await expect(operations.fork(sessionId, messageId)).rejects.toMatchObject({ reason: 'runtime_unsupported' })
+    const target = {
+      messageId: user.id,
+      version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, user.id).version
+    }
+    await expect(
+      operations.edit(
+        sessionId,
+        target,
+        async () => {
+          throw new Error('Must not close the source')
+        },
+        () => {
+          throw new Error('Must not rewrite history')
+        }
+      )
+    ).rejects.toMatchObject({ reason: 'runtime_unsupported' })
+    expect(agentSessionMessageService.listSessionMessages(sessionId).items).toEqual(before)
+    expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
+  })
+
   it('publishes an independent child without app_state and keeps its files after source deletion', async () => {
     const createdAt = Date.now()
     const now = vi.spyOn(Date, 'now').mockReturnValue(createdAt)

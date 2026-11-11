@@ -15,7 +15,7 @@ import {
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { CliConfigFileDraft } from '@renderer/services/codeCliConfig'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { Provider } from '@shared/data/types/provider'
 import { isApiGatewayProviderId } from '@shared/types/codeCli'

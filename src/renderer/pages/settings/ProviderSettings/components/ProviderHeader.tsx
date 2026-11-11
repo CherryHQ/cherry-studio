@@ -1,4 +1,4 @@
-import { Bolt } from 'lucide-react'
+import { Settings2 } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -69,10 +69,10 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-7 shrink-0 rounded-lg p-0 text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground"
+                    className="size-7 shrink-0 rounded-lg text-foreground-tertiary hover:text-foreground"
                     aria-label={t('settings.provider.api.options.label')}
                     onClick={() => setApiOptionsOpen(true)}>
-                    <Bolt className="size-3.5" aria-hidden />
+                    <Settings2 className="lucide-custom size-3.5 text-muted-foreground" aria-hidden />
                   </Button>
                 </Tooltip>
               )}

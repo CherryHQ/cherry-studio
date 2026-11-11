@@ -52,6 +52,7 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
  */
 const knowledgeBaseTool = defineTool({
   key: 'knowledge_base',
+  condition: ({ session }) => session?.agentType !== 'local',
   label: KNOWLEDGE_BASE_TOOLBAR_MANIFEST.label,
   visibleInScopes: KNOWLEDGE_BASE_TOOLBAR_MANIFEST.visibleInScopes,
 

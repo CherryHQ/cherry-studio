@@ -99,6 +99,17 @@ class ToolApprovalRegistry {
     }
   }
 
+  listForSession(sessionId: string) {
+    return [...this.pending.values()]
+      .filter((entry) => entry.sessionId === sessionId)
+      .map((entry) => ({
+        approvalId: entry.approvalId,
+        toolCallId: entry.toolCallId,
+        toolName: entry.toolName,
+        input: entry.originalInput
+      }))
+  }
+
   /** Returns `undefined` for unknown ids (already dispatched / session expired). */
   dispatch(approvalId: string, decision: DispatchDecision): ApprovalRegistration | undefined {
     const entry = this.pending.get(approvalId)

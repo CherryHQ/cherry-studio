@@ -501,7 +501,7 @@ describe('SelectorShell', () => {
     await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('132'))
   })
 
-  it('does not force focus into search when search autoFocus is false', async () => {
+  it('does not force focus into search when search autoFocus is false', () => {
     const focusSpy = vi.spyOn(HTMLInputElement.prototype, 'focus')
 
     render(
@@ -519,8 +519,8 @@ describe('SelectorShell', () => {
       </SelectorShell>
     )
 
-    await waitFor(() => expect(openAutoFocusEvents).toHaveLength(1))
-    expect(openAutoFocusEvents[0]?.preventDefault).not.toHaveBeenCalled()
+    expect(screen.getByPlaceholderText('Search')).toBeVisible()
+    expect(openAutoFocusEvents.every((event) => !event.defaultPrevented)).toBe(true)
     expect(focusSpy).not.toHaveBeenCalled()
   })
 

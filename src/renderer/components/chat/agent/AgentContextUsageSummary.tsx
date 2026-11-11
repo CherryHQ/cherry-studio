@@ -63,6 +63,8 @@ interface AgentContextUsageSummaryProps {
   className?: string
   isCompacting?: boolean
   modelName?: string
+  /** Native session cost reported by a local CLI runtime. */
+  cost?: { amount: number; currency: string } | null
   /** The composer shows only the total; the status pane includes native details. */
   showCategories?: boolean
 }
@@ -73,9 +75,19 @@ export function AgentContextUsageSummary({
   className,
   isCompacting = false,
   modelName,
+  cost,
   showCategories = true
 }: AgentContextUsageSummaryProps) {
   const { t, i18n } = useTranslation()
+  const costFormatter = cost
+    ? new Intl.NumberFormat(i18n.resolvedLanguage, {
+        style: 'currency',
+        currency: cost.currency,
+        currencyDisplay: 'code',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 4
+      })
+    : undefined
   const { mcpServers } = useMcpServers(undefined, {
     enabled: showCategories && Boolean(usage?.resources?.some((resource) => resource.category === 'mcp-tools'))
   })
@@ -225,6 +237,16 @@ export function AgentContextUsageSummary({
             ))}
         </Accordion>
       )}
+      {cost && costFormatter ? (
+        <div className="flex items-center justify-between gap-3 border-border-subtle border-t pt-2 text-muted-foreground">
+          <span>{t('agent.right_pane.info.session_cost')}</span>
+          <span className="shrink-0 tabular-nums">
+            {cost.amount > 0 && cost.amount < 0.0001
+              ? `<${costFormatter.format(0.0001)}`
+              : costFormatter.format(cost.amount)}
+          </span>
+        </div>
+      ) : null}
     </ContextUsageSummary>
   )
 }

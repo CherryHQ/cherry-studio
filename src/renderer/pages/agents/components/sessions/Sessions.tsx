@@ -1,4 +1,4 @@
-import { Folder, FolderOpen, Plus } from 'lucide-react'
+import { Folder, FolderOpen, Monitor, Plus } from 'lucide-react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -1326,6 +1326,7 @@ const Sessions = ({
             <Tooltip title={t('common.more')} delay={500}>
               <AgentGroupMoreMenu
                 agentId={agentGroupId}
+                isLocalAgent={!!agentById.get(agentGroupId)?.configuration?.localRuntime}
                 assistantIconType={assistantIconType}
                 deleteAgentDisabled={deletingAgentId !== null}
                 deleteSessionsOnly={isProtectedBuiltinAgentRole(
@@ -1445,6 +1446,23 @@ const Sessions = ({
     [agentById, createSessionSeedIndex, creatingSession, requestCreateSessionFromSeed, t]
   )
 
+  const getGroupHeaderLabelSuffix = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'agent') return null
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      if (!agentId || agentById.get(agentId)?.type !== 'local') return null
+      return (
+        <Monitor
+          size={12}
+          className="shrink-0 text-foreground-tertiary"
+          role="img"
+          aria-label={t('local_agents.badge')}
+        />
+      )
+    },
+    [agentById, displayMode, t]
+  )
+
   const getGroupHeaderIcon = useCallback(
     (group: ResourceListGroup, context: { collapsed: boolean }) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return undefined
@@ -1513,6 +1531,7 @@ const Sessions = ({
 
         const actionContext: AgentGroupActionContext = {
           agentId,
+          isLocalAgent: !!agentById.get(agentId)?.configuration?.localRuntime,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
           deleteSessionsOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),
@@ -1636,6 +1655,7 @@ const Sessions = ({
       getSectionHeaderAction={getSectionHeaderAction}
       getGroupHeaderAction={getGroupHeaderAction}
       getGroupHeaderContextMenu={getGroupHeaderContextMenu}
+      getGroupHeaderLabelSuffix={getGroupHeaderLabelSuffix}
       getGroupHeaderIcon={getGroupHeaderIcon}
       isGroupHeaderIconVisible={isGroupHeaderIconVisible}
       getGroupHeaderTooltip={getGroupHeaderTooltip}

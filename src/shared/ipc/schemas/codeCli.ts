@@ -6,13 +6,7 @@ import { CLI_CONFIG_TARGET_IDS, FILE_CONFIGURED_CLI_TOOL_IDS } from '@shared/uti
 import { defineRoute } from '../define'
 import { operationResultSchema } from './common'
 
-/**
- * Code CLI runtime schemas — launch/binary/terminal management plus the config
- * write boundary. File-based CLIs (Claude Code, Codex, OpenCode, Gemini, Qwen,
- * Kimi) build config drafts renderer-side and persist them through
- * code_cli.write_config; OpenClaw config is written by its own main-process
- * service.
- */
+/** CLI launch and raw configuration RPCs; OpenClaw's provider/model synchronization stays in its own service. */
 const terminalConfigSchema = z.object({
   id: z.string(),
   name: z.string()
@@ -33,7 +27,7 @@ const codeCliRunInputSchema = z.discriminatedUnion('mode', [
     providerId: z.string().min(1),
     model: z.string().min(1),
     // Gateway launch: the CLI runs against the local API gateway, which addresses
-    // models as `providerId:modelId`. Gemini CLI and Antigravity consume this flag to pass
+    // models as `providerId:modelId`. Antigravity consumes this flag to pass
     // the gateway address on the command line; other tools carry gateway addressing in
     // their own config and ignore it.
     gateway: z.boolean().optional()
@@ -81,6 +75,10 @@ export const codeCliRequestSchemas = {
     // this route at an arbitrary file.
     input: z.object({
       cliTool: z.enum(FILE_CONFIGURED_CLI_TOOL_IDS),
+      expectedFiles: z
+        .array(z.object({ target: z.enum(CLI_CONFIG_TARGET_IDS), content: z.string().nullable() }))
+        .optional(),
+      preserveModelSource: z.boolean().optional(),
       files: z
         .array(
           z.union([

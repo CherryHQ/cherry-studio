@@ -9,6 +9,10 @@ import type { MainWindowInitData } from '@shared/types/mainWindow'
 
 import { useTabs } from './useTabs'
 
+function redirectLegacyCodePath(path: string): string {
+  return path.replace(/^\/app\/code(?=\?|$)/, '/settings/local-agents')
+}
+
 function useOpenSettingsRoute() {
   const { tabs, openTab, setActiveTab, updateTab } = useTabs()
   const settingsTabIdRef = useRef<string | null>(null)
@@ -100,7 +104,29 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
  */
 export function useMainWindowNavigation() {
   const openSettingsRoute = useOpenSettingsRoute()
-  const { attachTab, openTab, tabs, updateTab, setActiveTab } = useTabs()
+  const { attachTab, openTab, tabs, updateTab, setActiveTab, activeTabId, closeTabs } = useTabs()
+  useEffect(() => {
+    const legacyTabs = tabs.filter((tab) => tab.type === 'route' && redirectLegacyCodePath(tab.url) !== tab.url)
+    if (!legacyTabs.length) return
+    const activeLegacy = legacyTabs.find((tab) => tab.id === activeTabId)
+    const settings = tabs.find((tab) => tab.type === 'route' && isSettingsPath(tab.url))
+    if (!settings) {
+      openSettingsRoute(normalizeSettingsPath(redirectLegacyCodePath((activeLegacy ?? legacyTabs[0]).url)))
+      if (!activeLegacy) setActiveTab(activeTabId)
+      return
+    }
+    if (activeLegacy) {
+      updateTab(settings.id, {
+        url: redirectLegacyCodePath(activeLegacy.url),
+        title: i18n.t('settings.title'),
+        icon: undefined
+      })
+    }
+    closeTabs(
+      legacyTabs.map((tab) => tab.id),
+      activeLegacy ? settings.id : activeTabId
+    )
+  }, [tabs, activeTabId, openSettingsRoute, updateTab, closeTabs, setActiveTab])
   const pendingNotesTabIdRef = useRef<string | null>(null)
   useEffect(() => {
     pendingNotesTabIdRef.current = null
@@ -109,7 +135,8 @@ export function useMainWindowNavigation() {
   const handledNavigationRequestIdRef = useRef<number | null>(null)
 
   const handleRoute = useCallback(
-    (to: string) => {
+    (requestedPath: string) => {
+      const to = redirectLegacyCodePath(requestedPath)
       if (isSettingsPath(to)) {
         openSettingsRoute(to)
       } else if (to.split('?')[0] === '/app/notes') {

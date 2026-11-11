@@ -26,7 +26,7 @@ const AGENT_USAGE_CAPTURE_HEADER = 'x-cherry-agent-usage-capture'
 const INTERNAL_GATEWAY_HOST = '127.0.0.1'
 
 /** What a scoped internal credential may call: one generation path, one model address. */
-export type InternalCredentialScope = { path: string; model: string }
+export type InternalCredentialScope = { path: string; model: string; agentSessionId?: string }
 
 function presentedToken(headers: Headers): string | undefined {
   return (
@@ -474,7 +474,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
   /** Agent session id of an unrestricted internal request; undefined for every other caller. */
   getAgentSessionId(headers: Headers): string | undefined {
     const token = presentedToken(headers)
-    if (!token || !isValidToken(token, this.internalApiKey)) return undefined
+    if (!token) return undefined
+    const scope = this.scopedCredentials.get(token)
+    if (scope) return scope.agentSessionId
+    if (!isValidToken(token, this.internalApiKey)) return undefined
     return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
   }
 

@@ -9,11 +9,20 @@ export const SENSITIVE_KEY_STEMS = ['KEY', 'TOKEN', 'SECRET', 'AUTH', 'CREDENTIA
 
 // Exact names (lowercase) that no stem covers; dropping them would regress
 // header redaction (httpTraceFetch's former list).
-export const SENSITIVE_KEY_EXACT = ['openai-organization', 'openai-project']
+export const SENSITIVE_KEY_EXACT: readonly string[] = ['openai-organization', 'openai-project']
+
+// Whole containers whose values may hide a secret anywhere inside; redacted as one unit.
+export const REDACTED_CONTAINER_KEYS: readonly string[] = ['env', 'args']
+
+/** True only for a field that itself holds a credential — containers such as `env` are not credentials. */
+export function isCredentialFieldKey(key: string): boolean {
+  const upper = key.toUpperCase()
+  return SENSITIVE_KEY_STEMS.some((stem) => upper.includes(stem))
+}
 
 export function isSensitiveKey(key: string): boolean {
-  const upper = key.toUpperCase()
-  return SENSITIVE_KEY_STEMS.some((stem) => upper.includes(stem)) || SENSITIVE_KEY_EXACT.includes(key.toLowerCase())
+  const lower = key.toLowerCase()
+  return isCredentialFieldKey(key) || SENSITIVE_KEY_EXACT.includes(lower) || REDACTED_CONTAINER_KEYS.includes(lower)
 }
 
 /** Shallow redaction of a flat string map (env vars, headers). */

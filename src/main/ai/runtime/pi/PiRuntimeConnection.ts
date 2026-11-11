@@ -51,7 +51,7 @@ import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
@@ -134,7 +134,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private readonly adapter = new PiMessageMetadata((name) => this.resolveMcpToolMetadata(name))
   private projection?: ThreadProjection
 
-  constructor(private readonly input: AgentRuntimeConnectInput) {}
+  private readonly input: AgentRuntimeConnectInput & { modelId: UniqueModelId }
+
+  constructor(input: AgentRuntimeConnectInput) {
+    if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
+    this.input = { ...input, modelId: input.modelId }
+  }
 
   async start(): Promise<this> {
     const discovery = await capturePiConnectionSnapshot(

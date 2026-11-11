@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { CliConfigFileDraft } from '@renderer/services/codeCliConfig'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
@@ -10,14 +10,14 @@ import type { ConfigDraft } from '../types'
 
 const mocks = vi.hoisted(() => ({ readCliConfigFiles: vi.fn() }))
 
-vi.mock('@renderer/pages/code/cliConfig', async (importOriginal) => {
+vi.mock('@renderer/services/codeCliConfig', async (importOriginal) => {
   // oxlint-disable-next-line consistent-type-imports
-  const actual = await importOriginal<typeof import('@renderer/pages/code/cliConfig')>()
+  const actual = await importOriginal<typeof import('@renderer/services/codeCliConfig')>()
   return { ...actual, readCliConfigFiles: mocks.readCliConfigFiles }
 })
 
 const { createManagedConfigDraft, loadInitialConfigDraft } = await import('../configDraftState')
-const { extractConfigFromCliConfigDraft } = await import('@renderer/pages/code/cliConfig')
+const { extractConfigFromCliConfigDraft } = await import('@renderer/services/codeCliConfig')
 
 const GATEWAY_BASE_URL = 'http://127.0.0.1:23333'
 

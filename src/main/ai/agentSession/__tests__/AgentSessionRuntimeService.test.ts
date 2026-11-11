@@ -49,6 +49,7 @@ const mocks = vi.hoisted(() => ({
   suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
+  broadcast: vi.fn(),
   resolveToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
@@ -590,6 +591,7 @@ describe('AgentSessionRuntimeService', () => {
         }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
+      if (name === 'IpcApiService') return { broadcast: mocks.broadcast, send: vi.fn(), broadcastToType: vi.fn() }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -618,6 +620,19 @@ describe('AgentSessionRuntimeService', () => {
     expect(() => service.assertSessionEditable('session-2')).not.toThrow()
     await settled
     expect(() => service.assertSessionEditable('session-1')).not.toThrow()
+  })
+
+  it('publishes null local capabilities when the owning connection is detached', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    mocks.broadcast.mockClear()
+    await service.closeSession('session-1')
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.session_updated', {
+      sessionId: 'session-1',
+      info: null
+    })
   })
 
   describe('runtime activity for detached work', () => {

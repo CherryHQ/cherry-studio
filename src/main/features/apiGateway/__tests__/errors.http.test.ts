@@ -14,6 +14,7 @@ import { SseListener } from '@main/ai/streamManager/listeners/SseListener'
 import { pipeStreamLoop } from '@main/ai/streamManager/pipeStreamLoop'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { isDev } from '@main/core/platform'
+import { OAuthAuthenticationRequiredError } from '@main/services/oauth/errors'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { DataApiError } from '@shared/data/api/errors'
 import type { SerializedError } from '@shared/types/error'
@@ -59,6 +60,12 @@ const cases: Case[] = []
 function add(id: string, value: unknown, status = 500, message = genericMessage, boundary = false) {
   cases.push({ id, origin: 'constructed boundary', input: () => value, status, message, boundary })
 }
+add(
+  'oauth-sign-in-required',
+  serializeError(new OAuthAuthenticationRequiredError('openai-codex')),
+  401,
+  'Authentication required for provider "openai-codex". Sign in again in provider settings.'
+)
 for (const [id, message] of [
   ['fetch-timeout', timeoutMessage],
   ['fetch-abort', abortMessage],

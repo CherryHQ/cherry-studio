@@ -2252,6 +2252,7 @@ describe('SkillService', () => {
         /refusing to overwrite/
       )
 
+      await expect(skillService.uninstallBuiltinSkill(FOLDER_NAME, 'code-cli:test')).rejects.toThrow(/not owned/)
       expect(installSpy).not.toHaveBeenCalled()
       await expect(fs.promises.readFile(path.join(destPath, 'SKILL.md'), 'utf-8')).resolves.toBe('# User Authored')
       const [row] = await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, SKILL_ID_1))

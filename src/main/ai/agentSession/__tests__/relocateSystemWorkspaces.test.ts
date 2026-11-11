@@ -45,7 +45,7 @@ vi.mock('@application', async () => {
       cancelSessionForks: vi.fn().mockResolvedValue(undefined),
       closeSessionForArchive: vi.fn().mockResolvedValue(undefined)
     }
-  } as Parameters<typeof mockApplicationFactory>[0])
+  })
 })
 
 // Keep filesystem publication and database recovery real; isolate only the native SDK worker.

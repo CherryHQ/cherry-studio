@@ -19,6 +19,8 @@ sources:
 ## Behavior
 
 Pi, Claude Code and Pi Durable support **Fork** on successful assistant messages with valid native checkpoints. Legacy replies without a native checkpoint remain ineligible; the operation never rebuilds native history from product messages.
+
+Local Agents do not implement native forks: **Edit and resend** is hidden, and **Fork** is disabled with an explanation. Backend requests report unsupported runtime capability separately from missing or incompatible checkpoints.
 The operation creates an independent Agent session containing the visible
 history through the selected turn and a native runtime resume reference.
 It does not start or interrupt the source connection. The source can continue

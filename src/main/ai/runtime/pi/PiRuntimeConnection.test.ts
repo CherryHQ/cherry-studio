@@ -26,7 +26,7 @@ import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
-import { ModelSchema } from '@shared/data/types/model'
+import { ModelSchema, type UniqueModelId } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 
 import {
@@ -101,7 +101,7 @@ vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathF
 describe('desktop Pi root connection', () => {
   const dbh = setupTestDatabase()
   let directory: string
-  let input: AgentRuntimeConnectInput
+  let input: AgentRuntimeConnectInput & { modelId: UniqueModelId }
   let snapshot: PiConnectionSnapshot
   let script: ReturnType<typeof scriptedModel>
   const connections: PiRuntimeConnection[] = []

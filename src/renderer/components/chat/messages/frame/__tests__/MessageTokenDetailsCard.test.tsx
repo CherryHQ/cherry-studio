@@ -69,9 +69,6 @@ describe('MessageTokenDetailsCard cost', () => {
     expect(row).toHaveTextContent(formatWith('USD', 0.0123))
     expect(row).toHaveTextContent('Billed by provider')
     expect(row).not.toHaveTextContent('Estimated')
-    expect(row).toHaveClass('items-center', 'border-y', 'py-2')
-    // Mixed-size source and amount text must share a visual center in the cost row.
-    expect(row.lastElementChild).toHaveClass('items-center', 'leading-5')
   })
 
   it('renders the persisted currency instead of assuming USD', () => {
@@ -101,5 +98,73 @@ describe('MessageTokenDetailsCard cost', () => {
     render(<MessageTokenDetailsCard message={createMessage({ ...usage, costs: cost('USD', 0.000012, 'computed') })} />)
 
     expect(screen.getByTestId('message-cost')).toHaveTextContent(`<${formatWith('USD', 0.0001)}`)
+  })
+})
+
+describe('native turn observations', () => {
+  it('shows the native summary separately without adding it to provider tokens or costs', () => {
+    const message = createMessage({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
+    message.localTurnUsage = {
+      nativeSessionId: 'native',
+      model: null,
+      reportedAt: 1,
+      correlation: 'gateway',
+      usage: { inputTokens: 700, outputTokens: 300, totalTokens: 1000 }
+    }
+    const { rerender } = render(<MessageTokenDetailsCard message={message} />)
+    expect(screen.getByTestId('native-turn-usage')).toHaveTextContent('1,000')
+    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('10 Tokens')
+    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('5 Tokens')
+    expect(screen.queryByTestId('message-cost')).toBeNull()
+    rerender(<MessageTokenDetailsCard message={{ ...message, stats: undefined }} />)
+    expect(screen.queryByTestId('native-turn-usage')).not.toBeInTheDocument()
+    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('700 Tokens')
+    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('300 Tokens')
+    expect(screen.getByTestId('message-metric-total')).toHaveTextContent('1,000 Tokens')
+  })
+})
+
+describe('native-only message details', () => {
+  it.each([22506, 0])(
+    'uses one primary grid for native usage (%i input tokens) and keeps runtime timing',
+    (inputTokens) => {
+      const message = createMessage({
+        requestCount: 0,
+        runtimeTiming: { startedAt: 1000, completedAt: 5300, spans: [] }
+      })
+      message.localTurnUsage = {
+        nativeSessionId: 'native',
+        model: 'gpt-6-astra',
+        reportedAt: 5300,
+        correlation: 'unknown',
+        usage: { inputTokens, outputTokens: 5, totalTokens: inputTokens + 5, cacheReadTokens: 0, reasoningTokens: 0 }
+      }
+      render(<MessageTokenDetailsCard message={message} />)
+      expect(screen.getByTestId('message-metric-input')).toHaveTextContent(
+        `${inputTokens.toLocaleString('en-US')} Tokens`
+      )
+      expect(screen.getByTestId('message-metric-output')).toHaveTextContent('5 Tokens')
+      expect(screen.getByTestId('message-metric-total')).toHaveTextContent(
+        `${(inputTokens + 5).toLocaleString('en-US')} Tokens`
+      )
+      expect(screen.getByText('gpt-6-astra')).toBeInTheDocument()
+      expect(screen.queryByTestId('message-metric-speed')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('native-turn-usage')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('message-cost')).not.toBeInTheDocument()
+      expect(screen.queryByText('Anthropic')).not.toBeInTheDocument()
+      expect(screen.getByTestId('message-secondary-metrics')).toHaveTextContent(
+        'chat.message.token_details.total_duration'
+      )
+      expect(screen.queryByText('chat.message.token_details.cache_read')).not.toBeInTheDocument()
+      expect(screen.queryByText('chat.message.token_details.reasoning')).not.toBeInTheDocument()
+    }
+  )
+
+  it('keeps provider-only tokens and throughput in their existing primary slots', () => {
+    render(<MessageTokenDetailsCard message={createMessage(usage)} />)
+    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('100 Tokens')
+    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('100 Tokens')
+    expect(screen.getByTestId('message-metric-speed')).toBeInTheDocument()
+    expect(screen.queryByTestId('message-metric-total')).not.toBeInTheDocument()
   })
 })

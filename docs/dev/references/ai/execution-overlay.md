@@ -29,7 +29,7 @@ Child native observer → ChildThreadProjection ─┤
                        useExecutionOverlay      useAgentChildProjection
 ```
 
-A root baseline covers the current live overlay, not the topic's saved history. It includes execution, attempt and message-anchor identities, so parallel models and a retry using the same model/anchor stay distinct. The child baseline covers its own archive and current content; it excludes parent and sibling content. `toolCallId` resolves a child through its owner and is not the child's durable identity.
+A root baseline covers the current live overlay, not the topic's saved history. Execution IDs identify either a provider/model or a provider-free native runtime (`runtime:<agent-id>`). It includes execution, attempt and message-anchor identities, so parallel models and a retry using the same model/anchor stay distinct. The child baseline covers its own archive and current content; it excludes parent and sibling content. `toolCallId` resolves a child through its owner and is not the child's durable identity.
 
 Concrete runtime observations capture body, aliases, retractions and live/history provenance
 together. Main consumes that complete value instead of reconstructing delivery history or reading

@@ -51,6 +51,7 @@ const KNOWN_NAVIGATION_ROUTES = [
   '/settings/provider',
   '/settings/model',
   '/settings/local-models',
+  '/settings/local-agents',
   '/settings/appearance',
   '/settings/notifications',
   '/settings/data',
