@@ -84,6 +84,7 @@ const unnamedTranslations = [
   'locales/fr-fr',
   'locales/it-it',
   'locales/ja-jp',
+  'locales/pt-br',
   'locales/pt-pt',
   'locales/ro-ro',
   'locales/ru-ru',

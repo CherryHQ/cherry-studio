@@ -336,7 +336,7 @@ describe('VoiceSettings', () => {
 
   it.each([
     ['fr-CA', 'Bonjour, voici un aperçu de la voix utilisée pour lire vos réponses.'],
-    ['pt-BR', 'Olá, esta é uma amostra da voz utilizada para ler as suas respostas.']
+    ['pt-BR', 'Olá, esta é uma amostra da voz usada para ler suas respostas.']
   ])(
     'previews %s from the available same-language catalog without changing the selected voice',
     async (language, sample) => {

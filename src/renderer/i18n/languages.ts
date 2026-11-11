@@ -12,6 +12,7 @@ const APP_LANGUAGE_FLAGS: ReadonlyArray<{ value: LanguageVarious; flag: string }
   { value: 'el-GR', flag: '🇬🇷' },
   { value: 'es-ES', flag: '🇪🇸' },
   { value: 'fr-FR', flag: '🇫🇷' },
+  { value: 'pt-BR', flag: '🇧🇷' },
   { value: 'pt-PT', flag: '🇵🇹' },
   { value: 'ro-RO', flag: '🇷🇴' },
   { value: 'th-TH', flag: '🇹🇭' },

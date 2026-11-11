@@ -39,6 +39,7 @@ const DATA_URL_MAP: Record<LanguageVarious, string> = {
   'fr-FR': dataFR,
   'it-IT': dataIT,
   'ja-JP': dataJA,
+  'pt-BR': dataPT,
   'pt-PT': dataPT,
   'ro-RO': dataEN,
   'ru-RU': dataRU,
