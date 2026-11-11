@@ -51,6 +51,11 @@ const providers: WebSearchProvider[] = [
 
 describe('webSearchProviderMeta', () => {
   it('returns provider display metadata', () => {
+    expect(getWebSearchProviderDescriptionKey('stepfun')).toBe('settings.tool.websearch.provider_description.stepfun')
+    expect(getWebSearchProviderIconRef('stepfun')).toMatchObject({ kind: 'provider', key: 'step' })
+    expect(getWebSearchProviderOfficialWebsite('stepfun')).toBe(
+      'https://platform.stepfun.com/docs/zh/api-reference/search/search'
+    )
     expect(getWebSearchProviderDescriptionKey('exa-mcp')).toBe('settings.tool.websearch.provider_description.exa_mcp')
     expect(getWebSearchProviderIconRef('fetch')).toMatchObject({ kind: 'provider', key: 'cherryin' })
     expect(getWebSearchProviderOfficialWebsite('jina')).toBe('https://jina.ai/reader')

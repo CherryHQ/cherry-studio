@@ -6082,6 +6082,7 @@
   "settings.tool.websearch.fetch_urls_provider": "URL fetch provider",
   "settings.tool.websearch.model_tools_preferred.description": "Prefer model-native web search and URL fetching, with automatic fallback to the services above when unavailable.",
   "settings.tool.websearch.model_tools_preferred.label": "Prefer model-native web tools",
+  "settings.tool.websearch.provider_description.stepfun": "StepFun",
   "settings.tool.websearch.provider_description.bocha": "Chinese AI search API with real-time web and structured results.",
   "settings.tool.websearch.provider_description.crawl4ai": "Use Crawl4AI Cloud with an API key, or enter a self-hosted Crawl4AI address with an optional token.",
   "settings.tool.websearch.provider_description.deepseek": "DeepSeek official Search and Fetch APIs, returning ranked web results and Markdown page content.",

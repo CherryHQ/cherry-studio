@@ -47,6 +47,7 @@ import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { SerplyProvider } from '../api/SerplyProvider'
+import { StepfunProvider } from '../api/StepfunProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
 import { createWebSearchProvider } from '../factory'
@@ -72,6 +73,12 @@ function createProvider<TProviderId extends WebSearchProvider['id']>(
 }
 
 describe('createWebSearchProvider', () => {
+  it('creates the StepFun keyword-only driver', () => {
+    expect(createWebSearchProvider(createProvider({ id: 'stepfun' }), new ApiKeyRotationState())).toBeInstanceOf(
+      StepfunProvider
+    )
+  })
+
   it('registers every supported provider id', () => {
     expect(Object.keys(WEB_SEARCH_PROVIDER_REGISTRY).sort()).toEqual([
       'bocha',
@@ -89,6 +96,7 @@ describe('createWebSearchProvider', () => {
       'searchapi',
       'searxng',
       'serply',
+      'stepfun',
       'tavily',
       'yuanbao',
       'zhipu'
