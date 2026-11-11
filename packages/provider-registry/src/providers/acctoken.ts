@@ -56,14 +56,19 @@ export default defineProvider({
     row('glm-5-3-flash', 'glm-5.3-flash'),
     {
       // Vendor-exclusive fast variant of GLM-5.3-Flash with no creator row; standalone metadata so the
-      // app knows it reads images and can call tools.
+      // app knows it reads images and video, can call tools, and when to compact long chats. The window
+      // and output cap are the relay's published values; video input was checked against the relay both
+      // as a URL and as a base64 data URL.
       ...row('glm-5-3-flashx', 'glm-5.3-flashx'),
       name: 'GLM-5.3-FlashX',
       family: 'glm',
       ownedBy: 'zhipu',
-      capabilities: { force: ['function-call', 'reasoning', 'image-recognition', 'structured-output'] },
-      inputModalities: ['text', 'image'],
-      outputModalities: ['text']
+      capabilities: {
+        force: ['function-call', 'reasoning', 'image-recognition', 'video-recognition', 'structured-output']
+      },
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      limits: { contextWindow: 1_048_576, maxOutputTokens: 131_072 }
     },
     row('glm-5-2', 'glm-5.2'),
     // Kimi
