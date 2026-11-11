@@ -555,9 +555,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   reconcile(input: Parameters<AgentRuntimeConnection['reconcile']>[0]): Promise<AgentRuntimeReconcileResult> {
     const work = this.reconcileChain.then(async (): Promise<AgentRuntimeReconcileResult> => {
-      // A retired observation (mid-turn gap/close/diagnostic) must rebuild even
-      // after `fail()` closed the backend: there is no desktop left to reconcile.
-      if (this.failure || !this.desktop || !this.handle || this.closing) return 'rebuild'
+      // Unavailable/closing connections have no desktop left to reconcile.
+      // A retained observation failure must still reconcile live policy first
+      // so disabled-tool/permission changes reach the backend before the
+      // rebuild: background children can otherwise keep running with stale
+      // policy. The existing failure check below still forces the rebuild.
+      if (!this.desktop || !this.handle || this.closing) return 'rebuild'
       try {
         const next = await this.desktop.reconcile({ ...this.input, ...input }, this.active)
         if (next.permissionChanged) await this.handle.durable.permissionModeChanged()
