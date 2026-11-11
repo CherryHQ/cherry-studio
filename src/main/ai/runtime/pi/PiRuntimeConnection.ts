@@ -340,7 +340,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         ...(loginPathPrefix ? { shellCommandPrefix: loginPathPrefix } : {})
       },
       extensionFactories: [
-        createPiIdentityExtension(agentDataPath),
+        createPiIdentityExtension(agentDataPath, this.input.sessionId),
         pi.createCodemodeExtension({ models: false }),
         pi.createToolSearchExtension(),
         createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log'))
