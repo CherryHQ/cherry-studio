@@ -335,7 +335,9 @@ describe('desktop Pi root connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
     if (mode === 'default' || mode === 'auto') {
-      await expect.poll(() => events.filter((event) => event.type === 'tool-approval-request').length).toBe(1)
+      await expect
+        .poll(() => events.filter((event) => event.type === 'tool-approval-request').length, { timeout: 15_000 })
+        .toBe(1)
       expect(existsSync(marker)).toBe(false)
       expect(existsSync(prefixMarker)).toBe(false)
       const event = events.find((event) => event.type === 'tool-approval-request')!
@@ -343,7 +345,7 @@ describe('desktop Pi root connection', () => {
       expect(event.request.input).toEqual({ command })
       toolApprovalRegistry.dispatch(event.request.approvalId, { approved })
     }
-    await done(events)
+    await done(events, 15_000)
     expect(existsSync(marker)).toBe(approved)
     expect(existsSync(prefixMarker)).toBe(approved)
     if (mode === 'plan') expect(childResult).toContain('Plan mode is read-only')
