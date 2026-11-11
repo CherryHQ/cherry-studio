@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-10-computer-use-app-icons.md
-2026-11-10-computer-use-app-icons.md: 2e41e0960025c4936485d806f0e4eddf0f6b97e4
-2026-11-10-computer-use-app-icons.zh.md: abf6c2854081720152f02ceb892019de5f0c81b3
+2026-11-10-computer-use-app-icons.md: 71d81f3e28f5ed29f29438562dad960f75142208
+2026-11-10-computer-use-app-icons.zh.md: 5fe9d4ea635bcdca4c96c30e37c4a321da6c1474

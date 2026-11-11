@@ -14,7 +14,7 @@ Record actual resolved targets during Computer Use host dispatch, outside the gu
 
 The card displays every app used by that call. SWR deduplicates lazy icon queries by stable application identity. A standalone SDK client queries `getAppIcon({ identity })` and closes after the read. Validate PNG MIME type and bounded base64 before returning the image to the renderer. Missing identities, unavailable icons and failed image loading retain the accessible app-name fallback.
 
-No Pi dependency patch, Claude result projection change, MCP `_meta`, or icon-bearing `ToolResult` is needed. Both runtimes use the existing Automation REPL card and cell-context transport.
+No Pi dependency patch, Claude result projection change, MCP `_meta`, or icon-bearing `ToolResult` is needed. Both runtimes use the existing Automation REPL card and cell-context transport. Pi projections preserve the native structured result, and the MCP card unwraps the original result on both success and failure, retaining the cell context and audience annotations in live and restored history.
 
 ## Alternatives considered
 
@@ -34,3 +34,5 @@ The SDK producer PR adds the independent API. Until that SDK and matching native
 - AC2 — renderer tests display multiple targets, share icon reads between calls and remove stale targets when the cell changes; schema checks reject non-PNG icon data.
 - AC3 — client icon reads leave app control empty; the upstream SDK/native tests verify independent request validation and icon generation.
 - Electron visual acceptance remains pending; runtime support follows the common REPL presentation path rather than provider-specific output patches.
+
+- Review regression: the real Pi MCP converter, native session, live/history projection, tool-card adapter and REPL parser retain cell context for successful and failed calls.
