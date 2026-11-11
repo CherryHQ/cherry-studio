@@ -140,6 +140,8 @@ export type TopicTabPosition = 'left' | 'right'
 
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 
+export type BrowserStartPageMode = 'blank' | 'last' | 'custom'
+
 export const SIDEBAR_FAVORITES = [
   'assistants',
   'agents',
@@ -290,6 +292,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'exa',
   'exa-mcp',
   'bocha',
+  'stepfun',
   'querit',
   'fetch',
   'jina',

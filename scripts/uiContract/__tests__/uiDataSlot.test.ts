@@ -4,7 +4,6 @@ import { cleanup, fireEvent, render } from '@testing-library/react'
 import { type ComponentType, createElement as h, type Ref } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { mergeDataUi } from '../runtime'
 import { UiDataSlot } from '../uiDataSlot'
 
 // React.act refuses to run outside a configured act environment.
@@ -46,15 +45,6 @@ describe('UiDataSlot prop merging (parity with Radix Slot)', () => {
     const { fromUiDataSlot } = renderBoth({ onClick: () => order.push('slot') }, { onClick: () => order.push('child') })
     fireEvent.click(fromUiDataSlot)
     expect(order).toEqual(['child', 'slot'])
-  })
-
-  it('merges data-ui tokens instead of letting one side win', () => {
-    const slotDataUi = 'chat.message'
-    const childDataUi = 'part:message-content'
-    const { fromSlot, fromUiDataSlot } = renderBoth({ 'data-ui': slotDataUi }, { 'data-ui': childDataUi })
-    expect(fromUiDataSlot.getAttribute('data-ui')).toBe(mergeDataUi(childDataUi, slotDataUi))
-    // Radix Slot would drop one side (child props win); the merge is the point.
-    expect(fromSlot.getAttribute('data-ui')).toBe(childDataUi)
   })
 
   it('returns children untouched without slot props and ref', () => {

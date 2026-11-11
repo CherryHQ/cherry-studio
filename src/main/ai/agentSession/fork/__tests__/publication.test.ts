@@ -305,16 +305,8 @@ describe('Agent fork publication', () => {
             () => {}
           )
         ).rejects.toMatchObject({ reason: 'invalid_target' })
-        agentSessionMessageService.selectBranch(sessionId, tail[0].id)
-        expect(
-          agentSessionMessageService
-            .listSessionMessages(sessionId)
-            .items.toReversed()
-            .map((row) => row.id)
-        ).toEqual(outcome === 'commit' ? [messageId, ...tail.map((row) => row.id)] : tail.map((row) => row.id))
-        if (outcome === 'commit')
-          expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe('native-parent')
-        agentSessionMessageService.selectBranch(sessionId, newId)
+        for (const row of tail) expect(() => agentSessionMessageService.getSessionMessage(sessionId, row.id)).toThrow()
+        expect(rows.at(-1)?.siblings).toEqual([newId])
         expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
           outcome === 'commit' ? 'native-child' : null
         )

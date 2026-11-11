@@ -1,6 +1,6 @@
 # Pi Durable agent runtime
 
-`createPiDurableRuntime` adapts Pi Durable 1.5.0 to the
+`createPiDurableRuntime` adapts Pi Durable 1.5.2 to the
 [agent runtime contracts](../agent-runtime/README.md). It owns one native `Harness`,
 its storage, conversation views, and commit observation. It does not implement
 another scheduler, submission queue, or agent loop. The
@@ -57,7 +57,7 @@ map to `aborted`, known model/task failures to `failed`, and other unanswered re
 enable the scheduler.
 
 `durable.observe` captures content, inputs, aliases, live provenance, `backgroundResults` and foreground
-completion from one native `ConversationView` revision. Retained native entries and tool tasks
+completion from one native `ConversationView` revision. Completion includes the last visible committed entry ID for desktop fork checkpoints. Retained native entries and tool tasks
 supply result origins; continuation records identify the current triggering call. Pending results
 include undelivered reports and unfinished notification generation, including the gap before it starts.
 An unknown origin is reported as unknown, never as confirmed drainage. The Pi Durable dependency patch retains atomic observer attachment with storage reads,
@@ -72,7 +72,7 @@ confirm foreground completion. Native progress may remain unpersisted for up to 
 facts, including placed native-only inputs. Completion stays pending during admission, unresolved input,
 foreground work or compaction, and carries terminal inputs after their content. Revision and pending state stay private to the projection.
 A confirmed rejection releases only its temporary admission hold; unknown admission remains unresolved.
-Initial observation never replays earlier completion. Slow observers retain terminal batches through
+Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; only the committed prefix is historical. A returning preview receives a fresh local identity even when a resumed native task repeats its attempt number. Slow observers retain terminal batches through
 recovery; final persistence must await `Observation.drain()` after native production stops.
 `runtime.settled()` joins admitted submissions, all native tasks including background work,
 and tracked relation delivery without closing storage. Shutdown completes admitted relation reads
@@ -129,7 +129,7 @@ of polling retained inputs or deriving completion from idle activity.
 ## Shared behavior
 
 The optional `behavior` factory option installs `agent-behavior` with Cherry's
-`HostPorts` and a `configureChild({ thread, modelKey })` model-binding callback. Native tools, transactional
+`HostPorts` and a `configureChild({ thread, parent, modelKey })` model-binding callback. Native tools, transactional
 records, hooks, memo, jobs and waits implement the harness ports. Product rules remain
 in `agent-behavior`; this adapter contains no second subagent or goal policy engine.
 
@@ -137,7 +137,7 @@ Managed child input calls the shared `messageSubagent` entry, so background cont
 keeps the native child identity and creates the shared result job. Root `/goal` input
 uses the shared command entry. Explicit root `interrupt()` records user stop before
 cancelling; child interruption follows its current shared ownership. Opening installs
-model bindings and runs `onOpen` before scheduler resume. That policy stops interrupted
+model bindings and runs `onOpen` before scheduler resume. Desktop hosts can select owned conversations and rebind root configuration before this recovery. Inherited model context remains visible, while behavior authority and summary charges come only from conversation-owned records. That policy stops interrupted
 background children and disarms goals; ordinary unfinished root tasks can resume.
 
 Compaction captures the behavior history before summarizing. The native dependency patch preserves
@@ -165,9 +165,9 @@ identity files, skill catalog entries and tool schemas expose individual estimat
 from tool registration, including codemode-only tools listed as deferred. Reads never rerender sections
 or reload files. These partial estimates are separate from native billable usage records.
 
-The concrete `durable` facet exposes native configuration, compaction, behavior facts,
+The runtime `durable.commit` facet shares the existing native mutation line; desktop fork operations retain the backend while using it. The thread `durable` facet exposes native configuration, compaction, behavior facts,
 provider session identity and tool-call resolution for the desktop adapter. These stay
-outside the harness-neutral Runtime contract. `onInputPlaced(inputId)` runs synchronously at
+outside the harness-neutral Runtime contract. `onInputPlaced(inputId, thread)` runs synchronously at
 native placement so the host reserves input attribution before the next model request; native-only
 input may report an undefined logical ID.
 
@@ -178,7 +178,7 @@ Declared differences in the shared contract suite:
 - A completed foreground child still belongs to its original native tool task. Independent
   background continuation is rejected before writing run records or report jobs. One
   foreground-continuation case is skipped; there is no implicit fork or id forwarding.
-- The desktop does not expose native fork/edit checkpoints or `vcc_recall` yet.
+- Desktop Fork and noninitial Edit and resend use same-storage ownerless native forks. First-input edits start a fresh context. File rewind and `vcc_recall` remain unavailable.
 
 ## Validation
 

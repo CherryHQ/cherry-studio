@@ -3,7 +3,7 @@ import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState
 import { useTranslation } from 'react-i18next'
 
 import { Button, Popover, PopoverContent, PopoverTrigger, ScrollArea, Tooltip } from '@cherrystudio/ui'
-import { useCache } from '@renderer/data/hooks/useCache'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 
 import {
   AGENT_DETAILS_INSET,
@@ -22,7 +22,7 @@ export function AgentSessionDetailsProvider({
   available: boolean
   children: ReactNode
 }) {
-  const [hiddenSessions, setHiddenSessions] = useCache('agent.session.details_hidden')
+  const [storedInlineOpen, setStoredInlineOpen] = usePersistCache('ui.agent.details.open')
   const [presentation, setPresentation] = useState<{
     sessionId?: string
     available: boolean
@@ -39,15 +39,13 @@ export function AgentSessionDetailsProvider({
   if (presentation.sessionId !== sessionId || presentation.available !== available) {
     setPresentation({ ...presentation, sessionId, available, popupOpen: false })
   }
-  const inlineOpen = !!sessionId && !hiddenSessions.includes(sessionId)
+  const inlineOpen = !!sessionId && storedInlineOpen
   const setInlineOpen = useCallback(
     (open: boolean) => {
       if (!sessionId) return
-      setHiddenSessions((previous) =>
-        open ? previous.filter((id) => id !== sessionId) : [...new Set([...previous, sessionId])]
-      )
+      setStoredInlineOpen(open)
     },
-    [sessionId, setHiddenSessions]
+    [sessionId, setStoredInlineOpen]
   )
   const measure = useCallback((width: number, height: number) => {
     setPresentation((previous) => {
@@ -120,7 +118,7 @@ export function AgentSessionDetailsToggle({ children }: { children: ReactNode })
   )
   return (
     <>
-      <Tooltip content={label} asChild>
+      <Tooltip content={label} placement="bottom" delay={800} asChild>
         <PopoverTrigger asChild>{button}</PopoverTrigger>
       </Tooltip>
       {state.mode === 'popover' && (
@@ -136,7 +134,8 @@ export function AgentSessionDetailsToggle({ children }: { children: ReactNode })
           }}>
           <ScrollArea
             className="max-h-[min(70vh,var(--radix-popover-content-available-height))]"
-            viewportProps={{ className: 'overflow-x-hidden' }}>
+            viewportProps={{ className: 'overflow-x-hidden' }}
+            contentProps={{ className: 'pr-3' }}>
             {children}
           </ScrollArea>
         </PopoverContent>
@@ -187,7 +186,10 @@ export function AgentSessionDetailsLayout({ children, details }: { children: Rea
             state.setOpen(false)
             state.triggerRef.current?.focus()
           }}>
-          <ScrollArea className="min-h-0" viewportProps={{ className: 'overflow-x-hidden' }}>
+          <ScrollArea
+            className="min-h-0"
+            viewportProps={{ className: 'overflow-x-hidden' }}
+            contentProps={{ className: 'pr-3' }}>
             {details}
           </ScrollArea>
         </aside>

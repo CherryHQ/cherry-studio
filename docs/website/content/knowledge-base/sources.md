@@ -22,7 +22,7 @@ icon: box-archive
 | 链接 | 单个可以公开访问的网页 | 保存抓取时的网页快照 | 登录页、脚本渲染或受限网页可能不完整 |
 
 {% hint style="warning" %}
-支持的文件包括 PDF、DOCX、DOC、PPTX、XLSX、XLS、MD、TXT、CSV、HTML 和 EPUB。扫描版 PDF 或图片型内容还需要检查 OCR。
+支持的文件包括 PDF、DOCX、DOC、PPTX、XLSX、XLS、ODT、ODP、ODS、RTF、MD、TXT、CSV、HTML 和 EPUB。扫描版 PDF 或图片型内容还需要检查 OCR。
 {% endhint %}
 
 ## 添加并验收资料

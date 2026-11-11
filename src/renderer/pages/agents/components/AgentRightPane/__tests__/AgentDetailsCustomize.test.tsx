@@ -48,7 +48,7 @@ it('restores saved order and visibility while keeping empty sections configurabl
   expect(context.compareDocumentPosition(shell) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.details.customize' }))
   const toggles = screen.getAllByRole('switch')
-  expect(toggles).toHaveLength(8)
+  expect(toggles).toHaveLength(9)
   expect(toggles[0]).toHaveAccessibleName('agent.right_pane.info.context')
   expect(screen.getByRole('switch', { name: 'agent.right_pane.info.subagents' })).not.toBeChecked()
   fireEvent.click(screen.getByRole('switch', { name: 'agent.right_pane.info.subagents' }))
@@ -94,6 +94,43 @@ it('keeps known saved choices and introduces missing sections without duplicate 
   expect(screen.queryByText('Context reading')).toBeNull()
   expect(screen.getByRole('button', { name: /agent.right_pane.info.subagents/ })).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.details.customize' }))
-  expect(screen.getAllByRole('switch')).toHaveLength(8)
+  expect(screen.getAllByRole('switch')).toHaveLength(9)
   expect(screen.getByRole('switch', { name: 'agent.right_pane.info.context' })).not.toBeChecked()
+})
+
+it('appends desktop control to an old saved list and reset restores the default order', () => {
+  const old = defaults.filter(({ id }) => id !== 'desktop_control').map((item) => ({ ...item }))
+  old[0].visible = false
+  MockUsePreferenceUtils.setPreferenceValue(preferenceKey, old)
+  mount()
+  fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.details.customize' }))
+  const switches = screen.getAllByRole('switch')
+  expect(switches).toHaveLength(9)
+  expect(switches.at(-1)).toHaveAccessibleName('agent.right_pane.info.desktop_control.title')
+  expect(switches[0]).not.toBeChecked()
+  fireEvent.click(screen.getByRole('button', { name: 'chat.input.toolbar.restore_default' }))
+  expect(MockUsePreferenceUtils.getPreferenceValue(preferenceKey)).toEqual(defaults)
+  expect(defaults.findIndex(({ id }) => id === 'desktop_control')).toBe(
+    defaults.findIndex(({ id }) => id === 'workspace') + 1
+  )
+})
+
+it('hides desktop control without stopping an application', () => {
+  const stop = vi.fn()
+  const row = { ownerId: 'agent:s:a', label: 'Agent', appId: 'app', status: 'active' as const }
+  const content = (
+    <AgentSessionDetailsSections
+      status={{ tasks: [], runTasks: [], completedTaskCount: 0, totalTaskCount: 0, artifacts: [] }}
+      desktopControls={[row]}
+      stopDesktopControl={stop}
+    />
+  )
+  const view = render(content)
+  expect(screen.getByRole('button', { name: /agent.right_pane.info.desktop_control.title/ })).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.details.customize' }))
+  fireEvent.click(screen.getByRole('switch', { name: 'agent.right_pane.info.desktop_control.title' }))
+  view.unmount()
+  render(content)
+  expect(screen.queryByRole('button', { name: /agent.right_pane.info.desktop_control.title/ })).toBeNull()
+  expect(stop).not.toHaveBeenCalled()
 })
