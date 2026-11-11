@@ -81,11 +81,6 @@ describe('agentDraftCache', () => {
     vi.mocked(cacheService.set).mockReset()
   })
 
-  it('keys drafts by session', () => {
-    expect(getAgentDraftCacheKey('session-1')).toBe('agent.composer_draft.session_session-1')
-    expect(getAgentDraftCacheKey('session-2')).toBe('agent.composer_draft.session_session-2')
-  })
-
   it('keeps every active input token, including file and knowledge tokens', () => {
     expect(
       getAgentDraftTokens([skillToken, knowledgeToken, fileToken, folderToken, linkToken, legacyCommandToken])

@@ -1,4 +1,5 @@
 import { Eraser, ScanLine } from 'lucide-react'
+import mime from 'mime-types'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -41,6 +42,7 @@ import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useLatest } from '@renderer/hooks/useLatest'
 import { useModelById, useModels } from '@renderer/hooks/useModel'
@@ -50,10 +52,14 @@ import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
+import { removeFileExtension, removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
+import { getImageBlobFromSource } from '@renderer/utils/image'
 import { resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
+import { isVisionModel } from '@renderer/utils/model'
 import {
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
@@ -72,7 +78,9 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { imageExts } from '@shared/utils/file'
 
+import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
@@ -147,6 +155,7 @@ export type ChatComposerResolvedContext = Pick<
 
 export interface ChatConversationControlsSnapshot {
   scopeKey: string
+  supportsImageInput: boolean
   mentionedModels: Model[]
   mentionedModelSelectorValue: Model[]
   lockedMentionedModels: Model[]
@@ -431,6 +440,7 @@ const ChatComposerInner = ({
     customizeFooterAction
   } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
+  const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
   const { railGutterPx, sidePaddingPx } = useChatLayoutMode()
@@ -803,6 +813,8 @@ const ChatComposerInner = ({
           : runtimeModel
             ? [runtimeModel]
             : EMPTY_MODELS
+  const supportsImageInput = effectiveSubmittedModels.length > 0 && effectiveSubmittedModels.every(isVisionModel)
+  const supportsImageInputRef = useLatest(supportsImageInput)
   const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
   // Persisted assistant refreshes may clear transient mentions; submit the visible selector
   // snapshot so the next turn cannot fall back to stale assistant state.
@@ -878,6 +890,7 @@ const ChatComposerInner = ({
   const conversationControlsSnapshot = useMemo<ChatConversationControlsSnapshot>(
     () => ({
       scopeKey,
+      supportsImageInput,
       mentionedModels,
       mentionedModelSelectorValue,
       lockedMentionedModels,
@@ -896,6 +909,7 @@ const ChatComposerInner = ({
       mentionedModelMultiSelectMode,
       mentionedModelSelectorValue,
       mentionedModels,
+      supportsImageInput,
       scopeKey
     ]
   )
@@ -916,6 +930,8 @@ const ChatComposerInner = ({
     useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
+  const quotaExhaustion = useCherryCloudQuotaExhaustion(effectiveSubmittedModel)
+  const quotaBlocksSend = !!quotaExhaustion && quotaExhaustion.reason !== 'unknown'
   const isModelUnavailable =
     !missingAssistantMessage &&
     !runtimeModelPending &&
@@ -1011,7 +1027,6 @@ const ChatComposerInner = ({
         savedDraft?.mentionedModelMultiSelectMode ?? mentionedModelDraftRef.current.modelMultiSelectMode
     })
   })
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by topic.
   useEffect(() => () => persistFinalDraft(), [draftCacheScopeKey])
 
   const restoreSavedDraft = useCallback(() => {
@@ -1351,6 +1366,51 @@ const ChatComposerInner = ({
       actionsRef.current.focus('end')
     })
   }, [actionsRef, layerActive, streamScopeKey])
+
+  useEffect(() => {
+    if (!layerActive) return
+    return EventEmitter.on(EVENT_NAMES.ADD_CHAT_COMPOSER_IMAGE_REFERENCE, async (payload: unknown) => {
+      if (!payload || typeof payload !== 'object') return
+      const reference = payload as { topicId?: unknown; url?: unknown; name?: unknown }
+      if (
+        reference.topicId !== streamScopeKey ||
+        typeof reference.url !== 'string' ||
+        !supportsImageInputRef.current ||
+        (!reference.url.startsWith('file://') && !reference.url.startsWith('data:image/'))
+      ) {
+        return
+      }
+
+      try {
+        const blob = await getImageBlobFromSource(reference.url)
+        const extension = mime.extension(blob.type)
+        if (!extension || !imageExts.includes(`.${extension}`)) {
+          throw new Error(`Unsupported image type: ${blob.type}`)
+        }
+        const baseName =
+          typeof reference.name === 'string'
+            ? removeSpecialCharactersForFileName(removeFileExtension(reference.name))
+            : ''
+        const name = baseName || 'image'
+        const origin_name = `${name}.${extension}`
+        setFiles((files) => [
+          ...files,
+          {
+            fileTokenSourceId: createComposerFileTokenSourceId(),
+            blob,
+            name,
+            origin_name,
+            size: blob.size,
+            ext: `.${extension}`,
+            type: 'image'
+          }
+        ])
+      } catch (error) {
+        logger.error('Failed to add generated image as a composer reference', error as Error)
+        toast.error(t('common.error'))
+      }
+    })
+  }, [layerActive, setFiles, streamScopeKey, supportsImageInputRef, t])
 
   useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })
@@ -1785,6 +1845,8 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
+        // Save-only edits stay available out of quota; only the resend is held.
+        if (quotaBlocksSend) return
         await commitEditedMessage(draft, true)
         return
       }
@@ -1896,6 +1958,7 @@ const ChatComposerInner = ({
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
+      quotaBlocksSend,
       runtimeModel,
       runtimeModelPending,
       selectedKnowledgeBasesScopeKey,
@@ -1990,6 +2053,51 @@ const ChatComposerInner = ({
     </>
   )
 
+  const followupsDock =
+    queuedFollowups.length > 0 ? (
+      <QueuedFollowupsDock
+        items={queuedFollowups}
+        paused={followupPaused}
+        onTogglePause={() => setFollowupPaused(!followupPaused)}
+        onSteer={async (id) => {
+          // Claim-guarded send: only the window whose claim wins sends,
+          // so a manual steer racing another window's auto-drain cannot
+          // deliver the same queued message twice.
+          await steerFollowup(id, sendQueuedPayload)
+        }}
+        onEdit={async (id) => {
+          if (directSendInFlightRef.current) return
+          if (followupTakePendingRef.current) return
+          followupTakePendingRef.current = true
+          setFollowupTakePending(true)
+          try {
+            if (editingMessageForCurrentTopic) {
+              // A message-edit session owns the composer: taking a queued
+              // item must not try to capture it as an outgoing followup.
+              releaseEdit()
+              const item = await takeFollowupForEdit(id, () => null)
+              if (!item) return
+              restoreFollowupDraft(item)
+              return
+            }
+            // Atomic take: undefined when the item is owned by an
+            // in-flight drain, so an edit can never race its send.
+            // Switching the edit target returns the outgoing draft to
+            // its queue slot, rebuilt from the live editor, first.
+            const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
+            if (!incoming) return
+            restoreFollowupDraft(incoming)
+          } finally {
+            followupTakePendingRef.current = false
+            setFollowupTakePending(false)
+          }
+        }}
+        onRemove={removeFollowup}
+        onReorder={reorderFollowups}
+        isSteerDisabled={isQueuedFollowupSteerDisabled}
+      />
+    ) : undefined
+
   return (
     <ComposerToolDerivedStateProvider
       couldAddImageFile={canAddImageFile}
@@ -1999,6 +2107,7 @@ const ChatComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
+          markdownLivePreview={renderInputMessageAsMarkdown}
           showAiDisclaimer
           voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}
           text={text}
@@ -2024,7 +2133,8 @@ const ChatComposerInner = ({
             hasPendingReference ||
             !!missingAssistantMessage ||
             !!missingModelMessage ||
-            !!missingSelectedModelMessage
+            !!missingSelectedModelMessage ||
+            (quotaBlocksSend && !editingMessageForCurrentTopic)
           }
           sendBlockedReason={
             isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
@@ -2060,49 +2170,14 @@ const ChatComposerInner = ({
           }
           onPause={onPause}
           queueContent={
-            queuedFollowups.length > 0 ? (
-              <QueuedFollowupsDock
-                items={queuedFollowups}
-                paused={followupPaused}
-                onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={async (id) => {
-                  // Claim-guarded send: only the window whose claim wins sends,
-                  // so a manual steer racing another window's auto-drain cannot
-                  // deliver the same queued message twice.
-                  await steerFollowup(id, sendQueuedPayload)
-                }}
-                onEdit={async (id) => {
-                  if (directSendInFlightRef.current) return
-                  if (followupTakePendingRef.current) return
-                  followupTakePendingRef.current = true
-                  setFollowupTakePending(true)
-                  try {
-                    if (editingMessageForCurrentTopic) {
-                      // A message-edit session owns the composer: taking a queued
-                      // item must not try to capture it as an outgoing followup.
-                      releaseEdit()
-                      const item = await takeFollowupForEdit(id, () => null)
-                      if (!item) return
-                      restoreFollowupDraft(item)
-                      return
-                    }
-                    // Atomic take: undefined when the item is owned by an
-                    // in-flight drain, so an edit can never race its send.
-                    // Switching the edit target returns the outgoing draft to
-                    // its queue slot, rebuilt from the live editor, first.
-                    const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
-                    if (!incoming) return
-                    restoreFollowupDraft(incoming)
-                  } finally {
-                    followupTakePendingRef.current = false
-                    setFollowupTakePending(false)
-                  }
-                }}
-                onRemove={removeFollowup}
-                onReorder={reorderFollowups}
-                isSteerDisabled={isQueuedFollowupSteerDisabled}
-              />
-            ) : undefined
+            quotaExhaustion ? (
+              <>
+                <CherryCloudQuotaNotice exhaustion={quotaExhaustion} />
+                {followupsDock}
+              </>
+            ) : (
+              followupsDock
+            )
           }
           supportedExts={supportedExts}
           setFiles={setFilesWithRevision}

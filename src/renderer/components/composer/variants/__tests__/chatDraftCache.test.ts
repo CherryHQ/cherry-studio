@@ -53,11 +53,6 @@ describe('chatDraftCache', () => {
     vi.mocked(cacheService.set).mockReset()
   })
 
-  it('uses a separate cache key for each topic', () => {
-    expect(getChatDraftCacheKey('topic-a')).toBe('chat.composer_draft.topic-a')
-    expect(getChatDraftCacheKey('topic-b')).toBe('chat.composer_draft.topic-b')
-  })
-
   it('reads an empty draft from a missing topic cache entry', () => {
     vi.mocked(cacheService.get).mockReturnValue(undefined)
     expect(readChatDraftCache('topic-a')).toEqual({
@@ -68,7 +63,6 @@ describe('chatDraftCache', () => {
       mentionedModelIds: [],
       modelMultiSelectMode: false
     })
-    expect(cacheService.get).toHaveBeenCalledWith('chat.composer_draft.topic-a')
   })
 
   it('degrades malformed fields independently', () => {

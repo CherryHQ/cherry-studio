@@ -1,18 +1,111 @@
 import { once } from 'node:events'
-import { writeFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { access, mkdir, readdir, realpath, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { basename, dirname, extname, join } from 'node:path'
 
-import type { KnowledgeBaseListResponse } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeBaseListResponse, KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
+import { AssistantSchema } from '@shared/data/types/assistant'
 import { GroupSchema } from '@shared/data/types/group'
+import {
+  type KnowledgeBase,
+  type KnowledgeItem,
+  type KnowledgeItemChunk,
+  KnowledgeBaseSchema,
+  KnowledgeItemChunkSchema,
+  type KnowledgeSearchResult
+} from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
+import { formatApiHost } from '@shared/utils/api'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
+import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
-import { selectVisibleModel } from '../helpers/models'
+import { customAssistantName, ensureCustomAssistant } from '../helpers/assistants'
+import { submitChatMarker } from '../helpers/chat'
+import { EMBEDDING_PROVIDER, ensureEmbeddingProvider, ensureKnowledgeBase, knowledgeName } from '../helpers/knowledge'
+import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
+import { closeSettings } from '../helpers/settings'
+import { knowledgeNotes } from '../scenarios/knowledgeNotes'
+import { knowledgeSourceConflicts } from '../scenarios/knowledgeSourceConflicts'
+import { knowledgeSourceOperations } from '../scenarios/knowledgeSourceOperations'
 import { renameMoveDeleteKnowledge } from '../scenarios/renameMoveDeleteKnowledge'
+
+test(...caseDefinition('K-01'), async ({ app, mainWindow }) => {
+  let page = mainWindow
+  await test.step('Create and index a knowledge base, then verify recall', async () => {
+    const providerId = await ensureEmbeddingProvider(app, page)
+    await expect(page.getByRole('heading', { name: EMBEDDING_PROVIDER, exact: true, level: 1 })).toBeVisible()
+    await expect(page.getByText(app.config.customEmbeddingProvider.model, { exact: true })).toBeVisible()
+    await closeSettings(page)
+    await ensureKnowledgeBase(app, page, providerId)
+
+    await page.getByRole('button', { name: 'Recall Test', exact: true }).click()
+    await page.getByRole('textbox').last().fill('What is the regression knowledge answer?')
+    await page
+      .getByRole('button', { name: /Search|Test|Send/ })
+      .last()
+      .click()
+    await expect(page.getByRole('dialog').last()).toContainText('CHERRY_KNOWLEDGE_58597', { timeout: 2 * 60_000 })
+  })
+
+  await test.step('Restart and verify the knowledge base persists', async () => {
+    page = await app.restart('authenticated')
+    await dismissOnboarding(page)
+    await selectSidebarApp(page, 'Knowledge Base')
+    await expect(
+      page.locator('[data-ui~="knowledge.navigation"]').getByText(knowledgeName(app), { exact: true })
+    ).toBeVisible()
+  })
+
+  await test.step('Query the persisted knowledge base and verify the answer and citations', async () => {
+    await ensureCustomAssistant(app, page)
+    await page.getByRole('button', { name: `Edit Assistant: ${customAssistantName(app)}`, exact: true }).click()
+    await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
+    const assistantDialog = page.getByRole('dialog').last()
+    if (
+      !(await assistantDialog
+        .getByText(knowledgeName(app), { exact: true })
+        .isVisible()
+        .catch(() => false))
+    ) {
+      await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
+      await page
+        .getByRole('option')
+        .filter({ has: page.getByText(knowledgeName(app), { exact: true }) })
+        .click()
+    }
+    await expect(assistantDialog.getByText(knowledgeName(app), { exact: true })).toBeVisible()
+    await assistantDialog.getByRole('button', { name: 'Close', exact: true }).click()
+
+    const sendQuestion = async () => {
+      const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
+      await composer.fill('What is the regression knowledge answer? Include the exact marker and cite the source file.')
+      await page.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
+      const quickPanel = page.getByTestId('quick-panel')
+      await quickPanel.getByText('Knowledge Base', { exact: true }).click()
+      await quickPanel.getByText(knowledgeName(app), { exact: true }).click()
+      await page.keyboard.press('Escape')
+      await page.getByRole('button', { name: 'Send', exact: true }).click()
+    }
+    const marker = page.getByText('CHERRY_KNOWLEDGE_58597', { exact: false }).last()
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await sendQuestion()
+      const visible = await marker
+        .waitFor({ state: 'visible', timeout: 2 * 60_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (visible) break
+    }
+    await expect(marker).toBeVisible()
+    await expect(page.locator('body')).toContainText('ground-truth.txt')
+    await expect(page.getByText(/\d+ citations?/i)).toBeVisible()
+  })
+})
 
 test(...caseDefinition('MP-59'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
@@ -207,6 +300,738 @@ test(...caseDefinition('MP-59'), async ({ app, mainWindow }, testInfo) => {
     )
     server.closeAllConnections()
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+  }
+})
+
+test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => {
+  const attachScreenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  const filePath = app.fixturesPath('documents/sample-chinese.md')
+  await attachScreenshot('MP-60 application before file import')
+  await test.step('Verify the required Chinese Markdown fixture is readable', async () => {
+    await access(filePath, constants.R_OK)
+  })
+
+  const providerId = `mp60-${Date.now()}`
+  const baseName = app.resourceName(`File processing ${Date.now()}`)
+  const upstream = app.config.customEmbeddingProvider
+  let holdResponse = false
+  let releaseResponse!: () => void
+  const responseGate = new Promise<void>((resolve) => {
+    releaseResponse = resolve
+  })
+  const server = createServer((request, response) => {
+    void (async () => {
+      if (request.method !== 'POST' || request.url !== '/v1/embeddings') {
+        response.writeHead(404).end()
+        return
+      }
+      const held = holdResponse
+      const chunks: Buffer[] = []
+      for await (const chunk of request) chunks.push(Buffer.from(chunk))
+      const result = await fetch(`${formatApiHost(upstream.baseUrl)}/embeddings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${upstream.apiKey}` },
+        body: Buffer.concat(chunks),
+        signal: AbortSignal.timeout(120_000)
+      })
+      const body = Buffer.from(await result.arrayBuffer())
+      if (held) await responseGate
+      response.writeHead(result.status, { 'Content-Type': result.headers.get('Content-Type') ?? 'application/json' })
+      response.end(body)
+    })().catch(() => response.writeHead(502).end('MP60 embedding transport failed'))
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('MP60 embedding gateway did not bind')
+  testInfo.annotations.push({
+    type: 'data-source',
+    description:
+      'Real configured embedding API through a loopback response gate; the response is released after the real UI displays Embedding.'
+  })
+  try {
+    const configured = await page.evaluate(
+      async ({ providerId, model, baseUrl }) => {
+        const provider = await window.api.dataApi.request({
+          id: 'mp60-provider',
+          method: 'POST',
+          path: '/providers',
+          body: {
+            providerId,
+            name: 'MP60 embedding gateway',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: { 'openai-embeddings': { baseUrl } },
+            apiKeys: [{ id: 'gateway', key: 'local-gateway', isEnabled: true }]
+          }
+        })
+        const enabled = await window.api.dataApi.request({
+          id: 'mp60-enable',
+          method: 'PATCH',
+          path: `/providers/${providerId}`,
+          body: { isEnabled: true }
+        })
+        const models = await window.api.dataApi.request({
+          id: 'mp60-model',
+          method: 'POST',
+          path: '/models',
+          body: [{ providerId, modelId: model, capabilities: ['embedding'], endpointTypes: ['openai-embeddings'] }]
+        })
+        return [provider.status, enabled.status, models.status]
+      },
+      { providerId, model: upstream.model, baseUrl: `http://127.0.0.1:${address.port}/v1` }
+    )
+    expect(configured).toEqual([201, 200, 201])
+    await page.reload()
+    await selectSidebarApp(page, 'Knowledge Base')
+    await page.getByRole('button', { name: /^(Create|New) Knowledge Base$/ }).click()
+    const dialog = page.getByRole('dialog', { name: 'New Knowledge Base' })
+    await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(baseName)
+    await dialog.getByRole('button', { name: 'Embedding Model', exact: true }).click()
+    const selector = page.getByTestId('model-selector-content')
+    await selector.getByTestId('model-selector-search').fill(upstream.model)
+    await selector.getByTestId(`model-selector-item-${createUniqueModelId(providerId, upstream.model)}`).click()
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+    await expect(dialog).toBeHidden({ timeout: 120_000 })
+
+    const observation = await page.evaluateHandle(() => {
+      const entries: Array<{ status: string; text: string; elapsedMs: number }> = []
+      const started = performance.now()
+      const record = () => {
+        const row = Array.from(document.querySelectorAll('[data-ui~="knowledge.content"] [role="row"]')).find(
+          (element) => element.getClientRects().length > 0 && element.textContent?.includes('sample-chinese.md')
+        )
+        if (!row || !row.getBoundingClientRect().height) return
+        const text = row.textContent ?? ''
+        const status = text.match(/Reading|Chunking|Embedding|Ready|Error/)?.[0]
+        if (status && entries.at(-1)?.text !== text)
+          entries.push({ status, text, elapsedMs: performance.now() - started })
+      }
+      const observer = new MutationObserver(record)
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+      return { entries, stop: () => observer.disconnect() }
+    })
+    const started = Date.now()
+    try {
+      holdResponse = true
+      await test.step('Import sample-chinese.md through Add Data Source → File', async () => {
+        const add = page.getByRole('button', { name: 'Add Data Source', exact: true })
+        if (await add.isVisible()) {
+          await add.click()
+          await page.getByRole('menuitem', { name: 'File', exact: true }).click()
+        } else {
+          await page.getByRole('button', { name: 'File', exact: true }).click()
+        }
+        chooseNativeFile(app.record.platform, { ...app.paths, fixtures: dirname(filePath) }, filePath)
+      })
+      const row = page.getByRole('row').filter({ hasText: 'sample-chinese.md' })
+      await expect(row).toBeVisible()
+      await expect
+        .poll(() => observation.evaluate(({ entries }) => entries.at(-1)?.status), {
+          timeout: 30_000,
+          message: 'An in-flight embedding request must be visible as Embedding'
+        })
+        .toBe('Embedding')
+      releaseResponse()
+      await expect
+        .poll(() => observation.evaluate(({ entries }) => entries.at(-1)?.status), { timeout: 180_000 })
+        .toMatch(/Ready|Error/)
+      const processingMs = Date.now() - started
+      const entries = await observation.evaluate(({ entries }) => entries)
+      await attachScreenshot('MP-60 file processing result')
+      if (entries.at(-1)?.status === 'Error') {
+        const error = row.getByText('Error', { exact: true })
+        await expect(error).toBeVisible()
+        await error.hover()
+        const reason = page.getByRole('tooltip')
+        await expect(reason).toBeVisible()
+        await expect(reason).not.toHaveText('')
+        throw new Error(`File processing failed: ${await reason.innerText()}`)
+      }
+      const statuses = entries
+        .map(({ status }) => status)
+        .filter((status, index, all) => index === 0 || status !== all[index - 1])
+      // The item only reports reading → embedding → completed; `Chunking` is the list's fallback
+      // label for states outside that set, so requiring it would reject a successful import.
+      const order = ['Reading', 'Embedding', 'Ready']
+      expect(
+        statuses.filter((status) => !order.includes(status)),
+        'Only states the item actually reports may render'
+      ).toEqual([])
+      expect(statuses.at(-1), 'The import must end in the ready state').toBe('Ready')
+      expect(
+        statuses.some((status) => status === 'Reading' || status === 'Embedding'),
+        'At least one processing state must be visible'
+      ).toBe(true)
+      const positions = statuses.map((status) => order.indexOf(status))
+      expect(
+        positions.every((position, index) => index === 0 || position >= positions[index - 1]),
+        'Processing states must not render out of order'
+      ).toBe(true)
+      await expect(row.getByText('Ready', { exact: true })).toBeVisible()
+
+      const menuMode = await page.evaluate(() => window.api.preference.get('menu.presentation_mode'))
+      try {
+        await page.evaluate(() => window.api.preference.set('menu.presentation_mode', 'cherry'))
+        await row.click({ button: 'right' })
+        await page.getByRole('menuitem', { name: 'View Chunks', exact: true }).click()
+        const chunks = page.getByText(/^[1-9]\d* chunks$/)
+        await expect(chunks).toBeVisible()
+        await attachScreenshot('MP-60 indexed chunks')
+        await testInfo.attach('MP-60 processing duration', {
+          body: JSON.stringify(
+            { processingMs, chunks: await chunks.innerText(), provider: 'configured embedding provider', entries },
+            null,
+            2
+          ),
+          contentType: 'application/json'
+        })
+      } finally {
+        await page.evaluate((menuMode) => window.api.preference.set('menu.presentation_mode', menuMode), menuMode)
+      }
+    } finally {
+      releaseResponse()
+      await observation.evaluate(({ stop }) => stop())
+      await testInfo.attach('MP-60 processing timeline', {
+        body: JSON.stringify(
+          { totalMs: Date.now() - started, entries: await observation.evaluate(({ entries }) => entries) },
+          null,
+          2
+        ),
+        contentType: 'application/json'
+      })
+      await observation.dispose()
+    }
+  } finally {
+    releaseResponse()
+    try {
+      await page.evaluate(
+        async ({ baseName, providerId }) => {
+          const bases = await window.api.dataApi.request({
+            id: 'mp60-bases',
+            method: 'GET',
+            path: '/knowledge-bases',
+            params: { search: baseName }
+          })
+          if (bases.status !== 200) throw new Error('MP60 cleanup could not list its knowledge base')
+          for (const base of (bases.data as KnowledgeBaseListResponse).items.filter((base) => base.name === baseName)) {
+            const deleted = (await window.api.ipcApi.request('knowledge.delete_base', {
+              baseId: base.id
+            })) as IpcResult<unknown>
+            if (!deleted.ok) throw new Error('MP60 cleanup could not delete its knowledge base')
+          }
+          const deletedProvider = await window.api.dataApi.request({
+            id: 'mp60-clean-provider',
+            method: 'DELETE',
+            path: `/providers/${providerId}`
+          })
+          if (deletedProvider.status !== 204) throw new Error('MP60 cleanup could not delete its provider')
+        },
+        { baseName, providerId }
+      )
+      await page.reload()
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    }
+  }
+})
+
+test(...caseDefinition('MP-61'), async ({ app, mainWindow: page }, testInfo) => {
+  const documents = await realpath(app.fixturesPath('documents'))
+  const screenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  await selectSidebarApp(page, 'Knowledge Base')
+  await screenshot('MP-61 knowledge base preconditions')
+  await access(documents)
+
+  const supportedExtensions = new Set([
+    '.txt',
+    '.markdown',
+    '.md',
+    '.mdx',
+    '.pdf',
+    '.html',
+    '.htm',
+    '.xlsx',
+    '.xls',
+    '.docx',
+    '.csv',
+    '.doc',
+    '.pptx',
+    '.ppt',
+    '.epub',
+    '.draftsexport'
+  ])
+  const files: string[] = []
+  const scan = async (directory: string): Promise<void> => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) await scan(path)
+      else if (entry.isFile()) files.push(path)
+    }
+  }
+  await scan(documents)
+  const supported = files.filter((path) => supportedExtensions.has(extname(path).toLowerCase()))
+  const skippedCount = files.length - supported.length
+  expect(supported.length, 'Documents must contain supported files').toBeGreaterThan(0)
+  expect(skippedCount, 'Documents must include an unsupported file to verify the warning').toBeGreaterThan(0)
+
+  // BM25 needs no external model; only the base precondition is seeded, all imports use the UI.
+  const baseResult = (await page.evaluate(
+    (name) => window.api.ipcApi.request('knowledge.create_base', { base: { name } }),
+    app.resourceName(`Directory import ${Date.now()}`)
+  )) as IpcResult<KnowledgeBase>
+  if (!baseResult.ok) throw new Error(baseResult.error.message)
+  const base = KnowledgeBaseSchema.parse(baseResult.data)
+  const list = async (groupId: string | null): Promise<KnowledgeItem[]> => {
+    const items: KnowledgeItem[] = []
+    let cursor: string | undefined
+    do {
+      const response = await page.evaluate(
+        ({ baseId, groupId, cursor }) =>
+          window.api.dataApi.request({
+            id: 'mp61-items',
+            method: 'GET',
+            path: `/knowledge-bases/${baseId}/items`,
+            params: { groupId, cursor, limit: 100 }
+          }),
+        { baseId: base.id, groupId, cursor }
+      )
+      expect(response.status).toBe(200)
+      const data = response.data as KnowledgeItemListResponse
+      items.push(...data.items)
+      cursor = data.nextCursor
+    } while (cursor)
+    return items
+  }
+  const importFolder = async (path: string) => {
+    await page.getByRole('button', { name: 'Add Data Source', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Folder', exact: true }).click()
+    chooseNativeFile(app.record.platform, { ...app.paths, fixtures: dirname(path) }, path)
+  }
+  try {
+    await page.reload()
+    await selectSidebarApp(page, 'Knowledge Base')
+    await page.locator('[data-ui~="knowledge.navigation"]').getByText(base.name, { exact: true }).click()
+    // Folder imports hand the directory to the main process, which only reports back the
+    // supported children; unsupported files inside a folder produce no toast (the warning
+    // is reserved for explicitly picked files). The children assertions below are the check.
+    await importFolder(documents)
+    await expect.poll(async () => (await list(null)).length).toBe(1)
+    const [directory] = await list(null)
+    expect(directory.type).toBe('directory')
+    expect(directory.data.source).toBe(documents)
+    const row = page.getByRole('row', { name: `Open ${basename(documents)}`, exact: true })
+    await expect(row.getByRole('gridcell').nth(2)).toHaveText('Folders')
+    await screenshot('MP-61 imported directory and type')
+    await row.click()
+
+    const importedFiles: KnowledgeItem[] = []
+    const checkChildren = async (parent: KnowledgeItem): Promise<void> => {
+      await expect.poll(async () => (await list(parent.id)).length, { timeout: 60_000 }).toBeGreaterThan(0)
+      for (const child of await list(parent.id)) {
+        expect(child.groupId).toBe(parent.id)
+        const childRow = page.getByRole('row', { name: `Open ${basename(child.data.source)}`, exact: true })
+        await expect(childRow).toBeVisible()
+        await expect(childRow.locator('[title]').first()).toHaveAttribute('title', child.data.source)
+        if (child.type === 'directory') {
+          await childRow.click()
+          await checkChildren(child)
+          await page.getByRole('button', { name: 'Back', exact: true }).click()
+        } else {
+          expect(child.type).toBe('file')
+          importedFiles.push(child)
+        }
+      }
+    }
+    await checkChildren(directory)
+    expect(importedFiles.map((item) => item.data.source).sort()).toEqual([...supported].sort())
+    await screenshot('MP-61 supported children and paths')
+    await page.getByRole('button', { name: 'Back', exact: true }).click()
+
+    const emptyDirectory = testInfo.outputPath('mp61-empty-directory')
+    await mkdir(emptyDirectory)
+    await importFolder(emptyDirectory)
+    const emptyRow = page.getByRole('row', { name: `Open ${basename(emptyDirectory)}`, exact: true })
+    await expect(emptyRow.getByRole('gridcell').nth(2)).toHaveText('Folders')
+    await expect.poll(async () => (await list(null)).length).toBe(2)
+    const emptySource = await realpath(emptyDirectory)
+    const emptyItem = (await list(null)).find((item) => item.data.source === emptySource)
+    expect(emptyItem?.type).toBe('directory')
+    await emptyRow.click()
+    await expect(page.getByText('This folder is empty', { exact: true })).toBeVisible()
+    expect(await list(emptyItem!.id)).toEqual([])
+    await screenshot('MP-61 empty directory message')
+  } finally {
+    await page.evaluate((baseId) => window.api.ipcApi.request('knowledge.delete_base', { baseId }), base.id)
+  }
+})
+
+test(...caseDefinition('MP-62'), async ({ app, mainWindow: page }, testInfo) => {
+  const name = app.resourceName(`URL sources ${Date.now()}`)
+  const articleUrl = 'https://www.w3.org/Provider/Style/URI'
+  const unreachableUrl = 'https://mp62-unreachable.invalid/article'
+  const articleText = 'There are no reasons at all in theory for people to change URIs'
+  // BM25 uses real fetching, chunking and indexing without an external embedding account or mocks.
+  const created = (await page.evaluate(
+    (name) => window.api.ipcApi.request('knowledge.create_base', { base: { name, chunkSize: 256, chunkOverlap: 20 } }),
+    name
+  )) as { ok: boolean; data: unknown }
+  expect(created.ok).toBe(true)
+  const base = KnowledgeBaseSchema.parse(created.data)
+  const attachScreenshot = async (label: string) => {
+    const path = testInfo.outputPath(`${label}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(label, { path, contentType: 'image/png' })
+  }
+  const readItems = async () => {
+    const result = await page.evaluate(
+      (id) =>
+        window.api.dataApi.request({
+          id: 'mp62-items',
+          method: 'GET',
+          path: `/knowledge-bases/${id}/items`
+        }),
+      base.id
+    )
+    expect(result.status, JSON.stringify(result.error)).toBe(200)
+    return (result.data as KnowledgeItemListResponse).items
+  }
+  const openUrlDialog = async () => {
+    await page.getByRole('button', { name: 'Add Data Source', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'URL', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add Data Source', exact: true })
+    await expect(dialog).toBeVisible()
+    return dialog
+  }
+
+  try {
+    await page.reload()
+    await selectSidebarApp(page, 'Knowledge Base')
+    await page.locator('[data-ui~="knowledge.navigation"]').getByText(name, { exact: true }).click()
+
+    await test.step('Fetch a public article and verify indexed chunks reach Ready', async () => {
+      const dialog = await openUrlDialog()
+      await dialog.getByPlaceholder('https://example.com', { exact: true }).fill(articleUrl)
+      await attachScreenshot('MP-62 public article URL before submission')
+      await dialog.getByRole('button', { name: 'Add', exact: true }).click()
+      await expect(dialog).toBeHidden()
+      await expect
+        .poll(async () => (await readItems()).find((item) => item.data.source === articleUrl)?.status, {
+          timeout: 120_000,
+          message: 'The public article must finish fetching and indexing'
+        })
+        .toBe('completed')
+      const item = (await readItems()).find((item) => item.data.source === articleUrl)!
+      expect(item.type).toBe('url')
+      expect(item.error).toBeNull()
+      expect(item.data).toHaveProperty('relativePath', expect.stringMatching(/\S/))
+      const chunkResult = (await page.evaluate(
+        ({ baseId, itemId }) => window.api.ipcApi.request('knowledge.list_item_chunks', { baseId, itemId }),
+        { baseId: base.id, itemId: item.id }
+      )) as { ok: boolean; data: unknown }
+      expect(chunkResult.ok).toBe(true)
+      const chunks = KnowledgeItemChunkSchema.array().parse(chunkResult.data)
+      expect(chunks.length, 'The article must be split into multiple persisted chunks').toBeGreaterThan(1)
+      expect(chunks.map((chunk) => chunk.content).join('\n')).toContain(articleText)
+      await expect(page.getByRole('row').filter({ has: page.locator(`[title="${articleUrl}"]`) })).toContainText(
+        'Ready'
+      )
+      await attachScreenshot('MP-62 fetched article ready after chunking')
+    })
+
+    await test.step('Preview the captured article body inside the application', async () => {
+      const row = page.getByRole('row').filter({ has: page.locator(`[title="${articleUrl}"]`) })
+      await row.getByRole('button', { name: 'More', exact: true }).click()
+      await page.getByRole('menuitem', { name: 'Preview Source', exact: true }).click()
+      await expect(page.getByText(articleText, { exact: false })).toBeVisible({ timeout: 30_000 })
+      await attachScreenshot('MP-62 article original body preview')
+      await page.getByRole('button', { name: 'Back', exact: true }).click()
+    })
+
+    await test.step('An unreachable URL terminates with Error and an actionable failure reason', async () => {
+      const dialog = await openUrlDialog()
+      await dialog.getByPlaceholder('https://example.com', { exact: true }).fill(unreachableUrl)
+      await dialog.getByRole('button', { name: 'Add', exact: true }).click()
+      await expect(dialog).toBeHidden()
+      await expect
+        .poll(async () => (await readItems()).find((item) => item.data.source === unreachableUrl)?.status, {
+          timeout: 90_000,
+          message: 'An unreachable URL must terminate rather than stay in processing'
+        })
+        .toBe('failed')
+      const item = (await readItems()).find((item) => item.data.source === unreachableUrl)!
+      expect(item.error).toEqual(expect.stringMatching(/\S/))
+      const row = page.getByRole('row').filter({ has: page.locator(`[title="${unreachableUrl}"]`) })
+      await expect(row.getByText('Error', { exact: true })).toBeVisible()
+      await row.getByText('Error', { exact: true }).hover()
+      await expect(page.getByRole('tooltip')).toContainText(item.error!)
+      await attachScreenshot('MP-62 unreachable article terminal error and reason')
+    })
+
+    await test.step('Reject malformed URL before it becomes a data source', async () => {
+      const dialog = await openUrlDialog()
+      await dialog.getByPlaceholder('https://example.com', { exact: true }).fill('not a valid URL')
+      const submit = dialog.getByRole('button', { name: 'Add', exact: true })
+      if (await submit.isEnabled()) {
+        await submit.click()
+        await expect.soft(dialog, 'Invalid URL must keep the input dialog open').toBeVisible({ timeout: 5_000 })
+        await expect
+          .soft(dialog.getByRole('alert'), 'Invalid URL must show validation feedback')
+          .toBeVisible({ timeout: 5_000 })
+      }
+      expect
+        .soft(
+          (await readItems()).map((item) => item.data.source),
+          'Malformed URL must never be saved'
+        )
+        .toEqual(expect.arrayContaining([articleUrl, unreachableUrl]))
+      expect.soft((await readItems()).length, 'Only the two syntactically valid URLs may be saved').toBe(2)
+      await attachScreenshot('MP-62 malformed URL validation result')
+    })
+  } finally {
+    await page.evaluate((baseId) => window.api.ipcApi.request('knowledge.delete_base', { baseId }), base.id)
+  }
+})
+
+test(...caseDefinition('MP-63'), async ({ app, mainWindow }, testInfo) => {
+  await knowledgeNotes(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-64'), async ({ app, mainWindow }, testInfo) => {
+  await knowledgeSourceConflicts(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-65'), async ({ app, mainWindow }, testInfo) => {
+  await knowledgeSourceOperations(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
+  let page = mainWindow
+  const name = app.resourceName(`Retrieval ${Date.now()}`)
+  const assistantName = `${name} assistant`
+  let ownedBaseId: string | undefined
+  let assistantId: string | undefined
+  let primaryFailure: unknown
+  const attachScreenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  try {
+    const providerId = await ensureEmbeddingProvider(app, page)
+    await closeSettings(page)
+    await selectSidebarApp(page, 'Knowledge Base')
+    await page.getByRole('button', { name: /^(Create|New) Knowledge Base$/ }).click()
+    const create = page.getByRole('dialog', { name: 'New Knowledge Base' })
+    await create.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
+    await create.getByRole('button', { name: 'Embedding Model', exact: true }).click()
+    await selectVisibleModel(page, app.config.customEmbeddingProvider.model, providerId)
+    await create.getByRole('button', { name: 'Create', exact: true }).click()
+    await expect(create).toBeHidden({ timeout: 120_000 })
+    const bases = await page.evaluate(() =>
+      window.api.dataApi.request({
+        id: 'mp66-bases',
+        method: 'GET',
+        path: '/knowledge-bases',
+        params: { limit: 100 }
+      })
+    )
+    expect(bases.status).toBe(200)
+    const base = (bases.data as { items: KnowledgeBase[] }).items.find((base) => base.name === name)
+    expect(base).toBeDefined()
+    const baseId = base!.id
+    ownedBaseId = baseId
+    const sectionText = (index: number) =>
+      `## 第 ${index} 节 测试记录\n这一节只记录回归测试的背景信息，编号 ${index}。客户端把会话与知识条目保存在本地，重启后依旧可用。检索时系统先切分文本，再写入向量索引，查询按相似度召回若干分块并拼进上下文。引用需要带编号，方便核对来源文件与命中的原文片段。以上说明与公开测试标记无关，只用于填充分块数量。`
+    const canarySection =
+      '## 公开测试标记\n本项目的公开测试标记是 canary-seven。这是完全虚构的公开回归测试数据，不是秘密或凭据，允许在回答和测试报告中原样引用。'
+    const sections = Array.from({ length: 26 }, (_, index) => sectionText(index + 1))
+    const groundTruthPath = testInfo.outputPath('mp66-ground-truth.md')
+    await writeFile(
+      groundTruthPath,
+      `# mp66 ground truth\n\n${sections.slice(0, 13).join('\n\n')}\n\n${canarySection}\n\n${sections
+        .slice(13)
+        .join('\n\n')}\n`
+    )
+    await page.evaluate(
+      ({ baseId, path }) =>
+        window.api.ipcApi.request('knowledge.add_items', {
+          baseId,
+          items: [{ type: 'file', data: { path, source: 'mp66-ground-truth.md' } }]
+        }),
+      { baseId, path: groundTruthPath }
+    )
+    const readItems = async () => {
+      const result = await page.evaluate(
+        (baseId) =>
+          window.api.dataApi.request({
+            id: 'mp66-items',
+            method: 'GET',
+            path: `/knowledge-bases/${baseId}/items`
+          }),
+        baseId
+      )
+      expect(result.status).toBe(200)
+      return (result.data as { items: KnowledgeItem[] }).items
+    }
+    await expect
+      .poll(async () => (await readItems()).map((item) => item.status), { timeout: 180_000 })
+      .toEqual(['completed'])
+    const itemId = (await readItems())[0].id
+    const chunkResult = (await page.evaluate(
+      ({ baseId, itemId }) => window.api.ipcApi.request('knowledge.list_item_chunks', { baseId, itemId }),
+      { baseId, itemId }
+    )) as IpcResult<KnowledgeItemChunk[]>
+    if (!chunkResult.ok) throw new Error(JSON.stringify(chunkResult.error))
+    const chunks = chunkResult.data
+    expect(chunks.length, 'The Top K test needs more than three indexed chunks').toBeGreaterThan(3)
+    const readBase = async () => {
+      const result = await page.evaluate(
+        (baseId) =>
+          window.api.dataApi.request({
+            id: 'mp66-base',
+            method: 'GET',
+            path: `/knowledge-bases/${baseId}`
+          }),
+        baseId
+      )
+      expect(result.status).toBe(200)
+      return result.data as KnowledgeBase
+    }
+    const openSettings = async () => {
+      await selectSidebarApp(page, 'Knowledge Base')
+      await page.locator('[data-ui~="knowledge.navigation"]').getByText(name, { exact: true }).click()
+      await page.getByRole('button', { name: 'Knowledge Base Settings', exact: true }).click()
+      await page.getByRole('button', { name: 'Advanced Settings', exact: true }).click()
+    }
+    // Chunk fields currently lack accessible labels; scope each input by its visible field label.
+    const field = (label: string) =>
+      page
+        .locator('div')
+        .filter({ has: page.getByText(label, { exact: true }) })
+        .filter({ has: page.getByRole('textbox') })
+        .last()
+        .getByRole('textbox')
+    await openSettings()
+    const topK = page.getByRole('slider').first()
+    await topK.focus()
+    await page.keyboard.press('Home')
+    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('ArrowRight')
+    await expect(topK).toHaveAttribute('aria-valuenow', '3')
+    await field('Chunk Size').fill('500')
+    await field('Overlap Size').fill('50')
+    await expect(page.getByText('Chunking changes only apply to newly added content', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.poll(readBase).toMatchObject({ documentCount: 3, chunkSize: 500, chunkOverlap: 50 })
+    await attachScreenshot('MP-66 saved retrieval and chunking warning')
+    await field('Overlap Size').fill('501')
+    await expect(page.getByText('Chunk overlap must be smaller than chunk size', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+    expect(await readBase()).toMatchObject({ documentCount: 3, chunkSize: 500, chunkOverlap: 50 })
+    await attachScreenshot('MP-66 invalid overlap rejected')
+
+    page = await app.restart('authenticated')
+    await dismissOnboarding(page)
+    expect(await readBase()).toMatchObject({ documentCount: 3, chunkSize: 500, chunkOverlap: 50 })
+    await openSettings()
+    await expect(page.getByRole('slider').first()).toHaveAttribute('aria-valuenow', '3')
+    await expect(field('Chunk Size')).toHaveValue('500')
+    await expect(field('Overlap Size')).toHaveValue('50')
+    await page.keyboard.press('Escape')
+    const hitResult = (await page.evaluate(
+      (baseId) => window.api.ipcApi.request('knowledge.search', { baseId, query: '公开测试标记是什么' }),
+      baseId
+    )) as IpcResult<KnowledgeSearchResult[]>
+    if (!hitResult.ok) throw new Error(JSON.stringify(hitResult.error))
+    const hits = hitResult.data
+    expect(hits.length).toBeGreaterThan(0)
+    expect(hits.length).toBeLessThanOrEqual(3)
+    expect(hits.some((hit) => hit.pageContent.includes('canary-seven'))).toBe(true)
+    expect(hits.every((hit) => hit.itemId === itemId)).toBe(true)
+    await testInfo.attach('MP-66 real retrieval results', {
+      body: JSON.stringify(hits, null, 2),
+      contentType: 'application/json'
+    })
+    const chatProviderId = await ensureCustomChatProvider(app, page)
+    await closeSettings(page)
+    const assistant = await page.evaluate(
+      (body) => window.api.dataApi.request({ id: 'mp66-assistant', method: 'POST', path: '/assistants', body }),
+      { name: assistantName, modelId: createUniqueModelId(chatProviderId, app.config.customProvider.chatModel) }
+    )
+    expect(assistant.status).toBe(201)
+    assistantId = AssistantSchema.parse(assistant.data).id
+    await page.reload()
+    await selectSidebarApp(page, 'Chat')
+    const assistantRow = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await assistantRow.hover()
+    await assistantRow.getByRole('button', { name: 'New Chat', exact: true }).click()
+    await page.getByRole('button', { name: `Edit Assistant: ${assistantName}`, exact: true }).click()
+    await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
+    await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
+    await page.getByText(name, { exact: true }).click()
+    await page.getByRole('dialog').last().getByRole('button', { name: 'Close', exact: true }).click()
+    await page
+      .locator('[data-ui~="chat.composer"] [contenteditable="true"]')
+      .first()
+      .fill('文档中的公开测试标记是什么？请原样回答这个虚构标记，并引用来源文件。')
+    await page.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
+    const quickPanel = page.getByTestId('quick-panel')
+    await quickPanel.getByText('Knowledge Base', { exact: true }).click()
+    await quickPanel.getByText(name, { exact: true }).click()
+    await page.keyboard.press('Escape')
+    const messageId = await submitChatMarker(page, 'canary-seven', false)
+    const response = page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
+    await expect(response.getByText(/\d+ citations?/i)).toBeVisible()
+    await expect(response).toContainText('mp66-ground-truth.md')
+    await response.getByRole('button', { name: /\d+ citations?/i }).click()
+    const references = page.getByRole('dialog', { name: 'References', exact: true })
+    await expect(references.getByText('mp66-ground-truth.md', { exact: true })).toBeVisible()
+    // Citations merge chunks from the same document and display its first retrieved snippet.
+    await expect(references).toContainText(/这一节只记录回归测试的背景信息|本项目的公开测试标记是 canary-seven/)
+    await attachScreenshot('MP-66 real model answer with source citation')
+  } catch (error) {
+    primaryFailure = error
+    throw error
+  } finally {
+    const cleanupErrors: unknown[] = []
+    if (assistantId) {
+      try {
+        const removed = (await page.evaluate(
+          (assistantId) =>
+            window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true }),
+          assistantId
+        )) as IpcResult<{ deleted: boolean }>
+        expect(removed.ok && removed.data.deleted, 'MP-66 removes its assistant and conversations').toBe(true)
+      } catch (error) {
+        cleanupErrors.push(error)
+      }
+    }
+    if (ownedBaseId) {
+      try {
+        const removed = (await page.evaluate(
+          (baseId) => window.api.ipcApi.request('knowledge.delete_base', { baseId }),
+          ownedBaseId
+        )) as IpcResult<void>
+        expect(removed.ok, 'MP-66 removes its knowledge base').toBe(true)
+      } catch (error) {
+        cleanupErrors.push(error)
+      }
+    }
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(
+        primaryFailure === undefined ? cleanupErrors : [primaryFailure, ...cleanupErrors],
+        'MP-66 resource cleanup failed'
+      )
+    }
   }
 })
 

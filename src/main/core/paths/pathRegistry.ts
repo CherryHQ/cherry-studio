@@ -10,6 +10,7 @@
  */
 
 import { createHash } from 'node:crypto'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -119,13 +120,21 @@ export function buildPathRegistry() {
     // Plaintext fallback (0600) used only when no OS key store is available
     'feature.remote_access.plain_identity_file': path.join(appUserDataRuntime, 'remote-identity.key'),
 
-    'feature.computer_use.runtime': app.isPackaged
-      ? path.join(
-          appExtraResources,
-          'computer-use',
-          isMac ? 'Cherry Computer Use.app' : isWin ? 'open-computer-use.exe' : 'open-computer-use'
-        )
-      : path.join(app.getAppPath(), '.context', isWin ? 'computer-use-runtime.exe' : 'computer-use-runtime'),
+    get 'feature.computer_use.runtime'() {
+      const name =
+        process.platform === 'darwin'
+          ? 'Cherry Computer Use.app'
+          : process.platform === 'win32'
+            ? 'open-computer-use.exe'
+            : 'open-computer-use'
+      if (app.isPackaged) return path.join(appExtraResources, 'computer-use', name)
+      // Resolve on demand so an absent optional native package cannot prevent application startup.
+      const sdkEntry = createRequire(path.join(app.getAppPath(), 'package.json')).resolve('@cherrystudio/computer-use')
+      const nativeManifest = createRequire(sdkEntry).resolve(
+        `@cherrystudio/computer-use-${process.platform}-${process.arch}/package.json`
+      )
+      return path.join(path.dirname(nativeManifest), 'runtime', name)
+    },
 
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
@@ -327,7 +336,7 @@ export function buildPathRegistry() {
         : path.join(appExtraResources, 'system-speech', voiceHelperFilename)
       : path.join(
           app.getAppPath(),
-          'packages',
+          'native',
           'system-speech',
           'dist',
           'native',
@@ -392,6 +401,7 @@ export function buildPathRegistry() {
     'external.openclaw.config': path.join(sysHome, '.openclaw'),
     'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
     'external.pi.settings_file': path.join(sysHome, '.pi', 'agent', 'settings.json'),
+    'external.grok.version_file': path.join(sysHome, '.grok', 'version.json'),
     'external.hermes.default_home': isWin
       ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
       : path.join(sysHome, '.hermes'),

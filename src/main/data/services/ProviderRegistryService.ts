@@ -696,6 +696,36 @@ export function projectRuntimeReasoning(
   }
 }
 
+/** Narrow official image metadata to the selected Desktop adapter's executable options. */
+function projectImageGenerationSupport(
+  support: ImageGenerationSupport | null,
+  endpointConfigs: Provider['endpointConfigs']
+): ImageGenerationSupport | null {
+  if (!support) return null
+  const modes = { ...support.modes }
+  for (const mode of ['generate', 'edit'] as const) {
+    const endpoint = mode === 'generate' ? 'openai-image-generation' : 'openai-image-edit'
+    const descriptor = modes[mode]
+    if (endpointConfigs?.[endpoint]?.adapterFamily !== 'openai' || !descriptor?.supports) continue
+    const supports = { ...descriptor.supports }
+    if (mode === 'edit') {
+      const format = supports.outputFormat
+      if (format?.type === 'enum') {
+        supports.outputFormat = { ...format, options: format.options.filter((option) => option !== 'gif') }
+      }
+      delete supports.frameCount
+      delete supports.frameDurationMs
+    } else if (supports.frameDurationMs?.type === 'range') {
+      supports.frameDurationMs = {
+        ...supports.frameDurationMs,
+        max: Math.min(supports.frameDurationMs.max ?? 2000, 2000)
+      }
+    }
+    modes[mode] = { ...descriptor, supports }
+  }
+  return { ...support, modes }
+}
+
 /**
  * Bridges the read-only provider registry (JSON) with SQLite user data.
  *
@@ -1329,13 +1359,18 @@ class ProviderRegistryService {
    */
   getImageGenerationSupport(providerId: string, modelId: string): ImageGenerationSupport | null {
     getDataService('ProviderService').assertAvailable(providerId)
-    const { providerModel, presetModel, registryOverride } = this.lookupModel(providerId, modelId)
-    if (providerModel) return providerModel.imageGeneration ?? null
-    // Override wins — lets vendor-exclusive overrides declare their own
-    // imageGeneration block without polluting the global models.json.
-    if (registryOverride?.imageGeneration) return registryOverride.imageGeneration
-    if (presetModel?.imageGeneration) return presetModel.imageGeneration
-    return null
+    const context = this.getEffectiveProviderContext(providerId)
+    const { providerModel, presetModel, registryOverride } = this.resolveModel(context, modelId)
+    const support = providerModel
+      ? providerModel.imageGeneration
+      : (registryOverride?.imageGeneration ?? presetModel?.imageGeneration)
+    const preset = this.resolveProviderPreset(context.id, context.presetProviderId)
+    return projectImageGenerationSupport(
+      support ?? null,
+      context.endpointConfigs ??
+        (preset ? buildPersistedEndpointConfigs(preset.endpointConfigs) : undefined) ??
+        undefined
+    )
   }
 }
 
