@@ -44,7 +44,7 @@ describe('ExternalSkillExportUpgradeSeeder', () => {
   })
 
   it('leaves an empty preference table untouched before default seeding', () => {
-    new ExternalSkillExportUpgradeSeeder().run()
+    new ExternalSkillExportUpgradeSeeder().run(dbh.db)
     expect(value()).toBeUndefined()
     new PreferenceSeeder().run(dbh.db)
     expect(value()).toBe(false)

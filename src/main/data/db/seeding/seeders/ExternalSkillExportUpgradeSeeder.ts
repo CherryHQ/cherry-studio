@@ -1,9 +1,8 @@
 import { and, eq } from 'drizzle-orm'
 
-import { application } from '@application'
 import { preferenceTable } from '@data/db/schemas/preference'
 
-import type { ISeeder } from '../../types'
+import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
 
 const EXPORT_PREFERENCE = { scope: 'default', key: 'agent.skills.external_export.enabled', value: true } as const
@@ -13,8 +12,8 @@ export class ExternalSkillExportUpgradeSeeder implements ISeeder {
   readonly description = 'Preserve external skill exports for existing installations'
   readonly version = hashObject(EXPORT_PREFERENCE)
 
-  run(): void {
-    application.get('DbService').withWriteTx((tx) => {
+  run(db: DbType): void {
+    db.transaction((tx) => {
       if (!tx.select({ key: preferenceTable.key }).from(preferenceTable).limit(1).get()) return
       const existing = tx
         .select({ key: preferenceTable.key })
