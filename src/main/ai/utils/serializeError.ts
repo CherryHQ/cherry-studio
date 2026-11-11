@@ -101,7 +101,9 @@ export function serializeError(error: unknown): SerializedError {
     if (
       error.name === 'ClaudeCodeProcessExitError' &&
       typeof e.code === 'string' &&
-      /^E[A-Z0-9_]{1,63}$/.test(e.code)
+      // Keep in sync with the spawn-code filter in processExitDiagnostics.ts:
+      // UNKNOWN is Node's symbolic code for unmapped libuv errors (UV_UNKNOWN).
+      /^(?:E[A-Z0-9_]{1,63}|UNKNOWN)$/.test(e.code)
     ) {
       serialized.code = e.code
     }

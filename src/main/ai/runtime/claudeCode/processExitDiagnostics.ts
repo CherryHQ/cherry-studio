@@ -50,7 +50,10 @@ export function recordClaudeCodeSpawnError(diagnostics: ClaudeCodeProcessDiagnos
   diagnostics.category = classifyClaudeCodeTerminalReason(diagnostics.terminalReason)
   diagnostics.spawnFailed = true
   const code = (error as NodeJS.ErrnoException).code
-  if (typeof code === 'string' && /^E[A-Z0-9_]{1,63}$/.test(code)) diagnostics.spawnErrorCode = code
+  // UNKNOWN is a valid symbolic code here: libuv produces UV_UNKNOWN for system
+  // errors it has no mapping for (e.g. unmapped Windows process-creation
+  // failures), and Node exposes it as code 'UNKNOWN', which does not start with E.
+  if (typeof code === 'string' && /^(?:E[A-Z0-9_]{1,63}|UNKNOWN)$/.test(code)) diagnostics.spawnErrorCode = code
 }
 
 export function isClaudeCodeProcessFailure(error: unknown, diagnostics?: ClaudeCodeProcessDiagnostics): error is Error {

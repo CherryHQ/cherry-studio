@@ -93,7 +93,9 @@ describe('Claude Code process exit diagnostics', () => {
     expect(diagnostics.terminalReason).toContain('exited with code 429')
   })
 
-  it.each(['EPERM', 'EACCES', 'ENOENT', 'ENAMETOOLONG', 'EFTYPE'])(
+  // UNKNOWN is Node's symbolic code for unmapped libuv errors (UV_UNKNOWN),
+  // e.g. an unmapped Windows process-creation failure; it must survive too.
+  it.each(['EPERM', 'EACCES', 'ENOENT', 'ENAMETOOLONG', 'EFTYPE', 'UNKNOWN'])(
     'preserves native spawn %s without exposing paths or stderr',
     (code) => {
       const diagnostics = createClaudeCodeProcessDiagnostics('spawn-ref')
