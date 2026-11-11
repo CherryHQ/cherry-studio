@@ -216,6 +216,12 @@ describe('PaintingComposer', () => {
     mockIsEditImageModel.mockReturnValue(false)
   })
 
+  it('keeps the prompt as plain text', () => {
+    renderComposer()
+
+    expect(captured.surfaceProps?.markdownLivePreview).toBeFalsy()
+  })
+
   it('renders the top image strip + add button and drops file pills for edit-image models', () => {
     mockIsEditImageModel.mockReturnValue(true)
     renderComposer()

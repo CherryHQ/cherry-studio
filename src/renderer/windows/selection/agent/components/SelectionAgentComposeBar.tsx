@@ -78,6 +78,7 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
 }) => {
   const { t } = useTranslation()
   const [fontSize] = usePreference('chat.message.font_size')
+  const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
   const [hasQuote, setHasQuote] = useState(Boolean(selectedText))
@@ -184,6 +185,7 @@ export const SelectionAgentComposeBar: FC<SelectionAgentComposeBarProps> = ({
         </div>
         {binary.blocked && <ClaudeCodeDownloadStatus status={binary.status} onRetry={binary.retry} />}
         <ComposerSurface
+          markdownLivePreview={renderInputMessageAsMarkdown}
           text={text}
           onTextChange={onTextChange}
           tokens={[]}

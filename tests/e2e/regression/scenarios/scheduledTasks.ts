@@ -9,7 +9,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
-import { openSettingsSection } from '../helpers/settings'
+import { openLaunchpadApp } from '../helpers/navigation'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
@@ -80,10 +80,9 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     expect(created.ok).toBe(true)
     agentId = AgentEntitySchema.parse(created.data).id
     await page.reload()
-    await openSettingsSection(page, 'Scheduled Tasks')
+    await openLaunchpadApp(page, 'Scheduled Tasks')
     await screenshot('MP-58 scheduled tasks before creation')
-    await page.getByRole('button', { name: 'New', exact: true }).click()
-    await page.getByRole('menuitem', { name: 'Create manually', exact: true }).click()
+    await page.getByRole('button', { name: 'Add scheduled task', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'New scheduled task', exact: true })
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
     await dialog.locator('[contenteditable="true"]').fill('输出当前时间')
@@ -101,12 +100,22 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     await dialog.getByRole('textbox', { name: 'Interval', exact: true }).fill('5')
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(dialog).toBeHidden()
-    await openSettingsSection(page, 'Scheduled Tasks')
-    const card = page.getByRole('link').filter({ hasText: name })
+    const card = page.getByRole('region', { name: 'Active', exact: true }).getByRole('button').filter({ hasText: name })
     await expect(card).toContainText('Every 5 minutes')
-    await expect(card).toContainText('Next Run')
-    await screenshot('MP-58 saved task with next run')
-    const taskId = new URL((await card.getAttribute('href'))!, page.url()).pathname.split('/').pop()!
+    await expect(card).toHaveAttribute('aria-pressed', 'true')
+    await screenshot('MP-58 saved task in active group')
+    const taskId = await page.evaluate(async (name) => {
+      const response = await window.api.dataApi.request({
+        id: 'mp58-created-task',
+        method: 'GET',
+        path: '/agent-tasks',
+        params: { limit: 500 }
+      })
+      if (response.status !== 200) throw new Error('Unable to read the created scheduled task')
+      const rows = (response.data as { items: ScheduledTaskEntity[] }).items.filter((item) => item.name === name)
+      if (rows.length !== 1) throw new Error('The scheduled task must have one persisted identity')
+      return rows[0].id
+    }, name)
     await card.click()
     const readTask = async () => {
       const response = await page.evaluate(
@@ -131,12 +140,12 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
       return (response.data as { items: TaskRunLogEntity[] }).items
     }
     expect(await readLogs()).toHaveLength(0)
-    await page.getByRole('tab', { name: 'Run History', exact: true }).click()
-    await page.getByRole('button', { name: 'Run', exact: true }).click()
+    const openActions = async () => page.getByRole('button', { name: `More ${name}`, exact: true }).click()
+    await openActions()
+    await page.getByRole('menuitem', { name: 'Run now', exact: true }).click()
     const request = await server.nextRequest(60_000)
     expect(JSON.stringify(request.body.messages)).toContain('输出当前时间')
-    const rows = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Running...', exact: true }) })
-    await expect(rows).toHaveCount(1)
+    await expect(page.getByText('Running', { exact: true })).toBeVisible()
     const running = await readLogs()
     expect(running).toHaveLength(1)
     expect(running[0].status).toBe('running')
@@ -149,17 +158,16 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     expect(completed[0].id).toBe(running[0].id)
     expect(completed[0].durationMs).toBeGreaterThan(0)
     expect(completed[0].result).toContain(answer)
-    const completedRow = page
-      .getByRole('row')
-      .filter({ has: page.getByRole('cell', { name: 'Completed', exact: true }) })
-    await expect(completedRow).toHaveCount(1)
-    await expect(completedRow.getByRole('cell').nth(1)).toHaveText(/^\d+(\.\d+)?(ms|s|m)$/)
-    await screenshot('MP-58 completed run with duration')
+    await expect(page.getByText(/^Last run succeeded ·/)).toBeVisible()
+    await expect(page.getByRole('combobox', { name: 'Execution conversation', exact: true })).toBeVisible()
+    await expect(page.getByText(answer, { exact: true })).toBeVisible()
+    await screenshot('MP-58 completed execution conversation')
     const beforePause = await readTask()
-    const toggle = page.getByRole('switch', { name: 'Active', exact: true })
-    await toggle.click()
-    await page.mouse.move(0, 0)
-    await expect(toggle).not.toBeChecked()
+    await openActions()
+    await page.getByRole('menuitem', { name: 'Pause', exact: true }).click()
+    await expect(
+      page.getByRole('region', { name: 'Paused', exact: true }).getByRole('button').filter({ hasText: name })
+    ).toBeVisible()
     await expect.poll(async () => (await readTask()).status).toBe('paused')
     expect((await readTask()).nextRun).toBeNull()
     // Cross the original five-minute deadline to catch a paused timer that still fires.
@@ -168,13 +176,14 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
       .toBeGreaterThan(Date.parse(beforePause.nextRun!) + 2_000)
     expect((await readLogs()).map(({ id }) => id)).toEqual([running[0].id])
     await screenshot('MP-58 paused beyond original deadline')
-    await toggle.click()
-    await expect(toggle).toBeChecked()
+    await openActions()
+    await page.getByRole('menuitem', { name: 'Continue', exact: true }).click()
+    await expect(card).toBeVisible()
     await expect.poll(async () => (await readTask()).status).toBe('active')
     const resumed = await readTask()
     expect(Date.parse(resumed.nextRun!)).toBeGreaterThan(Date.now())
     expect(Date.parse(resumed.nextRun!)).toBeGreaterThan(Date.parse(beforePause.nextRun!))
-    await expect(page.getByText(/^Next Run:/)).toBeVisible()
+    await expect(card).toHaveAttribute('aria-pressed', 'true')
     await screenshot('MP-58 resumed with refreshed next run')
   } finally {
     if (task)
