@@ -5910,7 +5910,7 @@
   "settings.skills.enabledOnly": "Doar abilitățile activate",
   "settings.skills.externalAgents": "Disponibilă pentru agenți externi",
   "settings.skills.externalAgentsDescription": "Exportă această abilitate în {{path}} pentru a fi utilizată de agenți externi.",
-  "settings.skills.externalExportDescription": "Exportă competențele în ~/.agents/skills pentru a fi descoperite de alți agenți. Dezactivarea oprește scrierea și elimină legăturile create de Cherry Studio. Opțiunile individuale sunt păstrate.",
+  "settings.skills.externalExportDescription": "Exportă competențele în ~/.agents/skills pentru a fi descoperite de alți agenți. Dezactivarea oprește scrierea și elimină toate legăturile care poartă numele unei competențe și indică spre copia acelei competențe din această aplicație, inclusiv cele create de dvs. cu același nume și aceeași destinație; celelalte fișiere, directoare și legături rămân neschimbate. Opțiunile pentru fiecare competență sunt păstrate.",
   "settings.skills.externalExportLabel": "Exportă competențe către agenți externi",
   "settings.skills.externalExportOverridden": "Exportul global este dezactivat. Alegerea pentru această competență este păstrată.",
   "settings.skills.externalExportRetry": "Reîncearcă sincronizarea",

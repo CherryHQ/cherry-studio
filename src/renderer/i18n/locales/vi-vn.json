@@ -5910,7 +5910,7 @@
   "settings.skills.enabledOnly": "Chỉ kỹ năng đã bật",
   "settings.skills.externalAgents": "Cho phép tác nhân bên ngoài sử dụng",
   "settings.skills.externalAgentsDescription": "Xuất kỹ năng này vào {{path}} để các tác nhân bên ngoài sử dụng.",
-  "settings.skills.externalExportDescription": "Xuất kỹ năng vào ~/.agents/skills để các tác nhân khác tìm thấy. Khi tắt, ứng dụng ngừng ghi và xóa liên kết do Cherry Studio tạo. Lựa chọn của từng kỹ năng được giữ lại.",
+  "settings.skills.externalExportDescription": "Xuất kỹ năng vào ~/.agents/skills để các tác nhân khác tìm thấy. Khi tắt, ứng dụng ngừng ghi và xóa mọi liên kết có cùng tên với một kỹ năng và trỏ đến bản sao của kỹ năng đó trong ứng dụng này, kể cả liên kết do bạn tự tạo có cùng tên và đích; các tệp, thư mục và liên kết khác được giữ nguyên. Lựa chọn của từng kỹ năng được giữ lại.",
   "settings.skills.externalExportLabel": "Xuất kỹ năng cho tác nhân bên ngoài",
   "settings.skills.externalExportOverridden": "Xuất toàn ứng dụng đang tắt. Lựa chọn cho kỹ năng này được giữ lại.",
   "settings.skills.externalExportRetry": "Thử đồng bộ lại",

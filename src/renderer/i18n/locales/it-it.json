@@ -5910,7 +5910,7 @@
   "settings.skills.enabledOnly": "Solo competenze abilitate",
   "settings.skills.externalAgents": "Disponibile per agenti esterni",
   "settings.skills.externalAgentsDescription": "Esporta questa abilità in {{path}} per consentirne l’uso agli agenti esterni.",
-  "settings.skills.externalExportDescription": "Esporta le competenze in ~/.agents/skills per renderle disponibili agli altri agenti. Disattivando si interrompe la scrittura e si rimuovono i collegamenti creati da Cherry Studio. Le scelte per ogni competenza restano salvate.",
+  "settings.skills.externalExportDescription": "Esporta le competenze in ~/.agents/skills affinché altri agenti possano trovarle. Disattivando questa opzione si interrompe la scrittura e si rimuovono tutti i collegamenti che hanno il nome di una competenza e puntano alla copia di quella competenza in questa app, inclusi quelli creati da te con lo stesso nome e la stessa destinazione; gli altri file, cartelle e collegamenti restano invariati. Le scelte per ogni competenza restano salvate.",
   "settings.skills.externalExportLabel": "Esporta competenze agli agenti esterni",
   "settings.skills.externalExportOverridden": "L’esportazione generale è disattivata. La scelta per questa competenza resta salvata.",
   "settings.skills.externalExportRetry": "Riprova sincronizzazione",

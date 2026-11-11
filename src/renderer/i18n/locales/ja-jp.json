@@ -5910,7 +5910,7 @@
   "settings.skills.enabledOnly": "有効なスキルのみ",
   "settings.skills.externalAgents": "外部エージェントで使用",
   "settings.skills.externalAgentsDescription": "このスキルを {{path}} にエクスポートして、外部エージェントで使用できるようにします。",
-  "settings.skills.externalExportDescription": "他のエージェントが検出できるようスキルを ~/.agents/skills にエクスポートします。オフにすると書き込みを停止し、Cherry Studio が作成したリンクを削除します。スキルごとの選択は保持されます。",
+  "settings.skills.externalExportDescription": "他のエージェントが検出できるようスキルを ~/.agents/skills にエクスポートします。オフにすると書き込みを停止し、スキルと同じ名前で、このアプリ内のそのスキルのコピーを指すリンクをすべて削除します。同じ名前と参照先で自分で作成したリンクも対象です。他のファイル、フォルダー、リンクはそのまま残り、スキルごとの選択は保持されます。",
   "settings.skills.externalExportLabel": "外部エージェントにスキルをエクスポート",
   "settings.skills.externalExportOverridden": "アプリ全体のエクスポートがオフです。このスキルの選択は保持されます。",
   "settings.skills.externalExportRetry": "同期を再試行",

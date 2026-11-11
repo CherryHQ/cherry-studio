@@ -5910,7 +5910,7 @@
   "settings.skills.enabledOnly": "Solo habilidades habilitadas",
   "settings.skills.externalAgents": "Disponible para agentes externos",
   "settings.skills.externalAgentsDescription": "Exporta esta habilidad a {{path}} para que la utilicen agentes externos.",
-  "settings.skills.externalExportDescription": "Exporta habilidades a ~/.agents/skills para que otros agentes las encuentren. Al desactivar se detiene la escritura y se eliminan los enlaces creados por Cherry Studio. Se conservan las opciones de cada habilidad.",
+  "settings.skills.externalExportDescription": "Exporta habilidades a ~/.agents/skills para que otros agentes las encuentren. Al desactivar esta opción se detiene la escritura y se eliminan todos los enlaces que tengan el nombre de una habilidad y apunten a la copia de esa habilidad en esta aplicación, incluidos los que hayas creado tú con el mismo nombre y destino; los demás archivos, carpetas y enlaces se dejan intactos. Se conservan tus opciones para cada habilidad.",
   "settings.skills.externalExportLabel": "Exportar habilidades a agentes externos",
   "settings.skills.externalExportOverridden": "La exportación global está desactivada. Se conserva la opción de esta habilidad.",
   "settings.skills.externalExportRetry": "Reintentar sincronización",

@@ -5910,7 +5910,7 @@
   "settings.skills.enabledOnly": "Enabled Skills Only",
   "settings.skills.externalAgents": "Available to external agents",
   "settings.skills.externalAgentsDescription": "Export this skill to {{path}} for use by external agents.",
-  "settings.skills.externalExportDescription": "Exports skills to ~/.agents/skills for other agents to discover. Turning this off stops writes and removes links created by Cherry Studio. Your per-skill choices are preserved.",
+  "settings.skills.externalExportDescription": "Exports skills to ~/.agents/skills for other agents to discover. Turning this off stops writes and removes every link that carries a skill's name and points at this app's copy of that skill, including a link you created yourself with the same name and target; other files, folders and links are left alone. Your per-skill choices are preserved.",
   "settings.skills.externalExportLabel": "Export skills to external agents",
   "settings.skills.externalExportOverridden": "The app-wide export switch is off. Your choice for this skill is preserved.",
   "settings.skills.externalExportRetry": "Retry sync",

@@ -5910,7 +5910,7 @@
   "settings.skills.enabledOnly": "แสดงเฉพาะสกิลที่เปิดใช้งาน",
   "settings.skills.externalAgents": "พร้อมใช้งานสำหรับเอเจนต์ภายนอก",
   "settings.skills.externalAgentsDescription": "ส่งออกทักษะนี้ไปยัง {{path}} เพื่อให้เอเจนต์ภายนอกใช้งาน",
-  "settings.skills.externalExportDescription": "ส่งออกทักษะไปยัง ~/.agents/skills เพื่อให้เอเจนต์อื่นค้นพบ เมื่อปิดจะหยุดเขียนและลบลิงก์ที่ Cherry Studio สร้างไว้ โดยเก็บตัวเลือกของแต่ละทักษะไว้",
+  "settings.skills.externalExportDescription": "ส่งออกทักษะไปยัง ~/.agents/skills เพื่อให้เอเจนต์อื่นค้นพบ เมื่อปิดจะหยุดเขียนและลบทุกลิงก์ที่มีชื่อเดียวกับทักษะและชี้ไปยังสำเนาทักษะนั้นในแอปนี้ รวมถึงลิงก์ที่คุณสร้างเองโดยใช้ชื่อและปลายทางเดียวกัน ส่วนไฟล์ โฟลเดอร์ และลิงก์อื่นจะคงเดิม โดยเก็บตัวเลือกของแต่ละทักษะไว้",
   "settings.skills.externalExportLabel": "ส่งออกทักษะให้เอเจนต์ภายนอก",
   "settings.skills.externalExportOverridden": "ปิดการส่งออกทั้งแอปอยู่ โดยยังเก็บตัวเลือกของทักษะนี้ไว้",
   "settings.skills.externalExportRetry": "ลองซิงค์อีกครั้ง",
