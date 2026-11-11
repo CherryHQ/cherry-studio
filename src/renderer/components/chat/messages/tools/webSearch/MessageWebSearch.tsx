@@ -7,6 +7,7 @@ import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { webSearchInputSchema, type WebSearchOutputItem, webSearchOutputSchema } from '@shared/ai/builtinTools'
 
 import { ToolDisclosure } from '../shared/ToolDisclosure'
+import { extractToolErrorText } from '../toolError'
 
 /** Split a result URL into the favicon hostname (keeps `www.`) and the display domain (drops it). */
 function parseResultUrl(url: string): { hostname: string; domain: string } {
@@ -89,9 +90,32 @@ const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolR
 export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
   const hasResults = toolResponse.status === 'done' && outputParse.success && outputParse.data.length > 0
+  // Only the normalized error envelope carries the failure text; a foreign opaque payload must keep its own label.
+  const failureText =
+    toolResponse.status === 'error' && isRecord(toolResponse.response) && toolResponse.response.isError === true
+      ? extractToolErrorText(toolResponse.response)
+      : undefined
   const label = <MessageWebSearchToolLabel toolResponse={toolResponse} />
 
-  if (!hasResults) return label
+  if (hasResults) {
+    return (
+      <div className="group/tool my-px first:mt-0 first:pt-0">
+        <ToolDisclosure
+          variant="light"
+          className="message-tools-container border-none"
+          items={[
+            {
+              key: toolResponse.id,
+              label,
+              children: <MessageWebSearchToolBody toolResponse={toolResponse} />
+            }
+          ]}
+        />
+      </div>
+    )
+  }
+
+  if (!failureText) return label
 
   return (
     <div className="group/tool my-px first:mt-0 first:pt-0">
@@ -102,7 +126,11 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
           {
             key: toolResponse.id,
             label,
-            children: <MessageWebSearchToolBody toolResponse={toolResponse} />
+            children: (
+              <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-foreground">
+                {failureText}
+              </pre>
+            )
           }
         ]}
       />

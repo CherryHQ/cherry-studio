@@ -23,7 +23,7 @@
  * model's generate_image schema, kb_* visibility, notify recipients) are decided there.
  */
 
-import type { ImageContent } from '@modelcontextprotocol/server'
+import type { CallToolResult, ImageContent } from '@modelcontextprotocol/server'
 import { McpServer } from '@modelcontextprotocol/server'
 
 import { application } from '@application'
@@ -40,10 +40,12 @@ import {
 } from '@main/ai/tools/painting'
 import {
   fetchWeb,
+  isWebLookupError,
   searchWeb,
   WEB_FETCH_DESCRIPTION,
   WEB_SEARCH_DESCRIPTION,
-  webLookupModelOutput
+  webLookupModelOutput,
+  type WebLookupResult
 } from '@main/ai/tools/webLookup'
 import {
   GENERATE_IMAGE_TOOL_NAME,
@@ -86,16 +88,23 @@ async function readGeneratedImages(files: { id: string }[], signal: AbortSignal)
   return blocks
 }
 
+function webLookupMcpResult(output: WebLookupResult): CallToolResult {
+  const result = modelOutputToMcpResult(webLookupModelOutput(output))
+  // A terminal lookup failure is a failed call; without the flag the agent's search card reports a successful
+  // search. Transient failures keep the retry note and stay unflagged so the model can retry.
+  return isWebLookupError(output) && output.terminal === true ? { ...result, isError: true } : result
+}
+
 function registerBuiltinTools(server: McpServer): void {
   server.registerTool(
     WEB_SEARCH_TOOL_NAME,
     { description: WEB_SEARCH_DESCRIPTION, inputSchema: webSearchInputSchema },
-    async ({ query }, ctx) => modelOutputToMcpResult(webLookupModelOutput(await searchWeb(query, ctx.mcpReq.signal)))
+    async ({ query }, ctx) => webLookupMcpResult(await searchWeb(query, ctx.mcpReq.signal))
   )
   server.registerTool(
     WEB_FETCH_TOOL_NAME,
     { description: WEB_FETCH_DESCRIPTION, inputSchema: webFetchInputSchema },
-    async ({ urls }, ctx) => modelOutputToMcpResult(webLookupModelOutput(await fetchWeb(urls, ctx.mcpReq.signal)))
+    async ({ urls }, ctx) => webLookupMcpResult(await fetchWeb(urls, ctx.mcpReq.signal))
   )
   // Pure declaration tool: the model reports its final deliverable file(s). The value lives in the
   // tool *input* — a data contract for a renderer artifacts card; the handler only confirms.
