@@ -2,6 +2,7 @@ import { APICallError, RetryError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
+import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionForkError } from '@main/ai/runtime/fork/checkpoint'
 import { AiStreamAdmissionError } from '@main/ai/streamManager'
@@ -902,5 +903,17 @@ describe('aiHandlers — agent task commands', () => {
     const error = await aiHandlers['ai.agent.task.run']({ agentId: 'agent-1', taskId: 'gone' }, ctx).catch((e) => e)
     expect(error).toBeInstanceOf(IpcError)
     expect(error.code).toBe(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND)
+  })
+})
+
+describe('aiHandlers — temporary topics', () => {
+  it('releases a leased temporary topic on delete', async () => {
+    const topic = await aiHandlers['ai.temporary_topic.create']({ name: 'Quick question' }, ctx)
+    expect(temporaryChatService.hasTopic(topic.id)).toBe(true)
+
+    await aiHandlers['ai.temporary_topic.delete']({ id: topic.id }, ctx)
+
+    expect(temporaryChatService.hasTopic(topic.id)).toBe(false)
+    await expect(aiHandlers['ai.temporary_topic.persist']({ id: topic.id }, ctx)).rejects.toThrow(/not found/i)
   })
 })
