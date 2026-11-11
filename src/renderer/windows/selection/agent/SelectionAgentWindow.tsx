@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import { trimComposerDraftBoundaryBlankLines } from '@renderer/components/composer/composerDraft'
 import type { ComposerSerializedDraft } from '@renderer/components/composer/tokens'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
@@ -200,7 +201,17 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
       {(stage.kind === 'starting' || stage.kind === 'failed') && (
         <div className="flex h-full flex-col">
           <SelectionAgentHeader
-            avatar={boundAgent ? getAgentAvatarFromConfiguration(boundAgent.configuration) : undefined}
+            avatar={
+              boundAgent ? (
+                <AssistantAvatarImage
+                  src={boundAgent.avatarSrc}
+                  alt=""
+                  size={22}
+                  className="rounded-sm object-cover"
+                  fallback={getAgentAvatarFromConfiguration(boundAgent.configuration)}
+                />
+              ) : undefined
+            }
             title={boundAgent?.name ?? actionName}
             subtitle={boundAgent ? actionName : undefined}
             isPinned={isPinned}

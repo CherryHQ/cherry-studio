@@ -186,7 +186,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
 
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
-      <ScrollArea viewportProps={{ className: 'px-6 py-2' }} className="min-h-0">
+      <ScrollArea contentProps={{ className: 'px-6 py-2' }} className="min-h-0">
         {status === 'saved' && savedResult ? (
           <div className="space-y-4">
             <div className="border-success-border bg-success-subtle flex gap-3 rounded-xl border p-4">

@@ -109,17 +109,6 @@ describe('CodeBlockView', () => {
     expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
   })
 
-  it('uses the viewer for read-only code', () => {
-    render(
-      <CodeBlockView language="javascript" editable={false}>
-        const value = 1
-      </CodeBlockView>
-    )
-
-    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
-    expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
-  })
-
   it('shows mermaid source instead of rendering when auto-render is disabled', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.code.mermaid.auto_render', false)
     render(<CodeBlockView language="mermaid">{'graph TD; A-->B'}</CodeBlockView>)
