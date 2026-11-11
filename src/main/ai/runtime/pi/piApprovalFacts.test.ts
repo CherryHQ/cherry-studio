@@ -68,6 +68,7 @@ afterAll(() => rmSync(testRoot, { recursive: true, force: true }))
 /** Exercise the installed shared gate with production desktop facts and interaction ports. */
 function buildGate(
   overrides: Partial<{
+    executionOwnedTools: ReadonlySet<string>
     workspacePath: string
     agentDataPath: string
     additionalReadOnlyRoots: readonly string[]
@@ -186,6 +187,26 @@ beforeEach(() => {
 })
 
 describe('desktop facts and approvals through the shared behavior gate', () => {
+  it.each(['grep', 'find', 'ls'])('blocks %s over managed memory and its parent in full access', async (name) => {
+    const memoryRoot = application.getPath('feature.memory.data')
+    const { handler } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+    for (const target of [memoryRoot, join(memoryRoot, '..')]) {
+      expect(await handler(toolEvent(name, { path: target }), extCtx)).toMatchObject({ block: true })
+    }
+    expect(await handler(toolEvent(name, { path: workspace }), extCtx)).toBeUndefined()
+  })
+
+  it('defers only managed edits to the installed controlled executor', async () => {
+    const { handler, emitted } = buildGate({ executionOwnedTools: new Set(['write', 'edit']) })
+    const memoryFile = join(application.getPath('feature.memory.data'), 'MEMORY.md')
+    expect(await handler(toolEvent('write', { path: memoryFile, content: 'memory' }), extCtx)).toBeUndefined()
+    expect(emitted).toHaveLength(0)
+    const ordinary = handler(toolEvent('write', { path: join(workspace, 'normal.txt'), content: 'text' }), extCtx)
+    await flush()
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+    expect(await ordinary).toMatchObject({ block: true })
+  })
+
   it('asks before PowerShell deletion in auto mode', async () => {
     const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto' })
     const command = 'Remove-Item -Recurse -Force ./build'

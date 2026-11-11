@@ -3,6 +3,7 @@ import path from 'path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { memorySearchTarget, memoryTarget } from '@main/ai/memory/memoryTarget'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { canonicalizePathForContainment, isOutsidePath } from '@main/utils/file'
@@ -42,7 +43,7 @@ export function expandHome(filepath: string): string {
 }
 
 // Security validation
-export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
+export async function validatePath(requestedPath: string, baseDir?: string, recursive = false): Promise<string> {
   const expandedPath = expandHome(requestedPath)
   const root = expandHome(baseDir ?? process.cwd())
   const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
@@ -53,6 +54,12 @@ export async function validatePath(requestedPath: string, baseDir?: string): Pro
   // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
   if (!resolvedRoot || !resolvedPath || isOutsidePath(path.relative(resolvedRoot, resolvedPath))) {
     throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
+  }
+
+  if ((await memoryTarget(absolute)) || (recursive && (await memorySearchTarget(absolute)))) {
+    throw new Error(
+      'Managed memory requires a caller-bound controlled file tool. Use memory settings for this operation.'
+    )
   }
 
   return resolvedPath

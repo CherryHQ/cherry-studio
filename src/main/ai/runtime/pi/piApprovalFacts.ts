@@ -4,6 +4,7 @@ import path from 'node:path'
 import { application } from '@application'
 import type { ApprovalHostFacts } from '@cherrystudio/agent-behavior'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
+import { memorySearchTarget, memoryTarget } from '@main/ai/memory/memoryTarget'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
@@ -15,6 +16,7 @@ import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 export interface PiApprovalContext {
+  executionOwnedTools?: ReadonlySet<string>
   sessionId: string
   workspacePath: string
   agentDataPath: string
@@ -54,7 +56,12 @@ export async function readPiApprovalFacts(
       : 'other'
   const interaction = ctx.getInteractionState()
   const mode = ctx.getPermissionMode() ?? 'default'
-  const disabled = ctx.isDisabled(name) || browser === 'deny'
+  const searchPath = ['grep', 'find', 'ls'].includes(name)
+    ? resolveToolPath(typeof input.path === 'string' ? input.path : '.', ctx.workspacePath)
+    : undefined
+  const memorySearchBlocked =
+    ['grep', 'find', 'ls'].includes(name) && (!searchPath || (await memorySearchTarget(searchPath)))
+  const disabled = ctx.isDisabled(name) || browser === 'deny' || Boolean(memorySearchBlocked)
   const sqlite = disabled
     ? undefined
     : await evaluateUserDataSqliteGuard({
@@ -68,10 +75,15 @@ export async function readPiApprovalFacts(
   const globalInstall = command ? (detectGlobalInstall(command) ?? undefined) : undefined
   const rewritten =
     name === 'bash' && !disabled && !sqlite && !globalInstall && command ? await rtkRewrite(command) : undefined
+  const editPath =
+    (name === 'write' || name === 'edit') && typeof input.path === 'string'
+      ? resolveToolPath(input.path, ctx.workspacePath)
+      : undefined
+  const controlledEdit = ctx.executionOwnedTools?.has(name) && editPath && (await memoryTarget(editPath))
   return {
     category,
     disabled,
-    autoApproved: browser === 'allow' || ctx.autoApprovedTools.has(name),
+    autoApproved: browser === 'allow' || ctx.autoApprovedTools.has(name) || Boolean(controlledEdit),
     approvalRequired: ctx.approvalRequiredTools.has(name),
     nonBypassable: ctx.nonBypassableApprovalTools.has(name),
     withinAllowedRoots:
