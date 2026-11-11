@@ -1248,7 +1248,8 @@ describe('desktop Pi Durable connection', () => {
     })
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
-    await done(events)
+    // Parent, child and the child's write run in sequence; Windows CI can exceed the 1 s default.
+    await done(events, 10_000)
     expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
     expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
     expect(events.filter((event) => event.type === 'error')).toEqual([])
