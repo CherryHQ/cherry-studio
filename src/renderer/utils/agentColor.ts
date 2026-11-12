@@ -13,7 +13,8 @@ export function getAgentColorIndex(agentId: string): number {
 }
 
 // The tint is a translucent layer, so selected and hover row fills still show through.
-export function getAgentColorStyle(agentId: string): CSSProperties {
+export function getAgentColorStyle(agentId: string | null): CSSProperties {
+  if (!agentId) return {}
   const accent = `var(--agent-color-${getAgentColorIndex(agentId)})`
   const tint = `color-mix(in oklab, ${accent} 10%, transparent)`
   return {

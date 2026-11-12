@@ -3,6 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { AGENT_COLOR_COUNT, getAgentColorIndex, getAgentColorStyle } from '../agentColor'
 
 describe('agentColor', () => {
+  it('leaves orphan and empty-agent sessions untinted', () => {
+    expect(getAgentColorStyle(null)).toEqual({})
+    expect(getAgentColorStyle('')).toEqual({})
+  })
+
   it('keeps an agent on the same palette slot across calls', () => {
     expect(getAgentColorIndex('agent-alpha')).toBe(getAgentColorIndex('agent-alpha'))
   })
