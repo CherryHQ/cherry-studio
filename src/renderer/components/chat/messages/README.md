@@ -67,6 +67,17 @@ type MessageListProviderValue = {
 
 Shared UI components should treat missing actions as unavailable capabilities. Do not add `isAgent`, `isHome`, `mode`, or other page-mode booleans to shared components.
 
+## Compact Preview Boundary
+
+`frame/MessagePreview` receives its message, display configuration, and author through
+props. It shares `MessageUserBubble` and read-only block rendering with the message family,
+but owns its compact geometry. Previews omit avatars and their data loading, as well as
+assistant/model names and their projection. Only the user name sits above its body;
+assistant content starts directly, without an empty author row. It must not mount
+`MessageListProvider` or reuse the conversation row's side-avatar columns and gutters.
+
+`ConversationTabPreviewContent` owns data subscriptions and projects display props.
+
 ## Adapter Rules
 
 Adapters are the boundary between page/business data and this component family.

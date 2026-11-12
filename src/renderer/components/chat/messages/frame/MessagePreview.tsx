@@ -5,14 +5,18 @@ import { Button } from '@cherrystudio/ui'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { MessagePreviewContent } from '../blocks/MessagePreviewContent'
-import { useMessageRenderConfig } from '../MessageListProvider'
-import type { MessageListItem } from '../types'
-import MessageHeader from './MessageHeader'
+import type { MessageRenderConfig } from '../types'
 import { MessageUserBubble } from './MessageUserBubble'
-import { MessageUserLayout } from './MessageUserLayout'
 
-export function MessagePreview({ message, item }: { message: CherryUIMessage; item: MessageListItem }) {
-  const config = useMessageRenderConfig()
+export function MessagePreview({
+  message,
+  config,
+  author
+}: {
+  message: CherryUIMessage
+  config: Pick<MessageRenderConfig, 'messageStyle' | 'messageFont' | 'fontSize' | 'renderInputMessageAsMarkdown'>
+  author: { name?: string }
+}) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const [truncated, setTruncated] = useState(false)
@@ -23,7 +27,7 @@ export function MessagePreview({ message, item }: { message: CherryUIMessage; it
     if (!element) return
     const measure = () =>
       setTruncated(
-        (element.firstElementChild?.getBoundingClientRect().height ?? element.scrollHeight) > element.clientHeight
+        (element.firstElementChild?.getBoundingClientRect().height ?? element.scrollHeight) > element.clientHeight + 1
       )
     measure()
     const observer = new ResizeObserver(measure)
@@ -32,20 +36,25 @@ export function MessagePreview({ message, item }: { message: CherryUIMessage; it
   }, [message.parts, expanded])
   const content = (
     <div
-      className="min-w-0 max-w-full"
+      className={user ? 'min-w-0 max-w-full' : 'flex min-h-0 min-w-0 max-w-full flex-col'}
       style={{
         fontFamily: config.messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
         fontSize: config.fontSize
       }}>
+      {!user && truncated && (
+        <span aria-hidden className="text-muted-foreground">
+          …
+        </span>
+      )}
       <div
         ref={contentRef}
-        className={user ? 'overflow-hidden' : 'flex flex-col justify-end overflow-hidden'}
+        className={user ? 'overflow-hidden' : 'flex min-h-0 flex-col justify-end overflow-hidden'}
         style={{ maxHeight: user ? (expanded ? '10lh' : '3lh') : '8lh' }}>
         <div className="shrink-0">
           <MessagePreviewContent message={message} renderInputMessageAsMarkdown={config.renderInputMessageAsMarkdown} />
         </div>
       </div>
-      {truncated && (
+      {user && truncated && (
         <span aria-hidden className="text-muted-foreground">
           …
         </span>
@@ -54,7 +63,7 @@ export function MessagePreview({ message, item }: { message: CherryUIMessage; it
         <Button
           variant="ghost"
           size="sm"
-          className="mt-1 h-7 px-0 text-muted-foreground"
+          className="mt-1"
           aria-expanded={expanded}
           onClick={() => setExpanded(!expanded)}>
           {t(expanded ? 'message.message.user_content.collapse' : 'message.message.user_content.expand')}
@@ -63,15 +72,18 @@ export function MessagePreview({ message, item }: { message: CherryUIMessage; it
     </div>
   )
   return (
-    <div className={user ? 'shrink-0' : 'min-h-0 overflow-hidden'}>
+    <div className={user ? 'flex shrink-0 flex-col items-end gap-2' : 'flex min-h-0 flex-col gap-2 overflow-hidden'}>
+      {author.name && (
+        <div className="flex min-w-0 max-w-full items-center gap-2">
+          <span className="truncate font-semibold text-sm leading-5">{author.name}</span>
+        </div>
+      )}
       {user && config.messageStyle === 'bubble' ? (
-        <MessageUserLayout>
-          <MessageUserBubble messageFont={config.messageFont} fontSize={config.fontSize}>
-            {content}
-          </MessageUserBubble>
-        </MessageUserLayout>
+        <MessageUserBubble messageFont={config.messageFont} fontSize={config.fontSize}>
+          {content}
+        </MessageUserBubble>
       ) : (
-        <MessageHeader message={item} contentSlot={content} />
+        content
       )}
     </div>
   )

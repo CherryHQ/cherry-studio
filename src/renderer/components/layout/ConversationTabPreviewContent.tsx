@@ -6,12 +6,8 @@ import { Button } from '@cherrystudio/ui'
 import { useDataChange, useInfiniteFlatItems } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { MessagePreview } from '@renderer/components/chat/messages/frame/MessagePreview'
-import { useMessageAuthorAvatarSources } from '@renderer/components/chat/messages/hooks/useMessageAuthorAvatarSources'
 import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
-import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
-import useAvatar from '@renderer/hooks/useAvatar'
 import { useConversationHistoryQuery } from '@renderer/hooks/useConversationHistoryQuery'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import {
@@ -22,7 +18,6 @@ import {
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { selectConversationPreview } from '@renderer/utils/message/conversationPreview'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 
 const logger = loggerService.withContext('ConversationTabPreview')
@@ -32,11 +27,9 @@ function topicIdFor(target: ConversationNavigationTarget) {
 }
 
 export default function ConversationTabPreviewContent({
-  tab,
   target,
   onOpen
 }: {
-  tab: Tab
   target: ConversationNavigationTarget
   onOpen: (messageId?: string) => void
 }) {
@@ -110,9 +103,6 @@ export default function ConversationTabPreviewContent({
   }, [agent, sessionRows, topicRows, live.liveAssistants, live.overlay])
   const { request, messages: selected } = selectConversationPreview(messages)
   const { renderConfig } = useMessageListRenderConfig()
-  const avatar = useAvatar()
-  const items = selected.map((message) => toMessageListItem(message, { topicId }))
-  const assistantAvatarSources = useMessageAuthorAvatarSources(items, topicId)
   const mounted = useRef(false)
   useEffect(() => {
     mounted.current = true
@@ -149,38 +139,18 @@ export default function ConversationTabPreviewContent({
   }
   return (
     <>
-      <div className="flex min-h-0 flex-col overflow-hidden px-4 pt-4">
+      <div className="flex min-h-0 flex-col overflow-hidden px-3 pt-3">
         {selected.length ? (
-          <MessageListProvider
-            value={{
-              state: {
-                topic: {
-                  id: topicId,
-                  assistantId: '',
-                  name: tab.title,
-                  createdAt: '',
-                  updatedAt: '',
-                  lastActivityAt: '',
-                  messages: []
-                },
-                messages: items,
-                partsByMessageId: Object.fromEntries(selected.map((message) => [message.id, message.parts])),
-                renderConfig,
-                messageNavigation: '',
-                estimateSize: 0,
-                overscan: 0,
-                loadOlderDelayMs: 0,
-                loadingResetDelayMs: 0
-              },
-              actions: {},
-              meta: { selectionLayer: false, userProfile: { avatar }, assistantAvatarSources }
-            }}>
-            <div className="flex min-h-0 flex-col gap-4 overflow-hidden">
-              {selected.map((message, index) => (
-                <MessagePreview key={message.id} message={message} item={items[index]} />
-              ))}
-            </div>
-          </MessageListProvider>
+          <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
+            {selected.map((message) => (
+              <MessagePreview
+                key={message.id}
+                message={message}
+                config={renderConfig}
+                author={message.role === 'user' ? { name: renderConfig.userName || t('common.you') } : {}}
+              />
+            ))}
+          </div>
         ) : (
           <div className="py-4 text-muted-foreground text-xs">
             {query.isLoading
@@ -191,7 +161,7 @@ export default function ConversationTabPreviewContent({
           </div>
         )}
       </div>
-      <Button variant="ghost" size="sm" className="m-2 ml-auto shrink-0 text-muted-foreground" onClick={open}>
+      <Button variant="ghost" size="sm" className="m-2 ml-auto shrink-0" onClick={open}>
         {t('common.open')} ↗
       </Button>
     </>

@@ -132,7 +132,6 @@ function ConversationPreview({
           onEscapeKeyDown={close}>
           <Suspense fallback={<div className="p-4 text-muted-foreground text-xs">{t('common.loading')}</div>}>
             <PreviewMessages
-              tab={tab}
               target={target}
               onOpen={(messageId) => {
                 if (messageId) requestConversationLocate(tab.id, target.conversationId, messageId)

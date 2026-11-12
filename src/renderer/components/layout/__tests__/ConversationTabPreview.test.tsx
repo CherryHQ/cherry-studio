@@ -11,9 +11,9 @@ import {
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 vi.mock('../ConversationTabPreviewContent', () => ({
-  default: ({ tab, onOpen }: { tab: { title: string }; onOpen: () => void }) => (
+  default: ({ onOpen }: { onOpen: () => void }) => (
     <button type="button" onClick={() => onOpen()}>
-      Open {tab.title}
+      Open
     </button>
   )
 }))
@@ -43,12 +43,12 @@ describe('ConversationTabPreview', () => {
       </ConversationTabPreviewProvider>
     )
     fireEvent.focus(screen.getByRole('button', { name: 'Background' }))
-    await screen.findByRole('button', { name: 'Open Background' })
+    await screen.findByRole('button', { name: 'Open' })
     expect(MockUseCacheUtils.getSharedCacheValue(seenKey)).toBe(100)
     expect(select).not.toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('button', { name: 'Open Background' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }))
     expect(select).toHaveBeenCalledOnce()
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Open Background' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument())
   })
 
   it('dismisses an open preview when the tab changes conversation identity', async () => {
@@ -61,9 +61,9 @@ describe('ConversationTabPreview', () => {
     )
     const { rerender } = render(view(tab.url))
     fireEvent.focus(screen.getByRole('button', { name: 'Background' }))
-    await screen.findByRole('button', { name: 'Open Background' })
+    await screen.findByRole('button', { name: 'Open' })
     rerender(view('/app/chat?topicId=different'))
-    expect(screen.queryByRole('button', { name: 'Open Background' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
   })
 
   it('keeps active and dragging tabs free of previews', async () => {
@@ -76,7 +76,7 @@ describe('ConversationTabPreview', () => {
     )
     fireEvent.focus(screen.getByRole('button', { name: 'Background' }))
     await act(() => new Promise((resolve) => setTimeout(resolve, 550)))
-    expect(screen.queryByRole('button', { name: 'Open Background' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
     rerender(
       <ConversationTabPreviewProvider>
         <ConversationTabPreview tab={tab} isActive={false} disabled onSelect={() => {}}>
@@ -86,6 +86,6 @@ describe('ConversationTabPreview', () => {
     )
     fireEvent.focus(screen.getByRole('button', { name: 'Background' }))
     await act(() => new Promise((resolve) => setTimeout(resolve, 550)))
-    expect(screen.queryByRole('button', { name: 'Open Background' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
   })
 })
