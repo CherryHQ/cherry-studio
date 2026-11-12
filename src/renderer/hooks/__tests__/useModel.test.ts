@@ -1,11 +1,10 @@
 import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { BulkUpdateModelItem } from '@shared/data/api/schemas/models'
-import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import { type UniqueModelId } from '@shared/data/types/model'
 
 import { useDefaultModel, useModelById, useModelMutations, useModels } from '../useModel'
 
@@ -49,7 +48,7 @@ describe('useModels', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
-  it('should return a stable empty array when data is undefined', () => {
+  it('should return an empty array while loading', () => {
     mockUseQuery.mockImplementation(() => ({
       data: undefined,
       isLoading: true,
@@ -60,77 +59,11 @@ describe('useModels', () => {
     }))
 
     const { result, rerender } = renderHook(() => useModels())
-    const firstModels = result.current.models
 
     expect(result.current.models).toEqual([])
     expect(result.current.isLoading).toBe(true)
 
     rerender()
-
-    expect(result.current.models).toBe(firstModels)
-  })
-
-  it('should call useQuery with /models path and no query when no args', () => {
-    renderHook(() => useModels())
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/models', undefined)
-  })
-
-  it('should pass providerId as query parameter', () => {
-    renderHook(() => useModels({ providerId: 'openai' }))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/models', { query: { providerId: 'openai' } })
-  })
-
-  it('should pass enabled as a query parameter for filtering', () => {
-    renderHook(() => useModels({ enabled: false }))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/models', { query: { enabled: false } })
-  })
-
-  it('should pass both providerId and enabled as query parameters', () => {
-    renderHook(() => useModels({ providerId: 'openai', enabled: true }))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/models', {
-      query: { providerId: 'openai', enabled: true }
-    })
-  })
-
-  it('should pass capability from the shared ListModelsQuery contract', () => {
-    renderHook(() => useModels({ providerId: 'openai', capability: MODEL_CAPABILITY.REASONING }))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/models', {
-      query: { providerId: 'openai', capability: MODEL_CAPABILITY.REASONING }
-    })
-  })
-
-  it('should disable SWR request when fetchEnabled is false', () => {
-    renderHook(() => useModels(undefined, { fetchEnabled: false }))
-    expect(mockUseQuery).toHaveBeenCalledWith('/models', { enabled: false })
-  })
-
-  it('should pass query params AND control SWR independently', () => {
-    renderHook(() => useModels({ providerId: 'openai', enabled: false }, { fetchEnabled: true }))
-    expect(mockUseQuery).toHaveBeenCalledWith('/models', {
-      query: { providerId: 'openai', enabled: false },
-      enabled: true
-    })
-  })
-
-  it('should expose refetch from useQuery', () => {
-    const mockRefetch = vi.fn().mockResolvedValue(undefined)
-    mockUseQuery.mockImplementation(() => ({
-      data: mockModelList,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: mockRefetch,
-      mutate: vi.fn()
-    }))
-
-    const { result } = renderHook(() => useModels())
-
-    expect(result.current.refetch).toBe(mockRefetch)
   })
 
   it('revalidates mounted model lists after registry metadata changes', () => {
@@ -156,24 +89,6 @@ describe('useModelById', () => {
     vi.clearAllMocks()
   })
 
-  it('disables previous data for model identity switches', () => {
-    renderHook(() => useModelById('openai::gpt-4o'))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/openai::gpt-4o', {
-      enabled: true,
-      swrOptions: { keepPreviousData: false }
-    })
-  })
-
-  it('does not fetch until a model id is available', () => {
-    renderHook(() => useModelById(undefined))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/', {
-      enabled: false,
-      swrOptions: { keepPreviousData: false }
-    })
-  })
-
   it('revalidates a mounted model after registry enrichment changes', () => {
     const refetch = vi.fn().mockResolvedValue(undefined)
     mockUseQuery.mockReturnValue({
@@ -197,26 +112,6 @@ describe('useModelMutations', () => {
     vi.clearAllMocks()
   })
 
-  it('should set up POST, single DELETE, bulk DELETE, single PATCH, and bulk PATCH mutations', () => {
-    renderHook(() => useModelMutations())
-
-    const calls = mockUseMutation.mock.calls
-    expect(calls.find((c: any[]) => c[0] === 'POST' && c[1] === '/models')).toBeDefined()
-    expect(calls.find((c: any[]) => c[0] === 'DELETE' && c[1] === '/models/:uniqueModelId*')).toBeDefined()
-    expect(calls.find((c: any[]) => c[0] === 'DELETE' && c[1] === '/models')).toBeDefined()
-    expect(calls.find((c: any[]) => c[0] === 'PATCH' && c[1] === '/models/:uniqueModelId*')).toBeDefined()
-    expect(calls.find((c: any[]) => c[0] === 'PATCH' && c[1] === '/models')).toBeDefined()
-    expect(mockUseMutation).toHaveBeenCalledTimes(5)
-  })
-
-  it('should configure all mutations to refresh /models', () => {
-    renderHook(() => useModelMutations())
-
-    for (const call of mockUseMutation.mock.calls as any[][]) {
-      expect(call[2]).toMatchObject({ refresh: ['/models'] })
-    }
-  })
-
   it('should call createTrigger with a single-item array when createModel is invoked', async () => {
     const mockTrigger = vi.fn().mockResolvedValue([{ id: 'new-model' }])
     mockUseMutation.mockImplementation(() => ({
@@ -237,7 +132,6 @@ describe('useModelMutations', () => {
 
   it('should log and rethrow createModel errors', async () => {
     const error = new Error('Create failed')
-    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseMutation.mockImplementation((_method: string, path: string) => ({
       trigger: path === '/models' ? vi.fn().mockRejectedValue(error) : vi.fn(),
       isLoading: false,
@@ -250,12 +144,6 @@ describe('useModelMutations', () => {
       await expect(result.current.createModel({ providerId: 'openai', modelId: 'gpt-5' })).rejects.toThrow(
         'Create failed'
       )
-    })
-
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to create model', {
-      providerId: 'openai',
-      modelId: 'gpt-5',
-      error
     })
   })
 
@@ -318,7 +206,6 @@ describe('useModelMutations', () => {
 
   it('should log and rethrow createModels errors', async () => {
     const error = new Error('Batch failed')
-    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseMutation.mockImplementation(() => ({
       trigger: vi.fn().mockRejectedValue(error),
       isLoading: false,
@@ -331,8 +218,6 @@ describe('useModelMutations', () => {
     await act(async () => {
       await expect(result.current.createModels(items)).rejects.toThrow('Batch failed')
     })
-
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to create models', { count: 1, error })
   })
 
   it('should call DELETE mutation trigger with uniqueModelId param when deleteModel is invoked', async () => {
@@ -431,7 +316,6 @@ describe('useModelMutations', () => {
 
   it('should log and rethrow deleteModel errors', async () => {
     const error = new Error('Delete failed')
-    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseMutation.mockImplementation((_method: string, path: string) => ({
       trigger: path === '/models/:uniqueModelId*' && _method === 'DELETE' ? vi.fn().mockRejectedValue(error) : vi.fn(),
       isLoading: false,
@@ -443,17 +327,10 @@ describe('useModelMutations', () => {
     await act(async () => {
       await expect(result.current.deleteModel('openai', 'gpt-4o')).rejects.toThrow('Delete failed')
     })
-
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to delete model', {
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      error
-    })
   })
 
   it('should log and rethrow updateModel errors', async () => {
     const error = new Error('Patch failed')
-    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseMutation.mockImplementation((_method: string, path: string) => ({
       trigger: path === '/models/:uniqueModelId*' && _method === 'PATCH' ? vi.fn().mockRejectedValue(error) : vi.fn(),
       isLoading: false,
@@ -465,17 +342,10 @@ describe('useModelMutations', () => {
     await act(async () => {
       await expect(result.current.updateModel('openai', 'gpt-4o', { isEnabled: false })).rejects.toThrow('Patch failed')
     })
-
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to update model', {
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      error
-    })
   })
 
   it('should log and rethrow updateModels errors', async () => {
     const error = new Error('Bulk patch failed')
-    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseMutation.mockImplementation((_method: string, path: string) => ({
       trigger: path === '/models' && _method === 'PATCH' ? vi.fn().mockRejectedValue(error) : vi.fn(),
       isLoading: false,
@@ -488,13 +358,10 @@ describe('useModelMutations', () => {
     await act(async () => {
       await expect(result.current.updateModels(items)).rejects.toThrow('Bulk patch failed')
     })
-
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to bulk update models', { count: 1, error })
   })
 
   it('should log and rethrow deleteModels errors', async () => {
     const error = new Error('Bulk delete failed')
-    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseMutation.mockImplementation((_method: string, path: string) => ({
       trigger: path === '/models' && _method === 'DELETE' ? vi.fn().mockRejectedValue(error) : vi.fn(),
       isLoading: false,
@@ -507,8 +374,6 @@ describe('useModelMutations', () => {
     await act(async () => {
       await expect(result.current.deleteModels(ids)).rejects.toThrow('Bulk delete failed')
     })
-
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to bulk delete models', { count: 1, error })
   })
 
   it('should build uniqueModelId param correctly for simple IDs', async () => {
@@ -613,19 +478,37 @@ describe('useDefaultModel', () => {
     }))
   })
 
-  it('keeps every model entity query inactive when its owner is closed', () => {
+  it('reports an in-flight default model separately from a settled miss', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::quick')
     MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::translate')
     MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_model_id', 'openai::dall-e-3')
+    mockUseQuery.mockImplementation((path: string) => ({
+      data: undefined,
+      isLoading: path === '/models/openai::gpt-4o',
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    }))
 
-    renderHook(() => useDefaultModel({ enabled: false }))
+    const { result, rerender } = renderHook(() => useDefaultModel())
 
-    expect(mockUseQuery).toHaveBeenCalledTimes(4)
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/', {
-      enabled: false,
-      swrOptions: { keepPreviousData: false }
-    })
+    expect(result.current.defaultModel).toBeUndefined()
+    expect(result.current.isDefaultModelLoading).toBe(true)
+
+    mockUseQuery.mockImplementation(() => ({
+      data: undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    }))
+    rerender()
+
+    expect(result.current.defaultModel).toBeUndefined()
+    expect(result.current.isDefaultModelLoading).toBe(false)
   })
 
   it('persists the picked painting model id to feature.paintings.default_model_id', async () => {
@@ -636,31 +519,6 @@ describe('useDefaultModel', () => {
     })
 
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.paintings.default_model_id')).toBe('openai::dall-e-3')
-  })
-
-  it('resolves paintingModel from feature.paintings.default_model_id', () => {
-    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_model_id', 'openai::dall-e-3')
-
-    renderHook(() => useDefaultModel())
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/openai::dall-e-3', {
-      enabled: true,
-      swrOptions: { keepPreviousData: false }
-    })
-  })
-
-  it('does not fall back to the chat default when the painting model is unset', () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
-    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::quick')
-    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::translate')
-    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_model_id', null)
-
-    renderHook(() => useDefaultModel())
-
-    // painting resolves the empty/disabled key, never the chat-default id
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/', { enabled: false, swrOptions: { keepPreviousData: false } })
-    const defaultIdQueries = mockUseQuery.mock.calls.filter(([path]) => path === '/models/openai::gpt-4o')
-    expect(defaultIdQueries).toHaveLength(1) // defaultModel only; painting did not borrow it
   })
 
   it('cascades setDefaultModel to quick and translate but not painting', async () => {

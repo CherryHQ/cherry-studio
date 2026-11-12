@@ -238,6 +238,34 @@
       "when": 1793743411274,
       "tag": "0033_child_context_projection",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1793870902260,
+      "tag": "0034_big_johnny_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1794176949635,
+      "tag": "0035_agent_session_task_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1794385320323,
+      "tag": "0036_assistant_avatar",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1794385698412,
+      "tag": "0037_agent_avatar",
+      "breakpoints": true
     }
   ],
   "version": "7"

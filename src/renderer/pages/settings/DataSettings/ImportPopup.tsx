@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { importService } from '@renderer/services/import'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
@@ -73,6 +74,7 @@ const IMPORT_CONFIG = {
 } as const
 
 const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
+  const invalidate = useInvalidateCache()
   const [selecting, setSelecting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
@@ -107,6 +109,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
           : await importService.importConversations(fileContent, source, setImportProgress)
 
       if (result.success) {
+        await invalidate(['/assistants', '/topics'])
         toast.success(
           t(translations.success, {
             topics: result.topicsCount,

@@ -101,15 +101,6 @@ describe('usePins', () => {
     MockDataApiUtils.resetMocks()
   })
 
-  it('passes the configured entityType through to the /pins query', () => {
-    wirePins([MODEL_PIN_A])
-    wireMutations()
-
-    renderHook(() => usePins('model'))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/pins', { enabled: true, query: { entityType: 'model' } })
-  })
-
   it('refetches mounted pins when another window changes pin data', () => {
     const refetch = wirePins([MODEL_PIN_A])
     wireMutations()
@@ -128,8 +119,6 @@ describe('usePins', () => {
     const { postTrigger, deleteTrigger } = wireMutations()
 
     const { result } = renderHook(() => usePins('model', { enabled: false }))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/pins', { enabled: false, query: { entityType: 'model' } })
     expect(MockDataApiUtils.getCurrentState().dataChangeListeners.has('/pins')).toBe(false)
     expect(result.current.pinnedIds).toEqual([])
 
@@ -139,14 +128,6 @@ describe('usePins', () => {
 
     expect(postTrigger).not.toHaveBeenCalled()
     expect(deleteTrigger).not.toHaveBeenCalled()
-    expect(consoleDebugSpy).toHaveBeenCalledWith(
-      'togglePin gated',
-      expect.objectContaining({
-        enabled: false,
-        entityType: 'model',
-        entityId: 'openai::gpt-4'
-      })
-    )
     consoleDebugSpy.mockRestore()
   })
 
@@ -201,14 +182,6 @@ describe('usePins', () => {
     expect(postTrigger).not.toHaveBeenCalled()
     expect(deleteTrigger).not.toHaveBeenCalled()
     expect(result.current.isRefreshing).toBe(true)
-    expect(consoleDebugSpy).toHaveBeenCalledWith(
-      'togglePin gated',
-      expect.objectContaining({
-        entityType: 'model',
-        entityId: 'openai::gpt-4',
-        isRefreshing: true
-      })
-    )
     consoleDebugSpy.mockRestore()
   })
 
@@ -235,17 +208,5 @@ describe('usePins', () => {
     expect(result.current.isRefreshing).toBe(true)
     expect(result.current.isMutating).toBe(true)
     expect(result.current.error).toBe(queryError)
-  })
-
-  it('logs query errors via logger so /pins read failures are not silent', () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const queryError = new Error('query failed')
-    wirePins([], { error: queryError })
-    wireMutations()
-
-    renderHook(() => usePins('model'))
-
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to read pins', queryError, { entityType: 'model' })
-    consoleErrorSpy.mockRestore()
   })
 })

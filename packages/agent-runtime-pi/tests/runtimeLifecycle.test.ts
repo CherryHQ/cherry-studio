@@ -9,9 +9,10 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime, type PiSessionOptions } from '../src'
+import { createTestBehavior } from './sessionSupport'
 import type { TestStream } from './sessionSupport'
 import { assistantReply, createTestBinding, MODEL, scriptedModel, tempDir } from './sessionSupport'
-import { gate, reply, routedModel, storingSubagentPort, subagentCall, toolCallPart } from './subagentSupport'
+import { gate, reply, routedModel, subagentCall, toolCallPart } from './subagentSupport'
 
 function confirmed<T>(result: OperationResult<T>): T {
   expect(result.status).toBe('confirmed')
@@ -27,7 +28,8 @@ const config = async (port: TestStream): Promise<PiSessionOptions> => ({
   ...(await createTestBinding({ stream: port, model: MODEL })),
   cwd: tempDir('cwd'),
   agentDir: tempDir('agent'),
-  systemPrompt: 'Test'
+  systemPrompt: 'Test',
+  behavior: createTestBehavior()
 })
 async function runtime() {
   const result = confirmed(await createPiRuntime({ backendId: runtimeId('test-pi') }))
@@ -99,28 +101,26 @@ describe('Pi runtime contract', () => {
     expect(await second.input.submit(draft('sealed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
     preflight.open()
     expect(await submission).toMatchObject({ status: 'acknowledged' })
-    expect(await closing).toEqual({ status: 'confirmed', value: { effect: 'closed' } })
+    expect(await closing).toEqual({ status: 'confirmed', value: undefined })
     expect(calls.length).toBeLessThanOrEqual(1)
     expect(events.some((event) => event.type === 'input.changed' && event.input.inputId === 'pending')).toBe(true)
   })
 
-  it('keeps child observations connected across native session reconstruction on continuation', async () => {
-    const child = storingSubagentPort()
+  it('keeps child observations and native identity across continuation', async () => {
+    let childId = ''
     const { model } = routedModel(({ userText, lastText }) => {
       if (userText.includes('TASK-A')) return reply(lastText === 'continue' ? 'child second' : 'child first')
       if (lastText === 'start')
         return assistantReply([subagentCall('spawn', { description: 'A', prompt: 'TASK-A' })], 'toolUse')
       if (lastText === 'again')
         return assistantReply(
-          [
-            toolCallPart('continue-call', 'message_subagent', { id: child.subagents[0].sessionId, message: 'continue' })
-          ],
+          [toolCallPart('continue-call', 'message_subagent', { id: childId, message: 'continue' })],
           'toolUse'
         )
       return reply('parent done')
     })
     const owner = await runtime()
-    const root = confirmed(await owner.create({ ...(await config(model)), subagents: child.port }))
+    const root = confirmed(await owner.create(await config(model)))
     const parentEvents = await observe(root)
     await root.input.submit(draft('start'))
     await expect.poll(() => texts(parentEvents)).toContain('parent done')
@@ -128,16 +128,19 @@ describe('Pi runtime contract', () => {
     if (relationship?.type !== 'subagent.upsert') throw new Error('Missing child relationship')
     const childAccess = confirmed(await owner.open(relationship.subagent.child!))
     const childEvents = await observe(childAccess)
-    expect(childAccess.input.policies).toEqual(['steer'])
+    childId = childAccess.thread.id
     expect(texts(childEvents)).toContain('child first')
     await expect
       .poll(() => parentEvents.at(-1))
       .toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+    const childUsage = confirmed(await childAccess.contextUsage())
+    expect(childUsage.revision).not.toBe(confirmed(await root.contextUsage()).revision)
     await root.input.submit(draft('again'))
     await expect.poll(() => texts(childEvents)).toContain('child second')
-    expect(childEvents).toContainEqual({ type: 'gap', reason: 'mapping-reset' })
+    expect(childEvents.some((event) => event.type === 'gap')).toBe(false)
+    expect(confirmed(await childAccess.contextUsage()).revision).not.toBe(childUsage.revision)
     const relations = parentEvents.filter((event) => event.type === 'subagent.upsert')
-    expect(relations[1].subagent.child!).toEqual(relationship.subagent.child!)
-    expect(relations[1].subagent.id).toEqual(relationship.subagent.id)
+    expect(relations).toHaveLength(1)
+    expect(childAccess.thread).toEqual(relationship.subagent.child)
   })
 })

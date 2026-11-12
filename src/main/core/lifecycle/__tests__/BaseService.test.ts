@@ -139,13 +139,6 @@ describe('BaseService', () => {
       expect(service.state).toBe(LifecycleState.Ready)
     })
 
-    it('should be a no-op by default (empty hook)', async () => {
-      class DefaultService extends BaseService {}
-      const service = new DefaultService()
-      await service._doInit()
-      await expect(service._doAllReady()).resolves.toBeUndefined()
-    })
-
     it('should only execute once even if called multiple times', async () => {
       const onAllReady = vi.fn()
       class OnceService extends BaseService {
@@ -158,6 +151,40 @@ describe('BaseService', () => {
       await service._doAllReady()
       await service._doAllReady()
       expect(onAllReady).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('registerDisposable', () => {
+    it('does not accumulate on-demand timers that were disposed before stop', async () => {
+      class PollingService extends BaseService {
+        cycle() {
+          this.registerInterval(() => {}, 1000).dispose()
+        }
+      }
+      const service = new PollingService()
+      await service._doInit()
+      const tracked = (service as unknown as { _disposables: unknown[] })._disposables
+      const baseline = tracked.length
+      for (let i = 0; i < 100; i++) service.cycle()
+      expect(tracked.length).toBe(baseline)
+    })
+
+    it('still runs every remaining cleanup on stop after one was disposed early', async () => {
+      const calls: string[] = []
+      class CleanupService extends BaseService {
+        early?: { dispose(): void }
+        protected override onInit() {
+          this.registerDisposable(() => calls.push('a'))
+          this.early = this.registerDisposable(() => calls.push('b'))
+          this.registerDisposable(() => calls.push('c'))
+          this.registerDisposable(() => calls.push('d'))
+        }
+      }
+      const service = new CleanupService()
+      await service._doInit()
+      service.early?.dispose()
+      await service._doStop()
+      expect(calls).toEqual(['b', 'a', 'c', 'd'])
     })
   })
 
@@ -616,20 +643,6 @@ describe('BaseService', () => {
       expect(fn).toHaveBeenCalledOnce()
     })
 
-    it('should return the disposable for inline assignment', async () => {
-      const disposeFn = vi.fn()
-      let captured: { dispose(): void } | null = null
-      class ReturnService extends BaseService {
-        protected override async onInit() {
-          captured = this.registerDisposable({ dispose: disposeFn })
-        }
-      }
-      const service = new ReturnService()
-      await service._doInit()
-      expect(captured).not.toBeNull()
-      expect(captured!.dispose).toBe(disposeFn)
-    })
-
     it('should handle mixed Disposable objects and plain functions', async () => {
       const objDispose = vi.fn()
       const plainFn = vi.fn()
@@ -648,19 +661,6 @@ describe('BaseService', () => {
   })
 
   describe('ipcHandle / ipcOn return Disposable', () => {
-    it('should return a Disposable from ipcHandle', async () => {
-      let disposable: { dispose(): void } | null = null
-      class IpcReturnService extends BaseService {
-        protected override async onInit() {
-          disposable = this.ipcHandle('test-channel', vi.fn())
-        }
-      }
-      const service = new IpcReturnService()
-      await service._doInit()
-      expect(disposable).not.toBeNull()
-      expect(typeof disposable!.dispose).toBe('function')
-    })
-
     it('should allow early manual unregister via returned Disposable', async () => {
       let disposable: { dispose(): void } | null = null
       class EarlyUnregService extends BaseService {

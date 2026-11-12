@@ -3,7 +3,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { JSONSchema7, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
-import { generateText, jsonSchema, tool, wrapLanguageModel } from 'ai'
+import { generateText, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { createMcpInputSchema } from '@main/ai/tools/adapters/aiSdk/mcpSchema'
@@ -199,7 +199,7 @@ describe('parameterless function-tool schemas', () => {
       generateText({
         model,
         prompt: 'hello',
-        tools: { lookup: tool({ description: 'lookup', inputSchema: jsonSchema(inputSchema) }) }
+        tools: { lookup: tool({ description: 'lookup', inputSchema: createMcpInputSchema(inputSchema) }) }
       })
     ).rejects.toBeDefined()
 

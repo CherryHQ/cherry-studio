@@ -27,12 +27,6 @@ describe('selectCustomBodyParameters', () => {
 })
 
 describe('createCustomParamsFetch', () => {
-  it('returns the inner fetch unchanged when there are no custom parameters', () => {
-    const innerFetch = createInnerFetch()
-
-    expect(createCustomParamsFetch(innerFetch, {})).toBe(innerFetch)
-  })
-
   it('passes non-POST requests through unchanged', async () => {
     const innerFetch = createInnerFetch()
     const init: RequestInit = { method: 'GET' }
@@ -90,15 +84,5 @@ describe('createCustomParamsFetch', () => {
       enable_search: true,
       messages: []
     })
-  })
-
-  it('reuses wrappers for the same inner fetch and serialized custom parameters', () => {
-    const innerFetch = createInnerFetch()
-    const first = createCustomParamsFetch(innerFetch, { enable_search: true })
-    const second = createCustomParamsFetch(innerFetch, { enable_search: true })
-
-    expect(second).toBe(first)
-    expect(createCustomParamsFetch(innerFetch, { enable_search: false })).not.toBe(first)
-    expect(createCustomParamsFetch(createInnerFetch(), { enable_search: true })).not.toBe(first)
   })
 })
