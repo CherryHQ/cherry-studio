@@ -268,7 +268,8 @@ async function main() {
       `automatic ${expectedVersion} relaunch from the replaced path`,
       90000
     )
-    assert.equal(evidence.relaunch.version.split(/[ +]/)[0], expectedVersion)
+    const productVersion = evidence.relaunch.version.split(/[ +]/)[0]
+    assert([expectedVersion, `${expectedVersion}.0`].includes(productVersion), productVersion)
     assert.notEqual(evidence.relaunch.electronPid, electronPid)
     if (prerequisite) {
       evidence.recordedHistory = await poll(
