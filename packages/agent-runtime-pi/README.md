@@ -338,3 +338,12 @@ pnpm test:agent-runtime-pi packages/agent-runtime-pi/tests/behaviorContract.test
 - Shutdown writes no snapshots for the runs it cuts off, so a reopened parent cannot tell a closed
   app from a crash.
 - Messages queued for a running subagent before it is stopped are dropped with it.
+
+## Nested tool evidence
+
+Nested calls project onto their owning assistant message using native IDs and parent
+edges. Native session records retain executed arguments, terminal state and bounded
+results independently of the outer script outcome. Archive projection reads those
+records without executing tools. Missing legacy or over-budget payloads remain
+explicitly absent; complete successful built-in artifact declarations can render
+through the same tool mapping as direct calls.

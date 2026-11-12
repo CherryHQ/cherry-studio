@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-11-12-pi-nested-tool-projection.md
+2026-11-12-pi-nested-tool-projection.md: 703a25c725a7122942c2961aaadfba6e4a4ae0f7
+2026-11-12-pi-nested-tool-projection.zh.md: f9fcc9edf480e5520db4fbcc17430155e78f860b

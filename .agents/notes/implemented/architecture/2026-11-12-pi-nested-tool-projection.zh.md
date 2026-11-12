@@ -1,6 +1,6 @@
 # Agent Note: Pi 嵌套工具投影与证据保留
 
-Status: proposed
+Status: implemented
 
 [English](2026-11-12-pi-nested-tool-projection.md) | 中文
 
@@ -12,7 +12,7 @@ Codemode 通过原生权限与执行管线调用嵌套工具，但 Cherry 没有
 
 PR #24318 从成功的原生记录恢复普通 Pi artifact 声明。本方案将这一修复推广到通用工具，并保留服务来源检查和去重。PR #24317 已为两种运行时提供原生 shell 超时；超时策略不在本方案范围内。
 
-## Proposal
+## Decision
 
 记录由原生执行层拥有。通过仓库依赖补丁扩展 Pi 现有嵌套记录器和 Durable 终态提交路径，将带版本的展示记录保存在外层工具结果中。保存原生调用 ID、直接父调用 ID、解析后的工具名称、实际执行参数、终态及现有渲染器需要的有界工具结果。Durable 必须在任务文档清理前捕获后代记录，并在发布终态证据的同一次原生提交中保存；不能从合并后的 UI 观察事件重建记录。不增加第二套执行日志、调度器或 Cherry 数据库表。
 
@@ -26,7 +26,7 @@ Main 对这些部分应用现有工具名称和 MCP 来源映射。现有渲染�
 
 旧记录仍可读取。只渲染确有证据的信息：明确标记被省略载荷或不完整的旧记录，不重放工具以补全历史。不承诺回填旧运行时从未保存的信息。
 
-批准后按依赖层实施：先修原生保留与运行时投影，再修桌面映射和渲染行为。实施前依据 #24318 的实时合并状态协调其改动。全部验收条件取得证据后才将本说明迁至 implemented。
+用户明确要求直接在现有 Spec PR 中实现，不等待单独批准。#24317 已合并；#24318 仍开放，其 artifact 专用合成由通用工具部分取代。
 
 ## Alternatives considered
 
@@ -36,18 +36,14 @@ Main 对这些部分应用现有工具名称和 MCP 来源映射。现有渲染�
 - 为每个工具添加渲染器特例：重复缺失的契约，无法恢复不存在的原生历史。
 - 无限制保存原始嵌套输出：重复大载荷并破坏原生存储边界。
 
-## Acceptance criteria
+## Consequences
 
-- AC1 — 两种运行时中，真实 codemode 对 shell、文件读写及 MCP 工具的调用暴露独立稳定的嵌套身份、执行参数、进度与终态；相同并发调用和递归调用仍可区分 (verification: native runtime integration tests)
-- AC2 — 原生归档、全新运行时重开及中断恢复保留已保存的嵌套证据，不重新执行已完成工具；外层脚本失败不抹除此前嵌套成功 (verification: file-backed native runtime integration tests)
-- AC3 — 参数超过 200 字符的成功内置 artifact 声明在重开前后生成一个 artifact 卡片；失败、取消、外部服务及不完整声明均不生成卡片 (verification: desktop integration and renderer tests)
-- AC4 — 预算边界、字段省略、旧证据缺失、失败及取消保持真实且有界；模型侧输出与原生权限行为不变 (verification: native runtime and desktop contract tests)
-- AC5 — 在验证 PID/cwd/CDP 的 Electron 实例中，通过输入框分别运行两种运行时，在执行中及完成后观察嵌套 shell/文件/MCP 卡片，关闭并重开各会话，验证 artifact 打开预期生成文件且无重复卡片或渲染错误 (verification: Electron end-to-end)
+原生补丁在现有执行状态旁保存展示证据，不新增 Cherry 数据表、第二套日志或重放路径。发布的依赖仅包含分发文件，因此补丁修改分发文件及其声明。大载荷可能被省略；旧会话无法恢复从未保存的证据。macOS Electron 验收不代表 Windows PowerShell 验收。
 
-## Risks
+## Verification
 
-原生保留必须在清理前捕获后代记录，包括取消及恢复路径。只扩展 codemode 正常返回的包装层仍会留下数据丢失竞态。原生补丁变更需要源码与生成分发文件一致，并针对实际补丁依赖运行定向测试。
-
-结果和参数可能包含直接调用时已可见的敏感工具数据。沿用现有会话存储边界与输出上限，不复制到诊断日志。显式上限意味着异常大的 artifact 声明在重开后可能不可用，应如实展示省略状态。
-
-Electron 证据必须记录测试 head、PID、cwd、CDP 目标、运行时、场景和持久化会话。可以用确定性模型响应驱动真实原生工具以便复现，但注入已经投影的消息不构成端到端证据。macOS 验收不代表 Windows PowerShell 验收。
+- AC1 — Pi `tests/runtime.test.ts` 和 Durable `tests/runtime.test.ts` 通过真实嵌套执行验证相同并发调用、超过 200 字符的修复后参数、独立 ID 和递归父子边。Electron 通过真实 QuickJS codemode 调用 write、read、bash 和内置 MCP artifact 工具。
+- AC2 — 基于文件的原生重开测试保留外层失败前的子工具结果。Durable 停机恢复测试在子工具完成后停止外层调用，从 SQLite 恢复，并断言子工具只执行一次且结果完整。
+- AC3 — Renderer artifact 测试拒绝待执行、失败、取消及外部服务声明。两种 Electron 运行时均在完成和会话重载后显示唯一的长参数 artifact 卡片，预览加载生成的 HTML。
+- AC4 — `tests/nestedEvidence.test.ts` 覆盖按 UTF-8 预算整体省略字段、总量限制、省略调用计数及旧结果缺失。运行时测试覆盖错误与取消。已有原生工具和连接测试验证受影响的宿主契约；保留记录独立于模型内容。
+- AC5 — Electron PID 43177、当前工作区、CDP 9267、目标 `http://localhost:5176/windows/main/index.html`：确定性 OpenAI 响应从输入框驱动真实原生工具。两种运行时均在完成前显示 shell 输出，显示最终结果，重载后保留唯一 artifact，并在原生预览中打开预期 HTML，无 renderer 页面异常。证据保存在 `.context/cherry-electron-dev/nested-e2e-result.json` 与 `nested-preview-result.json`；会话分别为 `c4cbb676-fced-4e0f-aa5f-a15c91a3f03f`（Pi）及 `7644e83e-5a6a-4a85-a112-cdfa58a90dd2`（Durable）。实例使用隔离配置，测试代码是 Spec head `26b1df8a72bbd4fb765c8ec9087cb7508c73e0fb` 上的实现工作区。

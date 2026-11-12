@@ -304,12 +304,18 @@ index e286f00..a9492d6 100644
      }
      /** Resolve a conversation's committed `pi.agent` against `snapshot`, or the current one, and the current settings. */
 diff --git a/dist/harness/live.d.ts b/dist/harness/live.d.ts
-index f5df477..602a7e4 100644
+index f5df47714c20273c2c353635a998d3817b436ba0..34376686b66c145ccf81db3cf688fa8c2d9e188a 100644
 --- a/dist/harness/live.d.ts
 +++ b/dist/harness/live.d.ts
-@@ -108,10 +108,12 @@ export type RunFailure = {
-     /** The failed run's `run.first`, so a continue's `afterRun` hooks see its history too. */
-     first?: EntryId;
+@@ -7,6 +7,7 @@ import type { SchedulerOutcome } from "./scheduler.ts";
+ import type { CompactionReason, CompactionResult, ToolDiagnostic } from "./types.ts";
+ /** What a running tool call publishes, shared by model-issued and nested calls. */
+ type SlotProgress = {
++    nestedCalls?: JsonRepresentation<import("@earendil-works/pi-ai").NestedToolCalls>;
+     callId: string;
+     name: string;
+     status: "pending" | "running" | "done";
+@@ -110,6 +111,8 @@ export type RunFailure = {
  };
  /** Run control (spec §8.2). */
  export type LiveRun = {
@@ -318,8 +324,6 @@ index f5df477..602a7e4 100644
      /** The task that settles the run's inputs: its generation, handed from one to the next. */
      taskId: TaskId;
      /** The run's placed inputs, settled when it ends; `[]` once it answered and runs only its `afterRun` tasks. */
-     inputs: SubmissionId[];
-     /** Tool rounds so far, which `AgentState.maxTurns` bounds; an `onYield` continuation starts the count over. */
 diff --git a/dist/harness/prompt.js b/dist/harness/prompt.js
 index d9433a8..fb0690c 100644
 --- a/dist/harness/prompt.js
@@ -393,13 +397,70 @@ index d9433a8..fb0690c 100644
          const edits = view.entries
              .filter((entry) => SystemEntry.is(entry))
              .map((entry) => ({ target: entry.id, action: "omit" }));
+diff --git a/dist/harness/tool.js b/dist/harness/tool.js
+index 2da76582241fad1f38970312a9135c290333560e..4a2124029a3227de6df75ba0b2fe8b635a8191b8 100644
+--- a/dist/harness/tool.js
++++ b/dist/harness/tool.js
+@@ -1,3 +1,4 @@
++import { retainNestedToolCall } from "@earendil-works/pi-ai";
+ import { awaitWithContext } from "@earendil-works/chord/context";
+ import { overlap, ownedSlice } from "@earendil-works/chord/delta";
+ import { copyJson } from "@earendil-works/chord/json";
+@@ -638,6 +639,24 @@ async function settle(runtime, input, call, ending, result, context, durationMs)
+         const slot = toolSlot(live, runtime.taskId);
+         let settled;
+         if (input.kind === "nested") {
++            const parentSlot = toolSlot(live, input.parent);
++            if (parentSlot) {
++                const record = {
++                    id: call.id, parentToolCallId: input.parentCallId, name: call.name,
++                    arguments: slot?.arguments ?? call.arguments,
++                    status: result.isError || ending.status !== "completed" ? "error" : "ok",
++                    result: { content: result.output ?? [], details: result.details, structuredContent: result.structuredOutput },
++                    ...(durationMs === undefined ? {} : { durationMs }),
++                    ...(result.isError ? { error: errorTextOf({ diagnostics: result.diagnostics ?? [] }, result.output ?? []).slice(0, 500) } : {})
++                };
++                parentSlot.nestedCalls = retainNestedToolCall(parentSlot.nestedCalls, record);
++                for (const child of slot?.nestedCalls?.calls ?? [])
++                    parentSlot.nestedCalls = retainNestedToolCall(parentSlot.nestedCalls, child);
++                if (slot?.nestedCalls?.omittedCalls) {
++                    parentSlot.nestedCalls.omittedCalls = (parentSlot.nestedCalls.omittedCalls ?? 0) + slot.nestedCalls.omittedCalls;
++                    parentSlot.nestedCalls.complete = false;
++                }
++            }
+             const nested = nestedResult(runtime.taskId, result, durationMs);
+             if (nested.usage !== undefined)
+                 await recordUsage(tx, conversationId, "tools", call.name, nested.usage);
+@@ -655,7 +674,7 @@ async function settle(runtime, input, call, ending, result, context, durationMs)
+         }
+         else {
+             const timing = { timestamp: runtime.now(), durationMs };
+-            const entry = await appendToolResult(tx, conversationId, call, result, timing);
++            const entry = await appendToolResult(tx, conversationId, call, { ...result, nestedCalls: slot?.nestedCalls }, timing);
+             if (slot !== undefined && !("parentTaskId" in slot)) {
+                 finishSlot(slot);
+                 slot.entry = entry.id;
+@@ -851,6 +870,7 @@ export async function appendToolResult(tx, conversationId, call, result, meta) {
+         content.push({ type: "text", text: renderDiagnostics(diagnostics) });
+     const message = {
+         role: "toolResult",
++        ...(result.nestedCalls === undefined ? {} : { nestedCalls: result.nestedCalls }),
+         toolCallId: call.id,
+         toolName: call.name,
+         content,
 diff --git a/dist/harness/types.d.ts b/dist/harness/types.d.ts
-index 7f4a0ba..48e8bb5 100644
+index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..ab9b0ef8b19a9bf629df0ea2fdeb2f789152f956 100644
 --- a/dist/harness/types.d.ts
 +++ b/dist/harness/types.d.ts
-@@ -281,10 +281,11 @@ type IsAny<T> = boolean extends (T extends never ? true : false) ? true : false;
-  * Executable tool registered in a registry. Only pi-ai `Tool` fields enter the transcript. `args` are typed by
-  * `parameters` (any JSON Schema object; see {@link ToolArgs}), which the Harness validates them against before
+@@ -141,6 +141,7 @@ export type ToolDiagnostic = {
+  * (`executeTool()` callers, code mode scripts), and `details` for UIs.
+  */
+ export type ToolExecutionResult<TDetails extends JsonValue = JsonValue> = {
++    readonly nestedCalls?: import("@earendil-works/pi-ai").NestedToolCalls;
+     /** For the model. Omitted: the retained `output()` text. */
+     readonly output?: ToolResultMessage["content"];
+     /**
+@@ -283,6 +284,7 @@ type IsAny<T> = boolean extends (T extends never ? true : false) ? true : false;
   * `execute()`; `defineTool()` infers both generics.
   */
  export type ToolRegistration<TParameters extends object = object, TDetails extends JsonValue = JsonValue> = Tool<TParameters> & {
@@ -407,11 +468,7 @@ index 7f4a0ba..48e8bb5 100644
      /** Whether an interrupted execution may rerun on recovery. Default `unsafe`. */
      readonly replay?: "safe" | "unsafe";
      /** Default: the settings' `toolExecution`. One sequential call makes its whole round sequential. */
-     readonly executionMode?: ToolExecutionMode;
-     /**
-@@ -326,14 +327,15 @@ export type PromptInput<Tool extends ToolRegistration = ToolRegistration> = {
-     /** Sections already in effect after replaying the active transcript. */
-     readonly shown: Readonly<Record<string, string>>;
+@@ -328,10 +330,11 @@ export type PromptInput<Tool extends ToolRegistration = ToolRegistration> = {
      /** Committed document reads. */
      readonly read: DocumentReader;
  };
@@ -424,11 +481,7 @@ index 7f4a0ba..48e8bb5 100644
      /** Default true: wrap the text as `<key>\n...\n</key>`. */
      readonly tag?: boolean;
  };
- /** Built by `hook()`; matches tasks by name. */
- export type HookRegistration = {
-@@ -463,11 +465,11 @@ export type Agent<Tool extends ToolRegistration = ToolRegistration> = {
-     /** The tools a request offers, in order: enabled, callable by the model, and selected by `modelTools`. */
-     readonly tools: readonly Tool[];
+@@ -465,7 +468,7 @@ export type Agent<Tool extends ToolRegistration = ToolRegistration> = {
      /** The tools nested calls (`executeTool()`) resolve among, in order: enabled and callable by tools. */
      readonly callable: readonly Tool[];
      /** Enabled deferred tools the model may call and is not offered yet, in registry order: what `tool_search` loads. */
@@ -437,11 +490,7 @@ index 7f4a0ba..48e8bb5 100644
      /** Extension sections, then `instructions` when set. */
      readonly sections: readonly PromptSection<Tool>[];
      readonly instructions?: string;
-     readonly cwd?: string;
-     /**
-@@ -756,12 +758,23 @@ export type ContextView = {
-     readonly contributions: readonly (readonly Message[])[];
-     /** Model context for the next provider request. */
+@@ -758,8 +761,19 @@ export type ContextView = {
      readonly messages: readonly Message[];
  };
  /** Stateless handle for one conversation, bound to the Harness that returned it. Compare handles by `id`. */
@@ -461,11 +510,7 @@ index 7f4a0ba..48e8bb5 100644
      /** Resolved with the current registry snapshot and settings. */
      agent(context: Context): Promise<Agent>;
      /** `configure()` in its own commit. */
-     configure(change: AgentChange, context: Context): Promise<void>;
-     /**
-@@ -1003,9 +1016,11 @@ export interface CompactionHooks {
-         readonly instructions?: string;
-     }, api: HookApi, context: Context): HookResult<{
+@@ -1005,6 +1019,8 @@ export interface CompactionHooks {
          readonly decline: true;
      } | {
          readonly summary: string;
@@ -474,8 +519,6 @@ index 7f4a0ba..48e8bb5 100644
      }>;
  }
  export {};
- //# sourceMappingURL=types.d.ts.map
-\ No newline at end of file
 diff --git a/dist/harness/view.d.ts b/dist/harness/view.d.ts
 index 1a20990..766560b 100644
 --- a/dist/harness/view.d.ts

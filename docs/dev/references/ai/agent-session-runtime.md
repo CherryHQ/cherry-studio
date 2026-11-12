@@ -1047,6 +1047,16 @@ permission-mode policies. Global-install decisions use the root session's effect
 permission mode, including for child sessions. The script itself needs no separate
 approval because all outward effects pass through those tool calls.
 
+Pi and Pi Durable project nested calls as ordinary tool parts with native call and
+parent identities. Native session storage retains the executed arguments, terminal
+status and bounded result, so shell/file cards and successful built-in artifact
+declarations survive conversation reopen without re-executing tools. A later script
+failure does not erase an earlier successful child. Retention is limited to 256 calls,
+8 KiB of arguments per call (32 KiB total) and 64 KiB of result JSON per call (1 MiB
+total); over-budget fields are omitted whole with byte counts and omission metadata.
+Legacy sessions cannot recover results that were never recorded. These presentation
+records do not change the model-facing codemode output or native approval checks.
+
 Scripts have no default time limit. An explicit `timeout_ms` includes time spent
 waiting for tool approval and cancels pending calls when it expires. Native MCP
 may save large text results to a temporary file; reading that file outside the
