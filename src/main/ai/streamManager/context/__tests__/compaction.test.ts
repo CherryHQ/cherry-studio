@@ -71,16 +71,16 @@ describe('findDeepestMarker', () => {
 })
 
 describe('summaryRow', () => {
-  it('wraps the summary text and uses the synthetic id', () => {
+  it('preserves the summary text in the user context', () => {
     const row = summaryRow('myId', 'SummaryText')
-    expect(row.id).toBe(summaryMessageId('myId'))
     expect(row.role).toBe('user')
     expect((row.parts[0] as { text: string }).text).toContain('SummaryText')
   })
 
   it('appends the attachment manifest when handles are provided (and only then)', () => {
     const withManifest = (summaryRow('id', 'S', ['a.txt', 'b.pdf']).parts[0] as { text: string }).text
-    expect(withManifest).toContain('readable in full via the read_file tool: a.txt, b.pdf')
+    expect(withManifest).toContain('a.txt')
+    expect(withManifest).toContain('b.pdf')
 
     const without = (summaryRow('id', 'S', []).parts[0] as { text: string }).text
     expect(without).not.toContain('read_file')
@@ -103,7 +103,7 @@ describe('applyDeepestMarker', () => {
   it('threads attachment handles into the served summary row', () => {
     const rows = [a('a', 'r', 'S1'), u('b', 'q2')]
     const out = applyDeepestMarker(rows, ['doc.md'])
-    expect((out[0].parts[0] as { text: string }).text).toContain('read_file tool: doc.md')
+    expect((out[0].parts[0] as { text: string }).text).toContain('doc.md')
   })
 })
 

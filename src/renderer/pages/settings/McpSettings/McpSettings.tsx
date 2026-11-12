@@ -680,7 +680,10 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
               </div>
             </div>
           </div>
-          <ScrollArea viewportProps={{ className: 'px-6 pt-2 pb-6' }} className="min-h-0 flex-1">
+          <ScrollArea
+            contentProps={{ className: 'px-6 pt-2 pb-6' }}
+
+            className="min-h-0 flex-1">
             <div className="mx-auto w-full max-w-3xl">
               {tabs.map((tab) => (
                 <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">

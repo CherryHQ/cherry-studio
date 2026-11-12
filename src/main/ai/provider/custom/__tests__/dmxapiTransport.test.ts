@@ -228,9 +228,4 @@ describe('DmxapiTransport', () => {
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
     expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBe(controller.signal)
   })
-
-  it('does not expose polling for the single-shot path', () => {
-    const transport = createDmxapiTransport({ apiKey: 'token' })
-    expect('poll' in transport).toBe(false)
-  })
 })

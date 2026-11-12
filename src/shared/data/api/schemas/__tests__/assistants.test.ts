@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ImportAssistantSchema, UpdateAssistantSchema } from '../assistants'
+import { CreateAssistantSchema, ImportAssistantSchema, UpdateAssistantSchema } from '../assistants'
 
 describe('ImportAssistantSchema', () => {
   it('accepts and normalizes a v1 group name beyond the current edit limit', () => {
@@ -44,5 +44,17 @@ describe('ImportAssistantSchema', () => {
   it('validates persisted service tier selections', () => {
     expect(UpdateAssistantSchema.parse({ settings: { service_tier: 'flex' } }).settings?.service_tier).toBe('flex')
     expect(UpdateAssistantSchema.safeParse({ settings: { service_tier: 'turbo' } }).success).toBe(false)
+  })
+})
+
+describe('avatar projections are read-only', () => {
+  it('rejects projection fields in create and update DTOs', () => {
+    for (const projection of [
+      { avatarFileId: '019606a0-0000-7000-8000-00000000aa01' },
+      { avatarSrc: 'file:///avatar.webp' }
+    ]) {
+      expect(CreateAssistantSchema.safeParse({ name: 'Assistant', ...projection }).success).toBe(false)
+      expect(UpdateAssistantSchema.safeParse(projection).success).toBe(false)
+    }
   })
 })

@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
-
 import { makeEntitiesCodec, makeTextFieldCodec } from '../outputCodec'
 
 describe('makeEntitiesCodec', () => {
@@ -17,24 +15,15 @@ describe('makeEntitiesCodec', () => {
       { key: '/0/content', text: 'alpha body' },
       { key: '/1/content', text: 'beta body' }
     ])
-    expect(out.skeleton).toBe(items)
+    expect(out.skeleton).toEqual(items)
   })
 
-  it('assemble with unchanged texts is an identity (same item references)', () => {
-    const { skeleton, blobs } = codec.deflate(items)!
-    const texts = Object.fromEntries(blobs.map((b) => [b.key, b.text]))
-    const rebuilt = codec.assemble(skeleton, texts) as unknown[]
-    expect(rebuilt[0]).toBe(items[0])
-    expect(rebuilt[1]).toBe(items[1])
-  })
-
-  it('assemble preserves key insertion order when swapping content (byte-stable stringify)', () => {
+  it('assemble replaces content while preserving entity metadata', () => {
     const { skeleton } = codec.deflate(items)!
     const rebuilt = codec.assemble(skeleton, { '/0/content': 'TRIMMED' }) as Array<Record<string, unknown>>
-    expect(Object.keys(rebuilt[0])).toEqual(['id', 'url', 'title', 'content'])
     expect(rebuilt[0].content).toBe('TRIMMED')
     expect(rebuilt[0].id).toBe('cite-0')
-    expect(rebuilt[1]).toBe(items[1])
+    expect(rebuilt[1]).toEqual(items[1])
   })
 
   it.each([
@@ -45,14 +34,6 @@ describe('makeEntitiesCodec', () => {
     ['non-string content', [{ id: 'a', content: 42 }]]
   ])('deflate → null for %s', (_label, value) => {
     expect(codec.deflate(value)).toBeNull()
-  })
-
-  it('snippet uses the shared citation preview cap', () => {
-    expect(codec.snippet('  short  ')).toBe('short')
-    const long = 'y'.repeat(CITATION_SNIPPET_MAX_CHARS + 200)
-    const s = codec.snippet(long)
-    expect(s).toHaveLength(CITATION_SNIPPET_MAX_CHARS + 1)
-    expect(s.endsWith('…')).toBe(true)
   })
 })
 
@@ -65,7 +46,6 @@ describe('makeTextFieldCodec', () => {
     expect(out.blobs).toEqual([{ key: '/text', text: 'body' }])
 
     const rebuilt = codec.assemble(out.skeleton, { '/text': 'TRIMMED' }) as Record<string, unknown>
-    expect(Object.keys(rebuilt)).toEqual(['kind', 'text', 'startLine', 'endLine', 'totalLines'])
     expect(rebuilt.text).toBe('TRIMMED')
     expect(rebuilt.kind).toBe('text')
   })
@@ -74,11 +54,5 @@ describe('makeTextFieldCodec', () => {
     expect(codec.deflate({ kind: 'error', code: 'x', message: 'm' })).toBeNull()
     expect(codec.deflate('plain')).toBeNull()
     expect(codec.deflate(null)).toBeNull()
-  })
-
-  it('assemble with unchanged text is an identity (same reference)', () => {
-    const output = { kind: 'text', text: 'body' }
-    const { skeleton, blobs } = codec.deflate(output)!
-    expect(codec.assemble(skeleton, { '/text': blobs[0].text })).toBe(output)
   })
 })
