@@ -1,5 +1,5 @@
 import { type Canvas, createCanvas, loadImage } from '@napi-rs/canvas'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import type { PropsWithChildren } from 'react'
@@ -8,12 +8,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ScreenshotInitData } from '@shared/types/screenshot'
 
 import CaptureOverlay from '../CaptureOverlay'
+import type { ScreenshotTranslation } from '../hooks/useScreenshotTranslation'
+import * as generateBlob from '../utils/generateBlob'
 
 vi.mock('@cherrystudio/ui', async () => ({
   ...(await import('@cherrystudio/ui/components/primitives/button')),
   ...(await import('@cherrystudio/ui/components/primitives/popover')),
   Textarea: await import('@cherrystudio/ui/components/primitives/textarea'),
   NormalTooltip: ({ children }: PropsWithChildren) => children
+}))
+
+vi.mock('../components/TranslationControls', () => ({ TranslationControls: () => null }))
+
+let translation: ScreenshotTranslation
+vi.mock('../hooks/useScreenshotTranslation', () => ({
+  useScreenshotTranslation: () => translation
 }))
 
 const capture = (mediaId: string): ScreenshotInitData => ({
@@ -42,6 +51,24 @@ describe('capture export lifetime', () => {
 
   beforeEach(async () => {
     await i18n.changeLanguage('en-US')
+    translation = {
+      workState: 'idle',
+      view: 'original',
+      blocks: [],
+      sourceLangCode: null,
+      counts: { total: 0, translated: 0, failed: 0, skipped: 0 },
+      modelId: null,
+      modelStatus: 'missing',
+      modelPersistError: false,
+      targetLangCode: 'en-us',
+      errorMessage: null,
+      start: vi.fn(),
+      clear: vi.fn(),
+      retry: vi.fn(),
+      setView: vi.fn(),
+      selectModel: vi.fn().mockResolvedValue(undefined),
+      setTargetLanguage: vi.fn().mockResolvedValue(undefined)
+    }
     listeners.clear()
     encodings.length = 0
     outputs.length = 0
@@ -188,5 +215,73 @@ describe('capture export lifetime', () => {
     ])
     const png = await loadImage(Buffer.from(outputs[0].pngBytes))
     expect([png.width, png.height]).toEqual([240, 160])
+  })
+
+  // Catches dropping translated pixels from export or exporting them in Original view.
+  it.each(['translated', 'original'] as const)('exports the selected %s view', async (view) => {
+    translation = { ...translation, workState: 'done', view }
+    const generate = vi.spyOn(generateBlob, 'generateSelectionPng').mockResolvedValue(new Uint8Array([1]))
+    const user = userEvent.setup()
+    const { container } = render(<CaptureOverlay />)
+    await selectCapture(container, user)
+    await user.click(screen.getByRole('button', { name: 'Save image' }))
+    expect(generate).toHaveBeenCalledTimes(1)
+    const translationCanvas = generate.mock.calls[0][4]
+    if (view === 'translated') {
+      expect(translationCanvas).toBeInstanceOf(HTMLCanvasElement)
+      expect(container.contains(translationCanvas!)).toBe(true)
+      expect([translationCanvas!.width, translationCanvas!.height]).toEqual([240, 160])
+    } else {
+      expect(translationCanvas).toBeUndefined()
+    }
+    expect(outputs.map(({ route }) => route)).toEqual(['screenshot.save'])
+  })
+
+  // Catches bypassing disabled toolbar actions through selection double-click.
+  it.each(['preparing', 'translating'] as const)('blocks every export while %s', async (workState) => {
+    translation = { ...translation, workState }
+    const generate = vi.spyOn(generateBlob, 'generateSelectionPng')
+    const user = userEvent.setup()
+    const { container } = render(<CaptureOverlay />)
+    await selectCapture(container, user)
+    for (const name of ['Save image', 'Copy to clipboard', 'Copy and close', 'Add to chat']) {
+      const button = screen.getByRole('button', { name })
+      expect(button).toBeDisabled()
+      await user.click(button)
+    }
+    fireEvent.doubleClick(container.firstElementChild!, { clientX: 20, clientY: 20 })
+    expect(generate).not.toHaveBeenCalled()
+    expect(encodings).toHaveLength(0)
+    expect(outputs).toEqual([])
+  })
+
+  // Catches translation surviving either pooled session teardown or cross-display reset.
+  it.each(['screenshot.session_ended', 'screenshot.reset_overlay'])('clears translation on %s', async (event) => {
+    const user = userEvent.setup()
+    const { container } = render(<CaptureOverlay />)
+    await selectCapture(container, user)
+    await act(async () => emit(event))
+    expect(translation.clear).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Save image' })).not.toBeInTheDocument()
+  })
+
+  // Catches a view change publishing stale PNG bytes or releasing the pending export early.
+  it('drops encoding after a view change while retaining same-capture single-flight ownership', async () => {
+    const user = userEvent.setup()
+    const { container, rerender } = render(<CaptureOverlay />)
+    await selectCapture(container, user)
+    await user.click(screen.getByRole('button', { name: 'Save image' }))
+    translation = { ...translation, view: 'translated', workState: 'done' }
+    rerender(<CaptureOverlay />)
+    await user.click(screen.getByRole('button', { name: 'Copy to clipboard' }))
+    expect(encodings).toHaveLength(1)
+    await act(async () => encodings[0]())
+    expect(outputs).toEqual([])
+    translation = { ...translation, view: 'original' }
+    rerender(<CaptureOverlay />)
+    await user.click(screen.getByRole('button', { name: 'Save image' }))
+    expect(encodings).toHaveLength(2)
+    await act(async () => encodings[1]())
+    expect(outputs.map(({ route }) => route)).toEqual(['screenshot.save'])
   })
 })

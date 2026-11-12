@@ -14,7 +14,10 @@ await prepareWindow({
     'ui.theme_user.color_primary',
     'ui.theme_user.font_family',
     'ui.theme_user.code_font_family',
-    'feature.screenshot.auto_ocr'
+    'feature.screenshot.auto_ocr',
+    'feature.screenshot.translate.model_id',
+    'chat.default_model_id',
+    'feature.translate.page.target_language'
   ]
 })
 

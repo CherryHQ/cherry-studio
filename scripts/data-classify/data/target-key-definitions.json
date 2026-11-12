@@ -1539,6 +1539,13 @@
       ],
       "status": "classified",
       "description": "Ordered session details sections and their visibility"
+    },
+    {
+      "targetKey": "feature.screenshot.translate.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Last selected screenshot translation model UniqueModelId"
     }
   ]
 }

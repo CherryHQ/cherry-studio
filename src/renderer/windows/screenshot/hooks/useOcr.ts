@@ -35,11 +35,12 @@ export type OcrStatus = 'idle' | 'pending' | 'recognizing' | 'done' | 'error' | 
 export interface OcrState {
   status: OcrStatus
   lines: OcrTextLine[]
+  resultKey: string | null
   /** Only set alongside `status: 'error'`. */
   errorMessage?: string
 }
 
-const INITIAL_STATE: OcrState = { status: 'idle', lines: [] }
+const INITIAL_STATE: OcrState = { status: 'idle', lines: [], resultKey: null }
 
 /**
  * @param mediaId - Identifies this overlay's frozen capture to the main process.
@@ -53,7 +54,11 @@ export function useOcr(
   scaleFactor: number,
   available: boolean,
   autoStart: boolean
-): OcrState & { triggerOcr: () => void; copyText: () => void; resetOcr: () => void } {
+): OcrState & { selectionKey: string | null; triggerOcr: () => void; copyText: () => void; resetOcr: () => void } {
+  const selectionKey =
+    mediaId && bounds && bounds.width >= MIN_SIZE && bounds.height >= MIN_SIZE
+      ? JSON.stringify([mediaId, bounds.x, bounds.y, bounds.width, bounds.height, scaleFactor])
+      : null
   const [state, setState] = useState<OcrState>(INITIAL_STATE)
   const generationRef = useRef(0)
   const autoStartRef = useRef(autoStart)
@@ -81,10 +86,21 @@ export function useOcr(
         // Superseded or expired, not failed — flashing an error here would be a lie.
         if (result.status === 'rejected') return
         if (result.status === 'unavailable') {
-          setState({ status: 'unavailable', lines: [] })
+          setState({ status: 'unavailable', lines: [], resultKey: null })
           return
         }
-        setState({ status: 'done', lines: result.lines })
+        setState({
+          status: 'done',
+          lines: result.lines,
+          resultKey: JSON.stringify([
+            mediaId,
+            currentBounds.x,
+            currentBounds.y,
+            currentBounds.width,
+            currentBounds.height,
+            scaleFactor
+          ])
+        })
       } catch (error) {
         if (generationRef.current !== generation) return
         logger.error('Text recognition failed', error as Error)
@@ -110,16 +126,16 @@ export function useOcr(
     // Nothing to ask for, but the affordance must still say why — silently sitting
     // in `idle` would read as "this region has no text".
     if (!available) {
-      setState({ status: 'unavailable', lines: [] })
+      setState({ status: 'unavailable', lines: [], resultKey: null })
       return
     }
 
     if (!autoStartRef.current) {
-      setState({ status: 'pending', lines: [] })
+      setState({ status: 'pending', lines: [], resultKey: null })
       return
     }
 
-    setState({ status: 'recognizing', lines: [] })
+    setState({ status: 'recognizing', lines: [], resultKey: null })
     const timer = setTimeout(() => {
       if (generationRef.current !== generation) return
       void runOcr(bounds, generation)
@@ -132,7 +148,7 @@ export function useOcr(
     const currentBounds = boundsRef.current
     if (!currentBounds || currentBounds.width < MIN_SIZE || currentBounds.height < MIN_SIZE) return
     const generation = ++generationRef.current
-    setState({ status: 'recognizing', lines: [] })
+    setState({ status: 'recognizing', lines: [], resultKey: null })
     void runOcr(currentBounds, generation)
   }, [runOcr])
 
@@ -151,5 +167,5 @@ export function useOcr(
     setState(INITIAL_STATE)
   }, [])
 
-  return { ...state, triggerOcr, copyText, resetOcr }
+  return { ...state, selectionKey, triggerOcr, copyText, resetOcr }
 }

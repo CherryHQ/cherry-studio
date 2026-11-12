@@ -15,7 +15,8 @@ export async function generateSelectionPng(
   image: HTMLImageElement,
   selection: SelectionRect,
   scaleFactor: number,
-  annotationCanvas?: HTMLCanvasElement | null
+  annotationCanvas?: HTMLCanvasElement | null,
+  translationCanvas?: HTMLCanvasElement | null
 ): Promise<Uint8Array> {
   const sx = Math.round(selection.x * scaleFactor)
   const sy = Math.round(selection.y * scaleFactor)
@@ -30,6 +31,10 @@ export async function generateSelectionPng(
   if (!ctx) throw new Error('Failed to get a 2d context for the screenshot export')
 
   ctx.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh)
+
+  if (translationCanvas && translationCanvas.width > 0 && translationCanvas.height > 0) {
+    ctx.drawImage(translationCanvas, 0, 0, sw, sh)
+  }
 
   // `drawImage` throws `InvalidStateError` on a zero-sized source, so the size guard is not
   // cosmetic; the explicit sw/sh destination rescales an annotation layer that rounded differently.

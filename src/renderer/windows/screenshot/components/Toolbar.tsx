@@ -40,6 +40,9 @@ interface ToolbarProps {
    * state machine, and the caller already decides whether the icon shows at all.
    */
   ocrSlot?: ReactNode
+  translationSlot?: ReactNode
+  exportDisabled?: boolean
+  toolsDisabled?: boolean
   /** Reports geometry for the property panel and the dimension label. */
   onLayout?: (info: { top: number; height: number; left: number; width: number; below: boolean }) => void
 }
@@ -101,6 +104,9 @@ export const Toolbar = memo(function Toolbar({
   onSubmitResult,
   onCancel,
   ocrSlot,
+  translationSlot,
+  exportDisabled = false,
+  toolsDisabled = false,
   onLayout
 }: ToolbarProps) {
   const { t } = useTranslation()
@@ -160,6 +166,7 @@ export const Toolbar = memo(function Toolbar({
           icon={<Icon className="size-5" />}
           label={t(labelKey)}
           active={activeTool === tool}
+          disabled={toolsDisabled}
           onClick={() => onToolChange(tool)}
         />
       ))}
@@ -169,13 +176,13 @@ export const Toolbar = memo(function Toolbar({
       <ToolbarButton
         icon={<Undo2 className="size-5" />}
         label={t('screenshot.action.undo')}
-        disabled={!canUndo}
+        disabled={toolsDisabled || !canUndo}
         onClick={onUndo}
       />
       <ToolbarButton
         icon={<Redo2 className="size-5" />}
         label={t('screenshot.action.redo')}
-        disabled={!canRedo}
+        disabled={toolsDisabled || !canRedo}
         onClick={onRedo}
       />
 
@@ -186,11 +193,33 @@ export const Toolbar = memo(function Toolbar({
         </>
       )}
 
+      {translationSlot && (
+        <>
+          <ToolbarDivider />
+          {translationSlot}
+        </>
+      )}
+
       <ToolbarDivider />
 
-      <SubmitResult text={resultMessage} setText={onResultMessageChange} onSend={onSubmitResult} />
-      <ToolbarButton icon={<Download className="size-5" />} label={t('screenshot.action.save')} onClick={onSave} />
-      <ToolbarButton icon={<Copy className="size-5" />} label={t('screenshot.action.copy')} onClick={onCopy} />
+      <SubmitResult
+        disabled={exportDisabled}
+        text={resultMessage}
+        setText={onResultMessageChange}
+        onSend={onSubmitResult}
+      />
+      <ToolbarButton
+        icon={<Download className="size-5" />}
+        label={t('screenshot.action.save')}
+        disabled={exportDisabled}
+        onClick={onSave}
+      />
+      <ToolbarButton
+        icon={<Copy className="size-5" />}
+        label={t('screenshot.action.copy')}
+        disabled={exportDisabled}
+        onClick={onCopy}
+      />
       <ToolbarButton
         icon={<X className="size-5" />}
         label={t('screenshot.action.cancel')}
@@ -200,6 +229,7 @@ export const Toolbar = memo(function Toolbar({
       <ToolbarButton
         icon={<Check className="size-5" />}
         label={t('screenshot.action.confirm')}
+        disabled={exportDisabled}
         className="text-success hover:text-success"
         onClick={onOk}
       />
@@ -210,11 +240,13 @@ export const Toolbar = memo(function Toolbar({
 function SubmitResult({
   text,
   setText,
-  onSend
+  onSend,
+  disabled
 }: {
   text: string
   setText: (text: string) => void
   onSend?: (text: string) => Promise<void>
+  disabled: boolean
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -231,7 +263,7 @@ function SubmitResult({
   }, [open])
 
   const send = async () => {
-    if (sending.current || !onSend) return
+    if (sending.current || !onSend || disabled) return
     sending.current = true
     setPending(true)
     setFailed(false)
@@ -250,7 +282,12 @@ function SubmitResult({
     <Popover open={open} onOpenChange={setOpen}>
       <NormalTooltip content={t('screenshot.action.send_to_chat')}>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8" aria-label={t('screenshot.action.send_to_chat')}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            disabled={disabled}
+            aria-label={t('screenshot.action.send_to_chat')}>
             <MessageSquare className="size-5" />
           </Button>
         </PopoverTrigger>
@@ -294,7 +331,7 @@ function SubmitResult({
           <span className="px-1 text-xs text-muted-foreground tabular-nums">
             {text.length.toLocaleString()} / 10,000
           </span>
-          <Button size="sm" disabled={pending || !onSend} onClick={() => void send()}>
+          <Button size="sm" disabled={pending || !onSend || disabled} onClick={() => void send()}>
             <MessageSquare className="size-4" />
             {t('screenshot.action.send_to_chat')}
           </Button>

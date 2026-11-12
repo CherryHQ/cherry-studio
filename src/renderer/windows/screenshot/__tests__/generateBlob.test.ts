@@ -108,4 +108,37 @@ describe('generateSelectionPng', () => {
     )
     expect(Array.from(bytes.slice(0, 4))).toEqual([137, 80, 78, 71])
   })
+
+  it('composites translation below annotations and leaves other pixels unchanged', async () => {
+    const translation = makeCanvas(200, 100)
+    const translationContext = translation.getContext('2d')
+    translationContext.fillStyle = '#ffff00'
+    translationContext.fillRect(20, 20, 40, 40)
+    const annotation = makeCanvas(200, 100)
+    const annotationContext = annotation.getContext('2d')
+    annotationContext.fillStyle = '#00ff00'
+    annotationContext.fillRect(30, 30, 10, 10)
+    const image = await makeSourceImage()
+    const selection = { x: 50, y: 25, width: 100, height: 50 }
+
+    const translated = await decode(
+      await generateSelectionPng(
+        image,
+        selection,
+        2,
+        annotation as unknown as HTMLCanvasElement,
+        translation as unknown as HTMLCanvasElement
+      )
+    )
+    expect(translated.pixel(25, 25)).toBe('#ffff00')
+    expect(translated.pixel(35, 35)).toBe('#00ff00')
+    expect(translated.pixel(150, 50)).toBe('#ff0000')
+
+    const original = await decode(await generateSelectionPng(image, selection, 2, null))
+    expect(original.pixel(25, 25)).toBe('#ff0000')
+    const empty = await decode(
+      await generateSelectionPng(image, selection, 2, null, makeCanvas(0, 0) as unknown as HTMLCanvasElement)
+    )
+    expect(empty.pixel(25, 25)).toBe('#ff0000')
+  })
 })

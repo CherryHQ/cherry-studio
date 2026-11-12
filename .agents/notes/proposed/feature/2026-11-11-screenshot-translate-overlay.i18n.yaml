@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-11-screenshot-translate-overlay.md
+2026-11-11-screenshot-translate-overlay.md: 4cb6c12b68a4621824d8358e843b28aee345e87b
+2026-11-11-screenshot-translate-overlay.zh.md: e0f25b409983cef258a0ec73fdb99c4409efe7e3

@@ -55,13 +55,14 @@ the persistent IPC registration.
 
 ## IPC contract
 
-The renderer sends exactly three fields:
+The renderer sends three required fields and an optional model override:
 
 ```ts
 ipcApi.request('translate.open', {
   streamId,
   text,
-  targetLangCode
+  targetLangCode,
+  modelId // optional
 })
 ```
 
@@ -72,6 +73,10 @@ ipcApi.request('translate.open', {
 - The renderer subscribes to `ai.stream.chunk`, `ai.stream.done`, and
   `ai.stream.error` before it calls `translate.open`, because Main starts the
   stream synchronously.
+
+An explicit `modelId` must resolve to an enabled provider and enabled chat model. It takes precedence over `feature.translate.model_id` and fails without fallback or automatic model retry. When omitted, the preference and existing retry behavior apply.
+
+Cancellation rejects locally and removes listeners immediately. An abort is sent best-effort, and sent again after a pending open is acknowledged to close the admission race. Late events and open failures cannot publish a cancelled result.
 
 The route has no `messageId` or `sourceLangCode`. Main therefore has no message
 target and cannot persist chat data from this route.

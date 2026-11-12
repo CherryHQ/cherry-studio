@@ -30,10 +30,16 @@ import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
-import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  isUniqueModelId,
+  parseUniqueModelId,
+  UniqueModelIdSchema,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { isQwenMTModel } from '@shared/utils/model'
+import { isNonChatModel, isQwenMTModel } from '@shared/utils/model'
 
 import { WebContentsListener } from '../../ai/streamManager'
 
@@ -75,6 +81,7 @@ export interface TranslateOpenRequest {
    * never have to pre-fetch the DTO just to call translate.
    */
   targetLangCode: TranslateLangCode
+  modelId?: UniqueModelId
 }
 
 export interface TranslateOpenResult {
@@ -106,7 +113,7 @@ export class TranslateService {
       throw new Error(`Invalid target language: ${req.targetLangCode}`)
     }
     const targetLanguage = translateLanguageService.getByLangCode(req.targetLangCode)
-    const { uniqueModelId, content, model } = this.resolveTranslatePayload(req.text, targetLanguage)
+    const { uniqueModelId, content, model } = this.resolveTranslatePayload(req.text, targetLanguage, req.modelId)
     const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model)
 
     const wcListener = new WebContentsListener(sender, req.streamId)
@@ -118,7 +125,8 @@ export class TranslateService {
       prompt: content,
       listener: wcListener,
       reasoningEffort,
-      callOverrides
+      callOverrides,
+      ...(req.modelId !== undefined && { maxRetries: 0 })
     })
 
     // `info`, and with the overrides: this is the only record of what translate
@@ -181,10 +189,14 @@ export class TranslateService {
    * prompt interpolation (the model handles language pairing itself) —
    * matches the renderer-side v1 behaviour.
    */
-  resolveTranslatePayload(text: string, targetLanguage: TranslateLanguage): ResolvedPayload {
+  resolveTranslatePayload(text: string, targetLanguage: TranslateLanguage, override?: UniqueModelId): ResolvedPayload {
     const preferenceService = application.get('PreferenceService')
-    const modelIdRaw = preferenceService.get('feature.translate.model_id')
-    if (!modelIdRaw || !isUniqueModelId(modelIdRaw)) {
+    const modelIdRaw = override === undefined ? preferenceService.get('feature.translate.model_id') : override
+    if (
+      !modelIdRaw ||
+      !isUniqueModelId(modelIdRaw) ||
+      (override !== undefined && !UniqueModelIdSchema.safeParse(modelIdRaw).success)
+    ) {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
     const { providerId, modelId } = parseUniqueModelId(modelIdRaw)
@@ -197,7 +209,11 @@ export class TranslateService {
       provider = undefined
       model = undefined
     }
-    if (!provider || !model) {
+    if (
+      !provider ||
+      !model ||
+      (override !== undefined && (!provider.isEnabled || !model.isEnabled || isNonChatModel(model)))
+    ) {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
     const uniqueModelId = createUniqueModelId(providerId, modelId)

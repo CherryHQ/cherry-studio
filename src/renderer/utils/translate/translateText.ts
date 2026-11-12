@@ -3,6 +3,7 @@ import { v4 as uuid } from 'uuid'
 
 import { ipcApi } from '@renderer/ipc'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
 /** Must stay in sync with main-side prefix (validated in `translateService.open`). */
@@ -17,7 +18,8 @@ export const translateText = async (
   text: string,
   targetLanguage: TranslateLangCode | TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  modelId?: UniqueModelId
 ): Promise<string> => {
   if (signal?.aborted) {
     throw new DOMException('Translation aborted before start', 'AbortError')
@@ -48,16 +50,20 @@ export const translateText = async (
     if (signal && abortListener) signal.removeEventListener('abort', abortListener)
   }
 
-  if (signal) {
-    abortListener = () => {
-      void ipcApi.request('ai.stream.abort', { topicId: streamId }).catch(() => {
-        // Already aborted / stream gone — main drives the final reject via the stream error event.
-      })
-    }
-    signal.addEventListener('abort', abortListener, { once: true })
-  }
-
   return new Promise<string>((resolve, reject) => {
+    let aborted = false
+    const sendAbort = () => {
+      void ipcApi.request('ai.stream.abort', { topicId: streamId }).catch(() => {})
+    }
+    abortListener = () => {
+      if (cleaned) return
+      aborted = true
+      cleanup()
+      reject(new DOMException('Translation aborted', 'AbortError'))
+      sendAbort()
+    }
+    signal?.addEventListener('abort', abortListener, { once: true })
+
     // Subscribe **before** calling main. Main starts the stream synchronously
     // inside `translate.open`, so the first chunk can land between `open()`'s
     // resolve and any post-await subscriber registration.
@@ -101,9 +107,17 @@ export const translateText = async (
       })
     )
 
-    ipcApi.request('translate.open', { streamId, text, targetLangCode }).catch((openError: unknown) => {
-      cleanup()
-      reject(openError instanceof Error ? openError : new Error(String(openError)))
-    })
+    void ipcApi
+      .request('translate.open', { streamId, text, targetLangCode, ...(modelId !== undefined && { modelId }) })
+      .then(
+        () => {
+          if (aborted) sendAbort()
+        },
+        (openError: unknown) => {
+          if (cleaned) return
+          cleanup()
+          reject(openError instanceof Error ? openError : new Error(String(openError)))
+        }
+      )
   })
 }

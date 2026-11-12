@@ -124,6 +124,29 @@ describe('Toolbar accessible names', () => {
     }
   })
 
+  it('disables tools and every export action independently', async () => {
+    const { rerender } = render(<Toolbar {...baseProps} activeTool={null} onSubmitResult={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Add to chat' }))
+    rerender(<Toolbar {...baseProps} activeTool={null} onSubmitResult={vi.fn()} toolsDisabled exportDisabled />)
+    for (const name of [
+      'Rectangle',
+      'Arrow',
+      'Brush',
+      'Text',
+      'Mosaic',
+      'Undo',
+      'Redo',
+      'Save image',
+      'Copy to clipboard',
+      'Copy and close'
+    ]) {
+      expect(screen.getByRole('button', { name })).toBeDisabled()
+    }
+    expect(screen.getAllByRole('button', { name: 'Add to chat' })).toHaveLength(2)
+    for (const button of screen.getAllByRole('button', { name: 'Add to chat' })) expect(button).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled()
+  })
+
   it('copies the capture without closing the toolbar', async () => {
     const onCopy = vi.fn()
     render(<Toolbar {...baseProps} activeTool={null} onCopy={onCopy} />)

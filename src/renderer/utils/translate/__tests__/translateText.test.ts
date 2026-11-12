@@ -335,6 +335,30 @@ describe('translateText (main-driven streaming)', () => {
       expect(mockAi.streamAbort).toHaveBeenCalledWith({ topicId: streamId })
     })
 
+    it('settles locally before open acknowledgement and ignores late events', async () => {
+      let acknowledge!: (value: { streamId: string }) => void
+      mockTranslateOpen.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            acknowledge = resolve
+          })
+      )
+      const controller = new AbortController()
+      const callback = vi.fn()
+      const promise = translateText('source', TARGET, callback, controller.signal, 'openai::gpt-4o')
+      const streamId = lastStreamId(mockRequest)
+      expect(mockRequest).toHaveBeenCalledWith('translate.open', expect.objectContaining({ modelId: 'openai::gpt-4o' }))
+      controller.abort()
+      expect(mockListeners).toEqual({ chunk: [], done: [], error: [] })
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+      acknowledge({ streamId })
+      await Promise.resolve()
+      expect(mockAi.streamAbort).toHaveBeenCalledTimes(2)
+      emitChunk(mockListeners, 'late', streamId)
+      emitDone(mockListeners, streamId)
+      expect(callback).not.toHaveBeenCalled()
+    })
+
     it('rejects synchronously when the supplied signal is already aborted', async () => {
       const controller = new AbortController()
       controller.abort()
