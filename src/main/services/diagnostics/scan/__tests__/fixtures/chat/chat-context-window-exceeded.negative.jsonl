@@ -1,1 +1,6 @@
 {"level":"warn","message":"Context menu window opened for message actions","module":"ContextMenu","process":"renderer","window":"mainWindow","timestamp":"2026-08-20 11:00:00"}
+{"level":"error","message":"Input length must be positive","module":"AiStreamManager","process":"main","timestamp":"2026-08-20 12:00:00"}
+{"level":"error","message":"Input length 5 is within the maximum length 10","module":"AiStreamManager","process":"main","timestamp":"2026-08-20 12:00:00"}
+{"level":"error","message":"Input length exceeds the maximum limit","module":"AiStreamManager","process":"main","timestamp":"2026-08-20 12:00:00"}
+{"level":"error","message":"Request length 2000000 exceeds the maximum length 1000000 bytes","module":"AiStreamManager","process":"main","timestamp":"2026-08-20 12:00:00"}
+{"level":"error","message":"Output length 200 exceeds the maximum length 100","module":"AiStreamManager","process":"main","timestamp":"2026-08-20 12:00:00"}
