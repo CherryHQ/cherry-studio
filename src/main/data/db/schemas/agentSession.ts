@@ -15,6 +15,8 @@ export const agentSessionTable = sqliteTable(
       .notNull()
       .default('conversation'),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
+    // NULL awaits upgrade; 'unknown' records unresolved ownership without retrying against an upgraded Agent.
+    runtimeType: text(),
     name: text().notNull(),
     // Whether the name was manually edited by user.
     isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),

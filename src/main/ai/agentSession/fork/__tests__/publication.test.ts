@@ -52,14 +52,17 @@ describe('Agent fork publication', () => {
     const workspaceId = randomUUID()
     sessionId = randomUUID()
     messageId = randomUUID()
-    dbh.db.insert(agentTable).values({ id: agentId, type: 'pi', name: 'Agent', instructions: '', orderKey: 'a0' }).run()
+    dbh.db
+      .insert(agentTable)
+      .values({ id: agentId, type: 'pi-durable', name: 'Agent', instructions: '', orderKey: 'a0' })
+      .run()
     dbh.db
       .insert(agentWorkspaceTable)
       .values({ id: workspaceId, name: 'Workspace', path: directory, type: 'user', orderKey: 'a0' })
       .run()
     dbh.db
       .insert(agentSessionTable)
-      .values({ id: sessionId, agentId, workspaceId, name: 'Source', orderKey: 'a0' })
+      .values({ id: sessionId, agentId, workspaceId, runtimeType: 'pi', name: 'Source', orderKey: 'a0' })
       .run()
     agentSessionMessageService.saveMessage({
       sessionId,
@@ -125,6 +128,7 @@ describe('Agent fork publication', () => {
     const childId = await new AgentSessionForkOperations().fork(sessionId, messageId)
     expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, childId)).get()).toMatchObject({
       type: 'conversation',
+      runtimeType: 'pi',
       createdAt
     })
     expect(notified).toEqual([childId])

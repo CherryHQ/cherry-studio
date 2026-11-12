@@ -7,11 +7,13 @@ import { v4 as uuidv4 } from 'uuid'
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
+import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import {
   type AgentSessionRow as SessionRow,
   type AgentSessionType,
   agentSessionTable as sessionsTable
 } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
@@ -27,6 +29,7 @@ import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import { AgentTypeSchema, type AgentType } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   AgentSessionEntity,
@@ -108,6 +111,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     id: clean.id,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
+    runtimeType: AgentTypeSchema.safeParse(row.session.runtimeType).data,
     name: clean.name,
     isNameManuallyEdited: clean.isNameManuallyEdited,
     description: clean.description,
@@ -161,6 +165,30 @@ export function agentSessionReadModelEffects(
 }
 
 export class AgentSessionService {
+  getRuntimeType(sessionId: string): AgentType {
+    return this.getRuntimeTypeTx(application.get('DbService').getDb(), sessionId)
+  }
+
+  getRuntimeTypeTx(db: DbOrTx, sessionId: string): AgentType {
+    const session = db
+      .select({ runtimeType: sessionsTable.runtimeType })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, sessionId))
+      .get()
+    const runtime = AgentTypeSchema.safeParse(session?.runtimeType)
+    if (!runtime.success) throw DataApiErrorFactory.invalidOperation('execute session', 'Session runtime is unresolved')
+    const backends = db
+      .select({ locator: agentRuntimeBackendTable.locator })
+      .from(agentSessionContextTable)
+      .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
+      .where(eq(agentSessionContextTable.sessionId, sessionId))
+      .all()
+    if (backends.some(({ locator }) => locator.kind !== runtime.data)) {
+      throw DataApiErrorFactory.invalidOperation('execute session', 'Session runtime conflicts with its native backend')
+    }
+    return runtime.data
+  }
+
   createChildArchiveTx(tx: DbOrTx, ownerSessionId: string, name: string): string {
     const owner = tx.select().from(sessionsTable).where(eq(sessionsTable.id, ownerSessionId)).get()
     if (!owner || owner.deletedAt) throw new Error('Child archive owner is unavailable')
@@ -172,6 +200,7 @@ export class AgentSessionService {
       name,
       workspaceId: owner.workspaceId,
       agentId: owner.agentId,
+      runtimeType: owner.runtimeType,
       createdAt: Date.now(),
       updatedAt: Date.now()
     })
@@ -329,7 +358,8 @@ export class AgentSessionService {
     dto: CreateAgentSessionDto,
     type: AgentSessionType = 'conversation',
     createdAt = Date.now(),
-    taskId: string | null = null
+    taskId: string | null = null,
+    runtimeType: AgentType = 'pi-durable'
   ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
 
@@ -366,6 +396,7 @@ export class AgentSessionService {
       name: dto.name,
       description: dto.description,
       taskId,
+      runtimeType,
       workspaceId,
       createdAt,
       updatedAt: createdAt
@@ -1026,6 +1057,7 @@ export class AgentSessionService {
     tx: DbOrTx,
     values: {
       type: AgentSessionType
+      runtimeType: string | null
       id: string
       agentId: string | null
       ownerSessionId?: string

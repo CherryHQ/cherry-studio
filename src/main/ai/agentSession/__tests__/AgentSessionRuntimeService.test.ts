@@ -57,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   closeAgentSessionWarm: vi.fn(),
   closeWarmSession: vi.fn().mockResolvedValue(undefined),
   getSessionById: vi.fn(),
+  getRuntimeType: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn(),
@@ -99,6 +100,7 @@ vi.mock('../relocateSystemWorkspaces', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSessionById,
+    getRuntimeType: mocks.getRuntimeType,
     ensureTraceId: mocks.ensureTraceId
   }
 }))
@@ -495,6 +497,7 @@ describe('AgentSessionForkOperations recovery', () => {
   })
 
   it('rejects a missing checkpoint before creating fork artifacts or rebuilding history', async () => {
+    mocks.getRuntimeType.mockReturnValue('pi')
     mocks.getAgent.mockReturnValueOnce({ id: 'fork-agent', type: 'pi' })
     runtimeDriverRegistry.register({
       type: 'pi',
@@ -559,6 +562,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.closeWarmQueries.mockResolvedValue(undefined)
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
+    mocks.getRuntimeType.mockReturnValue('test-runtime')
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
@@ -595,6 +599,7 @@ describe('AgentSessionRuntimeService', () => {
 
   it('blocks edits only on the source session until its fork settles', async () => {
     const service = new AgentSessionRuntimeService()
+    mocks.getRuntimeType.mockReturnValue('pi')
     mocks.getAgent.mockReturnValueOnce({ id: 'fork-agent', type: 'pi' })
     runtimeDriverRegistry.register({
       type: 'pi',
@@ -4512,6 +4517,7 @@ describe('AgentSessionRuntimeService', () => {
         validateSession: vi.fn()
       })
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getRuntimeType.mockReturnValue('test-runtime')
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
 
       const service = new AgentSessionRuntimeService()
@@ -4579,6 +4585,7 @@ describe('AgentSessionRuntimeService', () => {
         validateSession: vi.fn()
       })
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getRuntimeType.mockReturnValue('test-runtime')
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
 
       const service = new AgentSessionRuntimeService()
@@ -4939,7 +4946,8 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it.each(['pi', 'claude-code'])('resumes a native %s fork and sends only the new user messages', async (agentType) => {
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: agentType, model: baseTurnInput.modelId })
+    mocks.getRuntimeType.mockReturnValue(agentType)
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'pi-durable', model: baseTurnInput.modelId })
     mocks.getLastRuntimeResumeToken.mockReturnValue('native-child-token')
     const events = createAsyncQueue<any>()
     const connection = {

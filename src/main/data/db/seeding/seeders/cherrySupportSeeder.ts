@@ -47,7 +47,7 @@ export class CherrySupportSeeder implements ISeeder {
       const agentId = CHERRY_SUPPORT_AGENT_ID
       const row = agentService.createAgentTx(tx, agentId, {
         id: agentId,
-        type: 'claude-code',
+        type: 'pi-durable',
         name: this.getNameForPreferredSystemLanguage(),
         description: '',
         instructions: '',

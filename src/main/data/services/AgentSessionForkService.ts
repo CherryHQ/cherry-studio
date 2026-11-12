@@ -129,7 +129,7 @@ export class AgentSessionForkService {
     const current = this.readTx(tx, source.session.id, input.messageId, input.excludedIds)
     // Appending after the boundary is allowed. Changes to the chosen prefix, Agent or cwd are not.
     if (
-      current.agent.type !== source.agent.type ||
+      current.session.runtimeType !== source.session.runtimeType ||
       current.agent.id !== source.agent.id ||
       current.workspace.id !== source.workspace.id ||
       current.workspace.path !== source.workspace.path ||
@@ -169,7 +169,9 @@ export class AgentSessionForkService {
           source.workspace.type === 'system' ? { type: 'system' } : { type: 'user', workspaceId: source.workspace.id }
       },
       'conversation',
-      input.createdAt
+      input.createdAt,
+      null,
+      agentSessionService.getRuntimeTypeTx(tx, source.session.id)
     )
     agentSessionMessageService.insertForkMessagesTx(tx, input.targetSessionId, input.messages)
     for (const binding of input.contexts) {

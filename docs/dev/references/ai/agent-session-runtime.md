@@ -43,6 +43,27 @@ The built-in drivers are Claude Code, Pi and Pi Durable. Their
 query/session transports, tool surfaces, approval gates, and resume formats are
 driver internals behind the same host contract.
 
+## Session runtime ownership
+
+`agent_session.runtime_type` binds execution to the session independently of its
+Agent's current `type`. Fresh conversations use Pi Durable. Historical Pi and
+Claude Code sessions, their native forks and child archives retain their original
+engine; updating or replacing Agent settings does not change that ownership.
+Creation and editing forms do not expose runtime selection or a runtime summary.
+
+The startup upgrade runs after retired-runtime and native-context backfills. It
+captures existing backend evidence, falling back to the pre-upgrade Agent type,
+then normalizes Agents to Pi Durable in the same transaction. Existing bindings
+and activity timestamps survive retries. `NULL` means not yet processed;
+`unknown` preserves unresolved history without guessing an engine on a later
+retry. Such history remains readable but cannot execute. Native backend identity
+must agree with the session binding before dispatch, prewarming or history edits.
+
+Model choices, instructions and configuration remain Agent-owned. Legacy CLI-only
+model selections are not converted into API models; a fresh Durable conversation
+requires a model supported by its existing model filter. Pi and Claude Code drivers
+remain installed for historical continuation.
+
 ## Ownership
 
 | Owner | Responsibility |
@@ -166,7 +187,7 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    - the session must have an agent and workspace;
    - system workspaces are materialized under Cherry's managed root, while user
      workspace paths must already resolve to a directory;
-   - the agent type must have a registered runtime driver;
+   - the session runtime binding must have a registered driver and agree with its native backends;
    - the agent must have a model.
 3. The provider atomically saves:
    - a `user` message with the submitted parts;

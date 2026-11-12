@@ -43,12 +43,15 @@ describe('hostToolsEnabled', () => {
     expect(hostToolsEnabled(agentOf(type, BUILTIN_AGENT_ROLE.ASSISTANT), { channelLinked: true })).toBe(false)
   })
 
-  it('keeps Cherry Support host tools on channel-linked sessions, but only on claude-code', () => {
-    for (const channelLinked of [false, true]) {
-      expect(hostToolsEnabled(agentOf('claude-code', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(true)
-      expect(hostToolsEnabled(agentOf('pi', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(false)
+  it.each(['claude-code', 'pi-durable'] as const)(
+    'keeps Cherry Support host tools on channel-linked %s sessions',
+    (type) => {
+      for (const channelLinked of [false, true]) {
+        expect(hostToolsEnabled(agentOf(type, BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(true)
+        expect(hostToolsEnabled(agentOf('pi', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(false)
+      }
     }
-  })
+  )
 
   it.each(AGENT_TYPES)('never grants host tools to an ordinary Agent on %s', (type) => {
     expect(hostToolsEnabled(agentOf(type), { channelLinked: false })).toBe(false)

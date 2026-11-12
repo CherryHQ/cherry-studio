@@ -871,6 +871,13 @@ function createDeferred<T>() {
 }
 
 describe('edit dialogs', () => {
+  it('keeps runtime hidden while editing Agent settings', () => {
+    render(<AgentEditDialog open resource={{ ...AGENT, type: 'pi-durable' }} onOpenChange={vi.fn()} />)
+    expect(screen.getByLabelText('Avatar and name')).toBeVisible()
+    expect(screen.queryByText('Cannot be changed after creation')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.config.agent.field.runtime.label')).not.toBeInTheDocument()
+  })
+
   it.each(['agent', 'assistant'] as const)(
     'opens global prompt settings from an empty %s prompt panel',
     async (type) => {

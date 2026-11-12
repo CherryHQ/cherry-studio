@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useCache } from '@data/hooks/useCache'
@@ -63,7 +63,11 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
 }) => {
   const { t } = useTranslation()
   const { session } = useSession(sessionId)
-  const { agent, isLoading: agentLoading } = useAgent(session?.agentId ?? null)
+  const { agent: configuredAgent, isLoading: agentLoading } = useAgent(session?.agentId ?? null)
+  const agent = useMemo(
+    () => (configuredAgent && session?.runtimeType ? { ...configuredAgent, type: session.runtimeType } : undefined),
+    [configuredAgent, session?.runtimeType]
+  )
   const { model } = useModelById(agent?.model)
   const workspacePath = session?.workspace?.type === 'user' ? session.workspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)

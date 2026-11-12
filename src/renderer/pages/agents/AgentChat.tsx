@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
@@ -205,7 +205,14 @@ const AgentChat = ({
   const visibleAgentId = sessionSnapshot?.agentId ?? null
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
-  const activeAgent = conversationBootstrap.resources.agent
+  const configuredAgent = conversationBootstrap.resources.agent
+  const activeAgent = useMemo(
+    () =>
+      configuredAgent && sessionSnapshot?.runtimeType
+        ? { ...configuredAgent, type: sessionSnapshot.runtimeType }
+        : undefined,
+    [configuredAgent, sessionSnapshot?.runtimeType]
+  )
   const isSupportAgent = activeAgent?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT
   const isAssistantAgent = activeAgent?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT
   // Assistant now exposes prepare_diagnostic_report, so it needs the same review dialog as Support.

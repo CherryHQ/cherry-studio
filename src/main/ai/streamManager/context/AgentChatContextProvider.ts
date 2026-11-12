@@ -128,9 +128,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent ${agent.id} has no model configured`)
     }
 
-    const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
+    const runtimeType = agentSessionService.getRuntimeType(sessionId)
+    const driver = runtimeDriverRegistry.getAgentSessionDriver(runtimeType)
     if (!driver) {
-      throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${agent.type}`)
+      throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${runtimeType}`)
     }
     const parentMessageId = agentSessionMessageService.captureHead(sessionId)
     await driver.validateSession(session)
@@ -154,7 +155,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       topicId: req.topicId,
       agentId,
       agentUpdatedAt: agent.updatedAt,
-      agentType: agent.type,
+      agentType: runtimeType,
       agentName: agent.name,
       uniqueModelId,
       reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',

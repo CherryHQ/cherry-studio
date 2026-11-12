@@ -450,7 +450,7 @@ export class AgentService {
         'Cherry Support must use its reserved system identity'
       )
     }
-    insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id, position })
+    insertWithOrderKey(tx, agentsTable, { ...insertData, type: 'pi-durable' }, { pkColumn: agentsTable.id, position })
     const [agent] = tx.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1).all()
     if (!agent) return null
     const modelName = agent.model

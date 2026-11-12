@@ -48,7 +48,7 @@ beforeEach(() => {
     .run()
   dbh.db
     .insert(agentSessionTable)
-    .values({ id: sessionId, agentId, workspaceId, name: 'History', orderKey: 'a0' })
+    .values({ id: sessionId, agentId, workspaceId, runtimeType: 'pi', name: 'History', orderKey: 'a0' })
     .run()
 })
 
@@ -152,7 +152,7 @@ it('refuses legacy, malformed and foreign-runtime checkpoints consistently in li
 })
 
 it('keeps unsupported harness history readable and rejects execution, including the first input', async () => {
-  dbh.db.update(agentTable).set({ type: 'pi-durable' }).where(eq(agentTable.id, agentId)).run()
+  dbh.db.update(agentSessionTable).set({ runtimeType: 'pi-durable' }).where(eq(agentSessionTable.id, sessionId)).run()
   const first = user('Durable input')
   const completed = answer()
   const rows = messages.listSessionMessages(sessionId).items
@@ -235,7 +235,7 @@ it('rejects delivery edits and keeps boundary reads scoped to the requested sess
 
 // Durable edits need either a fresh first-input context or a valid predecessor checkpoint.
 it('enables Durable edits at first inputs and committed predecessor boundaries', async () => {
-  dbh.db.update(agentTable).set({ type: 'pi-durable' }).where(eq(agentTable.id, agentId)).run()
+  dbh.db.update(agentSessionTable).set({ runtimeType: 'pi-durable' }).where(eq(agentSessionTable.id, sessionId)).run()
   runtimeDriverRegistry.register(new PiDurableRuntimeDriver())
   const first = user('First Durable input')
   const completed = answer({ runtime: 'pi-durable', backendId: randomUUID(), conversationId: '1', entryId: '2' })

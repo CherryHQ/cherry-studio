@@ -7,6 +7,7 @@ import type { MainDispatchRequest } from '../dispatch'
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
+  getRuntimeType: vi.fn(),
   ensureTraceIdTx: vi.fn(),
   getAgent: vi.fn(),
   captureHead: vi.fn(),
@@ -25,7 +26,11 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getById: mocks.getSession, ensureTraceIdTx: mocks.ensureTraceIdTx }
+  agentSessionService: {
+    getRuntimeType: mocks.getRuntimeType,
+    getById: mocks.getSession,
+    ensureTraceIdTx: mocks.ensureTraceIdTx
+  }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -98,6 +103,7 @@ describe('AgentChatContextProvider', () => {
       validateSession: mocks.runtimeValidateSession
     })
     mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
+    mocks.getRuntimeType.mockReturnValue('claude-code')
     mocks.ensureTraceIdTx.mockReturnValue('a'.repeat(32))
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -158,6 +164,18 @@ describe('AgentChatContextProvider', () => {
     })
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
+  })
+
+  it('dispatches a legacy session through its bound runtime after its Agent upgrades', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      name: 'Upgraded',
+      type: 'pi-durable',
+      model: 'anthropic::claude-sonnet'
+    })
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+    expect(prepared).toBeDefined()
+    expect(mocks.runtimeBeginTurn.mock.calls[0][0].agentType).toBe('claude-code')
   })
 
   it('keeps the captured branch when the user changes selection during validation', async () => {
@@ -434,6 +452,7 @@ describe('AgentChatContextProvider', () => {
 
   it('rejects agent sessions without a registered runtime driver', async () => {
     runtimeDriverRegistry.clearForTest()
+    mocks.getRuntimeType.mockReturnValue('custom-runtime')
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })
 
     await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toThrow(

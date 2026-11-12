@@ -411,7 +411,9 @@ export class AgentSessionRuntimeService extends BaseService {
   getHistoryActions(sessionId: string, messageIds: readonly string[]) {
     const session = agentSessionService.getById(sessionId)
     const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
-    const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
+    const driver = agent
+      ? runtimeDriverRegistry.getAgentSessionDriver(agentSessionService.getRuntimeType(sessionId))
+      : undefined
     return new Map(
       agentSessionForkService
         .readHistoryBoundaries(sessionId, messageIds)
@@ -892,9 +894,10 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
       if (!agent?.model) return
-      if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
+      const runtimeType = agentSessionService.getRuntimeType(sessionId)
+      if (runtimeType === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
         return
-      if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
+      if (!runtimeDriverRegistry.getAgentSessionDriver(runtimeType)) return
 
       // Resolve the session's container trace id up front so the primed connection carries the same
       // trace context the first turn will. The connection is reused across turns, so without this its
@@ -915,7 +918,7 @@ export class AgentSessionRuntimeService extends BaseService {
         topicId: buildAgentSessionTopicId(sessionId),
         sessionTraceId,
         agentId: session.agentId,
-        agentType: agent.type,
+        agentType: runtimeType,
         modelId: agent.model,
         runtimeState: createAgentSessionRuntimeState()
       }

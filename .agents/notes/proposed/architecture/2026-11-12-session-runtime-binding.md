@@ -55,4 +55,12 @@ Keep runtime absent from creation and remove the editor's runtime summary and hi
 
 ## Risks
 
-Legacy adapters and their dependencies remain required. Shared Agent settings can have engine-specific interpretation, so hiding runtime must not hide required legacy session capabilities. Import, restore, fork and background-session allocation are separate write paths and must not bypass binding. Existing pending retired-runtime conversions require explicit ordering before Agent normalization. Real-provider continuation and backup evidence are required in addition to focused tests; this Spec contains source inspection only and no implementation acceptance evidence.
+Legacy adapters and their dependencies remain required. Shared Agent settings can have engine-specific interpretation, so hiding runtime must not hide required legacy session capabilities. Import, restore, fork and background-session allocation are separate write paths and must not bypass binding. Existing pending retired-runtime conversions require explicit ordering before Agent normalization. Real-provider continuation and backup evidence are required in addition to focused tests; full acceptance remains pending the native continuation and backup checks below.
+
+## Implementation evidence
+
+The implementation adds migration `0038` and an ordered transactional seeder, routes session execution and historical operations through the persisted binding, normalizes Agent creation, and removes the editor runtime summary. Unresolved bindings remain non-executable. A CLI-only model choice is preserved; a fresh Durable conversation needs a model supported by Durable.
+
+Focused SQLite tests cover populated migrate-forward, backend precedence, unknown/conflicting histories, soft-deleted rows, rollback/retry, child/fork inheritance and Agent creation. Main contract tests cover dispatch, prewarming, history operations, recovery, message writes and task reuse. Renderer component tests cover conversation consumers and both forms. Node/web typechecks, scoped lint and migration-chain checks pass.
+
+An isolated Electron instance from this checkout started successfully; its real Data API returned `pi-durable` for seeded Agents and a newly created session. Creation and editing forms showed no runtime field. The test-owned instance was stopped afterward. Native Pi/Claude provider continuation across process reopen and an Electron backup export/restore round trip have not been verified; AC3 and AC6 remain partially unverified, so the note remains proposed.

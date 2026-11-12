@@ -75,6 +75,7 @@ const bootstrap: AgentConversationBootstrap = {
   session: {
     id: 'session-1',
     agentId: 'agent-1',
+    runtimeType: 'pi-durable',
     name: 'Workspace conversation',
     isNameManuallyEdited: false,
     workspaceId: workspace.id,

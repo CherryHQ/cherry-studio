@@ -16,7 +16,7 @@ export function loadBuiltinAgentEnsureInput(
     ...defaults,
     builtinRole,
     preferredModelId: defaultModelId,
-    type: 'claude-code'
+    type: 'pi-durable'
   }
 }
 
