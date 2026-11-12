@@ -518,3 +518,21 @@ describe('CMD empty quoted equality operands', () => {
     }
   }
 })
+
+describe('CMD quote stripping for nested command programs', () => {
+  it.each([
+    'cmd /c "cmd /c "del b""',
+    'cmd /c "cmd /c "if exist a del b""',
+    'cmd /k "cmd /c "del b""',
+    // Keep main's conservative deny for a quoted executable plus another quoted word.
+    'cmd /c "del b" "c"'
+  ])('retains deletion detection after whole-program quote stripping: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+  it.each(['cmd /c "cmd /c "echo del""', 'cmd /c "cmd /c "if exist a echo del""'])(
+    'does not mistake nested prose for execution: %s',
+    (command) => {
+      expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+    }
+  )
+})

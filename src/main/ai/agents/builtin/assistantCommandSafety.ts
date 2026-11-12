@@ -408,9 +408,14 @@ function cmdCommand(args: readonly string[], rawArgs?: readonly string[]): strin
   if (flagIndex < 0 || args[flagIndex + 1] === undefined) return undefined
   const values = args.slice(flagIndex + 1)
   const source = rawArgs?.slice(flagIndex + 1)
-  // One quoted argument is the command program, not a quoted executable name.
-  if (values.length === 1 && source?.[0].startsWith('"') && source[0].endsWith('"')) return source[0].slice(1, -1)
-  return (source ?? values).join(' ')
+  const program = (source ?? values).join(' ')
+  // CMD strips the first and last quote of its whole /c or /k program, even
+  // when nested quotes caused the shell tokenizer to split it into words.
+  if (source?.[0].startsWith('"')) {
+    const lastQuote = program.lastIndexOf('"')
+    if (lastQuote > 0) return program.slice(1, lastQuote) + program.slice(lastQuote + 1)
+  }
+  return program
 }
 
 function skipOptions(args: readonly string[], start: number, valueFlags: ReadonlySet<string>): number {
