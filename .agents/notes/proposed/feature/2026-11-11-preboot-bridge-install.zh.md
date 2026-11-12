@@ -95,7 +95,7 @@ PortableUpdater 复用固定目标下载和校验流程。隐藏窗口的 PowerS
 ## Acceptance criteria
 
 - AC1 — 只有前置条件兼容的数据和验证过的安装形式展示自动桥接安装；不受支持或不确定的情况保留可执行的手动指引。(verification: unit; owner: legacy profile/platform tests)
-- AC2 — 用户操作只选择精确的 2.1.0，发行版、原生架构、安装形式及固定校验和均匹配；错误或缺失的目标不能回退为其他资源。(verification: unit; owner: bridge provider tests)
+- AC2 — 用户操作只选择所需的版本或版本顺序（符合条件的旧便携版先装 1.9.12，再装 2.1.0），发行版、原生架构、安装形式及固定校验和均匹配；错误或缺失的目标不能回退为其他资源。(verification: unit; owner: bridge provider tests)
 - AC3 — 下载、校验失败、取消、重试、重复点击、迟到事件和 renderer 重载产生一致的可见状态，底部操作可达且不重复安装。(verification: renderer and unit; owner: preboot window/session tests)
 - AC4 — 检查、下载、取消及交接前失败均保持旧数据目录字节不变，不启动正常服务或创建数据库。(verification: Electron; owner: isolated preboot fixture checks)
 - AC5 — 每个启用的平台和安装形式均安装并启动 2.1.0，重新打开预期的默认或自定义数据目录，并允许完成迁移；具有发行版、架构和签名连续性证据。(verification: packaged artifact; owner: desktop release validation)
