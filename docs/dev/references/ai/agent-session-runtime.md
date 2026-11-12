@@ -1261,3 +1261,11 @@ Cross-Session delivery acceptance tests additionally pin these crash and securit
 - concurrent dispatch attempts for one durable message atomically persist one placeholder plus one
   CAS owner before producing one send;
 - list, search, send, and deliveries queries enforce the same visibility rules.
+
+## Scheduled task command guards
+
+A scheduled task can use a command as a fire-time predicate. The exact command needs user approval before it can run. It is a trusted, short-lived local check, not a sandbox or a background-work launcher: exit code 0 permits the agent turn; other exits or a 30-second deadline skip the turn. Cancellation rejects the guard so the job can settle as cancelled rather than as a failed predicate.
+
+Cancellation and timeout start process termination, but settlement does not wait for every descendant to exit. On POSIX, the evaluator sends SIGTERM to the command's owned process group and escalates to SIGKILL after five seconds. On Windows it requests `taskkill /T /F` for the live command tree. These are termination attempts within those ownership boundaries, not a guarantee that arbitrary descendants or side effects have stopped when the run settles.
+
+In particular, a POSIX descendant that calls `setsid()` leaves the owned process group and can continue after cancellation and the kill grace. Do not use a command guard that detaches work, launches daemons or depends on cancellation rolling back its side effects. Such work needs its own lifecycle owner. Stronger detached-process containment would require a separate supported-platform design; the current guard does not provide it.
