@@ -1,3 +1,4 @@
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,11 +31,13 @@ function backend(overrides: Partial<ComputerUseClient> = {}) {
     appSessionId: 'app-1',
     app: { id: 'app', name: 'Editor' },
     window: { id: 'window', title: 'Document' },
+    inputChannel: { kind: 'accessibility' },
     tree: { status: 'available', elements: [], truncated: [] },
     screenshot: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'No capture' } }
   }
   const client: ComputerUseClient = {
     ...{ resolveApp: vi.fn(), resolveAppIdentity: vi.fn(), perform: vi.fn() },
+    getAppIcon: async () => ({ status: 'unavailable' }),
     getCapabilities: async () => ({ platform: 'darwin', capabilities: [] }),
     getPermissionStatus: async () => ({ permissions: [] }),
     requestPermissions: async () => ({ permissions: [] }),
@@ -167,7 +170,7 @@ describe('desktop control ownership and user stop', () => {
     await service.stop()
   })
 
-  it('reports an unexpected unconfirmed native exit separately from user stop and keeps ownership blocked', async () => {
+  it('reports an unexpected unconfirmed native exit separately from user stop and recovers when the user allows control again', async () => {
     const native = backend({
       close: async () => {
         throw new Error('Native runtime is gone')
@@ -180,11 +183,12 @@ describe('desktop control ownership and user stop', () => {
     native.disconnect({ cleanup: 'unconfirmed' })
     await expect(service.listApps(task)).rejects.toMatchObject({ code: 'CLEANUP_UNCONFIRMED' })
     service.allowControl('owner')
-    await expect(service.listApps(service.createTask('owner', 'Conversation'))).rejects.toMatchObject({
-      code: 'CLEANUP_UNCONFIRMED'
+    await expect(service.listApps(service.createTask('owner', 'Conversation'))).resolves.toMatchObject({
+      apps: [{ id: 'app', name: 'Editor' }]
     })
-    await expect(service.openApp(service.createTask('other', 'Other'), 'app')).rejects.toMatchObject({
-      code: 'APP_BUSY'
+    // Acknowledging the unconfirmed cleanup also releases the application reservation it kept alive.
+    await expect(service.openApp(service.createTask('other', 'Other'), 'app')).resolves.toMatchObject({
+      status: 'active'
     })
     await service.stop()
   })
@@ -231,8 +235,14 @@ describe('desktop control ownership and user stop', () => {
       newView = service.getControls()
     })
     try {
-      expect(existingView).toMatchObject([{ ownerId: 'owner', status: 'stopped' }])
-      expect(newView).toMatchObject([{ ownerId: 'owner', status: 'stopped' }])
+      expect(existingView).toMatchObject([
+        { ownerId: 'owner', status: 'stopped' },
+        { ownerId: 'owner', appId: 'app', status: 'stopped' }
+      ])
+      expect(newView).toMatchObject([
+        { ownerId: 'owner', status: 'stopped' },
+        { ownerId: 'owner', appId: 'app', status: 'stopped' }
+      ])
       service.allowControl('owner')
       expect(existingView).toEqual([])
       expect(newView).toEqual([])
@@ -352,7 +362,7 @@ describe('desktop control ownership and user stop', () => {
     await service.stop()
   })
 
-  it('retains uncertain cleanup and its application reservation instead of claiming stopped', async () => {
+  it('retains uncertain cleanup until the user allows control again instead of claiming stopped', async () => {
     const native = backend({
       stopAppSession: async () => {
         throw new Error('Cleanup unconfirmed')
@@ -366,12 +376,17 @@ describe('desktop control ownership and user stop', () => {
     await service.openApp(service.createTask('owner', 'Conversation'), 'app')
     await service.stopApp('owner', 'app')
     expect(service.getControls().filter((row) => row.appId === 'app')).toMatchObject([{ status: 'unconfirmed' }])
-    service.allowControl('owner')
+    // Until the user acknowledges, both the owner and the application stay blocked.
     await expect(service.openApp(service.createTask('owner', 'Conversation'), 'app')).rejects.toMatchObject({
       code: 'CLEANUP_UNCONFIRMED'
     })
     await expect(service.openApp(service.createTask('other', 'Other'), 'app')).rejects.toMatchObject({
       code: 'APP_BUSY'
+    })
+    service.allowControl('owner')
+    expect(service.getControls().filter((row) => row.appId === 'app')).toEqual([])
+    await expect(service.openApp(service.createTask('owner', 'Conversation'), 'app')).resolves.toMatchObject({
+      status: 'active'
     })
     await service.stop()
   })
@@ -395,6 +410,133 @@ describe('desktop control ownership and user stop', () => {
     await service.stop()
   })
 
+  it('retains named apps after stop-all while live cleanup takes precedence and allow remains owner-scoped', async () => {
+    const closing = Promise.withResolvers<void>()
+    const native = backend({
+      openAppSession: async ({ appId }) => ({
+        id: appId,
+        app: { id: appId, name: appId === 'one' ? 'Editor' : 'Browser' },
+        status: 'active'
+      }),
+      close: async () => {
+        await closing.promise
+      }
+    })
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Conversation')
+    await service.openApp(task, 'one')
+    await service.openApp(task, 'two')
+    const stopping = service.stopAll()
+    expect(
+      service
+        .getControls()
+        .filter((row) => row.appId)
+        .map(({ appName, status }) => [appName, status])
+    ).toEqual([
+      ['Editor', 'stopping'],
+      ['Browser', 'stopping']
+    ])
+    closing.resolve()
+    await stopping
+    expect(
+      service
+        .getControls()
+        .filter((row) => row.appId)
+        .map(({ appName, status }) => [appName, status])
+    ).toEqual([
+      ['Editor', 'stopped'],
+      ['Browser', 'stopped']
+    ])
+    service.allowControl('owner', 'one')
+    expect(service.getControls().map((row) => row.appName)).toEqual([undefined, 'Browser'])
+    await expect(service.openApp(service.createTask('owner', 'Conversation'), 'one')).rejects.toMatchObject({
+      code: 'USER_STOPPED'
+    })
+    service.allowControl('owner')
+    expect(service.getControls()).toEqual([])
+  })
+
+  it('keeps stop-all cleanup failures unconfirmed instead of exposing remembered stopped rows', async () => {
+    const native = backend({
+      close: async () => {
+        throw new Error('cleanup failed')
+      }
+    })
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    await service.openApp(service.createTask('owner', 'Conversation'), 'app')
+    await service.stopAll()
+    expect(service.getControls()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ownerId: 'owner', status: 'unconfirmed' }),
+        expect.objectContaining({ appId: 'app', status: 'unconfirmed' })
+      ])
+    )
+  })
+
+  it('broadcasts snapshots for service changes and does not duplicate the bridge after restart', async () => {
+    const stopped = Promise.withResolvers<void>()
+    const native = backend({
+      stopAppSession: async ({ appSessionId }) => {
+        await stopped.promise
+        return { appSessionId, status: 'stopped', cleanup: 'complete' }
+      }
+    })
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const broadcast = defaultServiceInstances.IpcApiService.broadcast
+    const service = new ComputerUseService()
+    await service._doInit()
+    const task = service.createTask('owner', 'Conversation')
+    await service.openApp(task, 'app')
+    const stopping = service.stopApp('owner', 'app')
+    stopped.resolve()
+    await stopping
+    const snapshots = broadcast.mock.calls.map(([, rows]) => rows as { status: string; appId?: string }[])
+    expect(snapshots.map((rows) => rows.find((row) => row.appId === 'app')?.status)).toEqual(
+      expect.arrayContaining(['opening', 'active', 'stopping', 'stopped'])
+    )
+    expect(broadcast.mock.calls.every(([event]) => event === 'computer_use.controls_changed')).toBe(true)
+    await service._doStop()
+    await service._doInit()
+    broadcast.mockClear()
+    await service.stopApp('owner', 'missing')
+    expect(broadcast.mock.calls).toHaveLength(1)
+    expect(broadcast.mock.calls[0][1]).toEqual(
+      expect.arrayContaining([expect.objectContaining({ appId: 'missing', status: 'stopped' })])
+    )
+    service.allowControl('owner')
+    const normal = service.createTask('normal', 'Normal')
+    await service.openApp(normal, 'another')
+    await service.finishTask(normal)
+    expect(broadcast.mock.calls.at(-1)?.[1]).toEqual([])
+    await service._doStop()
+    await service._doDestroy()
+  })
+
+  it('broadcasts an unconfirmed snapshot when stop-all cleanup fails', async () => {
+    const native = backend({
+      close: async () => {
+        throw new Error('cleanup failed')
+      }
+    })
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new ComputerUseService()
+    await service._doInit()
+    await service.openApp(service.createTask('owner', 'Conversation'), 'app')
+    await service.stopAll()
+    expect(defaultServiceInstances.IpcApiService.broadcast.mock.calls).toEqual(
+      expect.arrayContaining([
+        [
+          'computer_use.controls_changed',
+          expect.arrayContaining([expect.objectContaining({ appId: 'app', status: 'unconfirmed' })])
+        ]
+      ])
+    )
+    await service._doStop()
+    await service._doDestroy()
+  })
+
   it('cancels and closes owned resources when the task signal ends', async () => {
     const abort = new AbortController()
     const native = backend()
@@ -408,4 +550,24 @@ describe('desktop control ownership and user stop', () => {
     expect(service.getControls()).toEqual([])
     await expect(service.listApps(task)).rejects.toMatchObject({ code: 'TASK_CLOSED' })
   })
+})
+
+it('exposes stable app identity for control-list presentation before and after stopping', async () => {
+  const app = { id: 'finder', name: 'Finder', identity: 'com.apple.finder' }
+  const native = backend({ openAppSession: async () => ({ id: 'finder-session', app, status: 'active' }) })
+  vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+  const service = new TestService()
+  service.init()
+  try {
+    await service.openApp(service.createTask('owner', 'Agent'), app.id, undefined, app)
+    expect(service.getControls()).toContainEqual(
+      expect.objectContaining({ appId: app.id, appIdentity: app.identity, status: 'active' })
+    )
+    await service.stopApp('owner', app.id)
+    expect(service.getControls()).toContainEqual(
+      expect.objectContaining({ appId: app.id, appIdentity: app.identity, status: 'stopped' })
+    )
+  } finally {
+    await service.stop()
+  }
 })

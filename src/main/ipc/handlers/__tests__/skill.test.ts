@@ -10,6 +10,7 @@ import { PluginError } from '@main/utils/markdownParser'
 
 const {
   installMock,
+  setMirrorEnabledMock,
   uninstallMock,
   installFromZipMock,
   installFromDirectoryMock,
@@ -18,12 +19,14 @@ const {
   getByIdMock,
   getInstalledSkillDirectoryMock,
   importSystemMock,
+  syncExternalExportsMock,
   reconcileMock,
   reconcileSkillMock,
   checkRemoteUpdateMock,
   applyRemoteUpdateMock
 } = vi.hoisted(() => ({
   installMock: vi.fn(),
+  setMirrorEnabledMock: vi.fn(),
   uninstallMock: vi.fn(),
   installFromZipMock: vi.fn(),
   installFromDirectoryMock: vi.fn(),
@@ -32,6 +35,7 @@ const {
   getByIdMock: vi.fn(),
   getInstalledSkillDirectoryMock: vi.fn(),
   importSystemMock: vi.fn(),
+  syncExternalExportsMock: vi.fn(),
   reconcileMock: vi.fn(),
   reconcileSkillMock: vi.fn(),
   checkRemoteUpdateMock: vi.fn(),
@@ -49,6 +53,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   },
   skillService: {
     install: installMock,
+    setMirrorEnabled: setMirrorEnabledMock,
     uninstall: uninstallMock,
     installFromZip: installFromZipMock,
     installFromDirectory: installFromDirectoryMock,
@@ -57,6 +62,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     getById: getByIdMock,
     getInstalledSkillDirectory: getInstalledSkillDirectoryMock,
     importSystem: importSystemMock,
+    syncExternalExports: syncExternalExportsMock,
     reconcileSkills: reconcileMock,
     reconcileSkill: reconcileSkillMock,
     checkRemoteUpdate: checkRemoteUpdateMock,
@@ -78,6 +84,31 @@ beforeEach(() => {
 })
 
 describe('skillHandlers', () => {
+  it('routes export-only reconciliation without running full reconciliation', async () => {
+    syncExternalExportsMock.mockResolvedValueOnce(undefined)
+    await skillHandlers['skill.reconcile']({ externalExportsOnly: true }, ctx)
+    expect(syncExternalExportsMock).toHaveBeenCalledOnce()
+    expect(reconcileMock).not.toHaveBeenCalled()
+    expect(reconcileSkillMock).not.toHaveBeenCalled()
+  })
+
+  it('returns mirror mutation data directly and propagates failures to IpcApi', async () => {
+    const skill = { id: 's1', mirrorEnabled: false }
+    setMirrorEnabledMock.mockResolvedValueOnce(skill)
+    await expect(
+      skillHandlers['skill.set_mirror_enabled']({ skillId: 's1', mirrorEnabled: false }, ctx)
+    ).resolves.toEqual(skill)
+    const error = new Error('export denied')
+    setMirrorEnabledMock.mockRejectedValueOnce(error)
+    await expect(skillHandlers['skill.set_mirror_enabled']({ skillId: 's1', mirrorEnabled: true }, ctx)).rejects.toBe(
+      error
+    )
+    setMirrorEnabledMock.mockResolvedValueOnce(null)
+    await expect(
+      skillHandlers['skill.set_mirror_enabled']({ skillId: 'missing', mirrorEnabled: true }, ctx)
+    ).rejects.toThrow('Skill not found')
+  })
+
   it('install wraps the installed skill in a success envelope', async () => {
     installMock.mockResolvedValue({ id: 's1' })
     expect(await skillHandlers['skill.install']({ installSource: 'src' }, ctx)).toEqual({
@@ -212,24 +243,6 @@ describe('skillHandlers', () => {
 
     await expect(skillHandlers['skill.discover_system']({}, ctx)).resolves.toEqual([{ id: 'candidate-1' }])
     expect(discoverSystemMock).toHaveBeenCalledWith()
-  })
-
-  it('system skill routes keep discovery and import separate from agent association', async () => {
-    discoverSystemMock.mockResolvedValue([])
-    importSystemMock.mockResolvedValue({ id: 'system-skill' })
-
-    await skillHandlers['skill.discover_system']({}, ctx)
-    await skillHandlers['skill.import_system']({ directoryPath: '/skill' }, ctx)
-
-    expect(discoverSystemMock).toHaveBeenCalledWith()
-    expect(importSystemMock).toHaveBeenCalledWith({ directoryPath: '/skill' })
-  })
-
-  it('reconcile delegates to SkillService.reconcileSkills with the native IpcApi contract', async () => {
-    reconcileMock.mockResolvedValue(undefined)
-
-    await expect(skillHandlers['skill.reconcile']({}, ctx)).resolves.toBeUndefined()
-    expect(reconcileMock).toHaveBeenCalledWith()
   })
 
   it('scopes reconcile to one Skill when skillId is present', async () => {

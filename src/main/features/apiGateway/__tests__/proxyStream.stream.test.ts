@@ -1,4 +1,8 @@
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { createOpenAI } from '@ai-sdk/openai'
+import type { LanguageModelV3FunctionTool } from '@ai-sdk/provider'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import { APICallError, asSchema, type ToolSet, type UIMessageChunk } from 'ai'
 import { status } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,7 +39,9 @@ const {
   mockResolveAgentSessionUsage: vi.fn(),
   mockIsInternalAgentRequest: vi.fn(),
   mockToUIMessages: vi.fn<(params: MessageCreateParams) => CherryUIMessage[]>(),
-  mockToAiSdkTools: vi.fn(() => undefined),
+  mockToAiSdkTools: vi.fn<(params: MessageCreateParams, endpoint?: EndpointType) => ToolSet | undefined>(
+    () => undefined
+  ),
   mockExtractStreamOptions: vi.fn(() => ({})),
   mockExtractProviderOptions: vi.fn<
     (provider: unknown, model: unknown, params: MessageCreateParams, maxOutputTokens?: number) => undefined
@@ -88,7 +94,11 @@ vi.mock('../adapters', () => ({
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
-      transformChunk: (chunk: unknown) => [chunk],
+      getMessageId: () => 'gateway-response',
+      transformChunk: (chunk: UIMessageChunk) => {
+        if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
+        return [chunk]
+      },
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ done: true })
     }),
@@ -100,6 +110,8 @@ vi.mock('../adapters', () => ({
 }))
 
 import type { OutputFormat } from '../adapters'
+import { AnthropicMessageConverter } from '../adapters/converters/AnthropicMessageConverter'
+import { OpenAiResponsesMessageConverter } from '../adapters/converters/OpenAiResponsesMessageConverter'
 import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
@@ -242,6 +254,73 @@ async function processAndCaptureStreamMessages(
   return mockStreamPrompt.mock.calls[0][0].messages as CherryUIMessage[]
 }
 
+describe('processMessage (Anthropic client tools)', () => {
+  it.each(
+    [
+      { endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, modelId: 'claude-fable-5' },
+      { endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, modelId: 'gpt-5' },
+      { endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES, modelId: 'gpt-5' }
+    ].flatMap((target) => [true, false].map((streaming) => ({ ...target, streaming })))
+  )(
+    'forwards Anthropic client tools according to the resolved $endpoint ($streaming)',
+    async ({ endpoint, modelId, streaming }) => {
+      useGatewayModel(modelId, endpoint)
+      const converter = new AnthropicMessageConverter()
+      mockToAiSdkTools.mockImplementationOnce((params, target) => converter.toAiSdkTools(params, target))
+      const params = createAnthropicParams(modelId, [{ role: 'user', content: 'Weather?' }], streaming)
+      params.tools = [
+        { name: 'get_weather', description: 'Get weather', input_schema: { type: 'object', properties: {} } }
+      ]
+
+      await processAndCaptureStreamMessages(params)
+
+      const tools: ToolSet = mockStreamPrompt.mock.calls[0][0].callOverrides.tools
+      expect(tools).toBeDefined()
+      expect(Object.keys(tools)).toEqual(['get_weather'])
+      if (endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES) expect(tools.get_weather.strict).toBe(false)
+      else expect(tools.get_weather).not.toHaveProperty('strict')
+
+      const wireBodies: {
+        tools: { name?: string; strict?: boolean; function?: { name: string; strict?: boolean } }[]
+      }[] = []
+      const fetch: typeof globalThis.fetch = async (_input, init) => {
+        wireBodies.push(JSON.parse(String(init?.body)))
+        return new Response(JSON.stringify({ error: { type: 'invalid_request_error', message: 'captured' } }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' }
+        })
+      }
+      const model =
+        endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+          ? createAnthropic({ apiKey: 'test-key', fetch })(modelId)
+          : endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+            ? createOpenAI({ apiKey: 'test-key', fetch }).chat(modelId)
+            : createOpenAI({ apiKey: 'test-key', fetch }).responses(modelId)
+      const forwardedTools: LanguageModelV3FunctionTool[] = await Promise.all(
+        Object.entries(tools).map(async ([name, tool]) => ({
+          type: 'function',
+          name,
+          description: tool.description,
+          inputSchema: await asSchema(tool.inputSchema).jsonSchema,
+          ...(Object.hasOwn(tool, 'strict') ? { strict: tool.strict } : {})
+        }))
+      )
+      await expect(model.doGenerate({ prompt: [], tools: forwardedTools })).rejects.toMatchObject({ statusCode: 400 })
+      expect(wireBodies).toHaveLength(1)
+      expect(wireBodies[0].tools).toHaveLength(1)
+      const wireTool = wireBodies[0].tools[0]
+      if (endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
+        expect(wireTool.function?.name).toBe('get_weather')
+        expect(wireTool.function).not.toHaveProperty('strict')
+      } else {
+        expect(wireTool.name).toBe('get_weather')
+        if (endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES) expect(wireTool.strict).toBe(false)
+        else expect(wireTool).not.toHaveProperty('strict')
+      }
+    }
+  )
+})
+
 describe('processMessage (internal Agent continuation normalization)', () => {
   it('repairs internal Anthropic tool history before every conversion step for an OpenAI Responses target', async () => {
     useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
@@ -274,7 +353,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     expect(effectiveParams).not.toBe(params)
     expect(effectiveParams.messages[0].content).toEqual([call])
     expect(effectiveParams.messages[1].content).toEqual([output])
-    expect(mockToAiSdkTools).toHaveBeenCalledWith(effectiveParams)
+    expect(mockToAiSdkTools).toHaveBeenCalledWith(effectiveParams, ENDPOINT_TYPE.OPENAI_RESPONSES)
     expect(mockExtractStreamOptions).toHaveBeenCalledWith(effectiveParams)
     expect(mockExtractProviderOptions.mock.calls[0][2]).toBe(effectiveParams)
     expect(params).toEqual(snapshot)
@@ -299,7 +378,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     await processAndCaptureStreamMessages(params)
 
     expect(mockToUIMessages).toHaveBeenCalledWith(params)
-    expect(mockToAiSdkTools).toHaveBeenCalledWith(params)
+    expect(mockToAiSdkTools).toHaveBeenCalledWith(params, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
     expect(mockExtractStreamOptions).toHaveBeenCalledWith(params)
     expect(mockExtractProviderOptions.mock.calls[0][2]).toBe(params)
     expect(mockLoggerWarn).not.toHaveBeenCalled()
@@ -379,6 +458,50 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         role: 'user',
         parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
       }
+    ])
+    expect(params).toEqual(snapshot)
+  })
+
+  it('appends after a settled local tool followed by text without mutating config params', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const converter = new AnthropicMessageConverter()
+    mockToUIMessages.mockImplementationOnce((params) => converter.toUIMessages(params))
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'user', content: 'Continue task' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'call_1', name: 'Bash', input: {} },
+          { type: 'text', text: 'Working' }
+        ]
+      },
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'Tool failed', is_error: true }]
+      }
+    ])
+    const snapshot = structuredClone(params)
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(messages).toMatchObject([
+      { role: 'user', parts: [{ type: 'text', text: 'Continue task' }] },
+      {
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolName: 'Bash',
+            toolCallId: 'call_1',
+            state: 'output-error',
+            input: {},
+            errorText: 'Tool failed'
+          },
+          { type: 'text', text: 'Working' }
+        ]
+      },
+      { id: 'no-prefill-continuation', role: 'user', parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }] }
     ])
     expect(params).toEqual(snapshot)
   })
@@ -588,7 +711,7 @@ describe('processMessage (streaming)', () => {
     })
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
-    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
+    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders, 'gateway-response')
     expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent', usageContext }))
 
     commit(captured.listener!)
@@ -706,14 +829,6 @@ describe('processMessage (streaming)', () => {
     await expect(readAll(res.body)).resolves.toBe('')
   })
 
-  it('passes the 20-minute idle timeout to streamPrompt', async () => {
-    const { response, listener } = await startStreaming()
-    commit(listener)
-    await response
-
-    expect(mockStreamPrompt.mock.calls[0][0]).toMatchObject({ idleTimeoutMs: 20 * 60_000 })
-  })
-
   it('marks streaming requests as caller-owned', async () => {
     const { response, listener } = await startStreaming()
     commit(listener)
@@ -754,6 +869,44 @@ describe('processMessage (streaming)', () => {
 })
 
 describe('processMessage (error & pause)', () => {
+  it.each(['before-commit', 'after-commit', 'non-streaming'])(
+    'terminates adapter failures without returning a callable tool or success: %s',
+    async (mode) => {
+      const response = processMessage({
+        params: { model: 'openai:gpt-4', stream: mode !== 'non-streaming', messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai'
+      })
+      const settled = response.then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error })
+      )
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+      if (mode === 'after-commit') commit(listener)
+      listener.onChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad',
+        toolName: 'read',
+        input: null,
+        errorText: 'Invalid tool arguments'
+      })
+      listener.onChunk({ type: 'tool-input-available', toolCallId: 'late', toolName: 'read', input: {} })
+      await listener.onDone({} as any)
+      const result = await settled
+      if (mode === 'after-commit') {
+        if (!('value' in result)) throw new Error('Committed response rejected')
+        const body = await readAll(result.value.body)
+        expect(body).toContain('"error"')
+        expect(body).not.toContain('[DONE]')
+        expect(body).not.toContain('tool-input-available')
+      } else {
+        expect(result).toEqual({ error: new Error('Invalid tool arguments') })
+      }
+      expect(listener.isAlive?.()).toBe(false)
+    }
+  )
+
   it('rejects the original provider error before semantic commitment', async () => {
     const { response, listener } = await startStreaming()
     const error = { name: 'AI_APICallError', message: 'Provider rejected the request', stack: null, statusCode: 400 }
@@ -790,6 +943,51 @@ describe('processMessage (error & pause)', () => {
     expect(text).not.toContain('secret body')
     expect(text).not.toContain('https://provider/v1')
   })
+
+  it.each([false, true])(
+    'keeps provider error details after stream commitment only for internal requests (%s)',
+    async (internal) => {
+      mockIsInternalAgentRequest.mockReturnValue(internal)
+      const onError = vi.fn()
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        requestHeaders: new Headers({ authorization: 'Bearer fixture' }),
+        onError
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+      commit(listener)
+      const response = await pending
+      const upstream = new APICallError({
+        message: 'A provider-specific failure',
+        url: 'https://private.invalid',
+        requestBodyValues: { secret: 'request-secret' },
+        statusCode: 429,
+        responseHeaders: { 'retry-after': '37', authorization: 'private-token' },
+        responseBody: JSON.stringify({
+          error: { message: 'A provider-specific failure', type: 'custom_type', code: 'vendor_busy', param: 'mode' },
+          request_id: 'upstream-id'
+        })
+      })
+      await listener.onError({ status: 'error', error: serializeError(upstream) }, upstream)
+      const text = await readAll(response.body)
+      expect(response.status).toBe(200)
+      expect(onError).toHaveBeenCalledOnce()
+      expect(text).toContain('A provider-specific failure')
+      if (internal) {
+        expect(text).toContain('vendor_busy')
+        expect(text).toContain('custom_type')
+        expect(text).toContain('upstream-id')
+      } else {
+        expect(text).not.toContain('vendor_busy')
+        expect(text).not.toContain('upstream-id')
+      }
+      expect(text).not.toContain('request-secret')
+      expect(text).not.toContain('private-token')
+    }
+  )
 
   it('rejects with a 504 when the stream pauses before semantic commitment', async () => {
     const { response, listener } = await startStreaming()
@@ -951,4 +1149,50 @@ describe('processMessage (statusless interruption delivery)', () => {
       }
     }
   }
+})
+
+describe('caller-owned Responses instructions', () => {
+  it.each([undefined, '', 'Client instructions'])(
+    'keeps instructions %s separate from developer turns on the same protocol',
+    async (instructions) => {
+      useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+      mockGetProvider.mockReturnValue({
+        id: 'openai',
+        name: 'OpenAI',
+        isEnabled: true,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+      })
+      const converter = new OpenAiResponsesMessageConverter()
+      mockToUIMessages.mockImplementation((params) =>
+        converter.toUIMessages(params as unknown as Parameters<typeof converter.toUIMessages>[0])
+      )
+      mockIsInternalAgentRequest.mockReturnValue(true)
+      const response = processMessage({
+        params: {
+          model: 'openai:gpt-5',
+          stream: true,
+          instructions,
+          input: [
+            { role: 'developer', content: 'Client skill catalog' },
+            { role: 'user', content: 'Which skills?' }
+          ]
+        },
+        inputFormat: 'openai-responses',
+        outputFormat: 'openai-responses',
+        requestHeaders: new Headers({ 'x-cherry-reasoning-effort': 'low' })
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const request = mockStreamPrompt.mock.calls[0][0]
+      expect(request.callOverrides.providerOptions?.openai?.instructions).toBe(instructions)
+      expect(
+        request.messages.map((message: CherryUIMessage) => ({ role: message.role, parts: message.parts }))
+      ).toEqual([
+        { role: 'system', parts: [{ type: 'text', text: 'Client skill catalog' }] },
+        { role: 'user', parts: [{ type: 'text', text: 'Which skills?' }] }
+      ])
+      commit(captured.listener!)
+      void captured.listener!.onDone({} as never)
+      await readAll((await response).body)
+    }
+  )
 })

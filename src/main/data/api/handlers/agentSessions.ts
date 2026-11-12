@@ -13,6 +13,7 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import {
   type AgentSessionSchemas,
   CreateAgentSessionSchema,
+  GetAgentSessionQuerySchema,
   LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
   SetAgentSessionWorkspaceSchema,
@@ -25,7 +26,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListAgentSessionsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.listByCursor(parsed.data)
+      return agentSessionService.listByCursor({ ...parsed.data, scope: 'ordinary' })
     },
 
     POST: async ({ body }) => {
@@ -44,8 +45,10 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   },
 
   '/agent-sessions/:sessionId': {
-    GET: async ({ params }) => {
-      return agentSessionService.getConversationById(params.sessionId)
+    GET: async ({ params, query }) => {
+      const parsed = GetAgentSessionQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return agentSessionService.getConversationById(params.sessionId, parsed.data)
     },
 
     PATCH: async ({ params, body }) => {

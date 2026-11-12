@@ -4,6 +4,7 @@ import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { modelMessageSchema, NoImageGeneratedError } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
@@ -16,6 +17,7 @@ import type * as ImageTransportRegistryModule from '../provider/custom/imageTran
 import type * as ListModelsModule from '../provider/listModels'
 import type { AiStreamRequest } from '../types/requests'
 import type * as CustomFetchModule from '../utils/customFetch'
+import { makeModel } from './fixtures/model'
 import { makeProvider } from './fixtures/provider'
 
 type AiServicePrivate = {
@@ -64,6 +66,7 @@ const mockIsRegistryProvider = vi.fn()
 const mockListModelsFromProvider = vi.fn()
 const mockInstallBuiltinSkills = vi.fn()
 const mockReconcileSkills = vi.fn()
+const mockSyncExternalExports = vi.fn()
 const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
 const mockRecordRequest = vi.fn()
@@ -100,7 +103,8 @@ vi.mock('@main/utils/builtinSkills', () => ({
 
 vi.mock('../skills/SkillService', () => ({
   skillService: {
-    reconcileSkills: (...args: unknown[]) => mockReconcileSkills(...args)
+    reconcileSkills: (...args: unknown[]) => mockReconcileSkills(...args),
+    syncExternalExports: (...args: unknown[]) => mockSyncExternalExports(...args)
   }
 }))
 
@@ -593,27 +597,28 @@ describe('AiService', () => {
     }
   })
 
-  it('routes agent-session runtime requests directly to the runtime service', async () => {
+  it('forwards the runtime message source without converting it into chunks', async () => {
     const service = createService()
-    const stream = new ReadableStream()
-    const openTurnStream = vi.fn(() => stream)
-    mockApplicationGet.mockReturnValue({ openTurnStream })
-
-    await expect(
-      service.streamText({
-        conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
-        trigger: 'submit-message',
-        runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
-        requestOptions: { signal: new AbortController().signal }
+    const source = {
+      kind: 'messages' as const,
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
+          controller.close()
+        }
       })
-    ).resolves.toBe(stream)
-
-    expect(mockApplicationGet).toHaveBeenCalledWith('AgentSessionRuntimeService')
-    expect(openTurnStream).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      turnId: 'turn-1',
-      signal: expect.any(AbortSignal)
+    }
+    mockApplicationGet.mockReturnValue({ openTurnStream: () => source })
+    const result = await service.streamText({
+      conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
+      trigger: 'submit-message',
+      runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
+      requestOptions: { signal: new AbortController().signal }
     })
+    expect(result.kind).toBe('messages')
+    const reader = result.stream.getReader()
+    expect((await reader.read()).value).toEqual({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
+    expect((await reader.read()).done).toBe(true)
   })
 
   it('rejects agent-session streams that do not carry a runtime request', async () => {
@@ -676,7 +681,6 @@ describe('AiService', () => {
     await hooks.onError({ error: new Error('terminal tool failure') })
     await hooks.onFinish()
 
-    expect(mockApplicationGet).toHaveBeenCalledWith('AnalyticsService')
     expect(trackTokenUsage).toHaveBeenCalledOnce()
     expect(trackTokenUsage).toHaveBeenCalledWith({
       provider: 'test-provider',
@@ -709,7 +713,6 @@ describe('AiService', () => {
     await hooks.onAbort()
     await hooks.onFinish()
 
-    expect(mockApplicationGet).toHaveBeenCalledWith('AnalyticsService')
     expect(trackTokenUsage).toHaveBeenCalledOnce()
     expect(trackTokenUsage).toHaveBeenCalledWith({
       provider: 'test-provider',
@@ -1245,26 +1248,34 @@ describe('AiService.onInit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockApplicationGet.mockImplementation((name: string) =>
-      name === 'JobManager' ? { registerHandler: vi.fn() } : undefined
+      name === 'JobManager'
+        ? { registerHandler: vi.fn() }
+        : name === 'PreferenceService'
+          ? defaultServiceInstances.PreferenceService
+          : undefined
     )
+    mockSyncExternalExports.mockResolvedValue(undefined)
     mockReconcileSkills.mockResolvedValue(undefined)
   })
 
-  it('installs built-in skills before reconciling skills, without blocking init', async () => {
-    const calls: string[] = []
-    mockInstallBuiltinSkills.mockImplementation(async () => {
-      calls.push('installBuiltinSkills')
-    })
-    mockReconcileSkills.mockImplementation(async () => {
-      calls.push('reconcileSkills')
-    })
+  it('subscribes to export preference changes and catches sync failures', async () => {
+    MockMainPreferenceServiceUtils.resetMocks()
+    mockInstallBuiltinSkills.mockResolvedValue(undefined)
+    mockSyncExternalExports.mockRejectedValueOnce(new Error('sync failed'))
     const service = createService()
-
-    // Fire-and-forget: _doInit resolves without waiting on this chain.
     await service._doInit()
-    await vi.waitFor(() => expect(mockReconcileSkills).toHaveBeenCalled())
-
-    expect(calls).toEqual(['installBuiltinSkills', 'reconcileSkills'])
+    expect(defaultServiceInstances.PreferenceService.subscribeChange).toHaveBeenCalledWith(
+      'agent.skills.external_export.enabled',
+      expect.any(Function)
+    )
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', false)
+    await vi.waitFor(() => expect(mockSyncExternalExports).toHaveBeenCalledOnce())
+    await vi.waitFor(() =>
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Failed to sync external skill exports after preference change',
+        { error: expect.any(Error) }
+      )
+    )
   })
 
   it('logs and continues to reconcile when installBuiltinSkills rejects', async () => {
@@ -1333,11 +1344,11 @@ describe('AiService tool approval', () => {
   })
 
   it('takes the Claude-Agent fast-path when the live registry dispatches the decision', async () => {
-    const respondToolApproval = vi.fn(() => true)
+    const respondToolApproval = vi.fn(() => ({ ok: true }))
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
     const getById = vi.spyOn(messageService, 'getById')
@@ -1356,6 +1367,7 @@ describe('AiService tool approval', () => {
         reason: undefined,
         updatedInput: undefined
       },
+      undefined,
       undefined
     )
     // Fast-path short-circuits before any DB read or continue dispatch.
@@ -1363,8 +1375,22 @@ describe('AiService tool approval', () => {
     expect(dispatch).not.toHaveBeenCalled()
   })
 
+  it.each(['undelivered', 'rejected'] as const)('preserves the agent approval outcome: %s', async (reason) => {
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'AgentSessionRuntimeService' ? { respondToolApproval: () => ({ ok: false, reason }) } : undefined
+    )
+    expect(
+      await getApprovalHandler()(fakeEvent(), {
+        approvalId: 'approval-1',
+        approved: true,
+        topicId: 'agent-session:session-1',
+        anchorId: 'message-1'
+      })
+    ).toEqual({ ok: false, reason })
+  })
+
   it('returns { ok: false } when there is no live entry and no anchor context', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'AgentSessionRuntimeService' ? { respondToolApproval } : undefined
     )
@@ -1377,16 +1403,16 @@ describe('AiService tool approval', () => {
       // no topicId / anchorId
     })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'rejected' })
     expect(getById).not.toHaveBeenCalled()
   })
 
   it('applies the decision atomically and dispatches continue-conversation when nothing is left pending', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1417,7 +1443,6 @@ describe('AiService tool approval', () => {
     // Nothing left pending → resume via continue-conversation.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
       expect.objectContaining({
         trigger: 'continue-conversation',
         topicId: 'topic-1',
@@ -1428,11 +1453,11 @@ describe('AiService tool approval', () => {
   })
 
   it('skips the continuation (ok:false) when there is no caller window to stream it to', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
     const committed = [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }]
@@ -1449,7 +1474,7 @@ describe('AiService tool approval', () => {
       anchorId: 'anchor-1'
     })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'rejected' })
     expect(dispatch).not.toHaveBeenCalled()
   })
 
@@ -1458,12 +1483,12 @@ describe('AiService tool approval', () => {
     // land while a sibling exec / another continuation is still live. Dispatching continue-conversation
     // then would hit send()'s inject path and silently swallow the approved turn. Gate it: refuse
     // before touching the row, so the card stays actionable and the renderer can retry post-settle.
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     const hasLiveStream = vi.fn(() => true)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream }
       return undefined
     })
     const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions')
@@ -1476,7 +1501,7 @@ describe('AiService tool approval', () => {
       anchorId: 'anchor-1'
     })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'rejected' })
     expect(hasLiveStream).toHaveBeenCalledWith('topic-1')
     // Row is NOT mutated and no continuation is dispatched.
     expect(apply).not.toHaveBeenCalled()
@@ -1484,11 +1509,11 @@ describe('AiService tool approval', () => {
   })
 
   it('still dispatches when the committed parts report nothing pending (overlay-only decision)', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1510,7 +1535,6 @@ describe('AiService tool approval', () => {
     // The decision still rides the continue dispatch idempotently.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
-      expect.anything(),
       expect.objectContaining({
         trigger: 'continue-conversation',
         approvalDecisions: [{ approvalId: 'mcp-approval-missing', approved: false }]
@@ -1519,11 +1543,11 @@ describe('AiService tool approval', () => {
   })
 
   it('does not finalize while another approval on the turn is still pending', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1552,11 +1576,11 @@ describe('AiService tool approval', () => {
   })
 
   it('ignores duplicate already-settled approval responses without dispatching another continuation', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1584,11 +1608,11 @@ describe('AiService tool approval', () => {
   })
 
   it('returns { ok: false } when the anchor message is missing or deleted', async () => {
-    const respondToolApproval = vi.fn(() => false)
+    const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      if (name === 'AiStreamManager') return { dispatchCommand: dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -1604,7 +1628,7 @@ describe('AiService tool approval', () => {
     })
 
     // Resolves gracefully through the documented result shape instead of throwing.
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'rejected' })
     expect(apply).toHaveBeenCalledWith('deleted-anchor', [{ approvalId: 'mcp-approval-1', approved: true }])
     expect(dispatch).not.toHaveBeenCalled()
   })
@@ -1712,37 +1736,9 @@ describe('AiService tool approval', () => {
       expect.objectContaining({
         model: 'test-embed',
         values: ['a', 'b'],
-        maxParallelCalls: 5,
         maxRetries: 3
       })
     )
-    // ai-retry no longer wraps the embedding model — the SDK's built-in retry owns it.
-    expect(mockEmbedMany.mock.calls[0][2]).not.toHaveProperty('wrapModel')
-  })
-
-  it('keeps embedMany at the AI SDK default (maxRetries 2) when retry is disabled', async () => {
-    // Regression: default-config embedding must NOT drop from the SDK's 2
-    // retries to 0 — this PR adds retry behavior, it never removes it.
-    const service = createService()
-    vi.spyOn(service as unknown as AiServicePrivate, 'trackUsage').mockReturnValue(undefined)
-    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
-      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
-      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
-      model: { id: 'test-provider::test-embed', name: 'Test Embed' }
-    })
-    mockReadRetryPolicy.mockReturnValue({
-      enabled: false,
-      maxAttempts: 3,
-      backoffEnabled: false,
-      fallbackModelIds: []
-    })
-    mockEmbedMany.mockResolvedValue({ embeddings: [[0.1]], usage: { tokens: 1 } })
-
-    await service.embedMany({ uniqueModelId: 'test-provider::test-embed', values: ['a'] })
-
-    expect(mockEmbedMany.mock.calls[0][2]).toEqual(expect.objectContaining({ maxRetries: 2 }))
-    expect(mockEmbedMany.mock.calls[0][2]).not.toHaveProperty('maxParallelCalls')
   })
 
   it('derives rerank maxRetries from the retry preference (0 when disabled)', async () => {
@@ -1788,36 +1784,6 @@ describe('AiService tool approval', () => {
     await service.rerank({ uniqueModelId: 'test-provider::test-reranker', query: 'q', documents: ['a'] })
 
     expect(mockRerank.mock.calls[0][2]).toEqual(expect.objectContaining({ maxRetries: 0 }))
-  })
-
-  it('disables the chat retry wrapper when requestOptions.maxRetries is 0', async () => {
-    const service = createService()
-    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
-      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
-      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
-      tools: undefined,
-      plugins: [],
-      system: undefined,
-      options: {},
-      hookParts: [],
-      assistant: undefined,
-      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
-      fileAttachments: []
-    })
-
-    await service.streamText({
-      conversation: { id: 'conversation-1', topicId: 'topic-1' },
-      trigger: 'submit-message',
-      messages: [],
-      requestOptions: { maxRetries: 0, signal: new AbortController().signal }
-    })
-
-    // Explicit per-request maxRetries:0 → no ai-retry wrapper / no fallback build.
-    expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
-    expect(mockBuildApiKeyFallbackModels).not.toHaveBeenCalled()
-    expect(mockBuildFallbackModels).not.toHaveBeenCalled()
   })
 
   it('wires API key failover when model retry is disabled', async () => {
@@ -1996,126 +1962,6 @@ describe('AiService tool approval', () => {
     )
   })
 
-  it('builds the chat retry wrapper when no explicit maxRetries override is given', async () => {
-    const service = createService()
-    mockReadRetryPolicy.mockReturnValue({
-      enabled: true,
-      maxAttempts: 3,
-      backoffEnabled: true,
-      fallbackModelIds: ['fallback::model']
-    })
-    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
-      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
-      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
-      tools: undefined,
-      plugins: [],
-      system: undefined,
-      options: {},
-      hookParts: [],
-      assistant: undefined,
-      nativeFileSupport: { image: true, pdf: false, audio: false, video: false },
-      fileAttachments: []
-    })
-
-    await service.streamText({
-      conversation: { id: 'conversation-1', topicId: 'topic-1' },
-      trigger: 'submit-message',
-      messages: [],
-      requestOptions: { signal: new AbortController().signal }
-    })
-
-    expect(mockCreateRetryableWrap).toHaveBeenCalledTimes(1)
-    expect(mockBuildFallbackModels).toHaveBeenCalledWith(
-      expect.objectContaining({
-        primaryUniqueModelId: 'test-provider::test-model',
-        primaryHasTools: false,
-        requiredNativeFileSupport: { image: false, pdf: false, audio: false, video: false },
-        retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 3 })
-      })
-    )
-    expect(mockCreateRetryableWrap).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fallbacks: [],
-        retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 3 }),
-        onRetryEvent: expect.any(Function)
-      })
-    )
-  })
-
-  it('honors maxRetries: 0 for generateText without building fallbacks', async () => {
-    const service = createService()
-    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
-      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
-      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
-      tools: undefined,
-      plugins: [],
-      system: undefined,
-      options: {},
-      hookParts: [],
-      assistant: undefined,
-      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
-    })
-
-    await service.generateText({
-      uniqueModelId: 'test-provider::test-model',
-      prompt: 'hello',
-      requestOptions: { maxRetries: 0 }
-    } as never)
-
-    expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
-    expect(mockBuildApiKeyFallbackModels).not.toHaveBeenCalled()
-    expect(mockBuildFallbackModels).not.toHaveBeenCalled()
-  })
-
-  it('wires retry policy and native requirements into generateText fallbacks', async () => {
-    const service = createService()
-    mockCreateRetryableWrap.mockReturnValue((model: unknown) => model)
-    mockReadRetryPolicy.mockReturnValue({
-      enabled: true,
-      maxAttempts: 3,
-      backoffEnabled: true,
-      fallbackModelIds: ['fallback::model']
-    })
-    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
-      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
-      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
-      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
-      tools: { search: {} },
-      plugins: [],
-      system: undefined,
-      options: {},
-      hookParts: [],
-      assistant: undefined,
-      nativeFileSupport: { image: true, pdf: false, audio: false, video: false }
-    })
-
-    await service.generateText({
-      uniqueModelId: 'test-provider::test-model',
-      messages: [{ role: 'user', content: [{ type: 'image', image: new Uint8Array() }] }]
-    } as never)
-
-    expect(mockBuildFallbackModels).toHaveBeenCalledWith(
-      expect.objectContaining({
-        primaryUniqueModelId: 'test-provider::test-model',
-        primaryHasTools: true,
-        requiredNativeFileSupport: { image: true, pdf: false, audio: false, video: false },
-        retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 3 })
-      })
-    )
-    expect(mockCreateRetryableWrap).toHaveBeenCalledWith(
-      expect.objectContaining({ fallbacks: [], retryPolicy: expect.objectContaining({ enabled: true }) })
-    )
-    expect(mockCreateAgent).toHaveBeenCalledWith(
-      expect.objectContaining({ agentSettings: expect.objectContaining({ maxRetries: 0 }) })
-    )
-    mockCreateRetryableWrap.mockReturnValue(undefined)
-  })
-
   it('checks rerank models with rerank before embedding or text generation', async () => {
     const service = createService()
     const rerankSpy = vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [{ originalIndex: 0, score: 1 }] })
@@ -2226,31 +2072,6 @@ describe('AiService tool approval', () => {
         apiKeyOverride: 'sk-selected',
         system: 'test',
         prompt: 'hi'
-      })
-    )
-  })
-
-  it('disables reasoning on the text-generation probe', async () => {
-    const service = createService()
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
-    mockModelGetByKey.mockReturnValue({
-      id: 'test-provider::test-model',
-      providerId: 'test-provider',
-      apiModelId: 'test-model',
-      name: 'Test Model',
-      capabilities: [],
-      supportsStreaming: true,
-      isEnabled: true,
-      isHidden: false
-    })
-
-    await service.checkModel({ uniqueModelId: 'test-provider::test-model' })
-
-    expect(generateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        system: 'test',
-        prompt: 'hi',
-        reasoningEffort: 'none'
       })
     )
   })
@@ -2618,6 +2439,98 @@ describe('AiService tool approval', () => {
     })
 
     await expect(service.checkModel({ uniqueModelId: 'ollama::nope' })).rejects.toThrow('model "nope" not found')
+  })
+
+  describe('checkModel — OpenRouter rerank', () => {
+    let service: InstanceType<typeof AiService>
+    let fetchMock: ReturnType<typeof vi.mocked<typeof CustomFetchModule.customFetch>>
+    const uniqueModelId = 'openrouter::cohere/rerank-4-pro'
+    const apiKey = 'openrouter-health-check-key'
+
+    beforeEach(async () => {
+      // Keep the existing service/HTTP harness, but load AiService against real ai-core.
+      vi.doUnmock('@cherrystudio/ai-core')
+      vi.resetModules()
+      const { AiService: RealAiService } = await import('../AiService')
+      const { BaseService: RealBaseService } = await import('@main/core/lifecycle/BaseService')
+      RealBaseService.resetInstances()
+      service = new (RealAiService as any)()
+      const { customFetch } = await import('../utils/customFetch')
+      fetchMock = vi.mocked(customFetch)
+      fetchMock.mockReset()
+      fetchMock.mockResolvedValue(Response.json({ results: [{ index: 0, relevance_score: 0.91 }] }))
+      mockApplicationGet.mockImplementation(
+        (name: keyof typeof defaultServiceInstances) => defaultServiceInstances[name]
+      )
+      mockProviderGetByProviderId.mockReturnValue(
+        makeProvider({
+          id: 'openrouter',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              adapterFamily: 'openrouter',
+              baseUrl: 'https://openrouter.ai/api/v1/'
+            }
+          }
+        })
+      )
+      mockModelGetByKey.mockReturnValue(
+        makeModel({
+          id: uniqueModelId,
+          providerId: 'openrouter',
+          apiModelId: 'cohere/rerank-4-pro',
+          name: 'Cohere Rerank 4 Pro',
+          capabilities: [MODEL_CAPABILITY.RERANK]
+        })
+      )
+      mockProviderResolveApiKey.mockReturnValue({ value: apiKey, apiKeySelection: { attribution: 'unknown' } })
+    })
+
+    afterEach(() => fetchMock.mockReset())
+
+    it('reranks through the OpenRouter provider factory', async () => {
+      const result = await service.checkModel({ uniqueModelId })
+
+      expect(result.latency).toEqual(expect.any(Number))
+      expect(result.latency).toBeGreaterThanOrEqual(0)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(String(url)).toBe('https://openrouter.ai/api/v1/rerank')
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        model: 'cohere/rerank-4-pro',
+        query: 'test',
+        documents: ['test'],
+        top_n: 1
+      })
+      expect(new Headers(init?.headers).get('Authorization') === `Bearer ${apiKey}`).toBe(true)
+    })
+
+    it('surfaces an empty ranking from the real path', async () => {
+      fetchMock.mockResolvedValue(Response.json({ results: [] }))
+
+      await expect(service.checkModel({ uniqueModelId })).rejects.toThrow('Rerank health check returned empty ranking')
+    })
+
+    it('normalizes a proxy base URL with a trailing slash', async () => {
+      mockProviderGetByProviderId.mockReturnValue(
+        makeProvider({
+          id: 'openrouter',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              adapterFamily: 'openrouter',
+              baseUrl: 'http://127.0.0.1:11435/openrouter/api/v1/'
+            }
+          }
+        })
+      )
+
+      await expect(service.checkModel({ uniqueModelId })).resolves.toEqual({ latency: expect.any(Number) })
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(String(fetchMock.mock.calls[0][0])).toBe('http://127.0.0.1:11435/openrouter/api/v1/rerank')
+    })
   })
 })
 

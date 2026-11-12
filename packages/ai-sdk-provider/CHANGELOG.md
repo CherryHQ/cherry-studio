@@ -1,5 +1,29 @@
 # @cherrystudio/ai-sdk-provider
 
+## Unreleased
+
+### Patch Changes
+
+- Include a package-local MIT license file.
+
+## 0.1.12
+
+### Patch Changes
+
+- [#24234](https://github.com/CherryHQ/cherry-studio/pull/24234) [`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658) Thanks [@DeJeune](https://github.com/DeJeune)! - Standardize public libraries on MIT and include package-local license files.
+
+## 0.1.11
+
+### Patch Changes
+
+- [#23678](https://github.com/CherryHQ/cherry-studio/pull/23678) [`b027c45`](https://github.com/CherryHQ/cherry-studio/commit/b027c45369c18d6775b907ea8100c3868a652e73) Thanks [@ousugo](https://github.com/ousugo)! - Require the AI SDK 6-compatible OpenAI adapter with GPT Image 2.6 complexity and animated GIF generation options.
+
+## 0.1.10
+
+### Patch Changes
+
+- [#23382](https://github.com/CherryHQ/cherry-studio/pull/23382) [`1ad6b7f`](https://github.com/CherryHQ/cherry-studio/commit/1ad6b7f56a8735111641a05005f234b44d8bfcae) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Omit the unsupported `strict` tool field on CherryIN's Anthropic endpoint, whose Bedrock-backed upstream rejects it as an extra input.
+
 ## 0.1.9
 
 ### Patch Changes

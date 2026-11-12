@@ -70,6 +70,60 @@ const textPart = (text: string, parentToolCallId?: string): CherryMessagePart =>
   }) as unknown as CherryMessagePart
 
 describe('agent right pane projections', () => {
+  it.each(['TaskUpdate', 'TodoWrite'])(
+    'keeps unfinished %s tasks without claiming activity after their owner settles',
+    (toolName) => {
+      const parts =
+        toolName === 'TaskUpdate'
+          ? [
+              toolPart(
+                'create',
+                'TaskCreate',
+                undefined,
+                'output-available',
+                { subject: 'Inspect setup' },
+                { task: { id: '1', subject: 'Inspect setup' } }
+              ),
+              toolPart('start', 'TaskUpdate', undefined, 'output-available', { taskId: '1', status: 'in_progress' })
+            ]
+          : [
+              toolPart('todo', 'TodoWrite', undefined, 'output-available', {
+                todos: [{ content: 'Inspect setup', status: 'in_progress', activeForm: 'Inspecting setup' }]
+              })
+            ]
+      const messages = [message('m1', parts), message('m2', [])]
+      const project = (active: string[]) =>
+        buildAgentRightPaneStatus(
+          messages,
+          { m1: parts },
+          {},
+          {
+            activeMessageIds: new Set(active),
+            liveBackgroundTaskIds: new Set(['unrelated-background-task'])
+          }
+        )
+      expect(project(['m1']).tasks[0].status).toBe('in_progress')
+      for (const active of [[], ['m2']]) {
+        const status = project(active)
+        expect(status.isTaskPlanActive).toBe(false)
+        expect(status.tasks).toEqual([expect.objectContaining({ title: 'Inspect setup', status: 'pending' })])
+        expect(status.completedTaskCount).toBe(0)
+        expect(status.totalTaskCount).toBe(1)
+      }
+      const resumed = buildAgentRightPaneStatus(
+        [...messages, message('m3', parts)],
+        { m1: parts, m3: parts },
+        {},
+        {
+          activeMessageIds: new Set(['m3']),
+          liveBackgroundTaskIds: new Set()
+        }
+      )
+      expect(resumed.isTaskPlanActive).toBe(true)
+      expect(resumed.tasks[0].status).toBe('in_progress')
+    }
+  )
+
   describe('preview URL discovery', () => {
     it('returns the latest loopback URL reported by a shell tool', () => {
       const firstParts = [
@@ -150,7 +204,7 @@ describe('agent right pane projections', () => {
     expect(projection.selectedToolCallIds).toEqual(new Set(['root', 'child']))
     expect(projection.messages.map((item) => item.id)).toEqual(['root:agent-flow-prompt', 'root:agent-flow-assistant'])
     expect(projection.partsByMessageId['root:agent-flow-assistant']).toHaveLength(4)
-    expect(projection.partsByMessageId['root:agent-flow-assistant'][1]).not.toBe(parts[2])
+
     expect(getPartParentToolCallId(projection.partsByMessageId['root:agent-flow-assistant'][1])).toBeUndefined()
     expect(Object.values(projection.partsByMessageId).flat()).not.toContain(parts[0])
     expect(Object.values(projection.partsByMessageId).flat()).not.toContain(parts[4])
@@ -159,14 +213,6 @@ describe('agent right pane projections', () => {
     )
     expect((projection.partsByMessageId['root:agent-flow-assistant'][3] as { text?: string }).text).toBe(
       'Done exploring'
-    )
-
-    const nextProjection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
-    expect(nextProjection.partsByMessageId['root:agent-flow-assistant'][0]).toBe(
-      projection.partsByMessageId['root:agent-flow-assistant'][0]
-    )
-    expect(nextProjection.partsByMessageId['root:agent-flow-assistant'][1]).toBe(
-      projection.partsByMessageId['root:agent-flow-assistant'][1]
     )
   })
 
@@ -274,6 +320,66 @@ describe('agent right pane projections', () => {
     expect(assistantParts.map((part) => part.text).filter(Boolean)).toEqual(['child agent text'])
     expect(JSON.stringify(assistantParts)).not.toContain('Async agent launched successfully')
     expect(JSON.stringify(assistantParts)).not.toContain('/tmp/task-1.output')
+  })
+
+  it.each([true, false])('renders Pi child content once without its background=%s control receipt', (background) => {
+    const selected = toolPart(
+      'root',
+      'subagent',
+      undefined,
+      'output-available',
+      { prompt: 'Read facts' },
+      {
+        content: [{ type: 'text', text: 'Child report\n(id: private-child-id — continue with message_subagent)' }],
+        details: { sessionId: 'private-child-id', background, outcome: background ? undefined : 'completed' }
+      }
+    )
+    const parts = [selected, textPart('Child report', 'root')]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
+      expect.objectContaining({ type: 'text', text: 'Child report' })
+    ])
+    expect(JSON.stringify(projection.messages)).not.toContain('private-child-id')
+  })
+
+  it('keeps a Pi foreground report when no child text was observed', () => {
+    const parts = [
+      toolPart(
+        'root',
+        'subagent',
+        undefined,
+        'output-available',
+        { prompt: 'Read facts' },
+        {
+          content: [{ type: 'text', text: 'Child report' }],
+          details: { sessionId: 'child-id', background: false, outcome: 'completed' }
+        }
+      )
+    ]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([{ type: 'text', text: 'Child report' }])
+  })
+
+  it('does not turn a Pi background launch receipt into an assistant reply before child output arrives', () => {
+    const parts = [
+      toolPart(
+        'root',
+        'subagent',
+        undefined,
+        'output-available',
+        { prompt: 'Read facts' },
+        {
+          content: [{ type: 'text', text: 'Started private-child-id' }],
+          details: { sessionId: 'private-child-id', background: true }
+        }
+      )
+    ]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.messages.map((item) => item.role)).toEqual(['user'])
+    expect(JSON.stringify(projection.messages)).not.toContain('private-child-id')
   })
 
   it.each(['async_launched', 'remote_launched'] as const)(
@@ -651,6 +757,450 @@ describe('agent right pane projections', () => {
     expect(status.tasks).toEqual([
       expect.objectContaining({ id: '11', title: 'Start the new task', status: 'pending' })
     ])
+  })
+
+  it('clears the current plan when TaskList returns an empty task array', () => {
+    const parts = [
+      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Temporary task' }),
+      toolPart('list', 'TaskList', undefined, 'output-available', {}, { tasks: [] })
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([])
+    expect(status.totalTaskCount).toBe(0)
+  })
+
+  it('clears the current plan when TaskList returns No tasks found', () => {
+    const parts = [
+      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Temporary task' }),
+      toolPart('list', 'TaskList', undefined, 'output-available', {}, 'No tasks found')
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([])
+    expect(status.totalTaskCount).toBe(0)
+  })
+
+  it('clears the current plan when TaskList wraps No tasks found in content', () => {
+    const parts = [
+      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Temporary task' }),
+      toolPart('list', 'TaskList', undefined, 'output-available', {}, { content: 'No tasks found' })
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([])
+    expect(status.totalTaskCount).toBe(0)
+  })
+
+  it('removes deleted TaskList rows without counting them as completed', () => {
+    const parts = [
+      toolPart('create-1', 'TaskCreate', undefined, 'input-available', { subject: 'Remove this task' }),
+      toolPart('create-2', 'TaskCreate', undefined, 'input-available', { subject: 'Keep this task' }),
+      toolPart(
+        'list',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [
+            { id: '1', subject: 'Remove this task', status: 'deleted' },
+            { id: '2', subject: 'Keep this task', status: 'pending' }
+          ]
+        }
+      )
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([{ id: '2', title: 'Keep this task', status: 'pending' }])
+    expect(status.completedTaskCount).toBe(0)
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it.each([{ success: true }, 'Updated task #1 deleted'])(
+    'removes a completed task after confirmed deletion (%j)',
+    (output) => {
+      const parts = [
+        toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Finished task' }),
+        toolPart('complete', 'TaskUpdate', undefined, 'output-available', { taskId: '1', status: 'completed' }),
+        toolPart('delete', 'TaskUpdate', undefined, 'output-available', { taskId: '1', status: 'deleted' }, output)
+      ]
+
+      const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+      expect(status.tasks).toEqual([])
+      expect(status.completedTaskCount).toBe(0)
+      expect(status.totalTaskCount).toBe(0)
+    }
+  )
+
+  it('starts a new plan without unfinished tasks from an earlier assistant message', () => {
+    const oldParts = [
+      toolPart('create-old', 'TaskCreate', undefined, 'input-available', { subject: 'Unfinished old task' }),
+      toolPart('start-old', 'TaskUpdate', undefined, 'output-available', { taskId: '1', status: 'in_progress' })
+    ]
+    const newParts = [
+      toolPart(
+        'create-new',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'New task' },
+        'Task #11 created successfully: New task'
+      ),
+      toolPart('complete-new', 'TaskUpdate', undefined, 'output-available', { taskId: '11', status: 'completed' })
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', oldParts), message('m2', newParts)], {
+      m1: oldParts,
+      m2: newParts
+    })
+
+    expect(status.tasks).toEqual([expect.objectContaining({ id: '11', title: 'New task', status: 'completed' })])
+    expect(status.completedTaskCount).toBe(1)
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('keeps consecutive TaskCreate rows in the same assistant message in one plan', () => {
+    const parts = [
+      toolPart('create-1', 'TaskCreate', undefined, 'input-available', { subject: 'First task' }),
+      toolPart('create-2', 'TaskCreate', undefined, 'input-available', { subject: 'Second task' })
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([
+      expect.objectContaining({ id: '1', title: 'First task', status: 'pending' }),
+      expect.objectContaining({ id: '2', title: 'Second task', status: 'pending' })
+    ])
+    expect(status.totalTaskCount).toBe(2)
+  })
+
+  it('preserves the current plan while TaskList is waiting for output', () => {
+    const parts = [
+      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Existing task' }),
+      toolPart('list', 'TaskList', undefined, 'input-available', {})
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([expect.objectContaining({ id: '1', title: 'Existing task', status: 'pending' })])
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('removes current plan tasks missing from a successful TaskList snapshot', () => {
+    const parts = [
+      toolPart('create-1', 'TaskCreate', undefined, 'input-available', { subject: 'Missing task' }),
+      toolPart('create-2', 'TaskCreate', undefined, 'input-available', { subject: 'Remaining task' }),
+      toolPart(
+        'list',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [{ id: '2', subject: 'Remaining task', status: 'completed' }]
+        }
+      )
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([{ id: '2', title: 'Remaining task', status: 'completed' }])
+    expect(status.completedTaskCount).toBe(1)
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('preserves the current plan when TaskList output contains no snapshot', () => {
+    const parts = [
+      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Existing task' }),
+      toolPart('list', 'TaskList', undefined, 'output-available', {}, {})
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([expect.objectContaining({ id: '1', title: 'Existing task', status: 'pending' })])
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('removes a task using a normalized deleted status from TaskUpdate output', () => {
+    const parts = [
+      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Temporary task' }),
+      toolPart(
+        'delete',
+        'TaskUpdate',
+        undefined,
+        'output-available',
+        { taskId: '1' },
+        { success: true, status: ' DeLeTeD ' }
+      )
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([])
+    expect(status.completedTaskCount).toBe(0)
+    expect(status.totalTaskCount).toBe(0)
+  })
+
+  it.each(['output-error', 'output-denied'])('preserves a task when deletion ends in %s', (state) => {
+    const parts = [
+      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Existing task' }),
+      toolPart('delete', 'TaskUpdate', undefined, state, { taskId: '1', status: 'deleted' })
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([expect.objectContaining({ id: '1', title: 'Existing task', status: 'pending' })])
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('preserves a task when TaskUpdate explicitly reports a failed deletion', () => {
+    const parts = [
+      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Existing task' }),
+      toolPart(
+        'delete',
+        'TaskUpdate',
+        undefined,
+        'output-available',
+        { taskId: '1', status: 'deleted' },
+        { success: false, error: 'not found' }
+      )
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([expect.objectContaining({ id: '1', title: 'Existing task', status: 'pending' })])
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('preserves the original task status when deletion returns a plain-text failure', () => {
+    const parts = [
+      toolPart('create-1', 'TaskCreate', undefined, 'input-available', { subject: 'First task' }),
+      toolPart('create-2', 'TaskCreate', undefined, 'input-available', { subject: 'Existing task' }),
+      toolPart('start', 'TaskUpdate', undefined, 'output-available', { taskId: '2', status: 'in_progress' }),
+      toolPart(
+        'delete',
+        'TaskUpdate',
+        undefined,
+        'output-available',
+        { taskId: '2', status: 'deleted' },
+        'Task #2 not found'
+      )
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([
+      expect.objectContaining({ id: '1', title: 'First task', status: 'pending' }),
+      expect.objectContaining({ id: '2', title: 'Existing task', status: 'in_progress' })
+    ])
+    expect(status.totalTaskCount).toBe(2)
+  })
+
+  it('starts a new plan without unfinished TaskList-only history from an earlier message', () => {
+    const oldParts = [
+      toolPart(
+        'list',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [{ id: '1', subject: 'Old task', status: 'pending' }]
+        }
+      )
+    ]
+    const newParts = [
+      toolPart(
+        'create',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'New task' },
+        {
+          task: { id: '11', subject: 'New task' }
+        }
+      )
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', oldParts), message('m2', newParts)], {
+      m1: oldParts,
+      m2: newParts
+    })
+
+    expect(status.tasks).toEqual([expect.objectContaining({ id: '11', title: 'New task', status: 'pending' })])
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('adopts TaskList-only rows when TaskCreate follows in the same message', () => {
+    const parts = [
+      toolPart(
+        'list',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [{ id: '1', subject: 'Listed task', status: 'pending' }]
+        }
+      ),
+      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Created task' })
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([
+      { id: '1', title: 'Listed task', status: 'pending' },
+      expect.objectContaining({ id: '2', title: 'Created task', status: 'pending' })
+    ])
+    expect(status.totalTaskCount).toBe(2)
+  })
+
+  it('clears adopted TaskList-only rows when TaskCreate starts in a later message', () => {
+    const oldParts = [
+      toolPart(
+        'list',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [{ id: '1', subject: 'Listed task', status: 'pending' }]
+        }
+      ),
+      toolPart('create-old', 'TaskCreate', undefined, 'input-available', { subject: 'Created task' })
+    ]
+    const newParts = [
+      toolPart(
+        'create-new',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'New task' },
+        {
+          task: { id: '11', subject: 'New task' }
+        }
+      )
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', oldParts), message('m2', newParts)], {
+      m1: oldParts,
+      m2: newParts
+    })
+
+    expect(status.tasks).toEqual([expect.objectContaining({ id: '11', title: 'New task', status: 'pending' })])
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('keeps the first TaskList message when a repeated snapshot precedes TaskCreate', () => {
+    const snapshot = { tasks: [{ id: '1', subject: 'Old task', status: 'in_progress' }] }
+    const oldParts = [toolPart('list-old', 'TaskList', undefined, 'output-available', {}, snapshot)]
+    const newParts = [
+      toolPart('list-again', 'TaskList', undefined, 'output-available', {}, snapshot),
+      toolPart(
+        'create',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'New task' },
+        {
+          task: { id: '11', subject: 'New task' }
+        }
+      )
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', oldParts), message('m2', newParts)], {
+      m1: oldParts,
+      m2: newParts
+    })
+
+    expect(status.tasks).toEqual([expect.objectContaining({ id: '11', title: 'New task', status: 'pending' })])
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('restores a task from paged history through TaskUpdate after the loaded task is deleted', () => {
+    const parts = [
+      toolPart(
+        'create',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'Loaded task' },
+        {
+          task: { id: '2', subject: 'Loaded task' }
+        }
+      ),
+      toolPart(
+        'delete',
+        'TaskUpdate',
+        undefined,
+        'output-available',
+        { taskId: '2', status: 'deleted' },
+        { success: true, taskId: '2', updatedFields: ['status'] }
+      ),
+      toolPart('update', 'TaskUpdate', undefined, 'output-available', { taskId: '1', status: 'in_progress' })
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([expect.objectContaining({ id: '1', status: 'in_progress' })])
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('removes all tasks, including rows restored by TaskUpdate, on an empty TaskList snapshot', () => {
+    const parts = [
+      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Plan task' }),
+      toolPart('update', 'TaskUpdate', undefined, 'output-available', { taskId: '9', status: 'in_progress' }),
+      toolPart('list', 'TaskList', undefined, 'output-available', {}, { tasks: [] })
+    ]
+
+    const restoredParts = parts.slice(0, 2)
+    const restoredStatus = buildAgentRightPaneStatus([message('m1', restoredParts)], { m1: restoredParts })
+
+    expect(restoredStatus.tasks).toEqual([
+      expect.objectContaining({ id: '1', status: 'pending' }),
+      expect.objectContaining({ id: '9', status: 'in_progress' })
+    ])
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([])
+    expect(status.totalTaskCount).toBe(0)
+  })
+
+  it('preserves the current plan when a streaming TaskList already carries an empty output', () => {
+    const parts = [
+      toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Existing task' }),
+      toolPart('list', 'TaskList', undefined, 'input-available', {}, { tasks: [] })
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([expect.objectContaining({ id: '1', title: 'Existing task', status: 'pending' })])
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it.each([
+    { state: 'input-available', output: { tasks: [] } },
+    { state: 'output-available', output: {} }
+  ])('preserves a TodoWrite snapshot when TaskList has no confirmed snapshot: $state', ({ state, output }) => {
+    const parts = [
+      toolPart('todos', 'TodoWrite', undefined, 'output-available', {
+        todos: [{ content: 'Existing todo', status: 'in_progress' }]
+      }),
+      toolPart('list', 'TaskList', undefined, state, {}, output)
+    ]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.tasks).toEqual([{ id: 'todo:0:Existing todo', title: 'Existing todo', status: 'in_progress' }])
+    expect(status.completedTaskCount).toBe(0)
+    expect(status.totalTaskCount).toBe(1)
   })
 
   // SDK task events describe spawned processes, not the agent's own plan, so they populate

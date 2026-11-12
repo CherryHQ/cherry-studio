@@ -67,7 +67,7 @@ export interface MessageGroupRuntime {
 }
 
 export interface MessageSiblingInfo {
-  group: Array<{ id: string }>
+  group: Array<{ id: string; preview?: string }>
   activeIndex: number
 }
 
@@ -373,6 +373,7 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 } as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
+  addGeneratedImageToComposer?: (image: { url: string; name: string }) => void | Promise<void>
   openForkSourceSession?: (sessionId: string) => Promise<void>
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)
@@ -454,6 +455,8 @@ export interface MessageListActions {
     parts: CherryMessagePart[],
     options?: { lockedMentionedModels?: Model[] }
   ) => void
+  /** Presentation eligibility for deleting this message on this surface. Absent = every message the action supports. */
+  canDeleteMessage?: (message: MessageListItem) => boolean
   getMessageDeleteAvailability?: (messageId: string) => MessageDeleteAvailability
   deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
@@ -473,6 +476,7 @@ export interface MessageListMeta {
   selectionLayer: boolean
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile
+  assistantAvatarSources?: ReadonlyMap<string, string>
   imageExportFileName?: string
   /** Usage-record partition this surface's messages belong to. Defaults to 'chat'. */
   aiUsageMessageKind?: AiUsageRecordMessageKind

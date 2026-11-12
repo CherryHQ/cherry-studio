@@ -44,11 +44,12 @@ const MissingAgentHomeComposerInner = ({
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
+  const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
   const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
   const sendMessageShortcut = resolveSendShortcut(storedSendShortcut)
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
-  const { railGutterPx } = useChatLayoutMode()
+  const { railGutterPx, sidePaddingPx } = useChatLayoutMode()
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -93,6 +94,7 @@ const MissingAgentHomeComposerInner = ({
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={false} extensions={[]}>
       <ComposerSurface
+        markdownLivePreview={renderInputMessageAsMarkdown}
         showAiDisclaimer
         text={text}
         onTextChange={setText}
@@ -118,6 +120,7 @@ const MissingAgentHomeComposerInner = ({
         fontSize={fontSize}
         narrowMode={narrowMode}
         railGutterPx={railGutterPx}
+        sidePaddingPx={sidePaddingPx}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}

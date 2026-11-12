@@ -56,7 +56,7 @@ import AgentSidePanel from './AgentSidePanel'
 import { AgentCreateDialog } from './components/AgentCreateDialog'
 import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import { AgentTabRuntime } from './components/AgentTabRuntime'
-import Sessions from './components/Sessions'
+import { Sessions } from './components/sessions'
 import {
   createFeedbackComposerLaunch,
   FEEDBACK_INTENT_GUARD_TTL_MS,
@@ -290,6 +290,14 @@ const AgentPage = () => {
     clearActiveSession()
     void navigate({ to: '/app/agents', search: {}, replace: true })
   }, [clearActiveSession, navigate])
+  // Ref is visible to a NOT_FOUND effect that runs before this state commits. State retriggers
+  // that effect when the local delete settles, so a last-item route can still recover.
+  const pendingLocalPermanentDeleteIdRef = useRef<string | null>(null)
+  const [pendingLocalPermanentDeleteId, setPendingLocalPermanentDeleteId] = useState<string | null>(null)
+  const onLocalPermanentDeletePendingChange = useCallback((id: string | null) => {
+    pendingLocalPermanentDeleteIdRef.current = id
+    setPendingLocalPermanentDeleteId(id)
+  }, [])
   // The URL-bound session no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -298,6 +306,7 @@ const AgentPage = () => {
     if (!routeSessionId || activeSessionId !== routeSessionId) return
     if (activeSession || isActiveSessionLoading) return
     if (!isDataApiNotFoundError(activeSessionError)) return
+    if (pendingLocalPermanentDeleteIdRef.current === routeSessionId) return
     reenterAgentRoute()
   }, [
     activeSession,
@@ -306,6 +315,7 @@ const AgentPage = () => {
     forkReturnSessionId,
     isActiveSessionLoading,
     isPreparedIntent,
+    pendingLocalPermanentDeleteId,
     reenterAgentRoute,
     routeSessionId
   ])
@@ -388,19 +398,23 @@ const AgentPage = () => {
     })
 
     return unsubscribe
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest session without resubscribing.
   }, [currentTabId])
   const targetSessionId = activeSessionId ?? undefined
-  const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
+  const { locateMessageId, locateToEnd, requestLocate, clearLocate } = useConversationLocateRequest({
+    navigationTabId: currentTabId ?? undefined,
     activeConversationId: targetSessionId,
     visibleConversationId: visibleSession?.id
   })
   const visibleAgent = conversationBootstrap.resources.agent
   // An agent avatar is an emoji glyph or an image URL; the tab renders each through its own slot.
-  const agentAvatar = visibleAgent?.configuration?.avatar || undefined
+  const agentAvatar = visibleAgent?.avatarSrc || visibleAgent?.configuration?.avatar || undefined
   const agentAvatarIsEmoji = !!agentAvatar && isEmoji(agentAvatar)
   // Label this tab with its agent emoji + session name so multiple Work tabs are distinguishable.
   const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
+
+  useEffect(() => {
+    if (locateMessageId || locateToEnd) closeSurface()
+  }, [closeSurface, locateMessageId, locateToEnd])
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
 
@@ -748,7 +762,6 @@ const AgentPage = () => {
       unsubscribeSession()
       unsubscribeMessage()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/session state without resubscribing.
   }, [currentTabId])
 
   const runFeedbackIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
@@ -791,7 +804,6 @@ const AgentPage = () => {
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, FEEDBACK_INTENT_GUARD_TTL_MS)
     void runFeedbackIntent(intentGuardCacheKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest feedback orchestration without resubscribing.
   }, [currentTabId, isFeedbackIntent, routeSessionId])
 
   const runSkillIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
@@ -839,7 +851,6 @@ const AgentPage = () => {
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, SKILL_INTENT_GUARD_TTL_MS)
     void runSkillIntent(intentGuardCacheKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest Skill orchestration without resubscribing.
   }, [currentTabId, isSkillIntent, routeSessionId, routeSkillId])
 
   const runTaskIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
@@ -871,7 +882,6 @@ const AgentPage = () => {
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, TASK_INTENT_GUARD_TTL_MS)
     void runTaskIntent(intentGuardCacheKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest task orchestration without resubscribing.
   }, [currentTabId, isTaskIntent, routeSessionId])
 
   const visibleSessionId = visibleSession?.id
@@ -1055,6 +1065,7 @@ const AgentPage = () => {
         panePosition="left"
         manageAgentsActive={manageAgentsActive}
         onManageAgents={onManageAgents}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
         setActiveSessionId={setActiveSessionAndClearTransient}
       />
     )
@@ -1077,6 +1088,7 @@ const AgentPage = () => {
               onShowMissingAgentSelection={showMissingAgentSelection}
               onSetPanePosition={setSessionListPosition}
               panePosition="right"
+              onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
               setActiveSessionId={setActiveSessionAndClearTransient}
             />
           )
@@ -1116,6 +1128,7 @@ const AgentPage = () => {
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsSessionSelect}
             onActiveRecordChange={handleHistoryActiveSessionChange}
+            onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
             toolbarLeading={
               !isWindowFrame ? (
                 <ConversationSidebarToggleButton
@@ -1165,6 +1178,7 @@ const AgentPage = () => {
             onVisibleAgentChange={setLastUsedAgentId}
             onVisibleWorkspaceChange={setLastUsedWorkspaceId}
             locateMessageId={locateMessageId}
+            locateToEnd={locateToEnd}
             onLocateMessageHandled={handleLocateMessageHandled}
             selectingMissingAgent={selectingMissingAgent}
             replacingSessionWorkspace={replacingSessionWorkspace}

@@ -32,5 +32,6 @@ export type SidebarVisibleLayout = Exclude<SidebarLayout, 'hidden'>
 export interface SidebarUser {
   name: string
   avatar?: string
+  indicator?: ReactNode
   onClick?: () => void
 }
