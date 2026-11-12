@@ -632,18 +632,15 @@ describe('McpRuntimeService connect retry gate', () => {
 
   it('uses a distinct secret-free key when the API key changes', () => {
     const service = new McpRuntimeService()
-    const first = service.getServerKey({
+    const serverWith = (apiKey: string): McpServer => ({
       id: 'qveris-server',
       name: BuiltinMcpServerNames.qveris,
-      env: { QVERIS_API_KEY: 'first-key' },
+      env: { QVERIS_API_KEY: apiKey },
       isActive: true
-    } as McpServer)
-    const second = service.getServerKey({
-      id: 'qveris-server',
-      name: BuiltinMcpServerNames.qveris,
-      env: { QVERIS_API_KEY: 'second-key' },
-      isActive: true
-    } as McpServer)
+    })
+
+    const first = service.getServerKey(serverWith('first-key'))
+    const second = service.getServerKey(serverWith('second-key'))
 
     expect(first).not.toContain('first-key')
     expect(second).not.toContain('second-key')

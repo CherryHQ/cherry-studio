@@ -284,8 +284,10 @@ export class McpServerService {
   }
 
   private validateQVerisConfiguration(server: Pick<McpServer, 'name' | 'env' | 'isActive'>): void {
+    // An API key authenticates via Bearer; without one the hosted endpoint falls back
+    // to MCP OAuth sign-in, so an empty key is a valid configuration.
     if (server.name === BuiltinMcpServerNames.qveris && server.isActive && !server.env?.QVERIS_API_KEY?.trim()) {
-      throw DataApiErrorFactory.validation({ env: ['QVERIS_API_KEY is required when QVeris is enabled'] })
+      logger.info('QVeris enabled without an API key; MCP OAuth sign-in will be used')
     }
   }
 }

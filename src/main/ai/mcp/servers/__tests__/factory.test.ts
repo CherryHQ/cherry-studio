@@ -67,9 +67,13 @@ describe('resolveBuiltinExternalMcpServer', () => {
     expect(resolveBuiltinExternalMcpServer(qveris('secret')).headers).toEqual({ Authorization: 'Bearer secret' })
   })
 
-  it('fails activation instead of connecting QVeris anonymously', () => {
-    expect(() => resolveBuiltinExternalMcpServer(qveris())).toThrow(/QVERIS_API_KEY/)
-    expect(() => resolveBuiltinExternalMcpServer(qveris('   '))).toThrow(/QVERIS_API_KEY/)
+  it('falls back to OAuth sign-in when no API key is configured', () => {
+    // No Authorization header => ExternalMcpConnection enables its OAuth provider and
+    // performs MCP OAuth discovery against https://mcp.qveris.ai/mcp on the first 401.
+    const resolved = resolveBuiltinExternalMcpServer(qveris())
+    expect(resolved.headers?.Authorization).toBeUndefined()
+    expect(resolved.type).toBe('streamableHttp')
+    expect(resolveBuiltinExternalMcpServer(qveris('   ')).headers?.Authorization).toBeUndefined()
   })
 
   it('resolves builtin HTTP endpoints and preserves configured headers', () => {

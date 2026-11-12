@@ -22,7 +22,6 @@ import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
-import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 
 const logger = loggerService.withContext('McpServerCard')
@@ -65,14 +64,8 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 
   const handleToggleActive = useCallback(
     async (active: boolean) => {
-      if (active && isQVerisApiKeyMissing(server)) {
-        void popup.error({
-          title: t('settings.mcp.startError'),
-          content: <QVerisApiKeyGuide />,
-          centered: true
-        })
-        return
-      }
+      // Without an API key QVeris falls back to OAuth sign-in; the connection flow
+      // opens the browser on the first 401, so the toggle proceeds either way.
 
       let serverForUpdate = server
       if (active) {

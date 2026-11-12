@@ -36,8 +36,10 @@ export function resolveBuiltinExternalMcpServer(server: McpServer): McpServer {
         headers: { ...server.headers, APP: 'Cherry Studio' }
       }
     case BuiltinMcpServerNames.qveris: {
+      // With no QVERIS_API_KEY the hosted endpoint falls back to MCP OAuth discovery
+      // (https://qveris.ai/hosted-mcp), handled by ExternalMcpConnection's authProvider.
       const apiKey = server.env?.QVERIS_API_KEY?.trim()
-      if (!apiKey) throw new Error('QVeris MCP requires the QVERIS_API_KEY environment variable')
+      if (!apiKey) return { ...server, type: 'streamableHttp' }
       return {
         ...server,
         type: 'streamableHttp',
