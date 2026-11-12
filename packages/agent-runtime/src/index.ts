@@ -16,18 +16,18 @@ export type {
   InputFact,
   SubmitResult,
   InputState,
-  InputQuery,
   InputLookup,
-  RetractionReceipt,
-  InterruptReceipt,
-  ResumeReceipt,
-  ShutdownReceipt,
   JsonValue,
   Completeness,
   RuntimeMessage,
   Subagent,
   Activity,
   ThreadSnapshot,
+  ThreadContextUsage,
+  ContextCategoryKey,
+  ContextTokenCount,
+  ContextCategory,
+  ContextResource,
   ObservationPayload,
   ObservationSink,
   Observation,
@@ -38,3 +38,5 @@ export type {
 export { runtimeId } from './contracts'
 export { ThreadFeed } from './observation'
 export { RuntimeMessageStream } from './messageStream'
+
+export { projectNestedTool, type NestedToolRecord } from './nestedTool'

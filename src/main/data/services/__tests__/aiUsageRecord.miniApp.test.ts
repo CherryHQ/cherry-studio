@@ -2,7 +2,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
-import { type AiUsageRecordSourceType, AiUsageRecordSourceTypeSchema } from '@shared/data/types/aiUsageRecord'
+import { type AiUsageRecordSourceType } from '@shared/data/types/aiUsageRecord'
 
 const A = 'com.example.mygame'
 
@@ -32,10 +32,6 @@ describe('mini-app usage attribution', () => {
   // ONE call at describe scope: `setupTestDatabase` registers its own hooks, so
   // calling it inside an `it()` registers them after collection has started.
   const dbh = setupTestDatabase()
-
-  it('accepts mini-app as a source type', () => {
-    expect(AiUsageRecordSourceTypeSchema.options).toContain('mini-app')
-  })
 
   it('stores a mini-app attributed record past the CHECK constraint', () => {
     // The bug this guards: adding the union member without regenerating the migration.

@@ -4,6 +4,7 @@ import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -101,6 +102,32 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
+  it.each([
+    { language: 'en-US', detail: '' },
+    { language: 'en-US', detail: 'Provider unavailable' },
+    { language: 'zh-CN', detail: '' },
+    { language: 'zh-CN', detail: 'Provider unavailable' }
+  ] as const)(
+    'shows localized response interruption for a persisted stream failure ($language, $detail)',
+    ({ language, detail }) => {
+      const catalog = language === 'en-US' ? enUS : zhCN
+      mocks.language = language
+      mocks.translations = new Map(Object.entries(catalog))
+
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{ name: 'StreamError', message: detail, stack: null, streamStage: 'response-stream' }}
+          message={message}
+        />
+      )
+
+      expect(screen.getAllByText(catalog['error.diagnosis.stream'], { exact: true })).toHaveLength(1)
+      expect(screen.queryByText(catalog['error.diagnosis.unknown'], { exact: true })).not.toBeInTheDocument()
+      if (detail) expect(screen.getByText(detail, { exact: true })).toBeInTheDocument()
+    }
+  )
+
   it('renders Groq entitlement copy and opens its provider settings', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()
@@ -155,6 +182,31 @@ required service tier.`
     expect(diagnostic).toHaveTextContent(copy.recovery)
   })
 
+  it.each([enUS, zhCN])('explains output truncation without blaming the network', (catalog) => {
+    mocks.translations = new Map(Object.entries(catalog))
+    mocks.i18nKeys.add('error.output_token_limit_reached')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'Error',
+          message: 'Durable response ended: length',
+          stack: null,
+          streamStage: 'response-stream',
+          reason: 'output-truncated',
+          finishReason: 'length',
+          i18nKey: 'output_token_limit_reached'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(catalog['error.output_token_limit_reached'])).toBeInTheDocument()
+    expect(screen.queryByText(catalog['error.diagnosis.stream'])).not.toBeInTheDocument()
+    expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).not.toBeInTheDocument()
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
@@ -168,6 +220,7 @@ required service tier.`
           name: 'ToolLoopTerminalError',
           message: 'fallback message',
           stack: null,
+          streamStage: 'response-stream',
           i18nKey
         }}
         message={message}
@@ -175,6 +228,32 @@ required service tier.`
     )
 
     expect(screen.getByText(`error.${i18nKey}`)).toBeInTheDocument()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
+  it('renders actionable Claude Code session-bus guidance without AI diagnosis', () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { diagnoseMessageError }
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys.add('error.claude_code_session_bus_missing')
+    mocks.i18nKeys.add('error.claude_code_session_bus_missing_detail')
+
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeSessionBusUnavailableError',
+          message: 'Claude Code requires an active Linux session bus',
+          stack: null,
+          i18nKey: 'claude_code_session_bus_missing',
+          detailI18nKey: 'claude_code_session_bus_missing_detail'
+        }}
+        message={message}
+      />
+    )
+
+    expect(container).toHaveTextContent(enUS['error.claude_code_session_bus_missing'])
+    expect(container).toHaveTextContent(enUS['error.claude_code_session_bus_missing_detail'])
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
@@ -219,6 +298,85 @@ required service tier.`
 
     expect(screen.getByText('openai')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'openai' })).toBeNull()
+  })
+
+  const planText = '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 30天8小时59分钟57秒后重试。'
+  it.each([
+    ['its JSON body', JSON.stringify({ message: planText, type: 'rate_limit_error', code: 'rate_limit_exceeded' })],
+    ['the agent runtime status prefix', `API Error: Request rejected (429) · ${planText}`],
+    ['the last attempt of a retried request', 'Failed after 3 attempts. Last error: Too Many Requests'],
+    ['the Pi agent status prefix', `429: ${JSON.stringify({ message: planText, type: 'rate_limit_error' })}`]
+  ])('shows only the Cherry AI plan wording from %s, without a settings shortcut', (_case, body) => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    const cloudMessage = {
+      ...message,
+      model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={
+          body.startsWith('Failed after')
+            ? {
+                name: 'AI_RetryError',
+                message: body,
+                stack: null,
+                cause: null,
+                reason: 'maxRetriesExceeded',
+                lastError: {
+                  name: 'AI_APICallError',
+                  statusCode: 429,
+                  providerErrorCategory: 'quota',
+                  responseBody: JSON.stringify({ error: { message: planText, type: 'rate_limit_error' } })
+                },
+                errors: []
+              }
+            : { name: 'AI_APICallError', message: body, stack: null, statusCode: 429, providerErrorCategory: 'quota' }
+        }
+        message={cloudMessage}
+      />
+    )
+
+    expect(screen.getByText('models.detail.quota_exhausted')).toBeInTheDocument()
+    expect(screen.getByText(planText)).toBeInTheDocument()
+    expect(screen.queryByText(/API Error|HTTP 429/)).toBeNull()
+    expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
+  })
+
+  it('keeps an unspecified Cloud HTTP 429 as a rate limit', () => {
+    const cloudMessage = {
+      ...message,
+      model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: '', stack: null, statusCode: 429 }}
+        message={cloudMessage}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
+    expect(screen.queryByText('models.detail.quota_exhausted')).toBeNull()
+    expect(screen.getByText(/HTTP 429/)).toBeInTheDocument()
+  })
+
+  it('keeps the settings shortcut for another provider rate limit', () => {
+    mocks.actions = { navigateErrorTarget: vi.fn() }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: 'Too Many Requests', stack: null, statusCode: 429 }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
+    expect(screen.getByText(GO_TO_SETTINGS_LABEL)).toBeInTheDocument()
   })
 
   it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {
@@ -448,6 +606,33 @@ required service tier.`
     expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
     fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it('shows a content rejection with the provider explanation and no settings recovery', () => {
+    mocks.actions = { navigateErrorTarget: vi.fn() }
+    mocks.translations.set('error.diagnosis.content', enUS['error.diagnosis.content'])
+    mocks.translations.set('error.diagnosis.bad_request', enUS['error.diagnosis.bad_request'])
+    mocks.translations.set('error.diagnosis.go_to_settings', enUS['error.diagnosis.go_to_settings'])
+    const providerMessage = 'This request was blocked by our content filtering policy. Please revise your message.'
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: providerMessage,
+          stack: null,
+          statusCode: 400,
+          providerId: 'openai'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.diagnosis.content'], { exact: true })).toBeVisible()
+    expect(screen.queryByText('Provider request failed (HTTP 400)', { exact: true })).not.toBeInTheDocument()
+    expect(screen.getByText(providerMessage, { exact: false })).toBeVisible()
+    expect(screen.queryByRole('button', { name: GO_TO_SETTINGS_LABEL })).not.toBeInTheDocument()
   })
 
   it('shows a Claude SDK request failure with its original error and provider settings', async () => {

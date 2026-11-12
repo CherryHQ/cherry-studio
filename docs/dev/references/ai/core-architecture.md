@@ -18,8 +18,10 @@ each subsystem.
 ```text
 Renderer: commands → ai.stream.open/abort → AiStreamManager
           views    ← ai.projection.* ← root/child message publishers
-Main: context provider → AiService / native runtime → UIMessageChunk stream
-      pipeStreamLoop → SDK message accumulator → current root projection
+Main: context provider → AiService → one source per execution
+      chunks → pipeStreamLoop → readUIMessageStream → CherryUIMessage
+      messages → pipeMessageStream → CherryUIMessage
+      current CherryUIMessage → root projection + listeners + persistence
       child native observation → reconciliation/archive → independent child projection
 Terminal: persistence → projection and other subscriber notifications → cleanup
 Model requests: existing provider registry / gateway / AI SDK paths remain unchanged
@@ -58,9 +60,15 @@ Model requests: existing provider registry / gateway / AI SDK paths remain uncha
    yields `UIMessageChunk`s. Agent-session runtime requests skip the generic
    agent loop here: `AiService.streamText()` calls
    `AgentSessionRuntimeService.openTurnStream()` so the registered driver
-   can own the concrete agent runtime.
-8. `pipeStreamLoop` reads the chunk stream once, tees: broadcast to
-   listeners, accumulate via `readUIMessageStream`.
+   can own the concrete agent runtime. Model requests sent through the gateway
+   use `contextOwner: 'caller'` and a single AI SDK invocation. The runtime
+   owns tool execution and continuation; SDK message rules, provider adapters,
+   middleware, tracing, and usage capture remain shared.
+8. The returned `AiStreamSource` selects one consumer. `chunks` uses `pipeStreamLoop`
+   and `readUIMessageStream`; `messages` uses `pipeMessageStream` to forward authoritative
+   bodies already composed with host display state. Listeners receive `onMessage` snapshots, and
+   persistence uses that same final view. Pi, Pi Durable, and Claude select
+   `messages`; Chat retains its chunk source.
 9. On terminal (`done` / `error` / `aborted` / `awaiting-approval`):
    - `PersistenceListener` writes the final assistant message.
    - `TopicMessageProjection` publishes the final message and terminal state to subscribed windows.
@@ -144,7 +152,8 @@ src/main/ai/
 
 src/main/ipc/handlers/ai.ts        ← IpcApi transport adapters
 src/renderer/services/aiTransport/ ← MessageProjectionService, StreamDispatchService, overlays
-src/renderer/hooks/               ← useChatWithHistory, useToolApprovalBridge, useTopicStreamStatus
+src/renderer/hooks/               ← useChatWithHistory, useTopicStreamStatus
+src/renderer/pages/home/hooks/    ← useToolApprovalBridge
 packages/aiCore/                  ← @cherrystudio/ai-core (Agent + plugins + provider extensions)
 packages/provider-registry/       ← provider catalog, registry-utils (adapterFamily inference)
 ```

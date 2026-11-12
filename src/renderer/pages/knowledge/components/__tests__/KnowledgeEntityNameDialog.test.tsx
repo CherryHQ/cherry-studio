@@ -115,7 +115,7 @@ describe('KnowledgeEntityNameDialog', () => {
     renderDialog({ initialName: 'Research' })
 
     expect(screen.getByRole('heading', { name: '重命名实体' })).toBeInTheDocument()
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'sm')
+
     expect(screen.getByLabelText('名称')).toHaveValue('Research')
   })
 

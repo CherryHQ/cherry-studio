@@ -475,12 +475,13 @@ export const ToastViewport = ({
   const viewportRef = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
-  const expanded = hovered || focused
+  const interacting = hovered || focused
+  const expanded = interacting && toasts.length > 1
 
   useEffect(() => {
-    store.setPaused(expanded && toasts.length > 0)
+    store.setPaused(interacting && toasts.length > 0)
     return () => store.setPaused(false)
-  }, [expanded, store, toasts.length])
+  }, [interacting, store, toasts.length])
 
   useEffect(() => {
     setFocused(viewportRef.current?.contains(document.activeElement) ?? false)
@@ -499,7 +500,9 @@ export const ToastViewport = ({
       aria-label="notifications"
       className={cn(
         'pointer-events-auto fixed top-5 left-1/2 z-[10000] -translate-x-1/2 [-webkit-app-region:no-drag]',
-        expanded ? 'flex max-h-[calc(100vh-2.5rem)] flex-col items-center gap-2 overflow-y-auto p-2' : 'grid pb-4'
+        expanded
+          ? 'flex max-h-[calc(100vh-2.5rem)] flex-col items-center gap-2 overflow-y-auto px-4 pt-2 pb-6'
+          : 'grid pb-4'
       )}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
