@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-12-macos-dark-app-icon.md
-2026-11-12-macos-dark-app-icon.md: 9387efec9bec9bbacf96afcffb578496e7e3d56e
-2026-11-12-macos-dark-app-icon.zh.md: 8e7e6b1eda2ad293feda8a59285436665b141cd0
+2026-11-12-macos-dark-app-icon.md: 5931a117ce10667035dfaf0bd3b85c04ef2bd048
+2026-11-12-macos-dark-app-icon.zh.md: 5a7d28fbc0d94372288c048de5ec4ed92fb49087
