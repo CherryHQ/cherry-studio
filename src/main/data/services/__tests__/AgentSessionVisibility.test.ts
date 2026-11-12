@@ -97,7 +97,7 @@ describe('background session isolation', () => {
     expect(dbh.db.select().from(agentSessionTable).all()).toEqual([])
   })
 
-  it('excludes background rows before pin pagination and latest selection, including orphaned sessions', () => {
+  it('excludes background rows before DataApi pin pagination and latest selection, including orphaned sessions', async () => {
     const first = create('first')
     const second = create('second')
     const background = create('background', 'background')
@@ -123,7 +123,9 @@ describe('background session isolation', () => {
     const ids: string[] = []
     let cursor: string | undefined
     do {
-      const page = agentSessionService.listByCursor({ scope: 'ordinary', limit: 1, cursor })
+      const response = await agentSessionHandlers['/agent-sessions'].GET({ query: { limit: '1', cursor } })
+      const page = 'data' in response ? response.data : response
+      expect(page.items).toHaveLength(1)
       ids.push(...page.items.map((row) => row.id))
       cursor = page.nextCursor
     } while (cursor)
@@ -139,7 +141,7 @@ describe('background session isolation', () => {
     expect(agentSessionService.getById(unpinnedBackground.id).id).toBe(unpinnedBackground.id)
   })
 
-  it('excludes sticky and per-run task conversations before pagination and latest restore, but keeps them readable', async () => {
+  it('excludes task conversations from DataApi pagination and latest restore, but keeps remote discovery and reads', async () => {
     const ordinary = create('ordinary')
     const sticky = create('sticky task')
     const perRun = create('per-run task')
@@ -190,7 +192,10 @@ describe('background session isolation', () => {
     const ids: string[] = []
     let cursor: string | undefined
     do {
-      const page = agentSessionService.listByCursor({ scope: 'ordinary', agentId: 'agent', limit: 1, cursor })
+      const response = await agentSessionHandlers['/agent-sessions'].GET({
+        query: { agentId: 'agent', limit: '1', cursor }
+      })
+      const page = 'data' in response ? response.data : response
       ids.push(...page.items.map((row) => row.id))
       cursor = page.nextCursor
     } while (cursor)
