@@ -5,7 +5,7 @@ on:
     inputs:
       preview_artifact_id:
         description: Signed preview artifact from the pinned build
-        required: true
+        required: false
         type: string
 permissions:
   actions: read
@@ -22,13 +22,19 @@ jobs:
         with:
           node-version-file: .node-version
       - name: Download the signed artifact from the build
+        if: inputs.preview_artifact_id != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           artifact-ids: ${{ inputs.preview_artifact_id }}
           github-token: ${{ github.token }}
           run-id: 43243027559
           path: ${{ runner.temp }}/cs-preview
+      - name: Verify the accessibility locator for the real 1.9.12 Close control
+        if: inputs.preview_artifact_id == ''
+        shell: pwsh
+        run: ./scripts/preview-test/run.ps1
       - name: Verify the 1.9.12 close button with close-to-tray enabled
+        if: inputs.preview_artifact_id != ''
         shell: pwsh
         run: |
           $preview = @(Get-ChildItem -LiteralPath "$env:RUNNER_TEMP/cs-preview" -Filter '*-preview-895800c-signed-win-x64-portable.exe' -Recurse -File)

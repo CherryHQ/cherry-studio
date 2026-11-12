@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$Preview)
+param([string]$Preview)
 
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
@@ -92,6 +92,48 @@ try {
   $env:LOCALAPPDATA = $oldLocal
   $env:TEMP = $oldTemp
   $env:TMP = $oldTmp
+}
+
+if (!$Preview) {
+  $asset = Join-Path $env:RUNNER_TEMP 'Cherry-Studio-1.9.12-x64-portable.exe'
+  Get-VerifiedAsset 'https://gitcode.com/CherryHQ/cherry-studio/releases/download/v1.9.12/Cherry-Studio-1.9.12-x64-portable.exe' $asset 'AF72B381030A7C1EBCE5479523219029E54FE19E1F09847254F7CE584A208ED4'
+  $stage = $portable + '.update-' + [Guid]::NewGuid().ToString() + '.exe'
+  Copy-Item -LiteralPath $asset -Destination $stage
+  $configPath = Join-Path $data 'config.json'
+  $settings = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+  $settings.trayOnClose = $false
+  $settings | ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $configPath
+  try {
+    $env:USERPROFILE = Join-Path $shortFixture 'home'
+    $env:APPDATA = Join-Path $env:USERPROFILE 'AppData/Roaming'
+    $env:LOCALAPPDATA = Join-Path $env:USERPROFILE 'AppData/Local'
+    $env:TEMP = Join-Path $shortFixture 'temp'
+    $env:TMP = $env:TEMP
+    $wrapper = Start-Process -FilePath $stage -WorkingDirectory $shortFixture -PassThru -WindowStyle Hidden
+    Wait-Version '1.9.12' | Set-Content ./1.9.12-history.txt
+    $closeButton = $null
+    $deadline = [DateTime]::UtcNow.AddSeconds(60)
+    do {
+      $main = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($wrapper.Id)" |
+        Where-Object { $_.ExecutablePath -like "$env:TEMP*" -and $_.CommandLine -notlike '*--type=*' } | Select-Object -First 1
+      if ($main) {
+        $closeButton = powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./migration-fixtures/close-prerequisite.ps1 -ProcessId $main.ProcessId -Executable $main.ExecutablePath
+        if ($closeButton -and $LASTEXITCODE -eq 0) { break }
+      }
+      Start-Sleep -Milliseconds 500
+    } while ([DateTime]::UtcNow -lt $deadline)
+    if (!$closeButton -or !$wrapper.WaitForExit(45000) -or $wrapper.ExitCode -ne 0) {
+      throw 'The 1.9.12 Close control was not invoked successfully'
+    }
+    $closeButton | Set-Content ./prerequisite-exit.json
+  } finally {
+    $env:USERPROFILE = $oldHome
+    $env:APPDATA = $oldRoaming
+    $env:LOCALAPPDATA = $oldLocal
+    $env:TEMP = $oldTemp
+    $env:TMP = $oldTmp
+  }
+  return
 }
 
 node ./verify.cjs $Preview $seedPath '895800c82db92069706d13471125e1be16e267ec'
