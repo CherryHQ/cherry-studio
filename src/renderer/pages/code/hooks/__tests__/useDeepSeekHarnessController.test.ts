@@ -8,7 +8,8 @@ import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   openSmartMiniApp: vi.fn(),
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  toastErrorFromException: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
@@ -22,7 +23,9 @@ vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }) }
 }))
 
-vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError } }))
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError, errorFromException: mocks.toastErrorFromException }
+}))
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
@@ -128,7 +131,18 @@ describe('useDeepSeekHarnessController', () => {
     const { result } = renderController()
     await act(async () => result.current.onLaunch())
     expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
-    expect(mocks.toastError).toHaveBeenCalledWith('config collision')
+    expect(mocks.toastErrorFromException).toHaveBeenCalledWith(new Error('config collision'))
+  })
+
+  it('routes a Harness startup failure through categorized guidance without opening the Mini App', async () => {
+    const message = 'DeepSeek Harness startup timed out'
+    mocks.request.mockResolvedValue({ success: false, message })
+    const { result } = renderController()
+    await act(async () => result.current.onLaunch())
+    expect(mocks.toastErrorFromException).toHaveBeenCalledWith(new Error(message))
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
+    expect(result.current.launching).toBe(false)
   })
 
   it('tracks managed status via pushed events, reopens the current URL, and stops only through the managed IPC', async () => {
