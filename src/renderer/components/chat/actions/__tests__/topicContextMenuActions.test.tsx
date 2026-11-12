@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
+import { useTopicMenuActions } from '@renderer/components/chat/actions/useTopicMenuActions'
 import type { Topic } from '@renderer/types/topic'
 
 import { executeTopicMenuAction, resolveTopicMenuActions, type TopicActionContext } from '../topicContextMenuActions'
