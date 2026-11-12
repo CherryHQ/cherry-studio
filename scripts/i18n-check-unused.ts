@@ -7,6 +7,7 @@ import { Command } from 'commander'
 import { type CallExpression, Node, Project, type SourceFile, ts } from 'ts-morph'
 
 import { COMMAND_DEFINITIONS } from '../src/shared/utils/command/definitions'
+import { localeOnlyPluralSiblings } from './i18n-plurals'
 import { sortedObjectByKeys } from './sort'
 
 const ROOT_DIR = path.resolve(__dirname, '..')
@@ -399,6 +400,8 @@ export function removeI18nKeys(locale: I18N, keys: string[]): I18N {
   const next = structuredClone(locale)
   for (const key of keys) {
     delete next[key]
+    // Locale-only plural forms (e.g. Polish `_few`) go with the English `_other` key.
+    for (const sibling of localeOnlyPluralSiblings(key)) delete next[sibling]
   }
   return sortedObjectByKeys(next) as I18N
 }
