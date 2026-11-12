@@ -1587,6 +1587,7 @@
   "error.ocr_detail_failed": "ตัวประมวลผล OCR ที่ตั้งค่าไว้ทำงานล้มเหลว: {{reason}} โปรดตรวจสอบหรือเปลี่ยนตัวประมวลผล OCR ในหน้า Settings → File Processing",
   "error.originalError": "ข้อผิดพลาดต้นฉบับ",
   "error.originalMessage": "ข้อความต้นฉบับ",
+  "error.output_token_limit_reached": "คำตอบถึงขีดจำกัดโทเคนเอาต์พุตก่อนเสร็จสิ้น การให้เหตุผลนับรวมในขีดจำกัดนี้ด้วย โปรดเพิ่มขีดจำกัดเอาต์พุตของโมเดลหรือลดระดับการให้เหตุผล แล้วลองอีกครั้ง",
   "error.parameter": "พารามิเตอร์",
   "error.prompt": "พรอมต์",
   "error.provider": "ผู้ให้บริการ",
