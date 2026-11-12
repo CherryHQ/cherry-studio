@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrepareChatContext } from '@main/ai/messages/attachmentRouting'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 
-import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../../types'
+import type { AgentRuntimeEvent } from '../../types'
 
 const state = vi.hoisted(() => ({
   vision: false,
@@ -14,8 +14,9 @@ const state = vi.hoisted(() => ({
 }))
 
 vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ ClaudeCodeWarmQueryManager: { consume: async () => undefined } })
+  const { mockApplicationFactory, MockApplicationUtils } = await import('@test-mocks/main/application')
+  MockApplicationUtils.setService('ClaudeCodeWarmQueryManager', { consume: async () => undefined })
+  return mockApplicationFactory()
 })
 vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: () => ({ capabilities: state.vision ? ['image-recognition'] : [] }) }
@@ -109,7 +110,7 @@ async function run(steer: boolean) {
     sessionId: 'session',
     agentId: 'agent',
     modelId: 'provider::model'
-  } as AgentRuntimeConnectInput)
+  })
   const message = {
     id: 'user-image',
     data: {
@@ -123,7 +124,7 @@ async function run(steer: boolean) {
         }
       ]
     }
-  } as AgentSessionMessageEntity
+  } as unknown as AgentSessionMessageEntity
   const events: AgentRuntimeEvent[] = []
   const reading = (async () => {
     for await (const event of connection.events) events.push(event)
