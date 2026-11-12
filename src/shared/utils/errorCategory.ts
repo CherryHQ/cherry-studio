@@ -221,7 +221,8 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('maximum context length') ||
     msg.includes('context window') ||
     msg.includes('prompt is too long') ||
-    msg.includes('input is too long')
+    msg.includes('input is too long') ||
+    msg.includes('input exceeds the context limit')
   ) {
     return 'context_length'
   }
