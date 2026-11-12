@@ -9,11 +9,15 @@ runs in the completion callback on the host's main thread. Calls finish before t
 worker is released; native crashes are not isolated from the host process.
 
 macOS uses NSWorkspace file URLs, Windows uses SHAssocEnumHandlers and
-IAssocHandler::Invoke, and Linux uses GIO content types and GAppInfo. Opening
-re-enumerates the file's current handlers and rejects missing identities. The
-list includes default metadata separately; Main removes its duplicate menu row,
-hashes application identities for the renderer, and owns caching and dangerous
-extension policy. Directory editors and terminals remain in the existing service.
+IAssocHandler::Invoke, and Linux uses GIO content types and GAppInfo. Folder
+paths are enumerated through the same APIs: macOS and Linux shape folders as
+`inode/directory` content, while Windows enumerates the `Folder` and `Directory`
+programmatic identifiers and omits Explorer because Main presents the system file
+manager as its own row. Opening re-enumerates the path's current handlers and
+rejects missing identities. The list includes default metadata separately; Main
+removes its duplicate menu row, hashes application identities for the renderer,
+and owns caching and dangerous extension policy. Terminals from the curated list,
+and every editor when enumeration is unavailable, remain in the existing service.
 
 Applications declare support through OS registrations. Results do not prove
 actual parsing compatibility, and successful activation does not prove rendering.

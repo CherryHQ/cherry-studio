@@ -16,6 +16,7 @@ import { isDangerExt, normalizeExt } from '@shared/utils/file'
 import {
   listNativeApplications,
   nativeApplicationIcon,
+  type NativeApplication,
   nativeTargetId,
   openNativeApplication
 } from './nativeApplication'
@@ -23,6 +24,7 @@ import {
 const SYSTEM_DEFAULT_TARGET_ID = 'system_default'
 const FILE_MANAGER_TARGET_ID = 'file_manager'
 const KNOWN_TARGET_PREFIX = 'known:'
+const NATIVE_TARGET_PREFIX = 'native:'
 const CACHE_DURATION_MS = 5 * 60 * 1000
 const INSTALLED_APPS_CACHE_KEY = 'external-app:installed-apps'
 const openTargetsCacheKey = (key: string) => `external-app:open-targets:${key}`
@@ -30,6 +32,11 @@ const logger = loggerService.withContext('ExternalAppService')
 
 type KnownExternalAppId = 'vscode' | 'cursor' | 'zed' | 'wt'
 type ExternalOpenTargetPathKind = ExternalOpenTargetResult['pathKind']
+
+/** Compares display names so an application the OS already reported is not listed twice. */
+function normalizeApplicationName(name: string): string {
+  return name.trim().toLowerCase()
+}
 
 interface KnownExternalAppConfig {
   id: KnownExternalAppId
@@ -87,7 +94,8 @@ export class ExternalAppService {
     const cached = cacheService.get<ExternalOpenTargetResult>(openTargetsCacheKey(cacheKey))
     if (cached) return cached
 
-    const result = pathKind === 'directory' ? await this.listDirectoryTargets() : await this.listFileTargets(targetPath)
+    const result =
+      pathKind === 'directory' ? await this.listDirectoryTargets(targetPath) : await this.listFileTargets(targetPath)
     cacheService.set(openTargetsCacheKey(cacheKey), result, CACHE_DURATION_MS)
     return result
   }
@@ -104,14 +112,12 @@ export class ExternalAppService {
       await this.openKnownApplication(app.id, targetPath, pathKind)
       return
     }
-    if (targetId.startsWith('native:')) {
-      if (
-        this.getPathKind(targetPath, pathKindHint) !== 'file' ||
-        isDangerExt(normalizeExt(path.extname(targetPath)))
-      ) {
+    if (targetId.startsWith(NATIVE_TARGET_PREFIX)) {
+      const pathKind = this.getPathKind(targetPath, pathKindHint)
+      if (pathKind === 'file' && isDangerExt(normalizeExt(path.extname(targetPath)))) {
         throw new Error(`Open target "${targetId}" is not available for this path`)
       }
-      const { applications } = await listNativeApplications(targetPath)
+      const applications = await this.listNativeApplicationsOrEmpty(targetPath)
       const selected = applications.find((item) => nativeTargetId(item.id) === targetId)
       if (!selected) throw new Error(`Open target "${targetId}" is not available for this path`)
       await openNativeApplication(targetPath, selected.id)
@@ -133,20 +139,66 @@ export class ExternalAppService {
     throw new Error(`Open target "${targetId}" cannot be launched on this platform`)
   }
 
-  private async listDirectoryTargets(): Promise<ExternalOpenTargetResult> {
-    const apps = await this.detectInstalledApps()
-    const compatibleApps = apps.filter((item) => item.pathKinds.includes('directory'))
-    const applicationTargets = compatibleApps
-      .filter((item) => item.kind === 'application')
+  /**
+   * Association enumeration is the only authority for a native identity, so a failed lookup leaves
+   * nothing to authorize and the caller reports the target as unavailable.
+   */
+  private async listNativeApplicationsOrEmpty(targetPath: AbsoluteFilePath): Promise<NativeApplication[]> {
+    try {
+      return (await listNativeApplications(targetPath)).applications
+    } catch (error) {
+      logger.warn('Failed to discover file associations', error as Error)
+      return []
+    }
+  }
+
+  private async listDirectoryTargets(targetPath: AbsoluteFilePath): Promise<ExternalOpenTargetResult> {
+    const { targets: nativeTargets, names: nativeNames } = await this.listNativeDirectoryTargets(targetPath)
+    const compatibleApps = (await this.detectInstalledApps()).filter((item) => item.pathKinds.includes('directory'))
+    const knownTargets = compatibleApps
+      .filter((item) => !nativeNames.has(normalizeApplicationName(item.name)))
       .map((item) => this.toKnownTarget(item))
-    const terminalTargets = compatibleApps
-      .filter((item) => item.kind === 'terminal')
-      .map((item) => this.toKnownTarget(item))
+    const applicationTargets = knownTargets.filter((item) => item.kind === 'application')
+    const terminalTargets = knownTargets.filter((item) => item.kind === 'terminal')
     return {
       pathKind: 'directory',
       recommendedTargetId: FILE_MANAGER_TARGET_ID,
-      targets: [{ id: FILE_MANAGER_TARGET_ID, kind: 'file_manager' }, ...applicationTargets, ...terminalTargets]
+      targets: [
+        { id: FILE_MANAGER_TARGET_ID, kind: 'file_manager' },
+        ...nativeTargets,
+        ...applicationTargets,
+        ...terminalTargets
+      ]
     }
+  }
+
+  /**
+   * Every application the OS registers for folders, minus the system file manager: the
+   * `file_manager` row already opens folders with it, so listing it again would duplicate a row.
+   */
+  private async listNativeDirectoryTargets(
+    targetPath: AbsoluteFilePath
+  ): Promise<{ targets: ExternalOpenTarget[]; names: Set<string> }> {
+    const targets: ExternalOpenTarget[] = []
+    const names = new Set<string>()
+    try {
+      const { applications, defaultApplication } = await listNativeApplications(targetPath)
+      const seen = new Set<string>(defaultApplication ? [defaultApplication.id] : [])
+      for (const item of applications) {
+        if (seen.has(item.id)) continue
+        seen.add(item.id)
+        names.add(normalizeApplicationName(item.name))
+        targets.push({
+          id: nativeTargetId(item.id),
+          kind: 'application',
+          name: item.name,
+          iconDataUrl: await nativeApplicationIcon(item)
+        })
+      }
+    } catch (error) {
+      logger.warn('Failed to discover directory associations', error as Error)
+    }
+    return { targets, names }
   }
 
   private async listFileTargets(targetPath: AbsoluteFilePath): Promise<ExternalOpenTargetResult> {
