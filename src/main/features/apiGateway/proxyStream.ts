@@ -8,10 +8,11 @@ import { resolveAiSdkProviderId, resolveEndpointProviderOptionsKey } from '@main
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { SerializedError } from '@shared/types/error'
 
 import type { ISseFormatter, IStreamAdapter } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
-import { buildStreamErrorFrame } from './errors'
+import { buildStreamErrorFrame, internalGatewayError } from './errors'
 import { resolveGatewayRequest, type MessageConfig } from './gatewayRequest'
 
 export type { MessageConfig } from './gatewayRequest'
@@ -87,6 +88,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     outputFormat
   })
   const { onError, onComplete, signal } = config
+  const internal = config.requestHeaders
+    ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
+    : false
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
@@ -260,6 +264,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           else signal.addEventListener('abort', onAbort, { once: true })
         }
 
+        let callbackError: SerializedError | undefined
         const sseListener = new SseListener(write, complete, () => !closed, {
           id: `gateway:${streamId}`,
           // Commit before transforming a semantic chunk: adapter output for `start`
@@ -281,7 +286,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             return buildStreamErrorFrame(outputFormat, streamInterruptedError())
           },
           formatError: (error) => {
-            onError?.(error)
+            onError?.(callbackError ?? error)
             return buildStreamErrorFrame(outputFormat, error)
           }
         })
@@ -311,11 +316,15 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             }
             return sseListener.onPaused(result)
           },
-          onError: (result) => {
+          onError: (result, originalError) => {
             logger.warn('Gateway stream failed', { ...logContext, streamId, error: result.error })
-            if (startupState !== 'pending') return sseListener.onError(result)
+            const upstream = internal ? internalGatewayError(originalError, result.error) : result.error
+            if (startupState !== 'pending') {
+              callbackError = result.error
+              return sseListener.onError({ ...result, error: upstream })
+            }
 
-            fail(result.error)
+            fail(upstream)
             try {
               onError?.(result.error)
             } finally {
@@ -379,6 +388,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   let aborted = false
   let adapterFailed = false
+  let callbackError: SerializedError | undefined
   const onAbort = () => {
     aborted = true
     aiStreamManager.abort(streamId, 'gateway client disconnected')
@@ -417,7 +427,10 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       })
       rejectDone(streamInterruptedError())
     },
-    onError: (result) => rejectDone(result.error),
+    onError: (result, originalError) => {
+      callbackError = result.error
+      rejectDone(internal ? internalGatewayError(originalError, result.error) : result.error)
+    },
     isAlive: () => !aborted && !adapterFailed
   }
 
@@ -452,7 +465,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     })
   } catch (error) {
     logger.error('Error in message processing', error as Error, logContext)
-    onError?.(error)
+    onError?.(callbackError ?? error)
     throw error
   } finally {
     signal?.removeEventListener('abort', onAbort)

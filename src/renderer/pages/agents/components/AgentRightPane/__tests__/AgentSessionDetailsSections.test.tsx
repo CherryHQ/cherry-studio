@@ -20,7 +20,7 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 afterEach(() => vi.restoreAllMocks())
 
 function status(runTasks: AgentRunTask[]): AgentRightPaneStatus {
-  return { runTasks, tasks: [], completedTaskCount: 0, totalTaskCount: 0, artifacts: [] }
+  return { runTasks, tasks: [], completedTaskCount: 0, totalTaskCount: 0, isTaskPlanActive: false, artifacts: [] }
 }
 
 // Catches SDK task types disappearing or being counted twice in different sections.
