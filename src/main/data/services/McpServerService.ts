@@ -17,7 +17,6 @@ import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -132,7 +131,6 @@ export class McpServerService {
    */
   create(dto: CreateMcpServerDto): McpServer {
     this.validateName(dto.name)
-    this.validateQVerisConfiguration({ name: dto.name, env: dto.env, isActive: dto.isActive ?? false })
 
     const { sortOrder, isActive, ...rest } = dto
 
@@ -156,7 +154,6 @@ export class McpServerService {
       const names = new Set<string>()
       for (const dto of dtos) {
         this.validateName(dto.name)
-        this.validateQVerisConfiguration({ name: dto.name, env: dto.env, isActive: dto.isActive ?? false })
         if (names.has(dto.name)) {
           throw DataApiErrorFactory.conflict(`MCP server '${dto.name}' already exists`, 'McpServer')
         }
@@ -201,12 +198,7 @@ export class McpServerService {
       }
 
       const existing = rowToMcpServer(existingRow)
-      const name = dto.name ?? existing.name
-      const env = dto.env ?? existing.env
-      const isActive = dto.isActive ?? existing.isActive
-
-      this.validateName(name)
-      this.validateQVerisConfiguration({ name, env, isActive })
+      this.validateName(dto.name ?? existing.name)
 
       const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
         typeof mcpServerTable.$inferInsert
@@ -280,14 +272,6 @@ export class McpServerService {
   private validateName(name: string): void {
     if (!name?.trim()) {
       throw DataApiErrorFactory.validation({ name: ['Name is required'] })
-    }
-  }
-
-  private validateQVerisConfiguration(server: Pick<McpServer, 'name' | 'env' | 'isActive'>): void {
-    // An API key authenticates via Bearer; without one the hosted endpoint falls back
-    // to MCP OAuth sign-in, so an empty key is a valid configuration.
-    if (server.name === BuiltinMcpServerNames.qveris && server.isActive && !server.env?.QVERIS_API_KEY?.trim()) {
-      logger.info('QVeris enabled without an API key; MCP OAuth sign-in will be used')
     }
   }
 }

@@ -578,8 +578,17 @@ export class McpRuntimeService extends BaseService {
   }
 
   public async listTools(serverId: string, cacheMode: CacheMode = 'use'): Promise<Tool[]> {
+    return this.listToolsWithContext(serverId, null, cacheMode)
+  }
+
+  /** Same as `listTools`, but the caller can open the OAuth sign-in browser window. */
+  public async listToolsWithContext(
+    serverId: string,
+    requestContext: McpInteractionContext | null,
+    cacheMode: CacheMode = 'use'
+  ): Promise<Tool[]> {
     const server = this.getServerById(serverId)
-    const connection = await this.getOrCreateConnection(server, null)
+    const connection = await this.getOrCreateConnection(server, requestContext)
     const tools = await connection.listTools(cacheMode)
     if (this.connections.get(this.getServerKey(server)) !== connection)
       throw new DOMException('MCP connection replaced', 'AbortError')

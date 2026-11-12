@@ -19,6 +19,7 @@ import { t } from '@main/i18n'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { buildStdioEnvironment } from '../mcpLaunch'
 import { resolveStdioLaunch } from '../mcpStdioLaunch'
@@ -47,6 +48,16 @@ function transportCandidates(server: McpServer): McpServerType[] | null {
   if (server.type === 'sse') return ['sse', 'streamableHttp']
   if (server.type === 'streamableHttp') return ['streamableHttp', 'sse']
   return null
+}
+
+/**
+ * QVeris prefers OAuth sign-in; its static Bearer header (from QVERIS_API_KEY) is only a
+ * fallback credential, so the OAuth provider stays attached and a cached token overrides it.
+ */
+function prefersOAuth(server: Pick<McpServer, 'name' | 'headers'>): boolean {
+  if (server.name === BuiltinMcpServerNames.qveris) return true
+  // `headers` reaches here unnormalized, so match Authorization case-insensitively.
+  return !Object.keys(server.headers ?? {}).some((key) => key.toLowerCase() === 'authorization')
 }
 
 function isTransportFallbackError(error: unknown): boolean {
@@ -118,7 +129,7 @@ export async function createExternalMcpConnection({
     serverUrlHash: oauthServerUrlHash(server.baseUrl || '')
   })
   const headers = mergeHeaders(defaultAppHeaders(), server.headers)
-  const useOAuth = !('authorization' in headers)
+  const useOAuth = prefersOAuth(server)
   const args = [...(server.args || [])]
   const lifetime = new AbortController()
   type AuthOperation = { signal: AbortSignal; lease?: McpAuthorizationLease }
@@ -385,5 +396,6 @@ export async function createExternalMcpConnection({
 export const externalMcpConnectionInternals = {
   isLegacyProbeRejection,
   isTransportFallbackError,
-  transportCandidates
+  transportCandidates,
+  prefersOAuth
 }

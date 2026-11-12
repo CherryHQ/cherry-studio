@@ -36,15 +36,12 @@ export function resolveBuiltinExternalMcpServer(server: McpServer): McpServer {
         headers: { ...server.headers, APP: 'Cherry Studio' }
       }
     case BuiltinMcpServerNames.qveris: {
-      // With no QVERIS_API_KEY the hosted endpoint falls back to MCP OAuth discovery
-      // (https://qveris.ai/hosted-mcp), handled by ExternalMcpConnection's authProvider.
+      // QVeris prefers MCP OAuth sign-in (https://qveris.ai/hosted-mcp). The API key is only
+      // a fallback credential: ExternalMcpConnection keeps the OAuth provider attached even
+      // when this header exists, and a cached OAuth token overrides the static Bearer header.
+      const resolved = { ...server, type: 'streamableHttp' as const }
       const apiKey = server.env?.QVERIS_API_KEY?.trim()
-      if (!apiKey) return { ...server, type: 'streamableHttp' }
-      return {
-        ...server,
-        type: 'streamableHttp',
-        headers: { ...server.headers, Authorization: `Bearer ${apiKey}` }
-      }
+      return apiKey ? { ...resolved, headers: { ...resolved.headers, Authorization: `Bearer ${apiKey}` } } : resolved
     }
     default:
       return server

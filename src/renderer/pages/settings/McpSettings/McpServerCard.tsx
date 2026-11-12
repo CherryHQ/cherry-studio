@@ -64,9 +64,6 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 
   const handleToggleActive = useCallback(
     async (active: boolean) => {
-      // Without an API key QVeris falls back to OAuth sign-in; the connection flow
-      // opens the browser on the first 401, so the toggle proceeds either way.
-
       let serverForUpdate = server
       if (active) {
         const trustedServer = await ensureServerTrusted(server)

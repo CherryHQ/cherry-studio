@@ -324,9 +324,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       return
     }
 
-    // Without an API key QVeris falls back to OAuth sign-in; the connection flow
-    // opens the browser on the first 401, so the toggle proceeds either way.
-
     const isValid = await form.trigger()
     if (!isValid) {
       return

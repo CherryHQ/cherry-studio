@@ -98,6 +98,19 @@ describe('ExternalMcpConnection transport fallback policy', () => {
     ).toBe(false)
     expect(externalMcpConnectionInternals.isTransportFallbackError(new Error('network unavailable'))).toBe(false)
   })
+
+  it('keeps OAuth enabled for QVeris even when an API-key Bearer header is configured', () => {
+    // QVeris prefers OAuth sign-in; the static Bearer header is only a fallback credential.
+    const qveris = {
+      name: '@cherry/qveris',
+      headers: { Authorization: 'Bearer fixture' }
+    } as unknown as McpServer
+    expect(externalMcpConnectionInternals.prefersOAuth(qveris)).toBe(true)
+
+    const manual = { ...qveris, name: 'manual-server' }
+    expect(externalMcpConnectionInternals.prefersOAuth(manual)).toBe(false)
+    expect(externalMcpConnectionInternals.prefersOAuth({ ...qveris, headers: {} })).toBe(true)
+  })
 })
 
 describe('ExternalMcpConnection legacy probe rejection', () => {
