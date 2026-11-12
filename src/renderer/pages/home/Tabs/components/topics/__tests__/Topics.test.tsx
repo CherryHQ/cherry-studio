@@ -1626,7 +1626,7 @@ describe('Topics', () => {
     expect(menuContent).not.toHaveTextContent('Edit Assistant')
 
     expect(Array.from(menuContent?.querySelectorAll('[data-testid="context-menu-separator"]') ?? [])).toHaveLength(2)
-    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' })).toBeEnabled()
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: /^Archive\b/ })).toBeEnabled()
     expect(within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ })).toBeEnabled()
   })
 
@@ -2175,7 +2175,7 @@ describe('Topics', () => {
     fireEvent.contextMenu(getByText('Alpha topic'))
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: /^Archive\b/ }))
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
     expect(confirmActionShow).not.toHaveBeenCalled()
@@ -2202,7 +2202,7 @@ describe('Topics', () => {
     fireEvent.contextMenu(getByText('Alpha topic'))
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: /^Archive\b/ }))
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
 
