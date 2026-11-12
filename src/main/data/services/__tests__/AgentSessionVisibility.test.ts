@@ -123,13 +123,15 @@ describe('background session isolation', () => {
     const ids: string[] = []
     let cursor: string | undefined
     do {
-      const page = agentSessionService.listByCursor({ limit: 1, cursor })
+      const page = agentSessionService.listByCursor({ scope: 'ordinary', limit: 1, cursor })
       ids.push(...page.items.map((row) => row.id))
       cursor = page.nextCursor
     } while (cursor)
     expect(ids).toEqual([first.id, second.id])
     expect(agentSessionService.getLatestActive()?.id).toBe(second.id)
-    expect(agentSessionService.listByCursor({ agentId: 'agent' }).items.map((row) => row.id)).toEqual(ids)
+    expect(
+      agentSessionService.listByCursor({ scope: 'ordinary', agentId: 'agent' }).items.map((row) => row.id)
+    ).toEqual(ids)
 
     dbh.db.update(agentSessionTable).set({ agentId: null }).run()
     expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe(second.id)
@@ -188,11 +190,20 @@ describe('background session isolation', () => {
     const ids: string[] = []
     let cursor: string | undefined
     do {
-      const page = agentSessionService.listByCursor({ agentId: 'agent', limit: 1, cursor })
+      const page = agentSessionService.listByCursor({ scope: 'ordinary', agentId: 'agent', limit: 1, cursor })
       ids.push(...page.items.map((row) => row.id))
       cursor = page.nextCursor
     } while (cursor)
     expect(ids).toEqual([ordinary.id])
+    const discovered: string[] = []
+    cursor = undefined
+    do {
+      const page = agentSessionService.listByCursor({ scope: 'all-conversations', agentId: 'agent', limit: 1, cursor })
+      discovered.push(...page.items.map((row) => row.id))
+      cursor = page.nextCursor
+    } while (cursor)
+    expect(discovered[0]).toBe(perRun.id)
+    expect(new Set(discovered)).toEqual(new Set([ordinary.id, sticky.id, perRun.id, legacy.id]))
     expect(agentSessionService.getLatestActive()?.id).toBe(ordinary.id)
     expect(agentSessionService.getLatestActive({ agentId: 'agent' })?.id).toBe(ordinary.id)
     for (const session of [sticky, perRun, legacy]) {
@@ -208,7 +219,9 @@ describe('background session isolation', () => {
           params: { sessionId: session.id }
         })
       ).resolves.toMatchObject({ id: session.id })
-      expect(agentSessionService.listByCursor({ ids: [session.id] }).items.map((row) => row.id)).toEqual([session.id])
+      expect(
+        agentSessionService.listByCursor({ scope: 'ordinary', ids: [session.id] }).items.map((row) => row.id)
+      ).toEqual([session.id])
     }
     await expect(
       agentSessionHandlers['/agent-sessions/:sessionId'].GET({
@@ -217,7 +230,9 @@ describe('background session isolation', () => {
       })
     ).resolves.toMatchObject({ id: ordinary.id })
     agentSessionService.delete(perRun.id)
-    expect(agentSessionService.listByCursor({ inTrash: true }).items.map((row) => row.id)).toEqual([perRun.id])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary', inTrash: true }).items.map((row) => row.id)).toEqual([
+      perRun.id
+    ])
   })
 
   it('keeps background sessions out of both active and trash conversation lists', () => {
@@ -229,8 +244,13 @@ describe('background session isolation', () => {
       dbh.db.update(agentSessionTable).set({ deletedAt: Date.now() }).where(eq(agentSessionTable.id, session.id)).run()
     }
 
-    expect(agentSessionService.listByCursor().items.map((row) => row.id)).toEqual([active.id])
-    expect(agentSessionService.listByCursor({ inTrash: true }).items.map((row) => row.id)).toEqual([trashed.id])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((row) => row.id)).toEqual([active.id])
+    expect(agentSessionService.listByCursor({ scope: 'all-conversations' }).items.map((row) => row.id)).toEqual([
+      active.id
+    ])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary', inTrash: true }).items.map((row) => row.id)).toEqual([
+      trashed.id
+    ])
     expect(agentSessionService.search({ q: 'needle', limit: 10 }).map((row) => row.id)).toEqual([active.id])
     expect(agentSessionService.listAddressableByCursor({}).items.map((row) => row.sessionId)).toEqual([active.id])
     expect(agentSessionService.getById(background.id).id).toBe(background.id)
@@ -285,7 +305,9 @@ describe('background session isolation', () => {
     expect(placeholder.created).toBe(true)
     expect(placeholder.session.id).not.toBe(background.id)
     expect(agentSessionService.getById(background.id).id).toBe(background.id)
-    expect(agentSessionService.listByCursor().items.map((row) => row.id)).toEqual([placeholder.session.id])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((row) => row.id)).toEqual([
+      placeholder.session.id
+    ])
   })
 
   it('excludes background metadata and message results from discovery, including short-term search', () => {

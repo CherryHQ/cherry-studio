@@ -778,7 +778,9 @@ export class AgentSessionService {
    * one pagination contract; recency ordering for the time-grouped view is
    * applied by the renderer over the loaded list.
    */
-  listByCursor(query: ListAgentSessionsQuery = {}): CursorPaginationResponse<AgentSessionEntity> {
+  listByCursor(
+    query: ListAgentSessionsQuery & { scope: 'ordinary' | 'all-conversations' }
+  ): CursorPaginationResponse<AgentSessionEntity> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
@@ -786,8 +788,8 @@ export class AgentSessionService {
     const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
     const inTrash = query.inTrash === true
-    // Explicit ID lookups also serve task history; only discovery lists hide task sessions.
-    const taskFilter = inTrash || query.ids ? undefined : ordinaryConversationFilter
+    const taskFilter =
+      query.scope === 'all-conversations' || inTrash || query.ids ? undefined : ordinaryConversationFilter
     const activeAgentFilter = !inTrash && query.agentId ? isNotNull(agentsTable.id) : undefined
 
     const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []

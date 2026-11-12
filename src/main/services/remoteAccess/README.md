@@ -35,6 +35,7 @@ listener flushes pending text while the session still exists.
 | `agentHandlers.ts` | Every `agent.*` method, including durable command receipts |
 | `agentPagination.ts` | Page byte budget: projected DTO sizing, offset prefixes and keyset query retries |
 | `agentQueries.ts` | Persisted sessions/messages/parts/interactions projected onto wire DTOs |
+| `agentTaskQueries.ts` | Task and run owner queries projected onto stable Task DTOs, bounded pages and prompt reads |
 | `agentJournal.ts` | Shared per-session journal: stream listener → protocol events, checkpoints, epoch |
 | `agentSubscriptions.ts` | Connection-private subscriptions: prepare, activate, ack credit, reset |
 
@@ -64,6 +65,17 @@ key store disappears is an error, since replacing it would unpair every device.
 
 SQLite writes stay in their owning data services. Agent execution stays in the
 existing stream manager and runtime. No relay service is provided here.
+
+Task reads use `AgentTaskService` for visibility, status, execution facts and saved
+result ownership. The adapter owns only wire projection, cursors and content references;
+it persists no task state and starts no runtime. The complete Task handler map is
+derived from protocol method keys and registered through the existing per-call Agent
+authorization check. See [Task queries](../../../../packages/remote-protocol/README.md#task-queries).
+
+Session discovery explicitly requests `all-conversations`, including task results
+for existing mobile clients. Desktop DataApi uses `ordinary`. Both scopes preserve
+pin ordering and exclude background sessions; explicit IDs and trash queries retain
+their existing behavior.
 
 Discovery publishes only the eligible interface addresses passed to Bonjour, excluding scoped and link-local IPv6.
 The pinned Bonjour patch adds an optional address allowlist to record generation; the same list is used for publication and withdrawal.

@@ -370,6 +370,7 @@ export function listSessions(query: { agentId?: string; workspaceId?: string; cu
 } {
   const page = notFound(() =>
     agentSessionService.listByCursor({
+      scope: 'all-conversations',
       agentId: query.agentId,
       workspaceId: query.workspaceId,
       cursor: query.cursor,

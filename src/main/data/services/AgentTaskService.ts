@@ -61,6 +61,22 @@ type TaskOwnerStateChange = {
   deletedSchedules: JobScheduleSnapshot[]
 }
 
+export type TaskRunRecord = Pick<
+  JobSnapshot,
+  'id' | 'status' | 'createdAt' | 'scheduledAt' | 'startedAt' | 'finishedAt' | 'cancelRequested' | 'error'
+> & {
+  taskId: string
+  summary: string | null
+  outcome: 'executed' | 'skipped' | 'unknown'
+  resultLocation: { kind: 'none' } | { kind: 'session'; sessionId: string } | { kind: 'unavailable' }
+}
+
+function taskRunSessionId(job: JobSnapshot): string | null {
+  const saved = job.metadata.sessionId
+  const legacy = isPlainRecord(job.output) ? job.output.sessionId : undefined
+  return typeof saved === 'string' ? saved : typeof legacy === 'string' ? legacy : null
+}
+
 function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate | null {
   if (typeof value !== 'object' || value === null) return null
 
@@ -425,7 +441,7 @@ export class AgentTaskService {
     }
   }
 
-  private queryTasks(
+  queryTasks(
     options: ListOptions & { includeHeartbeat?: boolean; agentId?: string; status?: ListTasksQuery['status'] }
   ): {
     tasks: ScheduledTaskEntity[]
@@ -457,7 +473,9 @@ export class AgentTaskService {
       )
     })
 
-    const sorted = [...filtered].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    const sorted = [...filtered].sort(
+      (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)
+    )
     const sliced =
       limit !== undefined
         ? offset !== undefined
@@ -507,6 +525,57 @@ export class AgentTaskService {
     }
   }
 
+  listTaskRuns(taskId: string, options: { limit: number; offset?: number }): { runs: TaskRunRecord[]; total: number } {
+    const task = this.getTaskById(taskId)
+    if (!task) throw DataApiErrorFactory.notFound('Task', taskId)
+    const filter = { type: AGENT_TASK_TYPE, scheduleId: taskId }
+    const jobs = jobService.list({ ...filter, limit: Math.min(options.limit, 100), offset: options.offset })
+    return { runs: this.toTaskRunRecords(task, jobs), total: jobService.count(filter) }
+  }
+
+  getTaskRun(taskId: string, runId: string): TaskRunRecord {
+    const task = this.getTaskById(taskId)
+    if (!task) throw DataApiErrorFactory.notFound('Task', taskId)
+    const job = jobService.getById(runId)
+    if (!job || job.type !== AGENT_TASK_TYPE || job.scheduleId !== taskId)
+      throw DataApiErrorFactory.notFound('Task run', runId)
+    return this.toTaskRunRecords(task, [job])[0]
+  }
+
+  private toTaskRunRecords(task: ScheduledTaskEntity, jobs: JobSnapshot[]): TaskRunRecord[] {
+    const ids = [...new Set(jobs.flatMap((job) => taskRunSessionId(job) ?? []))]
+    const readable = new Set(
+      ids.length === 0
+        ? []
+        : agentSessionService
+            .listByCursor({ scope: 'all-conversations', agentId: task.agentId, ids, limit: 100 })
+            .items.map((session) => session.id)
+    )
+    return jobs.map((job) => {
+      const sessionId = taskRunSessionId(job)
+      const output = isPlainRecord(job.output) ? job.output : null
+      const kind = output?.kind
+      return {
+        id: job.id,
+        taskId: task.id,
+        status: job.status,
+        createdAt: job.createdAt,
+        scheduledAt: job.scheduledAt,
+        startedAt: job.startedAt,
+        finishedAt: job.finishedAt,
+        cancelRequested: job.cancelRequested,
+        error: job.error,
+        summary: typeof output?.result === 'string' ? output.result : null,
+        outcome: kind === 'executed' || kind === 'skipped' ? kind : 'unknown',
+        resultLocation: !sessionId
+          ? { kind: 'none' }
+          : readable.has(sessionId)
+            ? { kind: 'session', sessionId }
+            : { kind: 'unavailable' }
+      }
+    })
+  }
+
   // ------------------------------------------------------------------
   // Mappers (snapshot → entity)
   // ------------------------------------------------------------------
@@ -542,9 +611,8 @@ export class AgentTaskService {
   }
 
   private toTaskRunLogEntity(job: JobSnapshot): TaskRunLogEntity {
-    const output = job.output as { result?: string; sessionId?: string } | null
-    // New runs persist the link before execution; older v2 job rows only have it in output.
-    const sessionId = job.metadata.sessionId ?? output?.sessionId
+    const output = job.output
+    const sessionId = taskRunSessionId(job)
     const startedAt = job.startedAt ?? job.scheduledAt
     // A cancel-requested row's fate is sealed (live cancel and startup recovery
     // both end it as cancelled) — show the outcome before the row settles.
@@ -571,11 +639,16 @@ export class AgentTaskService {
     return {
       id: job.id,
       scheduleId: job.scheduleId ?? '',
-      sessionId: typeof sessionId === 'string' ? sessionId : null,
+      sessionId,
       startedAt,
       durationMs,
       status,
-      result: typeof output?.result === 'string' ? output.result : output != null ? JSON.stringify(output) : null,
+      result:
+        isPlainRecord(output) && typeof output.result === 'string'
+          ? output.result
+          : output != null
+            ? JSON.stringify(output)
+            : null,
       error: job.error?.message ?? null
     }
   }

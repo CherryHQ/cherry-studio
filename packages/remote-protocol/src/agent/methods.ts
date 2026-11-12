@@ -15,6 +15,7 @@ import {
   partSchema,
   sessionSchema
 } from './resources'
+import { taskMethods } from './tasks'
 import {
   uploadMetadataSchema,
   uploadReferenceSchema,
@@ -33,6 +34,7 @@ const session = { sessionId: opaqueId }
 const command = { commandId: opaqueId, ...session }
 const subscription = { subscriptionId: opaqueId }
 export const agentMethods = {
+  ...taskMethods,
   'agent.agents.list': method(
     z.strictObject(pageParams),
     pageOf(
