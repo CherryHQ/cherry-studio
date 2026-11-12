@@ -110,9 +110,11 @@ type TaskDetail = TaskSummary & {
 
 ### 恢复现有会话发现
 
-在内部 `AgentSessionService.listByCursor` 查询中要求 `scope: ordinary | all-conversations`，移除默认参数。公开 DataApi 和 remote 请求 schema 保持不变。桌面 DataApi handler 显式选择 `ordinary`，remote adapter 选择 `all-conversations`。保留显式 ID/回收站查询、置顶排序、可见性和 background 会话排除。更新全部直接调用方及相关消费者测试，让遗漏选择在类型检查时失败。
+在内部 `AgentSessionService.listByCursor` 查询中要求 `scope: ordinary | all-conversations`，移除默认参数。公开 DataApi schema 不变，已有 remote 请求保持兼容。桌面 DataApi handler 显式选择 `ordinary`，remote adapter 选择 `all-conversations`。保留显式 ID/回收站查询、置顶排序、可见性和 background 会话排除。更新全部直接调用方及相关消费者测试，让遗漏选择在类型检查时失败。
 
-现有会话 cursor 表示位置续查，不是快照。保留其编码；修复前获取的 cursor 在正常从第一页刷新前可能看不到新增可见项。不为本次修复建立 cursor 版本迁移。
+为 `agent.sessions.list` 增加可选 `taskId`。`AgentTaskService.listTaskSessions` 解析可见 Agent 任务，再委托 `AgentSessionService.listByCursor`，在置顶和普通分页前按已有 `session.taskId` 关系筛选。Agent、工作区条件与任务条件取交集；缺失、隐藏或非 Agent 任务，以及冲突的 Agent 筛选均返回空页。只返回所属 Agent 下可读取的 conversation。查询同时包含新建和复用会话，不依赖 Job 记录是否保留；它与某次执行的结果位置、任务当前的复用目标不同。不新增表或关联关系。
+
+现有会话 cursor 表示位置续查，不是快照。保留其编码；修复前获取的 cursor 在正常从第一页刷新前可能看不到新增可见项。修改筛选条件时从第一页重新查询。旧主机可能拒绝新增的 `taskId` 参数，不能静默去掉该条件重试并展示无关会话。本次补充不建立 cursor 版本迁移或新增能力标志。
 
 ### 逐文件实施顺序
 
@@ -169,7 +171,7 @@ RPC 场景使用已配对且获 Agent 授权的客户端：任务列表 → 详�
 - AC2 — 任务列表在确定性分页前应用 Agent 可见性、heartbeat 排除及四种状态筛选，覆盖多页与组合筛选。 (verification: unit + RPC; owner: task data implementer)
 - AC3 — 任务列表与详情从业务所有者派生值，包含触发器和更新时间；公开字段独立定义，不序列化凭据、原始 Job 载荷或绝对路径。 (verification: unit + protocol; owner: protocol implementer)
 - AC4 — queued、running、completed、failed、cancelled 执行保留真实开始/结束及取消事实，覆盖重试、启动前失败和旧输出记录。展示摘要有界、保留有效 Unicode，且独立于 outcome。 (verification: unit + RPC; owner: task data implementer)
-- AC5 — 执行查询验证请求中的任务，仅解析已保存且可读取的关联结果会话；未运行、会话删除、会话复用及历史保留场景均不回退到无关会话。 (verification: unit + RPC; owner: task data implementer)
+- AC5 — 执行查询验证请求中的任务，仅解析已保存且可读取的关联结果会话；未运行、会话删除、会话复用及历史保留场景均不回退到无关会话。按任务筛选会话在 Job 清理后仍返回新建和复用会话，在置顶/普通分页前应用归属、可见性和组合筛选，未知或隐藏任务返回空页。 (verification: unit + RPC; owner: task data implementer)
 - AC6 — 长提示词读取遵守 wire 预算，可检测包括同毫秒写入在内的内容替换，不混读版本，也不静默截断。 (verification: unit + RPC; owner: remote implementer)
 - AC7 — 仅有 configuration 授权、授权过期或被撤销时不能读取任务数据；五个方法全部经过现有授权边界。 (verification: RPC; owner: remote implementer)
 - AC8 — Task 方法缺少已注册的类型化 handler、遗漏内部查询 scope 或未处理业务状态分支时，类型检查失败。 (verification: typecheck; owner: contract implementer)
