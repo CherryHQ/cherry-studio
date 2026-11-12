@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import type { MessageExportView } from '@renderer/types/messageExport'
 
-import { getCitedWebSources, getMainTextContent, getNamingTextContent, getToolCitationExport, getWebSourcesMarkdown } from '../find'
+import {
+  getCitedWebSources,
+  getMainTextContent,
+  getNamingTextContent,
+  getToolCitationExport,
+  getWebSourcesMarkdown
+} from '../find'
 
 function createExportView(parts: MessageExportView['parts']): MessageExportView {
   return {
@@ -186,10 +192,13 @@ describe('getWebSourcesMarkdown', () => {
     ] as MessageExportView['parts'])
 
     expect(getWebSourcesMarkdown(message)).toBe('[1] [Beta](https://b.example)\n\n[2] [Alpha](https://a.example)')
-    expect(getCitedWebSources(message).map((citation) => citation.url)).toEqual(['https://b.example', 'https://a.example'])
+    expect(getCitedWebSources(message).map((citation) => citation.url)).toEqual([
+      'https://b.example',
+      'https://a.example'
+    ])
   })
 
-  it('escapes Markdown in titles, encodes unsafe URL characters, and falls back to the URL for untitled sources', () => {
+  it('escapes Markdown in titles, encodes unsafe URL characters, and retains the normalized host for untitled sources', () => {
     const message = createExportView([
       {
         type: 'tool-web_search',
@@ -205,10 +214,9 @@ describe('getWebSourcesMarkdown', () => {
     ] as MessageExportView['parts'])
 
     expect(getWebSourcesMarkdown(message)).toBe(
-      '[1] [Read \\[this\\] \\\\ now](https://x.example/a%20b%28c%29)\n\n[2] [https://plain.example](https://plain.example)'
+      '[1] [Read \\[this\\] \\\\ now](https://x.example/a%20b%28c%29)\n\n[2] [plain.example](https://plain.example)'
     )
   })
-})
 
   it('resolves a marker against priorCitationParts and lists that source', () => {
     const message: MessageExportView = {

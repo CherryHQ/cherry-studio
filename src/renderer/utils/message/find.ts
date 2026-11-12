@@ -189,7 +189,8 @@ export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
 }
 
 const escapeLinkText = (text: string): string => text.replace(/[\\[\]]/g, '\\$&')
-const escapeLinkDestination = (url: string): string => url.replace(/[ ()<>]/g, encodeURIComponent)
+const escapeLinkDestination = (url: string): string =>
+  url.replace(/[ ()<>]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)
 
 /** One `[N] [title](url)` line per cited webpage, keeping the answer's citation numbers (gaps included). */
 export const getWebSourcesMarkdown = (message: ExportableMessage): string =>
