@@ -877,8 +877,8 @@
     }
   ],
   "providers": {
-    "version": "7b17f7706c07b778",
-    "count": 67,
+    "version": "a6291a3a00ded246",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -995,6 +995,10 @@
       {
         "id": "omlx",
         "name": "oMLX"
+      },
+      {
+        "id": "rapid-mlx",
+        "name": "Rapid-MLX"
       },
       {
         "id": "openai",
