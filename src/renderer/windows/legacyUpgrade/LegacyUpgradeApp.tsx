@@ -88,7 +88,7 @@ export default function LegacyUpgradeApp({ screen }: { screen: LegacyUpgradeScre
                   onClick={() => void invoke(LegacyUpgradeChannels.Download, 'prerequisite')}>
                   {screen.downloadPrerequisite}
                 </Button>
-                {install?.enabled && (
+                {install?.enabled && !install.prerequisite && (
                   <Button
                     variant="link"
                     className="mt-2 ms-4 h-auto p-0"

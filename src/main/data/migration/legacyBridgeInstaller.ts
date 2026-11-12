@@ -26,10 +26,13 @@ import type { LegacyInstallState } from '@shared/types/legacyUpgrade'
 import { createLegacyBridgeProvider } from './legacyBridgeProvider'
 import {
   findLegacyBridgeTarget,
-  isLegacyBridgeCompatible,
+  getLegacyBridgeVersion,
+  LEGACY_PREREQUISITE_VERSION,
   type LegacyBridgeTarget,
+  type LegacyBridgeVersion,
   type LegacyLinuxPackageType
 } from './legacyBridgeTarget'
+import { isLegacyPortableDefaultProfile } from './legacyUpgrade'
 
 const logger = loggerService.withContext('LegacyBridgeInstaller')
 
@@ -47,18 +50,22 @@ export function getLegacyLinuxPackageType(): LegacyLinuxPackageType | undefined 
 export function getLegacyBridgeEligibility(profile: string): { prerequisite: boolean; target?: LegacyBridgeTarget } {
   let prerequisite = true
   try {
-    const compatible = isLegacyBridgeCompatible(
+    const version = getLegacyBridgeVersion(
       fs.readFileSync(getLegacyProfilePaths(profile).version, 'utf8'),
       process.platform
     )
-    if (!compatible) return { prerequisite: true }
-    prerequisite = false
-    if (!app.isPackaged || !isUsableDataDir(profile) || app.runningUnderARM64Translation) return { prerequisite: false }
-    const portable = process.platform === 'win32' && process.env.PORTABLE_EXECUTABLE_DIR !== undefined
+    if (!version) return { prerequisite }
+    prerequisite = version === LEGACY_PREREQUISITE_VERSION
+    if (!app.isPackaged || !isUsableDataDir(profile) || app.runningUnderARM64Translation) return { prerequisite }
+    const portableDir = process.platform === 'win32' ? process.env.PORTABLE_EXECUTABLE_DIR : undefined
+    const portable = portableDir !== undefined
     if (portable) {
       const executable = application.getPath('app.portable_executable')
-      if (!executable) return { prerequisite: false }
+      if (!executable) return { prerequisite }
       fs.accessSync(executable, fs.constants.R_OK | fs.constants.W_OK)
+    }
+    if (prerequisite && (!portableDir || !isLegacyPortableDefaultProfile(profile, portableDir))) {
+      return { prerequisite }
     }
     const linuxPackageType = getLegacyLinuxPackageType()
     if (process.platform === 'linux') {
@@ -70,8 +77,15 @@ export function getLegacyBridgeEligibility(profile: string): { prerequisite: boo
       if (!config?.publisherName?.length) return { prerequisite: false }
     }
     return {
-      prerequisite: false,
-      target: findLegacyBridgeTarget(getAppEdition(), process.platform, process.arch, linuxPackageType, portable)
+      prerequisite,
+      target: findLegacyBridgeTarget(
+        getAppEdition(),
+        process.platform,
+        process.arch,
+        linuxPackageType,
+        portable,
+        version
+      )
     }
   } catch (error) {
     logger.warn('Automatic bridge installation unavailable', error as Error)
@@ -160,6 +174,7 @@ export class LegacyBridgeInstaller {
   private restoreProfile?: () => void
 
   constructor(
+    private readonly version: LegacyBridgeVersion,
     private readonly createUpdater: () => AppUpdater,
     private readonly publish: (state: LegacyInstallState) => void,
     private readonly prepareProfile: () => () => void = () => () => {}
@@ -214,7 +229,7 @@ export class LegacyBridgeInstaller {
       updater.on('download-progress', onProgress)
       const result = await updater.checkForUpdates()
       if (token.cancelled || this.disposed) return
-      if (!result?.isUpdateAvailable || result.updateInfo.version !== '2.1.0')
+      if (!result?.isUpdateAvailable || result.updateInfo.version !== this.version)
         throw new Error('Pinned bridge is unavailable')
       this.update({ phase: 'downloading' })
       await updater.downloadUpdate(token)

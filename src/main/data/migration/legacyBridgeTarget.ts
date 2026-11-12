@@ -4,18 +4,42 @@ import type { AppEdition } from '@shared/types/appEdition'
 
 import targets from './legacyBridgeTargets.json'
 
+export const LEGACY_PREREQUISITE_VERSION = '1.9.12'
+export const LEGACY_UPGRADE_VERSION = '2.1.0'
+export type LegacyBridgeVersion = typeof LEGACY_PREREQUISITE_VERSION | typeof LEGACY_UPGRADE_VERSION
+
 export type LegacyLinuxPackageType = 'AppImage' | 'deb' | 'rpm'
 
-export type LegacyBridgeTarget = (typeof targets)[number]
+export type LegacyBridgeTarget = (typeof targets)[number] & { version: LegacyBridgeVersion }
+
+const prerequisiteTarget: LegacyBridgeTarget = {
+  version: LEGACY_PREREQUISITE_VERSION,
+  edition: 'global',
+  platform: 'win32',
+  arch: 'x64',
+  url: 'https://gitcode.com/CherryHQ/cherry-studio/releases/download/v1.9.12/Cherry-Studio-1.9.12-x64-portable.exe',
+  sha512: 'KxUIh8bapKKiCeXX0r97OMFe2o1SvZ1lUV7bw/Gc6YwaQecKKi9x1/L0EkyQuombtANNkUnmIRCy4ixNUDAiKA==',
+  size: 138986608,
+  releaseDate: '2026-07-05T09:35:42Z'
+}
 
 export function findLegacyBridgeTarget(
   edition: AppEdition,
   platform: string,
   arch: string,
   linuxPackageType: LegacyLinuxPackageType = 'AppImage',
-  portable = false
-) {
-  return targets.find(
+  portable = false,
+  version: LegacyBridgeVersion = LEGACY_UPGRADE_VERSION
+): LegacyBridgeTarget | undefined {
+  if (version === LEGACY_PREREQUISITE_VERSION) {
+    return portable &&
+      edition === prerequisiteTarget.edition &&
+      platform === prerequisiteTarget.platform &&
+      arch === prerequisiteTarget.arch
+      ? prerequisiteTarget
+      : undefined
+  }
+  const target = targets.find(
     (target) =>
       target.edition === edition &&
       target.platform === platform &&
@@ -23,11 +47,12 @@ export function findLegacyBridgeTarget(
       (platform !== 'linux' || target.url.endsWith(`.${linuxPackageType}`)) &&
       (platform !== 'win32' || target.url.endsWith(portable ? '-portable.exe' : '-setup.exe'))
   )
+  return target && { ...target, version }
 }
 
-export function isLegacyBridgeCompatible(history: string, platform: string): boolean {
+export function getLegacyBridgeVersion(history: string, platform: string): LegacyBridgeVersion | undefined {
   const os = { darwin: 'mac', win32: 'win', linux: 'linux' }[platform]
-  if (!os) return false
+  if (!os) return
   let lastTimestamp = -Infinity
   let lastLegacyVersion: string | undefined
   for (const line of history.trim().split('\n')) {
@@ -44,9 +69,13 @@ export function isLegacyBridgeCompatible(history: string, platform: string): boo
       !Number.isFinite(time) ||
       time < lastTimestamp
     )
-      return false
+      return
     lastTimestamp = time
     if (semver.major(version) === 1) lastLegacyVersion = version
   }
-  return lastLegacyVersion !== undefined && semver.gte(lastLegacyVersion, '1.9.12')
+  if (lastLegacyVersion) {
+    return semver.gte(lastLegacyVersion, LEGACY_PREREQUISITE_VERSION)
+      ? LEGACY_UPGRADE_VERSION
+      : LEGACY_PREREQUISITE_VERSION
+  }
 }

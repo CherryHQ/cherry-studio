@@ -14,7 +14,7 @@ import { validateSender } from '@main/core/security/validateSender'
 import { LegacyUpgradeChannels, type LegacyUpgradeScreen } from '@shared/types/legacyUpgrade'
 
 import { createLegacyBridgeUpdater, LegacyBridgeInstaller, prepareLegacyBridgeProfile } from './legacyBridgeInstaller'
-import type { LegacyBridgeTarget } from './legacyBridgeTarget'
+import { LEGACY_PREREQUISITE_VERSION, type LegacyBridgeTarget } from './legacyBridgeTarget'
 
 // Preboot has no lifecycle WindowManager or IpcApiService; like relocation,
 // this isolated window owns its IPC only until it closes.
@@ -45,14 +45,17 @@ export function showLegacyUpgradeWindow(
     })
     const installer = target
       ? new LegacyBridgeInstaller(
+          target.version,
           () => createLegacyBridgeUpdater(target),
           (state) => {
             if (!window.isDestroyed()) window.webContents.send(LegacyUpgradeChannels.State, state)
           },
-          () => {
-            if (!profile) throw new Error('Missing migration profile')
-            return prepareLegacyBridgeProfile(profile)
-          }
+          target.version === LEGACY_PREREQUISITE_VERSION
+            ? undefined
+            : () => {
+                if (!profile) throw new Error('Missing migration profile')
+                return prepareLegacyBridgeProfile(profile)
+              }
         )
       : undefined
     let updateQuitting = false

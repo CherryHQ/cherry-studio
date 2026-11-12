@@ -5,12 +5,13 @@ import type { AppUpdater } from 'electron-updater'
 import { describe, expect, it, vi } from 'vitest'
 
 import { LegacyBridgeInstaller } from '../legacyBridgeInstaller'
+import type { LegacyBridgeVersion } from '../legacyBridgeTarget'
 
-function fixture(prepareProfile?: () => () => void) {
+function fixture(prepareProfile?: () => () => void, version: LegacyBridgeVersion = '2.1.0') {
   let finishDownload!: () => void
   let token: CancellationToken | undefined
   const updater = Object.assign(new EventEmitter(), {
-    checkForUpdates: vi.fn(async () => ({ isUpdateAvailable: true, updateInfo: { version: '2.1.0' } })),
+    checkForUpdates: vi.fn(async () => ({ isUpdateAvailable: true, updateInfo: { version } })),
     downloadUpdate: vi.fn((next: CancellationToken) => {
       token = next
       return new Promise<void>((resolve) => {
@@ -20,14 +21,14 @@ function fixture(prepareProfile?: () => () => void) {
     quitAndInstall: vi.fn()
   })
   const changed = vi.fn()
-  const installer = new LegacyBridgeInstaller(() => updater as unknown as AppUpdater, changed, prepareProfile)
+  const installer = new LegacyBridgeInstaller(version, () => updater as unknown as AppUpdater, changed, prepareProfile)
   return { installer, updater, changed, finish: () => finishDownload(), token: () => token }
 }
 
 // These cases prevent canceled/failed downloads from reaching the destructive installer handoff.
 describe('bridge installation session', () => {
-  it('installs exactly once after the pinned download completes, without quitting the gate early', async () => {
-    const f = fixture()
+  it.each(['1.9.12', '2.1.0'] as const)('installs pinned %s exactly once after download completes', async (version) => {
+    const f = fixture(undefined, version)
     f.installer.start()
     f.installer.start()
     await vi.waitFor(() => expect(f.installer.state.phase).toBe('downloading'))
@@ -39,6 +40,15 @@ describe('bridge installation session', () => {
     f.installer.start()
     await f.installer.cancel()
     expect(f.updater.quitAndInstall).toHaveBeenCalledExactlyOnceWith(false, true)
+  })
+
+  it('rejects the migration release when the selected stage is the prerequisite', async () => {
+    const f = fixture(undefined, '1.9.12')
+    f.updater.checkForUpdates.mockResolvedValue({ isUpdateAvailable: true, updateInfo: { version: '2.1.0' } })
+    f.installer.start()
+    await vi.waitFor(() => expect(f.installer.state.phase).toBe('failed'))
+    expect(f.updater.downloadUpdate).not.toHaveBeenCalled()
+    expect(f.updater.quitAndInstall).not.toHaveBeenCalled()
   })
 
   it('cancels pending work and ignores late progress and completion', async () => {

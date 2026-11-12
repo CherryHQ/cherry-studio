@@ -2,11 +2,8 @@ import { app, dialog } from 'electron'
 
 import { application } from '@application'
 import { getLegacyBridgeEligibility, getLegacyLinuxPackageType } from '@data/migration/legacyBridgeInstaller'
-import {
-  findLegacyUpgradeProfile,
-  getLegacyUpgradeDownloadUrl,
-  LEGACY_UPGRADE_VERSION
-} from '@data/migration/legacyUpgrade'
+import { LEGACY_PREREQUISITE_VERSION, LEGACY_UPGRADE_VERSION } from '@data/migration/legacyBridgeTarget'
+import { findLegacyUpgradeProfile, getLegacyUpgradeDownloadUrl } from '@data/migration/legacyUpgrade'
 import { showLegacyUpgradeWindow } from '@data/migration/legacyUpgradeWindow'
 import { loggerService } from '@logger'
 import { isPortable } from '@main/core/platform'
@@ -45,6 +42,8 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
       linuxPackageType: getLegacyLinuxPackageType()
     }
     const eligibility = getLegacyBridgeEligibility(profile.path)
+    const prerequisiteTarget =
+      eligibility.target?.version === LEGACY_PREREQUISITE_VERSION ? eligibility.target : undefined
     await showLegacyUpgradeWindow(
       {
         title: t('dialog.legacy_upgrade.title', undefined, language),
@@ -52,24 +51,31 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
         detail: t('dialog.legacy_upgrade.detail', { version: LEGACY_UPGRADE_VERSION }, language),
         prerequisite: t('dialog.legacy_upgrade.prerequisite', undefined, language),
         download: t('dialog.legacy_upgrade.download', { version: LEGACY_UPGRADE_VERSION }, language),
-        downloadPrerequisite: t('dialog.legacy_upgrade.download', { version: '1.9.12' }, language),
+        downloadPrerequisite: t('dialog.legacy_upgrade.download', { version: LEGACY_PREREQUISITE_VERSION }, language),
         quit: t('dialog.legacy_upgrade.quit', undefined, language),
         installation: {
           enabled: !!eligibility.target,
           prerequisite: eligibility.prerequisite,
-          action: t('dialog.legacy_upgrade.install', undefined, language),
+          action: prerequisiteTarget
+            ? t('dialog.legacy_upgrade.install_prerequisite', { version: LEGACY_PREREQUISITE_VERSION }, language)
+            : t('dialog.legacy_upgrade.install', undefined, language),
           detail: t('dialog.legacy_upgrade.install_detail', undefined, language),
           cancel: t('dialog.legacy_upgrade.cancel', undefined, language),
           retry: t('dialog.legacy_upgrade.retry', undefined, language),
           preparing: t('dialog.legacy_upgrade.preparing', undefined, language),
           downloading: t('dialog.legacy_upgrade.downloading', undefined, language),
-          installing: t('dialog.legacy_upgrade.installing', undefined, language),
+          installing: t(
+            'dialog.legacy_upgrade.installing',
+            { version: eligibility.target?.version ?? LEGACY_UPGRADE_VERSION },
+            language
+          ),
           failed: t('dialog.legacy_upgrade.failed', undefined, language)
         }
       },
       {
         bridge: getLegacyUpgradeDownloadUrl(platform),
-        prerequisite: getLegacyUpgradeDownloadUrl({ ...platform, version: '1.9.12' })
+        prerequisite:
+          prerequisiteTarget?.url ?? getLegacyUpgradeDownloadUrl({ ...platform, version: LEGACY_PREREQUISITE_VERSION })
       },
       eligibility.target,
       profile.path

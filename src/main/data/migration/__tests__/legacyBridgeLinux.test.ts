@@ -101,6 +101,32 @@ describe('Linux bridge package continuity', () => {
     )
   })
 
+  it('advances a portable 1.9.11 profile only after 1.9.12 has recorded its launch', () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    vi.spyOn(process, 'arch', 'get').mockReturnValue('x64')
+    vi.stubEnv('PORTABLE_EXECUTABLE_DIR', root)
+    const exe = path.join(root, 'Cherry Studio Portable.exe')
+    fs.writeFileSync(exe, '')
+    const configFile = path.join(root, 'config.json')
+    vi.mocked(application.getPath).mockImplementation((key, filename) => {
+      if (key === 'app.portable_executable') return exe
+      if (key === 'v1.home_config_file') return configFile
+      return filename ? path.join(root, filename) : root
+    })
+    const profile = path.join(root, 'data')
+    const version = path.join(profile, 'version.log')
+    fs.mkdirSync(profile)
+    fs.writeFileSync(version, '1.9.11|win|prod|packaged|portable|2026-09-01T00:00:00.000Z')
+    expect(getLegacyBridgeEligibility(profile)).toMatchObject({ prerequisite: true, target: { version: '1.9.12' } })
+    fs.writeFileSync(configFile, JSON.stringify({ appDataPath: root }))
+    expect(getLegacyBridgeEligibility(profile)).toEqual({ prerequisite: true })
+    fs.unlinkSync(configFile)
+    fs.copyFileSync(version, path.join(root, 'version.log'))
+    expect(getLegacyBridgeEligibility(root)).toEqual({ prerequisite: true })
+    fs.appendFileSync(version, '\n1.9.12|win|prod|packaged|portable|2026-09-02T00:00:00.000Z')
+    expect(getLegacyBridgeEligibility(profile)).toMatchObject({ prerequisite: false, target: { version: '2.1.0' } })
+  })
+
   it('pins the selected custom directory only at handoff and restores the previous mapping on failure', () => {
     const previous = { '/another/executable': '/another/profile' }
     vi.mocked(bootConfigService.get).mockReturnValue(previous)

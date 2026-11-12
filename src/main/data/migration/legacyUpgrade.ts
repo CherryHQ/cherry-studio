@@ -11,10 +11,13 @@ import { getLegacyProfilePaths } from '@main/core/paths/legacyProfilePaths'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 
-import type { LegacyLinuxPackageType } from './legacyBridgeTarget'
+import {
+  LEGACY_PREREQUISITE_VERSION,
+  LEGACY_UPGRADE_VERSION,
+  type LegacyBridgeVersion,
+  type LegacyLinuxPackageType
+} from './legacyBridgeTarget'
 import { MIGRATION_V2_STATUS, migrationStatusSchema } from './migrationStatus'
-
-export const LEGACY_UPGRADE_VERSION = '2.1.0'
 
 export function getLegacyUpgradeDownloadUrl({
   platform,
@@ -29,7 +32,7 @@ export function getLegacyUpgradeDownloadUrl({
   arch: string
   translated: boolean
   portable: boolean
-  version?: typeof LEGACY_UPGRADE_VERSION | '1.9.12'
+  version?: LegacyBridgeVersion
   edition?: 'global' | 'cn'
   linuxPackageType?: LegacyLinuxPackageType
 }): string {
@@ -49,7 +52,7 @@ export function getLegacyUpgradeDownloadUrl({
     default:
       throw new Error(`Unsupported platform: ${platform}`)
   }
-  if (version === '1.9.12') {
+  if (version === LEGACY_PREREQUISITE_VERSION) {
     asset = asset.replace(/^(mac|win|linux)-/, '')
     if (platform === 'linux') {
       const legacyArch = {
@@ -60,7 +63,7 @@ export function getLegacyUpgradeDownloadUrl({
       asset = `${legacyArch}.${linuxPackageType}`
     }
   }
-  return `https://github.com/CherryHQ/cherry-studio/releases/download/v${version}/Cherry-Studio-${edition === 'cn' && version !== '1.9.12' ? 'CN-' : ''}${version}-${asset}`
+  return `https://github.com/CherryHQ/cherry-studio/releases/download/v${version}/Cherry-Studio-${edition === 'cn' && version !== LEGACY_PREREQUISITE_VERSION ? 'CN-' : ''}${version}-${asset}`
 }
 
 function statIfPresent(file: string) {
@@ -109,6 +112,19 @@ function sameLocation(a: string, b: string) {
   const normalize = (value: string) =>
     process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value)
   return normalize(a) === normalize(b)
+}
+
+export function isLegacyPortableDefaultProfile(profile: string, portableDir: string): boolean {
+  if (!sameLocation(profile, path.join(portableDir, 'data'))) return false
+  const configFile = application.getPath('v1.home_config_file')
+  if (!statIfPresent(configFile)) return true
+  const { appDataPath } = legacyConfigSchema.parse(JSON.parse(fs.readFileSync(configFile, 'utf8')))
+  const executable = path.join(portableDir, 'cherry-studio-portable.exe')
+  const configured =
+    typeof appDataPath === 'string'
+      ? appDataPath
+      : appDataPath?.find((entry) => entry.executablePath === executable)?.dataPath
+  return !configured || sameLocation(profile, configured)
 }
 
 function isPortableExecutable(executable: string) {

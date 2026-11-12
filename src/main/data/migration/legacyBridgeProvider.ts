@@ -7,7 +7,7 @@ import type { LegacyBridgeTarget } from './legacyBridgeTarget'
 export function createLegacyBridgeProvider(target: LegacyBridgeTarget): CustomPublishOptions {
   const file = { url: target.url, sha512: target.sha512, ...('size' in target ? { size: target.size } : {}) }
   const info: UpdateInfo = {
-    version: '2.1.0',
+    version: target.version,
     files: [file],
     path: target.url,
     sha512: target.sha512,

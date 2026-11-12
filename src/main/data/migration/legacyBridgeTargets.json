@@ -188,9 +188,9 @@
     "edition": "global",
     "platform": "win32",
     "arch": "x64",
-    "url": "https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-2.1.0-win-x64-portable.exe",
-    "sha512": "+BTOjYQ5Xo+LE2tFcnHn/sUVgQkqKLVcwlOPHBQzBe9tyYCwMLC4+nviyKm7fxClPd1UCIrPT3DudJaUZpQAMw==",
-    "size": 313453634,
+    "url": "https://gitcode.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-2.1.0-win-x64-portable.exe",
+    "sha512": "aAkLbyq81m5ofVFFH8DEN8xzMd1zKTarI53qrtRD6iTiTSNv606Tb95ajtCbpvwc04kC5ITZ7c7RIGqDhHZJxw==",
+    "size": 313589528,
     "releaseDate": "2026-09-18T10:16:10.274Z"
   },
   {
