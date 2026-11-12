@@ -1984,7 +1984,7 @@ describe('MessagePartsRenderer', () => {
           {
             type: 'dynamic-tool',
             toolCallId: 'report',
-            toolName: 'report_artifacts',
+            toolName: 'mcp__cherry-tools__report_artifacts',
             state: 'output-available',
             input: {
               summary: 'Created final outputs',
@@ -1999,6 +1999,11 @@ describe('MessagePartsRenderer', () => {
       )
 
       expect(screen.getByText('report.md')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+      expect(
+        screen.getByText('final answer').compareDocumentPosition(screen.getByText('report.md')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
 
       fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
       expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')

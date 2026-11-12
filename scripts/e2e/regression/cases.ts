@@ -276,7 +276,7 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation']
   },
   {
-    id: 'MP-152',
+    id: 'MP-153',
     title: 'Global install requires tool approval (deny, allow)',
     tasks: ['agents'],
     phase: 'agentRuntimes',
