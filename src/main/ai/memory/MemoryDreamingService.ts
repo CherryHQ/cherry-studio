@@ -28,7 +28,6 @@ import {
 import {
   admitExtraction,
   extractContextCandidates,
-  extractMemoryQuotes,
   finishExtraction,
   readExtractionRange,
   readExtractionSource,
@@ -465,6 +464,7 @@ export class MemoryDreamingService extends BaseService {
         )
       )
         return
+      source.contextHash = this.readRecentContext(source).hash
       if (!admitExtraction(source)) return
       if (this.extractions.length >= 32) {
         finishExtraction(source, 'skipped')
@@ -475,6 +475,18 @@ export class MemoryDreamingService extends BaseService {
     } catch {
       // Ineligible, deleted, or oversized conversations are not extraction sources.
     }
+  }
+
+  private readRecentContext(ticket: ExtractionTicket) {
+    return readExtractionRange(
+      { source: ticket.input, fromMessageId: '' },
+      Math.max(
+        this.extractionBoundary,
+        this.sourceBoundaries.get(ticket.entityKey) ?? 0,
+        this.sourceBoundaries.get(ticket.key) ?? 0
+      ),
+      true
+    )
   }
 
   private async extract(ticket: ExtractionTicket, ctx: JobContext<Record<string, never>>): Promise<unknown> {
@@ -493,38 +505,67 @@ export class MemoryDreamingService extends BaseService {
       if (!application.get('PreferenceService').get(GENERATION_KEY))
         throw new DOMException('Memory generation is disabled', 'AbortError')
       if (this.foregroundBusy()) throw new DOMException('Foreground work started', 'AbortError')
-      if (readExtractionSource(ticket.input).hash !== ticket.hash) throw new DreamingError('conflict')
+      if (this.readRecentContext(ticket).hash !== ticket.contextHash) throw new DreamingError('conflict')
       return undefined
     }
     try {
       assertCurrent()
-      const source = readExtractionSource(ticket.input)
-      revoke = source.authority.onRevoked?.(() => controller.abort('source-revoked'))
-      session = application.get('MemoryService').open({ scope, assertAuthorized: assertCurrent }, 'extraction', [
-        {
+      const source = this.readRecentContext(ticket)
+      revoke = source.source.authority.onRevoked?.(() => controller.abort('source-revoked'))
+      session = application.get('MemoryService').open(
+        { scope, assertAuthorized: assertCurrent },
+        'extraction',
+        source.messages.map((message) => ({
           kind: ticket.input.kind === 'assistant' ? 'chat' : 'agent',
           conversationId: ticket.input.kind === 'assistant' ? ticket.input.topicId : ticket.input.sessionId,
-          messageId: source.messageId,
-          sourceVersion: source.hash!
-        }
-      ])
-      const entry = await session.read(MEMORY_ENTRY)
-      if (!entry.receipt) throw new DreamingError('conflict')
+          messageId: message.id,
+          sourceVersion: message.version
+        }))
+      )
+      const paths = await session.list()
+      if (paths.length > 40) throw new DreamingError('budget')
+      const files: MemoryRead[] = []
+      let bytes = 0
+      for (const path of paths) {
+        const file = await session.read(path)
+        // A filtered view cannot authorize an append over protected entry metadata.
+        if (!file.receipt) throw new DreamingError('conflict')
+        bytes += Buffer.byteLength(file.content ?? '', 'utf8')
+        if (bytes > 32_000) throw new DreamingError('budget')
+        files.push(file)
+      }
+      const entry = files.find((file) => file.path === MEMORY_ENTRY)
+      if (!entry) throw new DreamingError('conflict')
       const start = readDreamingState(scope)
       start.status = 'running'
       start.lastRunAt = Date.now()
       start.reason = undefined
       writeDreamingState(start)
-      const content = await extractMemoryQuotes(ctx.jobId, source, entry.content ?? '', controller.signal, async () => {
+      const proposal = await extractContextCandidates(source, files, controller.signal, async () => {
         await session!.validateModelReads()
         return assertCurrent()
       })
+      const additions = [
+        ...new Set(
+          proposal.candidates
+            .filter((candidate) => candidate.action === 'add' && candidate.scope === 'personal')
+            .map((candidate) => candidate.text)
+        )
+      ].filter(
+        (text) => !files.some((file) => file.content?.includes(text) || file.content?.includes(JSON.stringify(text)))
+      )
+      const original = entry.content ?? ''
+      const content = additions.length
+        ? `${original}${original.endsWith('\n') || !original ? '' : '\n'}${additions.map((text) => `- ${JSON.stringify(text)}`).join('\n')}\n`
+        : original
       await session.validateModelReads()
       assertCurrent()
       const result = await session.commit(
         content === (entry.content ?? '') ? [] : [{ kind: 'write', receipt: entry.receipt, content }],
         async () => assertCurrent,
-        [entry.receipt]
+        files.map((file) => file.receipt),
+        undefined,
+        paths
       )
       if (result.error || result.files.some((file) => file.outcome !== 'applied' && file.outcome !== 'unchanged'))
         throw new DreamingError('conflict')
@@ -534,7 +575,12 @@ export class MemoryDreamingService extends BaseService {
       latest.reason = undefined
       latest.lastResult = { outcome: 'completed', finishedAt: Date.now() }
       writeDreamingState(latest)
-      return { extracted: result.files.filter((file) => file.outcome === 'applied').length }
+      return {
+        extracted: result.files.filter((file) => file.outcome === 'applied').length,
+        saved: additions.length,
+        outcomes: proposal.candidates.map(({ action }) => action),
+        batches: proposal.batches
+      }
     } catch (error) {
       const cancelled =
         controller.signal.aborted ||
@@ -549,7 +595,9 @@ export class MemoryDreamingService extends BaseService {
             ? error.reason
             : error instanceof MemoryError && error.code === 'backup-capacity'
               ? 'backup'
-              : 'unavailable'
+              : error instanceof MemoryError && error.code === 'limit'
+                ? 'budget'
+                : 'unavailable'
         latest.lastResult = {
           outcome: cancelled ? 'cancelled' : 'failed',
           finishedAt: Date.now(),

@@ -35,7 +35,7 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import { MemoryDreamingService } from '../MemoryDreamingService'
 import { needsDreaming, observeMemory, readDreamingState, writeDreamingState } from '../memoryDreamingState'
-import { serializeMemoryEntries } from '../memoryEntries'
+import { parseMemoryEntries, serializeMemoryEntries } from '../memoryEntries'
 import { extractContextCandidates, readExtractionRange } from '../memoryExtraction'
 import { memoryHash } from '../memoryFiles'
 import { MemoryService, type MemorySession } from '../MemoryService'
@@ -310,6 +310,34 @@ describe('memory organization lifecycle and commit fences', () => {
         }
       ]
     }
+  }
+
+  function automaticReply(candidates = [{ kind: 'preference', quote: 'I prefer concise answers.' }]) {
+    const input = generate.mock.calls.at(-1)![0]
+    const messages = JSON.parse(input.prompt!).messages as { id: string; role: string; text: string }[]
+    return JSON.stringify({
+      outcome: candidates.length ? 'candidates' : 'no_eligible',
+      reason: 'Fixture evidence',
+      candidates: candidates.map(({ kind, quote }) => ({
+        text: quote,
+        subject: 'user',
+        scope: ['project', 'customer', 'uncertain'].includes(kind) ? kind : 'personal',
+        kind: ['project', 'customer'].includes(kind) ? 'personal_fact' : kind,
+        conditions: '',
+        time: '',
+        usefulness: 'Personalize future assistance',
+        action: 'add',
+        reason: 'Explicit user evidence',
+        evidence: [
+          {
+            messageId:
+              messages.find((message) => message.role === 'user' && message.text.includes(quote))?.id ?? 'invalid',
+            quote
+          }
+        ],
+        existing: []
+      }))
+    })
   }
 
   it.each([true, false])('blocks preview for forgotten source (known=%s)', async (known) => {
@@ -710,6 +738,104 @@ describe('memory organization lifecycle and commit fences', () => {
     expect((await session.read('MEMORY.md')).content ?? '').toBe('')
   })
 
+  it.each(['independent', 'conflict', 'duplicate'] as const)(
+    'preserves dated facts and their own evidence after relation review: %s',
+    async (relation) => {
+      const texts =
+        relation === 'duplicate'
+          ? [
+              'I still need to collect my exchanged boots from Zara.',
+              'My exchanged boots are still waiting at Zara for pickup.'
+            ]
+          : [
+              'I ran 5K in 27:12 on February 1.',
+              relation === 'conflict'
+                ? 'Correction: my February 1 5K time was 25:50, not 27:12.'
+                : 'I ran 5K in 25:50 on March 1.'
+            ]
+      const messages = texts.map((text, id) => ({
+        id: String(id),
+        role: 'user',
+        version: `v${id}`,
+        createdAt: Date.UTC(2023, id + 1, 2),
+        text: text + ' '.repeat(7000)
+      }))
+      messages.splice(1, 0, { id: 'context', role: 'assistant', version: 'v0', createdAt: 0, text: 'x'.repeat(7000) })
+      let batch = 0
+      generate.mockImplementation(async (input) => {
+        const prompt = JSON.parse(input.prompt!)
+        if (prompt.messages) {
+          const id = batch++
+          return {
+            finishReason: 'stop',
+            text: JSON.stringify({
+              outcome: 'candidates',
+              reason: 'Useful personal event or pending errand',
+              candidates: [
+                {
+                  ...candidateReply(input).candidates[0],
+                  text: texts[id],
+                  subject: 'user',
+                  scope: 'personal',
+                  kind: relation === 'duplicate' ? 'personal_fact' : 'experience',
+                  conditions: '',
+                  time:
+                    relation === 'duplicate' ? '' : id === 0 || relation === 'conflict' ? '2023-02-01' : '2023-03-01',
+                  evidence: Array.from({ length: relation === 'conflict' ? 7 : 1 }, (_, n) => ({
+                    messageId: String(id),
+                    quote: texts[id] + ' '.repeat(n)
+                  }))
+                }
+              ]
+            })
+          }
+        }
+        expect(prompt.candidates.map((c: { evidence: { createdAt: number }[] }) => c.evidence[0].createdAt)).toEqual(
+          messages.filter((m) => m.role === 'user').map((m) => m.createdAt)
+        )
+        return {
+          finishReason: 'stop',
+          text: JSON.stringify({
+            groups: [
+              {
+                ids: [0, 1],
+                relation,
+                reason:
+                  relation === 'conflict'
+                    ? 'The later user statement corrects the February 1 time from 27:12 to 25:50.'
+                    : relation === 'duplicate'
+                      ? 'Same unfinished Zara pickup.'
+                      : 'Two separate dated races; both can be true.'
+              }
+            ]
+          })
+        }
+      })
+      const result = await extractContextCandidates(
+        { messages, hash: 'quality-fixture' },
+        [],
+        new AbortController().signal,
+        () => undefined
+      )
+      expect(result.candidates.map((c) => c.text)).toEqual(relation === 'duplicate' ? [texts[0]] : texts)
+      expect(result.candidates.map((c) => c.action)).toEqual(
+        relation === 'duplicate' ? ['add'] : relation === 'conflict' ? ['insufficient', 'insufficient'] : ['add', 'add']
+      )
+      if (relation === 'duplicate') {
+        expect(result.candidates[0].evidence.map((e) => e.messageId)).toEqual(['0', '1'])
+      } else {
+        result.candidates.forEach((c, id) => {
+          expect(c.evidence.every((e) => e.messageId === String(id) && e.version === `v${id}`)).toBe(true)
+          expect(c.evidence).toHaveLength(relation === 'conflict' ? 7 : 1)
+          expect(c.time).toBe(id === 0 || relation === 'conflict' ? '2023-02-01' : '2023-03-01')
+        })
+        if (relation === 'conflict') expect(result.candidates[1].reason).toContain('corrects the February 1 time')
+      }
+      expect(result.saveBlocked).toBe('forgetting_protection_required')
+      expect((await session.read('MEMORY.md')).content ?? '').toBe('')
+    }
+  )
+
   it.each(['subject', 'scope', 'kind', 'action', 'conditions', 'time', 'references', 'singleton'])(
     'retains original candidates and unrelated facts when a duplicate merge fails: %s',
     async (mismatch) => {
@@ -796,16 +922,122 @@ describe('memory organization lifecycle and commit fences', () => {
     }
   )
 
+  it.each(['save', 'edit-context', 'topic-change', 'conflict', 'exists', 'capacity'] as const)(
+    'runs continuous-context extraction through the real queue and store: %s',
+    async (scenario) => {
+      const { chat, range } = previewFixture()
+      const lastUserId = dbh.db
+        .select()
+        .from(messageTable)
+        .where(eq(messageTable.id, range.source.responseId))
+        .get()!.parentId!
+      dbh.db
+        .update(messageTable)
+        .set({ data: { parts: [{ type: 'text', text: '我每周三晚上游泳。' }] } })
+        .where(eq(messageTable.id, chat.user.id))
+        .run()
+      dbh.db
+        .update(messageTable)
+        .set({ data: { parts: [{ type: 'text', text: '这个安排从三月开始，出差时暂停。' }] } })
+        .where(eq(messageTable.id, lastUserId))
+        .run()
+      await save(scenario === 'capacity' ? 'x'.repeat(24990) : 'Existing entry.\n')
+      await save('Related old fact.', '.memories/facts.md')
+      const original = (await session.read('MEMORY.md')).content
+      generate.mockImplementationOnce(async (input) => {
+        const prompt = JSON.parse(input.prompt!)
+        expect(prompt.messages.map((m: { id: string }) => m.id)).toEqual([
+          chat.user.id,
+          chat.response.id,
+          dbh.db.select().from(messageTable).where(eq(messageTable.id, range.source.responseId)).get()!.parentId
+        ])
+        expect(prompt.existingMemory).toContainEqual({ path: '.memories/facts.md', content: 'Related old fact.' })
+        const candidate = {
+          ...candidateReply(input).candidates[0],
+          subject: '用户',
+          scope: 'personal',
+          kind: 'personal_fact',
+          conditions: '出差时暂停',
+          time: '三月开始',
+          text: '从三月开始，每周三晚上游泳，出差时暂停。',
+          action: scenario === 'conflict' || scenario === 'exists' ? scenario : 'add',
+          existing:
+            scenario === 'conflict' || scenario === 'exists'
+              ? [{ path: '.memories/facts.md', quote: 'Related old fact.' }]
+              : []
+        }
+        if (scenario === 'edit-context')
+          dbh.db
+            .update(messageTable)
+            .set({ data: { parts: [{ type: 'text', text: 'Edited previous turn' }] } })
+            .where(eq(messageTable.id, chat.user.id))
+            .run()
+        if (scenario === 'topic-change') await save('Changed related fact.', '.memories/facts.md')
+        return {
+          text: JSON.stringify({ outcome: 'candidates', reason: 'Cross-turn fact', candidates: [candidate] }),
+          finishReason: 'stop'
+        }
+      })
+      chats.fire({
+        topicId: chat.topicId,
+        turnId: range.source.responseId,
+        completedAt: Date.now(),
+        memoryResponseIds: [range.source.responseId]
+      })
+      if (['edit-context', 'topic-change', 'capacity'].includes(scenario)) {
+        await expect(dreaming.execute(job())).rejects.toBeInstanceOf(Error)
+        expect((await session.read('MEMORY.md')).content).toBe(original)
+      } else {
+        const added = scenario === 'save'
+        expect(await dreaming.execute(job())).toMatchObject({
+          saved: Number(added),
+          outcomes: [added ? 'add' : scenario]
+        })
+        expect((await session.read('MEMORY.md')).content).toBe(
+          added ? original + '- "从三月开始，每周三晚上游泳，出差时暂停。"\n' : original
+        )
+        if (added) {
+          const reader = memory.open({ scope, assertAuthorized: () => undefined })
+          expect((await reader.entry()).content).toContain('每周三晚上游泳，出差时暂停')
+          reader.dispose()
+        }
+      }
+    }
+  )
+
+  it('marks bounded context as incomplete and never crosses the generation boundary', async () => {
+    const { chat, range } = previewFixture()
+    dbh.db.update(messageTable).set({ createdAt: 1 }).where(eq(messageTable.id, chat.user.id)).run()
+    generate.mockImplementationOnce(async (input) => {
+      const prompt = JSON.parse(input.prompt!)
+      expect(prompt.leftContextIncomplete).toBe(true)
+      expect(prompt.messages).toHaveLength(1)
+      expect(prompt.messages[0].text).toContain('以后本机')
+      return {
+        text: JSON.stringify({ outcome: 'insufficient', reason: 'Missing antecedent', candidates: [] }),
+        finishReason: 'stop'
+      }
+    })
+    chats.fire({
+      topicId: chat.topicId,
+      turnId: range.source.responseId,
+      completedAt: Date.now(),
+      memoryResponseIds: [range.source.responseId]
+    })
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 0, batches: [{ outcome: 'insufficient' }] })
+    expect((await session.read('MEMORY.md')).content ?? '').toBe('')
+  })
+
   it('extracts authorized new user evidence with organization off, preserves facts, and recovers the actual append', async () => {
     await save('Existing fact with an exception.\n')
     await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
     const chat = conversation()
-    generate.mockResolvedValueOnce({
-      text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+    generate.mockImplementationOnce(async () => ({
+      text: automaticReply(),
       finishReason: 'stop'
-    })
+    }))
     chat.emit()
-    expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
+    expect(await dreaming.execute(job())).toMatchObject({ extracted: 1 })
     expect((await session.read('MEMORY.md')).content).toBe(
       'Existing fact with an exception.\n- "I prefer concise answers."\n'
     )
@@ -814,9 +1046,9 @@ describe('memory organization lifecycle and commit fences', () => {
       contextOwner: 'caller',
       requestOptions: { maxRetries: 0 }
     })
-    expect(JSON.parse(generate.mock.calls[0][0].prompt!)).toEqual({
-      userText: 'Please remember: I prefer concise answers.',
-      existingMemory: 'Existing fact with an exception.\n'
+    expect(JSON.parse(generate.mock.calls[0][0].prompt!)).toMatchObject({
+      messages: [{ id: chat.user.id, text: 'Please remember: I prefer concise answers.' }],
+      existingMemory: [{ path: 'MEMORY.md', content: 'Existing fact with an exception.\n' }]
     })
     expect(JSON.stringify(dbh.db.select().from(appStateTable).all())).not.toContain('concise answers')
     chat.emit()
@@ -838,13 +1070,13 @@ describe('memory organization lifecycle and commit fences', () => {
       generate.mockImplementationOnce(async () => {
         if (stage === 'running') rename()
         return {
-          text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+          text: automaticReply(),
           finishReason: 'stop'
         }
       })
       chat.emit()
       if (stage === 'queued') rename()
-      expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
+      expect(await dreaming.execute(job())).toMatchObject({ extracted: 1 })
       expect((await session.read('MEMORY.md')).content).toBe('- "I prefer concise answers."\n')
       chat.emit()
       expect(await dreaming.execute(job())).toEqual({ idle: true })
@@ -872,11 +1104,11 @@ describe('memory organization lifecycle and commit fences', () => {
       expect(await dreaming.execute(job())).toEqual({ idle: true })
       expect(generate).not.toHaveBeenCalled()
       other.emit()
-      generate.mockResolvedValueOnce({
-        text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+      generate.mockImplementationOnce(async () => ({
+        text: automaticReply(),
         finishReason: 'stop'
-      })
-      expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
+      }))
+      expect(await dreaming.execute(job())).toMatchObject({ extracted: 1 })
     }
   )
 
@@ -938,7 +1170,7 @@ describe('memory organization lifecycle and commit fences', () => {
     if (action === 'cancel') dreaming.cancel(scope)
     if (action === 'foreground') busy.mockReturnValue(true)
     response.resolve({
-      text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+      text: automaticReply(),
       finishReason: 'stop'
     })
     expect(await outcome).toBeInstanceOf(Error)
@@ -950,20 +1182,16 @@ describe('memory organization lifecycle and commit fences', () => {
     async (kind) => {
       await save('Original fact')
       conversation().emit()
-      generate.mockResolvedValueOnce({
-        text:
-          kind === 'unsupported'
-            ? '{"candidates":[{"kind":"preference","quote":"Assistant-only unsupported claim"}]}'
-            : kind === 'oversized'
-              ? JSON.stringify({ candidates: [{ kind: 'preference', quote: 'x'.repeat(501) }] })
-              : kind === 'invalid-json'
-                ? 'no'
-                : kind === 'missing-kind'
-                  ? '{"candidates":[{"quote":"I prefer concise answers."}]}'
-                  : kind === 'unknown-kind'
-                    ? '{"candidates":[{"kind":"global","quote":"I prefer concise answers."}]}'
-                    : '{"candidates":[]}',
-        finishReason: kind === 'truncated' ? 'length' : 'stop'
+      generate.mockImplementationOnce(async () => {
+        const result = JSON.parse(automaticReply())
+        if (kind === 'unsupported') result.candidates[0].evidence[0].quote = 'Assistant-only unsupported claim'
+        if (kind === 'oversized') result.candidates[0].text = 'x'.repeat(1001)
+        if (kind === 'missing-kind') delete result.candidates[0].kind
+        if (kind === 'unknown-kind') result.candidates[0].kind = 'global'
+        return {
+          text: kind === 'invalid-json' ? 'no' : JSON.stringify(result),
+          finishReason: kind === 'truncated' ? 'length' : 'stop'
+        }
       })
       await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'output' })
       expect((await session.read('MEMORY.md')).content).toBe('Original fact')
@@ -981,8 +1209,8 @@ describe('memory organization lifecycle and commit fences', () => {
       { kind: 'uncertain', quote: 'This might describe me or the customer.' }
     ]
     conversation(true, candidates.map(({ quote }) => quote).join(' ')).emit()
-    generate.mockResolvedValueOnce({ text: JSON.stringify({ candidates }), finishReason: 'stop' })
-    expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
+    generate.mockImplementationOnce(async () => ({ text: automaticReply(candidates), finishReason: 'stop' }))
+    expect(await dreaming.execute(job())).toMatchObject({ extracted: 1 })
     expect((await session.read('MEMORY.md')).content).toBe(
       'Existing preference.\n- "I prefer concise answers, except when debugging."\n- "I use PowerShell 7."\n'
     )
@@ -995,8 +1223,8 @@ describe('memory organization lifecycle and commit fences', () => {
       const before = await session.previewRecovery()
       const quote = 'Project Blue uses Java 21.'
       conversation(true, `Please remember: ${quote}`).emit()
-      generate.mockResolvedValueOnce({ text: JSON.stringify({ candidates: [{ kind, quote }] }), finishReason: 'stop' })
-      expect(await dreaming.execute(job())).toEqual({ extracted: 0 })
+      generate.mockImplementationOnce(async () => ({ text: automaticReply([{ kind, quote }]), finishReason: 'stop' }))
+      expect(await dreaming.execute(job())).toMatchObject({ extracted: 0 })
       expect((await session.read('MEMORY.md')).content).toBe('Existing preference.\n')
       expect((await session.previewRecovery())?.batchId).toBe(before?.batchId)
     }
@@ -1032,10 +1260,10 @@ describe('memory organization lifecycle and commit fences', () => {
     await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
     await application.get('PreferenceService').set('feature.memory.dreaming.enabled', false)
     response.resolve({
-      text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+      text: automaticReply(),
       finishReason: 'stop'
     })
-    expect(await outcome).toEqual({ extracted: 1 })
+    expect(await outcome).toMatchObject({ extracted: 1 })
   })
 
   it.each([
@@ -1103,7 +1331,7 @@ describe('memory organization lifecycle and commit fences', () => {
       .values({
         sessionId,
         role: 'assistant',
-        parentId: kind === 'preview' ? user.id : null,
+        parentId: kind === 'preview-unrelated-response' ? null : user.id,
         status: kind === 'failed' ? 'error' : 'success',
         data: { parts: [] },
         messageSnapshot: { id: agentId, name: 'Agent', model: { id: 'gpt-4o', name: 'Fixture', provider: 'fixture' } }
@@ -1160,7 +1388,7 @@ describe('memory organization lifecycle and commit fences', () => {
     generate.mockImplementationOnce(async () => {
       if (kind.endsWith('running')) changeSession()
       return {
-        text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+        text: automaticReply(),
         finishReason: 'stop'
       }
     })
@@ -1174,7 +1402,7 @@ describe('memory organization lifecycle and commit fences', () => {
     if (kind.endsWith('queued')) changeSession()
     const eligible = kind === 'desktop' || kind.startsWith('renamed')
     if (kind === 'restored-running') await expect(dreaming.execute(job())).rejects.toBeInstanceOf(Error)
-    else expect(await dreaming.execute(job())).toEqual(eligible ? { extracted: 1 } : { idle: true })
+    else expect(await dreaming.execute(job())).toMatchObject(eligible ? { extracted: 1 } : { idle: true })
     expect((await session.read('MEMORY.md')).content ?? '').toBe(eligible ? '- "I prefer concise answers."\n' : '')
   })
 
@@ -1251,13 +1479,20 @@ describe('memory organization lifecycle and commit fences', () => {
       if (action === 'external-edit')
         await writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'External edit')
       if (action === 'clear') await session.clear((await session.previewClear()).token, approve)
+      const beforeResponse = await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')
+      if (action === 'clear') {
+        expect(beforeResponse).not.toContain('Original fact')
+        expect(parseMemoryEntries(beforeResponse).filter((part) => typeof part !== 'string')).toMatchObject([
+          { status: 'forgotten', sources: [], text: '' }
+        ])
+      }
       response.resolve({
         text: '{"writes":[{"path":"MEMORY.md","content":"Stale model output"}],"deletes":[]}',
         finishReason: 'stop'
       })
       expect(await outcome).toBeInstanceOf(Error)
       expect(await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')).toBe(
-        action === 'external-edit' ? 'External edit' : action === 'clear' ? '' : 'Original fact'
+        action === 'external-edit' ? 'External edit' : action === 'clear' ? beforeResponse : 'Original fact'
       )
     }
   )
@@ -1400,7 +1635,7 @@ describe('memory organization lifecycle and commit fences', () => {
     await Promise.resolve()
     expect(generate).toHaveBeenCalledTimes(1)
     response.resolve({
-      text: '{"candidates":[{"kind":"preference","quote":"I prefer concise answers."}]}',
+      text: automaticReply(),
       finishReason: 'stop'
     })
     expect(await first).toBeInstanceOf(Error)
