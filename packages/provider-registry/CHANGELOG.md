@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.5.1
+
+### Patch Changes
+
+- [#24343](https://github.com/CherryHQ/cherry-studio/pull/24343) [`6cfe3be`](https://github.com/CherryHQ/cherry-studio/commit/6cfe3be3e9e87b5f74ab907fe75b49426c1598ea) Thanks [@DeJeune](https://github.com/DeJeune)! - Share the documented DeepSeek V4.1 Flash capacity across its model IDs so versioned IDs resolve the output token limit correctly.
+
 ## 0.5.0
 
 ### Minor Changes
