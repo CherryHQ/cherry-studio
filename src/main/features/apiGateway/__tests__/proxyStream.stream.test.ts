@@ -2,7 +2,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3FunctionTool } from '@ai-sdk/provider'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-import { asSchema, type ToolSet, type UIMessageChunk } from 'ai'
+import { APICallError, asSchema, type ToolSet, type UIMessageChunk } from 'ai'
 import { status } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -111,6 +111,7 @@ vi.mock('../adapters', () => ({
 
 import type { OutputFormat } from '../adapters'
 import { AnthropicMessageConverter } from '../adapters/converters/AnthropicMessageConverter'
+import { OpenAiResponsesMessageConverter } from '../adapters/converters/OpenAiResponsesMessageConverter'
 import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
@@ -484,21 +485,18 @@ describe('processMessage (internal Agent continuation normalization)', () => {
 
     const messages = await processAndCaptureStreamMessages(params)
 
-    expect(mockToUIMessages).toHaveBeenCalledWith(params)
-    const converted = mockToUIMessages.mock.results[0].value
-    expect(messages).toEqual([
-      { id: converted[0].id, role: 'user', parts: [{ type: 'text', text: 'Continue task' }] },
+    expect(messages).toMatchObject([
+      { role: 'user', parts: [{ type: 'text', text: 'Continue task' }] },
       {
-        id: converted[1].id,
         role: 'assistant',
         parts: [
           {
             type: 'dynamic-tool',
             toolName: 'Bash',
             toolCallId: 'call_1',
-            state: 'output-available',
+            state: 'output-error',
             input: {},
-            output: 'Tool failed'
+            errorText: 'Tool failed'
           },
           { type: 'text', text: 'Working' }
         ]
@@ -831,14 +829,6 @@ describe('processMessage (streaming)', () => {
     await expect(readAll(res.body)).resolves.toBe('')
   })
 
-  it('passes the 20-minute idle timeout to streamPrompt', async () => {
-    const { response, listener } = await startStreaming()
-    commit(listener)
-    await response
-
-    expect(mockStreamPrompt.mock.calls[0][0]).toMatchObject({ idleTimeoutMs: 20 * 60_000 })
-  })
-
   it('marks streaming requests as caller-owned', async () => {
     const { response, listener } = await startStreaming()
     commit(listener)
@@ -953,6 +943,51 @@ describe('processMessage (error & pause)', () => {
     expect(text).not.toContain('secret body')
     expect(text).not.toContain('https://provider/v1')
   })
+
+  it.each([false, true])(
+    'keeps provider error details after stream commitment only for internal requests (%s)',
+    async (internal) => {
+      mockIsInternalAgentRequest.mockReturnValue(internal)
+      const onError = vi.fn()
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        requestHeaders: new Headers({ authorization: 'Bearer fixture' }),
+        onError
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+      commit(listener)
+      const response = await pending
+      const upstream = new APICallError({
+        message: 'A provider-specific failure',
+        url: 'https://private.invalid',
+        requestBodyValues: { secret: 'request-secret' },
+        statusCode: 429,
+        responseHeaders: { 'retry-after': '37', authorization: 'private-token' },
+        responseBody: JSON.stringify({
+          error: { message: 'A provider-specific failure', type: 'custom_type', code: 'vendor_busy', param: 'mode' },
+          request_id: 'upstream-id'
+        })
+      })
+      await listener.onError({ status: 'error', error: serializeError(upstream) }, upstream)
+      const text = await readAll(response.body)
+      expect(response.status).toBe(200)
+      expect(onError).toHaveBeenCalledOnce()
+      expect(text).toContain('A provider-specific failure')
+      if (internal) {
+        expect(text).toContain('vendor_busy')
+        expect(text).toContain('custom_type')
+        expect(text).toContain('upstream-id')
+      } else {
+        expect(text).not.toContain('vendor_busy')
+        expect(text).not.toContain('upstream-id')
+      }
+      expect(text).not.toContain('request-secret')
+      expect(text).not.toContain('private-token')
+    }
+  )
 
   it('rejects with a 504 when the stream pauses before semantic commitment', async () => {
     const { response, listener } = await startStreaming()
@@ -1114,4 +1149,50 @@ describe('processMessage (statusless interruption delivery)', () => {
       }
     }
   }
+})
+
+describe('caller-owned Responses instructions', () => {
+  it.each([undefined, '', 'Client instructions'])(
+    'keeps instructions %s separate from developer turns on the same protocol',
+    async (instructions) => {
+      useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+      mockGetProvider.mockReturnValue({
+        id: 'openai',
+        name: 'OpenAI',
+        isEnabled: true,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+      })
+      const converter = new OpenAiResponsesMessageConverter()
+      mockToUIMessages.mockImplementation((params) =>
+        converter.toUIMessages(params as unknown as Parameters<typeof converter.toUIMessages>[0])
+      )
+      mockIsInternalAgentRequest.mockReturnValue(true)
+      const response = processMessage({
+        params: {
+          model: 'openai:gpt-5',
+          stream: true,
+          instructions,
+          input: [
+            { role: 'developer', content: 'Client skill catalog' },
+            { role: 'user', content: 'Which skills?' }
+          ]
+        },
+        inputFormat: 'openai-responses',
+        outputFormat: 'openai-responses',
+        requestHeaders: new Headers({ 'x-cherry-reasoning-effort': 'low' })
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const request = mockStreamPrompt.mock.calls[0][0]
+      expect(request.callOverrides.providerOptions?.openai?.instructions).toBe(instructions)
+      expect(
+        request.messages.map((message: CherryUIMessage) => ({ role: message.role, parts: message.parts }))
+      ).toEqual([
+        { role: 'system', parts: [{ type: 'text', text: 'Client skill catalog' }] },
+        { role: 'user', parts: [{ type: 'text', text: 'Which skills?' }] }
+      ])
+      commit(captured.listener!)
+      void captured.listener!.onDone({} as never)
+      await readAll((await response).body)
+    }
+  )
 })

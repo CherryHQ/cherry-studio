@@ -98,4 +98,32 @@ describe('highlight worker document protocol', () => {
     expect(await read('lru-0')).toHaveProperty('result')
     for (let i = 0; i < 51; i++) await request({ type: 'close', sessionId: `lru-${i}` })
   })
+
+  it('drops replies when the response channel is gone instead of crashing the drain', async () => {
+    const deliver = host.postMessage
+    host.postMessage = () => {
+      throw new TypeError("Failed to execute 'dispatchEvent' on 'EventTarget': parameter 1 is not of type 'Event'.")
+    }
+    try {
+      // result path and error path both reply through the dead channel; an unhandled
+      // rejection here fails the run, so reaching the end is the assertion
+      host.onmessage({
+        data: { type: 'html', code: 'const a = 1', language: 'ts', theme: 'one-light', id: 900, generation: 7 }
+      })
+      host.onmessage({
+        data: {
+          type: 'read',
+          sessionId: 'gone',
+          revision: 0,
+          configurationRevision: 0,
+          range: { start: 0, end: 1 },
+          id: 901,
+          generation: 7
+        }
+      })
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    } finally {
+      host.postMessage = deliver
+    }
+  })
 })

@@ -41,6 +41,7 @@ describe('skill export ownership after userData relocation', () => {
   })
 
   it('can disable and re-enable exports from the copied profile while the source profile remains', async () => {
+    await application.get('PreferenceService').set('agent.skills.external_export.enabled', true)
     const id = '11111111-1111-4111-8111-111111111111'
     await dbh.db.insert(agentGlobalSkillTable).values({
       id,

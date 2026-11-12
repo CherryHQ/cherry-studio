@@ -42,21 +42,28 @@ to gateway billing. Desktop-owned summaries freeze their initiating owner before
 Model metadata, native errors and tool validation follow Pi's provider implementation. There is no
 `ModelCallPort`, custom AI SDK stream protocol, metadata codec or implicit session requirement.
 
+## Telemetry
+
+Model traces come from the gateway's AI SDK and HTTP instrumentation. The binding forwards
+an explicit native Durable phase parent using the gateway's internal usage capture; it creates
+no model span and writes no billing record. Ordinary Pi 1.5.0 has no native tool-span API,
+so tool details remain in its transcript. The host does not reconstruct tool spans from message events.
+
 ## Host ports
 
 `piBehaviorHost.ts` connects shared behavior to the existing approval registry, question cards, model
 catalog, native Pi model binding and output files. `piApprovalFacts.ts` collects tool, workspace and
 interaction facts; `agent-behavior` decides permission policy. Cross-session delegation still requires
-an interactive user turn. Child tools use the root's live agent policy.
+an interactive user turn. Child threads default to `bypassPermissions`; root threads use the live agent permission mode.
+Child tools retain the root's disabled-tool and non-bypassable approval restrictions.
 
 Approval and question identities use `CallRef`. The Pi facet resolves these opaque keys to native
 `toolCallId` values for cards, including nested calls. Persisted approval outcomes are read from the
 existing message parts; pending questions do not resume after restart. No new database table is used.
 
-Compaction calls the host summarizer once through the native gateway binding; goal completion calls
-the verifier through the same path without a tool loop. Empty or failed summaries cancel compaction.
-The summarizer returns the native response usage for goal and child-run accounting; the gateway
-remains the sole writer of provider billing records.
+Pi and Pi Durable generate compaction summaries using their native runtimes. Each native summary request is
+metered, and its reported usage is attributed to the initiating goal and child run. The gateway remains the sole
+writer of provider billing records. Goal completion calls the verifier through the gateway without a tool loop.
 `agent-behavior` provides `vcc_recall`; the old pi-vcc extension and build artifact are removed.
 Large tool output is saved under `feature.agents.outputs`, which read tools may access.
 

@@ -168,6 +168,26 @@ function modelsFromSelectedIds(
   })
 }
 
+/** Rows clip long model names, so a tooltip is only worth showing when the text actually overflows. */
+function useTextOverflow<T extends HTMLElement>() {
+  const [element, setElement] = useState<T | null>(null)
+  const [overflowing, setOverflowing] = useState(false)
+
+  useLayoutEffect(() => {
+    if (!element) return undefined
+
+    const update = () => setOverflowing(element.scrollWidth > element.clientWidth + 1)
+    update()
+
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [element])
+
+  return [setElement, overflowing] as const
+}
+
 function ModelRow({
   item,
   disabled,
@@ -200,6 +220,7 @@ function ModelRow({
   t: (key: string) => string
 }) {
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
+  const [nameRef, isNameOverflowing] = useTextOverflow<HTMLSpanElement>()
   const providerName = getProviderDisplayName(item.provider)
   const disambiguationLabel = item.showIdentifier
     ? item.groupKind === 'pinned'
@@ -292,9 +313,11 @@ function ModelRow({
           'aria-describedby': descriptionId,
           'data-testid': `model-selector-item-${item.modelId}`
         }}>
-        <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
-          {item.model.name}
-        </span>
+        <Tooltip content={item.model.name} delay={300} isDisabled={!isNameOverflowing} asChild>
+          <span ref={nameRef} className="min-w-0 max-w-full shrink-0 truncate">
+            {item.model.name}
+          </span>
+        </Tooltip>
         {disambiguationLabel && (
           <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={disambiguationLabel}>
             | {disambiguationLabel}

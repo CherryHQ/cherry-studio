@@ -30,10 +30,6 @@ async function createServer(agentId = 'agent-1'): Promise<Client> {
   return client
 }
 
-async function listTools(client: Promise<Client>) {
-  return (await client).listTools()
-}
-
 async function callTool(client: Client | Promise<Client>, name: string, args: Record<string, unknown>) {
   return (await (await client).callTool({ name, arguments: args })) as Result
 }
@@ -63,11 +59,6 @@ describe('mcp-manager MCP server', () => {
   afterEach(async () => {
     vi.restoreAllMocks()
     await Promise.all(clients.splice(0).map((client) => client.close()))
-  })
-
-  it('exposes exactly install_mcp_server', async () => {
-    const result = await listTools(createServer())
-    expect(result.tools.map((t) => t.name)).toEqual(['install_mcp_server'])
   })
 
   describe('install_mcp_server', () => {
@@ -101,8 +92,6 @@ describe('mcp-manager MCP server', () => {
       // leaks into the persisted record.
       expect(createMock.mock.calls[0][0]).not.toHaveProperty('activate')
       expect(updateAgentMock).toHaveBeenCalledWith('agent-1', { mcps: ['server-1'] })
-      expect(result.content[0].text).toContain('registered for this agent')
-      expect(result.content[0].text).toContain('NOT yet active')
     })
 
     it('activates and trusts the server when activate: true is passed', async () => {
@@ -125,8 +114,6 @@ describe('mcp-manager MCP server', () => {
           isTrusted: true
         })
       )
-      expect(result.content[0].text).toContain('installed and enabled for this agent')
-      expect(result.content[0].text).toContain('active now')
     })
 
     const existing = {

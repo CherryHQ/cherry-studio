@@ -55,6 +55,7 @@ import p_ppio from './ppio'
 import p_qiniu from './qiniu'
 import p_qwencloud from './qwencloud'
 import p_radeon_cloud from './radeon-cloud'
+import p_rapid_mlx from './rapid-mlx'
 import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
@@ -100,6 +101,7 @@ export const PROVIDERS: Provider[] = [
   p_openai_codex,
   p_grok_cli,
   p_omlx,
+  p_rapid_mlx,
   p_openai,
   p_opencode,
   p_azure_openai,

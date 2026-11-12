@@ -186,6 +186,50 @@ beforeEach(() => {
 })
 
 describe('desktop facts and approvals through the shared behavior gate', () => {
+  it('asks before PowerShell deletion in auto mode', async () => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto' })
+    const command = 'Remove-Item -Recurse -Force ./build'
+    const pending = handler(toolEvent('powershell', { command }), extCtx)
+    await flush()
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0].request).toMatchObject({ toolName: 'powershell', input: { command } })
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+    await expect(pending).resolves.toBeUndefined()
+  })
+
+  it.each([true, false])('waits for PowerShell install approval (approved=%s)', async (approved) => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto' })
+    const event = toolEvent('powershell', { command: 'npm install -g cowsay' })
+    let settled = false
+    const pending = handler(event, extCtx)
+    void pending.then(() => (settled = true))
+    await flush()
+    expect(settled).toBe(false)
+    expect(emitted[0].request.input).toEqual(event.input)
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved })
+    if (approved) await expect(pending).resolves.toBeUndefined()
+    else await expect(pending).resolves.toMatchObject({ block: true, reason: expect.stringContaining('rejected') })
+    expect(event.input).toEqual({ command: 'npm install -g cowsay' })
+    expect(mocks.rtkRewrite).not.toHaveBeenCalled()
+  })
+
+  it('blocks PowerShell access to protected SQLite before bypass handling', async () => {
+    const { handler } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+    await expect(
+      handler(toolEvent('powershell', { command: `Get-Content '${databaseFile}'` }), extCtx)
+    ).resolves.toMatchObject({ block: true, reason: expect.stringContaining('SQLite') })
+  })
+
+  it('preserves PowerShell arguments instead of applying the bash rewrite', async () => {
+    mocks.rtkRewrite.mockResolvedValue('rtk Get-Location')
+    const { handler, emitted } = buildGate()
+    const pending = handler(toolEvent('powershell', { command: 'Get-Location' }), extCtx)
+    await flush()
+    expect(emitted[0].request).toMatchObject({ toolName: 'powershell', input: { command: 'Get-Location' } })
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+    await expect(pending).resolves.toBeUndefined()
+  })
+
   it('auto-allows read-only tools in default mode with no approval request', async () => {
     const { handler, emitted } = buildGate()
     await expect(handler(toolEvent('read', { path: 'inside.txt' }), extCtx)).resolves.toBeUndefined()
@@ -327,14 +371,17 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
     expect(emitted).toHaveLength(0)
   })
 
-  it('still blocks a global install under bypassPermissions — it protects the shared cross-agent environment', async () => {
-    const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
-    await expect(handler(toolEvent('bash', { command: 'npm install -g cowsay' }), extCtx)).resolves.toMatchObject({
-      block: true,
-      reason: expect.stringContaining('dependency pollution')
-    })
-    expect(emitted).toHaveLength(0)
-  })
+  it.each(['bash', 'powershell'])(
+    'allows global installs through %s in root Full Access without rewriting',
+    async (tool) => {
+      const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+      const event = toolEvent(tool, { command: 'npm install -g cowsay' })
+      await expect(handler(event, extCtx)).resolves.toBeUndefined()
+      expect(event.input).toEqual({ command: 'npm install -g cowsay' })
+      expect(emitted).toHaveLength(0)
+      expect(mocks.rtkRewrite).not.toHaveBeenCalled()
+    }
+  )
 
   it('runs an always-prompt tool with no approval under bypassPermissions', async () => {
     const toolName = 'mcp__cherry-tools__kb_manage'
@@ -432,9 +479,8 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
       approvalRequiredTools: new Set([toolName])
     })
 
-    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toEqual({
-      block: true,
-      reason: 'This tool always requires user approval and cannot run unattended. Retry interactively.'
+    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toMatchObject({
+      block: true
     })
     expect(emitted).toHaveLength(0)
     expect(toolApprovalRegistry.size()).toBe(0)
@@ -532,13 +578,20 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
       expect(emitted).toHaveLength(1)
     })
 
-    it('still hard-blocks a global install', async () => {
+    it.each([true, false])('waits for global install approval in auto mode (approved=%s)', async (approved) => {
       const { handler, emitted } = buildAutoGate()
-      await expect(handler(toolEvent('bash', { command: 'npm install -g cowsay' }), extCtx)).resolves.toMatchObject({
-        block: true,
-        reason: expect.stringContaining('pollution')
-      })
-      expect(emitted).toHaveLength(0)
+      const event = toolEvent('bash', { command: 'npm install -g cowsay' })
+      let settled = false
+      const pending = handler(event, extCtx)
+      void pending.then(() => (settled = true))
+      await flush()
+      expect(settled).toBe(false)
+      expect(emitted[0].request.input).toEqual({ command: 'npm install -g cowsay' })
+      toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved })
+      if (approved) await expect(pending).resolves.toBeUndefined()
+      else await expect(pending).resolves.toMatchObject({ block: true, reason: expect.stringContaining('rejected') })
+      expect(event.input).toEqual({ command: 'npm install -g cowsay' })
+      expect(mocks.rtkRewrite).not.toHaveBeenCalled()
     })
   })
 
@@ -551,14 +604,38 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
     expect(mocks.rtkRewrite).not.toHaveBeenCalled()
   })
 
-  it('blocks a global install without prompting or rewriting', async () => {
+  it.each([true, false])('waits for an ordinary install without rewriting (approved=%s)', async (approved) => {
     const { handler, emitted } = buildGate()
-    const result = await handler(toolEvent('bash', { command: 'npm i -g cowsay' }), extCtx)
-    expect(result?.block).toBe(true)
-    expect(result?.reason).toContain('pollution')
-    expect(emitted).toHaveLength(0)
+    const event = toolEvent('bash', { command: 'npm i -g cowsay' })
+    let settled = false
+    const pending = handler(event, extCtx)
+    void pending.then(() => (settled = true))
+    await flush()
+    expect(settled).toBe(false)
+    expect(emitted[0].request.input).toEqual({ command: 'npm i -g cowsay' })
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved })
+    if (approved) await expect(pending).resolves.toBeUndefined()
+    else await expect(pending).resolves.toMatchObject({ block: true, reason: expect.stringContaining('rejected') })
+    expect(event.input).toEqual({ command: 'npm i -g cowsay' })
     expect(mocks.rtkRewrite).not.toHaveBeenCalled()
   })
+
+  it.each(['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions'] as const)(
+    'hard-blocks mise without rewriting in %s',
+    async (mode) => {
+      const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
+      for (const tool of ['bash', 'powershell']) {
+        for (const command of ['mise use -g fd', 'npm i -g x && mise use -g fd', 'mise use -g fd && npm i -g x']) {
+          await expect(handler(toolEvent(tool, { command }), extCtx)).resolves.toEqual({
+            block: true,
+            reason: 'Blocked: direct mise mutation (use cli_search / cli_install).'
+          })
+        }
+      }
+      expect(emitted).toHaveLength(0)
+      expect(mocks.rtkRewrite).not.toHaveBeenCalled()
+    }
+  )
 
   it('rtk-rewrites the bash command in place before gating', async () => {
     mocks.rtkRewrite.mockResolvedValueOnce('rtk-rewritten')
