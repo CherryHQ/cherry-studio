@@ -632,3 +632,23 @@ describe('PowerShell block comments in explicit Command programs', () => {
     expect(detectDestructiveAssistantCommand(`pwsh -Command '${code}'`)).toBe('permanent Windows file deletion')
   })
 })
+
+describe('PowerShell block comments inside substitutions', () => {
+  it.each([
+    `pwsh -Command '$(<# x #> del victim.txt)'`,
+    `pwsh -Command '$(<# x #>del victim.txt)'`,
+    `pwsh -Command 'echo $(<# x #> del victim.txt)'`,
+    `pwsh -Command 'echo "$(<# x #> del victim.txt)"'`,
+    `pwsh -Command 'echo "a<# x #>b"; del victim.txt'`
+  ])('denies the nested executed command: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    `pwsh -Command 'echo a<# x #>b; del victim.txt'`,
+    `pwsh -Command 'echo "$(<# del victim.txt #> Write-Output ok)"'`,
+    `echo '$(<# x #> del victim.txt)'`
+  ])('does not execute a comment or quoted POSIX text: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+})

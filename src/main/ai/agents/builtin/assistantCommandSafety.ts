@@ -735,7 +735,7 @@ function analyze(command: string, depth: number, powershell = false): string | u
       const reason = reasonForCommand(simple, depth)
       if (reason) return reason
       for (const substitution of simple.substitutions) {
-        const nested = analyze(substitution, depth + 1)
+        const nested = analyze(substitution, depth + 1, powershell)
         if (nested) return nested
       }
     }
