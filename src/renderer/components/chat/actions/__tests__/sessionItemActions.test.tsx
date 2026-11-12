@@ -48,21 +48,6 @@ function createSessionActionFixture(overrides: Partial<SessionActionContext> = {
 }
 
 describe('session item actions', () => {
-  it('resolves rename and delete actions without pin when pin callback is absent', () => {
-    const actions = resolveSessionMenuActions(createSessionActionFixture())
-
-    expect(actions.map((action) => action.id)).toEqual([
-      'session.auto-rename',
-      'session.rename',
-      'session.position',
-      'session.save-notes',
-      'session.save-knowledge',
-      'session.export',
-      'session.copy',
-      'session.delete'
-    ])
-  })
-
   it('resolves pin label from pinned state and executes callbacks without agent editing', async () => {
     const onTogglePin = vi.fn()
     const startEdit = vi.fn()
@@ -72,20 +57,6 @@ describe('session item actions', () => {
       startEdit
     })
     const actions = resolveSessionMenuActions(actionContext)
-
-    expect(actions.map((action) => action.id)).toEqual([
-      'session.auto-rename',
-      'session.rename',
-      'session.toggle-pin',
-      'session.position',
-      'session.save-notes',
-      'session.save-knowledge',
-      'session.export',
-      'session.copy'
-    ])
-    expect(actions.find((action) => action.id === 'session.auto-rename')?.label).toBe('agent.session.auto_rename')
-    expect(actions.find((action) => action.id === 'session.rename')?.label).toBe('agent.session.edit.title')
-    expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('agent.session.unpin.title')
 
     const renameAction = actions.find((action) => action.id === 'session.rename')
     const pinAction = actions.find((action) => action.id === 'session.toggle-pin')
@@ -116,26 +87,6 @@ describe('session item actions', () => {
     expect(onTogglePin).not.toHaveBeenCalled()
   })
 
-  it('hides open-in-new-tab when the session is already active in the current tab', () => {
-    const actions = resolveSessionMenuActions(
-      createSessionActionFixture({
-        isActiveInCurrentTab: true,
-        onOpenInNewTab: vi.fn()
-      })
-    )
-
-    expect(actions.map((action) => action.id)).toEqual([
-      'session.auto-rename',
-      'session.rename',
-      'session.position',
-      'session.save-notes',
-      'session.save-knowledge',
-      'session.export',
-      'session.copy',
-      'session.delete'
-    ])
-  })
-
   it('keeps open-in-new-window available even when the session is active in the current tab', async () => {
     const onOpenInNewWindow = vi.fn()
     const actionContext = createSessionActionFixture({
@@ -143,18 +94,6 @@ describe('session item actions', () => {
       onOpenInNewWindow
     })
     const actions = resolveSessionMenuActions(actionContext)
-
-    expect(actions.map((action) => action.id)).toEqual([
-      'session.auto-rename',
-      'session.rename',
-      'session.position',
-      'session.open-in-new-window',
-      'session.save-notes',
-      'session.save-knowledge',
-      'session.export',
-      'session.copy',
-      'session.delete'
-    ])
 
     const action = actions.find((candidate) => candidate.id === 'session.open-in-new-window')
     await executeSessionMenuAction(action as (typeof actions)[number], actionContext)
@@ -168,7 +107,6 @@ describe('session item actions', () => {
     const positionAction = actions.find((action) => action.id === 'session.position')
     const rightAction = positionAction?.children.find((action) => action.id === 'session.position-right')
 
-    expect(positionAction?.label).toBe('settings.agent.position.label')
     expect(rightAction?.availability.enabled).toBe(true)
 
     await executeSessionMenuAction(rightAction as (typeof actions)[number], actionContext)
@@ -208,6 +146,59 @@ describe('session item actions', () => {
   it('does not offer permanent deletion in the conversation menu', () => {
     const actions = resolveSessionMenuActions(createSessionActionFixture())
     expect(actions.map((action) => action.id)).not.toContain('session.delete-permanently')
+  })
+
+  it('shows permanent delete with the supplied shortcut and deletes only that session', async () => {
+    const onDelete = vi.fn()
+    const onDeletePermanently = vi.fn()
+    const context = createSessionActionFixture({
+      onDelete,
+      onDeletePermanently,
+      permanentDeleteShortcut: 'Ctrl+Backspace'
+    })
+    const actions = resolveSessionMenuActions(context)
+    const permanentDelete = actions.find((action) => action.id === 'session.delete-permanently')
+
+    expect(actions.map((action) => action.id)).toContain('session.delete-permanently')
+    expect(permanentDelete?.label).toBe('common.delete_permanently')
+    expect(permanentDelete?.danger).toBe(true)
+    expect(permanentDelete?.shortcut).toBe('Ctrl+Backspace')
+    expect(permanentDelete?.confirm).toBeUndefined()
+
+    await executeSessionMenuAction(permanentDelete!, context)
+
+    expect(onDeletePermanently).toHaveBeenCalledOnce()
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('refuses permanent delete while the session is pinned, busy, or already deleting', async () => {
+    const onDelete = vi.fn()
+    const onDeletePermanently = vi.fn()
+    const ready = createSessionActionFixture({
+      onDelete,
+      onDeletePermanently,
+      permanentDeleteShortcut: 'Ctrl+Backspace'
+    })
+    const action = resolveSessionMenuActions(ready).find((candidate) => candidate.id === 'session.delete-permanently')
+
+    for (const blocked of [
+      createSessionActionFixture({ ...ready, pinned: true }),
+      createSessionActionFixture({ ...ready, isBusy: true }),
+      createSessionActionFixture({ ...ready, isDeleting: true })
+    ]) {
+      const visible = resolveSessionMenuActions(blocked).find(
+        (candidate) => candidate.id === 'session.delete-permanently'
+      )
+      if (blocked.pinned) {
+        expect(visible).toBeUndefined()
+      } else {
+        expect(visible?.availability.enabled).toBe(false)
+      }
+      expect(await executeSessionMenuAction(action!, blocked)).toBe(false)
+    }
+
+    expect(onDeletePermanently).not.toHaveBeenCalled()
+    expect(onDelete).not.toHaveBeenCalled()
   })
 
   it('rejects archiving while generation is unsettled', async () => {

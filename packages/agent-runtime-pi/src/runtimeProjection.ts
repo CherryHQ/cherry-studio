@@ -6,8 +6,9 @@ import {
   type AgentSessionEvent
 } from '@earendil-works/pi-coding-agent'
 
-import { ENTRY_KINDS } from '@cherrystudio/agent-behavior'
+import { ENTRY_KINDS, type SubagentResults } from '@cherrystudio/agent-behavior'
 import {
+  projectNestedTool,
   runtimeId,
   ThreadFeed,
   RuntimeMessageStream,
@@ -15,11 +16,26 @@ import {
   type InputId,
   type InputState,
   type ItemRef,
+  type Observation,
+  type ObservationPayload,
+  type OperationResult,
   type Thread
 } from '@cherrystudio/agent-runtime'
 
+import { readContextUsage } from './contextUsage'
+
 type PiMessage = AgentSession['messages'][number]
 type PiContext = { message: PiMessage; id: string }[]
+
+export interface PiObservation {
+  readonly backgroundResults?: OperationResult<SubagentResults>
+  readonly events: readonly ObservationPayload[]
+  readonly aliases: Readonly<Record<string, string>>
+  readonly live: readonly string[]
+  readonly settled: boolean
+  readonly outcomes: readonly InputState[]
+  readonly children: readonly { thread: Thread; outcome: string }[]
+}
 
 export class PiProjection {
   readonly feed: ThreadFeed
@@ -38,6 +54,8 @@ export class PiProjection {
     }
   >()
   private pending = Promise.resolve()
+  private backgroundResults?: OperationResult<SubagentResults>
+  private settled = false
   private generation = 0
   private unsubscribe: () => void = () => {}
 
@@ -50,16 +68,87 @@ export class PiProjection {
     this.feed = new ThreadFeed(
       {
         type: 'snapshot',
-        coverage: 'current-view',
         messages: [],
         inputs: [],
         ...(children ? { subagents: [] } : {}),
-        activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
+        activity: { state: session.isIdle ? 'idle' : 'active' }
       },
       report
     )
     this.bind(session)
+    this.feed.publish({ type: 'context.changed', result: readContextUsage(session) })
     for (const message of this.currentMessages()) this.write(message, this.id(message), 'complete')
+  }
+
+  observe(sink: (batch: PiObservation) => void | Promise<void>): Observation {
+    const historical = new Set(this.feed.snapshot.messages.map((message) => message.id))
+    let children: { thread: Thread; outcome: string }[] = []
+    let outcomes: readonly InputState[] = []
+    const completedCalls = new Set<string>()
+    return this.feed.observeCaptured(sink, (event, delivery) => {
+      for (const [committed, preview] of Object.entries(this.aliases))
+        if (historical.has(preview)) historical.add(committed)
+      const messages =
+        event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+      if (delivery !== 'recovery') {
+        children = []
+        outcomes = event.type === 'input.changed' && event.input.outcome ? [event.input] : []
+      }
+      for (const message of delivery === 'update' && event.type === 'message.upsert' ? messages : [])
+        for (const part of message.parts) {
+          if (part.type !== 'dynamic-tool' || part.toolName !== 'subagent' || completedCalls.has(part.toolCallId))
+            continue
+          const output =
+            part.state === 'output-error'
+              ? part.resultProviderMetadata?.pi?.result
+              : part.state === 'output-available' && !part.preliminary
+                ? part.output
+                : undefined
+          if (!output || typeof output !== 'object' || Array.isArray(output) || !('details' in output)) continue
+          const details = output.details
+          if (!details || typeof details !== 'object' || Array.isArray(details)) continue
+          if (
+            'background' in details &&
+            details.background === false &&
+            'sessionId' in details &&
+            typeof details.sessionId === 'string' &&
+            'outcome' in details &&
+            typeof details.outcome === 'string'
+          ) {
+            children.push({
+              thread: { backendId: this.ref.backendId, id: runtimeId(details.sessionId) },
+              outcome: details.outcome
+            })
+            completedCalls.add(part.toolCallId)
+          }
+        }
+      const settled = delivery !== 'baseline' && this.settled
+      return {
+        value: {
+          events: [event],
+          backgroundResults: this.backgroundResults,
+          aliases: this.aliases,
+          live:
+            delivery === 'baseline'
+              ? []
+              : messages.filter((message) => !historical.has(message.id)).map((message) => message.id),
+          settled,
+          children,
+          outcomes
+        },
+        retain: settled || children.length > 0 || outcomes.length > 0
+      }
+    })
+  }
+
+  results(result: OperationResult<SubagentResults>): void {
+    const captured = structuredClone(result)
+    this.pending = this.pending
+      .then(() => {
+        this.backgroundResults = captured
+        this.feed.publish(this.feed.snapshot)
+      })
+      .catch((error) => this.report(error))
   }
 
   rebind(session: AgentSession): void {
@@ -83,9 +172,10 @@ export class PiProjection {
     this.feed.publish({
       ...this.feed.snapshot,
       messages: this.snapshotMessages,
-      activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
+      activity: { state: session.isIdle ? 'idle' : 'active' }
     })
     this.snapshotMessages = undefined
+    this.feed.publish({ type: 'context.changed', result: readContextUsage(session) })
   }
 
   private captureContext(): PiContext {
@@ -240,6 +330,17 @@ export class PiProjection {
     } else this.feed.publish({ type: 'message.upsert', message, replaces })
   }
 
+  private nested(parentCallId: string, part: RuntimeMessage['parts'][number]): void {
+    if (part.type !== 'dynamic-tool') return
+    const id = this.calls.get(parentCallId)
+    const message = (this.snapshotMessages ?? this.feed.snapshot.messages).find((item) => item.id === id)
+    if (!message) return
+    this.calls.set(part.toolCallId, message.id)
+    const parts = message.parts.filter((item) => item.type !== 'dynamic-tool' || item.toolCallId !== part.toolCallId)
+    parts.push(part)
+    this.publish({ ...message, parts })
+  }
+
   private result(callId: string, output: unknown, isError: boolean, preliminary = false): void {
     const id = this.calls.get(callId)
     const message = (this.snapshotMessages ?? this.feed.snapshot.messages).find((message) => message.id === id)
@@ -274,7 +375,19 @@ export class PiProjection {
   private write(message: PiMessage, id: string, completeness: 'partial' | 'complete'): void {
     if (!('content' in message)) return
     if (message.role === 'toolResult') {
-      this.result(message.toolCallId, { content: message.content, details: message.details }, message.isError)
+      for (const record of message.nestedCalls?.calls ?? []) {
+        this.nested(message.toolCallId, projectNestedTool(record))
+      }
+      this.result(
+        message.toolCallId,
+        {
+          content: message.content,
+          details: message.details,
+          structuredContent: message.structuredContent,
+          nestedCalls: message.nestedCalls
+        },
+        message.isError
+      )
       return
     }
     if (
@@ -390,6 +503,13 @@ export class PiProjection {
   }
 
   private async event(event: AgentSessionEvent, context?: PiContext): Promise<void> {
+    if (
+      event.type === 'message_end' ||
+      event.type === 'compaction_end' ||
+      event.type === 'agent_settled' ||
+      event.type === 'model_select'
+    )
+      this.feed.publish({ type: 'context.changed', result: readContextUsage(this.session) })
     if (event.type === 'input_settled') {
       const reason = event.aborted ? 'aborted' : event.message.stopReason
       const completed = reason === 'stop' && !event.message.content.some((part) => part.type === 'toolCall')
@@ -397,7 +517,6 @@ export class PiProjection {
         this.recordInput({
           inputId: runtimeId(inputId),
           facts: [],
-          response: this.itemRef(event.entryId),
           outcome: completed
             ? 'completed'
             : reason === 'aborted'
@@ -460,12 +579,42 @@ export class PiProjection {
         this.readers.delete(id)
       }
     }
+    if (event.type === 'tool_execution_start' && 'parentToolCallId' in event && event.parentToolCallId) {
+      this.nested(event.parentToolCallId, {
+        type: 'dynamic-tool',
+        toolName: event.toolName,
+        toolCallId: event.toolCallId,
+        state: 'input-available',
+        input: event.args,
+        callProviderMetadata: { pi: { parentToolCallId: event.parentToolCallId, nested: true } }
+      })
+    }
+    if (event.type === 'tool_execution_end' && 'parentToolCallId' in event && event.parentToolCallId)
+      this.nested(
+        event.parentToolCallId,
+        projectNestedTool({
+          id: event.toolCallId,
+          name: event.toolName,
+          parentToolCallId: event.parentToolCallId,
+          arguments: event.args,
+          result: event.result,
+          status: event.isError ? 'error' : 'ok',
+          error: event.isError
+            ? event.result.content
+                ?.filter((part: { type: string }) => part.type === 'text')
+                .map((part: { text: string }) => part.text)
+                .join('\n')
+            : undefined
+        })
+      )
     if (event.type === 'tool_execution_update') this.result(event.toolCallId, event.partialResult, false, true)
     if (event.type === 'agent_start' || event.type === 'agent_settled') {
+      this.settled = event.type === 'agent_settled'
       this.feed.publish({
         type: 'activity.changed',
-        activity: { scope: 'foreground', state: event.type === 'agent_start' ? 'active' : 'idle' }
+        activity: { state: event.type === 'agent_start' ? 'active' : 'idle' }
       })
+      this.settled = false
     }
   }
 }
