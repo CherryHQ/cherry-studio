@@ -23,7 +23,7 @@ Issue [#19063](https://github.com/CherryHQ/cherry-studio/issues/19063) asks for 
 
 Crawl depth is 1: only links on the uploaded page are followed. Each upload creates at most 20 items in total, including the uploaded page; links beyond that cap are dropped before any fetch is enqueued. Child items use the same fetch, snapshot, and indexing path as a manual URL item and receive derived titles; the custom name applies only to the uploaded item.
 
-Child pages reuse the existing group-owner pattern (`groupId`) so deleting the uploaded item removes its children, as for other expanded sources.
+The proposed ownership model extends `groupId` to let an opt-in crawling URL item own its crawled children. The current `KnowledgeItemService.validateGroupOwnerTx()` accepts only directory owners, so this is an upstream ownership and reconciliation change, not reuse of an already supported URL-owner API. Implementation must validate that owner and children belong to the same base, reject children of deleting owners, reconcile crawl-owner state after child creation/removal, and cancel pending child work and remove children when the owner is deleted. Ordinary URL uploads remain single items. This contract is proposed for human review; no runtime extension is implemented here.
 
 ## Alternatives considered
 
@@ -31,6 +31,7 @@ Child pages reuse the existing group-owner pattern (`groupId`) so deleting the u
 - **Crawl by default.** Would fan out one upload into up to 20 fetches without consent. Rejected; the user opts in per upload.
 - **Same domain including subdomains.** Broader coverage for documentation sites split across subdomains, but it widens the fetch surface. Rejected for the first version; it can be added later as a separate choice.
 - **Parse HTML links instead of Markdown links.** The fetch path returns Markdown only, so links are read from Markdown link syntax. Pages whose links exist only in non-Markdown output are not covered.
+- **Directory container for each crawl.** This would keep the current directory-only owner validation, but deleting the uploaded URL would no longer by itself delete its siblings under that container. Not selected in this proposal because AC7 makes the uploaded URL the deletion owner; reviewers may choose the container model instead before implementation.
 - **Recursive crawl.** Deeper coverage, but unbounded growth and harder cancellation. Rejected; depth is 1.
 
 ## Acceptance criteria
@@ -41,7 +42,7 @@ Child pages reuse the existing group-owner pattern (`groupId`) so deleting the u
 - AC4 — With the crawl option on, same-origin absolute HTTP(S) links on the uploaded page become grouped child items; cross-origin links, non-HTTP links, fragment-only links, and duplicates create no items. (verification: unit)
 - AC5 — One upload creates at most 20 items including the uploaded page, and links beyond the cap trigger no fetch. (verification: unit)
 - AC6 — A failed child fetch marks only that child failed; the uploaded item and its sibling children continue. (verification: unit)
-- AC7 — Deleting the uploaded item removes its crawled children. (verification: unit)
+- AC7 — Deleting an opt-in crawl URL owner cancels pending child work and removes its crawled children; cross-base ownership and adding children to a deleting owner are rejected, and child creation/removal reconciles the owner state. (verification: service + unit)
 
 ## Risks
 
