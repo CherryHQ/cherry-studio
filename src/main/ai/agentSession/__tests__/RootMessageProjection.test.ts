@@ -17,7 +17,7 @@ import { PersistenceListener } from '@main/ai/streamManager/listeners/Persistenc
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { AgentSessionMessageBackend } from '../persistence/AgentSessionMessageBackend'
-import { RootMessageProjection } from '../RootMessageProjection'
+import { ABANDONED_APPROVAL_ERROR, RootMessageProjection } from '../RootMessageProjection'
 import { ThreadProjection } from '../ThreadProjection'
 
 const dbh = setupTestDatabase()
@@ -417,4 +417,180 @@ it('migrates saved block ownership without duplicating content or changing the p
   expect(Object.keys(restored.checkpoint().root.sources)).toEqual(['uuid'])
   expect(restored.checkpoint().root.version).toBe(2)
   expect(restored.accept(update).size).toBe(0)
+})
+
+it('abandons a prepared fallback once and keeps it through native replay', () => {
+  const f = fixture()
+  const id = f.reply()
+  const input = { questions: ['one', 'two'] }
+  f.projection.control(id, { type: 'tool-input-available', toolCallId: 'call', toolName: 'AskUserQuestion', input })
+  f.projection.control(id, { type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' })
+  f.projection.prepare({ id, role: 'assistant', parts: f.projection.parts(id)! }, 'paused')
+  const expected = expect.objectContaining({
+    toolCallId: 'call',
+    input,
+    state: 'output-error',
+    errorText: 'abandoned',
+    approval: { id: 'approval' }
+  })
+  expect(f.projection.abandonToolApproval('call', 'approval', 'abandoned')?.parts).toEqual([expected])
+  expect(f.projection.abandonToolApproval('call', 'approval', 'abandoned')?.parts).toEqual([expected])
+  f.projection.accept(
+    f.update([
+      {
+        id: 'native',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call',
+            toolName: 'AskUserQuestion',
+            input,
+            state: 'output-available',
+            output: 'done'
+          }
+        ]
+      }
+    ]),
+    id
+  )
+  expect(f.projection.parts(id)).toEqual([expected])
+})
+
+it('keeps a decision and answered input through abandonment and native refresh', () => {
+  const f = fixture()
+  const id = f.reply()
+  const input = { questions: ['one'] }
+  const answered = { ...input, answers: { one: 'yes' } }
+  f.projection.control(id, { type: 'tool-input-available', toolCallId: 'call', toolName: 'AskUserQuestion', input })
+  f.projection.control(id, { type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' })
+  f.projection.abandonToolApproval('call', 'approval', 'abandoned')
+  f.projection.resolveToolApproval('call', 'approval', true, answered)
+  expect(f.projection.abandonToolApproval('call', 'approval', 'abandoned')).toBeUndefined()
+  f.projection.accept(
+    f.update([
+      {
+        id: 'native',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call',
+            toolName: 'AskUserQuestion',
+            input,
+            state: 'output-available',
+            output: 'done'
+          }
+        ]
+      }
+    ]),
+    id
+  )
+  expect(f.projection.parts(id)).toEqual([
+    expect.objectContaining({ input: answered, approval: { id: 'approval', approved: true } })
+  ])
+})
+
+it('keeps the recorded answer when a native denial follows recovery', () => {
+  const f = fixture()
+  const id = f.reply()
+  const input = { questions: ['one'] }
+  const answered = { ...input, answers: { one: 'yes' } }
+  f.projection.control(id, { type: 'tool-input-available', toolCallId: 'call', toolName: 'AskUserQuestion', input })
+  f.projection.control(id, { type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' })
+  f.projection.abandonToolApproval('call', 'approval', 'abandoned')
+  f.projection.resolveToolApproval('call', 'approval', true, answered)
+  f.projection.accept(
+    f.update([
+      {
+        id: 'native',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call',
+            toolName: 'AskUserQuestion',
+            input,
+            state: 'output-denied',
+            approval: { id: 'call', approved: false }
+          }
+        ]
+      }
+    ]),
+    id
+  )
+  const expected = expect.objectContaining({
+    state: 'approval-responded',
+    input: answered,
+    approval: { id: 'approval', approved: true }
+  })
+  expect(f.projection.parts(id)).toEqual([expected])
+  f.save(id)
+  expect(messages.getSessionMessage(f.sessionId, id).data.parts).toEqual([expected])
+})
+
+it('keeps a native denial unchanged without a recorded decision', () => {
+  const f = fixture()
+  const id = f.reply()
+  const denied = {
+    type: 'dynamic-tool' as const,
+    toolCallId: 'call',
+    toolName: 'AskUserQuestion',
+    input: { questions: ['one'] },
+    state: 'output-denied' as const,
+    approval: { id: 'call', approved: false as const }
+  }
+  f.projection.accept(f.update([{ id: 'native', role: 'assistant', parts: [denied] }]), id)
+  expect(f.projection.parts(id)).toEqual([denied])
+})
+
+it('restores an abandoned identity when rebuilding a projection', () => {
+  const f = fixture()
+  const id = f.reply()
+  const input = { questions: ['one'] }
+  f.projection.accept(
+    f.update([
+      {
+        id: 'native',
+        role: 'assistant',
+        parts: [
+          { type: 'dynamic-tool', toolCallId: 'call', toolName: 'AskUserQuestion', input, state: 'input-available' }
+        ]
+      }
+    ]),
+    id
+  )
+  f.projection.control(id, { type: 'tool-input-available', toolCallId: 'call', toolName: 'AskUserQuestion', input })
+  f.projection.control(id, { type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' })
+  f.projection.abandonToolApproval('call', 'approval', ABANDONED_APPROVAL_ERROR)
+  f.save(id)
+  const restored = new RootMessageProjection(f.context.id)
+  restored.accept(
+    f.update([
+      {
+        id: 'native',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call',
+            toolName: 'AskUserQuestion',
+            input,
+            state: 'output-available',
+            output: 'done'
+          }
+        ]
+      }
+    ]),
+    id
+  )
+  expect(restored.parts(id)).toEqual([
+    expect.objectContaining({
+      toolCallId: 'call',
+      input,
+      state: 'output-error',
+      errorText: ABANDONED_APPROVAL_ERROR,
+      approval: { id: 'approval' }
+    })
+  ])
 })

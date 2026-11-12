@@ -382,3 +382,147 @@ it.each([false, true])('retains approval=%s through native results, persistence 
   })
   expect(restored.parts(f.reply.id)).toEqual([expected])
 })
+
+const questionInput = {
+  questions: [
+    { question: 'Which one?', header: 'First', options: [{ label: 'A' }, { label: 'B' }], multiSelect: false },
+    { question: 'Which two?', header: 'Second', options: [{ label: 'C' }, { label: 'D' }], multiSelect: false }
+  ]
+}
+const questionRequest = {
+  approvalId: 'question-approval',
+  toolCallId: 'question-call',
+  toolName: 'AskUserQuestion',
+  input: questionInput,
+  presentation: 'stream' as const
+}
+const questionCall = {
+  type: 'dynamic-tool' as const,
+  toolCallId: 'question-call',
+  toolName: 'AskUserQuestion',
+  input: questionInput
+}
+
+it('shows a question approval before any native part arrives', async () => {
+  const f = await fixture()
+  await f.emit({ type: 'tool-approval-request', request: questionRequest })
+  await vi.waitFor(() =>
+    expect(f.views.at(-1)?.parts).toEqual([
+      expect.objectContaining({ ...questionCall, state: 'approval-requested', approval: { id: 'question-approval' } })
+    ])
+  )
+})
+
+it('does not duplicate a question when native input arrives first', async () => {
+  const f = await fixture()
+  await f.project([
+    { id: 'native-question', role: 'assistant', parts: [{ ...questionCall, state: 'input-available' }] }
+  ])
+  await f.emit({ type: 'tool-approval-request', request: questionRequest })
+  await vi.waitFor(() =>
+    expect(f.views.at(-1)?.parts).toEqual([expect.objectContaining({ ...questionCall, state: 'approval-requested' })])
+  )
+})
+
+it('retains an abandoned question through a late native result', async () => {
+  const f = await fixture()
+  toolApprovalRegistry.register({
+    ...questionRequest,
+    sessionId: 'root',
+    originalInput: questionInput,
+    resolve: () => {}
+  })
+  onTestFinished(() => {
+    toolApprovalRegistry.clear()
+  })
+  await f.emit({ type: 'tool-approval-request', request: questionRequest })
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toHaveLength(1))
+  const subscription = toolApprovalRegistry.onAborted((aborted) =>
+    (f.service as unknown as { retireAbortedApprovalCard: (value: typeof aborted) => void }).retireAbortedApprovalCard(
+      aborted
+    )
+  )
+  onTestFinished(() => subscription.dispose())
+  toolApprovalRegistry.abort('root', 'stop')
+  const expected = expect.objectContaining({
+    ...questionCall,
+    state: 'output-error',
+    errorText: 'The runtime connection closed before this request was answered',
+    approval: { id: 'question-approval' }
+  })
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toEqual([expected]))
+  expect(toolApprovalRegistry.size()).toBe(0)
+  await f.project([
+    {
+      id: 'native-question',
+      role: 'assistant',
+      parts: [{ ...questionCall, state: 'output-available', output: 'done' }]
+    }
+  ])
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toEqual([expected]))
+})
+
+it('keeps an answered question when the session is later cancelled', async () => {
+  const f = await fixture()
+  MockApplicationUtils.setService('AiStreamManager', { resolveToolApproval: () => {} })
+  toolApprovalRegistry.register({
+    ...questionRequest,
+    sessionId: 'root',
+    originalInput: questionInput,
+    resolve: () => {}
+  })
+  onTestFinished(() => {
+    toolApprovalRegistry.clear()
+  })
+  await f.emit({ type: 'tool-approval-request', request: questionRequest })
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toHaveLength(1))
+  expect(f.service.respondToolApproval('question-approval', { approved: true })).toEqual({ ok: true })
+  toolApprovalRegistry.abort('root', 'stop')
+  await f.project([
+    {
+      id: 'native-question',
+      role: 'assistant',
+      parts: [{ ...questionCall, state: 'output-available', output: 'done' }]
+    }
+  ])
+  await vi.waitFor(() =>
+    expect(f.views.at(-1)?.parts).toEqual([
+      expect.objectContaining({ state: 'output-available', approval: { id: 'question-approval', approved: true } })
+    ])
+  )
+})
+
+it('retires a persisted stream card without a live projection for its session', async () => {
+  const f = await fixture()
+  dbh.db
+    .insert(agentSessionTable)
+    .values({ id: 'offline', workspaceId: 'workspace', name: 'Offline', orderKey: 'a1' })
+    .run()
+  const row = messages.saveMessage({
+    sessionId: 'offline',
+    message: {
+      role: 'assistant',
+      status: 'pending',
+      data: { parts: [{ ...questionCall, state: 'approval-requested', approval: { id: 'question-approval' } }] }
+    }
+  })
+  toolApprovalRegistry.register({
+    ...questionRequest,
+    sessionId: 'offline',
+    originalInput: questionInput,
+    resolve: () => {}
+  })
+  const subscription = toolApprovalRegistry.onAborted((aborted) =>
+    (f.service as unknown as { retireAbortedApprovalCard: (value: typeof aborted) => void }).retireAbortedApprovalCard(
+      aborted
+    )
+  )
+  onTestFinished(() => {
+    subscription.dispose()
+    toolApprovalRegistry.clear()
+  })
+  toolApprovalRegistry.abort('offline', 'stop')
+  expect(messages.getSessionMessage('offline', row.id).data.parts).toEqual([
+    expect.objectContaining({ ...questionCall, state: 'output-error', approval: { id: 'question-approval' } })
+  ])
+})

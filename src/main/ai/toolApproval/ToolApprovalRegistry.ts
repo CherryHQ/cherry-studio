@@ -144,6 +144,11 @@ class ToolApprovalRegistry {
   private cancel(approvalIds: readonly string[], reason: string): number {
     const aborted: AbortedApproval[] = []
     for (const approvalId of approvalIds) {
+      const pending = this.pending.get(approvalId)
+      if (pending) {
+        const { sessionId, toolCallId, toolName } = pending
+        logger.info('Tool approval cancelled', { sessionId, approvalId, toolCallId, toolName, reason })
+      }
       const registration = this.dispatch(approvalId, { approved: false, reason })
       if (registration) aborted.push({ ...registration, approvalId, reason })
     }
