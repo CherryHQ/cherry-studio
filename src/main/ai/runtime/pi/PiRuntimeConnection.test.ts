@@ -1282,7 +1282,7 @@ describe('desktop Pi root connection', () => {
     expect(text(events.slice(before))).toBe('')
     expect(messages.inputBinding(input.sessionId, compact.id)).toBeUndefined()
     expect(events.slice(before).some((event) => event.type === 'compaction-complete')).toBe(true)
-    expect(script.calls.at(-1)!.systemPrompt).toContain('Summarize the conversation')
+    expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('keep the important facts')
     expect(script.calls.at(-1)!.tools).toEqual([])
   })
 

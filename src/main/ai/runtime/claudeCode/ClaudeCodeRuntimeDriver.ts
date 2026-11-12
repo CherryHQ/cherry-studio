@@ -469,6 +469,29 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     for (const child of await this.childResources()) await child.projection.drain()
   }
 
+  async interrupt(): Promise<void> {
+    const interrupt = this.handle?.interrupt
+    if (!interrupt) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const result = await Promise.race([
+        interrupt(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Claude interruption timed out')), 3_000)
+        })
+      ])
+      if (result.status !== 'confirmed') throw new Error(result.error.message)
+    } catch (error) {
+      logger.warn('Claude interruption unconfirmed; closing the native owner', {
+        sessionId: this.input.sessionId,
+        error
+      })
+      await this.close()
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   close(): Promise<void> {
     return (this.closePromise ??= this.closeQuery().catch((error) => {
       this.closePromise = undefined

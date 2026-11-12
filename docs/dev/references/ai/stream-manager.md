@@ -187,10 +187,13 @@ interface StreamListener {
   onMessage?(message: CherryUIMessage, sourceModelId?: string, sourceKind?: 'chunks' | 'messages'): void
   onDone(result: StreamDoneResult): void | Promise<void>      // { finalMessage?, status: 'success', ... }
   onPaused(result: StreamPausedResult): void | Promise<void>  // { finalMessage?, status: 'paused',  ... }
-  onError(result: StreamErrorResult): void | Promise<void>    // { finalMessage?, error, status: 'error', ... }
+  onError(result: StreamErrorResult, originalError?: unknown): void | Promise<void>
   isAlive(): boolean
 }
 ```
+
+For prompt streams, `onError` may also receive the original in-process exception.
+Persistent chat listeners receive only the serialized error.
 
 All three terminal shapes share the same `finalMessage?` field — the
 current `CherryUIMessage` from the execution's selected source. Chunk sources use
