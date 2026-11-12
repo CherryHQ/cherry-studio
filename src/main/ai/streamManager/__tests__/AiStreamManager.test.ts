@@ -153,9 +153,9 @@ const fakeCacheService = {
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
-const mockCloseSession = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
+const mockCloseSession = vi.fn<(sessionId: string, interrupt?: boolean) => Promise<void>>(async () => undefined)
 const mockHandleUserStop = vi.fn<(sessionId: string, turnId?: string) => Promise<void>>(async () => undefined)
-const mockGetLiveTurnId = vi.fn<(sessionId: string) => string | undefined>(() => 'turn-drain-1')
+const mockGetLiveTurnId = vi.fn<(sessionId: string) => string | undefined>(() => undefined)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -475,6 +475,39 @@ describe('AiStreamManager', () => {
   })
 
   describe('streamPrompt', () => {
+    it.each([true, false])('keeps the original exception restricted to prompt streams (%s)', async (prompt) => {
+      vi.useRealTimers()
+      const original = new APICallError({
+        message: 'Provider refused request',
+        url: 'https://private.invalid',
+        requestBodyValues: { secret: 'request-secret' },
+        statusCode: 400
+      })
+      mockStreamText.mockRejectedValueOnce(original)
+      const onError = vi.fn<(result: StreamErrorResult, original?: unknown) => void>()
+      const listener: StreamListener = {
+        id: 'exception-listener',
+        onChunk: () => {},
+        onDone: () => {},
+        onPaused: () => {},
+        onError,
+        isAlive: () => true
+      }
+      if (prompt) {
+        mgr.streamPrompt({ streamId: 'test-prompt', uniqueModelId: 'provider-a::model-a', prompt: 'hello', listener })
+      } else {
+        startSingle(mgr, {
+          topicId: 'test-chat',
+          modelId: 'provider-a::model-a',
+          request: req('test-chat'),
+          listeners: [listener]
+        })
+      }
+      await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce())
+      expect(onError.mock.calls[0][1]).toBe(prompt ? original : undefined)
+      expect(JSON.stringify(onError.mock.calls[0][0].error)).not.toContain('request-secret')
+    })
+
     it('forwards context ownership to AiService.streamText', () => {
       mgr.streamPrompt({
         streamId: 'gateway-request-1',
@@ -2205,6 +2238,36 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')!.status).toBe('done')
     })
 
+    it('cancels background work even after the visible stream has finished', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const topicId = 'agent-session:session-1'
+      // The foreground reply already finished: no live turn is left to interrupt gracefully, so the
+      // Stop has to reach the session teardown (with interruption) instead.
+      mockGetLiveTurnId.mockReturnValue(undefined)
+      let backgroundRunning = true
+      mockCloseSession.mockImplementationOnce(async (_sessionId: string, interrupt?: boolean) => {
+        if (interrupt) backgroundRunning = false
+      })
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: []
+      })
+      feed.enqueue({ type: 'start' })
+      feed.enqueue({ type: 'finish' })
+      feed.close()
+      await flushUntil(() => mgr.inspect(topicId)?.status === 'done')
+      expect(mgr.inspect(topicId)?.status).toBe('done')
+
+      await mgr.abortAndDrain(topicId, 'user-requested')
+
+      expect(backgroundRunning).toBe(false)
+      expect(mgr.hasUnsettledTopicWork(topicId)).toBe(false)
+    })
+
     it('holds same-topic admission until paused persistence and runtime close settle', async () => {
       vi.useRealTimers()
       const listener = new FakeListener('persistence:agent')
@@ -2722,14 +2785,23 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('persistence:agent')]
       })
 
+      mockGetLiveTurnId.mockReturnValue('turn-drain-1')
       mockHandleUserStop.mockImplementation(async () => undefined)
       await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
       expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-drain-1')
       expect(mockCloseSession).not.toHaveBeenCalled()
 
       mockHandleUserStop.mockImplementation((sessionId: string) => mockCloseSession(sessionId))
+      mockGetLiveTurnId.mockReturnValue(undefined)
       await mgr.abortAndDrain('agent-session:session-1', 'agent-session-purge')
-      expect(mockCloseSession).toHaveBeenCalledWith('session-1')
+      expect(mockCloseSession).toHaveBeenCalledWith('session-1', true)
+
+      // A Stop with no live turn still has to interrupt: the foreground reply may have finished
+      // while background work keeps the session busy.
+      mockCloseSession.mockClear()
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      expect(mockHandleUserStop).not.toHaveBeenCalledWith('session-1', undefined)
+      expect(mockCloseSession).toHaveBeenCalledWith('session-1', true)
     })
   })
 
