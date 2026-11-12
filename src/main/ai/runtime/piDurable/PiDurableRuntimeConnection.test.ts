@@ -906,7 +906,7 @@ describe('desktop Pi Durable connection', () => {
         createTestBinding({ model: { ...MODEL, contextWindow: 1_000_000 }, stream: script.model })
       )
       script = respondingModel((call) =>
-        call.systemPrompt.startsWith('Summarize the conversation')
+        call.systemPrompt.startsWith('You are a context summarization assistant')
           ? summary.wait(assistantReply('Remember the original objective', outcome === 'error' ? 'error' : 'stop'))
           : assistantReply('answer')
       )
@@ -937,10 +937,8 @@ describe('desktop Pi Durable connection', () => {
       }
       await done(events)
       if (outcome === 'error') {
-        expect(events.filter((event) => event.type === 'compaction-complete')).toEqual([
-          { type: 'compaction-complete' }
-        ])
-        expect(events.filter((event) => event.type === 'error')).toEqual([])
+        expect(events.filter((event) => event.type === 'compaction-complete')).toEqual([])
+        expect(events.filter((event) => event.type === 'error')).toHaveLength(1)
         return
       }
       if (outcome !== 'complete') {
@@ -1223,6 +1221,62 @@ describe('desktop Pi Durable connection', () => {
     expect(nativeInputs.some((state) => state.inputId === first.id && state.outcome === 'completed')).toBe(true)
     expect(injected).toBe(true)
     expect(text(events)).toBe('first answernext answer')
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  // Catches a child's incidental bypass mode overriding the root's installation policy.
+  it.each([
+    { mode: 'default', approved: true },
+    { mode: 'default', approved: false },
+    { mode: 'auto', approved: true },
+    { mode: 'auto', approved: false },
+    { mode: 'plan', approved: false },
+    { mode: 'bypassPermissions', approved: true }
+  ] as const)('uses root $mode for child installs (approved=$approved)', async ({ mode, approved }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: mode }
+    const marker = join(directory, 'child-install.txt')
+    const prefixMarker = join(directory, 'before-install.txt')
+    // A shell function records execution without installing a real package.
+    const command = `echo started > "${prefixMarker}"\nnpm() { echo installed > "${marker}"; }\nnpm install -g left-pad`
+    let root = ''
+    let childResult = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        const result = call.messages.find(
+          (entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-install'
+        )
+        if (!result) return assistantReply([toolCallPart('child-install', 'bash', { command })], 'toolUse')
+        childResult = JSON.stringify(result)
+        return assistantReply('child done')
+      }
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'install', prompt: 'install tool', fork: false })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    if (mode === 'default' || mode === 'auto') {
+      await expect
+        .poll(() => events.filter((event) => event.type === 'tool-approval-request').length, { timeout: 15_000 })
+        .toBe(1)
+      expect(existsSync(marker)).toBe(false)
+      expect(existsSync(prefixMarker)).toBe(false)
+      const event = events.find((event) => event.type === 'tool-approval-request')!
+      if (event.type !== 'tool-approval-request') throw new Error('Missing installation approval')
+      expect(event.request.input).toEqual({ command })
+      toolApprovalRegistry.dispatch(event.request.approvalId, { approved })
+    }
+    await done(events, 15_000)
+    expect(existsSync(marker)).toBe(approved)
+    expect(existsSync(prefixMarker)).toBe(approved)
+    if (mode === 'plan') expect(childResult).toContain('Plan mode is read-only')
+    else if (!approved) expect(childResult).toContain('rejected')
+    if (mode === 'plan' || mode === 'bypassPermissions')
+      expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
