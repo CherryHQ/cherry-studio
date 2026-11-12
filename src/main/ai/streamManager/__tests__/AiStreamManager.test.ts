@@ -153,7 +153,7 @@ const fakeCacheService = {
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
-const mockCloseSession = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
+const mockCloseSession = vi.fn<(sessionId: string, interrupt?: boolean) => Promise<void>>(async () => undefined)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -2194,6 +2194,33 @@ describe('AiStreamManager', () => {
       // Abort on a finished stream → no-op (status stays 'done')
       mgr.abort('a', 'late')
       expect(mgr.inspect('a')!.status).toBe('done')
+    })
+
+    it('cancels background work even after the visible stream has finished', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const topicId = 'agent-session:session-1'
+      let backgroundRunning = true
+      mockCloseSession.mockImplementationOnce(async (_sessionId: string, interrupt?: boolean) => {
+        if (interrupt) backgroundRunning = false
+      })
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: []
+      })
+      feed.enqueue({ type: 'start' })
+      feed.enqueue({ type: 'finish' })
+      feed.close()
+      await flushUntil(() => mgr.inspect(topicId)?.status === 'done')
+      expect(mgr.inspect(topicId)?.status).toBe('done')
+
+      await mgr.abortAndDrain(topicId, 'user-requested')
+
+      expect(backgroundRunning).toBe(false)
+      expect(mgr.hasUnsettledTopicWork(topicId)).toBe(false)
     })
 
     it('holds same-topic admission until paused persistence and runtime close settle', async () => {

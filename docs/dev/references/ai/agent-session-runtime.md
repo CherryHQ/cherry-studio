@@ -1153,7 +1153,8 @@ For other connections, when the idle timer expires, the runtime closes the entry
 - prewarms Claude Code when a latest resume token is known.
 
 Service stop and destroy close all runtime entries. User Stop additionally invokes an
-optional connection `interrupt()` before closing. Durable shutdown preserves ordinary
+optional connection `interrupt()` before closing, including when the visible stream has
+already finished but background work remains. Durable shutdown preserves ordinary
 unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's
 `onOpen` before native resume, disarming goals and stopping interrupted background children.
 Repeated `closeSession()` calls join the in-flight close. A closing session rejects new
@@ -1162,6 +1163,12 @@ input and replacement turns until the old reply releases ownership. Teardown joi
 connection's fact consumer alive through native observation drain, waits for the captured
 stream persistence loops, then flushes each owned projection. Only after that flush does it
 clear the entry. No projection write may follow the final flush.
+
+Claude Stop requests native interruption before retiring the connection. If the interrupt
+receipt is missing after three seconds or reports failure, it falls back to closing the
+same owner. Shutdown allows ten seconds for the SDK's graceful-exit and kill escalation,
+but succeeds only after confirmed process exit and observation drainage. A successful
+interrupt alone does not release the owner: native queued inputs can remain after it.
 
 Failed native close or final persistence retains the owner and blocks archive/backup safety.
 A later close retries retained data without another send. Late successful native teardown
