@@ -298,12 +298,21 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       })
       if (batch.completion && !this.compacting && !this.closing && this.sending) {
         const failed = batch.completion.inputs.find((input) => input.outcome && input.outcome !== 'completed')
-        if (failed)
-          this.failure ??= this.observationFailure(
+        if (failed) {
+          const failure = this.observationFailure(
             'outcome',
-            failed.outcome ?? 'unknown',
+            failed.error?.code ?? failed.outcome ?? 'unknown',
             failed.error?.message ?? failed.outcome
           )
+          // Preserve output-truncation metadata through the desktop error boundary (#24343).
+          if (failed.error?.code === 'output-truncated') {
+            Object.assign(failure, {
+              finishReason: 'length',
+              i18nKey: 'output_token_limit_reached'
+            })
+          }
+          this.failure ??= failure
+        }
         this.finishTurn(batch.completion.entryId)
       }
     } catch (error) {

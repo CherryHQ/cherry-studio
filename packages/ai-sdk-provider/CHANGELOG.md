@@ -6,6 +6,12 @@
 
 - Include a package-local MIT license file.
 
+## 0.1.12
+
+### Patch Changes
+
+- [#24234](https://github.com/CherryHQ/cherry-studio/pull/24234) [`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658) Thanks [@DeJeune](https://github.com/DeJeune)! - Standardize public libraries on MIT and include package-local license files.
+
 ## 0.1.11
 
 ### Patch Changes

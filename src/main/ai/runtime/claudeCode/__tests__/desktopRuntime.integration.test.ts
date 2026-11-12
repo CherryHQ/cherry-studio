@@ -1379,3 +1379,52 @@ it.each([
   },
   30000
 )
+
+it('interrupts an active native request before retiring its owner and permits a new connection', async () => {
+  const test = await desktop()
+  const connection = await test.connect()
+  await connection.send(test.input('Start a response that will be stopped'))
+  const request = await test.request()
+  request.reply.block({ type: 'text', text: 'Content before stop' })
+  await expect.poll(() => JSON.stringify(test.events)).toContain('Content before stop')
+
+  await connection.interrupt!()
+  await expect
+    .poll(() => test.events.some((event) => event.type === 'error' || event.type === 'turn-complete'))
+    .toBe(true)
+  await connection.close()
+  expect(test.children.every((child) => child.exitCode !== null || child.signalCode !== null)).toBe(true)
+  expect(JSON.stringify(test.events)).toContain('Content before stop')
+
+  test.events.length = 0
+  const next = await test.connect()
+  await next.send(test.input('Continue after stopping'))
+  const resumed = await test.request()
+  resumed.reply.block({ type: 'text', text: 'New response after stop' })
+  resumed.reply.finish()
+  await test.wait('turn-complete')
+  expect(JSON.stringify(test.events)).toContain('New response after stop')
+}, 30000)
+
+it.each(['unanswered', 'rejected'] as const)(
+  'retires the native process when interrupt is %s',
+  async (failure) => {
+    const test = await desktop()
+    const connection = await test.connect()
+    const handle = (connection as unknown as { handle: ClaudeThreadHandle }).handle
+    vi.spyOn(handle, 'interrupt').mockImplementation(() =>
+      failure === 'unanswered'
+        ? new Promise(() => {})
+        : Promise.resolve({
+            status: 'unknown',
+            error: { operation: 'interrupt', code: 'native-error', message: 'No receipt' }
+          })
+    )
+    await connection.send(test.input('Wait for cancellation'))
+    await test.request()
+    await connection.interrupt!()
+    expect(test.children.every((child) => child.exitCode !== null || child.signalCode !== null)).toBe(true)
+    await connection.close()
+  },
+  15000
+)
