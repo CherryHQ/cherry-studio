@@ -267,3 +267,17 @@ test seam.
 | FileManager facade and internals | `src/main/services/file/` |
 | General main-process filesystem helpers | `src/main/utils/file/` |
 | Directory tree renderer mirror | `src/renderer/hooks/useDirectoryTree.ts` |
+
+### Detached message attachment projections
+
+Permanent deletion with `detachReferences` collects both ordinary-chat and agent-session
+message owners before FK associations disappear. Each owning message service reconciles
+its attachment projection after a successful deletion. Non-native messages remove matching
+file parts. Native-bound input keeps its original parts, binding IDs and fork checkpoint;
+a main-owned `detachedFileEntryIds` list hides the detached parts in public message reads
+and edit preparation. The list is not accepted from or exposed to renderer clients.
+Native replay continues to read the original stored input. A repeated runtime save keeps
+the detachment projection. Root messages are not rewritten.
+
+Reconciliation remains best-effort after deletion: a reconciliation failure is logged,
+not returned as a failed deletion after the file has already been removed.

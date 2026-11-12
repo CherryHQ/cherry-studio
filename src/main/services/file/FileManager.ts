@@ -131,11 +131,12 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
+import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { stat as fsStat } from '@main/utils/file'
 import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
-import { CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
+import { chatMessageSourceType, CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { type CreateInternalEntryInput, createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
@@ -1310,6 +1311,14 @@ export class FileManager extends BaseService implements IFileManager {
             .map((detail) => ({ id, sessionId: detail.sessionId, messageId: detail.messageId }))
         )
       : []
+    const chatTargets = options?.detachReferences
+      ? ids.flatMap((id) =>
+          this.deps.fileRefService
+            .findByEntryId(id)
+            .filter((ref) => ref.sourceType === chatMessageSourceType)
+            .map((ref) => ({ id, messageId: ref.sourceId }))
+        )
+      : []
     const result = await internalBatchPermanentDeleteFromTrash(this.deps, ids, options)
     // Reconcile the owning messages' serialized parts through the message
     // layer so detached entries no longer dangle from `data.parts` (which
@@ -1324,6 +1333,18 @@ export class FileManager extends BaseService implements IFileManager {
         fileManagerLogger.warn('failed to reconcile detached file part', {
           fileEntryId: target.id,
           sessionId: target.sessionId,
+          messageId: target.messageId,
+          error: (error as Error).message
+        })
+      }
+    }
+    for (const target of chatTargets) {
+      if (!succeeded.has(target.id)) continue
+      try {
+        messageService.detachFileEntryParts(target.messageId, target.id)
+      } catch (error) {
+        fileManagerLogger.warn('failed to reconcile detached chat file part', {
+          fileEntryId: target.id,
           messageId: target.messageId,
           error: (error as Error).message
         })

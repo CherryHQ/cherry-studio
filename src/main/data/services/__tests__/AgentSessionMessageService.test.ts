@@ -194,7 +194,7 @@ describe('AgentSessionMessageService', () => {
     ).toEqual([])
   })
 
-  it('leaves native-bound messages untouched when detaching file parts', () => {
+  it('keeps native-bound input immutable while projecting detached attachments out', () => {
     dbh.db
       .insert(fileEntryTable)
       .values({
@@ -240,14 +240,44 @@ describe('AgentSessionMessageService', () => {
       .run()
     dbh.db
       .update(agentSessionMessageTable)
-      .set({ inputContextId: 'ctx-1' })
+      .set({
+        inputContextId: 'ctx-1',
+        nativeInputId: 'input-1',
+        runtimeResumeToken: 'thread-1',
+        data: {
+          ...message.data,
+          runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'thread-1', leafId: 'leaf' } }
+        }
+      })
       .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
       .run()
 
     dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, FILE_ENTRY_ID)).run()
     agentSessionMessageService.detachFileEntryParts(SESSION_ID, USER_MESSAGE_ID, FILE_ENTRY_ID)
 
-    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toHaveLength(2)
+    const raw = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
+      .get()!
+    expect(raw.data.parts).toEqual(message.data.parts)
+    expect(raw).toMatchObject({ inputContextId: 'ctx-1', nativeInputId: 'input-1', runtimeResumeToken: 'thread-1' })
+    expect(raw.data.runtimeAnchor).toEqual({
+      checkpoint: { runtime: 'pi', runtimeSessionId: 'thread-1', leafId: 'leaf' }
+    })
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toEqual([
+      { type: 'text', text: 'see attachment' }
+    ])
+    expect(agentSessionMessageService.projectFileParts(raw.data)).toEqual([{ type: 'text', text: 'see attachment' }])
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data).not.toHaveProperty(
+      'detachedFileEntryIds'
+    )
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toHaveLength(1)
+    expect(
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID)).get()?.data
+        .parts
+    ).toEqual(message.data.parts)
   })
 
   it('detaches parts whose cherryMeta only references the entry as a working file', () => {

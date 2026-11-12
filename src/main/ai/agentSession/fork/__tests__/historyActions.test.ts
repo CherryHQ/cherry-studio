@@ -251,3 +251,34 @@ it('enables Durable edits at first inputs and committed predecessor boundaries',
   expect((await runtime.getEditTarget(sessionId, first.id)).parts).toEqual(first.data.parts)
   expect((await runtime.getEditTarget(sessionId, later.id)).parts).toEqual(later.data.parts)
 })
+
+it('prepares an edit without explicitly detached native attachments while preserving stored input', async () => {
+  const first = messages.saveMessage({
+    sessionId,
+    message: {
+      role: 'user',
+      status: 'success',
+      data: {
+        parts: [
+          { type: 'text', text: 'First' },
+          {
+            type: 'file',
+            mediaType: 'text/plain',
+            url: 'file:///deleted.txt',
+            providerMetadata: { cherry: { fileEntryId: 'deleted-file' } }
+          }
+        ]
+      }
+    }
+  })
+  dbh.db
+    .update(agentSessionMessageTable)
+    .set({ data: { ...first.data, nativeSessionId: 'native-thread' } })
+    .where(eq(agentSessionMessageTable.id, first.id))
+    .run()
+  messages.detachFileEntryParts(sessionId, first.id, 'deleted-file')
+  expect((await runtime.getEditTarget(sessionId, first.id)).parts).toEqual([{ type: 'text', text: 'First' }])
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, first.id)).get()?.data.parts
+  ).toEqual(first.data.parts)
+})

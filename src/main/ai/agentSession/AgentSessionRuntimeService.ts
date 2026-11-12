@@ -429,7 +429,7 @@ export class AgentSessionRuntimeService extends BaseService {
       .withWriteTx((tx) => agentSessionMessageService.readEditSnapshotTx(tx, sessionId, messageId))
     const actions = this.getHistoryActions(sessionId, [messageId]).get(messageId)
     if (!actions || actions.edit) throw new AgentSessionEditError(actions?.edit ?? 'checkpoint_unsupported')
-    const parts = snapshot.user.data.parts ?? []
+    const parts = agentSessionMessageService.projectFileParts(snapshot.user.data)
     await validateEditedInput(parts)
     return { messageId, version: snapshot.version, parts }
   }
