@@ -365,7 +365,12 @@ export class PiProjection {
     if (message.role === 'toolResult') {
       this.result(
         message.toolCallId,
-        { content: message.content, details: message.details, structuredContent: message.structuredContent },
+        {
+          content: message.content,
+          details: message.details,
+          structuredContent: message.structuredContent,
+          nestedCalls: message.nestedCalls
+        },
         message.isError
       )
       return
