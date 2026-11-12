@@ -4,6 +4,8 @@ sources:
   - src/main/ai/streamManager/AiStreamManager.ts
   - src/main/ai/streamManager/pipeStreamLoop.ts
   - src/main/ai/streamManager/context
+  - src/main/ai/streamManager/persistence
+  - src/main/ai/streamManager/listeners
 ---
 
 # AiStreamManager
@@ -76,7 +78,7 @@ volume × audience width**.
 |---|---|---|
 | `TopicMessageProjection` | accumulated messages + post-persistence terminal | manager-owned; desktop views use `ai.projection.attach` |
 | `WebContentsListener` | raw chunk + terminal | explicit legacy `attach` → `ActiveStream.listeners` |
-| `PersistenceListener` | terminal | built by the provider and added in `send()` |
+| `PersistenceListener` | checkpoint + terminal | built by the provider and added in `send()` |
 | `TraceFlushListener` | terminal | built by chat / agent-session turn owners and added in `send()` |
 | `ChannelAdapterListener` / `SseListener` | chunk + terminal | caller injects into `send()`'s `listeners` |
 | UI indirect consumers (sidebar indicators, …) | topic status | `useSharedCacheValue('topic.stream.statuses.${topicId}')` |
@@ -188,6 +190,7 @@ interface StreamListener {
   onDone(result: StreamDoneResult): void | Promise<void>      // { finalMessage?, status: 'success', ... }
   onPaused(result: StreamPausedResult): void | Promise<void>  // { finalMessage?, status: 'paused',  ... }
   onError(result: StreamErrorResult): void | Promise<void>    // { finalMessage?, error, status: 'error', ... }
+  onCheckpoint?(message: CherryUIMessage, modelId: UniqueModelId): void
   isAlive(): boolean
 }
 ```
@@ -269,11 +272,12 @@ interface PersistenceBackend {
     runtimeStats?: MessageRuntimeStatsInput
   }): Promise<void>
   afterPersist?(finalMessage: CherryUIMessage): Promise<void>
+  checkpoint?(parts: CherryMessagePart[]): void
 }
 ```
 
-Backends expose **one** write method; the three statuses share its
-shape. On the `error` branch, `PersistenceListener` folds the
+Backends expose one **terminal** write method; the three statuses share its
+shape. `checkpoint` is the separate, optional mid-stream write described below. On the `error` branch, `PersistenceListener` folds the
 `SerializedError` into a trailing `data-error` part on `finalMessage.parts`
 and then calls `persistAssistant({ status: 'error' })`, so backends never
 have to know how to encode an error into a UIMessage — they just write.
@@ -293,23 +297,31 @@ terminal persistence write. A slow database therefore delays the visible
 terminal event, but consumers never observe success before the durable row is
 committed. Per-chunk delivery is unaffected.
 
-#### Checkpoints and crash recovery
+### Checkpoints and crash recovery
 
 While an execution streams, the manager hands its latest accumulated message to
 each listener's optional `onCheckpoint` at most once per `checkpointIntervalMs`
 (1 s), and stops once the loop ends. `PersistenceListener` passes it to the
-backend's optional `checkpoint(parts)`. The SQLite and agent-session backends
-store it as `data.streamCheckpoint` on the `pending` row, never in `data.parts`:
-a reconnecting renderer seeds its reader from the row's `parts` and replays the
-buffer on top, so partial parts there would render twice. The write is a no-op
-once the row has settled, the terminal write replaces `data` and drops the
-checkpoint, and reads strip the field.
+backend's optional `checkpoint(parts)`, which keeps only the parts worth
+rewriting at that rate: transient status parts, empty content, and tool outputs
+larger than `CHECKPOINT_MAX_TOOL_OUTPUT_CHARS` are dropped, since the terminal
+write is the lane that moves oversized outputs to FileManager. The SQLite and
+agent-session backends store the result as `data.streamCheckpoint` on the
+`pending` row, never in `data.parts`: a reconnecting renderer seeds its reader
+from the row's `parts` and replays the buffer on top, so partial parts there
+would render twice. The write is a no-op once the row has settled, and settling
+drops the field — the terminal write rebuilds `data` without it, and a settle
+that only flips the status removes it in the same statement. Reads strip it.
 
 If the process dies mid-stream (a crash, a quit, or a closed Web tab), the boot
-reconcile in `AiStreamManager` and `AgentSessionRuntimeService` settles each
-stale `pending` row as `error` with `interruptedReplyParts(checkpoint)`: the
-saved parts with their live parts closed, followed by a `data-error` part whose
-`i18nKey` (`reply_interrupted`) tells the user the reply was cut off.
+reconcile calls `interruptedReplyData(row.data)` for each stale `pending` row —
+in `AiStreamManager` for chat topics, and in `AgentSessionRuntimeService` plus
+`recoverSessionDeliveries` for agent sessions. It settles the row as `error`
+with `interruptedReplyParts(streamCheckpoint ?? parts ?? [])`: the saved parts
+with their live parts closed, followed by a `data-error` part whose `i18nKey`
+(`reply_interrupted`) tells the user the reply was cut off. Without a checkpoint
+the row's existing `parts` are used, so an ordinary crash still ends in the
+interrupted notice rather than an empty reply.
 
 ## ActiveStream & StreamExecution
 
@@ -1032,7 +1044,7 @@ still completes, but a stale callback cannot mutate its replacement.
 | Ring overflow with pending approval | Eviction pauses while `pendingApprovalToolCallIds` is non-empty, so the approval's tool-input chunks stay replayable; it resumes with the chunk that resolves the approval |
 | Multi-model + resubmit | the steer is queued once per topic; every model's execution yields via `steerYield`, and the single continuation answers it after the turn completes |
 | Stream emits `tool-approval-request` | Its `toolCallId` enters `exec.pendingApprovalToolCallIds`; on stream end the topic surfaces `awaiting-approval` via the shared cache |
-| Main process restart | `activeStreams` clears; in-flight streams are lost; the renderer re-reads from the DB |
+| Main process restart | `activeStreams` clears; the last checkpoint of each in-flight stream survives, and the boot reconcile settles the row as `error` with that partial reply (see above) |
 
 ## Design notes
 
