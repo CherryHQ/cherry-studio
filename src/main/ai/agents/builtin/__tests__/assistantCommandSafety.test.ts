@@ -441,3 +441,53 @@ describe('isGitHubIssueCreationCommand', () => {
     expect(isGitHubIssueCreationCommand(command)).toBe(false)
   })
 })
+
+describe('CMD conditional command positions', () => {
+  it.each([
+    'if exist victim.txt del /q victim.txt',
+    'if defined SHOULD_DELETE del victim.txt',
+    'if ERRORLEVEL 1 del victim.txt',
+    'if CMDEXTVERSION 2 rd /s /q victim',
+    'if /i not exist "a b.txt" erase "a b.txt"',
+    'if 1==1 del victim.txt',
+    'if 1 == 1 del victim.txt',
+    'if 1 ==1 del victim.txt',
+    'if 1== 1 del victim.txt',
+    'if "a"=="b" del victim.txt',
+    'if 1 EQU 1 del victim.txt',
+    'if /i not "a" NEQ "b" erase victim.txt',
+    'cmd /c if exist victim.txt del victim.txt',
+    'cmd /c if 1==1 del victim.txt',
+    'cmd /c if 1 EQU 1 del victim.txt',
+    'cmd /c if /i not "a" NEQ "b" erase victim.txt',
+    'cmd /c @ del victim.txt',
+    'cmd /c @@del victim.txt',
+    'cmd /c @ @ del victim.txt',
+    'if exist victim.txt @rd /s /q victim',
+    'if exist victim.txt @ rd /s /q victim',
+    'echo hi && @ del victim.txt',
+    'if exist outer if defined INNER del victim.txt'
+  ])('denies the executable conditional body: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    'echo "if exist a del b"',
+    'echo "if 1==1 del b"',
+    'echo "prueba de tanteo del Bibliotecario"',
+    'ls "T:/folder del something"',
+    'if exist del echo safe',
+    'if defined del echo safe',
+    'if "del"=="erase" echo safe',
+    'if 1 EQU 1 echo del',
+    'cmd /c if exist del echo safe',
+    'echo @del'
+  ])('does not treat condition operands or prose as commands: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+
+  it('consumes long nested conditional prefixes without rescanning the suffix', () => {
+    const command = 'if exist a '.repeat(20000) + 'del victim.txt'
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+})

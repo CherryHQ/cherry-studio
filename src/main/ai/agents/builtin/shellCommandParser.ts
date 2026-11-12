@@ -316,6 +316,24 @@ function tokenize(text: string): Token[] {
   return tokens
 }
 
+const CMD_COMPARISONS = new Set(['equ', 'neq', 'lss', 'leq', 'gtr', 'geq'])
+
+/** Consume one CMD IF condition without scanning for a deletion word inside its operands. */
+function cmdConditionEnd(words: readonly string[], start: number): number | undefined {
+  let index = start
+  if (words[index]?.toLowerCase() === '/i') index++
+  if (words[index]?.toLowerCase() === 'not') index++
+  const condition = words[index]?.toLowerCase()
+  if (condition === undefined) return undefined
+  if (['exist', 'defined', 'errorlevel', 'cmdextversion'].includes(condition))
+    return words[index + 1] === undefined ? undefined : index + 2
+  const equality = words[index].indexOf('==')
+  if (equality >= 0) return index + (equality + 2 < words[index].length ? 1 : 2)
+  if (words[index + 1]?.startsWith('==')) return index + (words[index + 1].length > 2 ? 2 : 3)
+  if (CMD_COMPARISONS.has(words[index + 1]?.toLowerCase()) && words[index + 2] !== undefined) return index + 3
+  return undefined
+}
+
 /**
  * Resolve the command word through assignments, sudo, and wrappers like `xargs`. Also resolves
  * argument vectors that are exec'd as argv rather than re-parsed as shell text (`docker exec …`).
@@ -328,7 +346,17 @@ export function resolveCommand(words: readonly string[]): { command: string; arg
       index++
       continue
     }
-    const name = normalizeCommandName(word)
+    const unprefixed = word.replace(/^@+/, '')
+    if (unprefixed.length === 0) {
+      index++
+      continue
+    }
+    const name = normalizeCommandName(unprefixed)
+    if (name === 'if') {
+      const end = cmdConditionEnd(words, index + 1)
+      index = end ?? index + 1
+      continue
+    }
     if (!WRAPPERS.has(name)) return { command: name, args: words.slice(index + 1) }
     index++
     // `command -v rm` reports a path; it does not execute.
@@ -391,7 +419,8 @@ function parseCommands(text: string): ShellPipeline[] {
       continue
     }
     // A reserved word opens or continues a compound body; the command after it is what executes.
-    if (words.length === 0 && RESERVED_WORDS.has(token.value.toLowerCase())) continue
+    if (words.length === 0 && token.value.toLowerCase() !== 'if' && RESERVED_WORDS.has(token.value.toLowerCase()))
+      continue
     words.push(token.value)
     substitutions.push(...token.substitutions)
   }
