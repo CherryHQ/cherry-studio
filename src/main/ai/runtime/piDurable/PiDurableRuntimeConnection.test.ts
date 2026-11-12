@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -480,6 +480,7 @@ describe('desktop Pi Durable connection', () => {
     const sourceId = input.sessionId
     const workspace = join(application.getPath('feature.agents.system_workspaces'), 'source-workspace')
     mkdirSync(workspace)
+    writeFileSync(join(workspace, 'AGENTS.md'), 'Parent instructions only')
     const workspaceId = snapshot.session.workspace.id
     dbh.db
       .update(agentWorkspaceTable)
@@ -492,6 +493,7 @@ describe('desktop Pi Durable connection', () => {
     const answer = await savedAnswer(parent)
     const forkId = await new AgentSessionForkOperations().fork(sourceId, answer.id)
     const forkWorkspace = agentSessionService.getById(forkId).workspace.path
+    writeFileSync(join(forkWorkspace, 'AGENTS.md'), 'Fork instructions only')
     input = { ...input, sessionId: forkId }
     const child = await connect()
     expect(child.connection['runtime']).toBe(parent.connection['runtime'])
@@ -515,6 +517,12 @@ describe('desktop Pi Durable connection', () => {
     ])
     const approvals = (events: AgentRuntimeEvent[]) => events.filter((event) => event.type === 'tool-approval-request')
     await expect.poll(() => approvals(parent.events).length + approvals(child.events).length).toBe(2)
+    const parentPrompt = script.calls.find((call) => call.model.provider === sourceId)?.systemPrompt
+    const forkPrompt = script.calls.find((call) => call.model.provider === forkId)?.systemPrompt
+    expect(parentPrompt).toContain('Parent instructions only')
+    expect(parentPrompt).not.toContain('Fork instructions only')
+    expect(forkPrompt).toContain('Fork instructions only')
+    expect(forkPrompt).not.toContain('Parent instructions only')
     expect(approvals(parent.events)).toHaveLength(1)
     expect(approvals(child.events)).toHaveLength(1)
     expect(approvals(parent.events)[0].request.approvalId).not.toBe(approvals(child.events)[0].request.approvalId)
@@ -843,6 +851,44 @@ describe('desktop Pi Durable connection', () => {
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
+  it('loads workspace instructions and reflects changes on later model requests', async () => {
+    const project = join(directory, 'project')
+    const cwd = join(project, 'nested')
+    mkdirSync(cwd, { recursive: true })
+    writeFileSync(join(project, 'AGENTS.md'), 'Parent workspace instruction')
+    writeFileSync(join(cwd, 'AGENTS.md'), 'Original workspace instruction')
+    writeFileSync(join(cwd, 'CLAUDE.md'), 'Fallback workspace instruction')
+    const agentDir = application.getPath('feature.agents.pi.root')
+    writeFileSync(join(agentDir, 'AGENTS.md'), 'Global workspace instruction')
+    dbh.db
+      .update(agentWorkspaceTable)
+      .set({ path: cwd })
+      .where(eq(agentWorkspaceTable.id, snapshot.session.workspaceId))
+      .run()
+    snapshot.session = agentSessionService.getById(input.sessionId)
+
+    const { connection, events } = await connect()
+    await connection.send({ message: message('First request') })
+    await done(events)
+    expect(script.calls[0].systemPrompt).toContain('Global workspace instruction')
+    expect(script.calls[0].systemPrompt).toContain('Parent workspace instruction')
+    expect(script.calls[0].systemPrompt).toContain('Original workspace instruction')
+    expect(script.calls[0].systemPrompt).not.toContain('Fallback workspace instruction')
+
+    writeFileSync(join(cwd, 'AGENTS.md'), 'Updated workspace instruction')
+    events.length = 0
+    await connection.send({ message: message('Second request') })
+    await done(events)
+    expect(script.calls[1].systemPrompt).toContain('Updated workspace instruction')
+    expect(script.calls[1].systemPrompt).not.toContain('Original workspace instruction')
+
+    unlinkSync(join(cwd, 'AGENTS.md'))
+    events.length = 0
+    await connection.send({ message: message('Third request') })
+    await done(events)
+    expect(script.calls[2].systemPrompt).toContain('Fallback workspace instruction')
+    expect(script.calls[2].systemPrompt).not.toContain('Updated workspace instruction')
+  })
   it.each([false, true])('limits PowerShell exposure to Windows and honors disabledTools (%s)', async (disabled) => {
     snapshot.agent.disabledTools = disabled ? ['PowerShell'] : []
     const { connection, events } = await connect()
@@ -906,7 +952,7 @@ describe('desktop Pi Durable connection', () => {
         createTestBinding({ model: { ...MODEL, contextWindow: 1_000_000 }, stream: script.model })
       )
       script = respondingModel((call) =>
-        call.systemPrompt.startsWith('Summarize the conversation')
+        call.systemPrompt.startsWith('You are a context summarization assistant')
           ? summary.wait(assistantReply('Remember the original objective', outcome === 'error' ? 'error' : 'stop'))
           : assistantReply('answer')
       )
@@ -937,10 +983,8 @@ describe('desktop Pi Durable connection', () => {
       }
       await done(events)
       if (outcome === 'error') {
-        expect(events.filter((event) => event.type === 'compaction-complete')).toEqual([
-          { type: 'compaction-complete' }
-        ])
-        expect(events.filter((event) => event.type === 'error')).toEqual([])
+        expect(events.filter((event) => event.type === 'compaction-complete')).toEqual([])
+        expect(events.filter((event) => event.type === 'error')).toHaveLength(1)
         return
       }
       if (outcome !== 'complete') {
@@ -1223,6 +1267,62 @@ describe('desktop Pi Durable connection', () => {
     expect(nativeInputs.some((state) => state.inputId === first.id && state.outcome === 'completed')).toBe(true)
     expect(injected).toBe(true)
     expect(text(events)).toBe('first answernext answer')
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  // Catches a child's incidental bypass mode overriding the root's installation policy.
+  it.each([
+    { mode: 'default', approved: true },
+    { mode: 'default', approved: false },
+    { mode: 'auto', approved: true },
+    { mode: 'auto', approved: false },
+    { mode: 'plan', approved: false },
+    { mode: 'bypassPermissions', approved: true }
+  ] as const)('uses root $mode for child installs (approved=$approved)', async ({ mode, approved }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: mode }
+    const marker = join(directory, 'child-install.txt')
+    const prefixMarker = join(directory, 'before-install.txt')
+    // A shell function records execution without installing a real package.
+    const command = `echo started > "${prefixMarker}"\nnpm() { echo installed > "${marker}"; }\nnpm install -g left-pad`
+    let root = ''
+    let childResult = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        const result = call.messages.find(
+          (entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-install'
+        )
+        if (!result) return assistantReply([toolCallPart('child-install', 'bash', { command })], 'toolUse')
+        childResult = JSON.stringify(result)
+        return assistantReply('child done')
+      }
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'install', prompt: 'install tool', fork: false })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    if (mode === 'default' || mode === 'auto') {
+      await expect
+        .poll(() => events.filter((event) => event.type === 'tool-approval-request').length, { timeout: 15_000 })
+        .toBe(1)
+      expect(existsSync(marker)).toBe(false)
+      expect(existsSync(prefixMarker)).toBe(false)
+      const event = events.find((event) => event.type === 'tool-approval-request')!
+      if (event.type !== 'tool-approval-request') throw new Error('Missing installation approval')
+      expect(event.request.input).toEqual({ command })
+      toolApprovalRegistry.dispatch(event.request.approvalId, { approved })
+    }
+    await done(events, 15_000)
+    expect(existsSync(marker)).toBe(approved)
+    expect(existsSync(prefixMarker)).toBe(approved)
+    if (mode === 'plan') expect(childResult).toContain('Plan mode is read-only')
+    else if (!approved) expect(childResult).toContain('rejected')
+    if (mode === 'plan' || mode === 'bypassPermissions')
+      expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
