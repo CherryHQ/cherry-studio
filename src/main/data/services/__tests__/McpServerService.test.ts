@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest'
 
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { mcpServerService } from '@data/services/McpServerService'
+import { toCreateMcpServerDto } from '@renderer/utils/mcpServerDraft'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 describe('McpServerService', () => {
@@ -296,6 +298,30 @@ describe('McpServerService', () => {
       ).toThrow(DataApiError)
 
       expect(dbh.db.select().from(mcpServerTable).all()).toEqual([])
+    })
+
+    it('persists the actual Marketplace ZoneFoundry preset before credentials or activation', () => {
+      const preset = PRESET_MCP_SERVERS.find((server) => server.name === BuiltinMcpServerNames.zonefoundry)
+      if (!preset) throw new Error('ZoneFoundry preset missing')
+      const created = mcpServerService.create(toCreateMcpServerDto(preset))
+      expect(created).toMatchObject({
+        name: preset.name,
+        isActive: false,
+        isTrusted: false,
+        shouldConfig: true,
+        env: { ZONEFOUNDRY_API_KEY: '' },
+        disabledAutoApproveTools: preset.disabledAutoApproveTools
+      })
+      expect(dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, created.id)).get()).toMatchObject({
+        id: created.id,
+        name: preset.name,
+        isActive: false
+      })
+      expect(mcpServerService.list({}).items.find((server) => server.id === created.id)).toMatchObject({
+        name: preset.name,
+        shouldConfig: true,
+        isTrusted: false
+      })
     })
 
     it('accepts an inactive ZoneFoundry built-in install without an API key', () => {
