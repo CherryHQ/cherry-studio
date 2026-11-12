@@ -10,8 +10,9 @@ import type { LegacyBridgeVersion } from '../legacyBridgeTarget'
 function fixture(prepareProfile?: () => () => void, version: LegacyBridgeVersion = '2.1.0') {
   let finishDownload!: () => void
   let token: CancellationToken | undefined
+  const updateInfo: { version: string } = { version }
   const updater = Object.assign(new EventEmitter(), {
-    checkForUpdates: vi.fn(async () => ({ isUpdateAvailable: true, updateInfo: { version } })),
+    checkForUpdates: vi.fn(async () => ({ isUpdateAvailable: true, updateInfo })),
     downloadUpdate: vi.fn((next: CancellationToken) => {
       token = next
       return new Promise<void>((resolve) => {

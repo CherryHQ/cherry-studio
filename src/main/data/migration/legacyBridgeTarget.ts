@@ -52,7 +52,7 @@ export function findLegacyBridgeTarget(
 
 export function getLegacyBridgeVersion(history: string, platform: string): LegacyBridgeVersion | undefined {
   const os = { darwin: 'mac', win32: 'win', linux: 'linux' }[platform]
-  if (!os) return
+  if (!os) return undefined
   let lastTimestamp = -Infinity
   let lastLegacyVersion: string | undefined
   for (const line of history.trim().split('\n')) {
@@ -69,7 +69,7 @@ export function getLegacyBridgeVersion(history: string, platform: string): Legac
       !Number.isFinite(time) ||
       time < lastTimestamp
     )
-      return
+      return undefined
     lastTimestamp = time
     if (semver.major(version) === 1) lastLegacyVersion = version
   }
@@ -78,4 +78,5 @@ export function getLegacyBridgeVersion(history: string, platform: string): Legac
       ? LEGACY_UPGRADE_VERSION
       : LEGACY_PREREQUISITE_VERSION
   }
+  return undefined
 }
