@@ -42,6 +42,17 @@ describe('rehypePrefixSvgReferences', () => {
     expect(output).not.toContain('user-content-icon')
   })
 
+  it('rewrites references in SVG animation values', () => {
+    const output = processHtml(`
+      <svg>
+        <defs><linearGradient id="user-content-gradient"></linearGradient></defs>
+        <rect><animate attributeName="fill" values="url(#gradient);url(#gradient)"></animate></rect>
+      </svg>
+    `)
+
+    expect(output).toContain('values="url(#user-content-gradient);url(#user-content-gradient)"')
+  })
+
   it('rewrites array-valued SVG properties', () => {
     const tree: Root = {
       type: 'root',
@@ -60,7 +71,7 @@ describe('rehypePrefixSvgReferences', () => {
             {
               type: 'element',
               tagName: 'rect',
-              properties: { values: ['url(#gradient)', '#gradient'] },
+              properties: { dataReferences: ['url(#gradient)', '#gradient'] },
               children: []
             }
           ]
@@ -71,7 +82,7 @@ describe('rehypePrefixSvgReferences', () => {
     rehypePrefixSvgReferences()(tree)
 
     const rect = (tree.children[0] as Element).children[1] as Element
-    expect(rect.properties.values).toEqual(['url(#user-content-gradient)', '#user-content-gradient'])
+    expect(rect.properties.dataReferences).toEqual(['url(#user-content-gradient)', '#user-content-gradient'])
   })
 
   it('keeps same-id SVG references scoped to each SVG subtree', () => {

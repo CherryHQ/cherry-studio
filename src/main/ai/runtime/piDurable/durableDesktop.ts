@@ -23,11 +23,16 @@ import { buildCitationsGuidance } from '../citationsGuidance'
 import { capturePiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
-import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from '../pi/piShell'
+import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableMcp } from './durableMcp'
+import { withDurableShellTimeout } from './durableShellTimeout'
 
-export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emit: (event: AgentRuntimeEvent) => void) {
+export async function prepareDurableDesktop(
+  input: AgentRuntimeConnectInput,
+  emit: (event: AgentRuntimeEvent) => void,
+  namespace?: string
+) {
   const discovery = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
@@ -66,7 +71,6 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
     workspacePath: cwd,
     agentDataPath,
     effectiveLanguage: snapshot.effectiveLanguage,
-    mcpInstructions: snapshot.mcpInstructions,
     citationsGuidance: buildCitationsGuidance({
       web: enabled(WEB_SEARCH_TOOL_NAME) || enabled(WEB_FETCH_TOOL_NAME),
       kb:
@@ -127,15 +131,16 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
     const registry = native.createRegistry()
     const coding = tools.createCodingTools({ images: await images.createNodePhotonImages() })
     const bash = tools.createBashTool({
-      commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env)),
-      prepare(execution) {
-        execution.env = mergePiBashExecutionEnv(execution.env)
-      }
+      commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env))
     })
     registry.install(
       native.defineExtension({
         ...coding,
-        tools: [...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'), bash]
+        tools: [
+          ...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'),
+          withDurableShellTimeout(bash),
+          ...(process.platform === 'win32' ? [withDurableShellTimeout(tools.createPowerShellTool())] : [])
+        ]
       })
     )
     registry.install(createCodemodeExtension({ sandbox: new CodemodeSandbox(), models: false }))
@@ -146,17 +151,69 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
       native.defineExtension({
         name: 'cherry.desktop',
         sections: [
-          { key: 'agent_identity', render: () => builder.buildMemoriesSection(agentDataPath) },
-          { key: 'skills', render: () => pi.formatSkillsForPrompt(skills.skills) }
+          {
+            key: 'agent_identity',
+            async render() {
+              const { text, resources } = await builder.buildMemoriesContext(agentDataPath)
+              return { text, source: { kind: 'memory-files', resources } }
+            }
+          },
+          {
+            key: 'project_context',
+            render() {
+              const files = pi.loadProjectContextFiles({ cwd, agentDir: application.getPath('feature.agents.pi.root') })
+              if (!files.length) return undefined
+              const entries = files.map((file) => ({
+                ...file,
+                text: `<project_instructions path="${file.path}">\n${file.content}\n</project_instructions>`
+              }))
+              return {
+                text: ['Project-specific instructions and guidelines:', ...entries.map((entry) => entry.text)].join(
+                  '\n\n'
+                ),
+                source: {
+                  kind: 'memory-files',
+                  resources: entries.map((entry) => ({
+                    id: entry.path,
+                    name: entry.path,
+                    source: entry.path,
+                    characters: entry.text.length
+                  }))
+                }
+              }
+            }
+          },
+          {
+            key: 'skills',
+            render: () => ({
+              text: pi.formatSkillsForPrompt(skills.skills),
+              source: { kind: 'skills', resources: pi.skillPromptResources(skills.skills) }
+            })
+          },
+          {
+            key: 'mcp_instructions',
+            render: () =>
+              snapshot.mcpInstructions
+                ? { text: snapshot.mcpInstructions, source: { kind: 'mcp-instructions' } }
+                : undefined
+          }
         ]
       })
     )
+    if (namespace) {
+      for (const extension of registry.snapshot().installed()) {
+        registry.uninstall(extension)
+        registry.install(native.defineExtension({ ...extension, name: `${namespace}/${extension.name}` }))
+      }
+    }
     const environment = new NodeExecutionEnv({
       cwd,
       shellPath: resolvePiShellPath(),
-      shellEnv: mergePiBashExecutionEnv(env)
+      // Per-call PATH overrides the SDK's inherited environment. Merge the complete PATH here.
+      shellEnv: mergePiShellExecutionEnv(env)
     })
     const agentConfig: AgentChange = {
+      ...(namespace && { extensions: registry.snapshot().installed() }),
       tools: {
         remove: registry
           .snapshot()
@@ -197,8 +254,9 @@ export async function prepareDurableDesktop(input: AgentRuntimeConnectInput, emi
           next.knowledgeBaseIds
         )
         const mode = current.agent.configuration?.permission_mode ?? 'default'
-        const permissionChanged = !active && mode !== permissionMode
-        if (!active) permissionMode = mode
+        // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.
+        const permissionChanged = mode !== permissionMode
+        permissionMode = mode
         const names = (current.agent.disabledTools ?? []).map(normalizePiDisabledToolId)
         disabled = active ? new Set([...disabled, ...names]) : new Set(names)
         return { signature: current.signature, permissionChanged }

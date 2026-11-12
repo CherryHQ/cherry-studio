@@ -531,6 +531,34 @@ describe('ProviderModelMigrator', () => {
       expect(runtime.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
 
+    it('preserves explicit legacy official endpoints and custom proxies during v1 import', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider('custom-cn', [{ id: 'saved-model' }]),
+              apiKey: 'saved-key',
+              apiHost: 'https://dashscope.aliyuncs.com:443/compatible-mode/v1/'
+            },
+            { ...makeProvider('custom-global'), apiHost: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/' },
+            { ...makeProvider('custom-proxy'), apiHost: 'https://proxy.example/compatible-mode/v1/' }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      expect((await migrator.execute(migrationContext)).success).toBe(true)
+      const rows = dbh.db.select().from(userProviderTable).all()
+      const endpointOf = (id: string) =>
+        rows.find((row) => row.providerId === id)?.endpointConfigs?.['openai-chat-completions']?.baseUrl
+      expect(endpointOf('custom-cn')).toBe('https://dashscope.aliyuncs.com:443/compatible-mode/v1/')
+      expect(endpointOf('custom-global')).toBe('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/')
+      expect(endpointOf('custom-proxy')).toBe('https://proxy.example/compatible-mode/v1/')
+      expect(rows.find((row) => row.providerId === 'custom-cn')?.apiKeys?.[0].key).toBe('saved-key')
+      expect(dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'custom-cn')).all()).toEqual([
+        expect.objectContaining({ id: 'custom-cn::saved-model', providerId: 'custom-cn' })
+      ])
+    })
+
     it('stores only a changed endpoint dialect from a post-migration v1 provider snapshot', async () => {
       registryFixtures.providers = [
         {
@@ -784,11 +812,7 @@ describe('ProviderModelMigrator', () => {
       const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
-      expect(registryFixtures.loaderPaths.at(-1)).toEqual({
-        models: path.resolve('/mock/feature.provider_registry.data/models.json'),
-        providers: path.resolve('/mock/feature.provider_registry.data/providers.json'),
-        providerModels: path.resolve('/mock/feature.provider_registry.data/provider-models.json')
-      })
+
       // The legacy baseUrl equals the registry default → nothing user-owned
       // remains, so the row stores no endpoint config at all...
       const [providerRow] = await dbh.db

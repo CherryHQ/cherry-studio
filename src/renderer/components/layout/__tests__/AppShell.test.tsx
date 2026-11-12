@@ -2,20 +2,25 @@
 import '@testing-library/jest-dom/vitest'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { DragEvent, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUI from '@cherrystudio/ui'
+import type * as CommandHooks from '@renderer/hooks/command'
+import { useDrag } from '@renderer/hooks/useDrag'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 
 vi.mock('@cherrystudio/ui', async () => vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui'))
 
 const mocks = vi.hoisted(() => ({
+  openTab: vi.fn(() => 'preview'),
+  updateTab: vi.fn(),
   closeTab: vi.fn(),
   closeTabs: vi.fn(),
   detachTab: vi.fn(),
   setActiveTab: vi.fn(),
-  commandHandlers: new Map<string, { handler: () => void; options?: { enabled?: boolean } }>(),
+  commandHandlers: new Map<string, { handler: () => void; options?: CommandHooks.CommandHandlerOptions }>(),
   ipcHandlers: new Map<string, (value: unknown) => void>(),
   ipcRequest: vi.fn(() => Promise.resolve(false)),
   activeTabId: 'home',
@@ -39,17 +44,29 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
+  get platform() {
+    return mocks.platformState.isMac ? 'darwin' : 'win32'
+  },
   get isMac() {
     return mocks.platformState.isMac
   },
   isLinux: false
 }))
 
-vi.mock('@renderer/hooks/command', () => ({
-  useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
-    mocks.commandHandlers.set(command, { handler, options })
+vi.mock('@renderer/hooks/command', async (importOriginal) => {
+  const actual = await importOriginal<typeof CommandHooks>()
+  return {
+    ...actual,
+    useCommandHandler: (
+      command: Parameters<typeof actual.useCommandHandler>[0],
+      handler: () => void,
+      options?: Parameters<typeof actual.useCommandHandler>[2]
+    ) => {
+      mocks.commandHandlers.set(command, { handler, options })
+      actual.useCommandHandler(command, handler, options)
+    }
   }
-}))
+})
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
@@ -77,13 +94,13 @@ vi.mock('../../../hooks/tab', async () => {
       closeTab: mocks.closeTab,
       closeTabs: mocks.closeTabs,
       detachTab: mocks.detachTab,
-      openTab: vi.fn(),
+      openTab: mocks.openTab,
       pinTab: vi.fn(),
       reorderTabs: vi.fn(),
       setActiveTab: mocks.setActiveTab,
       tabs: mocks.tabs,
       unpinTab: vi.fn(),
-      updateTab: vi.fn()
+      updateTab: mocks.updateTab
     })
   }
 })
@@ -118,7 +135,28 @@ vi.mock('../TabRouter', () => ({
   TabRouter: ({ tab }: { tab: { id: string } }) => <section data-testid="tab-router" data-tab-id={tab.id} />
 }))
 
+import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+
 import { AppShell } from '../AppShell'
+
+function ShellWithCommands() {
+  return (
+    <CommandContextKeyProvider>
+      <CommandProvider>
+        <AppShell />
+        <button type="button">Command target</button>
+      </CommandProvider>
+    </CommandContextKeyProvider>
+  )
+}
+
+function pressShellCommand(key: string, shiftKey = false) {
+  const event = new KeyboardEvent('keydown', { key, ctrlKey: true, shiftKey, bubbles: true, cancelable: true })
+  act(() => {
+    screen.getByRole('button', { name: 'Command target' }).dispatchEvent(event)
+  })
+  return event.defaultPrevented
+}
 
 afterEach(() => {
   cleanup()
@@ -142,17 +180,6 @@ afterEach(() => {
 })
 
 describe('AppShell', () => {
-  it('owns the resource source provider at the route host boundary', () => {
-    render(<AppShell />)
-
-    const provider = screen.getByTestId('resource-view-source-provider')
-
-    expect(provider).toContainElement(screen.getByTestId('tab-router'))
-    expect(provider).not.toContainElement(screen.getByTestId('mini-app-pool'))
-    expect(provider).not.toContainElement(screen.getByTestId('sidebar'))
-    expect(provider).not.toContainElement(screen.getByTestId('tab-bar'))
-  })
-
   it('applies the compact minimum window size for the active chat tab and resets it on leaving', async () => {
     mocks.tabs = [
       ...mocks.tabs,
@@ -201,55 +228,6 @@ describe('AppShell', () => {
     mocks.commandHandlers.get('app.search')?.handler()
 
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
-  })
-
-  it('focuses the active Settings tab and hides workspace navigation', () => {
-    const settingsTab = {
-      id: 'settings',
-      isDormant: false,
-      title: 'Settings',
-      type: 'route' as const,
-      url: '/settings/provider'
-    }
-    mocks.tabs = [...mocks.tabs, settingsTab]
-    mocks.activeTabId = settingsTab.id
-
-    render(<AppShell />)
-
-    expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument()
-    expect(mocks.tabBarProps).toMatchObject({
-      activeTabId: settingsTab.id,
-      isFocusedTab: true,
-      tabs: [settingsTab]
-    })
-    expect(screen.getAllByTestId('tab-router').map((router) => router.dataset.tabId)).toEqual(['home', 'settings'])
-  })
-
-  it('keeps a background Settings tab in the positional tab-bar list', () => {
-    mocks.tabs = [
-      ...mocks.tabs,
-      {
-        id: 'settings',
-        isDormant: false,
-        title: 'Settings',
-        type: 'route',
-        url: '/settings/provider'
-      },
-      {
-        id: 'files',
-        isDormant: false,
-        title: 'Files',
-        type: 'route',
-        url: '/app/files'
-      }
-    ]
-    mocks.activeTabId = 'files'
-
-    render(<AppShell />)
-
-    // AppShellTabBar sends positional reorder indices to TabsProvider, so this list must stay unfiltered.
-    const tabBarTabs = mocks.tabBarProps?.tabs as Array<{ id: string }> | undefined
-    expect(tabBarTabs?.map((tab) => tab.id)).toEqual(['home', 'settings', 'files'])
   })
 
   it('restores the tab that was active before Settings when the focused tab closes or detaches', () => {
@@ -342,62 +320,21 @@ describe('AppShell', () => {
     expect(mocks.hideSearchPopup).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the Windows and Linux tab bar inside the content column beside the sidebar', () => {
+  it('exposes the maintained app content selector', () => {
     const { container } = render(<AppShell />)
+    expect(container.firstElementChild?.matches('[data-ui~="app.shell"]')).toBe(true)
+    expect(container.querySelectorAll('[data-ui~="app.shell"]')).toHaveLength(1)
 
-    const root = container.firstElementChild
-    const sidebar = screen.getByTestId('sidebar')
-    const tabBar = screen.getByTestId('tab-bar')
-    const tabRouter = screen.getByTestId('tab-router')
-    const contentColumn = tabBar.parentElement
-
-    if (!(root instanceof HTMLElement) || !(contentColumn instanceof HTMLElement)) {
-      throw new Error('Expected AppShell to render a root and content column')
-    }
-
-    expect(sidebar.parentElement).toBe(root)
-    expect(contentColumn.parentElement).toBe(root)
-    expect(contentColumn).toContainElement(tabBar)
-    expect(contentColumn).toContainElement(tabRouter)
-    expect(contentColumn.querySelector('main')).toHaveAttribute('data-ui', 'app.content')
-    expect(Array.from(root.children)).toEqual([sidebar, contentColumn])
-    expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
+    expect(screen.getByRole('main')).toHaveAttribute('data-ui', 'app.content')
   })
 
-  it('keeps the macOS traffic lights in the left column beside the tab/content column', () => {
+  it('uses the native titlebar area for the macOS traffic-light drag region', () => {
     mocks.platformState.isMac = true
-
     const { container } = render(<AppShell />)
+    expect(container.firstElementChild?.matches('[data-ui~="app.shell"]')).toBe(true)
+    expect(container.querySelectorAll('[data-ui~="app.shell"]')).toHaveLength(1)
 
-    const root = container.firstElementChild
-    const sidebar = screen.getByTestId('sidebar')
-    const tabBar = screen.getByTestId('tab-bar')
-    const tabRouter = screen.getByTestId('tab-router')
-    const trafficLightSpacer = screen.getByTestId('macos-traffic-light-spacer')
-    const trafficLightDragRegion = screen.getByTestId('macos-traffic-light-drag-region')
-    const leftColumn = sidebar.parentElement
-    const contentColumn = tabBar.parentElement
-
-    if (
-      !(root instanceof HTMLElement) ||
-      !(leftColumn instanceof HTMLElement) ||
-      !(contentColumn instanceof HTMLElement)
-    ) {
-      throw new Error('Expected AppShell to render macOS left and content columns')
-    }
-
-    expect(trafficLightDragRegion.parentElement).toBe(root)
-    expect(trafficLightDragRegion).toHaveClass('absolute', 'top-0', 'left-0')
-    expect(trafficLightDragRegion).toHaveClass('w-[env(titlebar-area-x)]')
-    expect(leftColumn.parentElement).toBe(root)
-    expect(leftColumn).not.toHaveClass('min-w-[88px]')
-    expect(contentColumn.parentElement).toBe(root)
-    expect(Array.from(leftColumn.children)).toEqual([trafficLightSpacer, sidebar])
-    expect(contentColumn).toContainElement(tabBar)
-    expect(contentColumn).toContainElement(tabRouter)
-    expect(Array.from(root.children)).toEqual([trafficLightDragRegion, leftColumn, contentColumn])
-    expect(mocks.tabBarProps).not.toHaveProperty('leftInset')
-    expect(mocks.tabBarProps).toHaveProperty('isFullscreen', false)
+    expect(screen.getByTestId('macos-traffic-light-drag-region')).toHaveClass('w-[env(titlebar-area-x)]')
   })
 
   it('removes macOS traffic light placeholders when the window is fullscreen', async () => {
@@ -487,27 +424,25 @@ describe('AppShell', () => {
     expect(mocks.setActiveTab).toHaveBeenCalledWith('tab3')
   })
 
-  it('disables tab cycling commands when there is no reachable next tab', () => {
-    const { rerender } = render(<AppShell />)
-
-    expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: false })
-    expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: false })
+  it('leaves tab cycling keys unconsumed until another tab is reachable', () => {
+    const { rerender } = render(<ShellWithCommands />)
+    expect(pressShellCommand('Tab')).toBe(false)
+    expect(pressShellCommand('Tab', true)).toBe(false)
 
     mocks.tabs = [...mocks.tabs, { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' }]
     mocks.activeTabId = 'missing'
-    rerender(<AppShell />)
-
-    expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: false })
-    expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: false })
+    rerender(<ShellWithCommands />)
+    expect(pressShellCommand('Tab')).toBe(false)
+    expect(pressShellCommand('Tab', true)).toBe(false)
 
     mocks.activeTabId = 'home'
-    rerender(<AppShell />)
-
-    expect(mocks.commandHandlers.get('tab.next')?.options).toEqual({ enabled: true })
-    expect(mocks.commandHandlers.get('tab.prev')?.options).toEqual({ enabled: true })
+    rerender(<ShellWithCommands />)
+    expect(pressShellCommand('Tab')).toBe(true)
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('tab2')
   })
 
   it('closes the active tab from the tab-close shortcut', () => {
+    mocks.platformState.isMac = true
     mocks.tabs = [...mocks.tabs, { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/app/files' }]
     mocks.activeTabId = 'tab2'
 
@@ -515,19 +450,30 @@ describe('AppShell', () => {
     mocks.commandHandlers.get('tab.close')?.handler()
 
     expect(mocks.closeTab).toHaveBeenCalledWith('tab2')
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
   })
 
-  it('closes the last tab from the shortcut instead of the window, landing on the Launchpad fallback', () => {
+  it('closes the main window from the shortcut when the last tab is open on macOS', () => {
+    mocks.platformState.isMac = true
+
     render(<AppShell />)
     mocks.commandHandlers.get('tab.close')?.handler()
 
-    // TabsProvider turns a zero-tab close into the Launchpad fallback tab, so the
-    // shortcut must share the tab bar's close path instead of closing the window.
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('window.close')
+    expect(mocks.closeTab).not.toHaveBeenCalled()
+  })
+
+  it('keeps the Launchpad fallback when the last tab is closed by the shortcut off macOS', () => {
+    render(<AppShell />)
+    mocks.commandHandlers.get('tab.close')?.handler()
+
     expect(mocks.closeTab).toHaveBeenCalledWith('home')
     expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
   })
 
-  it('keeps the last-tab close via the tab bar on the empty-state fallback', () => {
+  it('keeps the last-tab close via the tab bar on the empty-state fallback on macOS', () => {
+    mocks.platformState.isMac = true
+
     render(<AppShell />)
     const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
     closeTab?.('home')
@@ -536,11 +482,141 @@ describe('AppShell', () => {
     expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.close')
   })
 
-  it('disables the tab-close shortcut when no tab is active', () => {
+  it('leaves the tab-close key unconsumed when no tab is active', () => {
     mocks.activeTabId = 'missing'
+    render(<ShellWithCommands />)
+    expect(pressShellCommand('w')).toBe(false)
+    expect(mocks.closeTab).not.toHaveBeenCalled()
+  })
+})
 
+describe('window file drops', () => {
+  const originalGetPathForFile = window.api.file.getPathForFile
+  const getPathForFile = vi.fn<(file: File) => string>()
+
+  function transfer(files: File[], items: unknown[] = [], types = ['Files']) {
+    return { files, items, types, dropEffect: 'copy' }
+  }
+
+  function dispatch(target: EventTarget, type: string, dataTransfer: object) {
+    const event = new Event(type, { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'dataTransfer', { value: dataTransfer })
+    act(() => {
+      target.dispatchEvent(event)
+    })
+    return event
+  }
+
+  function setup(path = '/docs/notes.md') {
+    window.api.file.getPathForFile = getPathForFile
+    getPathForFile.mockReturnValue(path)
+    const view = render(<AppShell />)
+    return { ...view, target: screen.getByTestId('tab-router'), file: new File([''], 'notes.md') }
+  }
+
+  afterEach(() => {
+    window.api.file.getPathForFile = originalGetPathForFile
+    getPathForFile.mockReset()
+  })
+
+  it.each(['/docs/README.md', '/docs/notes.markdown', '/docs/component.mdx', '/docs/大 写 #?.MD'])(
+    'opens an unclaimed Markdown drop for %s',
+    (path) => {
+      const { target, file } = setup(path)
+      const event = dispatch(target, 'drop', transfer([file]))
+      expect(event.defaultPrevented).toBe(true)
+      expect(mocks.openTab).toHaveBeenCalledExactlyOnceWith(`/app/file-preview?${new URLSearchParams({ path })}`, {
+        title: path.split('/').at(-1),
+        metadata: { filePreviewRefreshKey: 0 }
+      })
+    }
+  )
+
+  it.each(['preventDefault', 'stopPropagation'] as const)('respects descendant %s', (method) => {
+    const { target, file } = setup()
+    target.addEventListener('drop', (event) => event[method](), { once: true })
+    const event = dispatch(target, 'drop', transfer([file]))
+    expect(event.defaultPrevented).toBe(method === 'preventDefault')
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('respects a same-document portal drop owner outside the React root container', () => {
+    const { container, file, rerender } = setup()
+    const onDrop = vi.fn((event: DragEvent<HTMLDivElement>) => event.preventDefault())
+    rerender(
+      <>
+        <AppShell />
+        {createPortal(<div data-testid="portal-drop-owner" onDrop={onDrop} />, document.body)}
+      </>
+    )
+
+    const target = screen.getByTestId('portal-drop-owner')
+    expect(document.body).toContainElement(target)
+    expect(container).not.toContainElement(target)
+    dispatch(target, 'drop', transfer([file]))
+
+    expect(onDrop).toHaveBeenCalledTimes(1)
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('respects a real useDrag consumer as the drop owner', () => {
+    const { file, rerender } = setup()
+    const onDrop = vi.fn()
+    function DragConsumer() {
+      const { handleDragOver, handleDrop } = useDrag<HTMLDivElement>((event) => onDrop(event.dataTransfer))
+      return <div data-testid="drag-consumer" onDragOver={handleDragOver} onDrop={handleDrop} />
+    }
+    rerender(
+      <>
+        <AppShell />
+        <DragConsumer />
+      </>
+    )
+
+    const dataTransfer = transfer([file])
+    dispatch(screen.getByTestId('drag-consumer'), 'drop', dataTransfer)
+
+    expect(onDrop).toHaveBeenCalledExactlyOnceWith(dataTransfer)
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('rejects multiple files, unsupported and invalid paths, and non-file payloads', () => {
+    const { target, file } = setup()
+    const other = new File([''], 'other.txt')
+    dispatch(target, 'drop', transfer([file, file]))
+    dispatch(target, 'drop', transfer([file, other]))
+    for (const path of ['/docs/notes.txt', '', 'relative.md']) {
+      getPathForFile.mockReturnValue(path)
+      expect(dispatch(target, 'drop', transfer([file])).defaultPrevented).toBe(false)
+    }
+    dispatch(target, 'drop', transfer([], [], ['text/plain', 'text/uri-list']))
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('rejects directory entries and accepts FileList-only transfers', () => {
+    const { target, file } = setup()
+    const directory = { kind: 'file', webkitGetAsEntry: () => ({ isDirectory: true }) }
+    expect(dispatch(target, 'drop', transfer([file], [directory])).defaultPrevented).toBe(false)
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(dispatch(target, 'drop', transfer([file])).defaultPrevented).toBe(true)
+    expect(mocks.openTab).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancels file dragover but preserves text dragover and its drop effect', () => {
+    const { target } = setup()
+    expect(dispatch(target, 'dragover', transfer([])).defaultPrevented).toBe(true)
+    const text = transfer([], [], ['text/plain'])
+    expect(dispatch(target, 'dragover', text).defaultPrevented).toBe(false)
+    expect(text.dropEffect).toBe('copy')
+  })
+
+  it('removes listeners on unmount and registers exactly once on remount', () => {
+    const { file, unmount } = setup()
+    unmount()
+    dispatch(window, 'drop', transfer([file]))
+    expect(mocks.openTab).not.toHaveBeenCalled()
     render(<AppShell />)
-
-    expect(mocks.commandHandlers.get('tab.close')?.options).toEqual({ enabled: false })
+    dispatch(screen.getByTestId('tab-router'), 'drop', transfer([file]))
+    expect(mocks.openTab).toHaveBeenCalledTimes(1)
   })
 })

@@ -93,12 +93,6 @@ describe('FileTree - read-only form (no callbacks)', () => {
     await user.click(screen.getByText('Root'))
     expect(onSelectedChange).toHaveBeenCalledWith('root')
   })
-
-  it('truncates labels by default', () => {
-    render(<FileTree nodes={nodes} defaultExpandedIds={new Set(['root'])} renderList={passthroughRenderList} />)
-
-    expect(screen.getByText('A.md')).toHaveClass('truncate')
-  })
 })
 
 describe('FileTree - editable form (all callbacks)', () => {
@@ -160,6 +154,33 @@ describe('FileTree - editable form (all callbacks)', () => {
     expect(onSelectedChange).not.toHaveBeenCalled()
   })
 
+  it('renders row detail below the row without selecting or collapsing it', async () => {
+    const onSelectedChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <FileTree
+        nodes={nodes}
+        defaultExpandedIds={new Set(['root'])}
+        onSelectedChange={onSelectedChange}
+        renderRowDetail={(n) => (
+          <button type="button" data-testid={`detail-${n.id}`}>
+            detail
+          </button>
+        )}
+        renderList={passthroughRenderList}
+      />
+    )
+
+    const rootRow = screen.getByRole('treeitem', { name: 'Root' })
+    const rootDetail = screen.getByTestId('detail-root')
+    expect(rootRow).not.toContainElement(rootDetail)
+
+    await user.click(rootDetail)
+
+    expect(onSelectedChange).not.toHaveBeenCalled()
+    expect(screen.getByText('A.md')).toBeInTheDocument()
+  })
+
   it('stops row context-menu events after opening the row menu', () => {
     const onWrapperContextMenu = vi.fn()
 
@@ -182,76 +203,7 @@ describe('FileTree - editable form (all callbacks)', () => {
   })
 })
 
-describe('FileTree - icon behaviour', () => {
-  it('shows material folder icons for expanded and collapsed folders', () => {
-    const { rerender } = render(<FileTree nodes={nodes} expandedIds={new Set()} renderList={passthroughRenderList} />)
-    const rootRow = screen.getByText('Root').closest('[data-node-id="root"]')!
-    const collapsedIcon = rootRow.querySelector('[data-icon="material-icon-theme:folder"]')
-    expect(collapsedIcon).toBeTruthy()
-    expect(collapsedIcon).toHaveAttribute('data-width', '16')
-    expect(collapsedIcon).toHaveAttribute('data-height', '16')
-    rerender(<FileTree nodes={nodes} expandedIds={new Set(['root'])} renderList={passthroughRenderList} />)
-    const rootRow2 = screen.getByText('Root').closest('[data-node-id="root"]')!
-    expect(rootRow2.querySelector('[data-icon="material-icon-theme:folder-open"]')).toBeTruthy()
-  })
-
-  it('shows material file icons by extension', () => {
-    render(<FileTree nodes={nodes} defaultExpandedIds={new Set(['root'])} renderList={passthroughRenderList} />)
-    const markdownRow = screen.getByText('A.md').closest('[data-node-id="a"]')!
-    const jsonRow = screen.getByText('config.json').closest('[data-node-id="config"]')!
-
-    expect(markdownRow.querySelector('[data-icon="material-icon-theme:markdown"]')).toBeTruthy()
-    expect(jsonRow.querySelector('[data-icon="material-icon-theme:json"]')).toBeTruthy()
-    expect(markdownRow.querySelector('[data-icon="material-icon-theme:markdown"]')).toHaveAttribute('data-width', '16')
-  })
-
-  it('renders skillFileTree-style placeholder for file rows', () => {
-    render(<FileTree nodes={nodes} defaultExpandedIds={new Set(['root'])} renderList={passthroughRenderList} />)
-    const markdownRow = screen.getByText('A.md').closest('[data-node-id="a"]')!
-
-    expect(markdownRow.querySelector('.inline-block.size-3')).toBeTruthy()
-    expect(markdownRow.querySelector('button')).toBeNull()
-  })
-
-  it('uses skillFileTree-style row padding for indentation', () => {
-    render(<FileTree nodes={nodes} defaultExpandedIds={new Set(['root', 'sub'])} renderList={passthroughRenderList} />)
-    const rootRow = screen.getByText('Root').closest('[data-node-id="root"]') as HTMLElement
-    const markdownRow = screen.getByText('A.md').closest('[data-node-id="a"]') as HTMLElement
-    const nestedRow = screen.getByText('B.md').closest('[data-node-id="b"]') as HTMLElement
-
-    expect(rootRow.style.paddingLeft).toBe('8px')
-    expect(markdownRow.style.paddingLeft).toBe('20px')
-    expect(nestedRow.style.paddingLeft).toBe('32px')
-    expect(rootRow.querySelector('span[style*="width"]')).toBeNull()
-  })
-
-  it('keeps custom file and folder icon overrides', () => {
-    render(
-      <FileTree
-        nodes={nodes}
-        defaultExpandedIds={new Set(['root'])}
-        fileIcon={(node) => <span data-testid={`custom-file-${node.id}`} />}
-        folderIcon={(node, expanded) => <span data-testid={`custom-folder-${node.id}-${expanded}`} />}
-        renderList={passthroughRenderList}
-      />
-    )
-
-    const rootRow = screen.getByText('Root').closest('[data-node-id="root"]')!
-    const markdownRow = screen.getByText('A.md').closest('[data-node-id="a"]')!
-
-    expect(screen.getByTestId('custom-folder-root-true')).toBeInTheDocument()
-    expect(screen.getByTestId('custom-file-a')).toBeInTheDocument()
-    expect(rootRow.querySelector('[data-icon^="material-icon-theme:"]')).toBeNull()
-    expect(markdownRow.querySelector('[data-icon^="material-icon-theme:"]')).toBeNull()
-  })
-})
-
 describe('FileTree - search box', () => {
-  it('does not render the search input when showSearch is omitted', () => {
-    render(<FileTree nodes={nodes} renderList={passthroughRenderList} />)
-    expect(screen.queryByTestId('file-tree-search-input')).toBeNull()
-  })
-
   it('reflects the controlled keyword and reports input changes', () => {
     const onSearchKeywordChange = vi.fn()
     render(

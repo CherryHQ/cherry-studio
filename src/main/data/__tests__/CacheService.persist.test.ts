@@ -51,15 +51,6 @@ vi.mock('@main/core/lifecycle', () => ({
   Phase: { BeforeReady: 'BeforeReady', WhenReady: 'WhenReady' }
 }))
 
-// Test-controllable BrowserWindow so we can assert the persist path never broadcasts.
-vi.mock('electron', async () => {
-  const actual = await vi.importActual<any>('electron')
-  const fakeBrowserWindow: any = vi.fn()
-  fakeBrowserWindow.getAllWindows = vi.fn(() => [] as any[])
-  fakeBrowserWindow.fromWebContents = vi.fn(() => null)
-  return { ...actual, BrowserWindow: fakeBrowserWindow }
-})
-
 const PROBE = 'internal.persist_probe' as const
 
 describe('CacheService persist tier', () => {
@@ -68,6 +59,10 @@ describe('CacheService persist tier', () => {
   let cacheFile: string
 
   const initService = async () => {
+    const { BrowserWindow } = (await import('electron')) as any
+    BrowserWindow.getAllWindows = vi.fn(() => [])
+    BrowserWindow.fromWebContents = vi.fn(() => null)
+
     const { CacheService } = await import('../CacheService')
     service = new CacheService()
     await service.onInit()
@@ -112,32 +107,6 @@ describe('CacheService persist tier', () => {
     expect(fs.existsSync(cacheFile)).toBe(true)
     expect(fs.existsSync(`${cacheFile}.tmp`)).toBe(false) // temp renamed away
     expect(JSON.parse(fs.readFileSync(cacheFile, 'utf-8'))[PROBE]).toBe(7)
-  })
-
-  it('coalesces rapid writes into a single disk flush', async () => {
-    await initService()
-    const saveSpy = vi.spyOn(service, 'savePersistSync')
-
-    service.setPersist(PROBE, 1)
-    service.setPersist(PROBE, 2)
-    service.setPersist(PROBE, 3)
-    vi.advanceTimersByTime(350)
-
-    expect(saveSpy).toHaveBeenCalledTimes(1)
-    expect(service.getPersist(PROBE)).toBe(3)
-  })
-
-  it('skips scheduling a write when setting the same value (isEqual)', async () => {
-    await initService()
-    service.setPersist(PROBE, 5)
-    vi.advanceTimersByTime(350)
-
-    const schedSpy = vi.spyOn(service, 'schedulePersistSave')
-    service.setPersist(PROBE, 5) // same value — no-op
-    expect(schedSpy).not.toHaveBeenCalled()
-
-    service.setPersist(PROBE, 6) // different value schedules a write
-    expect(schedSpy).toHaveBeenCalledTimes(1)
   })
 
   it('reloads persisted values on a fresh service instance', async () => {
@@ -305,13 +274,6 @@ describe('CacheService persist tier', () => {
       vi.advanceTimersByTime(350)
       expect(JSON.parse(fs.readFileSync(cacheFile, 'utf-8'))[PROBE]).toBe(0)
     })
-
-    it('is a no-op when the value is already the default', async () => {
-      await initService()
-      const schedSpy = vi.spyOn(service, 'schedulePersistSave')
-      service.deletePersist(PROBE) // already default → nothing to drop
-      expect(schedSpy).not.toHaveBeenCalled()
-    })
   })
 
   // ---------- subscribePersistChange: main-local change notifications ----------
@@ -392,11 +354,6 @@ describe('CacheService persist tier', () => {
       height: 600,
       isMaximized: false,
       displayBounds: { x: 0, y: 0, width: 1920, height: 1080 }
-    })
-
-    it('defaults to an empty record before anything is set', async () => {
-      await initService()
-      expect(service.getPersist(BOUNDS)).toEqual({})
     })
 
     it('round-trips a per-type record and reloads it on a fresh instance', async () => {

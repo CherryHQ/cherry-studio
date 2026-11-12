@@ -1,7 +1,8 @@
 import type { ComponentProps, FC } from 'react'
-import { Fragment } from 'react'
+import { Fragment, useMemo } from 'react'
 
 import { ConfirmDialog } from '@cherrystudio/ui'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 
 import { CodeCliContentPanel } from './CodeCliContentPanel'
 import { CodeCliSidebar } from './CodeCliSidebar'
@@ -30,6 +31,17 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
   configPanelProps,
   ownLoginConfigPanelProps
 }) => {
+  const configTarget = useMemo(
+    () => (configPanelProps ? { key: configPanelKey, props: configPanelProps } : null),
+    [configPanelKey, configPanelProps]
+  )
+  const ownLoginTarget = useMemo(
+    () => (ownLoginConfigPanelProps ? { key: configPanelKey, props: ownLoginConfigPanelProps } : null),
+    [configPanelKey, ownLoginConfigPanelProps]
+  )
+  const configPanel = useExitPresence(configTarget)
+  const ownLoginPanel = useExitPresence(ownLoginTarget)
+
   return (
     <div data-ui="code.view" className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-foreground">
       <div className="flex min-h-0 flex-1">
@@ -48,14 +60,14 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
 
       <LaunchDialog {...launchDialogProps} />
       <ConfirmDialog {...removeDialogProps} />
-      {configPanelProps && (
-        <Fragment key={configPanelKey}>
-          <ConfigEditPanel {...configPanelProps} />
+      {configPanel.value && (
+        <Fragment key={configPanel.value.key}>
+          <ConfigEditPanel {...configPanel.value.props} open={configPanelProps !== undefined} />
         </Fragment>
       )}
-      {ownLoginConfigPanelProps && (
-        <Fragment key={configPanelKey}>
-          <OwnLoginConfigPanel {...ownLoginConfigPanelProps} />
+      {ownLoginPanel.value && (
+        <Fragment key={ownLoginPanel.value.key}>
+          <OwnLoginConfigPanel {...ownLoginPanel.value.props} open={ownLoginConfigPanelProps !== undefined} />
         </Fragment>
       )}
     </div>
