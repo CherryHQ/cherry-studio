@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-12-remote-task-api.md
+2026-11-12-remote-task-api.md: b1ae3c383b327d2e15a51bce40a42f886d9aa865
+2026-11-12-remote-task-api.zh.md: 669b49bf0c63a80641c70f8c61a6b0c57b5083a4
