@@ -1020,6 +1020,7 @@
   "chat.topics.copy.md": "复制为 Markdown",
   "chat.topics.copy.plain_text": "复制为纯文本（去除 Markdown）",
   "chat.topics.copy.title": "复制",
+  "chat.topics.copy.web_sources": "复制网页来源",
   "chat.topics.delete.shortcut": "按住 {{key}} 可直接删除",
   "chat.topics.display.assistant": "助手",
   "chat.topics.display.time": "时间",

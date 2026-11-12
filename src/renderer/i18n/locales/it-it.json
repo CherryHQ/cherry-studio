@@ -1020,6 +1020,7 @@
   "chat.topics.copy.md": "Copia come Markdown",
   "chat.topics.copy.plain_text": "Copia come testo semplice (rimuovi Markdown)",
   "chat.topics.copy.title": "Copia",
+  "chat.topics.copy.web_sources": "Copia fonti web",
   "chat.topics.delete.shortcut": "Tieni premuto {{key}} per eliminare direttamente",
   "chat.topics.display.assistant": "Assistente",
   "chat.topics.display.time": "Ora",

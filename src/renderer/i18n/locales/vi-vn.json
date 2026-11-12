@@ -1020,6 +1020,7 @@
   "chat.topics.copy.md": "Sao chép dưới dạng markdown",
   "chat.topics.copy.plain_text": "Sao chép dưới dạng văn bản thuần (loại bỏ Markdown)",
   "chat.topics.copy.title": "Sao chép",
+  "chat.topics.copy.web_sources": "Sao chép nguồn web",
   "chat.topics.delete.shortcut": "Giữ {{key}} để xóa trực tiếp",
   "chat.topics.display.assistant": "Trợ lý",
   "chat.topics.display.time": "Thời gian",

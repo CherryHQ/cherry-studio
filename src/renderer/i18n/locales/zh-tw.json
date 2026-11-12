@@ -1020,6 +1020,7 @@
   "chat.topics.copy.md": "複製為 Markdown",
   "chat.topics.copy.plain_text": "複製為純文字（移除 Markdown）",
   "chat.topics.copy.title": "複製",
+  "chat.topics.copy.web_sources": "複製網頁來源",
   "chat.topics.delete.shortcut": "按住 {{key}} 可直接刪除",
   "chat.topics.display.assistant": "助理",
   "chat.topics.display.time": "時間",

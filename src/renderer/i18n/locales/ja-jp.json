@@ -1020,6 +1020,7 @@
   "chat.topics.copy.md": "Markdownとしてコピー",
   "chat.topics.copy.plain_text": "プレーンテキストとしてコピー（Markdownを除去）",
   "chat.topics.copy.title": "コピー",
+  "chat.topics.copy.web_sources": "Web ソースをコピー",
   "chat.topics.delete.shortcut": "{{key}}キーを押しながらで直接削除",
   "chat.topics.display.assistant": "アシスタント",
   "chat.topics.display.time": "時間",

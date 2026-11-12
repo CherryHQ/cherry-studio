@@ -1020,6 +1020,7 @@
   "chat.topics.copy.md": "Скопировать как Markdown",
   "chat.topics.copy.plain_text": "Копировать как обычный текст (удалить Markdown)",
   "chat.topics.copy.title": "Скопировать",
+  "chat.topics.copy.web_sources": "Скопировать веб-источники",
   "chat.topics.delete.shortcut": "Удерживайте {{key}} для мгновенного удаления",
   "chat.topics.display.assistant": "Ассистент",
   "chat.topics.display.time": "Время",

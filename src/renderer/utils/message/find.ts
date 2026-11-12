@@ -161,3 +161,41 @@ export const getToolCitationExport = (
   const { content: exported, cited } = toExportableCitations(content, getParts(message), priorParts)
   return { content: exported, citation: formatCitationLines(cited) }
 }
+
+const WEB_SOURCE_URL = /^https?:\/\//i
+
+/**
+ * Webpage citations the answer's own text cites, in display order with their display numbers.
+ * Reasoning and tool output never contribute; knowledge and memory sources are excluded.
+ */
+export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
+  const parts = getParts(message)
+  const legacyReferences = parts.flatMap((part) =>
+    part.type === 'text' ? ((readCherryMeta(part)?.references as ContentReference[] | undefined) ?? []) : []
+  )
+  const legacyCitations = convertReferencesToCitations(legacyReferences)
+  const cited =
+    legacyCitations.length > 0
+      ? legacyCitations
+      : toExportableCitations(
+          parts
+            .filter((part) => part.type === 'text')
+            .map((part) => part.text ?? '')
+            .join('\n\n'),
+          parts,
+          'priorCitationParts' in message ? (message.priorCitationParts ?? []) : []
+        ).cited
+  return cited.filter((citation) => citation.type === 'websearch' && WEB_SOURCE_URL.test(citation.url))
+}
+
+const escapeLinkText = (text: string): string => text.replace(/[\\[\]]/g, '\\$&')
+const escapeLinkDestination = (url: string): string => url.replace(/[ ()<>]/g, encodeURIComponent)
+
+/** One `[N] [title](url)` line per cited webpage, keeping the answer's citation numbers (gaps included). */
+export const getWebSourcesMarkdown = (message: ExportableMessage): string =>
+  getCitedWebSources(message)
+    .map((citation) => {
+      const title = (citation.title || citation.url).replace(/\s+/g, ' ').trim()
+      return `[${citation.number}] [${escapeLinkText(title)}](${escapeLinkDestination(citation.url)})`
+    })
+    .join('\n\n')

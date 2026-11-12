@@ -1020,6 +1020,7 @@
   "chat.topics.copy.md": "Als Markdown kopieren",
   "chat.topics.copy.plain_text": "Als reinen Text kopieren (Markdown entfernen)",
   "chat.topics.copy.title": "Kopieren",
+  "chat.topics.copy.web_sources": "Websnippets kopieren",
   "chat.topics.delete.shortcut": "{{key}} gedrückt halten zum direkten Löschen",
   "chat.topics.display.assistant": "Assistent",
   "chat.topics.display.time": "Zeit",

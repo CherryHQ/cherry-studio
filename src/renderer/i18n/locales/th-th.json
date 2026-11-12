@@ -1020,6 +1020,7 @@
   "chat.topics.copy.md": "คัดลอกเป็น Markdown",
   "chat.topics.copy.plain_text": "คัดลอกเป็นข้อความธรรมดา (ลบ Markdown)",
   "chat.topics.copy.title": "คัดลอก",
+  "chat.topics.copy.web_sources": "คัดลอกแหล่งข้อมูลเว็บ",
   "chat.topics.delete.shortcut": "กด {{key}} ค้างเพื่อลบโดยตรง",
   "chat.topics.display.assistant": "ผู้ช่วย",
   "chat.topics.display.time": "เวลา",
