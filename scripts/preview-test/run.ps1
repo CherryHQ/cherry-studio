@@ -33,7 +33,7 @@ $seed | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $seedPath
 $portable = Join-Path $shortFixture 'Cherry Studio Portable.exe'
 $data = Join-Path $shortFixture 'data'
 $history = Join-Path $data 'version.log'
-@{ trayOnClose = $false; autoUpdate = $false; enableDataCollection = $false } |
+@{ tray = $false; trayOnClose = $false; autoUpdate = $false; enableDataCollection = $false } |
   ConvertTo-Json | Set-Content -LiteralPath (Join-Path $data 'config.json')
 $first = Join-Path $env:RUNNER_TEMP 'Cherry-Studio-1.9.11-x64-portable.exe'
 Get-VerifiedAsset 'https://github.com/CherryHQ/cherry-studio/releases/download/v1.9.11/Cherry-Studio-1.9.11-x64-portable.exe' $first '114c4f6ffde670eb4793976643d7039aec6e13755fc009df61b535b2b90ed348'
@@ -94,11 +94,43 @@ try {
   $env:TMP = $oldTmp
 }
 
-if (!$Preview) { return }
+if (!$Preview) {
+  $prerequisitePackage = Join-Path $env:RUNNER_TEMP 'Cherry-Studio-1.9.12-x64-portable.exe'
+  Get-VerifiedAsset 'https://gitcode.com/CherryHQ/cherry-studio/releases/download/v1.9.12/Cherry-Studio-1.9.12-x64-portable.exe' $prerequisitePackage 'AF72B381030A7C1EBCE5479523219029E54FE19E1F09847254F7CE584A208ED4'
+  Copy-Item -LiteralPath $prerequisitePackage -Destination $portable -Force
+  try {
+    $env:USERPROFILE = Join-Path $shortFixture 'home'
+    $env:APPDATA = Join-Path $env:USERPROFILE 'AppData/Roaming'
+    $env:LOCALAPPDATA = Join-Path $env:USERPROFILE 'AppData/Local'
+    $env:TEMP = Join-Path $shortFixture 'temp'
+    $env:TMP = $env:TEMP
+    $prerequisite = Start-Process -FilePath $portable -WorkingDirectory $shortFixture -PassThru -WindowStyle Hidden
+    Wait-Version '1.9.12' | Set-Content ./1.9.12-history.txt
+    $deadline = [DateTime]::UtcNow.AddSeconds(45)
+    do {
+      $main = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($prerequisite.Id)" |
+        Where-Object { $_.ExecutablePath -like "$env:TEMP*" } | Select-Object -First 1
+      $instance = if ($main) { Get-Process -Id $main.ProcessId -ErrorAction SilentlyContinue }
+      if ($instance -and $instance.MainWindowHandle -ne [IntPtr]::Zero -and $instance.CloseMainWindow()) { break }
+      Start-Sleep -Milliseconds 500
+    } while ([DateTime]::UtcNow -lt $deadline)
+    if (!$prerequisite.WaitForExit(45000) -or $prerequisite.ExitCode -ne 0) { throw '1.9.12 did not exit cleanly' }
+    @{ WrapperExitCode = $prerequisite.ExitCode; SentWindowClose = $true } |
+      ConvertTo-Json | Set-Content ./prerequisite-exit.json
+  } finally {
+    $env:USERPROFILE = $oldHome
+    $env:APPDATA = $oldRoaming
+    $env:LOCALAPPDATA = $oldLocal
+    $env:TEMP = $oldTemp
+    $env:TMP = $oldTmp
+  }
+  return
+}
 
 node ./verify.cjs $Preview $seedPath '77297645100d0ea0db0aa7dee4f9509caebb4a64'
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
-Wait-Version '1.9.12' | Set-Content ./1.9.12-history.txt
+(Get-Content ./migration-fixtures/relaunch-2.1.0.json -Raw | ConvertFrom-Json).recordedHistory |
+  Set-Content ./1.9.12-history.txt
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./migration-fixtures/complete-bridge.ps1 -Relaunch (Join-Path $PSScriptRoot 'migration-fixtures/relaunch-2.1.0.json') -EvidencePrefix 'prerequisite'
 

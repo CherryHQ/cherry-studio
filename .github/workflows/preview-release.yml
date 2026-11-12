@@ -29,7 +29,7 @@ jobs:
           github-token: ${{ github.token }}
           run-id: 43188113910
           path: ${{ runner.temp }}/cs-preview
-      - name: Open the synthetic profile in the official 1.9.11 portable build
+      - name: Confirm that signed 1.9.12 exits cleanly on the legacy profile
         if: inputs.preview_artifact_id == ''
         shell: pwsh
         run: ./scripts/preview-test/run.ps1
@@ -53,4 +53,5 @@ jobs:
             scripts/preview-test/migration-fixtures/*.png
             ${{ runner.temp }}/cs23998-e2e/launcher.log
             ${{ runner.temp }}/cs23998-e2e/data/logs/app-error.*.log
+            ${{ runner.temp }}/cs23998-e2e/home/.cherrystudio/cache/legacy-upgrade/**/*.install-error.log
           retention-days: 3
