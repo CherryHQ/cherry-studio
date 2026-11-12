@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-11-partial-reply-stream-checkpoint.md
+2026-11-11-partial-reply-stream-checkpoint.md: 092032f6079245e29b7d7f1bd3343b9df185cbba
+2026-11-11-partial-reply-stream-checkpoint.zh.md: 7efca2ed110adb9762147944d5588212a8c77028
