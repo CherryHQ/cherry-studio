@@ -418,3 +418,25 @@ it('migrates saved block ownership without duplicating content or changing the p
   expect(restored.checkpoint().root.version).toBe(2)
   expect(restored.accept(update).size).toBe(0)
 })
+
+it('retains an agent OCR notice across native message refresh and reload', () => {
+  const f = fixture()
+  const id = f.reply()
+  const notice = {
+    type: 'data-attachment-notice' as const,
+    id: 'attachment-notice:user-image',
+    data: { kind: 'image-ocr' as const, fileNames: ['image.png'] }
+  }
+  f.projection.control(id, notice)
+  f.projection.accept(f.update([text('native', 'The red apple is on the table.')]), id)
+  expect(f.projection.parts(id)).toContainEqual(notice)
+  f.save(id)
+
+  const restored = new RootMessageProjection(f.context.id)
+  restored.accept(f.update([text('native', 'The red apple is on the table. There are seven blue books.')]))
+  messages.replaceMessageParts(f.sessionId, id, restored.parts(id), restored.checkpoint())
+  expect(new RootMessageProjection(f.context.id).parts(id)).toEqual([
+    ...text('', 'The red apple is on the table. There are seven blue books.').parts,
+    notice
+  ])
+})
