@@ -4,10 +4,12 @@ import * as z from 'zod'
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
+import type { MessageProjectionUpdate, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
+  AiToolApprovalRespondResponse,
   AiToolResultRequest,
   AiToolResultResponse,
   StreamChunkPayload,
@@ -32,6 +34,7 @@ import {
   AgentWorkspaceNameSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
+import { CreateTopicSchema } from '@shared/data/api/schemas/topics'
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -40,6 +43,7 @@ import {
   ServiceTierSelectionSchema,
   UniqueModelIdSchema
 } from '@shared/data/types/model'
+import { TopicSchema } from '@shared/data/types/topic'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
 
@@ -198,7 +202,24 @@ const mentionedModelIdsSchema = z
   })
   .optional()
 
+const projectionTargetSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('topic'), topicId: z.string().min(1) }),
+  z.strictObject({ kind: z.literal('child'), sessionId: z.string().min(1), toolCallId: z.string().min(1) })
+]) satisfies z.ZodType<ProjectionTarget>
+
 export const aiRequestSchemas = {
+  'ai.projection.attach': defineRoute({
+    input: z.strictObject({ target: projectionTargetSchema, subscriptionId: z.uuid() }),
+    output: z.custom<MessageProjectionView | null>()
+  }),
+  'ai.projection.detach': defineRoute({
+    input: z.strictObject({ target: projectionTargetSchema, subscriptionId: z.uuid() }),
+    output: z.void()
+  }),
+  'ai.agent.child.message': defineRoute({
+    input: z.strictObject({ sessionId: z.string(), contextId: z.string(), text: z.string().trim().min(1) }),
+    output: z.void()
+  }),
   'ai.claude_code.binary.status': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
   'ai.claude_code.binary.ensure': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
   'ai.claude_code.binary.retry': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
@@ -340,7 +361,10 @@ export const aiRequestSchemas = {
       topicId: z.string().optional(),
       anchorId: z.string().optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
-    output: z.object({ ok: z.boolean() })
+    output: z.discriminatedUnion('ok', [
+      z.object({ ok: z.literal(true) }),
+      z.object({ ok: z.literal(false), reason: z.enum(['undelivered', 'rejected']) })
+    ]) satisfies z.ZodType<AiToolApprovalRespondResponse>
   }),
 
   // ── Agent session warm-connection lifecycle ──
@@ -507,7 +531,10 @@ export const aiRequestSchemas = {
     // No caller reads the trigger result, so the route is void (see ipc-migration-guide.md).
     input: agentTaskRefSchema,
     output: z.void()
-  })
+  }),
+  'ai.temporary_topic.create': defineRoute({ input: CreateTopicSchema, output: TopicSchema }),
+  'ai.temporary_topic.delete': defineRoute({ input: z.strictObject({ id: z.string().min(1) }), output: z.void() }),
+  'ai.temporary_topic.persist': defineRoute({ input: z.strictObject({ id: z.string().min(1) }), output: z.void() })
 }
 
 /**
@@ -517,6 +544,7 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
+  'ai.projection.changed': { subscriptionId: string; update: MessageProjectionUpdate }
   'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
   'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload

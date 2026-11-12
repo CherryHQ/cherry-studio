@@ -3,11 +3,12 @@ description: Main-as-writer tool approval through ai.tool.respond_approval, appr
 sources:
   - src/main/ai/AiService.ts
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/agentSession/RootMessageProjection.ts
   - src/main/ipc/handlers/ai.ts
-  - src/renderer/hooks/useToolApprovalBridge.ts
+  - src/renderer/pages/home/hooks/useToolApprovalBridge.ts
   - src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts
   - src/main/ai/runtime/claudeCode/settingsBuilder.ts
-  - src/main/ai/runtime/claudeCode/streamAdapter.ts
+  - src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts
   - src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts
   - src/main/ai/runtime/claudeCode/hooks.ts
   - src/main/ai/toolApproval/ToolApprovalRegistry.ts
@@ -35,6 +36,11 @@ Main is the single writer of approval state. The renderer surfaces an
 to Main. Main applies the decision to the DB-authoritative anchor parts,
 persists, and resumes the stream.
 
+A card whose request is gone is never left answerable. When a connection or
+stream ends with an approval still pending, `ToolApprovalRegistry.onAborted`
+retires the persisted card to `output-error`, so the composer stops offering a
+question nothing can receive.
+
 MCP skill loading uses the same tool approval path. While remote skills are active,
 host code-execution calls require per-call approval outside
 Full Access; see [MCP Skills Client](./mcp-skills-client.md).
@@ -53,7 +59,7 @@ Full Access; see [MCP Skills Client](./mcp-skills-client.md).
    the pause atomically.
 
 3. **User decides** — the approval card renders from the part. On click,
-   `useToolApprovalBridge` (`src/renderer/hooks/useToolApprovalBridge.ts`)
+   `useToolApprovalBridge` (`src/renderer/pages/home/hooks/useToolApprovalBridge.ts`)
    calls `ipcApi.request('ai.tool.respond_approval', ...)` with `approvalId`,
    `approved`, optional `reason` / `updatedInput`, `topicId`, `anchorId`.
 
@@ -65,7 +71,15 @@ Full Access; see [MCP Skills Client](./mcp-skills-client.md).
      persisted interaction card and dispatches the live approval registry
      entry so the existing runtime proceeds. When a live entry handles it, the handler
      **early-returns — no DB read happens** (and `topicId` / `anchorId`
-     are not required).
+     are not required). When no live entry matches — the connection was torn
+     down, or the app restarted — the card is settled with the decision the
+     user actually made. Only the first decision recorded on a pending or retired,
+     unanswered card returns `{ ok: false, reason: 'undelivered' }`. Already-answered,
+     missing, or mismatched cards return `{ ok: false, reason: 'rejected' }` and are
+     never replayed. An agent-session topic never reaches the MCP chat-table lookup.
+     The renderer sends an undelivered answer as the session's next user message.
+     If sending fails or admission is blocked, it hands the answer to that session's
+     normal composer, appending to any existing draft so the user can retry.
    - **MCP path** (reached only when no live entry matched; requires
      `topicId` + `anchorId`): reads the anchor message's current `parts`
      from DB, applies the decision, and **writes only when the target
@@ -78,6 +92,12 @@ Full Access; see [MCP Skills Client](./mcp-skills-client.md).
 5. **Awaiting-approval clears** — the moment the continue stream
    broadcasts `pending`, the shared-cache entry flips back. Every window
    sees the approval card disappear in the same tick.
+
+For native Agent root messages, the host retains each resolved approval by tool-call
+ID, including its real approval ID. Later native results may omit approval metadata;
+the projection reapplies the decision before publishing and persisting, and restores
+it from persisted parts after reconnecting. A host refusal remains `output-denied`;
+a permitted call can still finish with a genuine execution error.
 
 ## Persistent decisions
 
@@ -111,14 +131,21 @@ does not set `updatedInput`, the decision adapter returns `originalInput`
 unchanged as the SDK's execution input
 (`src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts:16`).
 
+Pi file-tool cards adapt native `path`, `oldText` and `newText` fields to the
+shared renderer's `file_path`, `old_string` and `new_string` fields in
+`toolResponse.ts`. This presentation mapping preserves the original message
+and execution input; it does not rewrite the approved operation.
+Native Pi `edits` arrays use the shared MultiEdit card and map each hunk's
+`oldText` / `newText` independently, preserving all edit hunks.
+
 The rendered card is not byte-bound to that object: the stream approval chunk
 carries only IDs, the card uses earlier streamed tool input, and a configured
 `PreToolUse` hook may rewrite input before approval
 (`src/main/ai/agentSession/AgentSessionRuntimeService.ts:2582`,
-`src/main/ai/runtime/claudeCode/streamAdapter.ts:1954`,
+`src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts`,
 `src/renderer/components/chat/messages/tools/toolResponse.ts:238`,
 `src/main/ai/runtime/claudeCode/settingsBuilder.ts:335`). The pinned
-`@anthropic-ai/claude-agent-sdk` 0.3.284 (`package.json:134`) permits this through
+`@anthropic-ai/claude-agent-sdk` 0.3.311 (`package.json`) permits this through
 `PreToolUseHookSpecificOutput.updatedInput`. The renderer also
 cannot distinguish every JSON value type: the string `"false"` and boolean
 `false` render identically
@@ -215,6 +242,6 @@ The complete `allowedTools` list also includes `TaskCreate`, `TaskGet`,
 
 - IpcApi route: `src/main/ipc/handlers/ai.ts` (`ai.tool.respond_approval`)
 - Main decision owner: `src/main/ai/AiService.ts` (`respondToolApproval`)
-- Renderer bridge: `src/renderer/hooks/useToolApprovalBridge.ts`
+- Renderer bridge: `src/renderer/pages/home/hooks/useToolApprovalBridge.ts`
 - Persistent decisions: `src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts`
 - Status broadcast: [Stream Manager](./stream-manager.md)

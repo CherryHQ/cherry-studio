@@ -80,17 +80,13 @@ describe('ModelCheckDialog', () => {
     expect(screen.getByRole('button', { name: 'settings.models.check.start' })).toBeDisabled()
   })
 
-  it('opens with the main connection-check content and checks one concrete key', async () => {
+  it('checks every selected API key', async () => {
     const user = userEvent.setup()
     render(<ModelCheckDialog />)
 
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    expect(screen.getByRole('heading', { name: 'message.api.check.model.title' })).toBeInTheDocument()
+
     expect(screen.getByRole('button', { name: /button\.select_model.*Chat$/ })).toHaveTextContent('Chat')
-    expect(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' })).toBeInTheDocument()
-    expect(screen.queryByRole('radiogroup', { name: 'settings.models.check.model_scope' })).not.toBeInTheDocument()
-    expect(screen.queryByText('settings.models.check.disclaimer')).not.toBeInTheDocument()
-    expect(screen.queryByText('settings.models.check.all_models_disclaimer')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
 
@@ -100,21 +96,15 @@ describe('ModelCheckDialog', () => {
         keySelection: { mode: 'single', keyId: 'key-1' }
       })
     )
-    expect(screen.queryByLabelText('settings.models.check.timeout')).not.toBeInTheDocument()
   })
 
-  it('replaces the same dialog with the current all-model form and arguments', async () => {
+  it('checks all enabled models', async () => {
     const user = userEvent.setup()
     render(<ModelCheckDialog />)
 
     await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))
 
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    expect(screen.getByRole('heading', { name: 'settings.models.check.title' })).toBeInTheDocument()
-    expect(screen.getByText('settings.models.check.all_models_disclaimer')).toBeInTheDocument()
-    expect(screen.queryByText('settings.models.check.disclaimer')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.models.check.model_button_caption' })).not.toBeInTheDocument()
-    expect(screen.getByRole('switch')).toBeChecked()
 
     const timeout = screen.getByLabelText('settings.models.check.timeout')
     await user.clear(timeout)

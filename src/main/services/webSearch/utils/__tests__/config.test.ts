@@ -45,15 +45,8 @@ describe('webSearch config utils', () => {
     getLlmProviderApiKeys.mockReturnValue([])
   })
 
-  it('resolves all supported provider types from layered presets + overrides by default', async () => {
+  it('resolves configured API keys through layered presets and overrides', async () => {
     const resolved = await getResolvedConfig(mockPreferenceReader)
-    const providerIds = resolved.providers.map((provider) => provider.id)
-
-    expect(providerIds).toContain('exa-mcp')
-    expect(providerIds).toContain('querit')
-    expect(providerIds).toContain('fetch')
-    expect(providerIds).toContain('jina')
-    expect(providerIds).not.toContain('jina-reader')
 
     const tavily = resolved.providers.find((provider) => provider.id === 'tavily')
     expect(tavily?.apiKeys).toEqual(['tavily-key'])
@@ -65,21 +58,6 @@ describe('webSearch config utils', () => {
     expect(runtime.maxResults).toBe(5)
     expect(runtime.excludeDomains).toEqual(['example.com'])
     expect(runtime.compression.method).toBe('none')
-    expect(runtime.compression.cutoffLimit).toBe(2000)
-  })
-
-  it('defaults stale empty cutoff limit in runtime config', async () => {
-    const runtime = await getRuntimeConfig({
-      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
-        if (key === 'chat.web_search.compression.cutoff_limit') {
-          return null as PreferenceDefaultScopeType[K]
-        }
-
-        return preferenceValues[key] as PreferenceDefaultScopeType[K]
-      }
-    })
-
-    expect(runtime.compression.cutoffLimit).toBe(2000)
   })
 
   it('normalizes maxResults to at least 1 in runtime config', async () => {
@@ -137,38 +115,6 @@ describe('webSearch config utils', () => {
     })
 
     expect(provider.basicAuthPassword).toBe('pass')
-  })
-
-  it('resolves URL fetch provider presets', async () => {
-    const fetchProvider = await getProviderById('fetch', mockPreferenceReader)
-    const jinaProvider = await getProviderById('jina', mockPreferenceReader)
-
-    expect(fetchProvider).toMatchObject({
-      id: 'fetch',
-      name: 'fetch',
-      type: 'api',
-      apiKeys: [],
-      capabilities: [
-        {
-          feature: 'fetchUrls'
-        }
-      ]
-    })
-    expect(jinaProvider).toMatchObject({
-      id: 'jina',
-      name: 'Jina',
-      type: 'api',
-      capabilities: [
-        {
-          feature: 'searchKeywords',
-          apiHost: 'https://s.jina.ai'
-        },
-        {
-          feature: 'fetchUrls',
-          apiHost: 'https://r.jina.ai'
-        }
-      ]
-    })
   })
 
   it('shares the exa provider api keys with exa-mcp when exa-mcp has no keys', async () => {

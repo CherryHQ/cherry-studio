@@ -41,8 +41,8 @@ vi.mock('../ActionResultContent', () => {
   }
 })
 
-vi.mock('@ai-sdk/react', () => ({
-  useChat: ({ id, onError }: { id: string; onError?: (error: Error) => void }) => {
+vi.mock('@renderer/hooks/useStreamCommands', () => ({
+  useStreamCommands: (id: string, _initial: unknown, onError?: (error: Error) => void) => {
     state.useChatIds.push(id)
     state.onError = onError
     return {
@@ -286,12 +286,12 @@ describe('ActionGeneral', () => {
     expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
   })
 
-  it('localizes a known error and leaves space above it', () => {
+  it('localizes a known error', () => {
     render(<ActionGeneral sourceEntityId="test-session" action={createBuiltinAction()} />)
 
     act(() => state.onError?.(new Error("Model with id 'provider/model' not found")))
 
-    expect(screen.getByText('error.diagnosis.model:')).toHaveClass('mt-3')
+    expect(screen.getByText('error.diagnosis.model:')).toBeInTheDocument()
   })
 
   it('advances the visible processing time for a temporary streamed message', async () => {

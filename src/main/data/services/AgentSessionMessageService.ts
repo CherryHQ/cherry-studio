@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 
-import { isToolUIPart } from 'ai'
+import { isDataUIPart, isToolUIPart } from 'ai'
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { chunk } from 'es-toolkit'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
@@ -65,14 +66,16 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { agentSessionContextService } from './AgentSessionContextService'
+import { agentSessionContextService, type RootProjectionCheckpoint } from './AgentSessionContextService'
 import { AgentSessionEditError } from './AgentSessionEditError'
 import { RuntimeForkAnchorSchema, type RuntimeForkCheckpoint } from './agentSessionForkContract'
 import {
   advanceAgentSessionHeadTx,
+  agentSessionDescendantIds,
   agentSessionPathIds,
   ensureAgentSessionRootTx,
   getAgentSessionHead,
+  orderAgentSessionPath,
   readAgentSessionAncestry,
   readAgentSessionPath,
   validateAgentSessionParent
@@ -242,9 +245,9 @@ export class AgentSessionDeliveryRoutingError extends Error {
   }
 }
 
-type SaveAgentSessionMessageOptions =
-  | { db: DbOrTx; publishDataChange?: never }
-  | { db?: undefined; publishDataChange?: boolean }
+type SaveAgentSessionMessageOptions = {
+  projection?: RootProjectionCheckpoint
+} & ({ db: DbOrTx; publishDataChange?: never } | { db?: undefined; publishDataChange?: boolean })
 
 type SavedAgentSessionMessage = {
   entity: AgentSessionMessageEntity
@@ -259,6 +262,11 @@ function replaceAgentSessionMessageFileRefsTx(
 ): void {
   tx.delete(agentSessionMessageFileRefTable).where(eq(agentSessionMessageFileRefTable.sourceId, messageId)).run()
 
+  const snapshot = tx
+    .select({ snapshot: sessionMessagesTable.messageSnapshot })
+    .from(sessionMessagesTable)
+    .where(eq(sessionMessagesTable.id, messageId))
+    .get()?.snapshot
   const ids = [
     ...new Set(
       (data.parts ?? [])
@@ -267,6 +275,8 @@ function replaceAgentSessionMessageFileRefsTx(
         .filter((id): id is string => Boolean(id))
     )
   ]
+  const attachmentIds = new Set(ids)
+  if (snapshot?.avatarFileId && !ids.includes(snapshot.avatarFileId)) ids.push(snapshot.avatarFileId)
   if (ids.length === 0) return
 
   const existingIds = new Set<string>()
@@ -282,18 +292,19 @@ function replaceAgentSessionMessageFileRefsTx(
   const now = Date.now()
   const rows = ids
     .filter((fileEntryId) => existingIds.has(fileEntryId))
-    .map((fileEntryId) => ({
-      fileEntryId,
-      sourceId: messageId,
-      role: 'attachment' as const,
-      createdAt: now,
-      updatedAt: now
-    }))
+    .flatMap((fileEntryId) => [
+      ...(attachmentIds.has(fileEntryId)
+        ? [{ fileEntryId, sourceId: messageId, role: 'attachment' as const, createdAt: now, updatedAt: now }]
+        : []),
+      ...(fileEntryId === snapshot?.avatarFileId
+        ? [{ fileEntryId, sourceId: messageId, role: 'author_avatar' as const, createdAt: now, updatedAt: now }]
+        : [])
+    ])
 
-  if (rows.length !== ids.length) {
+  if (existingIds.size !== ids.length) {
     logger.warn('Dropped agent-session message file refs without matching file_entry', {
       messageId,
-      dropped: ids.length - rows.length,
+      dropped: ids.length - existingIds.size,
       total: ids.length
     })
   }
@@ -501,7 +512,8 @@ export class AgentSessionMessageService {
         .select({ id: sessionMessagesTable.id })
         .from(sessionMessagesTable)
         .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.parentId, head)))
-        .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+        // Unary + keeps the planner off session_created_id_idx, which rescans the whole session per level.
+        .orderBy(desc(sql`+${sessionMessagesTable.createdAt}`), desc(sql`+${sessionMessagesTable.id}`))
         .get()
       if (!child) return head
       head = child.id
@@ -520,6 +532,14 @@ export class AgentSessionMessageService {
   }
 
   readEditSnapshotTx(tx: DbOrTx, sessionId: string, messageId: string) {
+    const { index, ...snapshot } = this.readEditVersionTx(tx, sessionId, messageId)
+    return {
+      ...snapshot,
+      prefix: this.applyForkCheckpointsTx(tx, sessionId, messageId, snapshot.rows.slice(0, index))
+    }
+  }
+
+  private readEditVersionTx(tx: DbOrTx, sessionId: string, messageId: string) {
     this.assertActiveSession(tx, sessionId)
     const source = tx
       .select({ session: sessionTable, workspace: agentWorkspaceTable })
@@ -537,10 +557,16 @@ export class AgentSessionMessageService {
         .select({ id: sessionMessagesTable.id })
         .from(sessionMessagesTable)
         .where(
-          and(
-            eq(sessionMessagesTable.sessionId, sessionId),
-            or(
-              inArray(sessionMessagesTable.status, ['pending', 'streaming']),
+          or(
+            and(
+              eq(sessionMessagesTable.sessionId, sessionId),
+              or(
+                inArray(sessionMessagesTable.status, ['pending', 'streaming']),
+                inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+              )
+            ),
+            and(
+              eq(sessionMessagesTable.deliverySenderSessionId, sessionId),
               inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
             )
           )
@@ -553,19 +579,29 @@ export class AgentSessionMessageService {
       ...source,
       rows,
       user,
-      prefix: this.readForkPrefixTx(tx, sessionId, messageId)!.slice(0, index),
+      index,
       version: createHash('sha256').update(JSON.stringify({ source, rows })).digest('hex')
     }
   }
 
-  selectEditParentTx(tx: DbOrTx, sessionId: string, target: { messageId: string; version: string }): void {
-    const snapshot = this.readEditSnapshotTx(tx, sessionId, target.messageId)
+  replaceEditBranchTx(tx: DbOrTx, sessionId: string, target: { messageId: string; version: string }): void {
+    const snapshot = this.readEditVersionTx(tx, sessionId, target.messageId)
     if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
-    // Publication selects the shared predecessor; the following insert creates a sibling.
+    const replaced = and(
+      eq(sessionMessagesTable.sessionId, sessionId),
+      inArray(sessionMessagesTable.id, agentSessionDescendantIds(sessionId, target.messageId))
+    )
+    const rows = tx.select({ id: sessionMessagesTable.id }).from(sessionMessagesTable).where(replaced).all()
+    agentSessionContextService.removeRootMessagesTx(
+      tx,
+      sessionId,
+      rows.map((row) => row.id)
+    )
     tx.update(sessionTable).set({ activeNodeId: snapshot.user.parentId }).where(eq(sessionTable.id, sessionId)).run()
+    tx.delete(sessionMessagesTable).where(replaced).run()
   }
 
-  hasRuntimeResumeToken(sessionId: string, resumeToken: string): boolean {
+  hasRuntimeResumeToken(sessionId: string, resumeToken: string, contextId?: string): boolean {
     if (
       application
         .get('DbService')
@@ -575,6 +611,7 @@ export class AgentSessionMessageService {
         .where(
           and(
             eq(agentSessionContextTable.sessionId, sessionId),
+            contextId ? eq(agentSessionContextTable.id, contextId) : undefined,
             eq(agentSessionContextTable.bindingState, 'bound'),
             eq(agentSessionContextTable.nativeThreadId, resumeToken)
           )
@@ -582,6 +619,7 @@ export class AgentSessionMessageService {
         .get()
     )
       return true
+    if (contextId) return false
     return Boolean(
       application
         .get('DbService')
@@ -607,27 +645,23 @@ export class AgentSessionMessageService {
     const db = application.get('DbService').getDb()
     const head = messageId ?? getAgentSessionHead(db, sessionId)
     if (!head) return []
-    const ids = readAgentSessionAncestry(db, sessionId, head)
     const rows = db
       .select({
         id: sessionMessagesTable.id,
+        parentId: sessionMessagesTable.parentId,
         runtimeResumeToken: sessionMessagesTable.runtimeResumeToken,
         nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`
       })
       .from(sessionMessagesTable)
       .where(inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head)))
       .all()
-    const byId = new Map(rows.map((row) => [row.id, row]))
-    return ids.map((row) => byId.get(row.id)!)
+    return orderAgentSessionPath(rows, head)
   }
 
   getNativeSessionId(sessionId: string, messageId?: string): string | undefined {
     const rows = this.nativePath(sessionId, messageId).toReversed()
-    return (
-      rows.find((row) => row.nativeSessionId)?.nativeSessionId ??
-      rows.find((row) => row.runtimeResumeToken)?.runtimeResumeToken ??
-      undefined
-    )
+    const row = rows.find((row) => row.nativeSessionId || row.runtimeResumeToken)
+    return row?.nativeSessionId ?? row?.runtimeResumeToken ?? undefined
   }
 
   /** Main-only native fork read. API callers must never receive these raw rows. */
@@ -639,17 +673,34 @@ export class AgentSessionMessageService {
   ): SessionMessageRow[] | undefined {
     const rows = readAgentSessionPath(tx, sessionId, messageId)
     if (!rows.some((row) => row.id === messageId)) return undefined
-    const mapping = agentSessionContextService.branchTx(tx, sessionId, messageId)?.checkpointMapping?.fork
     const excluded = new Set(excludedIds)
-    return rows
-      .filter((row) => !excluded.has(row.id))
-      .map((row) => {
-        const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
-        const checkpoint = mapping?.[row.id]
-        return checkpoint && anchor.success
-          ? { ...row, data: { ...row.data, runtimeAnchor: { ...anchor.data, checkpoint } } }
-          : row
-      })
+    return this.applyForkCheckpointsTx(
+      tx,
+      sessionId,
+      messageId,
+      rows.filter((row) => !excluded.has(row.id))
+    )
+  }
+
+  private applyForkCheckpointsTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageId: string,
+    rows: SessionMessageRow[]
+  ): SessionMessageRow[] {
+    const context = agentSessionContextService.branchTx(tx, sessionId, messageId)
+    const mapping = context?.checkpointMapping?.fork
+    return rows.map((row) => {
+      const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+      const checkpoint = mapping?.[row.id]
+      return checkpoint && anchor.success && context
+        ? {
+            ...row,
+            runtimeResumeToken: context.nativeThreadId,
+            data: { ...row.data, runtimeAnchor: { ...anchor.data, checkpoint } }
+          }
+        : row
+    })
   }
 
   /** Inserts historical facts only, never delivery, billing, queue or approval ownership. */
@@ -688,14 +739,7 @@ export class AgentSessionMessageService {
       .where(
         and(
           eq(sessionMessagesTable.sessionId, sessionId),
-          inArray(
-            sessionMessagesTable.id,
-            sql`(with recursive descendants(id) as (
-            select id from agent_session_message where session_id = ${sessionId} and id = ${messageId}
-            union
-            select m.id from agent_session_message m join descendants d on m.parent_id = d.id where m.session_id = ${sessionId}
-          ) select id from descendants)`
-          ),
+          inArray(sessionMessagesTable.id, agentSessionDescendantIds(sessionId, messageId)),
           sql`json_type(${sessionMessagesTable.data}, '$.runtimeAnchor') is not null`
         )
       )
@@ -1009,7 +1053,8 @@ export class AgentSessionMessageService {
           .select({ id: sessionMessagesTable.id, parentId: sessionMessagesTable.parentId })
           .from(sessionMessagesTable)
           .where(and(eq(sessionMessagesTable.sessionId, sessionId), inArray(sessionMessagesTable.parentId, parents)))
-          .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+          // Unary + keeps the planner on parent_idx instead of scanning the session through session_created_id_idx.
+          .orderBy(asc(sql`+${sessionMessagesTable.createdAt}`), asc(sql`+${sessionMessagesTable.id}`))
           .all()
       : []
     const items = pageRows.map((row) => ({
@@ -1232,6 +1277,7 @@ export class AgentSessionMessageService {
     }
     this.invalidateForkPrefixTx(tx, sessionId, messageId)
     if (existing) {
+      agentSessionContextService.removeRootMessagesTx(tx, sessionId, [messageId])
       tx.update(sessionMessagesTable)
         .set({ parentId: existing.parentId })
         .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.parentId, messageId)))
@@ -1397,7 +1443,13 @@ export class AgentSessionMessageService {
       .from(sessionMessagesTable)
       .where(isNotNull(sessionMessagesTable.runtimeResumeToken))
       .all()
-    const bindings = application.get('DbService').getDb().select().from(agentSessionContextTable).all()
+    const bindings = application
+      .get('DbService')
+      .getDb()
+      .select({ nativeThreadId: agentSessionContextTable.nativeThreadId })
+      .from(agentSessionContextTable)
+      .where(isNotNull(agentSessionContextTable.nativeThreadId))
+      .all()
     return new Set([
       ...rows.flatMap((row) => (row.runtimeResumeToken ? [row.runtimeResumeToken] : [])),
       ...bindings.flatMap((row) => (row.nativeThreadId ? [row.nativeThreadId] : []))
@@ -1407,24 +1459,59 @@ export class AgentSessionMessageService {
   listRuntimeResumeTokensBySession(sessionIds: readonly string[]): Map<string, Set<string>> {
     const tokensBySession = new Map<string, Set<string>>()
     if (sessionIds.length === 0) return tokensBySession
-
-    const rows = application
-      .get('DbService')
-      .getDb()
-      .selectDistinct({
-        sessionId: sessionMessagesTable.sessionId,
-        runtimeResumeToken: sessionMessagesTable.runtimeResumeToken
-      })
-      .from(sessionMessagesTable)
-      .where(
-        and(inArray(sessionMessagesTable.sessionId, sessionIds), isNotNull(sessionMessagesTable.runtimeResumeToken))
-      )
-      .all()
-    for (const { sessionId, runtimeResumeToken } of rows) {
-      if (!runtimeResumeToken) continue
-      const tokens = tokensBySession.get(sessionId) ?? new Set<string>()
-      tokens.add(runtimeResumeToken)
-      tokensBySession.set(sessionId, tokens)
+    const db = application.get('DbService').getDb()
+    const owners = [
+      ...new Map(
+        chunk([...sessionIds], SQLITE_INARRAY_CHUNK)
+          .flatMap((idChunk) =>
+            db
+              .select({ id: sessionTable.id, owner: sessionTable.ownerSessionId })
+              .from(sessionTable)
+              .where(or(inArray(sessionTable.id, idChunk), inArray(sessionTable.ownerSessionId, idChunk)))
+              .all()
+          )
+          .map((row) => [row.id, row] as const)
+      ).values()
+    ]
+    if (!owners.length) return tokensBySession
+    const requested = new Set(sessionIds)
+    const destinations = new Map(
+      owners.map(({ id, owner }) => [id, [id, owner].filter((key): key is string => !!key && requested.has(key))])
+    )
+    const collect = (sessionId: string, token: string | null) => {
+      if (!token) return
+      for (const owner of destinations.get(sessionId) ?? []) {
+        const tokens = tokensBySession.get(owner) ?? new Set<string>()
+        tokens.add(token)
+        tokensBySession.set(owner, tokens)
+      }
+    }
+    for (const idChunk of chunk(
+      owners.map(({ id }) => id),
+      SQLITE_INARRAY_CHUNK
+    )) {
+      const rows = db
+        .selectDistinct({
+          sessionId: sessionMessagesTable.sessionId,
+          runtimeResumeToken: sessionMessagesTable.runtimeResumeToken
+        })
+        .from(sessionMessagesTable)
+        .where(
+          and(inArray(sessionMessagesTable.sessionId, idChunk), isNotNull(sessionMessagesTable.runtimeResumeToken))
+        )
+        .all()
+      for (const row of rows) collect(row.sessionId, row.runtimeResumeToken)
+      const bindings = db
+        .select({
+          sessionId: agentSessionContextTable.sessionId,
+          nativeThreadId: agentSessionContextTable.nativeThreadId
+        })
+        .from(agentSessionContextTable)
+        .where(inArray(agentSessionContextTable.sessionId, idChunk))
+        .all()
+      for (const binding of bindings) {
+        collect(binding.sessionId, binding.nativeThreadId)
+      }
     }
     return tokensBySession
   }
@@ -1618,6 +1705,7 @@ export class AgentSessionMessageService {
     const timestampMs = Date.now()
     const persist = (tx: DbOrTx) => {
       const saved = this.saveMessageTx(tx, params, timestampMs)
+      if (options.projection) agentSessionContextService.saveRootProjectionTx(tx, params.sessionId, options.projection)
       return saved
     }
     if (db) return persist(db).entity
@@ -1666,6 +1754,38 @@ export class AgentSessionMessageService {
     expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
   ): AgentSessionMessageEntity[] {
     return this.saveMessagesWithActivityTx(tx, params, expectedAgent).entities
+  }
+
+  /** Reconciles a child archive's proven source order without editing a product conversation branch. */
+  orderChildArchiveTx(tx: DbOrTx, sessionId: string, order: readonly string[], removed: readonly string[] = []): void {
+    const session = tx.select().from(sessionTable).where(eq(sessionTable.id, sessionId)).get()
+    if (!session?.ownerSessionId) throw new Error('Only owned child archives can reconcile message order')
+    const rows = tx
+      .select({ id: sessionMessagesTable.id, parentId: sessionMessagesTable.parentId, role: sessionMessagesTable.role })
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.sessionId, sessionId))
+      .all()
+    const byId = new Map(rows.filter((row) => row.role !== 'root').map((row) => [row.id, row]))
+    const priorPath = new Set(
+      readAgentSessionAncestry(tx, sessionId, session.activeNodeId ?? ensureAgentSessionRootTx(tx, sessionId)).map(
+        (row) => row.id
+      )
+    )
+    const ordered = new Set(order)
+    const removedIds = new Set(removed)
+    if (
+      ordered.size !== order.length ||
+      order.some((id) => !byId.has(id)) ||
+      [...priorPath].some((id) => byId.has(id) && !ordered.has(id) && !removedIds.has(id))
+    )
+      throw new Error('Child archive order must retain messages without explicit removal')
+    let parentId = ensureAgentSessionRootTx(tx, sessionId)
+    for (const id of order) {
+      if (byId.get(id)!.parentId !== parentId)
+        tx.update(sessionMessagesTable).set({ parentId }).where(eq(sessionMessagesTable.id, id)).run()
+      parentId = id
+    }
+    tx.update(sessionTable).set({ activeNodeId: parentId }).where(eq(sessionTable.id, sessionId)).run()
   }
 
   private saveMessagesWithActivityTx(
@@ -2273,16 +2393,18 @@ export class AgentSessionMessageService {
   prepareSessionDeletionTx(tx: DbOrTx, sessionIds: readonly string[]): AgentSessionMessageEntity[] {
     const deleting = [...new Set(sessionIds)]
     if (deleting.length === 0) return []
-    const requests = tx
-      .select()
-      .from(sessionMessagesTable)
-      .where(
-        and(
-          inArray(sessionMessagesTable.sessionId, deleting),
-          inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+    const requests = chunk(deleting, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
+      tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            inArray(sessionMessagesTable.sessionId, idChunk),
+            inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+          )
         )
-      )
-      .all()
+        .all()
+    )
     const results: AgentSessionMessageEntity[] = []
     const now = new Date().toISOString()
     const error = { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' }
@@ -2496,14 +2618,27 @@ export class AgentSessionMessageService {
   replaceMessageParts(
     sessionId: string,
     messageId: string,
-    parts: AgentSessionMessageEntity['data']['parts']
+    parts: AgentSessionMessageEntity['data']['parts'],
+    projection?: RootProjectionCheckpoint
   ): AgentSessionMessageEntity {
     const saved = application.get('DbService').withWriteTx((tx) => {
       const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existingRow) throw DataApiErrorFactory.notFound('Message', messageId)
 
       const updatedAt = Date.now()
-      const data = { ...existingRow.data, parts }
+      const data = {
+        ...existingRow.data,
+        parts: projection
+          ? [
+              ...(parts ?? []),
+              ...(existingRow.data.parts ?? []).filter(
+                (part) =>
+                  isDataUIPart(part) &&
+                  !parts?.some((native) => isDataUIPart(native) && native.type === part.type && native.id === part.id)
+              )
+            ]
+          : parts
+      }
       const [updated] = tx
         .update(sessionMessagesTable)
         .set({ data, updatedAt })
@@ -2511,6 +2646,7 @@ export class AgentSessionMessageService {
         .returning()
         .all()
       replaceAgentSessionMessageFileRefsTx(tx, messageId, data)
+      if (projection) agentSessionContextService.saveRootProjectionTx(tx, sessionId, projection)
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })
@@ -2537,12 +2673,18 @@ export class AgentSessionMessageService {
       if (!existingRow) return false
 
       const existing = this.rowToEntity(existingRow)
-      const parts = existing.data.parts ?? []
+      const parts = (existing.data.parts ?? []).map((part): CherryMessagePart => {
+        if (
+          !isToolUIPart(part) ||
+          part.state !== 'output-error' ||
+          part.approval?.id !== decision.approvalId ||
+          part.approval.approved !== undefined
+        )
+          return part
+        return { ...part, errorText: undefined, state: 'approval-requested', approval: { id: decision.approvalId } }
+      })
       const hasPendingApproval = parts.some(
-        (part) =>
-          isToolUIPart(part) &&
-          part.state === 'approval-requested' &&
-          (part as { approval?: { id?: string } }).approval?.id === decision.approvalId
+        (part) => isToolUIPart(part) && part.state === 'approval-requested' && part.approval.id === decision.approvalId
       )
       if (!hasPendingApproval) return false
 
@@ -2569,6 +2711,63 @@ export class AgentSessionMessageService {
       ])
     }
     return applied
+  }
+
+  /**
+   * Terminalize a persisted approval card whose live request went away without a user decision. The
+   * row keeps its status and role — it is a settled interaction record, not a live turn — and only
+   * the parked part becomes terminal, so the card stops reading as answerable.
+   *
+   * Returns `false` when nothing is parked on that approval: already answered, or already retired.
+   */
+  retireAbandonedApproval(sessionId: string, approvalId: string, errorText: string): boolean {
+    const retired = application.get('DbService').withWriteTx((tx) => {
+      const [parkedRow] = tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            sql<boolean>`exists (
+              select 1 from json_each(${sessionMessagesTable.data}, '$.parts') as part
+              where json_extract(part.value, '$.state') = 'approval-requested'
+                and json_extract(part.value, '$.approval.id') = ${approvalId}
+            )`
+          )
+        )
+        .limit(1)
+        .all()
+      if (!parkedRow) return null
+
+      const parked = this.rowToEntity(parkedRow)
+      const updatedAt = Date.now()
+      // The part keeps every field it was parked with; only its state leaves the approval machine.
+      const parts = (parked.data.parts ?? []).map((part): CherryMessagePart => {
+        const parkedApprovalId = (part as { approval?: { id?: string } }).approval?.id
+        if (!isToolUIPart(part) || part.state !== 'approval-requested' || parkedApprovalId !== approvalId) {
+          return part
+        }
+        return { ...part, state: 'output-error', errorText } as unknown as CherryMessagePart
+      })
+      tx.update(sessionMessagesTable)
+        .set({ data: { ...parked.data, parts }, updatedAt })
+        .where(eq(sessionMessagesTable.id, parked.id))
+        .run()
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return parked.id
+    })
+
+    if (!retired) return false
+    agentSessionService.notifyReadModelChange([sessionId], 'projection')
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId },
+        entityIds: [retired]
+      }
+    ])
+    return true
   }
 }
 

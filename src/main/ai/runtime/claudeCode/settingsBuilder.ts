@@ -52,6 +52,7 @@ import {
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
+import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -80,6 +81,8 @@ import {
 import {
   approvalRequiredRuntimeNames,
   ASK_USER_QUESTION_TOOL_NAME,
+  GLOBAL_INSTALL_PLAN_DENIAL,
+  GLOBAL_INSTALL_UNATTENDED_DENIAL,
   HEADLESS_INTERACTIVE_TOOL_DENIAL
 } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
@@ -217,7 +220,6 @@ export async function buildClaudeCodeSessionSettings(
   // `dispose` drops any approval still pending for this session when the
   // stream exits abnormally.
   const approvalEmitter = sessionState().getToolApprovalEmitterHolder(session.id)
-  const steerHolder = sessionState().getSteerHolder(session.id)
   // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
   // not passed in; the holders above are created here only to expose them on `settings`.
   const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
@@ -352,7 +354,7 @@ export async function buildClaudeCodeSessionSettings(
     includePartialMessages: true,
     agentProgressSummaries: true,
     forwardSubagentText: true,
-    permissionMode: agentConfig?.permission_mode,
+    permissionMode: agentConfig?.permission_mode ?? 'default',
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
@@ -360,7 +362,6 @@ export async function buildClaudeCodeSessionSettings(
     canUseTool,
     hooks,
     approvalEmitter,
-    steerHolder,
     toolPolicySnapshot,
     warmQueryKey: session.id,
     ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
@@ -527,6 +528,14 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: 'Tool policy not ready' }
     }
 
+    const permissionMode = snapshot.getPermissionMode()
+    const globalInstall =
+      toolName === 'Bash' && typeof input.command === 'string' && detectGlobalInstall(input.command) !== null
+    if (globalInstall && permissionMode === 'plan') {
+      return { behavior: 'deny', message: GLOBAL_INSTALL_PLAN_DENIAL }
+    }
+    const installApprovalHolds = globalInstall && permissionMode !== 'bypassPermissions'
+
     // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce the per-turn
     // no-responder denial at fire time too. It mirrors the guard table's headless rules — Full Access
     // lifts it for `bypassApproval: 'lift'` tools — instead of relying on the SDK skipping
@@ -549,12 +558,16 @@ async function buildToolPermissions(
       .toolApproval(session.id, toolName, input, snapshot.getPermissionMode(), opts.signal)
     const approvalHoldsInThisMode =
       !!skillApproval ||
+      installApprovalHolds ||
       policy?.approval === 'delegation' ||
       (policy?.approval === 'required' &&
         !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift'))
     const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
     if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
-      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+      return {
+        behavior: 'deny',
+        message: installApprovalHolds ? GLOBAL_INSTALL_UNATTENDED_DENIAL : HEADLESS_INTERACTIVE_TOOL_DENIAL
+      }
     }
 
     const access = snapshot.resolve(toolName, input)

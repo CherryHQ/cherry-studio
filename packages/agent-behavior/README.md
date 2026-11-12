@@ -18,7 +18,7 @@ Cherry host -> adapters (coding-agent, Durable, fake) -> agent-behavior -> agent
 ```
 
 Dependencies point one way. The package imports no adapter, Pi, Node, Electron, AI SDK, logger or host code, and from
-[`@cherrystudio/agent-runtime`](../agent-runtime/README.md) only types: ids, `JsonValue` and `ContentPart`. That is
+[`@cherrystudio/agent-runtime`](../agent-runtime/README.md) only types: ids and `JsonValue`. That is
 its only declared dependency, used only for types. The emitted JavaScript import graph has no external executable dependency; the common runtime may itself implement AI SDK readers. The fake is the third harness implementation and ships here. Each layer under `src/` has
 one job:
 
@@ -31,13 +31,16 @@ one job:
 | `contract/`      | `harnessContract` and the `ContractHarness` an adapter implements                                                                                                                       | The cases every harness must pass.                                                                                                                             |
 
 The rule functions live in `core/`: each topic folder maps facts to a `Step` or a plain result, synchronously and
-without I/O, and none of them is exported ([The rule core](#the-rule-core)). `orchestration/` runs them over the ports,
-and `install` is its only runtime export ([Installing the package](#installing-the-package)). Until PR-2 moves
-agent-runtime-pi onto this package, goal and subagent semantics stay in the
-[agent-runtime-pi README](../agent-runtime-pi/README.md). Three pure projections and three constants are exported for
+without I/O ([The rule core](#the-rule-core)). `orchestration/` runs them over the ports,
+and `install` wires them into a harness ([Installing the package](#installing-the-package)). Pi and Pi Durable
+both use these shared rules. Four pure projections and three constants are exported for
 adapters and the host: `delegationStatus(record)` gives a run record's active or completed status,
 `turnOrigin(history, item)` names who started the turn an entry belongs to (a person, a goal round or a notification),
-`subagentViews(facts, approvals)` lists the background children as the host shows them, `DEFAULT_MAX_BACKGROUND` is
+`subagentViews(facts, approvals)` lists the background children as the host shows them,
+`subagentResults(history, active, notification?)` derives pending results and current notification origins
+from run records and native triggering calls, including continuations. Only confirmed empty pending results
+prove drainage; missing provenance stays unknown. A host-initiated continuation retains native work without
+assigning its result to the original model call. `DEFAULT_MAX_BACKGROUND` is
 the default of the host's `Settings.maxBackground()`, and `FORK_PLACEHOLDER_RESULT` and `INTERRUPTED_CALL_RESULT` are
 the texts of the results an adapter gives a child's open tool calls ([Applying a step](#applying-a-step)).
 
@@ -87,12 +90,12 @@ only says what a job kind runs. A Durable adapter still supplies `ContextFilter`
 `PortMethod` names every harness method as `port.method`; the contract must cover each one.
 
 What a child's run is and how a steer joins one (H3), what `onOpen` may do on reopen (stop before resume) and when
-`onCompacting` and `onCompacted` run (H12) are specified in those ports' TSDoc.
+`onCompacted` runs (H12) are specified in those ports' TSDoc.
 
 ### Host ports (P1 to P8)
 
-The host (Cherry) implements these, and `createScriptedHost` does for tests. The four calls that wait for a person or
-a model (`Approvals.ask`, `Questions.ask`, `Verifier.verify`, `Summarizer.summarize`) take `(request, signal)` and
+The host (Cherry) implements these, and `createScriptedHost` does for tests. The three calls that wait for a person or
+a model (`Approvals.ask`, `Questions.ask`, `Verifier.verify`) take `(request, signal)` and
 wait until answered or the signal aborts. `Settings` and `Observation.emit` are synchronous. `Workspaces` arrives with
 the worktree PR.
 
@@ -103,7 +106,6 @@ the worktree PR.
 | P3  | `Models`      | `find`, `current`                                                                               | Find models by the name a person said; tell what a conversation's model is now (tool support, its key, the key a child gets by default). |
 | P4  | `Verifier`    | `verify`                                                                                        | Judge whether a goal is met.                                                              |
 | P5  | `OutputStore` | `save`                                                                                          | Store an oversized output and return a path the model's read tool can open.               |
-| P6  | `Summarizer`  | `summarize`                                                                                     | Write a compaction summary with the host's model.                                         |
 | P7  | `Observation` | `emit`                                                                                          | Tell the host what happened, for display only; results never reach a parent through here. |
 | P8  | `Settings`    | `goalDefaults`, `autonomy`, `permissionMode`, `attendance`, `maxBackground`, `offloadThreshold` | Settings read once per decision.                                                          |
 
@@ -133,7 +135,6 @@ containing `:` stay apart.
 | `idleDriverExit(thread, generation)`                       | `idle-driver-exit:<thread>:g<generation>`                              | The exit record that driver writes in the transaction that decides it stops.                                                                          |
 | `subagentReport(runKey)`                                   | `subagent-report:<runKey>`                                             | A run's `subagent-report` job, keyed by its spawn, continuation input, or `subagentContinue(call)` record. A late message's job keeps its original `messageKey` to avoid submitting it twice. |
 | `approvalMemo(call)`, `askMemo(call)`, `verdictMemo(call)` | `cherry.approval:<call>`, `cherry.ask:<call>`, `cherry.verdict:<call>` | `Memory` names for an approval, an AskUserQuestion answer and a verifier verdict.                                                                     |
-| `summaryMemo(compactionKey)`                               | `cherry.summary:<compactionKey>`                                       | The `Memory` name of a compaction summary.                                                                                                            |
 | `goalCall(call)`                                           | `goal-call:<call>`                                                     | The goal record a goal tool call writes; one per call, so a rerun finds it.                                                                           |
 | `goalCommand(requestKey)`, `goalNotice(requestKey)`        | `goal-cmd:<requestKey>`, `goal-notice:<requestKey>`                    | The goal record and the notice a `/goal` command writes.                                                                                              |
 | `goalStop(goalId, revision, armSeq)`                       | `goal-stop:<goalId>:v<revision>:a<armSeq>`                             | A stop the core decides outside a call (the idle driver, `onOpen`); a stop disarms and bumps the revision.                                            |
@@ -284,7 +285,7 @@ serve any call.
 | `jobs`          | `idle-driver`: wait until idle, decide (D38), run the step; a goal round `Turns` took is admitted or withdrawn, and one withdrawn after it began gets a stop record and is stopped by the entry it began with (H2). A start `Turns` refused as `busy` goes back to waiting; a `started` or `queued` one waits with `Waits.untilDone` until its input has run; `done` ends the job. `subagent-report`: unless the run's end is already recorded, send it its input (stopping the run at once if a stop came first), await its end, record it. |
 | `contextFilter` | Leaves unadmitted round markers out (D12), except the one that started the current run while that run is active: the driver admits a round only after `Turns` took it, so its first requests must see it, but a compaction or verifier after a round withdrawn before admission must not.                                                                                                                                                  |
 | `requestMeter`  | Refuses a child's next model request once its run reached the request cap (D24); a root conversation has none.                                                                                                                                                                                                                                                                                                                             |
-| `lifecycle`     | `onOpen`: `decideOnOpen`, then the subagent views again on reopen. `onCompacting`: the host's `Summarizer` writes the summary; a non-empty one is memoized under `cherry.summary:<key>` and returned, a failed or empty one declines with the summarizer's error or `The summary is empty` as its `reason`, and the harness then does not compact. `onCompacted`: ensures the idle driver, which exits at once, leaving one `idle-driver-exit` record, when there is no status to write. `onClose`: nothing yet. |
+| `lifecycle`     | `onOpen`: `decideOnOpen`, then the subagent views again on reopen. `onCompacted`: ensures the idle driver, which exits at once, leaving one `idle-driver-exit` record, when there is no status to write. `onClose`: nothing yet. |
 
 | Tool                                     | `replay` | `executionMode` | `availability` |
 | ---------------------------------------- | -------- | --------------- | -------------- |
@@ -310,9 +311,9 @@ only, so neither messaging nor stopping redirects to another child with the same
 a separate operation that creates a new child. The shared contract tests continuation history and run identity,
 stale stops and parent cancellation on both the fake and Pi. A child absent from the harness's facts is refused before
 writing a continuation record or report job; a stored parent record alone does not establish an available context.
-Durable's behavior adapter is not implemented; its
-immutable conversation ownership remains a limitation to resolve or reject before writing the continuation's run
-record and report job, without silently forking.
+The [Durable adapter](../agent-runtime-pi-durable/README.md#shared-behavior) implements these ports. Its immutable
+conversation ownership still prevents independent continuation of a completed foreground child; the adapter rejects
+that continuation before writing its run record or report job, without silently forking.
 
 `vcc_recall` reads the full active lineage, including compaction-folded messages and the running turn.
 `#N` numbers user, assistant, tool-result and marker messages; records and compaction entries do not consume a number.
@@ -370,8 +371,8 @@ Beyond [What the adapters provide](#what-the-adapters-provide), each adapter mus
 
 - Call `install` at open and after every restart, and forward every child thread's `interrupt()` to
   `entries.stopSubagent`.
-- Ask `onCompacting` before every compaction, under the key the `CompactionRequest.key` TSDoc names for the harness, and
-  pass the verdict through; meter a compaction during a run as one of its requests. Supply the full branch captured before summarization in `CompactionRequest.history`. If the host returns real usage with its summary, retain the verdict's `accounting` as a history record exactly once by its key (including in child run usage); the goal owner is captured before awaiting the host. Persist it with the summary or its durable memo so replay cannot lose or double-count it. Text-only summaries carry no invented usage. Never call `Summarizer` itself.
+- Use the runtime's native compaction. Meter every native summary request, capture its goal and run owner, and
+  persist reported usage once so replay, restart and child attribution do not duplicate or lose it.
 - Pass each tool call's turn abort signal to `GateHandlers.before` as `call.signal`. Cancellation withdraws pending
   input, while normal completion carries it into a subsequent run. `Helpers.message` returns the run that actually
   consumed the message; orchestration records and reports a run it started using that same input key.
@@ -418,14 +419,15 @@ needs (tools, jobs, tool gate, context filter, request meter, lifecycle). The ha
 | `withCall(thread, use)`   | Run `use` with outbound ports bound to a fresh job-like call on `thread`; they expire when `use` settles.                                                                                                               |
 | `script(thread, replies)` | Append the replies the model gives `thread`'s runs, in order; a request past the end fails its run. A reply is text with optional tool calls and `usage`, or `{ error }`, a failed request.                              |
 | `sendUser(thread, text)`  | Deliver a person's text as user input; if the conversation is busy it stays in the inbox and is handled with leftover semantics.                                                                                        |
-| `compact(thread)`         | Compact `thread` now, a manual compaction: ask `onCompacting`, and with a summary add a compaction entry and call `onCompacted`; a decline leaves the history as it was.                                                |
+| `compact(thread)`         | Compact `thread` with a native summary and call `onCompacted` after success; failure leaves history unchanged.                                                |
 | `settle()`                | Resolve once no run is active and no job is live; inbox items a failed run left do not count.                                                                                                                           |
 | `restart()`               | Lose everything in memory and reopen from storage: install runs again, `abandon` jobs are dropped, `onOpen(thread, { reopened: true }, ports)` runs for every conversation, then runs and `resume` jobs continue.     |
 | `close()`                 | Call `onClose` for every conversation, then shut down.                                                                                                                                                                  |
 
-A harness may skip only the cases whose `needs` it lacks, and `needs` has two values:
+A harness may skip only the cases whose `needs` it lacks:
 
 - `restart`: coding-agent skips these, because its runs do not resume.
+- `foreground-continuation`: Durable skips this because a completed foreground child's native owner cannot be detached.
 - `context-filter`: Durable skips this, because it never consults `ContextFilter` (H10, a declared difference: a round
   withdrawn after it started, or cut by a restart before its admission, stays visible to later model requests there).
 
@@ -454,6 +456,7 @@ runs on it, and adds controls for the tests that build on it. Options, all optio
 
 Beyond `ContractHarness` it offers:
 
+- `scriptSummary(thread, reply)`: queue a native summary reply independently of normal run replies.
 - `awaitPoints`: await points passed since creation. Every outbound port call, every model request and every tool call
   of a run is one, and so is the end of every job; `clock.now` is not.
 - `crashAt(n)` and `whenCrashed()`: crash at the n-th await point from now (1-based). That point and all later work of
@@ -463,9 +466,7 @@ Beyond `ContractHarness` it offers:
   for crash-equivalence checks.
 - `requestLog(thread)`: the ids of the entries each model request on `thread` saw, after the context filter.
 
-A compaction keeps the summary `onCompacting` accepted with its entry, across restarts and into forks, and the model
-context (`ledger.modelContext`, each model request, the next `CompactionRequest.messages`) then starts with that
-summary, followed by the entries after it.
+A compaction keeps its native summary across restarts and into forks, and the model context then starts with that summary followed by retained entries.
 
 A message may reserve a minimum number for a new run, keeping a recorded but never-started run from shifting later
 usage and stops. Skipped numbers count zero usage in `ChildFacts.runUsage`. The reservation never restricts a steer
@@ -473,8 +474,7 @@ to that run: normal completion still carries unconsumed input forward, and `mess
 
 `restart()` loses what a Durable restart loses (handlers, run loops, running jobs, waiters) and keeps what it keeps
 (entries, submissions, memo, the job table, the final arguments of tool calls). The lost run loops' abort signals fire,
-so a host ask they still wait on (an approval, a question) is withdrawn instead of taking a later answer, and a
-`compact()` still waiting on `onCompacting` adds no compaction and calls no `onCompacted`. `abandon` jobs are dropped
+so a host ask they still wait on (an approval, a question) is withdrawn instead of taking a later answer. `abandon` jobs are dropped
 first. Every conversation then gets `onOpen(reopened: true)` before any resumed work. A stop there only marks the
 restored run, which stays active in the facts until resume ends it as aborted, and a job ensured there starts once every
 `onOpen` has run. Then runs resume: a tool call cut in the middle reruns with its final arguments when its tool is
@@ -506,9 +506,8 @@ To check that a flow survives a crash at any step, sweep the crash over every aw
 - `answerApproval`, `answerQuestion`, `giveVerdict`: queue an answer, first in, first out. A request with nothing
   queued stays pending until an answer is given or its signal aborts, which rejects it with the signal's reason. An
   answer queued earlier is taken by the next request.
-- `giveSummary`: queue a summary. `summarize` takes the oldest at once and rejects when none is queued; it never waits.
 - `setSettings(patch)`: replaces settings for later reads.
-- `asked`: how many times approvals, questions, verdicts and summaries were requested. `emitted`: the `BehaviorEvent`s
+- `asked`: how many times approvals, questions and verdicts were requested. `emitted`: the `BehaviorEvent`s
   in order. `saved`: every `OutputFile` saved.
 
 While an approval is pending, `Approvals.outcomes` reports it as `pending`; once answered, as `granted`, `denied`

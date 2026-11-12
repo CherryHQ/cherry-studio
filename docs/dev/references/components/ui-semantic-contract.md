@@ -136,7 +136,7 @@ selectors without duplicating the token grammar.
 
 The maintained application shell currently includes:
 
-- `app.sidebar`, `app.tab-bar`, `app.content`, and `app.search`;
+- `app.sidebar`, `app.shell`, `app.tab-bar`, `app.content`, and `app.search`;
 - `app.detached-window` for the detached route window root;
 - `quick-assistant.view`, `selection.toolbar`, and `selection.action` for auxiliary windows and surfaces;
 - `file-preview.view` for the shared file preview boundary.

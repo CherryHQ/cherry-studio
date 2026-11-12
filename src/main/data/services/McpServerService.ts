@@ -7,12 +7,14 @@
  */
 
 import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
 
 import { application } from '@application'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
+import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -86,6 +88,47 @@ export class McpServerService {
       total: count,
       page: 1
     }
+  }
+
+  findByConfig(
+    config: Pick<
+      CreateMcpServerDto,
+      'name' | 'type' | 'command' | 'args' | 'env' | 'baseUrl' | 'headers' | 'registryUrl' | 'dxtPath'
+    >
+  ): McpServer | undefined {
+    const type = config.type ?? (config.baseUrl ? 'sse' : 'stdio')
+    const pathValue = (env: Record<string, string> | undefined) =>
+      Object.entries(env ?? {})
+        .filter(([key]) => key.toLowerCase() === 'path')
+        .at(-1)?.[1]
+    return this.db
+      .select()
+      .from(mcpServerTable)
+      .where(eq(mcpServerTable.name, config.name))
+      .orderBy(asc(mcpServerTable.createdAt), asc(mcpServerTable.id))
+      .all()
+      .map(rowToMcpServer)
+      .find((server) => {
+        if (server.installSource === 'builtin' || server.type === 'inMemory') return false
+        if (
+          (server.type ?? (server.baseUrl ? 'sse' : 'stdio')) !== type ||
+          (server.baseUrl ?? '') !== (config.baseUrl ?? '')
+        )
+          return false
+        if (type !== 'stdio')
+          return isEqual(
+            mergeHeaders(defaultAppHeaders(), server.headers),
+            mergeHeaders(defaultAppHeaders(), config.headers)
+          )
+        return (
+          (server.command ?? '').trim() === (config.command ?? '').trim() &&
+          isEqual(server.args ?? [], config.args ?? []) &&
+          isEqual(server.env ?? {}, config.env ?? {}) &&
+          (process.platform !== 'win32' || pathValue(server.env) === pathValue(config.env)) &&
+          (server.registryUrl ?? '') === (config.registryUrl ?? '') &&
+          (server.dxtPath ?? '') === (config.dxtPath ?? '')
+        )
+      })
   }
 
   /**
