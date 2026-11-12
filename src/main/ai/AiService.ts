@@ -485,6 +485,13 @@ export class AiService extends BaseService {
     // would otherwise overwrite (see installProviderUserAgentInterceptor).
     this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange('agent.skills.external_export.enabled', () => {
+        void skillService.syncExternalExports().catch((error) => {
+          logger.warn('Failed to sync external skill exports after preference change', { error })
+        })
+      })
+    )
     // Install built-in skills, then heal the CLAUDE_CONFIG_DIR/skills mirror once at
     // startup — chained (not two independent fire-and-forgets) so the mirror reconcile
     // always runs after builtin skills have synced to agent_global_skill this boot,
