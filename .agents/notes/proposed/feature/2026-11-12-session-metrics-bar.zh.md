@@ -25,11 +25,11 @@ Agent 聊天界面只按消息显示 token 和耗时数据，无法看到会话�
 
 ## 验收标准
 
-- AC1：对于一个测试会话，指标栏显示的轮数、工具调用步数、输入 token、缓存命中率、首 token 时间和每秒 token 数与逐消息统计的总和一致。
-- AC2：关闭设置后指标栏隐藏；重新开启后再次显示。
-- AC3：对测试会话，缓存命中率等于 sum(cacheReadTokens) / sum(inputTokens)。
-- AC4：一轮对话完成后指标栏更新。
-- AC5：缺少源数据的指标显示「—」，而不是 0。
+- AC1 — 对于一个测试会话，指标栏显示的轮数、工具调用步数、输入 token、缓存命中率、首 token 时间和每秒 token 数与逐消息统计的总和一致。 (verification: renderer component tests)
+- AC2 — 关闭设置后指标栏隐藏；重新开启后再次显示。 (verification: renderer component tests)
+- AC3 — 对测试会话，缓存命中率等于 sum(cacheReadTokens) / sum(inputTokens)。 (verification: renderer component tests)
+- AC4 — 一轮对话完成后指标栏更新。 (verification: renderer component tests)
+- AC5 — 缺少源数据的指标显示「—」，而不是 0。 (verification: renderer component tests)
 
 ## 风险
 

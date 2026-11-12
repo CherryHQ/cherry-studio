@@ -2,4 +2,4 @@
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-12-session-metrics-bar.md
 2026-11-12-session-metrics-bar.md: ea18e14b69cb7e0b4c1b39c8668697c911392a14
-2026-11-12-session-metrics-bar.zh.md: 555791f724e1b7f039cdd74944c0174887b6e288
+2026-11-12-session-metrics-bar.zh.md: fecc04a3e6b97bcfe4cc6972c66790f572f7947d
