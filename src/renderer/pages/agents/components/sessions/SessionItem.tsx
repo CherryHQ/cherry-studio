@@ -22,6 +22,7 @@ import { SessionHoverPreview } from '@renderer/components/chat/resourceList/Sess
 import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { getAgentColorStyle } from '@renderer/utils/agentColor'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn } from '@shared/ai/transport'
@@ -288,7 +289,7 @@ const SessionItem = ({
       item={session}
       data-testid="agent-session-row"
       className="relative"
-      style={{ cursor: 'pointer' }}
+      style={{ cursor: 'pointer', ...getAgentColorStyle(session.agentId) }}
       onClick={handlePress}
       onAuxClick={handleAuxClick}>
       {showLeadingSlot && (
