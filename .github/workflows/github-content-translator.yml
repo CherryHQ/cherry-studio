@@ -26,7 +26,7 @@ jobs:
         && github.event.pull_request.head.repo.fork == false
       )
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     permissions:
       issues: write
       pull-requests: write
@@ -198,7 +198,32 @@ jobs:
               }
             }
 
-            const callTranslator = async (target) => {
+            const splitBody = (body) => {
+              const characters = Array.from(body)
+              const chunks = []
+              let start = 0
+              while (start < characters.length) {
+                let end = Math.min(start + 2000, characters.length)
+                if (end < characters.length) {
+                  const newline = characters.lastIndexOf('\n', end - 1)
+                  if (newline >= start) end = newline + 1
+                }
+                chunks.push(characters.slice(start, end).join(''))
+                start = end
+              }
+              return chunks.length ? chunks : ['']
+            }
+
+            const retainBoundaryWhitespace = (source, translated) => {
+              if (!translated.trim()) return ''
+              const leading = source.match(/^\s*/)[0]
+              const trailing = source.match(/\s*$/)[0]
+              if (leading) translated = leading + translated.trimStart()
+              if (trailing) translated = translated.trimEnd() + trailing
+              return translated
+            }
+
+            const callTranslatorChunk = async (target, chunk, contextTarget) => {
               const apiKey = process.env.ANTHROPIC_API_KEY
               if (!apiKey) {
                 throw new Error('Missing ANTHROPIC_API_KEY')
@@ -241,13 +266,19 @@ jobs:
             - If the content quotes an earlier automatic translation, keep only the English quoted content and remove translation markers and Original Content sections from the quote.
             - If the content quotes non-translated content, keep that quote unchanged.
             - If the content is an email reply, remove quoted email history from both translated_body and original_body.
-            - original_body must be the source text that corresponds to translated_body, after any required email quote cleanup.`,
+            - original_body must be the source text that corresponds to translated_body, after any required email quote cleanup.
+            - When chunk and context are provided, context is the complete read-only document. Apply the rules above using that full context, but return body text only for target.body, the fragment at chunk.start..chunk.end (JavaScript UTF-16 offsets).
+            - Fragments concatenate directly in order. Do not repeat surrounding context, add headings, or open/close Markdown constructs at fragment boundaries. Use context to recognize code fences, links, quoted translations, and email history that cross those boundaries.
+            - For an already translated document, decide whether its original and translation match using the full context. If they match, return should_update=false for every fragment. If they differ, emit the corrected translation and corresponding original only from fragments in Original Content; return empty bodies for obsolete translation wrappers and text.
+            - Return should_update=true with empty body strings when the entire fragment must be removed by the cleanup rules. An unchanged fragment must return should_update=false.
+            - Only translate a title when target.title is non-empty.`,
                   messages: [
                     {
                       role: 'user',
                       content: JSON.stringify({
                         event: context.eventName,
-                        target
+                        target,
+                        ...(chunk.total > 1 ? { chunk, context: contextTarget } : {})
                       })
                     }
                   ]
@@ -259,6 +290,12 @@ jobs:
               }
 
               const data = await response.json()
+              if (data.stop_reason === 'max_tokens') {
+                throw new Error(
+                  `Translator response was truncated for ${target.kind} chunk ${chunk.index}/${chunk.total} (${Array.from(target.body).length} body characters, ${data.usage?.output_tokens ?? 'unknown'} output tokens).`
+                )
+              }
+
               const text = data.content?.find((part) => part.type === 'text')?.text
               if (!text) {
                 throw new Error('Translator API returned no text content')
@@ -273,6 +310,46 @@ jobs:
               })
             }
 
+            const callTranslator = async (target) => {
+              const bodies = splitBody(target.body)
+              const translatedBodies = []
+              const originalBodies = []
+              let shouldUpdate = false
+              let translatedTitle = null
+              let start = 0
+              for (const [index, body] of bodies.entries()) {
+                const chunk = { index: index + 1, total: bodies.length, start, end: start + body.length }
+                const result = await callTranslatorChunk(
+                  { ...target, body, title: index === 0 ? target.title : '' },
+                  chunk,
+                  { title: target.title, body: target.body }
+                )
+                start = chunk.end
+                if (!result.should_update) {
+                  translatedBodies.push(body)
+                  originalBodies.push(body)
+                  continue
+                }
+                if (typeof result.translated_body !== 'string' || typeof result.original_body !== 'string') {
+                  throw new Error(`Translator requested an update without body fields for chunk ${chunk.index}/${chunk.total}`)
+                }
+                shouldUpdate = true
+                if (index === 0) translatedTitle = result.translated_title
+                translatedBodies.push(
+                  bodies.length === 1 ? result.translated_body : retainBoundaryWhitespace(body, result.translated_body)
+                )
+                originalBodies.push(
+                  bodies.length === 1 ? result.original_body : retainBoundaryWhitespace(body, result.original_body)
+                )
+              }
+              return {
+                should_update: shouldUpdate,
+                translated_title: translatedTitle,
+                translated_body: translatedBodies.join(''),
+                original_body: originalBodies.join('')
+              }
+            }
+
             const target = getTarget()
             if (isWorkflowTranslationEdit(target)) {
               core.info('Skipping the edit event emitted by this workflow translation.')
@@ -283,10 +360,6 @@ jobs:
             if (!result.should_update) {
               core.info('Translator reported that no translation update is needed.')
               return
-            }
-
-            if (typeof result.translated_body !== 'string' || typeof result.original_body !== 'string') {
-              throw new Error('Translator requested an update without translated_body and original_body')
             }
 
             await updateTarget(target, result.translated_title, result.translated_body, result.original_body)
