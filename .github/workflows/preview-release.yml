@@ -1,126 +1,56 @@
-name: Signed Windows x64 migration relay preview
-run-name: Build and sign PR 23998 Windows x64 migration relay
-
+name: Isolated Windows portable migration test
+run-name: Test the signed 1.9.12 and 2.1.0 portable migration chain
 on:
   workflow_dispatch:
-
+    inputs:
+      preview_artifact_id:
+        description: Signed preview artifact from the pinned build
+        required: false
+        type: string
 permissions:
   actions: read
   contents: read
-
-env:
-  SOURCE_SHA: 77297645100d0ea0db0aa7dee4f9509caebb4a64
-
 jobs:
-  build:
-    if: >-
-      github.repository == 'CherryHQ/cherry-studio' &&
-      github.ref == 'refs/heads/codex/pr-23998-portable-relay-preview' &&
-      github.actor == 'DeJeune'
+  migration:
     runs-on: windows-latest
-    timeout-minutes: 45
-    outputs:
-      id: ${{ steps.artifact.outputs.artifact-id }}
-      digest: ${{ steps.artifact.outputs.artifact-digest }}
-      filename: ${{ steps.package.outputs.filename }}
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.SOURCE_SHA }}
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
-      - uses: pnpm/action-setup@v5
-      - name: Install locked dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Build Global Windows x64 preview
-        id: package
-        shell: pwsh
-        env:
-          ELECTRON_BUILDER_7Z_FILTER: BCJ
-          NODE_OPTIONS: --max-old-space-size=8192
-        run: |
-          if ((git rev-parse HEAD) -cne $env:SOURCE_SHA) { throw 'Unexpected build commit' }
-          $base = (node -p "require('./package.json').version.split('-')[0]").Trim()
-          $version = "$base-preview-$($env:SOURCE_SHA.Substring(0,7))"
-          npm version $version --no-git-tag-version --allow-same-version --ignore-scripts
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          pnpm exec dotenv -v CHERRY_EDITION=global -- electron-vite build
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          pnpm run build:utility-process
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          pnpm exec electron-builder --win nsis portable --x64 --publish never
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $filename = "Cherry-Studio-$version-win-x64-portable.exe"
-          if (!(Test-Path -LiteralPath "dist/$filename")) { throw 'Missing portable preview' }
-          "filename=$filename" >> $env:GITHUB_OUTPUT
-      - name: Stage unsigned portable artifact
-        id: artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          path: dist/${{ steps.package.outputs.filename }}
-          archive: false
-          if-no-files-found: error
-          retention-days: 1
-
-  sign:
-    needs: build
-    runs-on: [self-hosted, windows-signing]
-    timeout-minutes: 20
-    steps:
-      - name: Download the exact build artifact
+      - name: Download the signed artifact from the build
+        if: inputs.preview_artifact_id != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          artifact-ids: ${{ needs.build.outputs.id }}
-          path: ${{ runner.temp }}/pr-23998-fix-${{ github.run_id }}-${{ github.run_attempt }}
-      - name: Sign and verify the portable executable
-        id: signing
-        shell: powershell
-        env:
-          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
-          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
-          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
-          ARTIFACT_DIR: ${{ runner.temp }}/pr-23998-fix-${{ github.run_id }}-${{ github.run_attempt }}
-          ARTIFACT_NAME: ${{ needs.build.outputs.filename }}
-          ARTIFACT_DIGEST: ${{ needs.build.outputs.digest }}
+          artifact-ids: ${{ inputs.preview_artifact_id }}
+          github-token: ${{ github.token }}
+          run-id: 43188113910
+          path: ${{ runner.temp }}/cs-preview
+      - name: Open the synthetic profile in the official 1.9.11 portable build
+        if: inputs.preview_artifact_id == ''
+        shell: pwsh
+        run: ./scripts/preview-test/run.ps1
+      - name: Verify automatic handoff after closing 1.9.12
+        if: inputs.preview_artifact_id != ''
+        shell: pwsh
         run: |
-          $namePattern = '^Cherry-Studio-\d+\.\d+\.\d+-preview-' + $env:SOURCE_SHA.Substring(0,7) + '-win-x64-portable\.exe$'
-          if ($env:ARTIFACT_NAME -cnotmatch $namePattern) { throw 'Unexpected artifact name' }
-          $unsigned = Join-Path $env:ARTIFACT_DIR $env:ARTIFACT_NAME
-          $expected = $env:ARTIFACT_DIGEST -replace '^sha256:', ''
-          if ($expected -notmatch '^[a-f0-9]{64}$' -or (Get-FileHash -LiteralPath $unsigned -Algorithm SHA256).Hash -ne $expected) {
-            throw 'Unexpected unsigned artifact SHA-256'
-          }
-          if ((Get-AuthenticodeSignature -LiteralPath $unsigned).Status -ne 'NotSigned') {
-            throw 'Expected an unsigned preview'
-          }
-          if (!$env:CHERRY_CERT_PATH -or !$env:CHERRY_CERT_KEY -or !$env:CHERRY_CERT_CSP) {
-            throw 'Missing Windows signing configuration'
-          }
-          $signedName = $env:ARTIFACT_NAME -replace '-win-x64-portable\.exe$', '-signed-win-x64-portable.exe'
-          $signed = Join-Path $env:ARTIFACT_DIR $signedName
-          $verified = $false
-          foreach ($timestamp in @('http://timestamp.digicert.com', 'http://timestamp.sectigo.com')) {
-            Copy-Item -LiteralPath $unsigned -Destination $signed -Force
-            & signtool.exe sign /tr $timestamp /td sha256 /fd sha256 /f $env:CHERRY_CERT_PATH /csp $env:CHERRY_CERT_CSP /k $env:CHERRY_CERT_KEY $signed
-            if ($LASTEXITCODE -ne 0) { continue }
-            & signtool.exe verify /pa /tw $signed
-            if ($LASTEXITCODE -eq 0) {
-              $verified = $true
-              break
-            }
-          }
-          $signature = Get-AuthenticodeSignature -LiteralPath $signed
-          if (!$verified -or $signature.Status -ne 'Valid' -or !$signature.TimeStamperCertificate) {
-            throw 'Could not verify a timestamped Authenticode signature'
-          }
-          "filename=$signedName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          Get-FileHash -LiteralPath $signed -Algorithm SHA256
-      - name: Upload signed x64 portable preview
+          $preview = @(Get-ChildItem -LiteralPath "$env:RUNNER_TEMP/cs-preview" -Filter '*-preview-7729764-signed-win-x64-portable.exe' -Recurse -File)
+          if ($preview.Count -ne 1) { throw 'Could not find the exact signed preview' }
+          & ./scripts/preview-test/run.ps1 -Preview $preview[0].FullName
+      - name: Upload migration evidence
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          path: ${{ runner.temp }}/pr-23998-fix-${{ github.run_id }}-${{ github.run_attempt }}/${{ steps.signing.outputs.filename }}
-          archive: false
-          if-no-files-found: error
+          name: isolated-portable-relay-evidence
+          path: |
+            scripts/preview-test/*.json
+            scripts/preview-test/*.png
+            scripts/preview-test/*-history.txt
+            scripts/preview-test/migration-fixtures/*.json
+            scripts/preview-test/migration-fixtures/*.png
+            ${{ runner.temp }}/cs23998-e2e/launcher.log
+            ${{ runner.temp }}/cs23998-e2e/data/logs/app-error.*.log
           retention-days: 3
