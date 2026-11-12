@@ -600,3 +600,35 @@ describe('PowerShell Command tail', () => {
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
   })
 })
+
+describe('PowerShell block comments in explicit Command programs', () => {
+  it.each([
+    `pwsh -NoProfile -Command '<# explanation #> del victim.txt'`,
+    `pwsh -Command 'echo ok; <# c #> erase victim.txt'`,
+    `powershell -Command '<##> rd victimdir'`,
+    `pwsh -Command '<# a #> <# b #> del victim.txt'`,
+    `pwsh -Command '<# outer <# inner #> del victim.txt'`,
+    `pwsh -Command 'Write-Output ok | <# comment #> del victim.txt'`,
+    `pwsh -Command '<#
+ multiline
+#> del victim.txt'`
+  ])('denies execution after a real block comment: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    `pwsh -Command '<# del victim.txt #> Write-Output ok'`,
+    `pwsh -Command '<# outer <# inner #> Write-Output del victim.txt'`,
+    `pwsh -Command 'Write-Output "<# #> del victim.txt"'`,
+    `pwsh -Command '<# unclosed del victim.txt'`,
+    `pwsh -Command 'Write-Output ok <# comment #> del victim.txt'`,
+    `echo '<# comment #> del victim.txt'`
+  ])('does not execute comment or quoted argument text: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+
+  it('consumes a long comment at its first closing marker', () => {
+    const code = '<#'.repeat(20000) + '#> del victim.txt'
+    expect(detectDestructiveAssistantCommand(`pwsh -Command '${code}'`)).toBe('permanent Windows file deletion')
+  })
+})

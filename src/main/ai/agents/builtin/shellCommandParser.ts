@@ -283,7 +283,7 @@ function readWord(text: string, start: number): { value: string; substitutions: 
 }
 
 /** `#` starts a comment only at a word boundary; `foo#bar` stays one word. */
-function tokenize(text: string): Token[] {
+function tokenize(text: string, powershell: boolean): Token[] {
   const tokens: Token[] = []
   let index = 0
   let atWordStart = true
@@ -291,6 +291,12 @@ function tokenize(text: string): Token[] {
     const char = text[index]
     if (WHITESPACE.has(char)) {
       index++
+      atWordStart = true
+      continue
+    }
+    if (powershell && atWordStart && char === '<' && text[index + 1] === '#') {
+      const end = text.indexOf('#>', index + 2)
+      index = end === -1 ? text.length : end + 2
       atWordStart = true
       continue
     }
@@ -429,7 +435,7 @@ export function resolveCommand(
   return undefined
 }
 
-function parseCommands(text: string): ShellPipeline[] {
+function parseCommands(text: string, powershell: boolean): ShellPipeline[] {
   const pipelines: ShellPipeline[] = []
   let commands: ShellCommand[] = []
   let words: string[] = []
@@ -455,7 +461,7 @@ function parseCommands(text: string): ShellPipeline[] {
     }
   }
 
-  const tokens = tokenize(text)
+  const tokens = tokenize(text, powershell)
   for (let index = 0; index < tokens.length; index++) {
     const token = tokens[index]
     if (token.kind === 'operator') {
@@ -592,7 +598,7 @@ function extractHeredocs(command: string): { commandText: string; heredocs: Shel
   return { commandText: kept.join('\n'), heredocs }
 }
 
-export function parseShellCommand(command: string): ParsedShellCommand {
+export function parseShellCommand(command: string, powershell = false): ParsedShellCommand {
   const { commandText, heredocs } = extractHeredocs(command)
-  return { pipelines: parseCommands(commandText), heredocs }
+  return { pipelines: parseCommands(commandText, powershell), heredocs }
 }

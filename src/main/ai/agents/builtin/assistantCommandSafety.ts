@@ -587,7 +587,10 @@ function reasonForNestedCommand(
     const code = optionValue(args, ['-e', '--eval', '-p', '--print'])
     return code === undefined ? undefined : detectNodeDeletion(code)
   }
-  if (POWERSHELL.has(name)) return analyzeNested(powershellCommand(args), depth)
+  if (POWERSHELL.has(name)) {
+    const code = powershellCommand(args)
+    return code === undefined ? undefined : analyze(code, depth + 1, true)
+  }
   if (CMD.has(name)) return analyzeNested(cmdCommand(args, rawArgs), depth)
   if (name === 'ssh') return analyzeNested(sshCommand(args), depth)
   if (name === 'su' || name === 'runuser') return analyzeNested(suCommand(args), depth)
@@ -724,9 +727,9 @@ function reasonForHeredoc(heredoc: ShellHeredoc, depth: number): string | undefi
   return undefined
 }
 
-function analyze(command: string, depth: number): string | undefined {
+function analyze(command: string, depth: number, powershell = false): string | undefined {
   if (depth > MAX_ANALYSIS_DEPTH) return undefined
-  const parsed = parseShellCommand(command)
+  const parsed = parseShellCommand(command, powershell)
   for (const pipeline of parsed.pipelines) {
     for (const simple of pipeline.commands) {
       const reason = reasonForCommand(simple, depth)
