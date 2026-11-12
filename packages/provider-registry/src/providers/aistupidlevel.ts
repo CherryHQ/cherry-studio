@@ -56,7 +56,10 @@ const routingModeOverrides = ROUTING_MODES.map(([modelId, name]) => ({
   reason: 'Routing mode owned by AI Stupid Level; routes only among tool-calling models'
 })) satisfies ProviderModelOffer[]
 
-/** Models the router can pin (GET /v1/models, 2026-10-19), by router id; the catalog key derives from it. */
+/**
+ * Models the router can pin (GET /v1/models, 2026-11-12) that have a models.json row, by router id; the
+ * catalog key derives from it.
+ */
 const PINNABLE_MODELS = [
   'claude-opus-5-5',
   'claude-sonnet-5-5',
@@ -68,6 +71,7 @@ const PINNABLE_MODELS = [
   'claude-opus-4-6',
   'claude-sonnet-4-6',
   'gpt-6.1-sol',
+  'gpt-6.1-terra',
   'gpt-6-sol',
   'gpt-6-astra',
   'gpt-6-luna',
@@ -75,12 +79,12 @@ const PINNABLE_MODELS = [
   'gpt-5.6-terra',
   'gpt-5.6-luna',
   'gpt-5.5',
+  'gemini-4-argon',
   'gemini-3.8-flash',
   'gemini-3.5-flash-lite',
   'deepseek-v4-pro',
   'deepseek-v4-flash',
-  'kimi-k3',
-  'kimi-k2.7-code',
+  'kimi-k3.1-pro',
   'glm-5.3'
 ]
 

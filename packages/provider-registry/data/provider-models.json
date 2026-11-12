@@ -2330,6 +2330,15 @@
       "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
     },
     {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gemini-4-argon",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
       "apiModelId": "glm-5.3",
       "capabilities": {
         "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
@@ -2390,6 +2399,16 @@
       "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
     },
     {
+      "apiModelId": "gpt-6.1-terra",
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gpt-6-1-terra",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
       "capabilities": {
         "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
       },
@@ -2417,21 +2436,12 @@
       "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
     },
     {
-      "apiModelId": "kimi-k2.7-code",
+      "apiModelId": "kimi-k3.1-pro",
       "capabilities": {
         "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
       },
       "inputModalities": ["text"],
-      "modelId": "kimi-k2-7-code",
-      "providerId": "aistupidlevel",
-      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
-    },
-    {
-      "capabilities": {
-        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
-      },
-      "inputModalities": ["text"],
-      "modelId": "kimi-k3",
+      "modelId": "kimi-k3-1-pro",
       "providerId": "aistupidlevel",
       "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
     },
@@ -45128,5 +45138,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "7b14d60e32accede"
+  "version": "0e0df0f293cdbf57"
 }
