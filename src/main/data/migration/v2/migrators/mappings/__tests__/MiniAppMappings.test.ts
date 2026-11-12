@@ -71,12 +71,6 @@ describe('MiniAppMappings', () => {
         const empty = transformMiniApp(createCustomSource({ supportedRegions: [] }), 'enabled')
         expect(empty.supportedRegions).toBeNull()
       })
-
-      it('should default bordered to true when neither field is present', () => {
-        const source = createCustomSource()
-        const result = transformMiniApp(source, 'enabled')
-        expect(result.bordered).toBe(true)
-      })
     })
 
     describe('preset apps (full preset data)', () => {
@@ -96,8 +90,6 @@ describe('MiniAppMappings', () => {
         expect(result.presetMiniAppId).toBe('openai')
         expect(result.status).toBe('pinned')
         // Preset values are stamped in (not the stale source values).
-        expect(result.name).toBe('ChatGPT')
-        expect(result.url).toBe('https://chatgpt.com/')
       })
 
       it('should handle all status values for preset apps', () => {

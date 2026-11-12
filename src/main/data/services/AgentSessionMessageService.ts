@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { isDataUIPart, isToolUIPart } from 'ai'
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { chunk } from 'es-toolkit'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
@@ -260,6 +261,11 @@ function replaceAgentSessionMessageFileRefsTx(
 ): void {
   tx.delete(agentSessionMessageFileRefTable).where(eq(agentSessionMessageFileRefTable.sourceId, messageId)).run()
 
+  const snapshot = tx
+    .select({ snapshot: sessionMessagesTable.messageSnapshot })
+    .from(sessionMessagesTable)
+    .where(eq(sessionMessagesTable.id, messageId))
+    .get()?.snapshot
   const ids = [
     ...new Set(
       (data.parts ?? [])
@@ -268,6 +274,8 @@ function replaceAgentSessionMessageFileRefsTx(
         .filter((id): id is string => Boolean(id))
     )
   ]
+  const attachmentIds = new Set(ids)
+  if (snapshot?.avatarFileId && !ids.includes(snapshot.avatarFileId)) ids.push(snapshot.avatarFileId)
   if (ids.length === 0) return
 
   const existingIds = new Set<string>()
@@ -283,18 +291,19 @@ function replaceAgentSessionMessageFileRefsTx(
   const now = Date.now()
   const rows = ids
     .filter((fileEntryId) => existingIds.has(fileEntryId))
-    .map((fileEntryId) => ({
-      fileEntryId,
-      sourceId: messageId,
-      role: 'attachment' as const,
-      createdAt: now,
-      updatedAt: now
-    }))
+    .flatMap((fileEntryId) => [
+      ...(attachmentIds.has(fileEntryId)
+        ? [{ fileEntryId, sourceId: messageId, role: 'attachment' as const, createdAt: now, updatedAt: now }]
+        : []),
+      ...(fileEntryId === snapshot?.avatarFileId
+        ? [{ fileEntryId, sourceId: messageId, role: 'author_avatar' as const, createdAt: now, updatedAt: now }]
+        : [])
+    ])
 
-  if (rows.length !== ids.length) {
+  if (existingIds.size !== ids.length) {
     logger.warn('Dropped agent-session message file refs without matching file_entry', {
       messageId,
-      dropped: ids.length - rows.length,
+      dropped: ids.length - existingIds.size,
       total: ids.length
     })
   }
@@ -502,7 +511,8 @@ export class AgentSessionMessageService {
         .select({ id: sessionMessagesTable.id })
         .from(sessionMessagesTable)
         .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.parentId, head)))
-        .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+        // Unary + keeps the planner off session_created_id_idx, which rescans the whole session per level.
+        .orderBy(desc(sql`+${sessionMessagesTable.createdAt}`), desc(sql`+${sessionMessagesTable.id}`))
         .get()
       if (!child) return head
       head = child.id
@@ -1042,7 +1052,8 @@ export class AgentSessionMessageService {
           .select({ id: sessionMessagesTable.id, parentId: sessionMessagesTable.parentId })
           .from(sessionMessagesTable)
           .where(and(eq(sessionMessagesTable.sessionId, sessionId), inArray(sessionMessagesTable.parentId, parents)))
-          .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+          // Unary + keeps the planner on parent_idx instead of scanning the session through session_created_id_idx.
+          .orderBy(asc(sql`+${sessionMessagesTable.createdAt}`), asc(sql`+${sessionMessagesTable.id}`))
           .all()
       : []
     const items = pageRows.map((row) => ({
@@ -1368,11 +1379,19 @@ export class AgentSessionMessageService {
     const tokensBySession = new Map<string, Set<string>>()
     if (sessionIds.length === 0) return tokensBySession
     const db = application.get('DbService').getDb()
-    const owners = db
-      .select({ id: sessionTable.id, owner: sessionTable.ownerSessionId })
-      .from(sessionTable)
-      .where(or(inArray(sessionTable.id, sessionIds), inArray(sessionTable.ownerSessionId, sessionIds)))
-      .all()
+    const owners = [
+      ...new Map(
+        chunk([...sessionIds], SQLITE_INARRAY_CHUNK)
+          .flatMap((idChunk) =>
+            db
+              .select({ id: sessionTable.id, owner: sessionTable.ownerSessionId })
+              .from(sessionTable)
+              .where(or(inArray(sessionTable.id, idChunk), inArray(sessionTable.ownerSessionId, idChunk)))
+              .all()
+          )
+          .map((row) => [row.id, row] as const)
+      ).values()
+    ]
     if (!owners.length) return tokensBySession
     const requested = new Set(sessionIds)
     const destinations = new Map(
@@ -1386,26 +1405,32 @@ export class AgentSessionMessageService {
         tokensBySession.set(owner, tokens)
       }
     }
-    const ownedIds = owners.map(({ id }) => id)
-    const rows = db
-      .selectDistinct({
-        sessionId: sessionMessagesTable.sessionId,
-        runtimeResumeToken: sessionMessagesTable.runtimeResumeToken
-      })
-      .from(sessionMessagesTable)
-      .where(and(inArray(sessionMessagesTable.sessionId, ownedIds), isNotNull(sessionMessagesTable.runtimeResumeToken)))
-      .all()
-    for (const row of rows) collect(row.sessionId, row.runtimeResumeToken)
-    const bindings = db
-      .select({
-        sessionId: agentSessionContextTable.sessionId,
-        nativeThreadId: agentSessionContextTable.nativeThreadId
-      })
-      .from(agentSessionContextTable)
-      .where(inArray(agentSessionContextTable.sessionId, ownedIds))
-      .all()
-    for (const binding of bindings) {
-      collect(binding.sessionId, binding.nativeThreadId)
+    for (const idChunk of chunk(
+      owners.map(({ id }) => id),
+      SQLITE_INARRAY_CHUNK
+    )) {
+      const rows = db
+        .selectDistinct({
+          sessionId: sessionMessagesTable.sessionId,
+          runtimeResumeToken: sessionMessagesTable.runtimeResumeToken
+        })
+        .from(sessionMessagesTable)
+        .where(
+          and(inArray(sessionMessagesTable.sessionId, idChunk), isNotNull(sessionMessagesTable.runtimeResumeToken))
+        )
+        .all()
+      for (const row of rows) collect(row.sessionId, row.runtimeResumeToken)
+      const bindings = db
+        .select({
+          sessionId: agentSessionContextTable.sessionId,
+          nativeThreadId: agentSessionContextTable.nativeThreadId
+        })
+        .from(agentSessionContextTable)
+        .where(inArray(agentSessionContextTable.sessionId, idChunk))
+        .all()
+      for (const binding of bindings) {
+        collect(binding.sessionId, binding.nativeThreadId)
+      }
     }
     return tokensBySession
   }
@@ -2286,16 +2311,18 @@ export class AgentSessionMessageService {
   prepareSessionDeletionTx(tx: DbOrTx, sessionIds: readonly string[]): AgentSessionMessageEntity[] {
     const deleting = [...new Set(sessionIds)]
     if (deleting.length === 0) return []
-    const requests = tx
-      .select()
-      .from(sessionMessagesTable)
-      .where(
-        and(
-          inArray(sessionMessagesTable.sessionId, deleting),
-          inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+    const requests = chunk(deleting, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
+      tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            inArray(sessionMessagesTable.sessionId, idChunk),
+            inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+          )
         )
-      )
-      .all()
+        .all()
+    )
     const results: AgentSessionMessageEntity[] = []
     const now = new Date().toISOString()
     const error = { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' }
