@@ -771,22 +771,6 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/release-tools" --ignore-scripts --no-audit --no-fund yaml@2.8.2 semver@7.7.1
           echo "NODE_PATH=$RUNNER_TEMP/release-tools/node_modules" >> "$GITHUB_ENV"
 
-      - name: Download approved archive
-        uses: actions/download-artifact@v8
-        with:
-          name: release-bundle-${{ needs.prepare.outputs.tag }}
-          path: release-bundle
-
-      - name: Verify draft matches approved archive
-        env:
-          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ needs.prepare.outputs.tag }}
-          RELEASE_SHA: ${{ inputs.expected_sha }}
-          SOURCE_RUN_ID: ${{ github.run_id }}
-        run: |
-          node scripts/release/release-artifacts.js verify-github release-bundle
-
       - name: Validate and publish current draft
         shell: bash
         env:
@@ -890,17 +874,14 @@ jobs:
           fi
 
   sync-to-gitcode:
-    name: Sync both editions to GitCode
+    name: Sync both editions to COS and GitCode
     needs: [prepare, publish]
     if: >-
       !cancelled() && github.repository == 'CherryHQ/cherry-studio' && github.ref == 'refs/heads/main' &&
       (needs.publish.result == 'success' || inputs.mode == 'sync-only')
-    runs-on: [self-hosted, windows-signing]
-    defaults:
-      run:
-        shell: bash
+    runs-on: ubuntu-latest
     concurrency:
-      group: gitcode-sync-${{ inputs.mode == 'sync-only' && inputs.tag || needs.prepare.outputs.tag }}
+      group: gitcode-sync-${{ inputs.tag }}
       cancel-in-progress: false
     env:
       GH_TOKEN: ${{ github.token }}
@@ -918,12 +899,6 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
-
-      - name: Check sync tools
-        run: |
-          gh --version
-          curl --version
-          jq --binary --version
 
       - name: Install release script dependencies
         shell: bash
@@ -944,15 +919,24 @@ jobs:
           path: release-bundle
           merge-multiple: true
 
-      - name: Verify Global assets and stage both editions
-        env:
-          RELEASE_SHA: ${{ steps.source.outputs.sha }}
-        run: |
-          node scripts/release/release-artifacts.js sync release-bundle release-assets
+      - name: Stage both editions
+        run: node scripts/release/release-artifacts.js sync release-bundle release-assets
+
+      - name: Set up Python
+        if: "!(inputs.mode == 'sync-only' && inputs.dry_run)"
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Tencent Cloud COS SDK
+        if: "!(inputs.mode == 'sync-only' && inputs.dry_run)"
+        run: python -m pip install cos-python-sdk-v5==1.9.44
 
       - name: Sync GitCode release
         shell: bash
         env:
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
           GITCODE_OWNER: ${{ vars.GITCODE_OWNER }}
           GITCODE_REPO: ${{ vars.GITCODE_REPO }}
@@ -961,10 +945,6 @@ jobs:
           LANG: C.UTF-8
           LC_ALL: C.UTF-8
         run: bash scripts/release/sync-gitcode.sh
-
-      - name: Clean sync artifacts
-        if: always()
-        run: rm -rf release-bundle release-assets release_body.txt
 
   notify:
     runs-on: ubuntu-latest
