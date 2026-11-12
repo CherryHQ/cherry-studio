@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { stringify } from 'yaml'
 
 import { getExpectedReleaseArtifacts } from '../release/edition'
-import { selectArchive, validateSourceRun } from '../release/release-artifact-source'
-import { assembleArchive, stageAssets } from '../release/release-artifacts'
+import { selectArchive, validatePublishedRelease, validateSourceRun } from '../release/release-artifact-source'
+import { assembleArchive, hashFile, stageAssets, verifyArchive, verifyGithubAssets } from '../release/release-artifacts'
 
 const repository = 'CherryHQ/cherry-studio'
 const sha = 'a'.repeat(40)
@@ -79,7 +79,8 @@ describe('dual-edition release archive', () => {
       runId: '100',
       platform: 'all'
     }
-    return { options, metadata: await assembleArchive(options) }
+    await assembleArchive(options)
+    return { options, metadata: await verifyArchive(options.directory, { repository, sha, tag, runId: '100' }) }
   }
 
   it.each(['v2.1.2', 'v2.2.0-rc.1'])('keeps GitHub Global-only and GitCode complete for %s', async (tag) => {
@@ -106,17 +107,20 @@ describe('dual-edition release archive', () => {
     )
     for (const file of readdirSync(github))
       expect(readFileSync(path.join(gitcode, file))).toEqual(readFileSync(path.join(github, file)))
-    const legacy = path.join(root, 'legacy')
-    const files = Object.fromEntries(metadata.files.map((file: string) => [file, 'old checksum']))
-    stageAssets(options.directory, legacy, { ...metadata, files }, ['global', 'cn'])
-    expect(readdirSync(legacy)).toEqual(readdirSync(gitcode))
+    await expect(
+      verifyGithubAssets(readdirSync(github), metadata, (file: string) => hashFile(path.join(github, file)))
+    ).resolves.toBeUndefined()
+    writeFileSync(path.join(github, 'unexpected-cn.yml'), '')
+    await expect(
+      verifyGithubAssets(readdirSync(github), metadata, (file: string) => hashFile(path.join(github, file)))
+    ).rejects.toThrow('exactly the Global')
   })
 
   it('replaces both editions of the selected platform and preserves other platforms from the same SHA', async () => {
     const { options } = await assemble()
     const selected = fixture(options.tag, '-retry')
     const directory = path.join(root, 'retry')
-    const retried = await assembleArchive({
+    await assembleArchive({
       ...options,
       ...selected,
       baseline: options.directory,
@@ -124,11 +128,14 @@ describe('dual-edition release archive', () => {
       platform: 'windows',
       runId: '101'
     })
+    const retried = await verifyArchive(directory, { repository, tag: options.tag, sha, runId: '101' })
     for (const edition of ['global', 'cn']) {
-      const windows = retried.files.find(
-        (file: string) => file.startsWith(`${edition}/windows/`) && file.endsWith('.exe')
+      const windows = Object.keys(retried.files).find(
+        (file) => file.startsWith(`${edition}/windows/`) && file.endsWith('.exe')
       )!
-      const mac = retried.files.find((file: string) => file.startsWith(`${edition}/mac/`) && file.endsWith('.zip'))!
+      const mac = Object.keys(retried.files).find(
+        (file) => file.startsWith(`${edition}/mac/`) && file.endsWith('.zip')
+      )!
       expect(readFileSync(path.join(directory, windows), 'utf8')).toContain('-retry signed')
       expect(readFileSync(path.join(directory, mac))).toEqual(readFileSync(path.join(options.directory, mac)))
     }
@@ -152,32 +159,28 @@ describe('dual-edition release archive', () => {
     ).rejects.toThrow()
   })
 
-  it.each([
-    ['corrupt package', 'checksum mismatch'],
-    ['cross-edition manifest', 'does not reference'],
-    ['missing CN assets', 'ENOENT']
-  ])('rejects a build with %s during assembly', async (problem, error) => {
-    const input = fixture()
-    const windows = path.join(input.selected, 'release-v2.1.2-windows-latest-global')
-    if (problem === 'corrupt package') {
-      writeFileSync(path.join(windows, 'Cherry-Studio-2.1.2-win-x64-setup.exe'), 'corrupt')
-    } else if (problem === 'cross-edition manifest') {
-      const manifest = path.join(windows, 'latest.yml')
-      writeFileSync(manifest, readFileSync(manifest, 'utf8').replaceAll('Cherry-Studio-', 'Cherry-Studio-CN-'))
-    } else {
-      rmSync(path.join(input.selected, 'release-v2.1.2-macos-latest-cn'), { recursive: true })
-    }
+  it('rejects corrupt packages, cross-edition manifests and missing CN assets', async () => {
+    const { options } = await assemble()
+    const manifestPath = path.join(options.directory, 'global/windows/latest.yml')
+    const original = readFileSync(manifestPath, 'utf8')
+    writeFileSync(manifestPath, original.replaceAll('Cherry-Studio-', 'Cherry-Studio-CN-'))
+    await expect(verifyArchive(options.directory, { sha })).rejects.toThrow()
+    writeFileSync(manifestPath, original)
+    const file = path.join(options.directory, 'global/windows/Cherry-Studio-2.1.2-win-x64-setup.exe')
+    writeFileSync(file, 'corrupt')
+    await expect(verifyArchive(options.directory, { sha })).rejects.toThrow('checksum mismatch')
+    rmSync(path.join(options.directory, 'cn/mac'), { recursive: true })
+    await expect(verifyArchive(options.directory, { sha })).rejects.toThrow()
+  })
+
+  it('rejects published Global files from a different build even at the same SHA', async () => {
+    const { options, metadata } = await assemble()
+    const github = path.join(root, 'github')
+    stageAssets(options.directory, github, metadata, ['global'])
+    writeFileSync(path.join(github, 'Cherry-Studio-2.1.2-win-x64-setup.exe'), 'other signed build')
     await expect(
-      assembleArchive({
-        ...input,
-        directory: path.join(root, 'archive'),
-        baseline: '',
-        repository,
-        sha,
-        runId: '100',
-        platform: 'all'
-      })
-    ).rejects.toThrow(error)
+      verifyGithubAssets(readdirSync(github), metadata, (file: string) => hashFile(path.join(github, file)))
+    ).rejects.toThrow('differs from archive')
   })
 })
 
@@ -225,5 +228,14 @@ describe('archive provenance', () => {
       )
     ).toEqual(artifact)
     expect(selectArchive([{ ...artifact, expired: true }], options)).toBeUndefined()
+  })
+  it('requires a published release with matching tag and commit', () => {
+    const release = { draft: false, tag_name: 'v2.1.2', target_commitish: sha }
+    expect(() => validatePublishedRelease(release, 'v2.1.2', sha, sha)).not.toThrow()
+    for (const invalid of [{ draft: true }, { tag_name: 'v2.0.0' }, { target_commitish: 'other' }])
+      expect(() => validatePublishedRelease({ ...release, ...invalid }, 'v2.1.2', sha, sha)).toThrow(
+        'published GitHub release'
+      )
+    expect(() => validatePublishedRelease(release, 'v2.1.2', sha, 'other')).toThrow('archive SHA')
   })
 })
