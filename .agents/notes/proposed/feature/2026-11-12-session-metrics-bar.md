@@ -25,11 +25,11 @@ All values are derived in the renderer from the existing per-message stats. No s
 
 ## Acceptance criteria
 
-- AC1: For a fixture session, the bar shows turns, tool-call steps, input tokens, cache hit rate, time to first token, and tokens per second matching the sums of the per-message stats.
-- AC2: Turning the setting off hides the bar; turning it on shows it again.
-- AC3: Cache hit rate equals sum(cacheReadTokens) / sum(inputTokens) for the fixture.
-- AC4: The bar updates after a turn completes.
-- AC5: A metric with missing source data renders "—", not 0.
+- AC1 — For a fixture session, the bar shows turns, tool-call steps, input tokens, cache hit rate, time to first token, and tokens per second matching the sums of the per-message stats. (verification: renderer component tests)
+- AC2 — Turning the setting off hides the bar; turning it on shows it again. (verification: renderer component tests)
+- AC3 — Cache hit rate equals sum(cacheReadTokens) / sum(inputTokens) for the fixture. (verification: renderer component tests)
+- AC4 — The bar updates after a turn completes. (verification: renderer component tests)
+- AC5 — A metric with missing source data renders "—", not 0. (verification: renderer component tests)
 
 ## Risks
 
