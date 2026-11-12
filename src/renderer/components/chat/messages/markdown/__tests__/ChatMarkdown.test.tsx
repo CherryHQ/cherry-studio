@@ -62,4 +62,72 @@ describe('ChatMarkdown adapter', () => {
     expect(openPath).toHaveBeenCalledWith('./docs')
     expect(openArtifactFile).not.toHaveBeenCalled()
   })
+
+  it('keeps following prose visible when an HTML body shares the closing disclosure node', async () => {
+    const user = userEvent.setup()
+    render(
+      <ChatMarkdown
+        block={{
+          id: 'html-disclosure',
+          status: 'success',
+          content: '<details>\n<summary>Answer</summary>\n\n<div>Body</div>\n</details>\n\nAfter'
+        }}
+        inlineHtmlPreviewMode="ready"
+      />,
+      { wrapper: CodeStyleProvider }
+    )
+
+    expect(screen.getByText('After')).toBeVisible()
+    const body = screen.getByText('Body')
+    expect(body).not.toBeVisible()
+    await user.click(screen.getByText('Answer'))
+    expect(body).toBeVisible()
+    await user.click(screen.getByText('Answer'))
+    expect(body).not.toBeVisible()
+    expect(screen.getByText('After')).toBeVisible()
+  })
+
+  it.each(['success', 'streaming'] as const)('keeps Markdown inside a native disclosure (%s)', async (status) => {
+    const user = userEvent.setup()
+    render(
+      <ChatMarkdown
+        block={{
+          id: 'disclosure',
+          status,
+          content: String.raw`Before
+
+<details>
+<summary>Answer (click to expand)</summary>
+
+$$
+y = \frac{1}{2x} - \frac{1}{2x^3}
+$$
+
+**Quick check:** This content should be hidden while the disclosure is closed.
+</details>
+
+After`
+        }}
+        inlineHtmlPreviewMode="ready"
+      />,
+      { wrapper: CodeStyleProvider }
+    )
+
+    const summary = screen.getByText(
+      (_, element) => element?.tagName === 'SUMMARY' && element.textContent === 'Answer (click to expand)'
+    )
+    const body = screen.getByText(
+      (_, element) =>
+        element?.textContent === 'Quick check:' &&
+        !Array.from(element.children).some((child) => child.textContent === 'Quick check:')
+    )
+    expect(body).not.toBeVisible()
+    await user.click(summary)
+    expect(body).toBeVisible()
+    expect(screen.getByRole('math', { hidden: true })).toHaveTextContent('y')
+    await user.click(summary)
+    expect(body).not.toBeVisible()
+    expect(screen.getByText('Before')).toBeVisible()
+    expect(screen.getByText('After')).toBeVisible()
+  })
 })
