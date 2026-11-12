@@ -1,5 +1,5 @@
-import { copyJson, type JsonRepresentation } from '@earendil-works/chord'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
+import { copyJson, type JsonRepresentation } from '@earendil-works/chord/json'
 import { createModels } from '@earendil-works/pi-ai'
 import { Harness, MemoryStorage, createRegistry } from '@earendil-works/pi-durable'
 import { expect, it } from 'vitest'

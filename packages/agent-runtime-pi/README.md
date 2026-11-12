@@ -19,7 +19,10 @@ in the same native session. An unsupported policy is rejected before native disp
 Constructs native Pi coding-agent sessions. The caller supplies Pi's `ModelRuntime` and `Model`;
 Pi owns the execution loop, tools, context accounting and compaction. Content deltas use the common AI SDK message reader before observer fanout; the package
 imports no Cherry application code. Native tool results and progress update their calling message,
-without reordering its text, reasoning and tool parts.
+without reordering its text, reasoning and tool parts. Completed results preserve native
+`structuredContent` in live and historical projections, including error-result metadata;
+MCP clients can recover the original result and its execution context without relying on
+model-facing content annotations.
 Behavior's child-task and continuation custom messages project as user messages with native entry
 identities. Other hidden custom markers remain hidden; filtering them must not erase actual input boundaries.
 
@@ -166,7 +169,7 @@ Released access cannot use these controls. Neither operation deletes the native 
 
 ## Input correlation
 
-The pinned [Pi 1.5.0 patch](../../patches/@earendil-works__pi-coding-agent@1.5.0.patch)
+The pinned [Pi 1.5.2 patch](../../patches/@earendil-works__pi-coding-agent@1.5.2.patch)
 adds an optional caller `inputId` to native prompts, steering, follow-ups, and custom messages.
 Pi carries it with the actual message through input transforms and queues. After its session
 manager appends that message, `input_placed` reports the token and native entry ID; the builder's

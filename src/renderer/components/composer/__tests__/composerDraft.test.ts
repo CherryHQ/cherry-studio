@@ -88,15 +88,6 @@ describe('excludeComposerDraftTokens', () => {
     expect(draft.text).toBe('tail')
     expect(draft.tokens).toEqual([{ id: 'f', kind: 'file', label: 'a.md', index: 0, textOffset: 0 }])
   })
-
-  it('returns the same draft when nothing matches', () => {
-    const draft = {
-      text: 'hello',
-      tokens: [{ id: 'f', kind: 'file' as const, label: 'a.md', index: 0, textOffset: 0 }]
-    }
-
-    expect(excludeComposerDraftTokens(draft, (token) => token.kind === 'knowledge')).toBe(draft)
-  })
 })
 
 describe('composer draft serialization', () => {

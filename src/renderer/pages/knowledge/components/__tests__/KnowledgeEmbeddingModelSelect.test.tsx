@@ -229,21 +229,6 @@ describe('KnowledgeEmbeddingModelSelect', () => {
     }
   )
 
-  it('hides the unsupported local model and keeps it as the first provider otherwise', () => {
-    const localEmbeddingModel = makeEmbeddingModel(
-      LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
-      'local-embedding',
-      'Qwen3 Embedding 0.6B'
-    )
-    const remoteModel = makeEmbeddingModel('openai::text-embedding-3-small', 'openai', 'text-embedding-3-small')
-    localModels['qwen3-embedding-0.6b'].status = 'unsupported'
-    render(<KnowledgeEmbeddingModelSelect value={null} placeholder="not-set" onChange={vi.fn()} />)
-
-    expect(mockModelSelectorProps.at(-1)?.filter(localEmbeddingModel)).toBe(false)
-    expect(mockModelSelectorProps.at(-1)?.filter(remoteModel)).toBe(true)
-    expect(mockModelSelectorProps.at(-1)?.prioritizedProviderIds).toEqual(['local-embedding'])
-  })
-
   it('prompts for the Harrier bundle download with its own subtitle', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

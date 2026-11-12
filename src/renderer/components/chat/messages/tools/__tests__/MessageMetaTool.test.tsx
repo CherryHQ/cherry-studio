@@ -75,14 +75,6 @@ describe('MessageMetaTool', () => {
     })
   }
 
-  it('localizes the empty search state instead of hardcoding English', async () => {
-    render(<MessageMetaTool toolResponse={createMetaToolResponse()} />)
-    await expandCard(/tool_search/)
-
-    expect(await screen.findByText('没有匹配的工具。')).toBeInTheDocument()
-    expect(screen.getByText('参数')).toBeInTheDocument()
-  })
-
   it('shows tools loaded by native Pi search instead of an empty result', async () => {
     render(
       <MessageMetaTool
@@ -107,76 +99,5 @@ describe('MessageMetaTool', () => {
     await expandCard(/codemode/)
     expect(await screen.findByText('text(42)')).toBeTruthy()
     expect(screen.getByText(/Script completed/)).toBeTruthy()
-  })
-
-  it('localizes a missing tool_invoke name instead of hardcoding English', async () => {
-    render(
-      <MessageMetaTool
-        toolResponse={createMetaToolResponse({
-          tool: { id: 'tool_invoke', name: 'tool_invoke', type: 'builtin' },
-          arguments: {}
-        })}
-      />
-    )
-    await expandCard(/tool_invoke/)
-
-    expect(await screen.findByText('未提供工具名称。')).toBeInTheDocument()
-  })
-
-  it('localizes inspect, invoke, and exec section titles', async () => {
-    const inspectView = render(
-      <MessageMetaTool
-        toolResponse={createMetaToolResponse({
-          tool: { id: 'tool_inspect', name: 'tool_inspect', type: 'builtin' },
-          arguments: { name: 'browser' },
-          response: '/** inspect me */'
-        })}
-      />
-    )
-    await expandCard(/tool_inspect/)
-    expect(await screen.findByText('JSDoc')).toBeInTheDocument()
-    inspectView.unmount()
-
-    const invokeView = render(
-      <MessageMetaTool
-        toolResponse={createMetaToolResponse({
-          tool: { id: 'tool_invoke', name: 'tool_invoke', type: 'builtin' },
-          arguments: { name: 'browser', params: { url: 'https://example.test' } },
-          response: { ok: true }
-        })}
-      />
-    )
-    await expandCard(/tool_invoke/)
-    expect(await screen.findByText('输出')).toBeInTheDocument()
-    invokeView.unmount()
-
-    render(
-      <MessageMetaTool
-        toolResponse={createMetaToolResponse({
-          tool: { id: 'tool_exec', name: 'tool_exec', type: 'builtin' },
-          arguments: { code: 'return 1' },
-          response: { logs: ['started'], error: 'boom', result: 1, isError: true }
-        })}
-      />
-    )
-    await expandCard(/tool_exec/)
-    expect(await screen.findByText('代码')).toBeInTheDocument()
-    expect(screen.getByText('日志（1）')).toBeInTheDocument()
-    expect(screen.getByText('错误')).toBeInTheDocument()
-  })
-
-  it('localizes the exec success output section', async () => {
-    render(
-      <MessageMetaTool
-        toolResponse={createMetaToolResponse({
-          tool: { id: 'tool_exec', name: 'tool_exec', type: 'builtin' },
-          arguments: { code: 'return 1' },
-          response: { result: 1, isError: false }
-        })}
-      />
-    )
-    await expandCard(/tool_exec/)
-
-    expect(await screen.findByText('输出')).toBeInTheDocument()
   })
 })

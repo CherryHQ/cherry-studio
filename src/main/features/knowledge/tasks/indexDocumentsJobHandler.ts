@@ -8,7 +8,11 @@ import { t } from '@main/i18n'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { isLocalEmbeddingModel } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { getKnowledgeItemDisplayTitle, isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
+import {
+  getKnowledgeItemDisplayTitle,
+  isCompletedVectorKnowledgeBase,
+  KNOWLEDGE_ITEM_ERROR_EMPTY_INDEXABLE_TEXT
+} from '@shared/data/types/knowledge'
 import type { KeyedMutex } from '@shared/utils/async'
 
 import type { IndexableKnowledgeItem } from '../items'
@@ -33,8 +37,6 @@ const logger = loggerService.withContext('Knowledge:IndexDocumentsJobHandler')
 // Chunks per embedMany call while rebuilding an item's material. Small enough to
 // surface incremental progress, large enough to not multiply request overhead.
 const EMBEDDING_PROGRESS_BATCH_SIZE = 10
-const EMPTY_INDEXABLE_TEXT_ERROR =
-  'No indexable text was extracted. Check the source, OCR, or document processing settings, then reindex.'
 
 /**
  * How long the final percentage lingers after the job exits. The list's item status
@@ -105,7 +107,7 @@ export function createIndexDocumentsJobHandler(
           itemId: ctx.input.itemId,
           jobId: ctx.jobId
         })
-        throw new Error(EMPTY_INDEXABLE_TEXT_ERROR)
+        throw new Error(KNOWLEDGE_ITEM_ERROR_EMPTY_INDEXABLE_TEXT)
       }
 
       // Mark embedding separately so the UI reflects the current long-running phase.
