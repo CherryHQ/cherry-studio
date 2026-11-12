@@ -5,8 +5,9 @@
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
  * Generated at: 2026-11-12T05:01:57.069Z
- * Total icons: 175
+ * Total icons: 176
  */
+import { AistupidlevelIcon } from './aistupidlevel/aistupidlevel'
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
 import { Ai302Icon } from './302ai'
@@ -194,6 +195,7 @@ export const PROVIDER_ICON_CATALOG = {
   ai21: Ai21Icon,
   aihubmix: AihubmixIcon,
   aionlabs: AionlabsIcon,
+  aistupidlevel: AistupidlevelIcon,
   alayanew: AlayanewIcon,
   allenai: AllenaiIcon,
   'ant-afu': AntAfuIcon,
