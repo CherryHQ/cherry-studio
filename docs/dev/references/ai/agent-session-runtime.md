@@ -104,6 +104,11 @@ session lists include scheduled-task conversations so their saved results remain
 reachable. Both scopes retain background exclusion and pin ordering. Public request
 schemas do not expose this internal choice.
 
+Remote session discovery also accepts an optional `taskId`. The task owner checks
+visibility and Agent ownership before querying the existing session-to-task relation.
+Pinned and unpinned pages use the same filter; retained conversations remain discoverable
+after their execution records are cleaned up. Desktop DataApi request fields are unchanged.
+
 Conversation lists (including pins), latest-session selection, discovery search,
 and empty-session reuse only consider conversation sessions. The public
 session-by-id and message routes (reads, mutations, and workspace changes) apply

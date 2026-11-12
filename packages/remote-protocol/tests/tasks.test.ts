@@ -13,6 +13,15 @@ const run = {
 }
 
 describe('Task public contract', () => {
+  it('accepts task-scoped session discovery while retaining existing requests', () => {
+    const schema = agentMethods['agent.sessions.list'].params
+    expect(schema.safeParse({}).success).toBe(true)
+    expect(schema.safeParse({ taskId: 'task', agentId: 'agent', workspaceId: 'workspace', limit: 1 }).success).toBe(
+      true
+    )
+    for (const taskId of ['', 'x'.repeat(257), '\uD800']) expect(schema.safeParse({ taskId }).success).toBe(false)
+  })
+
   it('rejects invalid filters, unbounded reads and private request fields', () => {
     const list = agentMethods['agent.tasks.list'].params
     expect(list.safeParse({ statuses: [] }).success).toBe(false)

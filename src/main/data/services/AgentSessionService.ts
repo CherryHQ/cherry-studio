@@ -779,7 +779,7 @@ export class AgentSessionService {
    * applied by the renderer over the loaded list.
    */
   listByCursor(
-    query: ListAgentSessionsQuery & { scope: 'ordinary' | 'all-conversations' }
+    query: ListAgentSessionsQuery & { scope: 'ordinary' | 'all-conversations'; taskId?: string }
   ): CursorPaginationResponse<AgentSessionEntity> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
@@ -787,6 +787,7 @@ export class AgentSessionService {
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
     const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
+    const taskIdFilter = query.taskId ? eq(sessionsTable.taskId, query.taskId) : undefined
     const inTrash = query.inTrash === true
     const taskFilter =
       query.scope === 'all-conversations' || inTrash || query.ids ? undefined : ordinaryConversationFilter
@@ -811,6 +812,7 @@ export class AgentSessionService {
           and(
             conversationFilter,
             taskFilter,
+            taskIdFilter,
             agentFilter,
             workspaceFilter,
             idFilter,
@@ -870,6 +872,7 @@ export class AgentSessionService {
         and(
           conversationFilter,
           taskFilter,
+          taskIdFilter,
           agentFilter,
           workspaceFilter,
           idFilter,

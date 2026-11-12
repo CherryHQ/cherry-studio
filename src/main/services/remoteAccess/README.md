@@ -77,6 +77,11 @@ for existing mobile clients. Desktop DataApi uses `ordinary`. Both scopes preser
 pin ordering and exclude background sessions; explicit IDs and trash queries retain
 their existing behavior.
 
+The optional remote session-list `taskId` filter goes through
+`AgentTaskService.listTaskSessions`, which checks task visibility and Agent ownership,
+then delegates relation filtering and both pagination sections to `AgentSessionService`.
+It reads `session.taskId` directly, so Job retention cannot hide surviving conversations.
+
 Discovery publishes only the eligible interface addresses passed to Bonjour, excluding scoped and link-local IPv6.
 The pinned Bonjour patch adds an optional address allowlist to record generation; the same list is used for publication and withdrawal.
 

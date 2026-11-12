@@ -27,6 +27,7 @@ import type {
   TaskRunLogEntity,
   TaskRunSummary
 } from '@shared/data/api/schemas/agents'
+import type { AgentSessionEntity, ListAgentSessionsQuery } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
@@ -34,7 +35,7 @@ import {
   type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
+import type { CursorPaginationResponse, DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
 
 import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from '../../ai/agents/agentTaskDefaults'
 
@@ -523,6 +524,15 @@ export class AgentTaskService {
       logs: sliced.map((j) => this.toTaskRunLogEntity(j)),
       total
     }
+  }
+
+  listTaskSessions(
+    taskId: string,
+    query: Pick<ListAgentSessionsQuery, 'agentId' | 'workspaceId' | 'cursor' | 'limit'>
+  ): CursorPaginationResponse<AgentSessionEntity> {
+    const task = this.getTaskById(taskId)
+    if (!task || (query.agentId !== undefined && query.agentId !== task.agentId)) return { items: [] }
+    return agentSessionService.listByCursor({ ...query, scope: 'all-conversations', agentId: task.agentId, taskId })
   }
 
   listTaskRuns(taskId: string, options: { limit: number; offset?: number }): { runs: TaskRunRecord[]; total: number } {

@@ -6,12 +6,13 @@ import { taskMethods } from '@cherrystudio/remote-protocol/agent'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
+import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 
 import { PAGE_ITEM_BYTES } from '../agentPagination'
-import { sha256 } from '../agentQueries'
+import { listSessions, sha256 } from '../agentQueries'
 import { getTask, getTaskRun, listTasks, listTaskRuns, readTaskContent } from '../agentTaskQueries'
 
 describe('remote task queries', () => {
@@ -79,6 +80,65 @@ describe('remote task queries', () => {
     expect(() => listTasks({ statuses: ['paused'], cursor: first.nextCursor! })).toThrow('Invalid task page cursor')
     expect(() => listTaskRuns({ taskId: a.id, cursor: first.nextCursor! })).toThrow('Invalid task page cursor')
     expect(() => listTasks({ cursor: 'garbage' })).toThrow('Invalid task page cursor')
+  })
+
+  it('paginates task-owned conversations after Job cleanup without leaking other tasks or hidden sessions', () => {
+    const source = task('session history')
+    const otherTask = task('other task')
+    const create = (name: string, agentId = 'owner', type: 'conversation' | 'background' = 'conversation') =>
+      agentSessionService.create({ agentId, name, workspace: { type: 'system' } }, type)
+    const pinned = create('pinned')
+    const secondPin = create('second pin')
+    const fresh = create('fresh')
+    const reused = create('reused')
+    const trashed = create('trashed')
+    const background = create('background', 'owner', 'background')
+    const foreign = create('foreign', 'other')
+    const unrelated = create('other task')
+    dbh.db.update(agentSessionTable).set({ taskId: source.id }).run()
+    dbh.db.update(agentSessionTable).set({ taskId: otherTask.id }).where(eq(agentSessionTable.id, unrelated.id)).run()
+    dbh.db.update(agentSessionTable).set({ isTaskReuseTarget: true }).where(eq(agentSessionTable.id, reused.id)).run()
+    dbh.db.update(agentSessionTable).set({ deletedAt: Date.now() }).where(eq(agentSessionTable.id, trashed.id)).run()
+    dbh.db
+      .insert(pinTable)
+      .values(
+        [unrelated, background, foreign, trashed, pinned, secondPin].map((session, i) => ({
+          entityType: 'session' as const,
+          entityId: session.id,
+          orderKey: `a${i}`
+        }))
+      )
+      .run()
+    run(source.id, 'collected', { metadata: { sessionId: fresh.id } })
+    dbh.db.delete(jobTable).run()
+    expect(listTaskRuns({ taskId: source.id }).items).toEqual([])
+
+    const found: string[] = []
+    let cursor: string | undefined
+    do {
+      const page = listSessions({ taskId: source.id, limit: 1, cursor })
+      found.push(...page.items.map((session) => session.id))
+      cursor = page.nextCursor ?? undefined
+    } while (cursor)
+    expect(found.slice(0, 2)).toEqual([pinned.id, secondPin.id])
+    expect(found).toHaveLength(4)
+    expect(new Set(found)).toEqual(new Set([pinned.id, secondPin.id, fresh.id, reused.id]))
+    expect(
+      listSessions({ taskId: source.id, agentId: 'owner', workspaceId: fresh.workspaceId }).items.map(
+        (session) => session.id
+      )
+    ).toEqual([fresh.id])
+    expect(listSessions({ taskId: source.id, agentId: 'other' })).toEqual({ items: [], nextCursor: null })
+    expect(listSessions({ taskId: source.id, workspaceId: 'missing' })).toEqual({ items: [], nextCursor: null })
+    expect(listSessions({ taskId: 'missing' })).toEqual({ items: [], nextCursor: null })
+    const heartbeat = task('heartbeat', '__heartbeat__')
+    dbh.db.update(agentSessionTable).set({ taskId: heartbeat.id }).where(eq(agentSessionTable.id, unrelated.id)).run()
+    expect(listSessions({ taskId: heartbeat.id })).toEqual({ items: [], nextCursor: null })
+    dbh.db.update(jobScheduleTable).set({ type: 'other.job' }).where(eq(jobScheduleTable.id, source.id)).run()
+    expect(listSessions({ taskId: source.id })).toEqual({ items: [], nextCursor: null })
+    dbh.db.update(jobScheduleTable).set({ type: 'agent.task' }).where(eq(jobScheduleTable.id, source.id)).run()
+    dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, 'owner')).run()
+    expect(listSessions({ taskId: source.id })).toEqual({ items: [], nextCursor: null })
   })
 
   it('exposes the current schedule and business update time in both list and detail', () => {

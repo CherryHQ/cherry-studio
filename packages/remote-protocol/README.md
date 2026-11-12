@@ -126,9 +126,19 @@ decoding text, and verify the complete SHA-256. Both revision and content identi
 must match the current prompt. On `REVISION_EXPIRED`, reload detail and restart.
 
 Remote `agent.sessions.list` includes ordinary and scheduled-task conversations,
-preserving existing mobile discovery without changing its request shape. Background
+preserving existing mobile discovery without changing existing requests. Background
 and trashed conversations remain excluded. Desktop ordinary topic lists retain
 their own scope. Refresh from page one after a host upgrade to discover newly visible results.
+
+Pass optional `taskId` to `agent.sessions.list` to page through a task's associated
+conversations directly, including fresh and reused sessions after execution history
+has been collected. `agentId` and `workspaceId` intersect with this filter. Missing,
+hidden or non-Agent tasks and conflicting Agent filters return an empty page.
+Only readable conversations belonging to the task's Agent are returned, with the
+existing pinned-first ordering and byte budget. Restart pagination when changing
+filters. This collection is independent of each run's `resultLocation` and the
+task's current reuse target. Old hosts may reject `taskId`; do not silently drop
+the filter and present unrelated sessions.
 
 ## Paged message summaries
 

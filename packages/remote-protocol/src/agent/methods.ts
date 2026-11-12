@@ -53,7 +53,12 @@ export const agentMethods = {
     })
   ),
   'agent.sessions.list': method(
-    z.strictObject({ agentId: opaqueId.optional(), workspaceId: opaqueId.optional(), ...pageParams }),
+    z.strictObject({
+      agentId: opaqueId.optional(),
+      workspaceId: opaqueId.optional(),
+      taskId: opaqueId.optional(),
+      ...pageParams
+    }),
     pageOf(sessionSchema)
   ),
   'agent.sessions.get': method(z.strictObject(session), z.looseObject({ session: sessionSchema })),

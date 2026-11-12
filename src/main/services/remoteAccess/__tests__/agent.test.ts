@@ -436,7 +436,23 @@ describe('remote agent access', () => {
     expect(await call('agent.messages.list', { sessionId, historyRevision: session.historyRevision })).toMatchObject({
       items: [{ messageId }]
     })
-    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items).toEqual([])
+    const ordinary = agentSessionService.create({
+      agentId: 'agent-1',
+      name: 'Unrelated',
+      workspace: { type: 'system' }
+    })
+    dbh.db.delete(jobTable).where(eq(jobTable.id, 'task-run')).run()
+    expect(await call('agent.tasks.runs.list', { taskId: task.id })).toEqual({ items: [], nextCursor: null })
+    const history = await call('agent.sessions.list', { taskId: task.id, agentId: 'agent-1', limit: 1 })
+    expect(history.items.map((item: { sessionId: string }) => item.sessionId)).toEqual([sessionId])
+    expect(
+      await call('agent.messages.list', {
+        sessionId: history.items[0].sessionId,
+        historyRevision: history.items[0].historyRevision
+      })
+    ).toMatchObject({ items: [{ messageId }] })
+    expect(await call('agent.sessions.list', { taskId: 'missing' })).toEqual({ items: [], nextCursor: null })
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((item) => item.id)).toEqual([ordinary.id])
     await expect(call('agent.tasks.list', { statuses: [] })).rejects.toMatchObject({ code: -32602 })
     await expect(call('agent.tasks.get', { taskId: 'missing' })).rejects.toMatchObject({
       data: { reason: 'NOT_FOUND' }
