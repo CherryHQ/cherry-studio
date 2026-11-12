@@ -231,9 +231,16 @@ function transformAnthropicError(error: unknown): {
   statusCode: number
   errorResponse: { type: 'error'; error: { type: string; message: string; requestId?: string } }
 } {
-  const { statusCode, message, type } = normalizeProviderError(error)
+  const { statusCode, message, type, category } = normalizeProviderError(error)
   const details = detailsOf(error)
   const errorType = type ?? anthropicTypeForStatus(statusCode)
+  const clientMessage =
+    details &&
+    statusCode === 400 &&
+    category === 'context_length' &&
+    !message.toLowerCase().includes('prompt is too long')
+      ? `Prompt is too long: ${message}`
+      : message
   const requestId =
     error !== null && typeof error === 'object' && typeof (error as { request_id?: unknown }).request_id === 'string'
       ? (error as { request_id: string }).request_id
@@ -243,7 +250,7 @@ function transformAnthropicError(error: unknown): {
     errorResponse: {
       ...details?.body,
       type: 'error',
-      error: { ...details?.error, type: errorType, message, ...(requestId && { requestId }) }
+      error: { ...details?.error, type: errorType, message: clientMessage, ...(requestId && { requestId }) }
     }
   }
 }

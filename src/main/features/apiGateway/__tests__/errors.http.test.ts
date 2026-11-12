@@ -724,6 +724,22 @@ it.each([
   }
 })
 
+it('keeps the original message for OpenAI and public Anthropic errors', () => {
+  const message = "This model's maximum context length is 1048576 tokens."
+  const upstream = new APICallError({
+    message,
+    url: 'https://private.invalid',
+    requestBodyValues: {},
+    statusCode: 400,
+    responseBody: JSON.stringify({ error: { message, code: 'context_length_exceeded' } })
+  })
+  const serialized = serializeError(upstream)
+  expect(
+    JSON.parse(buildStreamErrorFrame('openai', internalGatewayError(upstream, serialized)).slice(6)).error.message
+  ).toBe(message)
+  expect(buildStreamErrorFrame('anthropic', serialized)).not.toContain('Prompt is too long:')
+})
+
 it.each(dialects)('preserves internal provider details in $format errors', async ({ format, path }) => {
   const upstream = new APICallError({
     message: 'Provider rejected the request',
@@ -771,6 +787,81 @@ it.each(dialects)('preserves internal provider details in $format errors', async
     expect(body).toContain('upstream-id')
     expect(body).not.toContain('request-secret')
     expect(body).not.toContain('private-token')
+  }
+})
+
+it.each([
+  {
+    message: "This model's maximum context length is 1048576 tokens.",
+    code: 'invalid_request_error',
+    status: 400,
+    overflow: true
+  },
+  { message: 'The request cannot be processed.', code: 'context_length_exceeded', status: 400, overflow: true },
+  {
+    message: 'prompt is too long: 100 tokens > 90 maximum',
+    code: 'invalid_request_error',
+    status: 400,
+    overflow: false
+  },
+  {
+    message: 'The maximum context length parameter is invalid.',
+    code: 'invalid_parameter',
+    status: 400,
+    overflow: false
+  },
+  { message: 'The temperature parameter is invalid.', code: 'invalid_parameter', status: 400, overflow: false },
+  { message: 'Too many tokens; retry later.', code: 'rate_limit_exceeded', status: 429, overflow: false }
+])('adapts authenticated Anthropic overflow errors without losing provider details: $message', async (sample) => {
+  const upstream = new APICallError({
+    message: sample.message,
+    url: 'https://private.invalid',
+    requestBodyValues: { secret: 'request-secret' },
+    statusCode: sample.status,
+    responseBody: JSON.stringify({
+      error: { message: sample.message, type: 'invalid_request_error', code: sample.code, param: 'messages' },
+      request_id: 'provider-request-id'
+    })
+  })
+  const test: Case = {
+    id: 'internal-overflow',
+    origin: 'provider',
+    input: () => internalGatewayError(upstream, serializeError(upstream)),
+    status: sample.status,
+    message: sample.message
+  }
+  for (const mode of ['before-commit', 'after-commit'] as const) {
+    active = { test, format: 'anthropic', mode }
+    releaseError = undefined
+    const response = await fetch(`${baseUrl}/v1/messages`, { signal: AbortSignal.timeout(5000) })
+    let content: string
+    if (mode === 'after-commit') {
+      const reader = response.body!.getReader()
+      const first = await reader.read()
+      releaseError!()
+      content = new TextDecoder().decode(first.value)
+      for (;;) {
+        const part = await reader.read()
+        if (part.done) break
+        content += new TextDecoder().decode(part.value)
+      }
+      expect(response.status).toBe(200)
+    } else {
+      expect(response.status).toBe(sample.status)
+      content = await response.text()
+    }
+    const frame =
+      mode === 'after-commit'
+        ? content
+            .split('\n')
+            .findLast((line) => line.startsWith('data: '))!
+            .slice(6)
+        : content
+    const result = JSON.parse(frame)
+    expect(result.error.message).toBe(sample.overflow ? `Prompt is too long: ${sample.message}` : sample.message)
+    expect(result.error).toMatchObject({ type: 'invalid_request_error', code: sample.code, param: 'messages' })
+    expect(result.request_id).toBe('provider-request-id')
+    expect(content).not.toContain('request-secret')
   }
 })
 

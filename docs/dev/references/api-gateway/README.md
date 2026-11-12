@@ -601,6 +601,9 @@ provider exception to the gateway without putting it in persisted or renderer-fa
 state. The existing endpoint error handlers retain provider response details while shaping
 the error into the requested dialect and preserving its HTTP status. Request IDs and rate-limit
 headers are forwarded from an allowlist; request bodies and credential headers are not.
+For an internal Anthropic request, a classified context-overflow 400 also gains a
+`Prompt is too long:` prefix so Claude Code can recognize it; the provider message and
+structured error fields remain in the response.
 After HTTP 200 is committed, provider details go in the dialect error event instead of
 changing the response status or headers. Runtime SDKs may normalize that response further.
 Public gateway clients continue to receive the sanitized errors above.
