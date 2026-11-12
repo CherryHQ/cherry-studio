@@ -23,6 +23,9 @@ export function officialDownloadUrl(): string {
 /** How long a manual check may stay "checking" when the updater emits nothing. */
 export const UPDATE_CHECK_EVENT_WAIT_MS = 20_000
 
+/** How long an automatic availability query result is reused before asking the feed again. */
+export const UPDATE_AVAILABILITY_TTL_MS = 60 * 60 * 1000
+
 type UpdateSnapshot = Pick<CacheAppUpdateState, 'checking' | 'downloading' | 'downloaded' | 'info' | 'manualCheck'>
 type UpdatePatch = Partial<CacheAppUpdateState>
 
@@ -45,6 +48,7 @@ class AppUpdateCheckService {
   /** Manual click that currently owns the check slot. A later click replaces it. */
   private checkOwner = 0
   private nextCheckOwner = 0
+  private availabilityQuery: { session: number; at: number; result: Promise<string | null> } | null = null
 
   isManualUpdateCheck(): boolean {
     return this.manualCheckActive
@@ -195,6 +199,32 @@ class AppUpdateCheckService {
       logger.error('Failed to load UpdateDialogPopup chunk:', error as Error)
       this.setUpdateNotice('settings.about.updateError')
     }
+  }
+
+  /**
+   * Check-only feed query for the error detail modal; it never downloads.
+   * Concurrent callers share one request, a result is reused for an hour, and failures are not cached.
+   * @returns the newer version, or null when current, unsupported, or the query failed
+   */
+  queryAvailableVersion(): Promise<string | null> {
+    const cached = this.availabilityQuery
+    if (cached && cached.session === this.session && Date.now() - cached.at < UPDATE_AVAILABILITY_TTL_MS) {
+      return cached.result
+    }
+    const entry = {
+      session: this.session,
+      at: Date.now(),
+      result: ipcApi.request('app.updater.query_availability').then(
+        (availability) => (availability.status === 'available' ? availability.version : null),
+        (error: unknown) => {
+          logger.warn('Automatic update availability query failed', error as Error)
+          if (this.availabilityQuery === entry) this.availabilityQuery = null
+          return null
+        }
+      )
+    }
+    this.availabilityQuery = entry
+    return entry.result
   }
 
   private async openOfficialReleases(): Promise<void> {

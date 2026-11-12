@@ -477,3 +477,45 @@ describe('runAppUpdateCheck', () => {
     expect(epoch).toBeGreaterThan(0)
   })
 })
+
+describe('queryAvailableVersion', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    ;({ appUpdateCheckService } = await import('../AppUpdateCheckService'))
+    request.mockReset()
+  })
+
+  it('shares one feed request between dialogs opened together and never starts a download', async () => {
+    request.mockResolvedValue({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' })
+
+    const results = await Promise.all([
+      appUpdateCheckService.queryAvailableVersion(),
+      appUpdateCheckService.queryAvailableVersion()
+    ])
+
+    expect(results).toEqual(['2.1.0', '2.1.0'])
+    expect(callsTo('app.updater.query_availability')).toHaveLength(1)
+    expect(callsTo('app.updater.check_for_update')).toHaveLength(0)
+  })
+
+  it('asks again after a failed query instead of reusing the failure', async () => {
+    request
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' })
+
+    await expect(appUpdateCheckService.queryAvailableVersion()).resolves.toBeNull()
+    await expect(appUpdateCheckService.queryAvailableVersion()).resolves.toBe('2.1.0')
+    expect(callsTo('app.updater.query_availability')).toHaveLength(2)
+  })
+
+  it('does not reuse a result from before a channel switch', async () => {
+    request
+      .mockResolvedValueOnce({ status: 'available', currentVersion: '2.0.0', version: '2.1.0-beta.1' })
+      .mockResolvedValueOnce({ status: 'current', currentVersion: '2.0.0' })
+
+    await expect(appUpdateCheckService.queryAvailableVersion()).resolves.toBe('2.1.0-beta.1')
+    appUpdateCheckService.resumeSharedUpdateSession(appUpdateCheckService.invalidateSharedUpdateCheck())
+
+    await expect(appUpdateCheckService.queryAvailableVersion()).resolves.toBeNull()
+  })
+})

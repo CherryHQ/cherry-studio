@@ -62,6 +62,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       throw new IpcError('MAIN_UNAVAILABLE', 'The main window is not ready to check for updates')
     }
   },
+  'app.updater.query_availability': async () => application.get('AppUpdaterService').queryUpdateAvailability(),
   'app.surface.receiver': async ({ kind, ready }, { senderId }) => {
     if (!senderId || application.get('WindowManager').getWindowType(senderId) !== WindowType.Main) return
     setMainSurfaceReceiver(kind, ready)

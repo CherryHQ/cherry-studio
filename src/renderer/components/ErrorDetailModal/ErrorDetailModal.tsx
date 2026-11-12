@@ -1,5 +1,5 @@
 import { ArrowLeft, Copy, FileUp, RefreshCw, Sparkles } from 'lucide-react'
-import React, { memo, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ScrollArea } from '@cherrystudio/ui'
@@ -568,6 +568,19 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   useLayoutEffect(() => {
     appUpdateCheckService.setUpdateNotice(null)
   }, [])
+  const [availableVersion, setAvailableVersion] = useState<string | null>(null)
+  const initialUpdateState = useRef(appUpdateState)
+  useEffect(() => {
+    const { checking, downloading, downloaded } = initialUpdateState.current
+    if (checking || downloading || downloaded) return
+    let active = true
+    void appUpdateCheckService.queryAvailableVersion().then((version) => {
+      if (active) setAvailableVersion(version)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
   const copyErrorDetails = useCallback(() => {
     if (!shownError) {
       return
@@ -667,7 +680,13 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       <DialogHeader className="pr-8">
         <DialogTitle>{t('error.detail')}</DialogTitle>
       </DialogHeader>
-      <ErrorUpdateBanner appUpdateState={appUpdateState} noticeKey={noticeKey} onRetry={checkForUpdate} />
+      <ErrorUpdateBanner
+        appUpdateState={appUpdateState}
+        noticeKey={noticeKey}
+        onRetry={checkForUpdate}
+        availableVersion={availableVersion}
+        onUpdate={checkForUpdate}
+      />
       <ErrorDetailContainer>
         <div className="space-y-4">
           {subject ? (
