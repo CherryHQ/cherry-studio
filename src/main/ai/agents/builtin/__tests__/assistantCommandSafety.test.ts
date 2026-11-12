@@ -578,3 +578,25 @@ describe('CMD START command dispatch', () => {
     )
   })
 })
+
+describe('PowerShell Command tail', () => {
+  it.each([
+    `pwsh -NoProfile -Command Write-Output ok '|' del victim.txt`,
+    `powershell -NoProfile -Command Write-Output ok '|' erase victim.txt`,
+    `pwsh -c '&' del victim.txt`,
+    `pwsh -Command 'Write-Output ok;' del victim.txt`,
+    `pwsh -Command 'Write-Output ok' ';' rd victimdir`
+  ])('denies deletion in the full command parameter: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    'pwsh -Command Write-Output del victim.txt',
+    'pwsh -Command Write-Output erase victim.txt',
+    `pwsh -Command 'Write-Output "del victim.txt"'`,
+    `pwsh -Command Write-Output ok '|' Write-Output del`,
+    'pwsh -Command'
+  ])('does not treat ordinary command arguments as execution: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+})

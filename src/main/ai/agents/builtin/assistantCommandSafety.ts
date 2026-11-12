@@ -392,7 +392,7 @@ function powershellCommand(args: readonly string[]): string | undefined {
     if (flag === '-encodedcommand' || flag === '-enc' || flag === '-ec') {
       return decodePowerShellBase64(args[index + 1])
     }
-    if (flag === '-command' || flag === '-c') return args[index + 1]
+    if (flag === '-command' || flag === '-c') return args.slice(index + 1).join(' ')
   }
   let index = 0
   while (index < args.length && args[index].startsWith('-')) {
