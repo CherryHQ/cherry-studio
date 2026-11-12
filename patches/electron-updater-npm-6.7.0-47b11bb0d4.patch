@@ -103,7 +103,7 @@ new file mode 100644
 index 0000000000000000000000000000000000000000..be7a785968bef3f14515441efdfdf5788a9e38c5
 --- /dev/null
 +++ b/out/PortableUpdater.js
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,60 @@
 +"use strict";
 +Object.defineProperty(exports, "__esModule", { value: true });
 +exports.PortableUpdater = void 0;
@@ -125,31 +125,39 @@ index 0000000000000000000000000000000000000000..be7a785968bef3f14515441efdfdf578
 +        let child;
 +        let timer;
 +        let ready = false;
++        let accepting = false;
 +        let output = "";
 +        const fail = error => {
 +            if (ready || !this.portableInstalling) return;
 +            clearTimeout(timer);
 +            this.portableInstalling = false;
++            child?.stdin?.destroy();
 +            this.dispatchError(error);
 +        };
 +        try {
-+            child = spawn(path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
-+                ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")],
-+                { detached: true, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
++            const encoded = Buffer.from(script, "utf16le").toString("base64");
++            const command = `""%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -NonInteractive -EncodedCommand ${encoded}"`;
++            child = spawn(path.join(process.env.SystemRoot, "System32", "cmd.exe"), ["/d", "/s", "/c", command],
++                { windowsHide: true, windowsVerbatimArguments: true, stdio: ["pipe", "pipe", "pipe"] });
 +            timer = setTimeout(() => { child.kill(); fail(new Error("Portable installer preparation timed out")); }, 120000);
 +            child.once("error", fail);
 +            child.once("exit", code => fail(new Error(`Portable installer exited before handoff (${code})`)));
++            child.stdin.on("error", fail);
 +            child.stderr.on("data", data => this._logger.error(data.toString()));
 +            child.stdout.on("data", data => {
 +                output += data.toString();
-+                if (!ready && output.split(/\r?\n/).includes("ready")) {
-+                    ready = true;
-+                    clearTimeout(timer);
-+                    child.stdout.destroy();
-+                    child.stderr.destroy();
-+                    child.unref();
-+                    require("electron").autoUpdater.emit("before-quit-for-update");
-+                    this.app.quit();
++                if (!accepting && this.portableInstalling && output.split(/\r?\n/).includes("ready")) {
++                    accepting = true;
++                    child.stdin.end("install\n", () => {
++                        if (!this.portableInstalling) return;
++                        ready = true;
++                        clearTimeout(timer);
++                        child.stdout.destroy();
++                        child.stderr.destroy();
++                        child.unref();
++                        require("electron").autoUpdater.emit("before-quit-for-update");
++                        this.app.quit();
++                    });
 +                }
 +            });
 +        } catch (error) { fail(error); }
@@ -237,7 +245,7 @@ new file mode 100644
 index 0000000000000000000000000000000000000000..8c0eec02056c78de48e28b869ed1860d0a1597d7
 --- /dev/null
 +++ b/out/portableInstallScript.js
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,45 @@
 +"use strict";
 +exports.portableInstallScript = String.raw`
 +$ErrorActionPreference = 'Stop'
@@ -257,6 +265,7 @@ index 0000000000000000000000000000000000000000..8c0eec02056c78de48e28b869ed1860d
 +    }
 +    [Console]::Out.WriteLine('ready')
 +    [Console]::Out.Flush()
++    if ([Console]::In.ReadLine() -cne 'install') { throw 'Portable installation handoff cancelled' }
 +    $ready = $true
 +    if (!$parentProcess.WaitForExit(120000)) { throw 'Application did not exit' }
 +    $deadline = [DateTime]::UtcNow.AddSeconds(60)

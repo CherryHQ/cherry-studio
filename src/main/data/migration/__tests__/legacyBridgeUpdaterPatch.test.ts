@@ -1,3 +1,4 @@
+import { spawn as spawnProcess, type SpawnOptions } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
@@ -146,72 +147,96 @@ it.each(['zypper', 'dnf', 'yum', 'rpm'] as const)(
   }
 )
 
-it.each(['ready', 'error', 'exit'] as const)(
-  'portable handoff keeps the app alive until helper readiness: %s',
-  (outcome) => {
-    const require = createRequire(import.meta.url)
-    const entry = require.resolve('electron-updater/out/PortableUpdater.js')
-    const localRequire = createRequire(entry)
-    const child = Object.assign(new EventEmitter(), {
-      stdout: Object.assign(new EventEmitter(), { destroy: vi.fn() }),
-      stderr: Object.assign(new EventEmitter(), { destroy: vi.fn() }),
-      unref: vi.fn(),
-      kill: vi.fn()
-    })
-    const spawn = vi.fn(() => child)
-    const errors: Error[] = []
-    const quit = vi.fn()
-    const native = new EventEmitter()
-    let updateExit = false
-    native.on('before-quit-for-update', () => {
-      updateExit = true
-    })
-    class Base {
-      installerPath = '/cache/download.exe'
-      app = { quit }
-      _logger = { error: vi.fn() }
-      dispatchError(error: Error) {
-        errors.push(error)
-      }
-    }
-    const exports: {
-      PortableUpdater?: new () => Base & { portableExecutable: string; portableSha512: string; quitAndInstall(): void }
-    } = {}
-    vm.runInNewContext(fs.readFileSync(entry, 'utf8'), {
-      exports,
-      Buffer,
-      process: { pid: 123, env: { SystemRoot: '/Windows' } },
-      setTimeout,
-      clearTimeout,
-      require: (name: string) =>
-        name === './NsisUpdater'
-          ? { NsisUpdater: Base }
-          : name === 'child_process'
-            ? { spawn }
-            : name === 'electron'
-              ? { autoUpdater: native }
-              : localRequire(name)
-    })
-    const updater = new exports.PortableUpdater!()
-    updater.portableExecutable = "/portable/中文 ' $test.exe"
-    updater.portableSha512 = 'pinned'
-    updater.quitAndInstall()
-    updater.quitAndInstall()
-    expect(spawn.mock.calls).toHaveLength(1)
-    expect(quit).not.toHaveBeenCalled()
-    if (outcome === 'ready') {
-      child.stdout.emit('data', Buffer.from('rea'))
-      expect(quit).not.toHaveBeenCalled()
-      child.stdout.emit('data', Buffer.from('dy\r\n'))
-      expect(updateExit).toBe(true)
-      expect(quit).toHaveBeenCalledOnce()
-      expect(errors).toEqual([])
-    } else {
-      if (outcome === 'error') child.emit('error', new Error('PowerShell unavailable'))
-      else child.emit('exit', 1)
-      expect(quit).not.toHaveBeenCalled()
-      expect(updateExit).toBe(false)
-      expect(errors).toHaveLength(1)
+const portableOutcomes = [
+  'ready',
+  'error',
+  'exit',
+  ...(process.platform === 'win32' ? (['powershell'] as const) : [])
+] as const
+
+it.each(portableOutcomes)('portable handoff keeps the app alive until helper readiness: %s', async (outcome) => {
+  const require = createRequire(import.meta.url)
+  const entry = require.resolve('electron-updater/out/PortableUpdater.js')
+  const localRequire = createRequire(entry)
+  const child = Object.assign(new EventEmitter(), {
+    stdin: Object.assign(new EventEmitter(), {
+      end: vi.fn((_message: string, callback: () => void) => callback()),
+      destroy: vi.fn()
+    }),
+    stdout: Object.assign(new EventEmitter(), { destroy: vi.fn() }),
+    stderr: Object.assign(new EventEmitter(), { destroy: vi.fn() }),
+    unref: vi.fn(),
+    kill: vi.fn()
+  })
+  const nativeReadiness = Promise.withResolvers<void>()
+  const spawn = vi.fn((file: string, args: string[], options: SpawnOptions) => {
+    if (outcome !== 'powershell') return child
+    const probe = Buffer.from(
+      "[Console]::Out.WriteLine('ready'); if ([Console]::In.ReadLine() -cne 'install') { exit 1 }",
+      'utf16le'
+    ).toString('base64')
+    const command = args.at(-1)!.replace(/-EncodedCommand [A-Za-z0-9+/=]+"$/, `-EncodedCommand ${probe}"`)
+    return spawnProcess(file, [...args.slice(0, -1), command], options)
+  })
+  const errors: Error[] = []
+  const quit = vi.fn(() => nativeReadiness.resolve())
+  const native = new EventEmitter()
+  let updateExit = false
+  native.on('before-quit-for-update', () => {
+    updateExit = true
+  })
+  class Base {
+    installerPath = '/cache/download.exe'
+    app = { quit }
+    _logger = { error: vi.fn() }
+    dispatchError(error: Error) {
+      errors.push(error)
+      if (outcome === 'powershell') nativeReadiness.reject(error)
     }
   }
-)
+  const exports: {
+    PortableUpdater?: new () => Base & { portableExecutable: string; portableSha512: string; quitAndInstall(): void }
+  } = {}
+  vm.runInNewContext(fs.readFileSync(entry, 'utf8'), {
+    exports,
+    Buffer,
+    process: { pid: 123, env: { SystemRoot: outcome === 'powershell' ? process.env.SystemRoot : '/Windows' } },
+    setTimeout,
+    clearTimeout,
+    require: (name: string) =>
+      name === './NsisUpdater'
+        ? { NsisUpdater: Base }
+        : name === 'child_process'
+          ? { spawn }
+          : name === 'electron'
+            ? { autoUpdater: native }
+            : localRequire(name)
+  })
+  const updater = new exports.PortableUpdater!()
+  updater.portableExecutable = path.resolve("/portable/中文 ' $test.exe")
+  updater.portableSha512 = 'pinned'
+  updater.quitAndInstall()
+  updater.quitAndInstall()
+  expect(spawn.mock.calls).toHaveLength(1)
+  expect(quit).not.toHaveBeenCalled()
+  if (outcome === 'powershell') {
+    await nativeReadiness.promise
+    expect(updateExit).toBe(true)
+    expect(quit).toHaveBeenCalledOnce()
+    expect(errors).toEqual([])
+  } else if (outcome === 'ready') {
+    child.stdout.emit('data', Buffer.from('rea'))
+    expect(quit).not.toHaveBeenCalled()
+    child.stdout.emit('data', Buffer.from('dy\r\n'))
+    expect(child.stdin.end).toHaveBeenCalledWith('install\n', expect.any(Function))
+    expect(updateExit).toBe(true)
+    expect(quit).toHaveBeenCalledOnce()
+    expect(errors).toEqual([])
+  } else {
+    if (outcome === 'error') child.emit('error', new Error('PowerShell unavailable'))
+    else child.emit('exit', 1)
+    expect(quit).not.toHaveBeenCalled()
+    expect(updateExit).toBe(false)
+    expect(errors).toHaveLength(1)
+  }
+})
