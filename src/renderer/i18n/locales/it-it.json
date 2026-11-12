@@ -6499,7 +6499,7 @@
   "webview.annotation.save": "Salva",
   "webview.browser.dismiss_import": "Non mostrare più",
   "webview.browser.import_hint": "Importa la cronologia e i dati dei siti web da un altro browser.",
-  "webview.browser.load_failed": "Impossibile caricare questa pagina. Verifica che il server locale sia ancora in esecuzione.",
+  "webview.browser.load_failed": "Impossibile caricare la pagina",
   "webview.browser.loading": "Caricamento della pagina…",
   "webview.navigation.address": "Indirizzo web",
   "webview.navigation.address_placeholder": "Inserisci un URL",
