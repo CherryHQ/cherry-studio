@@ -10,7 +10,7 @@ import {
   type FauxResponseStep
 } from '@earendil-works/pi-ai'
 import { defineTool, ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
-import { obj, arr, str } from '@earendil-works/pi-schema'
+import { arr, obj, str } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
 import {
@@ -923,6 +923,151 @@ it('publishes a local extension model switch to existing and newly attached obse
   expect(provider.state.callCount).toBe(0)
 })
 
+it.each([false, true])('retains nested results across outer failure and reopen (%s)', async (fails) => {
+  const { runtime, options, faux } = await setup()
+  const manager = SessionManager.create(options.cwd, options.cwd)
+  const value = 'retained-'.repeat(60)
+  let executions = 0
+  const tools = [
+    defineTool({
+      name: 'leaf',
+      label: 'Leaf',
+      description: 'Return evidence',
+      parameters: obj({ value: str() }),
+      prepareArguments: () => ({ value }),
+      execute: async (_id, args, _signal, update) => {
+        executions++
+        update?.({ content: [{ type: 'text', text: 'working' }], details: {} })
+        return {
+          content: [{ type: 'text' as const, text: (args as { value: string }).value }],
+          details: { proof: true }
+        }
+      }
+    }),
+    defineTool({
+      name: 'script',
+      label: 'Script',
+      description: 'Call nested tools',
+      parameters: obj({}),
+      execute: async (_id, _args, _signal, _update, context) => {
+        await Promise.all([
+          context.executeTool('leaf', { value: 'repair me' }),
+          context.executeTool('leaf', { value: 'repair me' })
+        ])
+        if (fails) throw new Error('outer failure')
+        return { content: [{ type: 'text' as const, text: 'done' }], details: {} }
+      }
+    })
+  ]
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create({ ...options, tools, sessionManager: manager }))
+  const events = await observe(handle)
+  await handle.input.submit(input('nested'))
+  await handle.pi.settled()
+  const parts = handle.pi
+    .archive()
+    .messages.flatMap((message) => message.parts)
+    .filter((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')
+  expect(parts).toHaveLength(2)
+  expect(new Set(parts.map((part) => (part.type === 'dynamic-tool' ? part.toolCallId : ''))).size).toBe(2)
+  for (const part of parts)
+    expect(part).toMatchObject({
+      state: 'output-available',
+      input: { value },
+      output: { content: [{ type: 'text', text: value }], details: { proof: true } },
+      callProviderMetadata: { pi: { parentToolCallId: 'script' } }
+    })
+  expect(
+    events.some(
+      (event) =>
+        event.type === 'message.upsert' &&
+        event.message.parts.some(
+          (part) =>
+            part.type === 'dynamic-tool' &&
+            part.toolName === 'leaf' &&
+            part.state === 'output-available' &&
+            part.preliminary
+        )
+    )
+  ).toBe(true)
+  await runtime.shutdown()
+  const reopenedRuntime = confirmed(await createPiRuntime({ backendId: runtimeId('reopened') }))
+  onTestFinished(async () => {
+    await reopenedRuntime.shutdown()
+  })
+  const reopened = confirmed(
+    await reopenedRuntime.create({ ...options, tools, sessionManager: SessionManager.open(manager.getSessionFile()!) })
+  )
+  expect(
+    reopened.pi
+      .archive()
+      .messages.flatMap((message) => message.parts)
+      .filter((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')
+  ).toEqual(parts)
+  expect(executions).toBe(2)
+})
+
+it.each([false, true])('retains recursive failures and cancellation (cancel=%s)', async (cancel) => {
+  const { runtime, options, faux } = await setup()
+  const reached = gate()
+  const tools = [
+    defineTool({
+      name: 'leaf',
+      label: 'Leaf',
+      description: 'Fail or wait',
+      parameters: obj({}),
+      execute: async (_id, _args, signal) => {
+        reached.resolve()
+        if (cancel)
+          await new Promise<never>((_resolve, reject) => {
+            if (signal?.aborted) reject(signal.reason)
+            else signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+        throw new Error('nested failure')
+      }
+    }),
+    defineTool({
+      name: 'middle',
+      label: 'Middle',
+      description: 'Nested owner',
+      parameters: obj({}),
+      execute: async (_id, _args, _signal, _update, context) => {
+        const result = await context.executeTool('leaf', {})
+        return { ...result.result, isError: result.isError }
+      }
+    }),
+    defineTool({
+      name: 'script',
+      label: 'Script',
+      description: 'Outer owner',
+      parameters: obj({}),
+      execute: async (_id, _args, _signal, _update, context) => {
+        await context.executeTool('middle', {})
+        return { content: [{ type: 'text' as const, text: 'outer' }], details: {} }
+      }
+    })
+  ]
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create({ ...options, tools }))
+  await handle.input.submit(input('recursive'))
+  await reached.promise
+  if (cancel) confirmed(await handle.interrupt!())
+  await handle.pi.settled()
+  const parts = handle.pi.archive().messages.flatMap((message) => message.parts)
+  expect(parts.find((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')).toMatchObject({
+    state: 'output-error',
+    callProviderMetadata: { pi: { parentToolCallId: 'script/1' } }
+  })
+  expect(parts.find((part) => part.type === 'dynamic-tool' && part.toolName === 'middle')).toMatchObject({
+    state: 'output-error'
+  })
+})
 it.each([false, true])(
   'retains native nested-call evidence in live and reopened projections (outer failure=%s)',
   async (fails) => {

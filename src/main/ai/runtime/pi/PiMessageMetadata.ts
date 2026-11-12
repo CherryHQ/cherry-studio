@@ -111,7 +111,7 @@ export class PiMessageMetadata {
           const metadata = toolProviderMetadata(part.toolName, this.resolveToolMetadata?.(part.toolName))
           const decoration = {
             providerExecuted: true,
-            callProviderMetadata: metadata
+            callProviderMetadata: { ...metadata, pi: { ...part.callProviderMetadata?.pi, ...metadata.pi } }
           }
           return part.state === 'output-available'
             ? {

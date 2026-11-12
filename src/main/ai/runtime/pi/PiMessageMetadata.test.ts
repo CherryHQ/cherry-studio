@@ -152,3 +152,45 @@ it.each([false, true])('recovers successful nested declarations even if the oute
   })
   expect(metadata.decorate(decorated).parts).toHaveLength(2)
 })
+
+it('preserves native nested metadata without duplicating an already projected artifact', () => {
+  const input = { artifacts: [{ path: '/workspace/report.html' }] }
+  const message: CherryUIMessage = {
+    id: 'nested-reply',
+    role: 'assistant',
+    parts: [
+      {
+        type: 'dynamic-tool',
+        toolName: 'codemode',
+        toolCallId: 'script',
+        state: 'output-available',
+        input: {},
+        output: {
+          content: [],
+          nestedCalls: {
+            calls: [{ id: 'script/1', name: 'mcp__cherry_tools__report_artifacts', status: 'ok', arguments: input }]
+          }
+        }
+      },
+      {
+        type: 'dynamic-tool',
+        toolName: 'mcp__cherry_tools__report_artifacts',
+        toolCallId: 'script/1',
+        state: 'output-available',
+        input,
+        output: { content: [{ type: 'text', text: 'Recorded' }] },
+        callProviderMetadata: { pi: { parentToolCallId: 'script', nested: true, resultOmitted: false } }
+      }
+    ]
+  }
+  const decorated = new PiMessageMetadata().decorate(message)
+  expect(decorated.parts).toHaveLength(2)
+  expect(decorated.parts[1]).toMatchObject({
+    toolCallId: 'script/1',
+    input,
+    callProviderMetadata: {
+      pi: { parentToolCallId: 'script', nested: true, resultOmitted: false },
+      cherry: { tool: { type: 'mcp', serverName: 'cherry-tools', name: 'report_artifacts' } }
+    }
+  })
+})

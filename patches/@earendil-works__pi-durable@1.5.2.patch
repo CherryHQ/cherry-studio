@@ -1,5 +1,5 @@
 diff --git a/dist/entries.d.ts b/dist/entries.d.ts
-index 63eaa89918fd3f9e40cb2c3d6bea193c00bee89a..376e5865dd51743f0bb5510899f2e75c41a51823 100644
+index 5849d7656f70c51b25681d9cdff29ce8ec3ee60d..4dd7cd3841c3503caa033103d10db61c3d4ef97c 100644
 --- a/dist/entries.d.ts
 +++ b/dist/entries.d.ts
 @@ -1,12 +1,12 @@
@@ -25,9 +25,8 @@ index 63eaa89918fd3f9e40cb2c3d6bea193c00bee89a..376e5865dd51743f0bb5510899f2e75c
 +    metadata?: JsonValue;
  }>;
  //# sourceMappingURL=entries.d.ts.map
-\ No newline at end of file
 diff --git a/dist/harness/compaction.d.ts b/dist/harness/compaction.d.ts
-index 02d9e3d97d9cdb1199f42605306c1a8066051184..424a99a8bfd894e7c49b70bf1a8281464126cbc3 100644
+index 2de2c3df48965b283dc5467847b4631d82a85e75..424a99a8bfd894e7c49b70bf1a8281464126cbc3 100644
 --- a/dist/harness/compaction.d.ts
 +++ b/dist/harness/compaction.d.ts
 @@ -4,6 +4,8 @@ import type { CompactionHooks, CompactionPolicy, CompactionReason, CompactionRes
@@ -40,7 +39,7 @@ index 02d9e3d97d9cdb1199f42605306c1a8066051184..424a99a8bfd894e7c49b70bf1a828146
  /** The pinned summarization request. */
  export type SummaryRequest = {
 diff --git a/dist/harness/compaction.js b/dist/harness/compaction.js
-index 54f3ef34ddf1bf85e3ad9c41bdbd216c081a476f..99c298b83638e0f1c61e40fc24aad6f49942e974 100644
+index c1090b1e12e49f8482ef84cbfddd87c79c69ae50..99c298b83638e0f1c61e40fc24aad6f49942e974 100644
 --- a/dist/harness/compaction.js
 +++ b/dist/harness/compaction.js
 @@ -75,6 +75,7 @@ export const CompactionTask = defineTask({
@@ -141,7 +140,7 @@ index 54f3ef34ddf1bf85e3ad9c41bdbd216c081a476f..99c298b83638e0f1c61e40fc24aad6f4
      const result = current.owner === undefined
          ? {
 diff --git a/dist/harness/generation.d.ts b/dist/harness/generation.d.ts
-index 840a966f75087d5a7b91ea82085f0ea7b6ced06d..045213047d89946b09e898a6499371361fc079a5 100644
+index d633a047cfd6b407fc57b6efc582c5389890a5a6..235794fc87ff8e81751f3d404273d740a82bec6e 100644
 --- a/dist/harness/generation.d.ts
 +++ b/dist/harness/generation.d.ts
 @@ -4,7 +4,7 @@ import type { ConversationId, EntryId, SubmissionId, Task, TaskId, Tx } from "..
@@ -154,7 +153,7 @@ index 840a966f75087d5a7b91ea82085f0ea7b6ced06d..045213047d89946b09e898a649937136
      phase: "prepare";
      attempt: number;
 diff --git a/dist/harness/generation.js b/dist/harness/generation.js
-index 27e60bb9b479b5600a7314f13bba25177a5e47d9..32446667cf4f6ce0ddd69f5c2b51c890fce9a43d 100644
+index 80b6c6bd73b51d434206bf4f23dc2c00c6bf1bb5..32446667cf4f6ce0ddd69f5c2b51c890fce9a43d 100644
 --- a/dist/harness/generation.js
 +++ b/dist/harness/generation.js
 @@ -92,7 +92,8 @@ export const GenerationTask = defineTask({
@@ -250,7 +249,7 @@ index 27e60bb9b479b5600a7314f13bba25177a5e47d9..32446667cf4f6ce0ddd69f5c2b51c890
  }
  //# sourceMappingURL=generation.js.map
 diff --git a/dist/harness/harness.js b/dist/harness/harness.js
-index e286f00f872ebec79367a594938040c6a37a879f..bd493c2ac6eded1c1c94d54a169eeb828b80c03d 100644
+index 5d3bad7940700ef488a6fe409ae8d89ceb4bdde9..bd493c2ac6eded1c1c94d54a169eeb828b80c03d 100644
 --- a/dist/harness/harness.js
 +++ b/dist/harness/harness.js
 @@ -6,8 +6,8 @@ import { contained, SessionImpl } from "../session/session.js";
@@ -335,10 +334,18 @@ index e286f00f872ebec79367a594938040c6a37a879f..bd493c2ac6eded1c1c94d54a169eeb82
              create: (target, createOptions, context) => this.#create(target, createOptions, context),
          };
 diff --git a/dist/harness/live.d.ts b/dist/harness/live.d.ts
-index f5df47714c20273c2c353635a998d3817b436ba0..602a7e444f9efd2789b40da107945e526a032e59 100644
+index 0a1777c78dc7a63dd579e6a85222136838569b7d..1841b895f377f8d00e7a72f7db95fdf41c46f59c 100644
 --- a/dist/harness/live.d.ts
 +++ b/dist/harness/live.d.ts
-@@ -110,6 +110,8 @@ export type RunFailure = {
+@@ -7,6 +7,7 @@ import type { SchedulerOutcome } from "./scheduler.ts";
+ import type { CompactionReason, CompactionResult, ToolDiagnostic } from "./types.ts";
+ /** What a running tool call publishes, shared by model-issued and nested calls. */
+ type SlotProgress = {
++    nestedCalls?: JsonRepresentation<import("@earendil-works/pi-ai").NestedToolCalls>;
+     callId: string;
+     name: string;
+     status: "pending" | "running" | "done";
+@@ -110,6 +111,8 @@ export type RunFailure = {
  };
  /** Run control (spec §8.2). */
  export type LiveRun = {
@@ -348,7 +355,7 @@ index f5df47714c20273c2c353635a998d3817b436ba0..602a7e444f9efd2789b40da107945e52
      taskId: TaskId;
      /** The run's placed inputs, settled when it ends; `[]` once it answered and runs only its `afterRun` tasks. */
 diff --git a/dist/harness/prompt.js b/dist/harness/prompt.js
-index d9433a83bb9c548c5a4a87aa7bc9281acce47f15..fb0690cc51befbae3896e01d0257d5b95fe9f5f0 100644
+index de77edaa60ae9c54172a51614619960814a05d5c..e689c179bdaf465dbfdc376501a3221abc34a7d0 100644
 --- a/dist/harness/prompt.js
 +++ b/dist/harness/prompt.js
 @@ -1,8 +1,9 @@
@@ -407,11 +414,70 @@ index d9433a83bb9c548c5a4a87aa7bc9281acce47f15..fb0690cc51befbae3896e01d0257d5b9
      const head = view.head;
      if (head !== undefined && !view.entries.some((entry) => SystemEntry.is(entry) && entry.id > head.id)) {
          const edits = view.entries
+diff --git a/dist/harness/tool.js b/dist/harness/tool.js
+index 627c5b060dc278e18962d7d9b8e22ba299bb3653..d7cf741be9d5936e269496550c40d37a85254862 100644
+--- a/dist/harness/tool.js
++++ b/dist/harness/tool.js
+@@ -1,3 +1,4 @@
++import { retainNestedToolCall } from "@earendil-works/pi-ai";
+ import { awaitWithContext } from "@earendil-works/chord/context";
+ import { overlap, ownedSlice } from "@earendil-works/chord/delta";
+ import { copyJson } from "@earendil-works/chord/json";
+@@ -638,6 +639,24 @@ async function settle(runtime, input, call, ending, result, context, durationMs)
+         const slot = toolSlot(live, runtime.taskId);
+         let settled;
+         if (input.kind === "nested") {
++            const parentSlot = toolSlot(live, input.parent);
++            if (parentSlot) {
++                const record = {
++                    id: call.id, parentToolCallId: input.parentCallId, name: call.name,
++                    arguments: slot?.arguments ?? call.arguments,
++                    status: result.isError || ending.status !== "completed" ? "error" : "ok",
++                    result: { content: result.output ?? [], details: result.details, structuredContent: result.structuredOutput },
++                    ...(durationMs === undefined ? {} : { durationMs }),
++                    ...(result.isError ? { error: errorTextOf({ diagnostics: result.diagnostics ?? [] }, result.output ?? []).slice(0, 500) } : {})
++                };
++                parentSlot.nestedCalls = retainNestedToolCall(parentSlot.nestedCalls, record);
++                for (const child of slot?.nestedCalls?.calls ?? [])
++                    parentSlot.nestedCalls = retainNestedToolCall(parentSlot.nestedCalls, child);
++                if (slot?.nestedCalls?.omittedCalls) {
++                    parentSlot.nestedCalls.omittedCalls = (parentSlot.nestedCalls.omittedCalls ?? 0) + slot.nestedCalls.omittedCalls;
++                    parentSlot.nestedCalls.complete = false;
++                }
++            }
+             const nested = nestedResult(runtime.taskId, result, durationMs);
+             if (nested.usage !== undefined)
+                 await recordUsage(tx, conversationId, "tools", call.name, nested.usage);
+@@ -655,7 +674,7 @@ async function settle(runtime, input, call, ending, result, context, durationMs)
+         }
+         else {
+             const timing = { timestamp: runtime.now(), durationMs };
+-            const entry = await appendToolResult(tx, conversationId, call, result, timing);
++            const entry = await appendToolResult(tx, conversationId, call, { ...result, nestedCalls: slot?.nestedCalls }, timing);
+             if (slot !== undefined && !("parentTaskId" in slot)) {
+                 finishSlot(slot);
+                 slot.entry = entry.id;
+@@ -851,6 +870,7 @@ export async function appendToolResult(tx, conversationId, call, result, meta) {
+         content.push({ type: "text", text: renderDiagnostics(diagnostics) });
+     const message = {
+         role: "toolResult",
++        ...(result.nestedCalls === undefined ? {} : { nestedCalls: result.nestedCalls }),
+         toolCallId: call.id,
+         toolName: call.name,
+         content,
 diff --git a/dist/harness/types.d.ts b/dist/harness/types.d.ts
-index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..ff75399bdc04bf4d1296927b2845d7b0f60fcb38 100644
+index efa6889460e9c42ea0c58105494e6598ad0070d9..7bc3f6fe93a6128c999f8fc4b0a785c79c183732 100644
 --- a/dist/harness/types.d.ts
 +++ b/dist/harness/types.d.ts
-@@ -283,6 +283,7 @@ type IsAny<T> = boolean extends (T extends never ? true : false) ? true : false;
+@@ -141,6 +141,7 @@ export type ToolDiagnostic = {
+  * (`executeTool()` callers, code mode scripts), and `details` for UIs.
+  */
+ export type ToolExecutionResult<TDetails extends JsonValue = JsonValue> = {
++    readonly nestedCalls?: import("@earendil-works/pi-ai").NestedToolCalls;
+     /** For the model. Omitted: the retained `output()` text. */
+     readonly output?: ToolResultMessage["content"];
+     /**
+@@ -283,6 +284,7 @@ type IsAny<T> = boolean extends (T extends never ? true : false) ? true : false;
   * `execute()`; `defineTool()` infers both generics.
   */
  export type ToolRegistration<TParameters extends object = object, TDetails extends JsonValue = JsonValue> = Tool<TParameters> & {
@@ -419,7 +485,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..ff75399bdc04bf4d1296927b2845d7b0
      /** Whether an interrupted execution may rerun on recovery. Default `unsafe`. */
      readonly replay?: "safe" | "unsafe";
      /** Default: the settings' `toolExecution`. One sequential call makes its whole round sequential. */
-@@ -328,10 +329,11 @@ export type PromptInput<Tool extends ToolRegistration = ToolRegistration> = {
+@@ -328,10 +330,11 @@ export type PromptInput<Tool extends ToolRegistration = ToolRegistration> = {
      /** Committed document reads. */
      readonly read: DocumentReader;
  };
@@ -432,7 +498,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..ff75399bdc04bf4d1296927b2845d7b0
      /** Default true: wrap the text as `<key>\n...\n</key>`. */
      readonly tag?: boolean;
  };
-@@ -465,7 +467,7 @@ export type Agent<Tool extends ToolRegistration = ToolRegistration> = {
+@@ -465,7 +468,7 @@ export type Agent<Tool extends ToolRegistration = ToolRegistration> = {
      /** The tools nested calls (`executeTool()`) resolve among, in order: enabled and callable by tools. */
      readonly callable: readonly Tool[];
      /** Enabled deferred tools the model may call and is not offered yet, in registry order: what `tool_search` loads. */
@@ -441,7 +507,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..ff75399bdc04bf4d1296927b2845d7b0
      /** Extension sections, then `instructions` when set. */
      readonly sections: readonly PromptSection<Tool>[];
      readonly instructions?: string;
-@@ -758,8 +760,19 @@ export type ContextView = {
+@@ -758,8 +761,19 @@ export type ContextView = {
      readonly messages: readonly Message[];
  };
  /** Stateless handle for one conversation, bound to the Harness that returned it. Compare handles by `id`. */
@@ -461,7 +527,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..ff75399bdc04bf4d1296927b2845d7b0
      /** Resolved with the current registry snapshot and settings. */
      agent(context: Context): Promise<Agent>;
      /** `configure()` in its own commit. */
-@@ -990,6 +1003,10 @@ export interface ToolHooks {
+@@ -990,6 +1004,10 @@ export interface ToolHooks {
  }
  /** Hooks of the built-in compaction task. */
  export interface CompactionHooks {
@@ -472,7 +538,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..ff75399bdc04bf4d1296927b2845d7b0
      /**
       * After range selection, before summarizing; the first decision wins. `entries` are the active entries the summary
       * replaces, the head marker first, and `messages` their model context, the summarizer's source; `firstKept` is the
-@@ -997,6 +1014,7 @@ export interface CompactionHooks {
+@@ -997,6 +1015,7 @@ export interface CompactionHooks {
       */
      beforeCompact(compaction: {
          readonly reason: CompactionReason;
@@ -480,7 +546,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..ff75399bdc04bf4d1296927b2845d7b0
          readonly entries: readonly EntryRecord[];
          readonly messages: readonly Message[];
          readonly firstKept: EntryId;
-@@ -1005,6 +1023,8 @@ export interface CompactionHooks {
+@@ -1005,6 +1024,8 @@ export interface CompactionHooks {
          readonly decline: true;
      } | {
          readonly summary: string;
@@ -490,7 +556,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..ff75399bdc04bf4d1296927b2845d7b0
  }
  export {};
 diff --git a/dist/harness/view.d.ts b/dist/harness/view.d.ts
-index 1a20990469a4f2aa34b359dc19bd944b64a952c0..766560bea504a119b3f71fbb41b2896daa84ec86 100644
+index c21364da54546f9dd0a73fd441b7b0add3560ba1..36fce6f532c4b2ca936d9ab8aba80fb791736a32 100644
 --- a/dist/harness/view.d.ts
 +++ b/dist/harness/view.d.ts
 @@ -1,7 +1,7 @@
@@ -521,7 +587,7 @@ index 1a20990469a4f2aa34b359dc19bd944b64a952c0..766560bea504a119b3f71fbb41b2896d
          detach: () => void;
      }>;
 diff --git a/dist/harness/view.js b/dist/harness/view.js
-index 7b5dbf295511c8874fce382e575b6261586a1f0c..bead6b77cbcfb0e13b37a84890932efbd15d3b57 100644
+index 416686e56232e7c1ac433ae23d0abd2dc433a71b..1236e1c0520f0d40d334a1a4535cbe50b41bae15 100644
 --- a/dist/harness/view.js
 +++ b/dist/harness/view.js
 @@ -3,6 +3,7 @@ import { applyImmutable } from "@earendil-works/chord/delta";
@@ -600,7 +666,7 @@ index 7b5dbf295511c8874fce382e575b6261586a1f0c..bead6b77cbcfb0e13b37a84890932efb
  }
  /** `op` moved under `prefix`; a root replacement becomes a set of the prefix. */
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 051d498c54f04ec527cacde335d5ab5d1bf93dd1..0c9027f48af7915e417f65b60ce5ce38e0bd5b61 100644
+index c98369fde9893e425a47192e5304ad40ff9321f4..17a966824cc9a993dfaf237542142abfdc5f5bf9 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -1,3 +1,4 @@
@@ -618,7 +684,7 @@ index 051d498c54f04ec527cacde335d5ab5d1bf93dd1..0c9027f48af7915e417f65b60ce5ce38
  export { MemoryStorage } from "./storage/memory.ts";
  export { defineTask } from "./tasks.ts";
 diff --git a/dist/index.js b/dist/index.js
-index 0f748f53ffb1be5bd1fe46c0f8f01d1335e7a41c..4a6a0ccfa1430ba1ac9d7c8e161ade3a68ad0e32 100644
+index 4f3d6d7cab1bc419f161d888c5be3c78c223fe88..7a97f31a363d77e97804a62702c665208a560188 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -1,3 +1,4 @@
@@ -627,7 +693,7 @@ index 0f748f53ffb1be5bd1fe46c0f8f01d1335e7a41c..4a6a0ccfa1430ba1ac9d7c8e161ade3a
  export { AssistantEntry, CompactionEntry, defineEntry, ResetEntry, SystemEntry, ToolResultEntry, UserEntry, } from "./entries.js";
  export { ConversationBusy, ConversationIdle, ReadAfterWrite, ReadOnlySession, SessionFailed, StorageRequestError, } from "./errors.js";
 diff --git a/dist/session/transaction.d.ts b/dist/session/transaction.d.ts
-index b2f88d02e3f5d0380dba7b2cbdedb6898c8bf94e..ed2e1426b108817d78d087cc95c915eff25fea65 100644
+index 2f377a69cc23661df7ba8916a03946e150870ba1..265c1536d864b83b0edce21b6234bb410d5c0cb9 100644
 --- a/dist/session/transaction.d.ts
 +++ b/dist/session/transaction.d.ts
 @@ -127,6 +127,8 @@ export declare class Transaction implements Tx {
@@ -640,7 +706,7 @@ index b2f88d02e3f5d0380dba7b2cbdedb6898c8bf94e..ed2e1426b108817d78d087cc95c915ef
      setTask(value: AnyTaskRecord): void;
      /** Internal: candidate records of the tasks this transaction created or replaced so far. */
 diff --git a/dist/session/transaction.js b/dist/session/transaction.js
-index 1ddb158ebf5569c20080d135cb5e9b89bbb07509..323b0bbbf86d9390a91ae28886dc97d06637806f 100644
+index 009a71b90d93ddecb70589d0fe5e90d5779c7735..439e4cdba16935f7af54108457ec09117a381c31 100644
 --- a/dist/session/transaction.js
 +++ b/dist/session/transaction.js
 @@ -13,6 +13,13 @@ import { documentKey, incarnationKey, scopeKey, tableKeys } from "./keys.js";
@@ -670,7 +736,7 @@ index 1ddb158ebf5569c20080d135cb5e9b89bbb07509..323b0bbbf86d9390a91ae28886dc97d0
      setTask(value) {
          this.#assertOpen();
 diff --git a/dist/storage/sqlite/storage.d.ts b/dist/storage/sqlite/storage.d.ts
-index 22a6246735be5cc1aeb56716f45602dbd6c5e088..beb3545e3663ad288206127f9a41a8b6c4ed653c 100644
+index 9c50c1d3a9e1c99d43aeba1dd01ef5de2f362c35..e30b1aaabb3bd01266d2309836fb405bcc0fa736 100644
 --- a/dist/storage/sqlite/storage.d.ts
 +++ b/dist/storage/sqlite/storage.d.ts
 @@ -22,6 +22,8 @@ export declare class SqliteStorage implements Storage {
@@ -683,7 +749,7 @@ index 22a6246735be5cc1aeb56716f45602dbd6c5e088..beb3545e3663ad288206127f9a41a8b6
       * Commit `batches` in one SQL transaction, each with its own seq. Each batch is checked before it writes anything,
       * against the state the earlier ones left, and the first one refused ends the batch: the transaction commits the ones
 diff --git a/dist/storage/sqlite/storage.js b/dist/storage/sqlite/storage.js
-index 6d3a6eb2d40b05510c08c02289d847ae13ce2ad9..f00752a3f1b3993f9735199d021144469a43a9e5 100644
+index 6201f4927479b79fb1b417efb368e3e8f954443c..b3017f8f4bf18dda4e0c364a6051d7fc6eda6939 100644
 --- a/dist/storage/sqlite/storage.js
 +++ b/dist/storage/sqlite/storage.js
 @@ -3,7 +3,7 @@ import { StorageRequestError } from "../../errors.js";
@@ -720,7 +786,7 @@ index 6d3a6eb2d40b05510c08c02289d847ae13ce2ad9..f00752a3f1b3993f9735199d02114446
          this.assertOpen();
          const seqs = [];
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index 783d56468bdd1c4d2f07e1e58a38b9ae004c2e97..7328423fb5141dca9e62333e3cbd2769f4eab04f 100644
+index 5f6f124761cb6b4739b802eecadd51fc8f0c034b..706312d02e58efb1de7d3aa902ac88d6d5502181 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
 @@ -460,6 +460,8 @@ type SubmissionRecordBase = {

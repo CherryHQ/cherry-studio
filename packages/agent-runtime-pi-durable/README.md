@@ -204,3 +204,12 @@ child ownership, stop, delivery, approval and reopen; run-metadata tests disting
 same-run steering from late continuation. SQLite tests close and reopen an orderly
 runtime; they do not prove process-kill recovery or exactly-once external side effects.
 Desktop and live-provider acceptance are separate from these package tests.
+
+## Nested tool evidence
+
+Nested calls project onto their owning assistant message using native IDs and parent
+edges. Native session records retain executed arguments, terminal state and bounded
+results independently of the outer script outcome. Archive projection reads those
+records without executing tools. Missing legacy or over-budget payloads remain
+explicitly absent; complete successful built-in artifact declarations can render
+through the same tool mapping as direct calls.
