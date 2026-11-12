@@ -34,7 +34,7 @@ export const taskSummarySchema = z.looseObject({
 
 export const taskDetailSchema = taskSummarySchema.extend({
   prompt: z.union([z.strictObject({ text: unicodeText.max(4096) }), z.strictObject({ ref: contentRefSchema })]),
-  timeoutMinutes: z.number().positive(),
+  timeoutMinutes: z.number().nonnegative(),
   workspace: workspaceSelectionSchema,
   reuse: z.discriminatedUnion('kind', [
     z.looseObject({ kind: z.literal('fresh') }),

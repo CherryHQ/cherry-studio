@@ -66,6 +66,9 @@ describe('Task public contract', () => {
       futureField: true
     }
     expect(taskDetailSchema.safeParse(detail).success).toBe(true)
+    expect(taskDetailSchema.parse({ ...detail, timeoutMinutes: 0 }).timeoutMinutes).toBe(0)
+    for (const timeoutMinutes of [-1, Number.POSITIVE_INFINITY, Number.NaN])
+      expect(taskDetailSchema.safeParse({ ...detail, timeoutMinutes }).success).toBe(false)
     expect(taskSummarySchema.safeParse(detail).success).toBe(true)
     expect(taskSummarySchema.safeParse({ ...detail, trigger: undefined }).success).toBe(false)
     expect(taskSummarySchema.safeParse({ ...detail, updatedAt: undefined }).success).toBe(false)

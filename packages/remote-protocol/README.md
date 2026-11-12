@@ -119,7 +119,8 @@ normalized filters; concurrent changes require a refresh and client deduplicatio
 Task and run ordering is `createdAt DESC, id DESC`.
 
 Task detail retains the configured trigger, timeout, workspace selection and reuse
-mode. An omitted cron timezone means the host scheduler's timezone; clients use
+mode. `timeoutMinutes` is a nonnegative number of minutes; `0` means no timeout.
+An omitted cron timezone means the host scheduler's timezone; clients use
 `nextRunAt` rather than calculating a schedule. Prompts over 4,096 UTF-16 units use
 `ContentRef`. Read at most 24,576 UTF-8 bytes per request, reassemble bytes before
 decoding text, and verify the complete SHA-256. Both revision and content identity

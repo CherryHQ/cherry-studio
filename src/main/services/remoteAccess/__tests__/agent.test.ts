@@ -366,13 +366,13 @@ describe('remote agent access', () => {
     await call('connection.authenticate', { deviceId: device.id })
   })
 
-  it('exposes all five Task reads and lets old session clients discover and open scheduled results', async () => {
+  it.each([0, 2])('reads tasks and results with timeoutMinutes=%i', async (timeoutMinutes) => {
     const prompt = '任务内容'.repeat(2000)
     const task = jobScheduleService.create({
       type: 'agent.task',
       name: 'Daily report',
       trigger: { kind: 'cron', expr: '0 9 * * *' },
-      jobInputTemplate: { agentId: 'agent-1', prompt, timeoutMinutes: 2, workspace: { type: 'system' } },
+      jobInputTemplate: { agentId: 'agent-1', prompt, timeoutMinutes, workspace: { type: 'system' } },
       catchUpPolicy: { kind: 'skip-missed' }
     })
     dbh.db.update(agentSessionTable).set({ taskId: task.id }).where(eq(agentSessionTable.id, sessionId)).run()
@@ -406,6 +406,7 @@ describe('remote agent access', () => {
     const detail = await call('agent.tasks.get', { taskId: task.id })
     expect(detail.task).toMatchObject({
       name: 'Daily report',
+      timeoutMinutes,
       prompt: { ref: { sha256: sha256(Buffer.from(prompt)) } }
     })
     const runs = await call('agent.tasks.runs.list', { taskId: task.id })
