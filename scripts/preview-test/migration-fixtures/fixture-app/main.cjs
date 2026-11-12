@@ -46,7 +46,7 @@ async function main() {
       assistants: JSON.stringify(assistants),
       settings: JSON.stringify({ language: 'en-US', autoUpdate: false }),
       llm: JSON.stringify({ providers: [] }),
-      _persist: JSON.stringify({ version: 0, rehydrated: true })
+      _persist: JSON.stringify({ version: 207, rehydrated: true })
     }));
     const db = await new Promise((resolve, reject) => {
       const open = indexedDB.open('CherryStudio', 100);

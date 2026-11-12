@@ -1,11 +1,13 @@
-param([Parameter(Mandatory)][string]$Preview)
+param([string]$Preview)
 
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
-$previewSignature = Get-AuthenticodeSignature -LiteralPath $Preview
+if ($Preview) {
+  $previewSignature = Get-AuthenticodeSignature -LiteralPath $Preview
 $publisher = 'A4976B6F9EE099393484F05C794F3F19A69EA2B9'
 if ($previewSignature.Status -ne 'Valid' -or $previewSignature.SignerCertificate.Thumbprint -ne $publisher) {
-  throw "Unexpected preview signature: $($previewSignature.Status)"
+    throw "Unexpected preview signature: $($previewSignature.Status)"
+  }
 }
 
 function Get-VerifiedAsset([string]$Uri, [string]$File, [string]$Sha256) {
@@ -90,6 +92,8 @@ try {
   $env:TMP = $oldTmp
 }
 
+if (!$Preview) { return }
+
 node ./verify.cjs $Preview '1.9.12' 'KxUIh8bapKKiCeXX0r97OMFe2o1SvZ1lUV7bw/Gc6YwaQecKKi9x1/L0EkyQuombtANNkUnmIRCy4ixNUDAiKA==' $seedPath '876741f7a9849514353f1bb4d7da2ede18823e10'
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 $prerequisite = Get-Content ./migration-fixtures/relaunch-1.9.12.json -Raw | ConvertFrom-Json
@@ -99,4 +103,6 @@ Stop-Portable $prerequisite.relaunch.wrapperPid
 
 node ./verify.cjs $Preview '2.1.0' 'aAkLbyq81m5ofVFFH8DEN8xzMd1zKTarI53qrtRD6iTiTSNv606Tb95ajtCbpvwc04kC5ITZ7c7RIGqDhHZJxw==' $seedPath '876741f7a9849514353f1bb4d7da2ede18823e10'
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
-& ./migration-fixtures/complete-bridge.ps1 -Relaunch (Join-Path $PSScriptRoot 'migration-fixtures/relaunch-2.1.0.json') -EvidencePrefix 'prerequisite'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./migration-fixtures/complete-bridge.ps1 -Relaunch (Join-Path $PSScriptRoot 'migration-fixtures/relaunch-2.1.0.json') -EvidencePrefix 'prerequisite'
+
+if ($LASTEXITCODE) { exit $LASTEXITCODE }

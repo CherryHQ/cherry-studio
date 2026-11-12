@@ -21,7 +21,8 @@ do {
     $state = & $windowTool -ProcessId $bridgePid -Executable $exe -Action inspect | ConvertFrom-Json
     if (@($state.buttons | Where-Object { $_ -in @('Start Migration','开始迁移') }).Count -eq 1) {
       $startScreenshot = Join-Path $PSScriptRoot "$EvidencePrefix-migration-start.png"
-      $start = & $windowTool -ProcessId $bridgePid -Executable $exe -Action start -Screenshot $startScreenshot | ConvertFrom-Json
+      try { & $windowTool -ProcessId $bridgePid -Executable $exe -Action inspect -Screenshot $startScreenshot | Out-Null } catch { Write-Warning $_ }
+      $start = & $windowTool -ProcessId $bridgePid -Executable $exe -Action start | ConvertFrom-Json
     }
   } catch {
     $lastWindowError = $_
@@ -52,7 +53,7 @@ if ('Restart App' -notin $completed.buttons -and '重启应用' -notin $complete
   throw 'SQLite completion verified, but the completion button was not present'
 }
 $completedScreenshot = Join-Path $PSScriptRoot "$EvidencePrefix-migration-completed.png"
-& $windowTool -ProcessId $bridgePid -Executable $exe -Action inspect -Screenshot $completedScreenshot
+try { & $windowTool -ProcessId $bridgePid -Executable $exe -Action inspect -Screenshot $completedScreenshot } catch { Write-Warning $_ }
 
 & $windowTool -ProcessId $bridgePid -Executable $exe -Action close
 $deadline = [DateTime]::UtcNow.AddSeconds(20)

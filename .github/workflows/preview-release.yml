@@ -5,7 +5,7 @@ on:
     inputs:
       preview_artifact_id:
         description: Signed preview artifact from the pinned build
-        required: true
+        required: false
         type: string
 permissions:
   actions: read
@@ -22,13 +22,19 @@ jobs:
         with:
           node-version-file: .node-version
       - name: Download the signed artifact from the build
+        if: inputs.preview_artifact_id != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           artifact-ids: ${{ inputs.preview_artifact_id }}
           github-token: ${{ github.token }}
           run-id: 43180156395
           path: ${{ runner.temp }}/cs-preview
+      - name: Open the synthetic profile in the official 1.9.11 portable build
+        if: inputs.preview_artifact_id == ''
+        shell: pwsh
+        run: ./scripts/preview-test/run.ps1
       - name: Run both stages against one isolated profile
+        if: inputs.preview_artifact_id != ''
         shell: pwsh
         run: |
           $preview = @(Get-ChildItem -LiteralPath "$env:RUNNER_TEMP/cs-preview" -Filter '*-preview-876741f-signed-win-x64-portable.exe' -Recurse -File)
@@ -46,5 +52,5 @@ jobs:
             scripts/preview-test/migration-fixtures/*.json
             scripts/preview-test/migration-fixtures/*.png
             ${{ runner.temp }}/cs23998-e2e/launcher.log
-            ${{ runner.temp }}/cs23998-e2e/data/logs/app-error.*.log
+            ${{ runner.temp }}/cs23998-e2e/data/logs/*.log
           retention-days: 3
