@@ -132,6 +132,7 @@
   "dialog.legacy_upgrade.install": "安装迁移版本",
   "dialog.legacy_upgrade.install_detail": "安装并重启至 2.1.0 完成数据迁移，然后更新到最新版。请保留原有数据。",
   "dialog.legacy_upgrade.install_prerequisite": "安装 {{version}}",
+  "dialog.legacy_upgrade.install_prerequisite_detail": "Cherry Studio 会先启动 {{prerequisite}}。退出该版本后，会自动安装并启动 {{version}}，届时可开始迁移数据。",
   "dialog.legacy_upgrade.installing": "正在重启至 {{version}}…",
   "dialog.legacy_upgrade.older_versions": "从更早版本升级？",
   "dialog.legacy_upgrade.preparing": "正在准备安装…",

@@ -132,6 +132,7 @@
   "dialog.legacy_upgrade.install": "ติดตั้งเวอร์ชันสำหรับย้ายข้อมูล",
   "dialog.legacy_upgrade.install_detail": "ติดตั้งและเริ่มใหม่เป็นเวอร์ชัน 2.1.0 เพื่อย้ายข้อมูล แล้วอัปเดตเป็นเวอร์ชันล่าสุด โปรดเก็บข้อมูลเดิมไว้",
   "dialog.legacy_upgrade.install_prerequisite": "ติดตั้ง {{version}}",
+  "dialog.legacy_upgrade.install_prerequisite_detail": "Cherry Studio จะเปิดเวอร์ชัน {{prerequisite}} ก่อน ให้ออกจากเวอร์ชันนี้เพื่อติดตั้งและเปิด {{version}} โดยอัตโนมัติ จากนั้นเริ่มย้ายข้อมูล",
   "dialog.legacy_upgrade.installing": "กำลังเริ่มใหม่เป็นเวอร์ชัน {{version}}…",
   "dialog.legacy_upgrade.older_versions": "อัปเกรดจากเวอร์ชันเก่าหรือไม่",
   "dialog.legacy_upgrade.preparing": "กำลังเตรียมติดตั้ง…",

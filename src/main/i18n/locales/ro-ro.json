@@ -132,6 +132,7 @@
   "dialog.legacy_upgrade.install": "Instalează versiunea de migrare",
   "dialog.legacy_upgrade.install_detail": "Instalați și reporniți în 2.1.0 pentru migrarea datelor, apoi actualizați la ultima versiune. Păstrați datele existente.",
   "dialog.legacy_upgrade.install_prerequisite": "Instalează {{version}}",
+  "dialog.legacy_upgrade.install_prerequisite_detail": "Cherry Studio va deschide mai întâi versiunea {{prerequisite}}. Închide-o pentru a instala și deschide automat versiunea {{version}}, apoi pornește migrarea datelor.",
   "dialog.legacy_upgrade.installing": "Se repornește în {{version}}…",
   "dialog.legacy_upgrade.older_versions": "Actualizați de la o versiune mai veche?",
   "dialog.legacy_upgrade.preparing": "Se pregătește instalarea…",

@@ -94,7 +94,7 @@ export function getLegacyBridgeEligibility(profile: string): { prerequisite: boo
 }
 
 export function createLegacyBridgeUpdater(target: LegacyBridgeTarget): AppUpdater {
-  const cache = application.getPath('feature.legacy_upgrade.cache')
+  const cache = application.getPath('feature.legacy_upgrade.cache', target.version)
   const adapter: AppAdapter = {
     version: app.getVersion(),
     name: 'legacy-bridge',
@@ -163,6 +163,11 @@ export function prepareLegacyBridgeProfile(profile: string): () => void {
   return restore
 }
 
+type PortableFollowup = Pick<LegacyBridgeTarget, 'version' | 'sha512'> & {
+  createUpdater: () => AppUpdater
+  versionLog: string
+}
+
 export class LegacyBridgeInstaller {
   state: LegacyInstallState = { phase: 'idle' }
   private updater?: AppUpdater
@@ -177,7 +182,8 @@ export class LegacyBridgeInstaller {
     private readonly version: LegacyBridgeVersion,
     private readonly createUpdater: () => AppUpdater,
     private readonly publish: (state: LegacyInstallState) => void,
-    private readonly prepareProfile: () => () => void = () => () => {}
+    private readonly prepareProfile: () => () => void = () => () => {},
+    private readonly followup?: PortableFollowup
   ) {}
 
   private update(state: LegacyInstallState) {
@@ -200,6 +206,8 @@ export class LegacyBridgeInstaller {
 
   private async run(token: CancellationToken) {
     let updater: AppUpdater | undefined
+    let nextUpdater: AppUpdater | undefined
+    let downloadStage = 0
     const onError = (error: Error) => {
       logger.error('Bridge installation failed', error)
       this.handoff = false
@@ -217,23 +225,44 @@ export class LegacyBridgeInstaller {
     const onProgress = (progress: ProgressInfo) => {
       if (token.cancelled || this.disposed) return
       const percent = progress.total > 0 ? Math.floor(Math.min(100, Math.max(0, progress.percent))) : undefined
-      if (percent === previousPercent) return
-      previousPercent = percent ?? -1
-      this.update({ phase: 'downloading', percent })
+      const totalPercent =
+        percent === undefined || !this.followup ? percent : Math.floor((downloadStage * 100 + percent) / 2)
+      if (totalPercent === previousPercent) return
+      previousPercent = totalPercent ?? -1
+      this.update({ phase: 'downloading', percent: totalPercent })
+    }
+    const download = async (stageUpdater: AppUpdater, version: LegacyBridgeVersion) => {
+      stageUpdater.on('download-progress', onProgress)
+      const result = await stageUpdater.checkForUpdates()
+      if (token.cancelled || this.disposed) return
+      if (!result?.isUpdateAvailable || result.updateInfo.version !== version)
+        throw new Error('Pinned bridge is unavailable')
+      this.update(downloadStage ? { phase: 'downloading', percent: 50 } : { phase: 'downloading' })
+      return stageUpdater.downloadUpdate(token)
     }
     try {
       updater = this.createUpdater()
       this.updater = updater
       updater.on('error', onError)
       this.removeError = () => updater?.removeListener('error', onError)
-      updater.on('download-progress', onProgress)
-      const result = await updater.checkForUpdates()
+      await download(updater, this.version)
       if (token.cancelled || this.disposed) return
-      if (!result?.isUpdateAvailable || result.updateInfo.version !== this.version)
-        throw new Error('Pinned bridge is unavailable')
-      this.update({ phase: 'downloading' })
-      await updater.downloadUpdate(token)
-      if (token.cancelled || this.disposed) return
+      if (this.followup) {
+        if (!(updater instanceof PortableUpdater)) throw new Error('Portable follow-up requires the portable updater')
+        updater.removeListener('download-progress', onProgress)
+        downloadStage = 1
+        nextUpdater = this.followup.createUpdater()
+        nextUpdater.on('error', onError)
+        const files = await download(nextUpdater, this.followup.version)
+        if (token.cancelled || this.disposed) return
+        if (files?.length !== 1) throw new Error('Missing portable follow-up download')
+        updater.portableFollowup = {
+          source: files[0],
+          sha512: this.followup.sha512,
+          versionLog: this.followup.versionLog,
+          prerequisiteVersion: this.version
+        }
+      }
       this.restoreProfile = this.prepareProfile()
       this.handoff = true
       this.update({ phase: 'installing' })
@@ -242,6 +271,8 @@ export class LegacyBridgeInstaller {
       if (!token.cancelled) onError(error instanceof Error ? error : new Error(String(error)))
     } finally {
       updater?.removeListener('download-progress', onProgress)
+      nextUpdater?.removeListener('download-progress', onProgress)
+      nextUpdater?.removeListener('error', onError)
       if (!this.handoff) {
         updater?.removeListener('error', onError)
         this.release()

@@ -132,6 +132,7 @@
   "dialog.legacy_upgrade.install": "Geçiş sürümünü yükle",
   "dialog.legacy_upgrade.install_detail": "Verileri taşımak için 2.1.0 sürümünü yükleyip yeniden başlatın, ardından en son sürüme güncelleyin. Mevcut verilerinizi koruyun.",
   "dialog.legacy_upgrade.install_prerequisite": "{{version}} sürümünü yükle",
+  "dialog.legacy_upgrade.install_prerequisite_detail": "Cherry Studio önce {{prerequisite}} sürümünü açar. {{version}} sürümünü otomatik olarak kurup açmak için bu sürümden çıkın, ardından veri taşıma işlemini başlatın.",
   "dialog.legacy_upgrade.installing": "{{version}} sürümünde yeniden başlatılıyor…",
   "dialog.legacy_upgrade.older_versions": "Eski bir sürümden mi yükseltiyorsunuz?",
   "dialog.legacy_upgrade.preparing": "Kurulum hazırlanıyor…",

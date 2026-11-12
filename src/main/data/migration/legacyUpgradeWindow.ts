@@ -9,12 +9,13 @@ import {
 } from 'electron'
 
 import { application } from '@application'
+import { getLegacyProfilePaths } from '@main/core/paths/legacyProfilePaths'
 import { isDev } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
 import { LegacyUpgradeChannels, type LegacyUpgradeScreen } from '@shared/types/legacyUpgrade'
 
 import { createLegacyBridgeUpdater, LegacyBridgeInstaller, prepareLegacyBridgeProfile } from './legacyBridgeInstaller'
-import { LEGACY_PREREQUISITE_VERSION, type LegacyBridgeTarget } from './legacyBridgeTarget'
+import { findLegacyBridgeTarget, LEGACY_PREREQUISITE_VERSION, type LegacyBridgeTarget } from './legacyBridgeTarget'
 
 // Preboot has no lifecycle WindowManager or IpcApiService; like relocation,
 // this isolated window owns its IPC only until it closes.
@@ -24,6 +25,21 @@ export function showLegacyUpgradeWindow(
   target?: LegacyBridgeTarget,
   profile?: string
 ): Promise<void> {
+  const prerequisite = target?.version === LEGACY_PREREQUISITE_VERSION
+  const bridge =
+    prerequisite &&
+    target.edition === 'global' &&
+    findLegacyBridgeTarget(target.edition, target.platform, target.arch, undefined, true)
+  if (prerequisite && (!profile || !bridge)) throw new Error('Missing portable migration follow-up')
+  const followup =
+    bridge && profile
+      ? {
+          version: bridge.version,
+          sha512: bridge.sha512,
+          versionLog: getLegacyProfilePaths(profile).version,
+          createUpdater: () => createLegacyBridgeUpdater(bridge)
+        }
+      : undefined
   return new Promise((resolve, reject) => {
     const window = new BrowserWindow({
       width: 520,
@@ -50,12 +66,13 @@ export function showLegacyUpgradeWindow(
           (state) => {
             if (!window.isDestroyed()) window.webContents.send(LegacyUpgradeChannels.State, state)
           },
-          target.version === LEGACY_PREREQUISITE_VERSION
+          prerequisite
             ? undefined
             : () => {
                 if (!profile) throw new Error('Missing migration profile')
                 return prepareLegacyBridgeProfile(profile)
-              }
+              },
+          followup
         )
       : undefined
     let updateQuitting = false

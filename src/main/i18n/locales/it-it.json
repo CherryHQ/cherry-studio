@@ -132,6 +132,7 @@
   "dialog.legacy_upgrade.install": "Installa versione di migrazione",
   "dialog.legacy_upgrade.install_detail": "Installa e riavvia in 2.1.0 per migrare i dati, poi aggiorna alla versione più recente. Conserva i dati esistenti.",
   "dialog.legacy_upgrade.install_prerequisite": "Installa {{version}}",
+  "dialog.legacy_upgrade.install_prerequisite_detail": "Cherry Studio aprirà prima la versione {{prerequisite}}. Esci da questa versione per installare e aprire automaticamente la {{version}}, quindi avvia la migrazione dei dati.",
   "dialog.legacy_upgrade.installing": "Riavvio in {{version}}…",
   "dialog.legacy_upgrade.older_versions": "Aggiorni da una versione precedente?",
   "dialog.legacy_upgrade.preparing": "Preparazione dell’installazione…",

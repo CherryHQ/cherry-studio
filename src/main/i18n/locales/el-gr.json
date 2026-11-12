@@ -132,6 +132,7 @@
   "dialog.legacy_upgrade.install": "Εγκατάσταση έκδοσης μεταφοράς",
   "dialog.legacy_upgrade.install_detail": "Εγκαταστήστε και επανεκκινήστε στην έκδοση 2.1.0 για μεταφορά δεδομένων και μετά ενημερώστε στην πιο πρόσφατη έκδοση. Διατηρήστε τα δεδομένα σας.",
   "dialog.legacy_upgrade.install_prerequisite": "Εγκατάσταση της έκδοσης {{version}}",
+  "dialog.legacy_upgrade.install_prerequisite_detail": "Το Cherry Studio θα ανοίξει πρώτα την έκδοση {{prerequisite}}. Κλείστε τη για να εγκατασταθεί και να ανοίξει αυτόματα η έκδοση {{version}} και μετά ξεκινήστε τη μετεγκατάσταση των δεδομένων σας.",
   "dialog.legacy_upgrade.installing": "Επανεκκίνηση στην έκδοση {{version}}…",
   "dialog.legacy_upgrade.older_versions": "Αναβάθμιση από παλαιότερη έκδοση;",
   "dialog.legacy_upgrade.preparing": "Προετοιμασία εγκατάστασης…",

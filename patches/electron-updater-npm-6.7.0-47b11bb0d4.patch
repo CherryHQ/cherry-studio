@@ -87,20 +87,21 @@ index 8f18dc5416c91835ded4e47f2358fba680c129ac..35a629185bbde1f83a3debdd41b1d161
                   * If this was not `true` previously then MacUpdater.doDownloadUpdate()
 diff --git a/out/PortableUpdater.d.ts b/out/PortableUpdater.d.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..3df9c536c2e4798c8d76f9537c8f48d2ff952b54
+index 0000000000000000000000000000000000000000..f69021789133ffe1a7659e4902fb0be1d17e9e7b
 --- /dev/null
 +++ b/out/PortableUpdater.d.ts
-@@ -0,0 +1,7 @@
+@@ -0,0 +1,8 @@
 +import { NsisUpdater } from "./NsisUpdater";
 +export declare class PortableUpdater extends NsisUpdater {
 +    portableExecutable?: string;
 +    portableSha512?: string;
++    portableFollowup?: { source: string; sha512: string; versionLog: string; prerequisiteVersion: string };
 +    private portableInstalling;
 +    quitAndInstall(): void;
 +}
 diff --git a/out/PortableUpdater.js b/out/PortableUpdater.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..be7a785968bef3f14515441efdfdf5788a9e38c5
+index 0000000000000000000000000000000000000000..34581807457d64eca6231bf3b2524acafe7d7531
 --- /dev/null
 +++ b/out/PortableUpdater.js
 @@ -0,0 +1,62 @@
@@ -120,7 +121,7 @@ index 0000000000000000000000000000000000000000..be7a785968bef3f14515441efdfdf578
 +        }
 +        this.portableInstalling = true;
 +        const config = Buffer.from(JSON.stringify({ source: this.installerPath, target: this.portableExecutable,
-+            sha512: this.portableSha512, parent: process.pid })).toString("base64");
++            sha512: this.portableSha512, parent: process.pid, followup: this.portableFollowup })).toString("base64");
 +        const script = `$c = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${config}')) | ConvertFrom-Json\n${portableInstallScript}`;
 +        let child;
 +        let timer;
@@ -244,53 +245,97 @@ index 7052a0e9726f2ac26155f77319a108ff86c61396..a401598afad378effc8d1c58a829789d
 +Object.defineProperty(exports, "PortableUpdater", { enumerable: true, get: function () { return require("./PortableUpdater").PortableUpdater; } });
 diff --git a/out/portableInstallScript.js b/out/portableInstallScript.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..8c0eec02056c78de48e28b869ed1860d0a1597d7
+index 0000000000000000000000000000000000000000..6a889648bce312fd2a539da14d4f60fccad44fcd
 --- /dev/null
 +++ b/out/portableInstallScript.js
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,89 @@
 +"use strict";
 +exports.portableInstallScript = String.raw`
 +$ErrorActionPreference = 'Stop'
 +$stage = $c.target + '.update-' + [Guid]::NewGuid().ToString() + '.exe'
-+$backup = $stage + '.previous'
-+$replaced = $false
++$bridgeStage = $stage + '.bridge.exe'
 +$ready = $false
++$lock = $null
++
++function Assert-PortablePackage($file, $expectedHash, $publisher) {
++    $stream = [IO.File]::OpenRead($file)
++    $sha = [Security.Cryptography.SHA512]::Create()
++    try { $hash = [Convert]::ToBase64String($sha.ComputeHash($stream)) }
++    finally { $sha.Dispose(); $stream.Dispose() }
++    if ($hash -cne $expectedHash) { throw 'Portable SHA512 verification failed' }
++    $signature = Get-AuthenticodeSignature -LiteralPath $file
++    if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -cne $publisher) {
++        throw 'Portable publisher verification failed'
++    }
++}
++
++function Replace-AndLaunch($replacement, $backup) {
++    $deadline = [DateTime]::UtcNow.AddSeconds(60)
++    while ($true) {
++        try { [IO.File]::Move($c.target, $backup); break }
++        catch { if ([DateTime]::UtcNow -ge $deadline) { throw }; Start-Sleep -Milliseconds 250 }
++    }
++    $installed = $false
++    try {
++        [IO.File]::Move($replacement, $c.target)
++        $installed = $true
++        return Start-Process -FilePath $c.target -WorkingDirectory ([IO.Path]::GetDirectoryName($c.target)) -PassThru
++    } catch {
++        if ($installed) { [IO.File]::Delete($c.target) }
++        [IO.File]::Move($backup, $c.target)
++        Start-Process -FilePath $c.target -WorkingDirectory ([IO.Path]::GetDirectoryName($c.target))
++        throw
++    }
++}
++
 +try {
 +    $parentProcess = [Diagnostics.Process]::GetProcessById($c.parent)
-+    Copy-Item -LiteralPath $c.source -Destination $stage
-+    $hash = [Convert]::ToBase64String([Security.Cryptography.SHA512]::Create().ComputeHash([IO.File]::ReadAllBytes($stage)))
-+    if ($hash -cne $c.sha512) { throw 'Portable SHA512 verification failed' }
++    $lock = [IO.FileStream]::new($c.target + '.update-lock', [IO.FileMode]::OpenOrCreate,
++        [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 4096, [IO.FileOptions]::DeleteOnClose)
 +    $current = Get-AuthenticodeSignature -LiteralPath $c.target
-+    $next = Get-AuthenticodeSignature -LiteralPath $stage
-+    if ($current.Status -ne 'Valid' -or $next.Status -ne 'Valid' -or $current.SignerCertificate.Subject -cne $next.SignerCertificate.Subject) {
-+        throw 'Portable publisher verification failed'
++    if ($current.Status -ne 'Valid') { throw 'Portable publisher verification failed' }
++    $publisher = $current.SignerCertificate.Subject
++    Copy-Item -LiteralPath $c.source -Destination $stage
++    Assert-PortablePackage $stage $c.sha512 $publisher
++    if ($c.followup) {
++        Copy-Item -LiteralPath $c.followup.source -Destination $bridgeStage
++        Assert-PortablePackage $bridgeStage $c.followup.sha512 $publisher
++        $versionHistory = [IO.File]::ReadAllText($c.followup.versionLog)
 +    }
 +    [Console]::Out.WriteLine('ready')
 +    [Console]::Out.Flush()
 +    if ([Console]::In.ReadLine() -cne 'install') { throw 'Portable installation handoff cancelled' }
 +    $ready = $true
 +    if (!$parentProcess.WaitForExit(120000)) { throw 'Application did not exit' }
-+    $deadline = [DateTime]::UtcNow.AddSeconds(60)
-+    while ($true) {
-+        try { [IO.File]::Move($c.target, $backup); break }
-+        catch { if ([DateTime]::UtcNow -ge $deadline) { throw }; Start-Sleep -Milliseconds 250 }
++
++    $backup = $stage + '.previous'
++    $firstProcess = Replace-AndLaunch $stage $backup
++    if ($c.followup) {
++        $firstProcess.WaitForExit()
++        if ($firstProcess.ExitCode -ne 0) { throw "Portable prerequisite exited with code $($firstProcess.ExitCode)" }
++        $history = [IO.File]::ReadAllText($c.followup.versionLog)
++        $version = [regex]::Escape($c.followup.prerequisiteVersion)
++        $record = '^' + $version + '\|win\|prod\|packaged\|portable\|\d{4}-\d{2}-\d{2}T'
++        if (!$history.StartsWith($versionHistory, [StringComparison]::Ordinal) -or
++            $history.TrimEnd().Split([char]10)[-1] -cnotmatch $record) {
++            throw 'Portable prerequisite did not record startup in the migration profile'
++        }
++
++        Assert-PortablePackage $c.target $c.sha512 $publisher
++        Assert-PortablePackage $bridgeStage $c.followup.sha512 $publisher
++        $bridgeBackup = $bridgeStage + '.previous'
++        $null = Replace-AndLaunch $bridgeStage $bridgeBackup
++        Remove-Item -LiteralPath $bridgeBackup -ErrorAction SilentlyContinue
 +    }
-+    $replaced = $true
-+    [IO.File]::Move($stage, $c.target)
-+    Start-Process -FilePath $c.target -WorkingDirectory ([IO.Path]::GetDirectoryName($c.target))
 +    Remove-Item -LiteralPath $backup -ErrorAction SilentlyContinue
 +} catch {
 +    $failure = $_.ToString()
-+    if ($replaced) {
-+        Remove-Item -LiteralPath $c.target -ErrorAction SilentlyContinue
-+        [IO.File]::Move($backup, $c.target)
-+        Start-Process -FilePath $c.target -WorkingDirectory ([IO.Path]::GetDirectoryName($c.target))
-+    }
 +    [IO.File]::WriteAllText($c.source + '.install-error.log', $failure)
 +    if (!$ready) { [Console]::Error.WriteLine($failure) }
 +    exit 1
 +} finally {
-+    Remove-Item -LiteralPath $stage -ErrorAction SilentlyContinue
++    Remove-Item -LiteralPath $stage, $bridgeStage -ErrorAction SilentlyContinue
++    if ($lock) { $lock.Dispose() }
 +}
 +`;
 diff --git a/out/util.js b/out/util.js

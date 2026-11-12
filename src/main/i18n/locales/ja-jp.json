@@ -132,6 +132,7 @@
   "dialog.legacy_upgrade.install": "移行用バージョンをインストール",
   "dialog.legacy_upgrade.install_detail": "2.1.0 をインストールして再起動し、データを移行した後、最新版に更新してください。既存のデータは保持してください。",
   "dialog.legacy_upgrade.install_prerequisite": "{{version}} をインストール",
+  "dialog.legacy_upgrade.install_prerequisite_detail": "Cherry Studio は最初に {{prerequisite}} を起動します。そのバージョンを終了すると {{version}} が自動でインストールされ、起動します。その後、データの移行を開始してください。",
   "dialog.legacy_upgrade.installing": "{{version}} で再起動中…",
   "dialog.legacy_upgrade.older_versions": "古いバージョンからのアップグレード",
   "dialog.legacy_upgrade.preparing": "インストールを準備中…",
