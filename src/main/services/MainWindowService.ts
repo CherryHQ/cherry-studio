@@ -29,6 +29,7 @@ import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/w
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { normalizeBrowserEntryUrl, normalizeBrowserUrl } from '@shared/utils/browserUrl'
+import { resolveSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { getWebviewPartition, getWebviewSecurityProfile, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -70,7 +71,7 @@ export class MainWindowService extends BaseService {
 
   constructor() {
     super()
-    this._onMainWindowCreated = this.registerDisposable(new Emitter<BrowserWindow>())
+    this._onMainWindowCreated = new Emitter<BrowserWindow>()
     this.onMainWindowCreated = (listener) => {
       const disposable = this._onMainWindowCreated.event(listener)
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -174,6 +175,10 @@ export class MainWindowService extends BaseService {
     void installDevtoolsExtensions()
 
     this.openMainWindow()
+  }
+
+  protected async onDestroy() {
+    this._onMainWindowCreated.dispose()
   }
 
   private requireMainWindow(): BrowserWindow {
@@ -538,11 +543,7 @@ export class MainWindowService extends BaseService {
       // onReady, consumed once); runtime rebuilds must always become visible.
       const suppressShow = this.suppressInitialLaunchShow
       this.suppressInitialLaunchShow = false
-      if (!suppressShow) {
-        //[mac]hacky-fix: quickAssistant set visibleOnFullScreen:true will cause dock icon disappeared
-        void app.dock?.show()
-        mainWindow.show()
-      }
+      if (!suppressShow) mainWindow.show()
     })
 
     // Workaround for electron#10572: zoom factor resets to the cached value when
@@ -557,7 +558,7 @@ export class MainWindowService extends BaseService {
       mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
-    // Windows: opacity is zeroed by minimize-to-tray; restore on show/restore for taskbar/Alt-Tab paths bypassing showMainWindow.
+    // Repair Windows tray appearance on show/restore paths that bypass showMainWindow.
     if (isWin) {
       const restoreOpacity = () => {
         if (!mainWindow.isDestroyed()) {
@@ -578,21 +579,37 @@ export class MainWindowService extends BaseService {
     }
   }
 
-  async openWebsite(url: string, external = false): Promise<void> {
-    if (!isSafeExternalUrl(url)) {
+  async openWebsite(url: string, external = false, options?: Electron.OpenExternalOptions): Promise<void> {
+    const resolved = resolveSafeExternalUrl(url)
+    if (!resolved) {
       logger.warn('Blocked website URL with an unsupported scheme')
       return
     }
-    const parsed = new URL(url)
+    const { url: destination, protocol, requiresConfirmation } = resolved
     if (
       !external &&
-      ['http:', 'https:'].includes(parsed.protocol) &&
+      ['http:', 'https:'].includes(protocol) &&
       application.get('PreferenceService').get('app.browser.open_links_in_browser')
     ) {
       this.openBrowserTab(url)
       return
     }
-    await shell.openExternal(url)
+    if (requiresConfirmation) {
+      const { response } = await dialog.showMessageBox({
+        type: 'warning',
+        message: t('dialog.external_link.message'),
+        detail: destination,
+        buttons: [t('dialog.screen_capture_permission.cancel'), t('dialog.external_link.open')],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      })
+      if (response !== 1) {
+        logger.warn('External URL opening cancelled', { protocol })
+        return
+      }
+    }
+    await shell.openExternal(destination, options)
   }
 
   openBrowserTab(url: string): void {
@@ -611,7 +628,7 @@ export class MainWindowService extends BaseService {
       void this.openWebsite(url).catch((error) => logger.warn('Failed to open website', { error }))
     }
     contents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('http:') || url.startsWith('https:')) openWebsite(url)
+      if (resolveSafeExternalUrl(url)) openWebsite(url)
       return { action: 'deny' }
     })
     const navigate = (_event: Electron.Event, url: string) => {
@@ -655,29 +672,39 @@ export class MainWindowService extends BaseService {
       const { url } = details
 
       const oauthProviderUrls = [
-        'https://account.siliconflow.cn/oauth',
-        'https://cloud.siliconflow.cn/bills',
-        'https://cloud.siliconflow.cn/expensebill',
         'https://console.inferera.com/token',
-        'https://console.inferera.com/topup',
-        'https://console.inferera.com/statistics',
         'https://dash.302.ai/sso/login',
-        'https://dash.302.ai/charge',
         'https://maas.aiionly.com/login'
       ]
+      const billingUrls = [
+        'https://cloud.siliconflow.cn/bills',
+        'https://cloud.siliconflow.cn/expensebill',
+        'https://console.inferera.com/topup',
+        'https://console.inferera.com/statistics',
+        'https://dash.302.ai/charge'
+      ]
+      const matchesEntry = (entry: string) =>
+        url === entry || ['/', '?', '#'].some((separator) => url.startsWith(entry + separator))
+      const isOAuthPopup = oauthProviderUrls.some(matchesEntry)
 
-      if (oauthProviderUrls.some((link) => url.startsWith(link))) {
+      if (isOAuthPopup || billingUrls.some(matchesEntry)) {
         return {
           action: 'allow',
           overrideBrowserWindowOptions: {
             webPreferences: {
-              partition: getWebviewPartition(WebviewSecurityProfile.MiniApp)
+              partition: getWebviewPartition(WebviewSecurityProfile.MiniApp),
+              // Electron 45 needs the opener's sandbox mode to preserve postMessage callbacks.
+              sandbox: !isOAuthPopup,
+              nodeIntegration: false,
+              contextIsolation: true,
+              preload: undefined,
+              webviewTag: false
             }
           }
         }
       }
 
-      if (url.includes('http://file/')) {
+      if (/^https?:/i.test(url) && url.includes('http://file/')) {
         const fileName = url.replace('http://file/', '')
         if (!fileName) {
           logger.warn('Blocked empty file name in http://file/ URL')
@@ -713,12 +740,13 @@ export class MainWindowService extends BaseService {
       const isShowTray = preferenceService.get('app.tray.enabled')
       const isTrayOnClose = preferenceService.get('app.tray.on_close')
 
-      // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
-      if (!isShowTray || (isShowTray && !isTrayOnClose)) {
-        // 如果是Windows或Linux，直接退出
-        // mac按照系统默认行为，不退出
-        if (isWin || isLinux) {
-          return application.quit()
+      // Windows或Linux未开启托盘、设置了直接关闭或托盘不可用时，直接退出
+      if (isWin || isLinux) {
+        if (!isShowTray || (isShowTray && !isTrayOnClose) || application.get('TrayService').isActivated !== true) {
+          event.preventDefault()
+          // Let Electron finish cancelling this close before starting a new quit attempt.
+          setImmediate(() => application.quit())
+          return
         }
       }
 
@@ -742,9 +770,8 @@ export class MainWindowService extends BaseService {
         application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
       }
 
-      // Windows: minimize() refocuses previous window unlike hide(); opacity 0 suppresses animation.
       if (isWin) {
-        this.minimizeToTrayOnWindows(mainWindow)
+        this.hideToTrayOnWindows(mainWindow)
         return
       }
 
@@ -761,14 +788,16 @@ export class MainWindowService extends BaseService {
 
     const mainWindow = this.mainWindow
     if (mainWindow && !mainWindow.isDestroyed()) {
+      // Repair tray appearance before exposing the window; listeners cover out-of-band restores.
+      if (isWin) {
+        mainWindow.setOpacity(1)
+        mainWindow.setSkipTaskbar(false)
+      }
       if (mainWindow.isMinimized()) {
-        // Windows: restore opacity before restore() to avoid flash; listeners cover out-of-band restores.
-        if (isWin) {
-          mainWindow.setOpacity(1)
-          mainWindow.setSkipTaskbar(false)
-        }
         mainWindow.restore()
+        if (isWin) mainWindow.show()
         mainWindow.focus()
+        if (isMac) app.focus({ steal: true })
         this.pushMainWindowInitData(initData)
         return
       }
@@ -815,6 +844,7 @@ export class MainWindowService extends BaseService {
 
       mainWindow.show()
       mainWindow.focus()
+      if (isMac) app.focus({ steal: true })
       if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(false)
       }
@@ -850,9 +880,8 @@ export class MainWindowService extends BaseService {
           application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
         }
 
-        // Windows: minimize() refocuses previous window; opacity 0 suppresses animation.
         if (isWin) {
-          this.minimizeToTrayOnWindows(mainWindow)
+          this.hideToTrayOnWindows(mainWindow)
         } else {
           mainWindow.hide()
         }
@@ -865,18 +894,21 @@ export class MainWindowService extends BaseService {
     this.showMainWindow()
   }
 
-  private minimizeToTrayOnWindows(win: BrowserWindow) {
+  private hideToTrayOnWindows(win: BrowserWindow) {
+    // Retain the minimize step used for Windows focus handoff (#14370).
+    // Hide afterward to remove native window visibility in tray mode.
     win.setOpacity(0)
     win.setSkipTaskbar(true)
     win.minimize()
+    win.hide()
   }
 
   /**
-   * 引用文本到发起窗口（子窗口）或主窗口
-   * @param text 原始文本（未格式化）
-   * @param sourceWebContents 发起引用的 webContents（IPC 调用方）。当它属于一个
-   *   detached SubWindow（独立标签窗口）时，引用插入该子窗口自己的输入框，避免
-   *   内容总是落到主窗口；其余情况（主窗口、selection toolbar 等）保持发往主窗口。
+   * Quote text into the window that asked for it, or into the main window.
+   * @param text Raw, unformatted text
+   * @param sourceWebContents The IPC caller. When it belongs to a window with its own composer
+   *   (a detached SubWindow or a selection agent window), the quote lands in that composer;
+   *   every other caller (main window, selection toolbar, …) quotes into the main window.
    */
   public quoteToMainWindow(text: string, sourceWebContents?: Electron.WebContents): void {
     // Track the intended landing spot so a failure log names the right window:
@@ -886,9 +918,9 @@ export class MainWindowService extends BaseService {
     try {
       const sourceWindow = this.resolveQuoteSourceWindow(sourceWebContents)
       if (sourceWindow) {
-        quoteTarget = `sub window ${sourceWindow.id}`
-        // SubWindow already has a composer mounted with the same App_QuoteToMain
-        // listener, so sending here inserts the quote into the detached window.
+        quoteTarget = `source window ${sourceWindow.id}`
+        // The source window already has a composer mounted with the same App_QuoteToMain
+        // listener, so sending here inserts the quote into that window.
         // Deliberately no Dock-visibility side effects: quoting into a detached
         // window must not undo the user's close-to-tray choice (macOS keeps the
         // Dock icon hidden while Main stays hidden; the tray still shows the app).
@@ -915,16 +947,17 @@ export class MainWindowService extends BaseService {
   }
 
   /**
-   * Resolve the BrowserWindow that hosts a quote IPC sender, when it is a detached
-   * SubWindow. Returns null otherwise — including when that window is already
-   * destroyed — so callers need no further liveness check on the result.
+   * Resolve the BrowserWindow that hosts a quote IPC sender, when it is a window with its own
+   * composer. Returns null otherwise — including when that window is already destroyed — so
+   * callers need no further liveness check on the result.
    */
   private resolveQuoteSourceWindow(sourceWebContents?: Electron.WebContents): BrowserWindow | null {
     if (!sourceWebContents) return null
     const windowManager = application.get('WindowManager')
     const sourceWindowId = windowManager.getWindowIdByWebContents(sourceWebContents)
     if (!sourceWindowId) return null
-    if (windowManager.getWindowType(sourceWindowId) !== WindowType.SubWindow) return null
+    const sourceWindowType = windowManager.getWindowType(sourceWindowId)
+    if (sourceWindowType !== WindowType.SubWindow && sourceWindowType !== WindowType.SelectionAgent) return null
     const sourceWindow = windowManager.getWindow(sourceWindowId)
     return sourceWindow && !sourceWindow.isDestroyed() ? sourceWindow : null
   }

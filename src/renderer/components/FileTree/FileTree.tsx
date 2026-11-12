@@ -42,16 +42,17 @@ export function FileTree(props: FileTreeProps) {
     renameSlot,
     animationSlot,
     renderRowExtras,
+    renderRowDetail,
     getMenuItems,
     fileIcon,
     folderIcon,
+    showFolderIcons = true,
     renderList,
     stickyFolders = true,
     showSearch = false,
     searchKeyword = '',
     onSearchKeywordChange,
     searchPlaceholder,
-    searchToolbar,
     searchClearLabel,
     emptyState
   } = props
@@ -73,12 +74,14 @@ export function FileTree(props: FileTreeProps) {
         renameSlot={renameSlot}
         animationSlot={animationSlot}
         renderRowExtras={renderRowExtras}
+        renderRowDetail={renderRowDetail}
         getMenuItems={getMenuItems}
         fileIcon={fileIcon}
         folderIcon={folderIcon}
+        showFolderIcons={showFolderIcons}
       />
     ),
-    [renameSlot, animationSlot, renderRowExtras, getMenuItems, fileIcon, folderIcon]
+    [renameSlot, animationSlot, renderRowExtras, renderRowDetail, getMenuItems, fileIcon, folderIcon, showFolderIcons]
   )
 
   const defaultRenderList = useCallback(
@@ -146,7 +149,6 @@ export function FileTree(props: FileTreeProps) {
             </button>
           )}
         </div>
-        {searchToolbar}
       </div>
       <div className="min-h-0 flex-1">{accessibleTree}</div>
     </div>

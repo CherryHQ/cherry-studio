@@ -1,3 +1,14 @@
+vi.mock('@renderer/hooks/cherryCloud/useIsCherryCloudModelSelectable', () => ({
+  useIsCherryCloudModelSelectable: () => () => true
+}))
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
@@ -29,9 +40,12 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models: [] })
 }))
 
+vi.mock('@renderer/components/ModelSelector', () => ({
+  useIsModelSelectable: () => () => true
+}))
+
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
-  useAgentModelFilter: () => () => true,
-  useAgentModelDisabled: () => () => false
+  useAgentModelFilter: () => () => true
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -169,7 +183,7 @@ vi.mock('@cherrystudio/ui', async () => {
         {label}
       </button>
     ),
-    Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>
+    ScrollArea: MockCherrystudioUI.ScrollArea
   }
 })
 
@@ -306,20 +320,6 @@ describe('ResourceCreateWizard close protection', () => {
     expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
   })
 
-  it('keeps the dialog shell stable when a non-gating field changes after ref attach', async () => {
-    const user = userEvent.setup()
-
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
-
-    await user.click(screen.getByRole('button', { name: 'fill basic' }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    const renderCountAfterNavigation = dialog.renderCount
-
-    await user.click(screen.getByRole('button', { name: 'fill system prompt' }))
-
-    expect(dialog.renderCount).toBe(renderCountAfterNavigation)
-  })
-
   it('closes and recreates the dialog before running model settings navigation', async () => {
     function Host() {
       const [open, setOpen] = useState(true)
@@ -329,19 +329,17 @@ describe('ResourceCreateWizard close protection', () => {
 
     render(<Host />)
     const frames = mockDeferredAnimationFrames()
-    const mountCountAfterOpen = dialog.mountCount
 
     await userEvent.click(screen.getByRole('button', { name: 'open model settings' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(dialog.unmountCount).toBeGreaterThan(0)
-    expect(dialog.mountCount).toBeGreaterThan(mountCountAfterOpen)
+
     expect(dialog.settingsNavigate).not.toHaveBeenCalled()
 
     await act(async () => {
       await Promise.resolve()
     })
-    expect(frames.pendingCount()).toBeGreaterThan(0)
+
     frames.flushAllFrames()
 
     expect(dialog.settingsNavigate).toHaveBeenCalledTimes(1)

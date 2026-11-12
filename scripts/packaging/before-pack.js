@@ -6,7 +6,8 @@ const path = require('path')
 const { parse } = require('yaml')
 
 const { ensureLinuxNativeArtifact } = require('../linux-native/download')
-const { buildSelectionPanel } = require('../../native/darwin/build')
+const { buildSelectionPanel } = require('../../native/selection-panel/build')
+const { buildExternalApp } = require('../../native/external-app/build.cjs')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -106,7 +107,7 @@ async function prepareNativeModulesForElectron(
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
   const electronVersion = context.packager.config.electronVersion
-  const projectRoot = path.join(__dirname, '../..')
+  const projectRoot = context.packager.projectDir
 
   if (!platform || !electronVersion) {
     throw new Error(`Cannot resolve Electron rebuild target for ${platformName}-${arch}`)
@@ -124,17 +125,28 @@ async function prepareNativeModulesForElectron(
     return
   }
 
-  // electron-builder's automatic pnpm rebuild can retain the host Node prebuild.
-  // Force the ABI-sensitive addon from source for the exact target before app files are copied.
-  await rebuildFn({
-    buildPath: projectRoot,
-    electronVersion,
-    platform,
-    arch,
-    onlyModules: ['better-sqlite3'],
-    force: true,
-    buildFromSource: true
-  })
+  const moduleRoot = path.dirname(require.resolve('better-sqlite3/package.json', { paths: [projectRoot] }))
+  const sourceBinding = path.join(moduleRoot, 'build/Release/better_sqlite3.node')
+  fs.rmSync(sourceBinding, { force: true })
+  const forceBuild = process.env.npm_package_config_node_gyp_force_build
+  // better-sqlite3's binding.gyp skips compilation when a bundled N-API prebuild exists.
+  process.env.npm_package_config_node_gyp_force_build = '1'
+  try {
+    await rebuildFn({
+      buildPath: projectRoot,
+      electronVersion,
+      platform,
+      arch,
+      onlyModules: ['better-sqlite3'],
+      force: true,
+      buildFromSource: true
+    })
+    // The v13 loader prefers this file over build/Release, even after a source rebuild.
+    fs.copyFileSync(sourceBinding, path.join(moduleRoot, `prebuilds/${platform}-${arch}.node`))
+  } finally {
+    if (forceBuild === undefined) delete process.env.npm_package_config_node_gyp_force_build
+    else process.env.npm_package_config_node_gyp_force_build = forceBuild
+  }
 }
 exports.prepareNativeModulesForElectron = prepareNativeModulesForElectron
 
@@ -169,15 +181,35 @@ const assertPrebuiltPackages = (platform, arch) => {
 exports.assertPrebuiltPackages = assertPrebuiltPackages
 exports.keepPackages = keepPackages
 
+function prepareSystemSpeechHelper(
+  context,
+  buildNativeHelper = require('../../native/system-speech/scripts/build-native.cjs').buildNativeHelper
+) {
+  const platform = platformToArch[context.packager.platform.name]
+  const arch = Arch[context.arch]
+  if (platform === 'darwin') {
+    buildNativeHelper(arch, platform)
+  } else if (platform === 'win32') {
+    const config = context.packager.config.win
+    const destination = 'system-speech/cherry-system-speech.exe'
+    const resources = (config.extraResources ?? []).filter((resource) => resource.to !== destination)
+    if (arch === 'x64') {
+      buildNativeHelper(arch, platform)
+      resources.push({
+        from: 'native/system-speech/dist/native/win32-x64/cherry-system-speech.exe',
+        to: destination
+      })
+    }
+    config.extraResources = resources
+  }
+}
+exports.prepareSystemSpeechHelper = prepareSystemSpeechHelper
+
 const getNativeModuleFilters = (platform, arch) => {
   const keptPackages = keepPackages(platform, arch)
-  const nativeBindingTarget = `${platform}-${arch}${platform === 'win32' ? '-msvc' : platform === 'linux' ? '-gnu' : ''}`
   return [
     ...packages.filter((name) => !keptPackages.includes(name)).map((name) => `!**/node_modules/${name}/**`),
-    `!**/node_modules/@mariozechner/clipboard-!(${nativeBindingTarget})/**`,
-    `!**/node_modules/@koromix/koffi-!(${platform}-${arch})/**`,
-    `!**/node_modules/node-addon-require-builtin-!(${nativeBindingTarget})/**`,
-    `!**/node_modules/{node-pty,selection-hook}/prebuilds/!(${platform}-${arch})/**`
+    `!**/node_modules/selection-hook/prebuilds/!(${platform}-${arch})/**`
   ]
 }
 exports.getNativeModuleFilters = getNativeModuleFilters
@@ -187,8 +219,11 @@ exports.default = async function (context) {
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
 
+  prepareSystemSpeechHelper(context)
+
   await prepareNativeModulesForElectron(context)
   buildSelectionPanel({ platform, arch })
+  buildExternalApp({ platform, arch, packaging: true })
   assertPrebuiltPackages(platform, arch)
 
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)

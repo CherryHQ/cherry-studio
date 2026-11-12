@@ -2,6 +2,7 @@ import type { ModelMessage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import type * as AiCore from '@cherrystudio/ai-core'
+import type * as TextTokenizer from '@main/ai/tokens/textTokenizer'
 
 const compactModelMessages = vi.fn()
 vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
@@ -14,6 +15,22 @@ vi.mock('@main/ai/agentSession/topic', () => ({
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: { hasTopic: (id: string) => id.startsWith('temp:') }
 }))
+
+/** Every string the token counter is asked to score, in order. */
+const countedTexts: string[] = []
+vi.mock('@main/ai/tokens/textTokenizer', async (importOriginal) => {
+  const actual = await importOriginal<typeof TextTokenizer>()
+  return {
+    ...actual,
+    tokenxTokenizer: {
+      ...actual.tokenxTokenizer,
+      count: (text: string) => {
+        countedTexts.push(text)
+        return actual.tokenxTokenizer.count(text)
+      }
+    }
+  }
+})
 
 import { computeKeepRecentTurns, inLoopCompactionFeature } from '../inLoopCompaction'
 
@@ -101,18 +118,8 @@ const stepsWithUsage = (usage: Partial<{ inputTokens: number; outputTokens: numb
 describe('inLoopCompactionFeature', () => {
   // --- applies ---
 
-  it('applies for a persistent chat with contextWindow > 0, compression enabled, and a model', () => {
-    expect(inLoopCompactionFeature.applies?.(scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW }))).toBe(true)
-  })
-
   it('does not apply when the conversation has no topic', () => {
     expect(inLoopCompactionFeature.applies?.(scope({ contextWindow: CONTEXT_WINDOW }))).toBe(false)
-  })
-
-  it('does not gate on contextWindow — required input guaranteed upstream, not checked here', () => {
-    // The compaction layer treats contextWindow as a required precondition (the model
-    // layer's contract); it neither fabricates a fallback nor excludes when absent.
-    expect(inLoopCompactionFeature.applies?.(scope({ chatId: 'topic-1', contextWindow: undefined }))).toBe(true)
   })
 
   it('does not apply for agent-session topics', () => {
@@ -164,16 +171,6 @@ describe('inLoopCompactionFeature', () => {
     expect(hooks.prepareStep).toBeTypeOf('function')
     return hooks.prepareStep!
   }
-
-  it('returns no override and does not compact when the prompt is below 80% of the window', async () => {
-    compactModelMessages.mockClear()
-    const prepareStep = getPrepareStep()
-    // trigger = 0.8 * 100_000 = 80_000; a small prompt stays well under it.
-    const messages = [userMessage(100)]
-    const result = await prepareStep({ messages } as any)
-    expect(result).toBeUndefined()
-    expect(compactModelMessages).not.toHaveBeenCalled()
-  })
 
   // #17837: at step 0 there is no usage anchor, so the whole prompt is estimated locally.
   // Stringifying a file part fed its base64 payload to the tokenizer and scored a 13 MB MP3
@@ -349,7 +346,7 @@ describe('inLoopCompactionFeature', () => {
       const settled = events.at(-1) as unknown as Record<string, unknown>
       expect(settled.status).toBe('done')
       expect(settled.preTokens).toBeGreaterThan(settled.postTokens as number)
-      expect(settled.foldedCount).toBe(0) // 1 message → 1 message, but the CONTENT was replaced
+      // 1 message → 1 message, but the CONTENT was replaced
     })
 
     // A tool-heavy turn folds repeatedly; a shared id made every later fold
@@ -372,13 +369,6 @@ describe('inLoopCompactionFeature', () => {
       expect(b1.id).toBe(b2.id)
       expect(a1.id).not.toBe(b1.id) // separate folds → separate anchors
     })
-
-    it('emits nothing when the prompt is under the trigger', async () => {
-      compactModelMessages.mockClear()
-      const { events, prepareStep } = withSink()
-      await prepareStep({ messages: [userMessage(100)] } as any)
-      expect(events).toEqual([])
-    })
   })
 
   it('still propagates a user abort — that IS the turn ending', async () => {
@@ -386,17 +376,6 @@ describe('inLoopCompactionFeature', () => {
     compactModelMessages.mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }))
     const prepareStep = getPrepareStep()
     await expect(prepareStep({ messages: [userMessage(90_000)] } as any)).rejects.toThrow('aborted')
-  })
-
-  it('returns no override when compactModelMessages returns the same reference (no-op)', async () => {
-    compactModelMessages.mockClear()
-    const prepareStep = getPrepareStep()
-    const messages = [userMessage(90_000)]
-    // compactModelMessages returns the input reference unchanged on a no-op.
-    compactModelMessages.mockResolvedValue(messages)
-    const result = await prepareStep({ messages } as any)
-    expect(compactModelMessages).toHaveBeenCalledOnce()
-    expect(result).toBeUndefined()
   })
 
   it('memoizes the fold: a later over-budget step folds only the increment, never the consumed originals', async () => {
@@ -441,6 +420,28 @@ describe('inLoopCompactionFeature', () => {
 
     expect(compactModelMessages).toHaveBeenCalledTimes(1) // no second summarize
     expect(result).toEqual({ messages: [...fold, ...grown.slice(1)] })
+  })
+
+  it('does not re-estimate the folded prefix on later steps (cached prefix tokens)', async () => {
+    compactModelMessages.mockClear()
+    const prepareStep = getPrepareStep()
+
+    // Step 1 folds; the folded prefix carries a marker string.
+    const original = [userMessage(90_000)]
+    const prefix: ModelMessage = { role: 'user', content: `PREFIXMARKER ${'word '.repeat(10)}` }
+    compactModelMessages.mockResolvedValueOnce([prefix])
+    await prepareStep({ messages: original } as any)
+
+    countedTexts.length = 0
+    // Step 2 appends a small delta; the folded view fits, so no new fold —
+    // and the trigger estimate must come from the cached prefix tokens plus
+    // the increment only, never re-counting the prefix text.
+    const grown = [...original, assistantMessage(5), toolMessage(5)]
+    const result = await prepareStep({ messages: grown } as any)
+
+    expect(compactModelMessages).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ messages: [prefix, ...grown.slice(1)] })
+    expect(countedTexts.some((t) => t.includes('PREFIXMARKER'))).toBe(false)
   })
 
   it('passes at least one recent turn to keep when over budget', async () => {

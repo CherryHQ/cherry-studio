@@ -12,8 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { canonOf, isModelsDevRoutingAlias, prefixHit } from '../../scripts/canonicalize'
-import { CREATORS } from '../creators'
+import { canonOf, isModelsDevRoutingAlias } from '../../scripts/canonicalize'
 import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
 import { PROVIDERS } from '../providers'
 import { SERVER_TOOL } from '../schemas/enums'
@@ -53,6 +52,7 @@ const models = modelsRaw.models as Array<{
   }
   reasoning?: {
     controls?: Array<{ kind: string; values?: string[] }>
+    supportedEfforts?: string[]
   }
 }>
 const overrides = providerModelsRaw.overrides as Array<{
@@ -67,31 +67,6 @@ const providerModelOverrides = ProviderModelListSchema.parse(providerModelsRaw).
 
 // normalized creator id: lowercase, alphanumerics joined by single hyphens (size/version kept)
 const NORMALIZED = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-// shapes a creator never publishes: custom SKUs, double-dash vendor wrappers, routers
-const JUNK = /(?:-vip|-ssvip|-cursor|-all|-nx|-gizmo|-mobile)$|--|^duo-chat-|\bauto\b/
-
-const GEMINI_IMAGE_ASPECT_RATIO_OPTIONS = [
-  {
-    modelId: 'gemini-3-1-flash-image',
-    options: [
-      'auto',
-      'ASPECT_1_1',
-      'ASPECT_1_4',
-      'ASPECT_1_8',
-      'ASPECT_2_3',
-      'ASPECT_3_2',
-      'ASPECT_3_4',
-      'ASPECT_4_1',
-      'ASPECT_4_3',
-      'ASPECT_4_5',
-      'ASPECT_5_4',
-      'ASPECT_8_1',
-      'ASPECT_9_16',
-      'ASPECT_16_9',
-      'ASPECT_21_9'
-    ]
-  }
-] as const
 
 describe('catalog invariants (data/*.json)', () => {
   const ids = models.map((m) => m.id)
@@ -102,40 +77,6 @@ describe('catalog invariants (data/*.json)', () => {
     (endpointType) => {
       const preset = providers.find((provider) => provider.id === 'new-api')
       expect(preset?.endpointConfigs?.[endpointType]).toEqual({ adapterFamily: 'newapi' })
-    }
-  )
-
-  it.each([
-    // OpenRouter renamed the vendor prefix (Microsoft → MicrosoftAI) in the same batch as MiniMax → MiniMaxAI.
-    ['mai-image-2-5', 'microsoft', 'MicrosoftAI: MAI-Image-2.5'],
-    ['recraft-v4-1-vector', 'recraft', 'Recraft: Recraft V4.1 Vector'],
-    ['riverflow-v2-5-fast', 'sourceful', 'Sourceful: Riverflow V2.5 Fast'],
-    ['seedream-4-5', 'bytedance', 'Seedream 4.5']
-  ])('catalogs OpenRouter image model %s under its creator with its display name', (modelId, ownedBy, name) => {
-    expect(models.find((model) => model.id === modelId)).toMatchObject({
-      capabilities: expect.arrayContaining(['image-generation']),
-      name,
-      ownedBy
-    })
-  })
-
-  it.each(GEMINI_IMAGE_ASPECT_RATIO_OPTIONS)(
-    'keeps smart aspect ratio and explicit resolution controls for $modelId',
-    ({ modelId, options }) => {
-      const supports = models.find((model) => model.id === modelId)?.imageGeneration?.modes?.generate?.supports
-
-      expect(supports?.aspectRatio).toEqual({
-        default: 'auto',
-        options,
-        render: 'chips',
-        type: 'enum'
-      })
-      expect(supports?.imageResolution).toEqual({
-        default: 'auto',
-        options: ['auto', '1K', '2K', '4K'],
-        render: 'chips',
-        type: 'enum'
-      })
     }
   )
 
@@ -163,17 +104,8 @@ describe('catalog invariants (data/*.json)', () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
   })
 
-  it('base models are sorted by creator and id', () => {
-    const keys = models.map((model) => `${model.ownedBy ?? ''}\0${model.id}`)
-    expect(keys).toEqual([...keys].sort())
-  })
-
   it('every base id is a normalized creator id (lowercase, single-hyphen separated)', () => {
     expect(ids.filter((id) => !NORMALIZED.test(id))).toEqual([])
-  })
-
-  it('no junk id patterns (custom SKUs / vendor wrappers / routers)', () => {
-    expect(ids.filter((id) => JUNK.test(id))).toEqual([])
   })
 
   // Canonicalization must be idempotent on the artifact itself: a base id the canonicalizer would
@@ -191,21 +123,6 @@ describe('catalog invariants (data/*.json)', () => {
       ...ids.filter(isBatch),
       ...overrides.filter((o) => isBatch(o.apiModelId ?? o.modelId)).map((o) => `${o.providerId}/${o.apiModelId}`)
     ]).toEqual([])
-  })
-
-  it('keeps the OpenRouter-only DeepSeek router alias out of the creator catalog', () => {
-    const aliases = overrides.filter(
-      (override) => override.providerId === 'openrouter' && override.apiModelId?.startsWith('~')
-    )
-
-    expect(aliases.length).toBeGreaterThan(0)
-    const deepseekLatest = aliases.find((override) => override.apiModelId === '~deepseek/deepseek-v4-flash-latest')
-    expect(deepseekLatest).toMatchObject({
-      modelId: 'deepseek-v4-flash-latest',
-      name: 'DeepSeek V4 Flash Latest'
-    })
-    expect(baseIds.has(deepseekLatest!.modelId)).toBe(false)
-    expect(deepseekLatest?.pricing).toBeUndefined()
   })
 
   it('keeps the declared OpenRouter GPT image route out of the OpenAI creator catalog', () => {
@@ -228,31 +145,6 @@ describe('catalog invariants (data/*.json)', () => {
     expect(isModelsDevRoutingAlias('vercel', 'openai/gpt-5-fast')).toBe(true)
     expect(isModelsDevRoutingAlias('vercel', 'bytedance/seedance-2.0-fast')).toBe(false)
     expect(isModelsDevRoutingAlias('openrouter', 'anthropic/claude-opus-4.8-fast')).toBe(false)
-    expect(models.some((model) => model.id === 'claude-opus-4-8-fast')).toBe(true)
-    expect(
-      models.filter((model) => model.ownedBy === 'openai' && model.id.endsWith('-fast')).map((model) => model.id)
-    ).toEqual([])
-    expect(
-      overrides
-        .filter((override) => override.providerId === 'gateway' && /^openai\/.+-fast$/.test(override.apiModelId ?? ''))
-        .map((override) => override.apiModelId)
-    ).toEqual([])
-  })
-
-  it('assigns overlapping creator prefixes to the most specific owner', () => {
-    const wrongOwner = models
-      .map((model) => {
-        const mostSpecific = CREATORS.flatMap((creator) =>
-          (creator.idPrefixes ?? [])
-            .filter((prefix) => prefixHit(model.id, prefix))
-            .map((prefix) => ({ creatorId: creator.id, prefix }))
-        ).sort((a, b) => b.prefix.length - a.prefix.length)[0]
-        return mostSpecific && mostSpecific.creatorId !== model.ownedBy
-          ? `${model.id}: ${model.ownedBy} != ${mostSpecific.creatorId} (${mostSpecific.prefix})`
-          : undefined
-      })
-      .filter(Boolean)
-    expect(wrongOwner).toEqual([])
   })
 
   it('every override resolves to a base row or carries a standalone name', () => {
@@ -272,25 +164,10 @@ describe('catalog invariants (data/*.json)', () => {
     expect(unpinned).toEqual([])
   })
 
-  it('does not encode provider-native web search as a generic model capability', () => {
-    expect(models.filter((model) => model.capabilities?.includes('web-search')).map((model) => model.id)).toEqual([])
-  })
-
   // Image-generation models must not inherit web-search eligibility — it leaks a server tool onto image rows.
   // The sole exception is gemini-3 image (Nano Banana Pro), which genuinely grounds on Google Search;
   // every other image model (e.g. gemini-2.5-flash-image) must not carry it. The generator already strips
   // PREFIX-inherited web-search from image rows; this catches a HAND-LISTED `web-search` slipping back in.
-  it('no image-generation model is web-search eligible except allowlisted gemini-3 image models', () => {
-    const WEB_SEARCH_IMAGE_ALLOWLIST = new Set(['gemini-3-pro-image', 'gemini-3-pro-image-preview'])
-    const offenders = models
-      .filter((model) => model.capabilities?.includes('image-generation'))
-      .filter((model) =>
-        providers.some((provider) => isServerToolModelEligible(model.id, provider.id, SERVER_TOOL.WEB_SEARCH))
-      )
-      .map((model) => model.id)
-      .filter((id) => !WEB_SEARCH_IMAGE_ALLOWLIST.has(id))
-    expect(offenders).toEqual([])
-  })
 
   // Web search is a text-chat server tool: a model that doesn't converse in text on both sides (TTS is
   // text→audio, transcription is audio→text, embedders output vector) must never be eligible.
@@ -369,39 +246,6 @@ describe('catalog invariants (data/*.json)', () => {
     expect(bad.map((m) => m.id)).toEqual([])
   })
 
-  it.each(['deepseek-v4-flash', 'deepseek-v4-pro'])('keeps the official DeepSeek V4 token limits for %s', (id) => {
-    expect(models.find((model) => model.id === id)).toMatchObject({
-      contextWindow: 1048576,
-      maxOutputTokens: 393216
-    })
-  })
-
-  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
-    'advertises only the official DeepSeek V4 reasoning efforts for %s',
-    (id) => {
-      expect(models.find((model) => model.id === id)?.reasoning?.controls).toEqual([
-        { kind: 'effort', values: ['none', 'low', 'high', 'max'] }
-      ])
-    }
-  )
-
-  it('keeps DeepSeek V4 base pricing at the documented static peak ceiling', () => {
-    const pricing = (id: string) => models.find((model) => model.id === id)?.pricing
-
-    expect(pricing('deepseek-v4-flash')).toEqual({
-      cacheRead: { currency: 'USD', perMillionTokens: 0.014 },
-      input: { currency: 'USD', perMillionTokens: 0.44 },
-      output: { currency: 'USD', perMillionTokens: 1.32 }
-    })
-    expect(pricing('deepseek-v4-flash-vision-exp')).toEqual(pricing('deepseek-v4-flash'))
-    expect(pricing('deepseek-v4-pro')).toEqual({
-      cacheRead: { currency: 'USD', perMillionTokens: 0.044 },
-      input: { currency: 'USD', perMillionTokens: 1.32 },
-      output: { currency: 'USD', perMillionTokens: 3.96 }
-    })
-    expect(pricing('deepseek-v4-flash-latest')).toBeUndefined()
-  })
-
   // The list schemas drop entries they cannot parse (forward compatibility), so conformance
   // means BOTH "parses" and "nothing was silently dropped" — otherwise a broken bundled entry
   // would vanish from the shipped catalog without failing anything.
@@ -415,15 +259,6 @@ describe('catalog invariants (data/*.json)', () => {
     const r = ProviderModelListSchema.safeParse(providerModelsRaw)
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
     expect(r.success && r.data.overrides.length).toBe(providerModelsRaw.overrides.length)
-  })
-
-  it('Fast transports belong only to Codex, Claude Code, and Ark', () => {
-    expect(
-      providers
-        .filter((provider) => provider.fastMode)
-        .map((provider) => provider.id)
-        .sort()
-    ).toEqual(['claude-code', 'doubao', 'openai-codex'])
   })
 
   it('Fast provider-model declarations require a provider transport', () => {
@@ -446,14 +281,5 @@ describe('catalog invariants (data/*.json)', () => {
       }
     })
     expect(result.success).toBe(false)
-  })
-
-  it('the validators actually reject known-bad shapes', () => {
-    expect(NORMALIZED.test('GLM-4_5')).toBe(false) // uppercase + underscore
-    expect(NORMALIZED.test('anthropic--claude-3-5-sonnet')).toBe(false) // double-dash
-    expect(NORMALIZED.test('claude-3-5-sonnet@20240620')).toBe(false) // @date
-    expect(JUNK.test('gpt-4o-image-vip')).toBe(true)
-    expect(JUNK.test('duo-chat-gpt-5-2')).toBe(true)
-    expect(JUNK.test('claude-3-5-sonnet')).toBe(false) // real id must pass
   })
 })

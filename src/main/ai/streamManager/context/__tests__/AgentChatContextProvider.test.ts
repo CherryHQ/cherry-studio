@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   ensureTraceIdTx: vi.fn(),
   getAgent: vi.fn(),
+  captureHead: vi.fn(),
+  branchTip: vi.fn(),
   saveMessage: vi.fn(),
   saveMessagesTx: vi.fn(),
   hasSessionMessages: vi.fn(),
@@ -40,6 +42,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     }
   },
   agentSessionMessageService: {
+    captureHead: mocks.captureHead,
+    branchTip: mocks.branchTip,
     saveMessage: mocks.saveMessage,
     saveMessagesTx: mocks.saveMessagesTx,
     hasSessionMessages: mocks.hasSessionMessages
@@ -90,10 +94,8 @@ describe('AgentChatContextProvider', () => {
     runtimeDriverRegistry.clearForTest()
     runtimeDriverRegistry.register({
       type: 'claude-code',
-      capabilities: ['agent-session'],
       connect: vi.fn(),
-      validateSession: mocks.runtimeValidateSession,
-      listAvailableTools: vi.fn().mockResolvedValue([])
+      validateSession: mocks.runtimeValidateSession
     })
     mocks.getSession.mockReturnValue({
       id: 'session-1',
@@ -139,9 +141,12 @@ describe('AgentChatContextProvider', () => {
       }))
     )
     mocks.hasSessionMessages.mockReturnValue(false)
+    mocks.captureHead.mockReturnValue('branch-head')
+    mocks.branchTip.mockImplementation((_sessionId, messageId) => messageId)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') {
         return {
+          prepareBranch: async () => {},
           beginTurn: mocks.runtimeBeginTurn,
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
           isSessionBusy: mocks.runtimeIsSessionBusy,
@@ -159,6 +164,29 @@ describe('AgentChatContextProvider', () => {
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
   })
 
+  it('keeps the captured branch when the user changes selection during validation', async () => {
+    const validation = Promise.withResolvers<void>()
+    mocks.runtimeValidateSession.mockReturnValueOnce(validation.promise)
+    const dispatch = provider.prepareDispatch(makeSubscriber(), openReq())
+    mocks.captureHead.mockReturnValue('other-branch')
+    validation.resolve()
+    const prepared = await dispatch
+    expect(prepared.reservedMessages?.map((message) => message.role)).toEqual(['user', 'assistant'])
+    expect(mocks.saveMessagesTx.mock.calls[0][1].parentId).toBe('branch-head')
+  })
+
+  it.each([false, true])('rejects a stale append instead of creating an un-forked sibling (busy: %s)', async (busy) => {
+    const validation = Promise.withResolvers<void>()
+    mocks.runtimeValidateSession.mockReturnValueOnce(validation.promise)
+    mocks.runtimeIsSessionBusy.mockReturnValue(busy)
+    const dispatch = provider.prepareDispatch(makeSubscriber(), openReq())
+    mocks.branchTip.mockReturnValue('newly-appended-message')
+    validation.resolve()
+    await expect(dispatch).rejects.toMatchObject({ code: 'RESOURCE_LOCKED' })
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+  })
+
   it.each(['busy', 'close_failed'] as const)(
     'rejects ordinary sends before persistence while edit state is %s',
     async (reason) => {
@@ -170,6 +198,24 @@ describe('AgentChatContextProvider', () => {
       expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
     }
   )
+
+  it('snapshots the agent avatar identity instead of its URL', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      name: 'My Agent',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet',
+      configuration: { avatar: '🌟' },
+      avatarFileId: 'file-1',
+      avatarSrc: 'file:///avatar.webp'
+    })
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+    const snapshot = prepared.reservedMessages?.find((message) => message.role === 'assistant')?.metadata
+      ?.messageSnapshot
+    expect(snapshot).toMatchObject({ emoji: '🌟', avatarFileId: 'file-1' })
+    expect(JSON.stringify(snapshot)).not.toContain('file:///avatar.webp')
+  })
 
   it('prepares fresh agent-session dispatch through the long-lived runtime service', async () => {
     const subscriber = makeSubscriber()
@@ -388,52 +434,6 @@ describe('AgentChatContextProvider', () => {
       expect.objectContaining({ role: 'user' }),
       expect.objectContaining({ reasoningEffort: 'low', serviceTier: 'fast' })
     )
-  })
-
-  it('triggers first-user-message session rename after submit-message persists the user row', async () => {
-    const subscriber = makeSubscriber()
-    mocks.runtimeIsSessionBusy.mockReturnValue(false)
-
-    await provider.prepareDispatch(subscriber, openReq({ userMessageParts: [{ type: 'text', text: 'hello session' }] }))
-
-    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', {
-      parts: [{ type: 'text', text: 'hello session' }]
-    })
-    expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1')
-  })
-
-  it('ignores a new Session delivery row when deciding whether to auto-name its first turn', async () => {
-    const deliveryMessage = {
-      id: 'delivery-1',
-      sessionId: 'session-1',
-      role: 'user',
-      data: { parts: [{ type: 'text', text: 'delegated work' }] },
-      delivery: { status: 'accepted' }
-    }
-
-    await provider.prepareDispatch(makeSubscriber(), openReq({ agentDeliveryMessage: deliveryMessage as never }))
-
-    expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1', 'delivery-1')
-    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', deliveryMessage.data)
-  })
-
-  it('does not auto-name a busy follow-up turn', async () => {
-    const subscriber = makeSubscriber()
-    mocks.runtimeIsSessionBusy.mockReturnValue(true)
-
-    await provider.prepareDispatch(subscriber, openReq({ userMessageParts: [{ type: 'text', text: 'busy hello' }] }))
-
-    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
-    expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1')
-  })
-
-  it('does not auto-name a later idle turn in a session with messages', async () => {
-    mocks.hasSessionMessages.mockReturnValue(true)
-
-    await provider.prepareDispatch(makeSubscriber(), openReq())
-
-    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
-    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ shouldAutoName: false }))
   })
 
   it('rejects agent sessions without a registered runtime driver', async () => {

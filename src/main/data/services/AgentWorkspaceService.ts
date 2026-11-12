@@ -13,6 +13,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { pinService } from '@data/services/PinService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -63,6 +64,21 @@ function normalizeWorkspaceName(rawName: string): string {
 }
 
 export class AgentWorkspaceService {
+  relocateSystemWorkspaceTx(tx: DbOrTx, id: string, oldPath: string, newPath: string): void {
+    const result = tx
+      .update(agentWorkspaceTable)
+      .set({ path: newPath, updatedAt: agentWorkspaceTable.updatedAt })
+      .where(
+        and(
+          eq(agentWorkspaceTable.id, id),
+          eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM),
+          eq(agentWorkspaceTable.path, oldPath)
+        )
+      )
+      .run()
+    if (result.changes !== 1) throw new Error('System workspace changed during relocation')
+  }
+
   listStorageClaims(): { path: string; type: string }[] {
     return application
       .get('DbService')
@@ -364,6 +380,7 @@ export class AgentWorkspaceService {
       .returning({ id: agentWorkspaceTable.id })
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
+    pinService.purgeForEntityTx(tx, 'workspace', id)
   }
 
   /**

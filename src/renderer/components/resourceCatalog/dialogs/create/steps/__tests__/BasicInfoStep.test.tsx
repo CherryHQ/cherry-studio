@@ -1,5 +1,11 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,17 +54,17 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShare
 
 function Harness({
   modelId = null,
-  runtimeSelectable = false
+  showAgentFields = false
 }: {
   modelId?: UniqueModelId | null
-  runtimeSelectable?: boolean
+  showAgentFields?: boolean
 }) {
   const form = useForm<ResourceCreateWizardFormValues>({
     defaultValues: {
       avatar: '💬',
       name: '',
       description: '',
-      agentType: 'claude-code',
+      agentType: 'pi-durable',
       permissionMode: 'auto',
       modelId,
       prompt: '',
@@ -69,7 +75,7 @@ function Harness({
 
   return (
     <Form {...form}>
-      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" runtimeSelectable={runtimeSelectable} />
+      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" showAgentFields={showAgentFields} />
       <output data-testid="permission-mode">{form.watch('permissionMode')}</output>
     </Form>
   )
@@ -97,65 +103,17 @@ describe('BasicInfoStep', () => {
     )
   })
 
-  it('integrates the avatar picker into the name field', () => {
-    render(<Harness />)
-
-    expect(screen.getByText('library.config.dialogs.create.avatar_name_label')).toBeVisible()
-    const avatarButton = screen.getByRole('button', { name: 'library.config.dialogs.create.avatar_aria' })
-    const inputGroup = avatarButton.closest('[data-slot="input-group"]')
-
-    expect(inputGroup).not.toBeNull()
-    expect(
-      within(inputGroup as HTMLElement).getByPlaceholderText('library.config.dialogs.create.name_placeholder')
-    ).toBeVisible()
-  })
-
-  it('offers Claude and Pi for creation without exposing DeepSeek Harness', () => {
-    render(<Harness runtimeSelectable />)
-
-    expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeVisible()
-    expect(screen.queryByRole('img', { name: /runtime\.immutable_hint/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /runtime.option.claude_code/ })).toBeChecked()
-    expect(screen.getByRole('radio', { name: /runtime.option.pi/ })).not.toBeChecked()
-    expect(screen.queryByRole('radio', { name: /runtime.option.dsh/ })).not.toBeInTheDocument()
-    expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
-  })
-
-  it('uses smart approval when switching between Claude and Pi', async () => {
-    const user = userEvent.setup()
-    render(<Harness runtimeSelectable />)
-
-    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
-      'agent.settings.tooling.permissionMode.auto.title'
-    )
-
-    await user.click(screen.getByRole('radio', { name: /runtime.option.pi/ }))
-
-    expect(screen.getByRole('radio', { name: /runtime.option.pi/ })).toBeChecked()
-    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
-      'agent.settings.tooling.permissionMode.auto.title'
-    )
-    expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
-
-    await user.click(screen.getByRole('radio', { name: /runtime.option.claude_code/ }))
-
-    expect(screen.getByRole('radio', { name: /runtime.option.claude_code/ })).toBeChecked()
-    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
-      'agent.settings.tooling.permissionMode.auto.title'
-    )
-    expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
-  })
-
-  it('still displays the runtime summary for an existing Pi agent', () => {
+  it.each(['pi', 'claude-code'] as const)('still displays the runtime summary for an existing %s agent', (runtime) => {
     function ExistingAgentRuntime() {
       const { t } = useTranslation()
-      return <AgentRuntimeSummary value="pi" t={t} />
+      return <AgentRuntimeSummary value={runtime} t={t} />
     }
 
     render(<ExistingAgentRuntime />)
 
-    expect(screen.getByText('library.config.agent.field.runtime.option.pi')).toBeVisible()
-    expect(screen.getByText('library.config.agent.field.runtime.option_description.pi')).toBeVisible()
+    const key = runtime === 'pi' ? 'pi' : 'claude_code'
+    expect(screen.getByText(`library.config.agent.field.runtime.option.${key}`)).toBeVisible()
+    expect(screen.getByText(`library.config.agent.field.runtime.option_description.${key}`)).toBeVisible()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
 

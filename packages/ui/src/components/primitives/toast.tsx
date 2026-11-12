@@ -20,6 +20,7 @@ export interface ToastConfig {
   secondaryAction?: ToastAction
   title?: React.ReactNode
   description?: React.ReactNode
+  details?: string
   icon?: React.ReactNode
   key?: string | number
   timeout?: number
@@ -31,7 +32,7 @@ export interface ToastConfig {
 
 export interface LoadingToastConfig<T = unknown> extends ToastConfig {
   onError?: (error: unknown) => void
-  promise: Promise<T>
+  promise?: Promise<T>
 }
 
 export interface ToastRecord extends ToastConfig {
@@ -41,6 +42,7 @@ export interface ToastRecord extends ToastConfig {
 
 export interface ToastLabels {
   close: string
+  details?: string
   error: React.ReactNode
   errorDescription: React.ReactNode
   loading: React.ReactNode
@@ -61,6 +63,7 @@ export type ToastStore = ReturnType<typeof createToastStore>
 const DEFAULT_TIMEOUT = 3000
 const DEFAULT_TOAST_LABELS: ToastLabels = {
   close: 'Close',
+  details: 'View details',
   error: 'Error',
   errorDescription: 'An error occurred',
   loading: 'Loading...',
@@ -220,6 +223,7 @@ const createToast = (type: StaticToastType, store = defaultToastStore) => {
   return (arg: ToastConfig | string): string => {
     const config = typeof arg === 'string' ? { title: arg } : arg
     const key = getToastKey(config.key)
+    store.unsetLoadingToken(key)
 
     upsertToast(
       {
@@ -257,7 +261,7 @@ const createLoadingToast =
     )
 
     promise
-      .then((result) => {
+      ?.then((result) => {
         if (store.getLoadingToken(key) !== token) {
           return result
         }
@@ -380,6 +384,7 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
         // so hover/click reach the items instead of the window-drag hit test (Electron).
         'pointer-events-auto flex w-[min(420px,calc(100vw-2rem))] items-start gap-3 [-webkit-app-region:no-drag]',
         'rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-lg',
+        action && 'w-[min(480px,calc(100vw-2rem))]',
         toast.className
       )}
       style={toast.style}
@@ -389,7 +394,7 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
         {toast.title && (
           <div
             title={typeof toast.title === 'string' ? toast.title : undefined}
-            className="min-h-7 truncate py-1 text-sm leading-5 font-medium">
+            className={cn('min-h-7 py-1 text-sm leading-5 font-medium', toast.details ? 'break-words' : 'truncate')}>
             {toast.title}
           </div>
         )}
@@ -402,6 +407,14 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
             )}>
             {toast.description}
           </div>
+        )}
+        {toast.details && (
+          <details className="mt-1 text-xs text-muted-foreground" onClick={(event) => event.stopPropagation()}>
+            <summary className="cursor-pointer" title={toast.details}>
+              {labels.details ?? DEFAULT_TOAST_LABELS.details}
+            </summary>
+            <pre className="mt-1 max-h-40 overflow-auto font-mono break-words whitespace-pre-wrap">{toast.details}</pre>
+          </details>
         )}
       </div>
       {secondaryAction && (
@@ -462,12 +475,13 @@ export const ToastViewport = ({
   const viewportRef = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
-  const expanded = hovered || focused
+  const interacting = hovered || focused
+  const expanded = interacting && toasts.length > 1
 
   useEffect(() => {
-    store.setPaused(expanded && toasts.length > 0)
+    store.setPaused(interacting && toasts.length > 0)
     return () => store.setPaused(false)
-  }, [expanded, store, toasts.length])
+  }, [interacting, store, toasts.length])
 
   useEffect(() => {
     setFocused(viewportRef.current?.contains(document.activeElement) ?? false)
@@ -486,7 +500,9 @@ export const ToastViewport = ({
       aria-label="notifications"
       className={cn(
         'pointer-events-auto fixed top-5 left-1/2 z-[10000] -translate-x-1/2 [-webkit-app-region:no-drag]',
-        expanded ? 'flex max-h-[calc(100vh-2.5rem)] flex-col items-center gap-2 overflow-y-auto p-2' : 'grid pb-4'
+        expanded
+          ? 'flex max-h-[calc(100vh-2.5rem)] flex-col items-center gap-2 overflow-y-auto px-4 pt-2 pb-6'
+          : 'grid pb-4'
       )}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}

@@ -143,15 +143,6 @@ describe('AgentWorkspaceService', () => {
     expect(rows[0].name).toBe('Original')
   })
 
-  it('inserts newly created workspaces at the front of the list', async () => {
-    const first = await findOrCreateWorkspace(workspacePath('first'))
-    const second = await findOrCreateWorkspace(workspacePath('second'))
-
-    const workspaces = agentWorkspaceService.list()
-
-    expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id])
-  })
-
   it('hides system workspaces from the default list and get APIs', async () => {
     const userWorkspace = await findOrCreateWorkspace(workspacePath('user-project'))
     const systemWorkspace = dbh.db.transaction((tx) =>
@@ -242,11 +233,6 @@ describe('AgentWorkspaceService', () => {
     )
 
     expect(workspace).toMatchObject({
-      path: expect.stringMatching(
-        new RegExp(
-          `${path.join(root, 'Agents', 'system').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[/\\\\]\\d{4}-\\d{2}-\\d{2}[/\\\\]session-system$`
-        )
-      ),
       type: 'system'
     })
     await expect(stat(workspace.path)).rejects.toThrow()

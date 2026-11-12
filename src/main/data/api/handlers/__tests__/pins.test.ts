@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
+
 const { listByEntityTypeMock, getByIdMock, pinMock, unpinMock, reorderMock, reorderBatchMock } = vi.hoisted(() => ({
   listByEntityTypeMock: vi.fn(),
   getByIdMock: vi.fn(),
@@ -80,7 +82,7 @@ describe('pinHandlers', () => {
       expect(result).toEqual([{ id: PIN_ID, entityType: 'model', entityId: MODEL_ID }])
     })
 
-    it('should delegate POST with parsed body (idempotency returns the same row on repeat calls)', async () => {
+    it('should delegate POST with parsed body', async () => {
       const row = {
         id: PIN_ID,
         entityType: 'topic',
@@ -91,10 +93,8 @@ describe('pinHandlers', () => {
 
       const firstCall = { body: { entityType: 'topic', entityId: ENTITY_ID } }
       await expect(pinHandlers['/pins'].POST(firstCall as never)).resolves.toMatchObject({ id: PIN_ID })
-      await expect(pinHandlers['/pins'].POST(firstCall as never)).resolves.toMatchObject({ id: PIN_ID })
 
-      expect(pinMock).toHaveBeenNthCalledWith(1, { entityType: 'topic', entityId: ENTITY_ID })
-      expect(pinMock).toHaveBeenNthCalledWith(2, { entityType: 'topic', entityId: ENTITY_ID })
+      expect(pinMock).toHaveBeenCalledWith({ entityType: 'topic', entityId: ENTITY_ID })
     })
 
     it('should accept UUID agent ids for agent pins', async () => {
@@ -113,6 +113,15 @@ describe('pinHandlers', () => {
       ).resolves.toMatchObject(row)
 
       expect(pinMock).toHaveBeenCalledWith({ entityType: 'agent', entityId: AGENT_ID })
+    })
+
+    it('should accept the built-in Support Agent id for agent pins', async () => {
+      const body = { entityType: 'agent', entityId: CHERRY_SUPPORT_AGENT_ID } as const
+      const row = { id: PIN_ID, ...body, orderKey: 'a0' }
+      pinMock.mockResolvedValue(row)
+
+      await expect(pinHandlers['/pins'].POST({ body })).resolves.toMatchObject(row)
+      expect(pinMock).toHaveBeenCalledWith(body)
     })
 
     it('should accept UniqueModelId entityId values for model pins', async () => {

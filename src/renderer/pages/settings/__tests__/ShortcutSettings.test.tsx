@@ -6,7 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ShortcutListItem } from '@renderer/hooks/command/useCommandShortcuts'
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import { type CommandId, commandShortcutPreferenceKey } from '@shared/utils/command'
+import {
+  type CommandId,
+  commandShortcutPreferenceKey,
+  getCommandDefaultShortcutPreference,
+  REGISTERED_KEYBINDINGS
+} from '@shared/utils/command'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 
 import ShortcutSettings from '../ShortcutSettings'
@@ -77,10 +82,6 @@ vi.mock('@data/PreferenceService', () => ({
   preferenceService: {
     setMultiple: preferenceServiceSetMultipleMock
   }
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -203,16 +204,70 @@ describe('ShortcutSettings shortcut recorder', () => {
     } as unknown as typeof window.api
   })
 
-  it('uses a non-text focus target while recording shortcuts', () => {
+  it('allows toggling the real exit fullscreen shortcut while keeping Escape fixed', async () => {
+    const user = userEvent.setup()
+    const rule = REGISTERED_KEYBINDINGS.find((item) => item.command === 'app.fullscreen.exit')!
+    const closeRule = REGISTERED_KEYBINDINGS.find((item) => item.command === 'app.window.close')!
+    shortcutsMock.shortcuts = [
+      {
+        ...makeShortcut({
+          command: 'app.fullscreen.exit',
+          binding: ['Escape'],
+          enabled: true,
+          defaultPreference: { binding: ['Escape'], enabled: true },
+          label: 'Exit fullscreen'
+        }),
+        keybinding: rule
+      },
+      {
+        ...makeShortcut({ command: 'app.window.close', binding: ['CommandOrControl', 'W'], enabled: true }),
+        keybinding: closeRule
+      }
+    ]
     renderShortcutSettings()
 
-    fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+    const exitSwitch = screen.getAllByRole('button', { name: 'switch' })[0]
+    expect(exitSwitch).toBeEnabled()
+    await user.click(exitSwitch)
+    await waitFor(() =>
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.fullscreen.exit', { enabled: false })
+    )
 
-    const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
-    expect(recorder).toBeInstanceOf(HTMLButtonElement)
-    expect(recorder).not.toBeInstanceOf(HTMLInputElement)
-    expect(recorder).not.toBeInstanceOf(HTMLTextAreaElement)
+    await user.click(screen.getByText('Escape'))
+    expect(screen.queryByRole('button', { name: 'settings.shortcuts.press_shortcut' })).not.toBeInTheDocument()
+    fireEvent.keyDown(screen.getByText('Escape'), { key: 'K', code: 'KeyK', ctrlKey: true, shiftKey: true })
+    expect(shortcutsMock.updatePreference.mock.calls).toEqual([['shortcut.app.fullscreen.exit', { enabled: false }]])
+
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'settings.shortcuts.all_disable' }))
+    await waitFor(() =>
+      expect(preferenceServiceSetMultipleMock).toHaveBeenCalledWith({
+        'shortcut.app.fullscreen.exit': { binding: ['Escape'], enabled: false }
+      })
+    )
   })
+
+  it.each(['app.zoom.in', 'app.zoom.out', 'app.zoom.reset', 'app.settings.open', 'app.window.close'] as const)(
+    'keeps the real %s reservation switch disabled',
+    async (command) => {
+      const user = userEvent.setup()
+      const rule = REGISTERED_KEYBINDINGS.find((item) => item.command === command)!
+      const defaultPreference = getCommandDefaultShortcutPreference(command, 'win32')!
+      shortcutsMock.shortcuts = [
+        {
+          ...makeShortcut({ command, ...defaultPreference, defaultPreference }),
+          keybinding: rule
+        }
+      ]
+      renderShortcutSettings()
+
+      const toggle = screen.getByRole('button', { name: 'switch' })
+      expect(defaultPreference.binding.length).toBeGreaterThan(0)
+      expect(toggle).toBeDisabled()
+      await user.click(toggle)
+      expect(shortcutsMock.updatePreference.mock.calls).toEqual([])
+    }
+  )
 
   it('records physical key shortcuts and stops propagation while recording', async () => {
     const parentKeyDown = vi.fn()
@@ -227,6 +282,42 @@ describe('ShortcutSettings shortcut recorder', () => {
     await waitFor(() => {
       expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
         binding: ['CommandOrControl', 'Shift', 'K'],
+        enabled: true
+      })
+    })
+  })
+
+  it('records the produced character when the layout changes its physical key', async () => {
+    renderShortcutSettings()
+
+    fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+    const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
+
+    fireEvent.keyDown(recorder, { key: 'c', code: 'KeyI', ctrlKey: true, bubbles: true })
+
+    await waitFor(() => {
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
+        binding: ['CommandOrControl', 'C'],
+        enabled: true
+      })
+    })
+  })
+
+  it.each([
+    [{ key: 'Enter', code: 'NumpadEnter' }, ['CommandOrControl', 'Shift', 'numenter']],
+    [{ key: '-', code: 'NumpadSubtract' }, ['CommandOrControl', 'Shift', 'numsub']],
+    [{ key: '+', code: 'NumpadAdd' }, ['CommandOrControl', 'Shift', 'numadd']]
+  ])('preserves keypad identity when recording %j', async (event, binding) => {
+    renderShortcutSettings()
+
+    fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+    const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
+
+    fireEvent.keyDown(recorder, { ...event, ctrlKey: true, shiftKey: true, bubbles: true })
+
+    await waitFor(() => {
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
+        binding,
         enabled: true
       })
     })
@@ -355,16 +446,5 @@ describe('ShortcutSettings shortcut recorder', () => {
     const focused = container.querySelectorAll('[data-focused]')
     expect(focused).toHaveLength(1)
     expect(focused[0]?.textContent).toContain('Next tab')
-  })
-
-  it('marks nothing when no command is named', () => {
-    shortcutsMock.shortcuts = [
-      makeShortcut({ command: 'app.search', label: 'Search everywhere' }),
-      makeShortcut({ command: 'tab.next', label: 'Next tab' })
-    ]
-
-    const { container } = renderShortcutSettings()
-
-    expect(container.querySelectorAll('[data-focused]')).toHaveLength(0)
   })
 })

@@ -5,10 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle'
+import { KeyedMutex } from '@shared/utils/async'
 
+import { FileProcessingWaitManager } from '../../ingestion/FileProcessingWaitManager'
 import { KnowledgeService } from '../../KnowledgeService'
 import { createDeleteSubtreeJobHandler } from '../deleteSubtreeJobHandler'
 import type { KnowledgeDeleteSubtreePayload } from '../jobTypes'
@@ -66,6 +67,7 @@ describe('knowledge deletion transaction and job retry', () => {
       .values({
         id: BASE_ID,
         name: 'KB',
+        orderKey: 'a0',
         status: 'completed',
         chunkSize: 1024,
         chunkOverlap: 200
@@ -205,7 +207,7 @@ describe('knowledge deletion transaction and job retry', () => {
   for (const parentStatus of ['processing', 'failed'] as const) {
     it(`retries the actual delete-subtree handler and completes its ${parentStatus} parent`, async () => {
       if (parentStatus === 'failed') setParentFailed()
-      const handler = createDeleteSubtreeJobHandler(new KeyedMutex())
+      const handler = createDeleteSubtreeJobHandler(new KeyedMutex(), new FileProcessingWaitManager())
       failRollup()
 
       await expect(handler.execute(createContext(1))).rejects.toThrow(ROLLUP_ERROR)
@@ -219,7 +221,7 @@ describe('knowledge deletion transaction and job retry', () => {
   }
 
   it('keeps deleting rows discoverable by startup recovery and completes the recovered job', async () => {
-    const handler = createDeleteSubtreeJobHandler(new KeyedMutex())
+    const handler = createDeleteSubtreeJobHandler(new KeyedMutex(), new FileProcessingWaitManager())
     failRollup()
     await expect(handler.execute(createContext(1))).rejects.toThrow(ROLLUP_ERROR)
     clearFault()

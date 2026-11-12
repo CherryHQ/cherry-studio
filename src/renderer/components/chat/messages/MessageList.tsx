@@ -21,7 +21,6 @@ import MessageAnchorLine from './list/MessageAnchorLine'
 import { MessageCaptureLeaseProvider, useMessageCaptureLeases } from './list/MessageCaptureLeaseContext'
 import MessageGroup from './list/MessageGroup'
 import { MessageListSearch } from './list/MessageListSearch'
-import MessageNavigation from './list/MessageNavigation'
 import {
   MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
   MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX,
@@ -38,12 +37,8 @@ import {
   useMessageListUi,
   useMessageRenderConfig
 } from './MessageListProvider'
-import { defaultMessageRenderConfig } from './types'
-import {
-  getLatestAssistantGroupKey,
-  getMessageGroupKey,
-  getOwningUserMessageIdByAssistantId
-} from './utils/messageGroupKey'
+import { CHAT_CAPTURE_BACKDROP_VARIABLE, defaultMessageRenderConfig } from './types'
+import { getLatestAssistantGroupKey, getMessageGroupKey } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
@@ -52,16 +47,13 @@ import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
 const MessageOutline = lazy(() => import('./frame/MessageOutline'))
-/** Chat content's side padding — matches NarrowLayout's `px-6`, so the inline
- * override is invisible until the rail gutter adds onto it. */
-const CHAT_SIDE_PADDING_PX = 24
 /** Max gutter the content yields on both sides as the column widens. The total
  * (base + max = 48px) exactly covers the rail's 32px hit strip + its margin, so
  * hover growth never touches the content nor does content enter the strip. */
 const RAIL_GUTTER_MAX_PX = 24
-/** Below this chat-column width the content keeps its full width and the rail is gone. */
+/** Below this chat-column width the gutter is zero; the rail keeps its 8px hit strip. */
 const RAIL_GUTTER_START_PX = 700
-/** Width range over which the gutter grows in and the rail fades in — a smooth ramp. */
+/** Width range over which the gutter and rail hit strip grow smoothly. */
 const RAIL_GUTTER_FADE_PX = 120
 const AFTER_MESSAGES = { key: 'after-messages' } as const
 const EMPTY_LIVE_MESSAGE_IDS: readonly string[] = []
@@ -112,6 +104,8 @@ type MessageGroupLayerProps = ComponentProps<typeof MessageGroup> & {
   isLive: boolean
   narrowMode: boolean
   railGutterPx: number
+  sidePaddingPx: number
+  messageEndInsetPx: number
 }
 
 function MessageGroupLayer({
@@ -119,6 +113,8 @@ function MessageGroupLayer({
   isLive,
   narrowMode,
   railGutterPx,
+  sidePaddingPx,
+  messageEndInsetPx,
   messages,
   partsByMessageId,
   ...messageGroupProps
@@ -130,10 +126,10 @@ function MessageGroupLayer({
         narrowMode={narrowMode}
         withSidePadding
         // The gutter is mirrored on the left so the column stays
-        // centred and both margins match while the rail fades in.
+        // centred and both margins match as the gutter grows.
         style={{
-          paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
-          paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+          paddingLeft: sidePaddingPx + railGutterPx,
+          paddingRight: sidePaddingPx + messageEndInsetPx + railGutterPx
         }}>
         <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
       </NarrowLayout>
@@ -166,6 +162,8 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
     previous.groupKey === next.groupKey &&
     previous.narrowMode === next.narrowMode &&
     previous.railGutterPx === next.railGutterPx &&
+    previous.sidePaddingPx === next.sidePaddingPx &&
+    previous.messageEndInsetPx === next.messageEndInsetPx &&
     previous.messages === next.messages &&
     groupPartsShallowEqual(previous.partsByMessageId, next.partsByMessageId, next.messages) &&
     previous.captureMode === next.captureMode &&
@@ -193,7 +191,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   // the composer yields the same right-hand space and stays aligned with the
   // message column; this component both writes it (via the resize observer
   // below) and renders from it.
-  const { setForceWideLayout, railGutterPx, setRailGutterPx } = useChatLayoutMode()
+  const { setForceWideLayout, railGutterPx, setRailGutterPx, sidePaddingPx, messageEndInsetPx } = useChatLayoutMode()
   const { topic, messages, beforeList, afterMessages, messageTail, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
@@ -203,10 +201,8 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   const [activeAnchorMessageId, setActiveAnchorMessageId] = useState<string | null>(null)
   const bottomOverlayInsets = useChatBottomOverlayInset()
 
-  // The gutter follows only the width (and the anchor preference) — NOT the turn
-  // count. With anchor navigation on, a wide window always yields the gutter, so
-  // when the conversation grows past the rail's turn threshold the rail simply
-  // fades into space that was already there, with no content jump.
+  // The gutter follows column width and the anchor preference, independently
+  // of turn count, so mounting the rail does not shift the content.
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const messageListScopeRef = useRef<HTMLDivElement | null>(null)
@@ -331,39 +327,11 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     messageListRef.current?.scrollToBottom()
   }, [])
 
-  // Navigation buttons scroll through the virtua-aware runtime handle (smooth,
-  // remeasure-safe) rather than a raw scrollTo on the virtualized scroller.
-  const navigateToTop = useCallback(() => {
-    messageListRef.current?.scrollToTop('smooth')
-  }, [])
-
-  const navigateToBottom = useCallback(() => {
-    messageListRef.current?.scrollToBottom()
-  }, [])
-
   const scrollToMessageById = useCallback((messageId: string) => {
     const target = messageByIdRef.current.get(messageId)
     if (!target) return
     messageListRef.current?.scrollToKey(getMessageGroupKey(target), 'start')
   }, [])
-
-  const getNavigationBaseMessageId = useCallback(() => {
-    const key = messageListRef.current?.getNavigationBaseKey()
-    if (!key) return null
-
-    const groupMessages = groupedMessages.find(([groupKey]) => groupKey === key)?.[1]
-    if (!groupMessages) return null
-
-    const userMessage = groupMessages.find((message) => message.role === 'user')
-    if (userMessage) return userMessage.id
-
-    const owningUserMessageIdByAssistantId = getOwningUserMessageIdByAssistantId(messages)
-    for (const message of groupMessages) {
-      const ownerId = owningUserMessageIdByAssistantId.get(message.id)
-      if (ownerId) return ownerId
-    }
-    return null
-  }, [groupedMessages, messages])
 
   const scrollToOutlineElement = useCallback((element: HTMLElement) => {
     messageListRef.current?.scrollToElement(element)
@@ -531,7 +499,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
       const { exportService } = await import('@renderer/services/ExportService')
 
       if (action === 'copy') {
-        const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
+        const imageData = await exportService.captureScrollableAsDataUrl(captureRef, CHAT_CAPTURE_BACKDROP_VARIABLE)
         const blob = imageData ? dataUrlToBlob(imageData) : null
         if (!blob) {
           throw new Error('Failed to capture topic image')
@@ -544,7 +512,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
         throw new Error('Topic image export is unavailable')
       }
 
-      const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
+      const imageData = await exportService.captureScrollableAsDataUrl(captureRef, CHAT_CAPTURE_BACKDROP_VARIABLE)
       if (!imageData) {
         throw new Error('Failed to capture topic image')
       }
@@ -716,10 +684,8 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     if (!scrollElement) return
 
     const updateRailGutter = () => {
-      // The content yields a right-hand gutter that grows smoothly with the column
-      // width; the rail fades in within it. Tracking width continuously (rather
-      // than toggling at a threshold) means the content shifts smoothly and never
-      // jumps, and the gutter collapses to 0 when narrow so no space is wasted.
+      // Continuous gutter growth keeps messages and composer aligned without
+      // jumps; narrow columns keep their base padding and an 8px rail hit strip.
       const ramp = (scrollElement.clientWidth - RAIL_GUTTER_START_PX) / RAIL_GUTTER_FADE_PX
       const gutter = Math.round(Math.max(0, Math.min(1, ramp)) * RAIL_GUTTER_MAX_PX)
       setRailGutterPx(gutter)
@@ -793,8 +759,8 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
           withSidePadding
           className="shrink-0"
           style={{
-            paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
-            paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+            paddingLeft: sidePaddingPx + railGutterPx,
+            paddingRight: sidePaddingPx + messageEndInsetPx + railGutterPx
           }}>
           {beforeList}
         </NarrowLayout>
@@ -804,6 +770,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
           messages={messages}
           partsByMessageId={partsByMessageId ?? EMPTY_PARTS_BY_MESSAGE_ID}
           renderUserTextAsMarkdown={renderConfig.renderInputMessageAsMarkdown}
+          keepIntermediateAssistantText={renderConfig.keepIntermediateAssistantText}
           excludedMessageIds={liveMessageIdSet}
           isStreaming={isSearchStreaming}
           locateMessage={scrollToMessageById}
@@ -836,8 +803,8 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
                     narrowMode={messageListNarrowMode}
                     withSidePadding
                     style={{
-                      paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
-                      paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+                      paddingLeft: sidePaddingPx + railGutterPx,
+                      paddingRight: sidePaddingPx + messageEndInsetPx + railGutterPx
                     }}>
                     {afterMessages}
                   </NarrowLayout>
@@ -853,6 +820,8 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
                 isLive: index >= firstLiveGroupIndex,
                 narrowMode: messageListNarrowMode,
                 railGutterPx,
+                sidePaddingPx,
+                messageEndInsetPx,
                 isLatestAssistantGroup: key === latestAssistantGroupKey,
                 directAssistantModelsByUserId,
                 messageTail: groupMessageTail,
@@ -888,7 +857,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
           aria-hidden="true"
           data-topic-image-capture
           className={classNames(
-            '-left-[10000px] pointer-events-none fixed top-0 overflow-visible bg-background text-foreground',
+            '-left-[10000px] pointer-events-none fixed top-0 overflow-visible bg-chat-message-well-solid text-foreground',
             !topicImageCaptureWidth && 'w-full'
           )}
           style={topicImageCaptureWidth ? { width: `${topicImageCaptureWidth}px` } : undefined}>
@@ -927,17 +896,6 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
             onNavigateToElement={scrollToOutlineElement}
           />
         </Suspense>
-      )}
-      {messageNavigation === 'buttons' && (
-        <MessageNavigation
-          scrollContainerRef={scrollContainerRef}
-          getMessageElement={getMessageElement}
-          getNavigationBaseMessageId={getNavigationBaseMessageId}
-          messages={messages}
-          scrollToMessageId={scrollToMessageById}
-          scrollToTop={navigateToTop}
-          scrollToBottom={navigateToBottom}
-        />
       )}
       {meta.selectionLayer && (
         <SelectionBox

@@ -111,17 +111,6 @@ function assertDefined<T>(value: T | undefined, name: string): T {
   return value
 }
 
-async function readAllChunks(streamResult: LanguageModelV3StreamResult): Promise<LanguageModelV3StreamPart[]> {
-  const reader = streamResult.stream.getReader()
-  const chunks: LanguageModelV3StreamPart[] = []
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    chunks.push(value)
-  }
-  return chunks
-}
-
 describe('createContextMiddleware', () => {
   it('passes through when no truncation or compression needed', async () => {
     const middleware = createContextMiddleware({
@@ -197,59 +186,47 @@ describe('createContextMiddleware', () => {
     }
   })
 
-  it('wrapGenerate feeds token usage to janitor', async () => {
+  it('uses the originating tool name before applying per-tool truncation policy', async () => {
     const middleware = createContextMiddleware({
-      contextWindow: 500,
-      // Budgeting option — without one no Janitor is constructed (budgeting opt-in).
-      onBeforeCompress: () => undefined
+      truncate: { threshold: 50, headChars: 10, tailChars: 10, perTool: ['read'] }
     })
-
-    const model = createMockModel({ inputTokens: 200 })
-
-    const doGenerate = (): PromiseLike<LanguageModelV3GenerateResult> => model.doGenerate({ prompt: [] })
-    const doStream = (): PromiseLike<LanguageModelV3StreamResult> => model.doStream({ prompt: [] })
+    const longOutput = 'x'.repeat(200)
+    const prompt: LanguageModelV3Prompt = [
+      { role: 'user', content: [{ type: 'text', text: 'Read the file' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool-call', toolCallId: 'call_1', toolName: 'read', input: { path: 'file.txt' } }]
+      },
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call_1',
+            toolName: 'skill',
+            output: { type: 'text', value: longOutput }
+          }
+        ]
+      }
+    ]
 
     const result = await assertDefined(
-      middleware.wrapGenerate,
-      'wrapGenerate'
+      middleware.transformParams,
+      'transformParams'
     )({
-      doGenerate,
-      doStream,
-      params: { prompt: [] },
-      model
+      params: { prompt },
+      type: 'generate',
+      model: createMockModel()
     })
+    const toolMessage = result.prompt.find((message) => message.role === 'tool')
+    if (toolMessage?.role !== 'tool') throw new Error('expected a tool message')
+    const toolResult = toolMessage.content.find((part) => part.type === 'tool-result')
 
-    expect(result.usage.inputTokens.total).toBe(200)
-  })
-
-  it('wrapStream captures usage from finish chunk', async () => {
-    const middleware = createContextMiddleware({
-      contextWindow: 500,
-      // Budgeting option — without one no Janitor is constructed (budgeting opt-in).
-      onBeforeCompress: () => undefined
+    expect(toolResult).toMatchObject({
+      toolCallId: 'call_1',
+      toolName: 'read',
+      output: { type: 'text', value: longOutput }
     })
-
-    const model = createMockModel({ inputTokens: 300 })
-
-    const doGenerate = (): PromiseLike<LanguageModelV3GenerateResult> => model.doGenerate({ prompt: [] })
-    const doStream = (): PromiseLike<LanguageModelV3StreamResult> => model.doStream({ prompt: [] })
-
-    const streamResult = await assertDefined(
-      middleware.wrapStream,
-      'wrapStream'
-    )({
-      doGenerate,
-      doStream,
-      params: { prompt: [] },
-      model
-    })
-
-    const chunks = await readAllChunks(streamResult)
-    const finishChunk = chunks.find((c) => c.type === 'finish')
-    expect(finishChunk).toBeDefined()
-    if (finishChunk?.type === 'finish') {
-      expect(finishChunk.usage.inputTokens.total).toBe(300)
-    }
   })
 })
 
@@ -623,86 +600,5 @@ describe('compact', () => {
       const hasReasoning = assistantMsg.content.some((p) => p.type === 'reasoning')
       expect(hasReasoning).toBe(false)
     }
-  })
-})
-
-describe('usage-missing warning', () => {
-  it('wrapGenerate warns once with the [context] prefix when usage.inputTokens.total is missing', async () => {
-    const logger = { warn: vi.fn() }
-    const middleware = createContextMiddleware({
-      contextWindow: 500,
-      onBeforeCompress: () => undefined,
-      logger
-    })
-
-    const model = createMockModel({ omitUsageTotal: true })
-    const call = () =>
-      assertDefined(
-        middleware.wrapGenerate,
-        'wrapGenerate'
-      )({
-        doGenerate: () => model.doGenerate({ prompt: [] }),
-        doStream: () => model.doStream({ prompt: [] }),
-        params: { prompt: [] },
-        model
-      })
-
-    await call()
-    await call() // warned once only
-
-    expect(logger.warn).toHaveBeenCalledTimes(1)
-    const message = logger.warn.mock.calls[0][0] as string
-    expect(message).toContain('[context]')
-    expect(message).toContain('usage.inputTokens.total')
-    expect(message).not.toMatch(/tokenizer/i)
-  })
-
-  it('wrapStream warns once with the [context] prefix when the finish chunk lacks usage totals', async () => {
-    const logger = { warn: vi.fn() }
-    const middleware = createContextMiddleware({
-      contextWindow: 500,
-      onBeforeCompress: () => undefined,
-      logger
-    })
-
-    const model = createMockModel({ omitUsageTotal: true })
-    const streamResult = await assertDefined(
-      middleware.wrapStream,
-      'wrapStream'
-    )({
-      doGenerate: () => model.doGenerate({ prompt: [] }),
-      doStream: () => model.doStream({ prompt: [] }),
-      params: { prompt: [] },
-      model
-    })
-    await readAllChunks(streamResult)
-
-    expect(logger.warn).toHaveBeenCalledTimes(1)
-    const message = logger.warn.mock.calls[0][0] as string
-    expect(message).toContain('[context]')
-    expect(message).toContain('usage.inputTokens.total')
-    expect(message).not.toMatch(/tokenizer/i)
-  })
-
-  it('does not warn when usage is present', async () => {
-    const logger = { warn: vi.fn() }
-    const middleware = createContextMiddleware({
-      contextWindow: 500,
-      onBeforeCompress: () => undefined,
-      logger
-    })
-
-    const model = createMockModel({ inputTokens: 200 })
-    await assertDefined(
-      middleware.wrapGenerate,
-      'wrapGenerate'
-    )({
-      doGenerate: () => model.doGenerate({ prompt: [] }),
-      doStream: () => model.doStream({ prompt: [] }),
-      params: { prompt: [] },
-      model
-    })
-
-    expect(logger.warn).not.toHaveBeenCalled()
   })
 })

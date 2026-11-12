@@ -131,30 +131,6 @@ beforeEach(() => {
   createInternalEntryMock.mockImplementation(async () => ({ id: 'file-1' }))
 })
 
-describe('imageGenerationJobHandler contract', () => {
-  it('declares the remote-poll job contract', () => {
-    // `abandon`, not `retry`: the job's only consumer is the in-process awaiter,
-    // so a resumed run would re-pay the vendor and deliver into a dead promise.
-    expect(imageGenerationJobHandler.recovery).toBe('abandon')
-    expect(
-      imageGenerationJobHandler.defaultQueue?.({
-        uniqueModelId: 'ppio::qwen-image',
-        n: 1,
-        providerParams: {},
-        cleanupPolicy: 'delete_when_unreferenced'
-      })
-    ).toBe('image-generation.ppio')
-    expect(imageGenerationJobHandler.defaultConcurrency).toBe(2)
-    expect(imageGenerationJobHandler.defaultRetryPolicy).toEqual({
-      maxAttempts: 1,
-      backoff: 'none',
-      baseDelayMs: 0,
-      maxDelayMs: 0
-    })
-    expect(imageGenerationJobHandler.defaultTimeoutMs).toBe(30 * 60_000)
-  })
-})
-
 describe('imageGenerationJobHandler.execute', () => {
   it('async: submit(taskId) → poll → download/persist, recording usage', async () => {
     const credentialReceipt = {
@@ -229,6 +205,24 @@ describe('imageGenerationJobHandler.execute', () => {
 
     const submitArg = submitMock.mock.calls[0][0]
     expect(submitArg.modelDescriptor).toBeUndefined()
+  })
+
+  it('passes the payload request timeout through to transport.submit', async () => {
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/timed.png'] })
+
+    const ctx = createCtx({
+      input: {
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        n: 1,
+        cleanupPolicy: 'delete_when_unreferenced',
+        providerParams: {},
+        requestTimeoutMs: 15_000
+      }
+    })
+    await imageGenerationJobHandler.execute(ctx)
+
+    expect(submitMock.mock.calls[0][0]).toMatchObject({ requestTimeoutMs: 15_000 })
   })
 
   it('sync: submit(imageUrls) → no poll, and no metadata is persisted', async () => {

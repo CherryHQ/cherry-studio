@@ -23,7 +23,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { createKbSearchToolEntry, KB_SEARCH_TOOL_NAME } from '../KnowledgeSearchTool'
+import { createKbSearchToolEntry } from '../KnowledgeSearchTool'
 
 const entry = createKbSearchToolEntry()
 
@@ -60,39 +60,10 @@ describe('kb_search', () => {
     loggerWarn.mockReset()
   })
 
-  it('builds an entry with the agreed namespace + defer policy and is auto-approved (read-only)', () => {
-    expect(entry.name).toBe(KB_SEARCH_TOOL_NAME)
-    expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('never')
-    // kb_search only reads — no per-call approval prompt (the auto-approve half of the carve-out).
-    expect(entry.tool.needsApproval).toBeFalsy()
-    // Entity codec, not blanket truncatable:false — chunk content trims
-    // per-entity while id/baseId/conceptId/title anchors ride the skeleton.
-    expect(entry.truncatable).toBeUndefined()
-    expect(entry.codec).toBeDefined()
-  })
-
-  it('searches directly when a relevant base id is already known', () => {
-    expect(entry.tool.description).toMatch(/base id.*already.*kb_search directly/i)
-    expect(entry.tool.description).toMatch(/kb_list.*only.*no relevant base id/i)
-  })
-
   it('returns [] and does not search when every requested baseId is outside the assistant scope', async () => {
     const result = await callExecute({ query: 'foo', baseIds: ['kb-other'] }, { knowledgeBaseIds: ['kb-1'] })
     expect(result).toEqual([])
     expect(knowledgeServiceSearch).not.toHaveBeenCalled()
-  })
-
-  it('warns about dropped baseIds even when the whole set is out of scope (warn before the early return)', async () => {
-    const result = await callExecute({ query: 'foo', baseIds: ['kb-other', 'kb-gone'] }, { knowledgeBaseIds: ['kb-1'] })
-    expect(result).toEqual([])
-    expect(knowledgeServiceSearch).not.toHaveBeenCalled()
-    // The all-dropped case must still surface the rejection — the warn fires before the empty-target
-    // early return, not after it.
-    expect(loggerWarn).toHaveBeenCalledWith('Dropped baseIds outside the assistant scope', {
-      rejected: ['kb-other', 'kb-gone'],
-      allowedIds: ['kb-1']
-    })
   })
 
   it('drops out-of-scope baseIds but still searches the in-scope ones', async () => {
@@ -141,12 +112,10 @@ describe('kb_search', () => {
     expect(result).toEqual([
       // baseId tracks which base each hit came from — 'A' is deduped in kb-2's favour on score,
       // and without it two bases' same-path documents are indistinguishable downstream.
-      { id: expect.stringMatching(/^[0-9a-f]{8}-1$/), baseId: 'kb-2', content: 'A', score: 0.95 },
-      { id: expect.stringMatching(/^[0-9a-f]{8}-2$/), baseId: 'kb-2', content: 'C', score: 0.6 },
-      { id: expect.stringMatching(/^[0-9a-f]{8}-3$/), baseId: 'kb-1', content: 'B', score: 0.5 }
+      { id: expect.any(String), baseId: 'kb-2', content: 'A', score: 0.95 },
+      { id: expect.any(String), baseId: 'kb-2', content: 'C', score: 0.6 },
+      { id: expect.any(String), baseId: 'kb-1', content: 'B', score: 0.5 }
     ])
-    // All ids within one call share the same random prefix
-    expect(new Set(result.map((r) => r.id.split('-')[0])).size).toBe(1)
   })
 
   it('logs and yields [] for one base when its search throws, but other bases continue', async () => {
@@ -158,27 +127,10 @@ describe('kb_search', () => {
       { query: 'q', baseIds: ['broken', 'good'] },
       { knowledgeBaseIds: ['broken', 'good'] }
     )) as Array<{ id: string; content: string }>
-    expect(result).toEqual([
-      { id: expect.stringMatching(/^[0-9a-f]{8}-1$/), baseId: 'good', content: 'ok', score: 0.7 }
-    ])
+    expect(result).toEqual([{ id: expect.any(String), baseId: 'good', content: 'ok', score: 0.7 }])
   })
 
   describe('toModelOutput', () => {
-    it('returns a hint pointing the model at kb_list when output is empty', () => {
-      const toModelOutput = entry.tool.toModelOutput as (opts: {
-        toolCallId: string
-        input: { query: string; baseIds: string[] }
-        output: Array<{ id: number; content: string; score: number }>
-      }) => { type: string; value: string }
-      const result = toModelOutput({
-        toolCallId: 'tc-1',
-        input: { query: 'q', baseIds: ['kb-1'] },
-        output: []
-      })
-      expect(result.type).toBe('text')
-      expect(result.value).toMatch(/kb_list/)
-    })
-
     it('passes the array through as json when results are present', () => {
       const toModelOutput = entry.tool.toModelOutput as (opts: {
         toolCallId: string

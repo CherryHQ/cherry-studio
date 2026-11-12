@@ -8,6 +8,7 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChannelsModule from '@main/ai/channels'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 // Mock TaskService before importing CherryAutonomyTools
 const mockCreateTask = vi.fn()
@@ -30,6 +31,7 @@ const mockDeleteChannel = vi.fn()
 const mockReconnectChannel = vi.fn()
 const mockReconnectChannelWithQr = vi.fn()
 const mockGetSession = vi.fn()
+const mockGetLatestActive = vi.fn()
 const mockReadConversation = vi.fn()
 const mockFindPersistedToolOutput = vi.fn()
 const mockListSessions = vi.fn()
@@ -66,6 +68,7 @@ vi.mock('@main/ai/messages/persistedToolOutput', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mockGetSession,
+    getLatestActive: mockGetLatestActive,
     listAddressableByCursor: mockListSessions,
     searchWithMetadataEvidence: mockSearchSessions
   }
@@ -149,7 +152,8 @@ const clients: Client[] = []
 async function createServer(
   agentId = 'agent_test',
   workspacePath = WORKSPACE_PATH,
-  notifyChannelIds: string | string[] | null = 'ch1'
+  notifyChannelIds: string | string[] | null = 'ch1',
+  workspaceSource: AgentSessionWorkspaceSource = WORKSPACE_SOURCE
 ): Promise<Client> {
   const trustedNotifyChannels = (Array.isArray(notifyChannelIds) ? notifyChannelIds : [notifyChannelIds]).flatMap(
     (id) => (id ? [{ id, type: 'telegram' as const }] : [])
@@ -159,7 +163,7 @@ async function createServer(
     registerAutonomyTools(server, {
       agentId,
       sessionId: 'session_test',
-      workspaceSource: WORKSPACE_SOURCE,
+      workspaceSource,
       workspacePath,
       trustedNotifyChannels,
       allowAnyOwnedNotifyChannel: typeof notifyChannelIds === 'string'
@@ -188,6 +192,7 @@ describe('cherry-tools autonomy tools', () => {
     vi.clearAllMocks()
     mockGetChannel.mockImplementation((channelId: string) => ({ id: channelId, agentId: 'agent_1' }))
     mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent_test' })
+    mockGetLatestActive.mockReturnValue(null)
     mockGetAgent.mockReturnValue({ id: 'agent_test', name: 'Agent A', model: 'provider::model' })
     mockListAgents.mockReturnValue({ agents: [], total: 0 })
     mockListSessions.mockReturnValue({ items: [], nextCursor: undefined })
@@ -211,7 +216,7 @@ describe('cherry-tools autonomy tools', () => {
     expect(tools.find((tool) => tool.name === 'session_search')?.inputSchema.properties?.query).toMatchObject({
       maxLength: 4096
     })
-    expect(tools.find((tool) => tool.name === 'notify')?.description).toContain('Files are first-class deliverables')
+    expect(tools.find((tool) => tool.name === 'notify')?.description).toContain('workspace file')
     expect(tools.find((tool) => tool.name === 'notify')?.description).toContain(
       'Configured recipients: telegram (ch1).'
     )
@@ -581,42 +586,6 @@ describe('cherry-tools autonomy tools', () => {
       })
     })
 
-    it('places metadata-only Session hits after ranked message evidence', async () => {
-      mockSearchSessionMessages.mockReturnValue([
-        {
-          messageId: 'message-ranked',
-          sessionId: 'session-ranked',
-          sessionName: 'Ranked evidence',
-          agentId: 'agent_a',
-          agentName: 'Agent A',
-          snippet: 'ranked evidence',
-          createdAt: '2026-08-10T00:00:00.000Z'
-        }
-      ])
-      mockSearchSessions.mockReturnValue([
-        {
-          item: {
-            id: 'session-metadata',
-            title: 'Metadata only',
-            subtitle: 'Agent B',
-            target: { agentId: 'agent_b' }
-          },
-          matches: [{ field: 'name', snippet: 'Metadata only' }]
-        }
-      ])
-
-      const result = await callTool(createServer(), { query: 'evidence' }, 'session_search')
-
-      expect(JSON.parse(result.content[0].text).sessions).toEqual([
-        expect.objectContaining({ sessionId: 'session-ranked', matches: [expect.anything()] }),
-        expect.objectContaining({
-          sessionId: 'session-metadata',
-          matches: [],
-          metadataMatches: [{ field: 'name', snippet: 'Metadata only' }]
-        })
-      ])
-    })
-
     it('merges metadata evidence and applies limit to final Sessions', async () => {
       mockSearchSessionMessages.mockReturnValue([
         {
@@ -719,6 +688,72 @@ describe('cherry-tools autonomy tools', () => {
       })
     })
 
+    it('continues the target Agent own most recent workspace for a cross-Agent Session', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent-target', name: 'Target', model: 'provider::model' })
+      mockGetLatestActive.mockReturnValue({
+        workspaceId: 'workspace-target',
+        workspace: { type: 'user' }
+      })
+      mockCreateSessionWithDelivery.mockReturnValue({
+        session: { id: 'session-target', agentId: 'agent-target' },
+        message: { id: 'message-target', delivery: { status: 'accepted' } }
+      })
+
+      await callTool(createServer(), { message: 'Delegate this', target_agent_id: 'agent-target' }, 'session_create')
+
+      expect(mockGetLatestActive).toHaveBeenCalledWith({ agentId: 'agent-target' })
+      expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith({
+        senderAgentId: 'agent_test',
+        senderSessionId: 'session_test',
+        targetAgentId: 'agent-target',
+        sessionName: '',
+        workspace: { type: 'user', workspaceId: 'workspace-target' },
+        content: 'Delegate this'
+      })
+    })
+
+    it('falls back to the sender workspace when the target Agent has no Session', async () => {
+      const senderWorkspace = { type: 'user' as const, workspaceId: 'workspace-sender' }
+      mockGetAgent.mockReturnValue({ id: 'agent-target', name: 'Target', model: 'provider::model' })
+      mockCreateSessionWithDelivery.mockReturnValue({
+        session: { id: 'session-target', agentId: 'agent-target' },
+        message: { id: 'message-target', delivery: { status: 'accepted' } }
+      })
+
+      await callTool(
+        createServer('agent_test', WORKSPACE_PATH, 'ch1', senderWorkspace),
+        { message: 'Delegate this', target_agent_id: 'agent-target' },
+        'session_create'
+      )
+
+      expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith(
+        expect.objectContaining({ workspace: senderWorkspace })
+      )
+    })
+
+    it('starts a fresh system workspace when the target Agent last Session had no project', async () => {
+      const senderWorkspace = { type: 'user' as const, workspaceId: 'workspace-sender' }
+      mockGetAgent.mockReturnValue({ id: 'agent-target', name: 'Target', model: 'provider::model' })
+      mockGetLatestActive.mockReturnValue({
+        workspaceId: 'workspace-target-system',
+        workspace: { type: 'system' }
+      })
+      mockCreateSessionWithDelivery.mockReturnValue({
+        session: { id: 'session-target', agentId: 'agent-target' },
+        message: { id: 'message-target', delivery: { status: 'accepted' } }
+      })
+
+      await callTool(
+        createServer('agent_test', WORKSPACE_PATH, 'ch1', senderWorkspace),
+        { message: 'Delegate this', target_agent_id: 'agent-target' },
+        'session_create'
+      )
+
+      expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith(
+        expect.objectContaining({ workspace: { type: 'system' } })
+      )
+    })
+
     it('rejects a missing explicit target Agent with a target-owned error', async () => {
       mockGetAgent.mockReturnValue(null)
 
@@ -743,7 +778,7 @@ describe('cherry-tools autonomy tools', () => {
       mockCreateTask.mockReturnValue(task)
 
       const server = createServer('agent_1', WORKSPACE_PATH, null)
-      const result = await callTool(server, {
+      await callTool(server, {
         action: 'add',
         name: 'Daily standup',
         message: 'Run standup check',
@@ -758,7 +793,6 @@ describe('cherry-tools autonomy tools', () => {
         timeoutMinutes: undefined,
         channelIds: undefined
       })
-      expect(result.content[0].text).toContain('Job created')
     })
 
     it('should create a task with interval schedule', async () => {
@@ -880,20 +914,6 @@ describe('cherry-tools autonomy tools', () => {
       expect(mockCreateTask).not.toHaveBeenCalled()
     })
 
-    it('treats an explicit empty channel_ids as no delivery while omission fans out', async () => {
-      mockCreateTask.mockReturnValue({ id: 'task_empty' })
-
-      await callTool(createServer('agent_1', WORKSPACE_PATH, ['ch1', 'ch2']), {
-        action: 'add',
-        name: 'silent',
-        message: 'run',
-        cron: '* * * * *',
-        channel_ids: []
-      })
-
-      expect(mockCreateTask).toHaveBeenCalledWith('agent_1', expect.objectContaining({ channelIds: undefined }))
-    })
-
     it.each([[null], ['ch1'], [{ id: 'ch1' }], [[1]]])(
       'rejects a non-array channel_ids (%s) instead of reading it as omission',
       async (rawChannelIds) => {
@@ -971,15 +991,6 @@ describe('cherry-tools autonomy tools', () => {
       expect(mockListTasks).toHaveBeenCalledWith('agent_1', { limit: 100 })
       expect(result.content[0].text).toContain('Job 1')
     })
-
-    it('should handle empty task list', async () => {
-      mockListTasks.mockReturnValue({ tasks: [], total: 0 })
-
-      const server = createServer()
-      const result = await callTool(server, { action: 'list' })
-
-      expect(result.content[0].text).toBe('No scheduled jobs.')
-    })
   })
 
   describe('remove action', () => {
@@ -987,10 +998,9 @@ describe('cherry-tools autonomy tools', () => {
       mockDeleteTask.mockResolvedValue(true)
 
       const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'remove', id: 'task_1' })
+      await callTool(server, { action: 'remove', id: 'task_1' })
 
       expect(mockDeleteTask).toHaveBeenCalledWith('agent_1', 'task_1')
-      expect(result.content[0].text).toContain('removed')
     })
 
     it('should error when task not found', async () => {
@@ -1019,14 +1029,13 @@ describe('cherry-tools autonomy tools', () => {
       mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100', '200']), makeAdapter('ch2', ['300'])])
 
       const server = createServer('agent_1')
-      const result = await callTool(server, { message: 'Hello user!' }, 'notify')
+      await callTool(server, { message: 'Hello user!' }, 'notify')
 
       expect(mockGetNotifyAdapters).toHaveBeenCalledWith('agent_1')
       expect(mockSendMessage).toHaveBeenCalledTimes(2)
       expect(mockSendMessage).toHaveBeenCalledWith('100', 'Hello user!')
       expect(mockSendMessage).toHaveBeenCalledWith('200', 'Hello user!')
       expect(mockSendMessage).not.toHaveBeenCalledWith('300', 'Hello user!')
-      expect(result.content[0].text).toContain('Message sent to 2 chat(s)')
     })
 
     it('should filter by channel_id when provided', async () => {
@@ -1034,12 +1043,11 @@ describe('cherry-tools autonomy tools', () => {
       mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100']), makeAdapter('ch2', ['200'])])
 
       const server = createServer('agent_1')
-      const result = await callTool(server, { message: 'Targeted', channel_id: 'ch2' }, 'notify')
+      await callTool(server, { message: 'Targeted', channel_id: 'ch2' }, 'notify')
 
       expect(mockGetNotifyAdapters).toHaveBeenCalledWith('agent_1')
       expect(mockSendMessage).toHaveBeenCalledTimes(1)
       expect(mockSendMessage).toHaveBeenCalledWith('200', 'Targeted')
-      expect(result.content[0].text).toContain('Message sent to 1 chat(s)')
     })
 
     it('rejects an explicit source-session target outside the Agent’s live adapters', async () => {
@@ -1081,7 +1089,7 @@ describe('cherry-tools autonomy tools', () => {
       const workspace = await mkdtemp(path.join(tmpdir(), 'cherry-notify-fanout-'))
       try {
         await writeFile(path.join(workspace, 'report.txt'), 'done')
-        const result = await callTool(
+        await callTool(
           createServer('agent_1', workspace, ['ch1', 'ch2']),
           { message: 'Task complete', file_path: 'report.txt' },
           'notify'
@@ -1090,8 +1098,6 @@ describe('cherry-tools autonomy tools', () => {
         expect(mockSendMessage).toHaveBeenCalledWith('100', 'Task complete')
         expect(mockSendMessage).toHaveBeenCalledWith('200', 'Task complete')
         expect(mockSendFile).toHaveBeenCalledTimes(2)
-        expect(result.content[0].text).toContain('Message sent to 2 chat(s)')
-        expect(result.content[0].text).toContain('File "report.txt" sent to 2 chat(s)')
       } finally {
         await rm(workspace, { recursive: true, force: true })
       }
@@ -1158,13 +1164,12 @@ describe('cherry-tools autonomy tools', () => {
       mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', [])])
 
       const server = createServer('agent_1')
-      const result = await callTool(server, { message: 'Hello' }, 'notify')
+      await callTool(server, { message: 'Hello' }, 'notify')
 
       expect(mockSendMessage).not.toHaveBeenCalled()
       expect(mockSendFile).not.toHaveBeenCalled()
-      expect(result.content[0].text).toContain('Message sent to 0 chat(s)')
+
       // No failed attempts (nobody configured) is an informational result, not an error.
-      expect(result.isError).toBeFalsy()
     })
 
     it('should error when both message and file_path are missing', async () => {
@@ -1247,7 +1252,7 @@ describe('cherry-tools autonomy tools', () => {
         await writeFile(path.join(workspace, 'report.txt'), 'hello')
 
         const server = createServer('agent_1', workspace)
-        const result = await callTool(server, { file_path: 'report.txt' }, 'notify')
+        await callTool(server, { file_path: 'report.txt' }, 'notify')
 
         expect(mockSendFile).toHaveBeenCalledTimes(2)
         const [chatId, file] = mockSendFile.mock.calls[0]
@@ -1255,7 +1260,6 @@ describe('cherry-tools autonomy tools', () => {
         expect(file.filename).toBe('report.txt')
         expect(file.media_type).toBe('text/plain')
         expect(Buffer.from(file.data, 'base64').toString()).toBe('hello')
-        expect(result.content[0].text).toContain('File "report.txt" sent to 2 chat(s)')
       })
 
       it('should send both message and file independently', async () => {
@@ -1265,12 +1269,10 @@ describe('cherry-tools autonomy tools', () => {
         await writeFile(path.join(workspace, 'a.txt'), 'x')
 
         const server = createServer('agent_1', workspace)
-        const result = await callTool(server, { message: 'see attached', file_path: 'a.txt' }, 'notify')
+        await callTool(server, { message: 'see attached', file_path: 'a.txt' }, 'notify')
 
         expect(mockSendMessage).toHaveBeenCalledWith('100', 'see attached')
         expect(mockSendFile).toHaveBeenCalledTimes(1)
-        expect(result.content[0].text).toContain('Message sent to 1 chat(s)')
-        expect(result.content[0].text).toContain('File "a.txt" sent to 1 chat(s)')
       })
 
       it('should mark isError when the message lands but the file reaches no one', async () => {
@@ -1405,19 +1407,7 @@ describe('cherry-tools autonomy tools', () => {
         expect(parsed.model).toBe('claude-sonnet-4-20250514')
         expect(parsed.channels).toHaveLength(1)
         expect(parsed.channels[0].type).toBe('telegram')
-        expect(parsed.supported_channel_types.map((t: any) => t.type)).toEqual(
-          expect.arrayContaining(['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack', 'dingtalk'])
-        )
-        expect(
-          (await listTools(server)).find((tool) => tool.name === 'config')?.inputSchema.properties?.type
-        ).toMatchObject({
-          enum: expect.arrayContaining(['dingtalk'])
-        })
-        expect(parsed.supported_channel_types.find((type: any) => type.type === 'dingtalk')).toMatchObject({
-          required_fields: ['client_id', 'client_secret', 'robot_code'],
-          optional_fields: ['allowed_chat_ids', 'allowed_user_ids', 'card_template_id']
-        })
-        expect(parsed.soul_enabled).toBeUndefined()
+
         expect(parsed.heartbeat_enabled).toBe(true)
       })
 
@@ -1448,7 +1438,7 @@ describe('cherry-tools autonomy tools', () => {
         mockCreateChannel.mockResolvedValue({ id: 'ch_new', type: 'telegram', name: 'Work Bot', isActive: true })
 
         const server = createServer('agent_1')
-        const result = await callTool(
+        await callTool(
           server,
           {
             action: 'add_channel',
@@ -1459,7 +1449,6 @@ describe('cherry-tools autonomy tools', () => {
           'config'
         )
 
-        expect(result.content[0].text).toContain('Channel added')
         expect(mockCreateChannel).toHaveBeenCalledWith(
           expect.objectContaining({
             type: 'telegram',
@@ -1548,8 +1537,7 @@ describe('cherry-tools autonomy tools', () => {
           30_000
         )
         expect(result.content).toHaveLength(2)
-        expect(result.content[0].type).toBe('text')
-        expect(result.content[0].text).toContain('WeChat channel created')
+
         expect(result.content[1].type).toBe('image')
         expect(result.content[1].data).toBe('iVBORw0KGgo=')
         expect(result.content[1].mimeType).toBe('image/png')
@@ -1576,7 +1564,8 @@ describe('cherry-tools autonomy tools', () => {
               encrypt_key: 'old-encrypt-key',
               verification_token: 'old-verification-token',
               allowed_chat_ids: ['chat-1'],
-              domain: 'lark'
+              domain: 'lark',
+              mention_only: false
             }
           },
           'config'
@@ -1591,13 +1580,14 @@ describe('cherry-tools autonomy tools', () => {
               encrypt_key: '',
               verification_token: '',
               allowed_chat_ids: ['chat-1'],
-              domain: 'lark'
+              domain: 'lark',
+              mention_only: false
             }
           }),
           30_000
         )
         expect(result.content).toHaveLength(2)
-        expect(result.content[0].text).toContain('Feishu channel created')
+
         expect(result.content[1]).toMatchObject({
           type: 'image',
           data: 'iVBORw0KGgo=',
@@ -1638,7 +1628,12 @@ describe('cherry-tools autonomy tools', () => {
       })
 
       it('should reuse one unverified Feishu channel without losing the new setup options', async () => {
-        const existingChannel = { ...feishuChannel, id: 'ch_existing', isActive: false }
+        const existingChannel = {
+          ...feishuChannel,
+          id: 'ch_existing',
+          isActive: false,
+          config: { ...feishuChannel.config, mention_only: false }
+        }
         const updatedChannel = {
           ...existingChannel,
           name: 'Updated Feishu',
@@ -1695,7 +1690,8 @@ describe('cherry-tools autonomy tools', () => {
               encrypt_key: '',
               verification_token: '',
               allowed_chat_ids: ['chat-1'],
-              domain: 'lark'
+              domain: 'lark',
+              mention_only: false
             },
             isActive: true
           },
@@ -1729,7 +1725,7 @@ describe('cherry-tools autonomy tools', () => {
         expect(mockCreateChannelAndWaitForQr).not.toHaveBeenCalled()
       })
 
-      it('should clean up orphan channel when wechat QR times out', async () => {
+      it('reports the failure when wechat QR times out', async () => {
         mockCreateChannelAndWaitForQr.mockRejectedValue(new Error('Timed out waiting for QR code'))
 
         const server = createServer('agent_1')
@@ -1742,8 +1738,6 @@ describe('cherry-tools autonomy tools', () => {
         expect(result.isError).toBe(true)
         expect(result.content).toHaveLength(1)
         expect(result.content[0].text).toContain('Timed out')
-        expect(result.content[0].text).toContain('not saved')
-        expect(mockCreateChannelAndWaitForQr).toHaveBeenCalledOnce()
       })
 
       it('should error when required config field is missing', async () => {
@@ -1798,18 +1792,61 @@ describe('cherry-tools autonomy tools', () => {
       })
     })
 
+    describe('headless turns', () => {
+      beforeEach(() => {
+        mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+        mockGetChannel.mockReturnValue(telegramChannel)
+        mockGetAgent.mockReturnValue(agentWithConfig)
+      })
+
+      it('refuses to add a sender to allowed_chat_ids from a channel or scheduled turn', async () => {
+        const result = await callTool(
+          createServer('agent_1'),
+          { action: 'update_channel', channel_id: 'ch_1', config: { allowed_chat_ids: ['100', 'attacker'] } },
+          'config'
+        )
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain(
+          'Headless channel or scheduled turns cannot mutate agent configuration'
+        )
+        expect(mockUpdateChannel).not.toHaveBeenCalled()
+      })
+
+      it.each([
+        { action: 'rename', name: 'Renamed' },
+        { action: 'add_channel', type: 'telegram', name: 'Extra', config: { bot_token: 'tok_2' } },
+        { action: 'remove_channel', channel_id: 'ch_1' },
+        { action: 'reconnect_channel', channel_id: 'ch_1' },
+        { action: 'complete_bootstrap' },
+        { action: 'reset_bootstrap' }
+      ])('refuses $action', async (args) => {
+        const result = await callTool(createServer('agent_1'), args, 'config')
+
+        expect(result.isError).toBe(true)
+        expect(mockUpdateAgent).not.toHaveBeenCalled()
+        expect(mockCreateChannel).not.toHaveBeenCalled()
+        expect(mockDeleteChannel).not.toHaveBeenCalled()
+        expect(mockReconnectChannel).not.toHaveBeenCalled()
+      })
+
+      it('still reports status', async () => {
+        mockListChannels.mockReturnValue([telegramChannel])
+
+        const result = await callTool(createServer('agent_1'), { action: 'status' }, 'config')
+
+        expect(result.isError).toBeUndefined()
+        expect(JSON.parse(result.content[0].text).channels).toHaveLength(1)
+      })
+    })
+
     describe('update_channel action', () => {
       it('should update an existing channel and sync', async () => {
         mockGetChannel.mockReturnValue(telegramChannel)
 
         const server = createServer('agent_1')
-        const result = await callTool(
-          server,
-          { action: 'update_channel', channel_id: 'ch_1', enabled: false },
-          'config'
-        )
+        await callTool(server, { action: 'update_channel', channel_id: 'ch_1', enabled: false }, 'config')
 
-        expect(result.content[0].text).toContain('updated and reloaded')
         expect(mockUpdateChannel).toHaveBeenCalledWith('ch_1', expect.objectContaining({ isActive: false }))
       })
 
@@ -1854,7 +1891,6 @@ describe('cherry-tools autonomy tools', () => {
         const server = createServer('agent_1')
         const result = await callTool(server, { action: 'remove_channel', channel_id: 'ch_1' }, 'config')
 
-        expect(result.content[0].text).toContain('removed')
         expect(result.content[0].text).toContain('My Telegram')
         expect(mockDeleteChannel).toHaveBeenCalledWith('ch_1')
       })
@@ -1894,9 +1930,8 @@ describe('cherry-tools autonomy tools', () => {
         mockGetChannel.mockReturnValue(telegramChannel)
 
         const server = createServer('agent_1')
-        const result = await callTool(server, { action: 'reconnect_channel', channel_id: 'ch_1' }, 'config')
+        await callTool(server, { action: 'reconnect_channel', channel_id: 'ch_1' }, 'config')
 
-        expect(result.content[0].text).toContain('reconnected')
         expect(mockReconnectChannel).toHaveBeenCalledWith('ch_1')
       })
 

@@ -82,7 +82,7 @@ The root package contains 105 scripts, including 18 platform/architecture/editio
 
 Different worktrees primarily compete for CPU, memory, and I/O. Concurrent commands in one worktree additionally share mutable build output, caches, and native binaries. No local multi-agent load benchmark or collision reproduction was performed; the contention mechanism is a hypothesis supported by command structure, not a quantified local slowdown.
 
-Node and web tsconfigs already enable incremental compilation and use distinct `.tsbuildinfo` files. Recommending incremental compilation as a missing feature would be incorrect. The [binary downloader](../../../../scripts/download-binaries.js) already has a shared versioned cache, so repeated downloads must be measured rather than assumed. See the [native ABI contract](../../../../docs/references/testing/database-testing.md#better-sqlite3-native-module-abi).
+Node and web tsconfigs already enable incremental compilation and use distinct `.tsbuildinfo` files. Recommending incremental compilation as a missing feature would be incorrect. The [binary downloader](../../../../scripts/download-binaries.js) already has a shared versioned cache, so repeated downloads must be measured rather than assumed. See the [native ABI contract](../../../../docs/dev/references/testing/database-testing.md#better-sqlite3-native-module-abi).
 
 ## Proposal
 
@@ -135,6 +135,8 @@ Give ordinary documentation a lightweight path on PRs and pushes. Split heavy li
 
 Retain the current Linux main and renderer shard counts as an initial baseline. More shards duplicate large cache restores and installations; platform jobs already spend substantial time preparing dependencies. Select macOS/Windows work from platform-sensitive modules and their dependencies, not only changed files containing `process.platform`. Preserve the native-safe main test pool.
 
+The [nine-runner execution policy](../../implemented/process/2026-11-10-ci-runner-consolidation.md) supersedes this initial main/renderer shard baseline; the selection, inventory, and required-gate contracts still apply.
+
 Cancel superseded PR runs, with concurrency scoped by workflow and PR. Do not extend cancellation automatically to release/publication workflows. Retain manual full validation and add scheduled full validation as a backstop; neither replaces required checks for affected changes.
 
 At research time, the [main rules endpoint](https://api.github.com/repos/CherryHQ/cherry-studio/rules/branches/main) required `basic-checks`, `general-test`, and `render-test`. Preserve these names as aggregation gates unless their consumers are explicitly migrated. Gates must validate the planned task results and reject failed classification, failed/cancelled required work, and unexplained skips. A declared empty plan can pass; missing evidence cannot.
@@ -175,12 +177,10 @@ This does not establish controlled benchmark results or local multi-agent speedu
 
 ## Acceptance criteria
 
-| Phase | Work | Verification |
-| --- | --- | --- |
-| 1 | Shared inventory, change classification, docs path, missing package tests, superseded PR cancellation | Replay representative historical file sets; prove each package's tests are selected and gates remain valid |
-| 2 | Explicit local command contracts and bounded execution | File arguments reach only the intended project; check mode leaves tracked sources unchanged; instructions match actual commands |
-| 3 | Independent heavy CI checks and preparation reuse | Compare equivalent CI runs for end-to-end duration, runner minutes, setup time, and failures |
-| 4 | Cache and finer dependency selection | Verify cold/warm invalidation, deletions/renames, resource changes, and no stale-success reuse |
+- AC1 — Representative historical file sets select the shared inventory, documentation path, and every standalone package's tests; required gates remain valid and superseded PR runs are cancelled. (verification: scripts unit tests and required aggregation gates)
+- AC2 — File arguments reach only the intended project, check mode leaves tracked sources unchanged, local execution remains bounded, and instructions match the actual commands. (verification: scripts unit tests and clean-tree command runs)
+- AC3 — Heavy CI checks schedule independently while reusing preparation, and equivalent runs report end-to-end duration, runner minutes, setup time, and failures. (verification: CI workflow fixtures and metrics artifacts)
+- AC4 — Cold and warm caches invalidate for deletions, renames, and resource changes without reusing stale successful results. (verification: cache invalidation tests and equivalent cold/warm runs)
 
 Selection fixtures must cover ordinary docs, colocated README, runtime Markdown, main-only, renderer-only, shared, each standalone package, preload contracts, locales, migrations, scripts, root dependencies/configuration, unknown paths, mixed changes, deletion, rename, untracked input, and unavailable git history. Planned-job failure/cancellation must fail the gate; intentional no-op selection must be visible.
 
@@ -198,4 +198,4 @@ This proposal requires implementation review and measurement. The implementation
 - [Vitest related tests](https://vitest.dev/guide/cli.html#vitest-related) and [worker limits](https://vitest.dev/config/maxworkers): static dependency boundaries and per-invocation worker controls.
 - [TypeScript incremental compilation](https://www.typescriptlang.org/tsconfig/incremental.html): existing project-cache behavior.
 - [GitHub workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax): filtering, concurrency, and skipped required workflows.
-- [Docs governance proposal](2026-08-18-docs-governance-and-spec-workflow.md): ownership of this proposed Agent Note and the distinction between workflow execution and local script aliases.
+- [Docs governance proposal](../../implemented/process/2026-08-18-docs-governance-and-spec-workflow.md): ownership of this proposed Agent Note and the distinction between workflow execution and local script aliases.

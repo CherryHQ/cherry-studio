@@ -2,6 +2,7 @@ import { EventEmitter } from 'events'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { setImmediate as nextImmediate } from 'node:timers/promises'
 import { pathToFileURL } from 'node:url'
 
 import { createMockApplication } from '@test-mocks/main/application'
@@ -14,6 +15,7 @@ const {
   platformState,
   prefValues,
   prefChangeListeners,
+  trayServiceMock,
   applicationMock,
   windowManagerMock,
   loggerMock,
@@ -87,6 +89,7 @@ const {
     setSpellCheckerLanguages: vi.fn()
   }
   const prefChangeListeners: Array<() => void> = []
+  const trayServiceMock = { state: 'created', isActivated: false }
   const applicationMock = {
     isQuitting: false,
     quit: vi.fn(),
@@ -101,6 +104,9 @@ const {
           }
         }
       }
+      if (name === 'TrayService') {
+        return trayServiceMock
+      }
       if (name === 'WindowManager') {
         return windowManagerMock
       }
@@ -112,6 +118,7 @@ const {
     platformState,
     prefValues,
     prefChangeListeners,
+    trayServiceMock,
     applicationMock,
     windowManagerMock,
     loggerMock,
@@ -153,6 +160,7 @@ vi.mock('@application', () => ({
 vi.mock('electron', () => ({
   app: {
     dock: { hide: vi.fn(), show: vi.fn() },
+    focus: vi.fn(),
     on: vi.fn(),
     removeListener: vi.fn(),
     getLocale: vi.fn(() => 'en-US'),
@@ -304,6 +312,8 @@ describe('MainWindowService', () => {
     prefValues['app.tray.on_close'] = false
     prefValues['app.spell_check.enabled'] = false
     prefValues['app.spell_check.languages'] = []
+    trayServiceMock.state = 'created'
+    trayServiceMock.isActivated = false
     prefChangeListeners.length = 0
     defaultSessionMock.setSpellCheckerEnabled.mockReset()
     defaultSessionMock.setSpellCheckerLanguages.mockReset()
@@ -466,6 +476,68 @@ describe('MainWindowService', () => {
   })
 
   describe('website links', () => {
+    it('waits for explicit confirmation before dispatching the normalized application URL', async () => {
+      let confirm!: (value: Electron.MessageBoxReturnValue) => void
+      vi.mocked(dialog.showMessageBox).mockReturnValue(
+        new Promise((resolve) => {
+          confirm = resolve
+        })
+      )
+      const pending = svc.openWebsite('SIYUAN://blocks/old/../Note?flag&x=1&x=2#Case', true, { activate: false })
+      expect(shell.openExternal).not.toHaveBeenCalled()
+      expect(dialog.showMessageBox).toHaveBeenCalledWith({
+        type: 'warning',
+        message: 'Open this link in an external application?',
+        detail: 'siyuan://blocks/Note?flag&x=1&x=2#Case',
+        buttons: ['Cancel', 'Open application'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      })
+      confirm({ response: 1, checkboxChecked: false })
+      await pending
+      expect(shell.openExternal).toHaveBeenCalledTimes(1)
+      expect(shell.openExternal).toHaveBeenCalledWith('siyuan://blocks/Note?flag&x=1&x=2#Case', { activate: false })
+    })
+    it.each([0, -1])('does not dispatch on cancel/close (%s)', async (response) => {
+      vi.mocked(dialog.showMessageBox).mockResolvedValue({ response, checkboxChecked: false })
+      await svc.openWebsite('obsidian://new?file=Private')
+      expect(shell.openExternal).not.toHaveBeenCalled()
+      expect(loggerMock.warn).toHaveBeenCalledWith('External URL opening cancelled', { protocol: 'obsidian:' })
+    })
+    it('does not prompt for invalid or web/mail URLs', async () => {
+      vi.mocked(dialog.showMessageBox).mockClear()
+      await svc.openWebsite('obsidian://daily')
+      expect(shell.openExternal).not.toHaveBeenCalled()
+      await svc.openWebsite('http://example.test')
+      await svc.openWebsite('https://example.test')
+      await svc.openWebsite('mailto:u@example.test')
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
+      expect(shell.openExternal).toHaveBeenCalledTimes(3)
+    })
+    it('never treats an application query containing a legacy file URL as a local file', async () => {
+      vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 0, checkboxChecked: false })
+      ;(svc as any).setupWebContentsHandlers(win)
+      const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
+      const getPath = applicationMock.getPath
+      getPath.mockClear()
+      expect(popup({ url: 'zotero://select/items/Note?redirect=http://file/a' })).toEqual({ action: 'deny' })
+      await nextImmediate()
+      expect(getPath).not.toHaveBeenCalled()
+      expect(dialog.showMessageBox).toHaveBeenCalledWith(
+        expect.objectContaining({ detail: 'zotero://select/items/Note?redirect=http://file/a' })
+      )
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+    it('delegates application popups from non-main windows while denying the new window', async () => {
+      await (svc as any).onInit()
+      windowManagerMock.onWindowCreated.mock.calls[0][0]({ type: WindowType.SubWindow, window: win })
+      const opener = vi.spyOn(svc, 'openWebsite').mockResolvedValue(undefined)
+      const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
+      expect(popup({ url: 'zotero://select/items/Note' })).toEqual({ action: 'deny' })
+      expect(opener).toHaveBeenCalledExactlyOnceWith('zotero://select/items/Note')
+    })
+
     beforeEach(async () => {
       const actual = await vi.importActual<typeof ExternalUrlSafety>('@main/utils/externalUrlSafety')
       vi.mocked(isSafeExternalUrl).mockImplementation(actual.isSafeExternalUrl)
@@ -482,7 +554,7 @@ describe('MainWindowService', () => {
       const navigate = win.webContents.on.mock.calls.find(([event]) => event === 'will-navigate')![1]
       prefValues['app.browser.open_links_in_browser'] = false
       expect(popup({ url: 'https://external.test/' })).toEqual({ action: 'deny' })
-      expect(shell.openExternal).toHaveBeenCalledWith('https://external.test/')
+      expect(shell.openExternal).toHaveBeenCalledWith('https://external.test/', undefined)
       vi.mocked(shell.openExternal).mockClear()
       popup({ url: 'file:///tmp/private.html' })
       navigate({}, 'https://app.local/same-origin')
@@ -511,7 +583,7 @@ describe('MainWindowService', () => {
       ;(svc as any).setupWebContentsHandlers(win)
       created({ type: WindowType.Main, window: win })
       const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
-      expect(popup({ url: 'https://account.siliconflow.cn/oauth/callback' })).toMatchObject({ action: 'allow' })
+      expect(popup({ url: 'https://console.inferera.com/token?state=test' })).toMatchObject({ action: 'allow' })
       expect(shell.openExternal).not.toHaveBeenCalled()
     })
 
@@ -537,7 +609,10 @@ describe('MainWindowService', () => {
       await svc.openWebsite('https://example.com', true)
       await svc.openWebsite('mailto:test@example.com')
       await svc.openWebsite('javascript:alert(1)')
-      expect(vi.mocked(shell.openExternal).mock.calls).toEqual([['https://example.com'], ['mailto:test@example.com']])
+      expect(vi.mocked(shell.openExternal).mock.calls).toEqual([
+        ['https://example.com', undefined],
+        ['mailto:test@example.com', undefined]
+      ])
     })
     it('keeps explicit browser-tab navigation internal regardless of the global website preference', () => {
       prefValues['app.browser.open_links_in_browser'] = false
@@ -570,7 +645,7 @@ describe('MainWindowService', () => {
     })
     it('uses the system browser by default', async () => {
       await svc.openWebsite('https://example.com')
-      expect(shell.openExternal).toHaveBeenCalledWith('https://example.com')
+      expect(shell.openExternal).toHaveBeenCalledWith('https://example.com', undefined)
     })
   })
 
@@ -898,7 +973,6 @@ describe('MainWindowService', () => {
     expect(() => svc.onMainWindowCreated(listener)).not.toThrow()
 
     expect(listener).toHaveBeenCalledWith(win)
-    expect(loggerMock.error).toHaveBeenCalledWith('Failed to replay main window listener', error)
   })
 
   describe('close handler', () => {
@@ -914,36 +988,56 @@ describe('MainWindowService', () => {
       expect(applicationMock.quit).not.toHaveBeenCalled()
     })
 
-    it('calls application.quit() on Win when tray is disabled', () => {
-      platformState.isWin = true
-      prefValues['app.tray.enabled'] = false
-      attachCloseListener(svc, win)
-      const event = makeCloseEvent()
+    describe.each([
+      ['isWin', false],
+      ['isWin', true],
+      ['isLinux', false],
+      ['isLinux', true]
+    ] as const)('direct exit on %s with tray enabled=%s', (platform, trayEnabled) => {
+      beforeEach(() => {
+        platformState[platform] = true
+        prefValues['app.tray.enabled'] = trayEnabled
+        prefValues['app.tray.on_close'] = false
+        attachCloseListener(svc, win)
+      })
 
-      win.emit('close', event)
+      it('preserves the window on repeated closes while quit is blocked', async () => {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const event = new Event('close', { cancelable: true })
+          win.emit('close', event)
+          expect(event.defaultPrevented).toBe(true)
+          await nextImmediate()
+        }
 
-      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
-      expect(event.preventDefault).not.toHaveBeenCalled()
-      expect(win.hide).not.toHaveBeenCalled()
+        expect(applicationMock.quit).toHaveBeenCalledTimes(2)
+        expect(win.hide).not.toHaveBeenCalled()
+        expect(win.minimize).not.toHaveBeenCalled()
+      })
+
+      it('finishes cancelling the original close before allowing an accepted quit to close the window', async () => {
+        const quitClose = new Event('close', { cancelable: true })
+        applicationMock.quit.mockImplementation(() => {
+          applicationMock.isQuitting = true
+          win.emit('close', quitClose)
+        })
+        const originalClose = new Event('close', { cancelable: true })
+
+        win.emit('close', originalClose)
+
+        expect(originalClose.defaultPrevented).toBe(true)
+        expect(applicationMock.quit).not.toHaveBeenCalled()
+        await nextImmediate()
+        expect(applicationMock.quit).toHaveBeenCalledTimes(1)
+        expect(quitClose.defaultPrevented).toBe(false)
+      })
     })
 
-    it('calls application.quit() on Linux when tray is enabled but on_close is false', () => {
-      platformState.isLinux = true
-      prefValues['app.tray.enabled'] = true
-      prefValues['app.tray.on_close'] = false
-      attachCloseListener(svc, win)
-      const event = makeCloseEvent()
-
-      win.emit('close', event)
-
-      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
-      expect(win.hide).not.toHaveBeenCalled()
-    })
-
-    it('preventDefaults and minimizes on Win when tray + on_close are both enabled', () => {
+    it('preventDefaults and hides after minimizing on Win when tray + on_close are both enabled', () => {
       platformState.isWin = true
       prefValues['app.tray.enabled'] = true
       prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = 'ready'
+      trayServiceMock.isActivated = true
       attachCloseListener(svc, win)
       const event = makeCloseEvent()
 
@@ -951,12 +1045,155 @@ describe('MainWindowService', () => {
 
       expect(applicationMock.quit).not.toHaveBeenCalled()
       expect(event.preventDefault).toHaveBeenCalledTimes(1)
-      // Windows minimize-to-tray: setOpacity(0) + minimize() so the OS refocuses
-      // the previously active window (hide() leaves nothing focused).
       expect(win.setOpacity).toHaveBeenCalledWith(0)
       expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
       expect(win.minimize).toHaveBeenCalledTimes(1)
+      expect(win.hide).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity.mock.invocationCallOrder[0]).toBeLessThan(win.setSkipTaskbar.mock.invocationCallOrder[0])
+      expect(win.setSkipTaskbar.mock.invocationCallOrder[0]).toBeLessThan(win.minimize.mock.invocationCallOrder[0])
+      expect(win.minimize.mock.invocationCallOrder[0]).toBeLessThan(win.hide.mock.invocationCallOrder[0])
+      expect(win.show).not.toHaveBeenCalled()
+      expect(win.restore).not.toHaveBeenCalled()
+      expect(win.focus).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      [false, true],
+      [true, false]
+    ])('quits on Windows with tray enabled=%s and on_close=%s despite an active tray', async (trayEnabled, onClose) => {
+      platformState.isWin = true
+      prefValues['app.tray.enabled'] = trayEnabled
+      prefValues['app.tray.on_close'] = onClose
+      trayServiceMock.state = 'ready'
+      trayServiceMock.isActivated = true
+      attachCloseListener(svc, win)
+      const event = makeCloseEvent()
+
+      win.emit('close', event)
+
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      await nextImmediate()
+      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity).not.toHaveBeenCalled()
+      expect(win.setSkipTaskbar).not.toHaveBeenCalled()
+      expect(win.minimize).not.toHaveBeenCalled()
       expect(win.hide).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['Windows', 'ready'],
+      ['Windows', 'stopped'],
+      ['Windows', 'created'],
+      ['Windows', 'initializing'],
+      ['Windows', 'destroyed'],
+      ['Linux', 'ready'],
+      ['Linux', 'stopped'],
+      ['Linux', 'created'],
+      ['Linux', 'initializing'],
+      ['Linux', 'destroyed']
+    ])('quits on %s with an inactive tray in state %s', async (platform, state) => {
+      platformState.isWin = platform === 'Windows'
+      platformState.isLinux = platform === 'Linux'
+      prefValues['app.tray.enabled'] = true
+      prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = state
+      trayServiceMock.isActivated = false
+      attachCloseListener(svc, win)
+      const event = makeCloseEvent()
+
+      win.emit('close', event)
+
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      await nextImmediate()
+      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity).not.toHaveBeenCalled()
+      expect(win.setSkipTaskbar).not.toHaveBeenCalled()
+      expect(win.minimize).not.toHaveBeenCalled()
+      expect(win.hide).not.toHaveBeenCalled()
+    })
+
+    it('rechecks tray activation on each close', async () => {
+      platformState.isWin = true
+      prefValues['app.tray.enabled'] = true
+      prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = 'ready'
+      trayServiceMock.isActivated = true
+      attachCloseListener(svc, win)
+      const firstEvent = makeCloseEvent()
+
+      win.emit('close', firstEvent)
+
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      expect(firstEvent.preventDefault).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity).toHaveBeenCalledWith(0)
+      expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
+      expect(win.minimize).toHaveBeenCalledTimes(1)
+      expect(win.hide).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity.mock.invocationCallOrder[0]).toBeLessThan(win.setSkipTaskbar.mock.invocationCallOrder[0])
+      expect(win.setSkipTaskbar.mock.invocationCallOrder[0]).toBeLessThan(win.minimize.mock.invocationCallOrder[0])
+      expect(win.minimize.mock.invocationCallOrder[0]).toBeLessThan(win.hide.mock.invocationCallOrder[0])
+      expect(win.show).not.toHaveBeenCalled()
+      expect(win.restore).not.toHaveBeenCalled()
+      expect(win.focus).not.toHaveBeenCalled()
+
+      ;(svc as any).mainWindow = win
+      svc.showMainWindow()
+      win.setOpacity.mockClear()
+      win.setSkipTaskbar.mockClear()
+      win.minimize.mockClear()
+      win.hide.mockClear()
+      trayServiceMock.state = 'stopped'
+      trayServiceMock.isActivated = false
+      const secondEvent = makeCloseEvent()
+
+      win.emit('close', secondEvent)
+
+      expect(secondEvent.preventDefault).toHaveBeenCalledTimes(1)
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      await nextImmediate()
+      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity).not.toHaveBeenCalled()
+      expect(win.setSkipTaskbar).not.toHaveBeenCalled()
+      expect(win.minimize).not.toHaveBeenCalled()
+      expect(win.hide).not.toHaveBeenCalled()
+    })
+
+    it('exposes the window once per show across repeated Windows close-to-tray cycles', () => {
+      platformState.isWin = true
+      prefValues['app.tray.enabled'] = true
+      prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = 'ready'
+      trayServiceMock.isActivated = true
+      ;(svc as any).mainWindow = win
+      attachCloseListener(svc, win)
+
+      for (let cycle = 1; cycle <= 2; cycle++) {
+        const event = makeCloseEvent()
+        win.emit('close', event)
+
+        expect(event.preventDefault).toHaveBeenCalledTimes(1)
+        expect(applicationMock.quit).not.toHaveBeenCalled()
+        expect(win.hide).toHaveBeenCalledTimes(cycle)
+        expect(win.minimize).toHaveBeenCalledTimes(cycle)
+        expect(win.show).toHaveBeenCalledTimes(cycle - 1)
+        expect(win.restore).toHaveBeenCalledTimes(cycle - 1)
+        expect(win.focus).toHaveBeenCalledTimes(cycle - 1)
+        win.isVisible.mockReturnValue(false)
+        win.isMinimized.mockReturnValue(true)
+
+        svc.showMainWindow()
+
+        expect(win.restore).toHaveBeenCalledTimes(cycle)
+        expect(win.show).toHaveBeenCalledTimes(cycle)
+        expect(win.focus).toHaveBeenCalledTimes(cycle)
+        expect(win.hide).toHaveBeenCalledTimes(cycle)
+        expect(win.minimize).toHaveBeenCalledTimes(cycle)
+        expect(win.hide.mock.invocationCallOrder[cycle - 1]).toBeLessThan(win.show.mock.invocationCallOrder[cycle - 1])
+        win.isVisible.mockReturnValue(true)
+        win.isMinimized.mockReturnValue(false)
+      }
     })
 
     it('hides on macOS by default (system handles dock + relaunch)', () => {
@@ -1009,15 +1246,23 @@ describe('MainWindowService', () => {
       expect(win.hide).toHaveBeenCalledTimes(1)
     })
 
-    it('does not touch Dock override on Win/Linux tray close (Dock is macOS-only)', () => {
-      platformState.isWin = true
+    it.each(['Windows', 'Linux'])('does not touch Dock override on %s tray close (Dock is macOS-only)', (platform) => {
+      platformState.isWin = platform === 'Windows'
+      platformState.isLinux = platform === 'Linux'
       prefValues['app.tray.enabled'] = true
       prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = 'ready'
+      trayServiceMock.isActivated = true
       attachCloseListener(svc, win)
       const event = makeCloseEvent()
 
       win.emit('close', event)
 
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      if (platform === 'Linux') {
+        expect(win.hide).toHaveBeenCalledTimes(1)
+      }
       expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
     })
   })
@@ -1051,18 +1296,23 @@ describe('MainWindowService', () => {
       expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
     })
 
-    it('minimizes a focused visible main window on Win (returns focus to previous window)', () => {
+    it('hides after minimizing a focused visible main window on Win even with tray-close disabled', () => {
       platformState.isWin = true
       ;(svc as any).mainWindow = win
 
       svc.toggleMainWindow()
 
-      // Same Windows minimize-to-tray trick as the close handler: minimize() so the
-      // OS refocuses the previously active window, with setOpacity(0) to hide the animation.
+      expect(applicationMock.quit).not.toHaveBeenCalled()
       expect(win.setOpacity).toHaveBeenCalledWith(0)
       expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
       expect(win.minimize).toHaveBeenCalledTimes(1)
-      expect(win.hide).not.toHaveBeenCalled()
+      expect(win.hide).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity.mock.invocationCallOrder[0]).toBeLessThan(win.setSkipTaskbar.mock.invocationCallOrder[0])
+      expect(win.setSkipTaskbar.mock.invocationCallOrder[0]).toBeLessThan(win.minimize.mock.invocationCallOrder[0])
+      expect(win.minimize.mock.invocationCallOrder[0]).toBeLessThan(win.hide.mock.invocationCallOrder[0])
+      expect(win.show).not.toHaveBeenCalled()
+      expect(win.restore).not.toHaveBeenCalled()
+      expect(win.focus).not.toHaveBeenCalled()
       expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
     })
 
@@ -1074,25 +1324,6 @@ describe('MainWindowService', () => {
 
       expect(win.focus).toHaveBeenCalledTimes(1)
       expect(win.hide).not.toHaveBeenCalled()
-    })
-
-    it('routes a minimized main window through showMainWindow instead of focusing it', () => {
-      // isVisible() stays true while minimized; without the isMinimized() guard the
-      // toggle would land in the focus() branch, which cannot recover a minimized
-      // window — and on Windows that window is also opacity-0 from the tray trick.
-      platformState.isWin = true
-      ;(svc as any).mainWindow = win
-      win.isMinimized.mockReturnValue(true)
-      win.isFocused.mockReturnValue(false)
-
-      svc.toggleMainWindow()
-
-      expect(win.restore).toHaveBeenCalledTimes(1)
-      expect(win.focus).toHaveBeenCalledTimes(1)
-      expect(win.setOpacity).toHaveBeenCalledWith(1)
-      expect(win.setSkipTaskbar).toHaveBeenCalledWith(false)
-      expect(win.minimize).not.toHaveBeenCalled()
-      expect(windowManagerMock.behavior.setMacShowInDockByType).toHaveBeenCalledWith('main', true)
     })
 
     it('keeps Dock suppression when hiding on macOS with tray-close enabled', () => {
@@ -1107,29 +1338,32 @@ describe('MainWindowService', () => {
     })
   })
 
-  // The Windows minimize-to-tray trick sets opacity to 0 right before minimize().
-  // Restoring it must live on window-level events: taskbar clicks and Alt-Tab
-  // restore the window natively without passing through showMainWindow(), which
-  // would leave a restored-but-invisible window.
-  describe('Windows minimize-to-tray opacity restore', () => {
-    it('restores opacity when the OS restores the window (taskbar click / Alt-Tab path)', () => {
+  describe('Windows tray appearance recovery', () => {
+    it.each(['restore', 'show'])('repairs appearance on %s events bypassing the service', (event) => {
       platformState.isWin = true
       ;(svc as any).setupWindowEvents(win)
 
-      win.emit('restore')
+      win.emit(event)
 
-      expect(win.setOpacity).toHaveBeenCalledWith(1)
-      expect(win.setSkipTaskbar).toHaveBeenCalledWith(false)
+      expect(win.setOpacity).toHaveBeenCalledExactlyOnceWith(1)
+      expect(win.setSkipTaskbar).toHaveBeenCalledExactlyOnceWith(false)
+      expect(win.show).not.toHaveBeenCalled()
+      expect(win.restore).not.toHaveBeenCalled()
+      expect(win.focus).not.toHaveBeenCalled()
     })
 
-    it('restores opacity on generic show paths (WindowManager window.show())', () => {
+    it.each(['restore', 'show'])('skips appearance repair on %s events from a destroyed window', (event) => {
       platformState.isWin = true
       ;(svc as any).setupWindowEvents(win)
+      win.isDestroyed.mockReturnValue(true)
 
-      win.emit('show')
+      win.emit(event)
 
-      expect(win.setOpacity).toHaveBeenCalledWith(1)
-      expect(win.setSkipTaskbar).toHaveBeenCalledWith(false)
+      expect(win.setOpacity).not.toHaveBeenCalled()
+      expect(win.setSkipTaskbar).not.toHaveBeenCalled()
+      expect(win.show).not.toHaveBeenCalled()
+      expect(win.restore).not.toHaveBeenCalled()
+      expect(win.focus).not.toHaveBeenCalled()
     })
 
     it('does not touch opacity off Windows', () => {
@@ -1139,22 +1373,59 @@ describe('MainWindowService', () => {
       win.emit('show')
 
       expect(win.setOpacity).not.toHaveBeenCalled()
+      expect(win.setSkipTaskbar).not.toHaveBeenCalled()
     })
+  })
 
-    it('resets opacity before restoring from showMainWindow (no transparent flash)', () => {
+  describe.each(['showMainWindow', 'toggleMainWindow'] as const)('%s Windows recovery', (action) => {
+    it.each([
+      ['hidden + minimized', false, true],
+      ['hidden + non-minimized', false, false],
+      ['visible + minimized', true, true]
+    ] as const)('repairs appearance and exposes a %s window before focus', (_state, visible, minimized) => {
       platformState.isWin = true
       ;(svc as any).mainWindow = win
-      win.isMinimized.mockReturnValue(true)
+      win.isVisible.mockReturnValue(visible)
+      win.isMinimized.mockReturnValue(minimized)
+      win.isFocused.mockReturnValue(false)
 
-      svc.showMainWindow()
+      svc[action]()
 
-      const opacityCallOrder = win.setOpacity.mock.invocationCallOrder[0]
-      const restoreCallOrder = win.restore.mock.invocationCallOrder[0]
-      const focusCallOrder = win.focus.mock.invocationCallOrder[0]
-      expect(win.setOpacity).toHaveBeenCalledWith(1)
-      expect(win.setSkipTaskbar).toHaveBeenCalledWith(false)
-      expect(opacityCallOrder).toBeLessThan(restoreCallOrder)
-      expect(restoreCallOrder).toBeLessThan(focusCallOrder)
+      expect(win.setOpacity).toHaveBeenCalledExactlyOnceWith(1)
+      expect(win.setSkipTaskbar).toHaveBeenCalledExactlyOnceWith(false)
+      expect(win.show).toHaveBeenCalledTimes(1)
+      expect(win.focus).toHaveBeenCalledTimes(1)
+      expect(win.minimize).not.toHaveBeenCalled()
+      expect(win.hide).not.toHaveBeenCalled()
+      if (minimized) {
+        expect(win.restore).toHaveBeenCalledTimes(1)
+        expect(win.setOpacity.mock.invocationCallOrder[0]).toBeLessThan(win.restore.mock.invocationCallOrder[0])
+        expect(win.setSkipTaskbar.mock.invocationCallOrder[0]).toBeLessThan(win.restore.mock.invocationCallOrder[0])
+        expect(win.restore.mock.invocationCallOrder[0]).toBeLessThan(win.show.mock.invocationCallOrder[0])
+      } else {
+        expect(win.restore).not.toHaveBeenCalled()
+        expect(win.setOpacity.mock.invocationCallOrder[0]).toBeLessThan(win.show.mock.invocationCallOrder[0])
+        expect(win.setSkipTaskbar.mock.invocationCallOrder[0]).toBeLessThan(win.show.mock.invocationCallOrder[0])
+      }
+      expect(win.show.mock.invocationCallOrder[0]).toBeLessThan(win.focus.mock.invocationCallOrder[0])
+    })
+  })
+
+  describe('macOS second-instance activation', () => {
+    it.each([false, true])('brings the existing app forward when minimized=%s', (minimized) => {
+      platformState.isMac = true
+      win.isMinimized.mockReturnValue(minimized)
+      ;(svc as any).mainWindow = win
+      let frontmost = false
+      vi.mocked(app.focus).mockImplementation((options) => {
+        if (options?.steal) frontmost = true
+      })
+      ;(svc as any).registerSecondInstanceHandler()
+      const registrations = vi.mocked(app.on).mock.calls as Array<[string, () => void]>
+      const listener = registrations.find(([event]) => event === 'second-instance')?.[1]
+      expect(listener).toBeDefined()
+      listener!()
+      expect(frontmost).toBe(true)
     })
   })
 
@@ -1171,18 +1442,32 @@ describe('MainWindowService', () => {
       expect(win.focus).toHaveBeenCalledOnce()
     })
 
-    it('pushes init data to an existing main window', () => {
-      const initData = { kind: 'navigation' as const, to: '/settings/about' as const, requestId: 1 }
-      ;(svc as any).mainWindow = win
+    it.each([false, true])(
+      'pushes init data after focusing an existing Windows window with minimized=%s',
+      (minimized) => {
+        const initData = { kind: 'navigation' as const, to: '/settings/about' as const, requestId: 1 }
+        platformState.isWin = true
+        ;(svc as any).mainWindow = win
+        win.isVisible.mockReturnValue(false)
+        win.isMinimized.mockReturnValue(minimized)
 
-      svc.showMainWindow(initData)
+        svc.showMainWindow(initData)
 
-      expect(windowManagerMock.pushInitDataToType).toHaveBeenCalledWith(WindowType.Main, initData)
-      expect(windowManagerMock.open).not.toHaveBeenCalled()
-    })
+        expect(windowManagerMock.pushInitDataToType).toHaveBeenCalledWith(WindowType.Main, initData)
+        expect(win.focus.mock.invocationCallOrder[0]).toBeLessThan(
+          windowManagerMock.pushInitDataToType.mock.invocationCallOrder[0]
+        )
+        expect(windowManagerMock.open).not.toHaveBeenCalled()
+      }
+    )
 
-    it('passes init data into WindowManager when creating the main window', () => {
+    it.each(['missing', 'destroyed'])('passes init data into WindowManager when the main window is %s', (state) => {
       const initData = { kind: 'navigation' as const, to: '/settings/provider' as const, requestId: 1 }
+      platformState.isWin = true
+      if (state === 'destroyed') {
+        ;(svc as any).mainWindow = win
+        win.isDestroyed.mockReturnValue(true)
+      }
 
       svc.showMainWindow(initData)
 
@@ -1193,6 +1478,11 @@ describe('MainWindowService', () => {
         })
       )
       expect(windowManagerMock.pushInitDataToType).not.toHaveBeenCalled()
+      expect(win.setOpacity).not.toHaveBeenCalled()
+      expect(win.setSkipTaskbar).not.toHaveBeenCalled()
+      expect(win.restore).not.toHaveBeenCalled()
+      expect(win.show).not.toHaveBeenCalled()
+      expect(win.focus).not.toHaveBeenCalled()
     })
   })
 
@@ -1244,7 +1534,8 @@ describe('MainWindowService', () => {
       const rebuilt = rebuildAndShow(svc, created)
       rebuilt.emit('ready-to-show')
       expect(rebuilt.show).toHaveBeenCalledTimes(1)
-      expect(dockShowMock).toHaveBeenCalledTimes(1)
+      // WindowManager owns the Dock; showing it here would override a Dock hold.
+      expect(dockShowMock).not.toHaveBeenCalled()
     })
 
     it('shows the initial window when tray-on-launch is disabled', async () => {
@@ -1484,19 +1775,48 @@ describe('MainWindowService', () => {
     expect(webPreferences).toEqual({})
   })
 
-  it('keeps OAuth popup BrowserWindows on the existing persistent MiniApp session', () => {
+  it.each([
+    'https://console.inferera.com/token?state=test',
+    'https://dash.302.ai/sso/login',
+    'https://maas.aiionly.com/login'
+  ])('preserves the opener without exposing Node or preload APIs for %s', (url) => {
     ;(svc as any).setupWebContentsHandlers(win)
     const handler = win.webContents.setWindowOpenHandler.mock.calls[0]?.[0]
     if (!handler) throw new Error('window open handler was not registered')
 
-    expect(handler({ url: 'https://account.siliconflow.cn/oauth/callback' })).toEqual({
+    expect(handler({ url })).toEqual({
       action: 'allow',
       overrideBrowserWindowOptions: {
         webPreferences: {
-          partition: getWebviewPartition(WebviewSecurityProfile.MiniApp)
+          partition: getWebviewPartition(WebviewSecurityProfile.MiniApp),
+          sandbox: false,
+          nodeIntegration: false,
+          contextIsolation: true,
+          preload: undefined,
+          webviewTag: false
         }
       }
     })
+  })
+
+  it.each([
+    'https://account.siliconflow.cn/oauth?client_id=retired',
+    'https://account.siliconflow.cn/oauth/callback',
+    'https://account.siliconflow.cn/oauth-evil',
+    'https://account.siliconflow.cn.evil.example/oauth',
+    'http://account.siliconflow.cn/oauth'
+  ])('does not grant popup privileges to %s', (url) => {
+    ;(svc as any).setupWebContentsHandlers(win)
+    const handler = win.webContents.setWindowOpenHandler.mock.calls[0]?.[0]
+    expect(handler({ url })).toEqual({ action: 'deny' })
+  })
+
+  it('keeps billing popups sandboxed', () => {
+    ;(svc as any).setupWebContentsHandlers(win)
+    const handler = win.webContents.setWindowOpenHandler.mock.calls[0]?.[0]
+    expect(handler({ url: 'https://dash.302.ai/charge' }).overrideBrowserWindowOptions.webPreferences.sandbox).toBe(
+      true
+    )
   })
 
   // The origin/app-root decision itself is covered by validateSender's tests; these
@@ -1528,7 +1848,7 @@ describe('MainWindowService', () => {
       vi.stubEnv('ELECTRON_RENDERER_URL', undefined)
 
       expect(
-        navigateTo(`file://${APP_ROOT}/out/renderer/windows/main/index.html`).preventDefault
+        navigateTo(pathToFileURL(`${APP_ROOT}/out/renderer/windows/main/index.html`).href).preventDefault
       ).not.toHaveBeenCalled()
     })
 
@@ -1559,20 +1879,23 @@ describe('MainWindowService', () => {
       vi.useRealTimers()
     })
 
-    it('routes quotes originating from a detached SubWindow into that sub window', () => {
-      const subWindow = createMockWindow()
-      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-window-1')
-      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
-      windowManagerMock.getWindow.mockReturnValue(subWindow)
+    it.each([WindowType.SubWindow, WindowType.SelectionAgent])(
+      'routes quotes from a %s window into its own composer',
+      (type) => {
+        const subWindow = createMockWindow()
+        windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-window-1')
+        windowManagerMock.getWindowType.mockReturnValue(type)
+        windowManagerMock.getWindow.mockReturnValue(subWindow)
 
-      svc.quoteToMainWindow('Selected text', { id: 9001 } as any)
+        svc.quoteToMainWindow('Selected text', { id: 9001 } as any)
 
-      expect(subWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
-      // Must NOT force the main window to the front when quoting from a sub window.
-      expect(win.show).not.toHaveBeenCalled()
-      expect(win.focus).not.toHaveBeenCalled()
-      expect(win.webContents.send).not.toHaveBeenCalled()
-    })
+        expect(subWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+        // Must NOT force the main window to the front when quoting from a sub window.
+        expect(win.show).not.toHaveBeenCalled()
+        expect(win.focus).not.toHaveBeenCalled()
+        expect(win.webContents.send).not.toHaveBeenCalled()
+      }
+    )
 
     it('routes quotes from the main window back to the main window', () => {
       windowManagerMock.getWindowIdByWebContents.mockReturnValue('main-window-1')

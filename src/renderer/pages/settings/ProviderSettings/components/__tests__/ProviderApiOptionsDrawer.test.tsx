@@ -212,18 +212,6 @@ describe('ProviderApiOptionsDrawer', () => {
     })
   })
 
-  it('shows default Anthropic cache values when cacheControl is unset', () => {
-    useProviderMock.mockReturnValue({
-      provider: { ...provider, settings: { ...provider.settings, cacheControl: undefined } },
-      updateProvider: updateProviderMock
-    })
-
-    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
-
-    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toHaveValue('1024')
-    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue('2')
-  })
-
   it('persists a one-hour Anthropic cache lifetime without dropping sibling settings', async () => {
     const user = userEvent.setup()
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
@@ -240,6 +228,53 @@ describe('ProviderApiOptionsDrawer', () => {
           cacheSystemMessage: true,
           cacheLastNMessages: 2,
           ttl: '1h'
+        }
+      }
+    })
+  })
+
+  it('shows only the enable toggle and lifetime controls for gateway providers', () => {
+    isAnthropicSupportedProviderMock.mockReturnValue(false)
+    useProviderMock.mockReturnValue({
+      provider: { ...provider, id: 'gateway', presetProviderId: 'gateway' },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderApiOptionsDrawer providerId="gateway" open onClose={vi.fn()} />)
+
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.enable')).toBeChecked()
+    expect(
+      screen.getByRole('combobox', { name: 'settings.provider.api.options.anthropic_cache.cache_ttl' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('settings.provider.api.options.anthropic_cache.cache_system')
+    ).not.toBeInTheDocument()
+  })
+
+  it('toggles gateway caching by writing the threshold as a bare enable flag', () => {
+    isAnthropicSupportedProviderMock.mockReturnValue(false)
+    useProviderMock.mockReturnValue({
+      provider: { ...provider, id: 'gateway', presetProviderId: 'gateway' },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderApiOptionsDrawer providerId="gateway" open onClose={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText('settings.provider.api.options.anthropic_cache.enable'))
+
+    expect(updateProviderMock).toHaveBeenCalledWith({
+      providerSettings: {
+        ...provider.settings,
+        cacheControl: {
+          enabled: false,
+          tokenThreshold: 0,
+          cacheSystemMessage: true,
+          cacheLastNMessages: 2
         }
       }
     })

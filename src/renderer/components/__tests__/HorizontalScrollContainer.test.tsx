@@ -51,25 +51,52 @@ describe('HorizontalScrollContainer', () => {
 
   afterEach(() => {
     globalThis.ResizeObserver = originalResizeObserver
+    vi.restoreAllMocks()
   })
 
-  it('renders the scroll button above the scroll content layer', () => {
-    render(
+  it('uses ResizeObserver without registering a window resize listener', () => {
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
+
+    const { unmount } = render(
       <HorizontalScrollContainer>
-        <button type="button">copy</button>
-        <span className="message-tokens">Tokens: 42</span>
+        <span>Tokens: 42</span>
       </HorizontalScrollContainer>
     )
 
-    const content = screen.getByText('Tokens: 42').closest('[data-scrolling]') as HTMLElement
+    expect(addEventListenerSpy).not.toHaveBeenCalledWith('resize', expect.any(Function))
+
+    unmount()
+
+    expect(resizeObserverInstances[0]?.disconnect).toHaveBeenCalledOnce()
+    expect(removeEventListenerSpy).not.toHaveBeenCalledWith('resize', expect.any(Function))
+  })
+
+  it('falls back to window resize events and removes the listener on unmount', () => {
+    globalThis.ResizeObserver = undefined as unknown as typeof ResizeObserver
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
+
+    const { unmount } = render(
+      <HorizontalScrollContainer>
+        <span>Tokens: 42</span>
+      </HorizontalScrollContainer>
+    )
+
+    const content = screen.getByText('Tokens: 42').closest('[data-horizontal-scroll-viewport]') as HTMLElement
     setElementSize(content, { clientWidth: 100, scrollWidth: 300 })
+    fireEvent.resize(window)
 
-    triggerResizeObserver()
+    expect(document.querySelector('.scroll-right-button')).toBeInTheDocument()
 
-    const scrollButton = document.querySelector('.scroll-right-button')
+    const resizeListener = (
+      addEventListenerSpy.mock.calls as unknown as Array<[string, EventListenerOrEventListenerObject]>
+    ).find(([eventName]) => eventName === 'resize')?.[1]
+    expect(resizeListener).toBeTypeOf('function')
 
-    expect(content).toHaveClass('relative', 'z-0')
-    expect(scrollButton).toHaveClass('z-10')
+    unmount()
+
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('resize', resizeListener)
   })
 
   it('keeps the scroll button interaction intact', () => {
@@ -80,7 +107,7 @@ describe('HorizontalScrollContainer', () => {
       </HorizontalScrollContainer>
     )
 
-    const content = screen.getByText('Tokens: 42').closest('[data-scrolling]') as HTMLElement
+    const content = screen.getByText('Tokens: 42').closest('[data-horizontal-scroll-viewport]') as HTMLElement
     const scrollBy = vi.fn()
     Object.defineProperty(content, 'scrollBy', { configurable: true, value: scrollBy })
     setElementSize(content, { clientWidth: 100, scrollWidth: 300 })

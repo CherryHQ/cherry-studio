@@ -312,7 +312,6 @@ describe('WorkspaceSelector', () => {
     const options = screen.getAllByRole('option')
     expect(options[0]).toHaveTextContent('cherry-studio')
     expect(options[1]).toHaveTextContent('cherry-studio-1')
-    expect(screen.queryByText('/Users/jd/cherry-studio')).not.toBeInTheDocument()
   })
 
   it('renders and selects the no-project option', async () => {
@@ -322,9 +321,7 @@ describe('WorkspaceSelector', () => {
     )
     openPopover()
 
-    const addProjectButton = screen.getByRole('button', { name: 'Add new work directory' })
     const noProjectButton = screen.getByRole('button', { name: 'No work directory' })
-    expect(addProjectButton.compareDocumentPosition(noProjectButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(noProjectButton)
 

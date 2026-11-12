@@ -10,11 +10,12 @@ import {
   interactionSchema,
   interactionResponseSchema,
   workspaceSelectionSchema,
-  messageSchema,
+  messageListItemSchema,
   modelSummarySchema,
   partSchema,
   sessionSchema
 } from './resources'
+import { taskMethods } from './tasks'
 import {
   uploadMetadataSchema,
   uploadReferenceSchema,
@@ -33,6 +34,7 @@ const session = { sessionId: opaqueId }
 const command = { commandId: opaqueId, ...session }
 const subscription = { subscriptionId: opaqueId }
 export const agentMethods = {
+  ...taskMethods,
   'agent.agents.list': method(
     z.strictObject(pageParams),
     pageOf(
@@ -51,7 +53,12 @@ export const agentMethods = {
     })
   ),
   'agent.sessions.list': method(
-    z.strictObject({ agentId: opaqueId.optional(), workspaceId: opaqueId.optional(), ...pageParams }),
+    z.strictObject({
+      agentId: opaqueId.optional(),
+      workspaceId: opaqueId.optional(),
+      taskId: opaqueId.optional(),
+      ...pageParams
+    }),
     pageOf(sessionSchema)
   ),
   'agent.sessions.get': method(z.strictObject(session), z.looseObject({ session: sessionSchema })),
@@ -73,8 +80,8 @@ export const agentMethods = {
     commandReceiptSchema
   ),
   'agent.messages.list': method(
-    z.strictObject({ ...session, historyRevision: decimal, ...pageParams }),
-    pageOf(messageSchema)
+    z.strictObject({ ...session, historyRevision: decimal, partsMode: z.literal('paged').optional(), ...pageParams }),
+    pageOf(messageListItemSchema)
   ),
   'agent.parts.list': method(
     z.strictObject({ ...session, messageId: opaqueId, messageRevision: decimal, ...pageParams }),

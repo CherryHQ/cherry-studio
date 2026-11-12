@@ -1,7 +1,8 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ChatBottomOverlayInsetProvider } from '../../../layout/ChatViewportInsetContext'
 import type { MessageListItem } from '../../types'
 import MessageOutline from '../MessageOutline'
 
@@ -11,7 +12,7 @@ vi.mock('@cherrystudio/ui', () => ({
   }),
   extractTextFromNode: (node: { children?: Array<{ value?: string }> }) =>
     node.children?.map((child) => child.value ?? '').join('') ?? '',
-  Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('../../blocks/MessagePartsContext', () => ({
@@ -84,5 +85,52 @@ describe('MessageOutline', () => {
 
     expect(scrollIntoView).toHaveBeenCalledWith(heading, { behavior: 'smooth', block: 'nearest', container: 'nearest' })
     expect(onNavigateToElement).not.toHaveBeenCalled()
+  })
+
+  it('bounds the rail above the composer by the sum of the published bottom overlay insets', () => {
+    const { container } = render(
+      <ChatBottomOverlayInsetProvider value={{ contentBottomPadding: 128, scrollerBottomMargin: 12 }}>
+        <MessageOutline
+          getMessageElement={() => null}
+          message={{ id: 'assistant-1' } as MessageListItem}
+          multiModelMessageStyle="vertical"
+          onNavigateToElement={() => {}}
+        />
+      </ChatBottomOverlayInsetProvider>
+    )
+
+    const scrollBox = container.querySelector<HTMLElement>('[data-slot=scroll-area]')
+    expect(scrollBox).not.toBeNull()
+    expect(scrollBox?.parentElement?.style.bottom).toBe('140px')
+  })
+
+  it('keeps the unbounded geometry when no overlay insets are published', () => {
+    const { container } = render(
+      <MessageOutline
+        getMessageElement={() => null}
+        message={{ id: 'assistant-1' } as MessageListItem}
+        multiModelMessageStyle="vertical"
+        onNavigateToElement={() => {}}
+      />
+    )
+
+    const scrollBox = container.querySelector<HTMLElement>('[data-slot=scroll-area]')
+    expect(scrollBox).not.toBeNull()
+    expect(scrollBox?.parentElement?.style.bottom).toBe('0px')
+  })
+
+  it('still renders its heading rows inside the bounded rail', () => {
+    render(
+      <ChatBottomOverlayInsetProvider value={{ contentBottomPadding: 128, scrollerBottomMargin: 12 }}>
+        <MessageOutline
+          getMessageElement={() => null}
+          message={{ id: 'assistant-1' } as MessageListItem}
+          multiModelMessageStyle="vertical"
+          onNavigateToElement={() => {}}
+        />
+      </ChatBottomOverlayInsetProvider>
+    )
+
+    expect(screen.getByText('Streaming heading')).toBeInTheDocument()
   })
 })

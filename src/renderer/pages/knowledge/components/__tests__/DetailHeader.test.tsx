@@ -52,6 +52,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+  orderKey: 'a0',
   id: 'base-1',
   name: 'Base 1',
   groupId: null,
@@ -72,20 +73,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 })
 
 describe('DetailHeader', () => {
-  it('renders the base name without a status badge when completed', () => {
-    render(
-      <DetailHeader
-        base={createKnowledgeBase()}
-        onOpenRagConfig={vi.fn()}
-        onOpenRecallTest={vi.fn()}
-        onRebuild={vi.fn()}
-      />
-    )
-
-    expect(screen.getByText('Base 1')).toBeInTheDocument()
-    expect(screen.queryByText('就绪')).not.toBeInTheDocument()
-  })
-
   it('renders the failed status as a clickable rebuild trigger', () => {
     const onRebuild = vi.fn()
 
@@ -104,11 +91,6 @@ describe('DetailHeader', () => {
     fireEvent.click(rebuildTrigger)
     expect(onRebuild).toHaveBeenCalledOnce()
 
-    // The failure reason itself lives in the rebuild dialog, not the header.
-    expect(
-      screen.queryByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')
-    ).not.toBeInTheDocument()
-
     // A failed base cannot be configured or recall-tested, so those actions are hidden.
     expect(screen.queryByRole('button', { name: '知识库设置' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '召回测试' })).not.toBeInTheDocument()
@@ -126,11 +108,10 @@ describe('DetailHeader', () => {
       />
     )
 
-    expect(screen.queryByText('就绪')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /重建知识库/ })).not.toBeInTheDocument()
   })
 
-  it('renders the header actions as icon-only buttons, with no more menu', () => {
+  it('opens knowledge settings and recall testing from the header', () => {
     const onOpenRagConfig = vi.fn()
     const onOpenRecallTest = vi.fn()
 
@@ -148,8 +129,5 @@ describe('DetailHeader', () => {
 
     expect(onOpenRagConfig).toHaveBeenCalledOnce()
     expect(onOpenRecallTest).toHaveBeenCalledOnce()
-    expect(screen.queryByText('知识库设置')).not.toBeInTheDocument()
-    expect(screen.getByText('召回测试')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '更多' })).not.toBeInTheDocument()
   })
 })

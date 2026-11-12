@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import {
   applyModelFilters,
   calculateModelListDerivedState,
   countModelsInGroups,
-  groupModels,
-  MODEL_LIST_CAPABILITY_FILTERS
+  groupModels
 } from '../modelListDerivedState'
 
 const models = [
@@ -229,29 +226,17 @@ describe('modelListDerivedState', () => {
     ])
   })
 
-  it('derives counts, booleans, and status map', () => {
-    const modelStatuses: ModelWithStatus[] = [
-      {
-        kind: 'ok',
-        model: models[0],
-        status: HealthStatus.SUCCESS,
-        keyResults: [],
-        checking: false,
-        latency: 120
-      }
-    ]
-
+  it('derives counts and visibility', () => {
     const derivedState = calculateModelListDerivedState({
       models: models as any,
       searchText: '',
-      selectedCapabilityFilter: 'all',
-      modelStatuses
+      selectedFilter: 'all',
+      failedModelIds: new Set()
     })
 
     expect(derivedState.modelCount).toBe(5)
     expect(derivedState.hasVisibleModels).toBe(true)
     expect(derivedState.hasNoModels).toBe(false)
-    expect(derivedState.capabilityOptions).toEqual(MODEL_LIST_CAPABILITY_FILTERS)
     expect(derivedState.capabilityModelCounts).toEqual({
       all: 5,
       text: 3,
@@ -264,15 +249,28 @@ describe('modelListDerivedState', () => {
       transcription: 0
     })
     expect(derivedState.duplicateModelNames.has('Alpha')).toBe(true)
-    expect(derivedState.modelStatusMap.get('openai::reasoning-free')).toEqual(modelStatuses[0])
+    expect(derivedState.failedModelCount).toBe(0)
+  })
+
+  it('filters models whose checked credentials all failed', () => {
+    const fullyFailedModel = models[3]
+    const derivedState = calculateModelListDerivedState({
+      models: models as any,
+      searchText: '',
+      selectedFilter: 'failed',
+      failedModelIds: new Set([fullyFailedModel.id])
+    })
+
+    expect(derivedState.failedModelCount).toBe(1)
+    expect(derivedState.filteredModels.map((model) => model.id)).toEqual([fullyFailedModel.id])
   })
 
   it('applies search but not the selected type filter to tab counts', () => {
     const derivedState = calculateModelListDerivedState({
       models: models as any,
       searchText: 'alpha',
-      selectedCapabilityFilter: 'embedding',
-      modelStatuses: []
+      selectedFilter: 'embedding',
+      failedModelIds: new Set()
     })
 
     expect(derivedState.filteredModels.map((model) => model.id)).toEqual(['openai::embedding-alpha'])
@@ -293,14 +291,13 @@ describe('modelListDerivedState', () => {
     const derivedState = calculateModelListDerivedState({
       models: [],
       searchText: 'missing',
-      selectedCapabilityFilter: 'all',
-      modelStatuses: []
+      selectedFilter: 'all',
+      failedModelIds: new Set()
     })
 
     expect(derivedState.hasNoModels).toBe(true)
     expect(derivedState.hasVisibleModels).toBe(false)
     expect(derivedState.modelCount).toBe(0)
-    expect(derivedState.capabilityOptions).toEqual(MODEL_LIST_CAPABILITY_FILTERS)
     expect(derivedState.capabilityModelCounts).toEqual({
       all: 0,
       text: 0,
@@ -312,5 +309,6 @@ describe('modelListDerivedState', () => {
       speech: 0,
       transcription: 0
     })
+    expect(derivedState.failedModelCount).toBe(0)
   })
 })

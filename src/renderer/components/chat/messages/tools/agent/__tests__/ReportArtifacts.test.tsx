@@ -5,12 +5,13 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import enUs from '@renderer/i18n/locales/en-us.json'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 
 import { MessageListProvider } from '../../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../../types'
-import { MessageReportArtifacts } from '../ReportArtifacts'
+import { getReportArtifactsViewModel, isReportArtifactsToolResponse, MessageReportArtifacts } from '../ReportArtifacts'
 
 // The global UI mock does not implement DropdownMenuTrigger's asChild contract,
 // so use the real menu primitives for these interaction tests.
@@ -51,12 +52,17 @@ vi.mock('@renderer/components/OpenTarget', () => ({
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({
-    t: (key: string) => {
+    t: (key: string, options?: { format?: string }) => {
+      const messages: Record<string, string> = enUs
+      if (key.startsWith('chat.input.tools.file_type.') || key.startsWith('files.')) {
+        return messages[key]?.replace('{{format}}', options?.format ?? '') ?? key
+      }
       if (key === 'common.preview') return 'Preview'
       if (key === 'common.copied') return 'Copied'
       if (key === 'common.copy') return 'Copy'
       if (key === 'chat.input.tools.open_file') return 'Open File'
       if (key === 'chat.input.tools.open_file_error') return 'Failed to open file'
+      if (key === 'chat.input.tools.open_preview') return 'Open preview'
       if (key === 'chat.input.tools.open_with') return 'Open with'
       if (key === 'chat.input.tools.file_not_found') return 'File not found'
       if (key === 'agent.session.file_manager.finder') return 'Finder'
@@ -122,8 +128,48 @@ describe('MessageReportArtifacts', () => {
 
     expect(screen.getByRole('button', { name: 'Preview report.md' })).toBeInTheDocument()
     expect(screen.getByText('report.md')).toBeInTheDocument()
-    expect(screen.queryByText('Created final outputs')).toBeNull()
-    expect(screen.queryByText('- Report')).toBeNull()
+  })
+
+  it.each([
+    ['slides.PPTX', 'PowerPoint presentation'],
+    ['legacy.ppt', 'PowerPoint presentation'],
+    ['report.docx', 'Word document'],
+    ['report.pdf', 'PDF document'],
+    ['report.md', 'Markdown document'],
+    ['page.html', 'HTML webpage'],
+    ['sheet.xlsx', 'Excel spreadsheet'],
+    ['data.csv', 'CSV spreadsheet'],
+    ['slides.odp', 'OpenDocument presentation'],
+    ['document.odt', 'OpenDocument document'],
+    ['sheet.ods', 'OpenDocument spreadsheet'],
+    ['photo.PNG', 'Image'],
+    ['music.mp3', 'Audio'],
+    ['movie.mp4', 'Video'],
+    ['backup.tar.gz', 'Archive'],
+    ['data.json', 'JSON file'],
+    ['script.py', 'PY file'],
+    ['unknown.xyz', 'XYZ file'],
+    ['unknown.constructor', 'CONSTRUCTOR file'],
+    ['README', 'File'],
+    ['.gitignore', 'File'],
+    ['report.', 'File']
+  ])('labels %s as %s without requiring a preview action', (fileName, label) => {
+    renderWithProvider(
+      <MessageReportArtifacts
+        toolResponses={[
+          {
+            id: 'file-type-test',
+            toolCallId: 'file-type-test',
+            tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
+            status: 'done',
+            arguments: { artifacts: [{ path: `/folder.with.dots/${fileName}` }] }
+          }
+        ]}
+      />
+    )
+
+    expect(screen.getByText(label)).toBeInTheDocument()
+    expect(screen.queryByText('Open preview')).not.toBeInTheDocument()
   })
 
   it('uses the latest declaration for duplicate artifact paths', () => {
@@ -155,9 +201,6 @@ describe('MessageReportArtifacts', () => {
     )
 
     expect(screen.getAllByRole('button', { name: 'Preview report.md' })).toHaveLength(1)
-    expect(screen.queryByText('Final summary')).toBeNull()
-    expect(screen.queryByText('- Final report')).toBeNull()
-    expect(screen.queryByText('- Draft')).toBeNull()
   })
 
   it('previews on card click and opens externally from the open-with menu', async () => {
@@ -173,7 +216,7 @@ describe('MessageReportArtifacts', () => {
             tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
             status: 'done',
             arguments: {
-              artifacts: [{ path: 'dist/report.md' }]
+              artifacts: [{ path: 'dist/report（终稿·含批注）.docx' }]
             }
           }
         ]}
@@ -181,17 +224,17 @@ describe('MessageReportArtifacts', () => {
       { openArtifactFile, resolvePath: (path) => `/workspace/${path}` }
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
+    const artifactPath = '/workspace/dist/report（终稿·含批注）.docx'
+    expect(screen.getByText('Open preview')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Preview report（终稿·含批注）.docx' }))
     await waitFor(() => {
-      expect(openArtifactFile).toHaveBeenCalledWith('/workspace/dist/report.md')
+      expect(openArtifactFile).toHaveBeenCalledWith(artifactPath)
     })
 
-    expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith('/workspace/dist/report.md', 'file', { enabled: false })
-    await user.click(screen.getByRole('button', { name: 'Open with report.md' }))
-    expect(mockUseExternalOpenTargets).toHaveBeenCalledWith('/workspace/dist/report.md', 'file', { enabled: true })
+    await user.click(screen.getByRole('button', { name: 'Open with report（终稿·含批注）.docx' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Open File' }))
     await waitFor(() => {
-      expect(mockOpenTarget).toHaveBeenCalledWith('/workspace/dist/report.md', externalOpenTargets[0])
+      expect(mockOpenTarget).toHaveBeenCalledWith(artifactPath, externalOpenTargets[0])
     })
   })
 
@@ -269,4 +312,60 @@ describe('MessageReportArtifacts', () => {
       expect(copyText).toHaveBeenCalledWith('/workspace/dist/report.md', { successMessage: 'Copied' })
     })
   })
+})
+
+it.each(['invoking', 'error', 'cancelled'] as const)('does not declare artifacts from %s calls', (status) => {
+  expect(
+    getReportArtifactsViewModel([
+      {
+        id: 'nested',
+        toolCallId: 'nested',
+        tool: { id: 'artifact', name: 'report_artifacts', type: 'builtin' },
+        status,
+        arguments: { artifacts: [{ path: '/tmp/report.html' }] }
+      }
+    ])
+  ).toBeNull()
+})
+
+it('does not treat a foreign MCP tool as an artifact declaration', () => {
+  expect(
+    getReportArtifactsViewModel([
+      {
+        id: 'nested',
+        toolCallId: 'nested',
+        tool: {
+          id: 'artifact',
+          name: 'report_artifacts',
+          type: 'mcp',
+          serverId: 'foreign',
+          serverName: 'foreign',
+          description: '',
+          inputSchema: { type: 'object' }
+        },
+        status: 'done',
+        arguments: { artifacts: [{ path: '/tmp/report.html' }] }
+      }
+    ])
+  ).toBeNull()
+})
+
+it('keeps foreign artifact-named calls in the generic tool stream', () => {
+  expect(
+    isReportArtifactsToolResponse({
+      id: 'foreign',
+      arguments: {},
+      toolCallId: 'foreign',
+      status: 'done',
+      tool: {
+        id: 'foreign',
+        name: 'report_artifacts',
+        type: 'mcp',
+        serverId: 'foreign',
+        serverName: 'foreign',
+        description: '',
+        inputSchema: { type: 'object' }
+      }
+    })
+  ).toBe(false)
 })

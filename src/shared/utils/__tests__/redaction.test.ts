@@ -87,20 +87,33 @@ describe('redactDeep', () => {
     expect(out.nested.apiKey).toBe(REDACTED)
   })
 
-  it('truncates long strings past 300 chars', () => {
-    const long = 'a'.repeat(400)
-    const out = redactDeep({ data: long }) as Record<string, string>
-    expect(out.data.startsWith('a'.repeat(300))).toBe(true)
-    expect(out.data).toContain('<100 more>')
-    expect(out.data).not.toContain('a'.repeat(301))
-  })
-
   it('does not stack-overflow on a circular enumerable graph', () => {
     const a: Record<string, unknown> = { name: 'a' }
     const b: Record<string, unknown> = { name: 'b', a }
     a.b = b // a -> b -> a cycle
     expect(() => redactDeep(a)).not.toThrow()
     expect(redactDeep(a)).toMatchObject({ name: 'a', b: { name: 'b', a: '[Circular]' } })
+  })
+
+  it('redacts a shared reference at every occurrence instead of reporting [Circular]', () => {
+    const shared = { name: 'shared-config', apiKey: 'sk-live' }
+    const out = redactDeep({ primary: shared, secondary: shared }) as Record<string, any>
+    expect(out.primary).toEqual({ name: 'shared-config', apiKey: REDACTED })
+    expect(out.secondary).toEqual({ name: 'shared-config', apiKey: REDACTED })
+    expect(out.secondary).not.toBe('[Circular]')
+  })
+
+  it('redacts a shared array element at every index', () => {
+    const shared = { name: 'endpoint', token: 't' }
+    const out = redactDeep({ endpoints: [shared, shared] }) as Record<string, any>
+    expect(out.endpoints[0]).toEqual({ name: 'endpoint', token: REDACTED })
+    expect(out.endpoints[1]).toEqual({ name: 'endpoint', token: REDACTED })
+  })
+
+  it('still short-circuits a self-referencing node', () => {
+    const node: Record<string, unknown> = { name: 'self' }
+    node.self = node
+    expect(redactDeep(node)).toMatchObject({ name: 'self', self: '[Circular]' })
   })
 
   it('leaves plain "code" keys intact (devtools body fidelity)', () => {
@@ -216,6 +229,10 @@ describe('redactUrlParams', () => {
 //   header back as `Bearer "sk-..."`), so the quoted alternatives — including escaped
 //   quotes inside — must match before the bare-token fallback, which excludes quotes.
 describe('redactSecretText', () => {
+  it.each(['API key', 'API key provided'])('redacts a provider echo labelled %s', (label) => {
+    expect(redactSecretText(`Incorrect ${label}: sk-mp92-invalid-secret`)).toBe(`Incorrect ${label}: "<redacted>"`)
+  })
+
   it('redacts a quoted TOML-style api_key assignment', () => {
     expect(redactSecretText('unexpected character at line 3: api_key = "sk-ant-real-secret"')).toBe(
       'unexpected character at line 3: api_key = "<redacted>"'

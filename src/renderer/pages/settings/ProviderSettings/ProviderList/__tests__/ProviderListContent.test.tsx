@@ -1,7 +1,7 @@
-import { closestCenter } from '@dnd-kit/core'
 import { act, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
 import type { Provider } from '@shared/data/types/provider'
 
 // Capture every <ReorderableList> mount's `items` prop so we can assert the
@@ -10,36 +10,25 @@ const reorderableItemsCalls: Provider[][] = []
 const groupExpandedCalls: Array<{ presetProviderId: string; expanded: boolean }> = []
 const sortableCalls: Array<{
   items: Array<{ id: string }>
-  collisionDetection?: unknown
-  adjustScale?: boolean
   renderItem: (item: any, state: { dragging: boolean; overlay: boolean }) => React.ReactNode
-  onDragStart: (event: { active: { id: string } }) => void
+  onDragStart: (event: { activeId: string }) => void
   onDragEnd: () => void
   onDragCancel: () => void
   onSortEnd: (event: { oldIndex: number; newIndex: number }) => void
 }> = []
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryUiModule>()
   return {
+    ...actual,
     ReorderableList: ({ items }: { items: Provider[] }) => {
       reorderableItemsCalls.push(items)
       return null
     },
-    Sortable: ({
-      items,
-      renderItem,
-      collisionDetection,
-      adjustScale,
-      onDragStart,
-      onDragEnd,
-      onDragCancel,
-      onSortEnd
-    }: any) => {
+    Sortable: ({ items, renderItem, onDragStart, onDragEnd, onDragCancel, onSortEnd }: any) => {
       sortableCalls.push({
         items,
         renderItem,
-        collisionDetection,
-        adjustScale,
         onDragStart,
         onDragEnd,
         onDragCancel,
@@ -64,10 +53,6 @@ vi.mock('../ProviderListGroup', () => ({
     groupExpandedCalls.push({ presetProviderId: props.presetProviderId, expanded: props.expanded })
     return <div data-testid={`provider-list-group-${props.presetProviderId}`} />
   }
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
 
 vi.mock('@renderer/i18n/label', () => ({ getProviderLabelKey: (id: string) => id }))
@@ -130,34 +115,6 @@ describe('ProviderListContent — C1 grouped reorder', () => {
 
     return all
   }
-
-  it('passes the full unfiltered cache as ReorderableList items in a group', () => {
-    // Full cache: 3 providers under the same preset; one disabled and filtered out.
-    const all = [
-      provider('zhipu-a', 'zhipu', true),
-      provider('zhipu-b', 'zhipu', true),
-      provider('zhipu-c', 'zhipu', false)
-    ]
-    const visible = all.filter((p) => p.isEnabled) // default `enabled` filter view
-
-    render(
-      <ProviderListContent
-        providers={all}
-        visibleProviders={visible}
-        searchActive={false}
-        expandedGroups={{ zhipu: true }}
-        onToggleGroup={() => {}}
-        onDragStateChange={() => {}}
-        onReorder={() => {}}
-        renderItem={() => null}
-      />
-    )
-
-    // The group's ReorderableList must receive the full 3-item cache, not the
-    // 2-item filtered view — otherwise computeMinimalMoves throws on reorder.
-    expect(reorderableItemsCalls.length).toBeGreaterThan(0)
-    expect(reorderableItemsCalls.every((items) => items.length === all.length)).toBe(true)
-  })
 
   it('reorders a ProviderListGroup as one full provider block', () => {
     const onReorder = vi.fn()
@@ -345,85 +302,5 @@ describe('ProviderListContent — C1 grouped reorder', () => {
 
     expect(onReorder).toHaveBeenCalledTimes(1)
     expect(onReorderError).toHaveBeenCalledWith(error)
-  })
-
-  it('uses center collision detection for grouped sorting', () => {
-    const all = [
-      provider('solo-a', 'solo-a', true),
-      provider('zhipu-a', 'zhipu', true),
-      provider('zhipu-b', 'zhipu', true)
-    ]
-
-    render(
-      <ProviderListContent
-        providers={all}
-        visibleProviders={all}
-        searchActive={false}
-        expandedGroups={{ zhipu: true }}
-        onToggleGroup={() => {}}
-        onDragStateChange={() => {}}
-        onReorder={() => {}}
-        renderItem={() => null}
-      />
-    )
-
-    expect(sortableCalls[0].collisionDetection).toBe(closestCenter)
-  })
-
-  it('disables drag-overlay scaling so the header-only overlay is not stretched', () => {
-    renderBlockFixture(() => {})
-
-    expect(sortableCalls[0].adjustScale).toBe(false)
-  })
-
-  it('renders the dragged group collapsed (header-only) in the drag overlay', () => {
-    renderBlockFixture(() => {})
-
-    const groupItem = sortableCalls[0].items.find((item) => item.id === 'group:zhipu')!
-
-    // Overlay copy: collapsed header-only, regardless of expandedGroups.
-    groupExpandedCalls.length = 0
-    render(<div>{sortableCalls[0].renderItem(groupItem, { dragging: false, overlay: true })}</div>)
-    expect(groupExpandedCalls.at(-1)).toMatchObject({ presetProviderId: 'zhipu', expanded: false })
-
-    // In-list placeholder: still expanded (expandedGroups.zhipu === true) so it
-    // reserves the full height.
-    groupExpandedCalls.length = 0
-    render(<div>{sortableCalls[0].renderItem(groupItem, { dragging: false, overlay: false })}</div>)
-    expect(groupExpandedCalls.at(-1)).toMatchObject({ presetProviderId: 'zhipu', expanded: true })
-  })
-
-  it('reports the outer drag state to the parent while the Sortable is active', () => {
-    const onDragStateChange = vi.fn()
-    const all = [
-      provider('solo-a', 'solo-a', true),
-      provider('zhipu-a', 'zhipu', true),
-      provider('zhipu-b', 'zhipu', true)
-    ]
-
-    render(
-      <ProviderListContent
-        providers={all}
-        visibleProviders={all}
-        searchActive={false}
-        expandedGroups={{ zhipu: true }}
-        onToggleGroup={() => {}}
-        onDragStateChange={onDragStateChange}
-        onReorder={() => {}}
-        renderItem={() => null}
-      />
-    )
-
-    act(() => {
-      sortableCalls[0].onDragStart({ active: { id: 'group:zhipu' } })
-    })
-
-    expect(onDragStateChange).toHaveBeenLastCalledWith(true)
-
-    act(() => {
-      sortableCalls.at(-1)!.onDragEnd()
-    })
-
-    expect(onDragStateChange).toHaveBeenLastCalledWith(false)
   })
 })

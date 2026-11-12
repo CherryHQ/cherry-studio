@@ -6,7 +6,7 @@
  * than a stub.
  */
 
-import type { Editor, JSONContent } from '@tiptap/core'
+import { type Editor, type JSONContent, selectionToInsertionEnd } from '@tiptap/core'
 
 import {
   getComposerCursorTextOffset,
@@ -16,10 +16,16 @@ import {
 } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter, QuickPanelInsertTextOptions } from '@renderer/components/QuickPanel'
 
-import { serializeComposerDocument } from './composerDraft'
+import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from './composerDraft'
+import { createComposerLineSlice } from './composerLines'
 import { createComposerPlainTextContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
-import { createPromptVariableInlineContent, getNextPromptVariableIndex } from './promptVariables'
+import { hasMarkdownLivePreview, isMarkdownFencedCodePosition } from './markdownLivePreview/livePreviewPlugin'
+import {
+  createPromptVariableInlineContent,
+  getNextPromptVariableIndex,
+  PROMPT_VARIABLE_TOKENIZATION_META
+} from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
 
 export function appendComposerText(editor: Editor, text: string): boolean {
@@ -27,7 +33,13 @@ export function appendComposerText(editor: Editor, text: string): boolean {
   if (!text) return true
   const current = serializeComposerDocument(editor).text
   const appended = current ? `\n${text}` : text
-  return editor.commands.insertContentAt(editor.state.doc.content.size - 1, createComposerPlainTextContent(appended))
+  const end = editor.state.doc.content.size - 1
+  const transaction = editor.state.tr
+    .replaceRange(end, end, createComposerLineSlice(editor.schema, createComposerPlainTextContent(appended)))
+    .setMeta(PROMPT_VARIABLE_TOKENIZATION_META, false)
+  selectionToInsertionEnd(transaction, 0, -1)
+  editor.view.dispatch(transaction)
+  return true
 }
 
 export function updateComposerToken(editor: Editor, token: ComposerDraftToken) {
@@ -75,8 +87,14 @@ export function buildInsertedInlineContent(
   text: string,
   options?: QuickPanelInsertTextOptions
 ): JSONContent[] {
-  if (options?.tokenizeVariables === false) return createComposerPlainTextContent(text)
-  return createPromptVariableInlineContent(text, { startIndex: getNextPromptVariableIndex(editor) })
+  const { state } = editor
+  if (options?.tokenizeVariables === false || isMarkdownFencedCodePosition(state, state.selection.from)) {
+    return createComposerPlainTextContent(text)
+  }
+  return createPromptVariableInlineContent(text, {
+    startIndex: getNextPromptVariableIndex(editor),
+    literalFencedCode: hasMarkdownLivePreview(state)
+  })
 }
 
 export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
@@ -84,12 +102,36 @@ export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapt
     getText: () => getComposerInputText(editor),
     getCursorOffset: () => getComposerCursorTextOffset(editor),
     getSelectionEndOffset: () => getComposerTextOffset(editor, editor.state.selection.to),
+    captureReplaceRange: () => ({
+      from: editor.state.selection.from,
+      to: editor.state.selection.to
+    }),
+    replaceRange: (range, text) => {
+      if (!Number.isInteger(range.from) || !Number.isInteger(range.to) || range.from < 0 || range.to < range.from) {
+        return false
+      }
+      if (range.to > editor.state.doc.content.size) return false
+      const slice = createComposerLineSlice(
+        editor.schema,
+        buildInsertedInlineContent(editor, text, { tokenizeVariables: false })
+      )
+      const transaction = editor.state.tr
+        .replaceRange(range.from, range.to, slice)
+        .setMeta(PROMPT_VARIABLE_TOKENIZATION_META, false)
+      if (serializeComposerDocument(transaction.doc.toJSON()).text.length > COMPOSER_INPUT_MAX_LENGTH) return false
+      selectionToInsertionEnd(transaction, 0, -1)
+      editor.view.dispatch(transaction)
+      editor.commands.focus()
+      return true
+    },
     insertText: (insertedText, options) => {
-      editor
+      const chain = editor
         .chain()
         .focus()
-        .insertContent(buildInsertedInlineContent(editor, insertedText, options))
-        .run()
+        .setMeta(PROMPT_VARIABLE_TOKENIZATION_META, options?.tokenizeVariables !== false)
+      const content = buildInsertedInlineContent(editor, insertedText, options)
+      if (options?.position === 'start') chain.insertContentAt(1, content).run()
+      else chain.insertComposerLines(content).run()
     },
     insertToken: (token, options) => {
       insertComposerTokenAtCursor(editor, token as ComposerDraftToken, options)

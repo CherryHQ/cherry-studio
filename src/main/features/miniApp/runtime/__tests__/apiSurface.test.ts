@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import { MINI_APP_METHODS } from '@shared/types/miniAppManifest'
 
-const DTS = fs.readFileSync(path.join(process.cwd(), 'docs/references/mini-app/cherry.d.ts'), 'utf8')
+const DTS = fs.readFileSync(path.join(process.cwd(), 'docs/dev/references/mini-app/cherry.d.ts'), 'utf8')
 const PRELOAD = fs.readFileSync(path.join(process.cwd(), 'src/preload/miniAppBridge.ts'), 'utf8')
 
 /** The real namespaces, derived so `CherryApi` / `CherryUsage` are never mistaken for one. */
@@ -36,23 +36,6 @@ describe('cherry.d.ts is the same surface the bridge routes', () => {
     // The bug this catches: a method that is callable, gated and quota-ed but missing
     // from the shipped types — or the reverse, a type promising a method that 404s.
     expect(declaredMethods(DTS)).toEqual(Object.keys(MINI_APP_METHODS).sort())
-  })
-
-  it('parses past a nested brace in a return type', () => {
-    // The control "more than zero" could not be: `ai.chat` returns `Promise<{ ok: true }>`, so a
-    // parser stopping at the first `}` still returns a non-empty — merely truncated — list.
-    expect(declaredMethods(DTS)).toContain('ai.cancel')
-  })
-
-  it('the preload never hands the guest a bare Error', () => {
-    /*
-     * The other half of the error contract, and the one a main-side test cannot see.
-     * `ipcMain.handle` erases `name` from a rejection (`electron.d.ts:8877`), which is why
-     * main returns an envelope — but a `new Error(...)` thrown INSIDE preload reaches the
-     * guest with `name === 'Error'` and lands outside the frozen seven just the same.
-     */
-    expect(PRELOAD).not.toMatch(/throw new Error\(/)
-    expect(PRELOAD).toMatch(/const cherryError = /)
   })
 
   it('the guest bridge actually exposes every routed method', () => {

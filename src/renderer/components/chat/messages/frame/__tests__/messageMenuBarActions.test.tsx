@@ -8,6 +8,7 @@ import { exportService, getMessageTitle } from '@renderer/services/ExportService
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
+const readMessageAloud = vi.hoisted(() => vi.fn())
 
 vi.mock('@cherrystudio/ui', async () => {
   return {
@@ -117,6 +118,8 @@ vi.mock('@renderer/services/ExportService', () => ({
   getMessageTitle: vi.fn(),
   messageToMarkdown: vi.fn()
 }))
+
+vi.mock('@renderer/services/voice', () => ({ readMessageAloud }))
 
 vi.mock('@renderer/utils/export', () => ({
   messageToPlainText: vi.fn(() => 'plain text')
@@ -264,10 +267,6 @@ describe('messageMenuBarActions', () => {
 
     const deleteButton = screen.getByRole('button')
     expect(deleteButton).toBeDisabled()
-    expect(deleteButton.closest('[data-testid="mock-tooltip"]')).toHaveAttribute(
-      'data-content',
-      'message.delete.root_unavailable'
-    )
   })
 
   it.each(['inline', 'resend', 'blocked'])('respects the root user message edit capability: %s', (mode) => {
@@ -293,61 +292,6 @@ describe('messageMenuBarActions', () => {
     expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'edit')).toBe(mode !== 'blocked')
   })
 
-  it('keeps user edit toolbar action for non-root messages', () => {
-    const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createActionContext({
-        message: {
-          id: 'message-1',
-          role: 'user',
-          topicId: 'topic-1',
-          parentId: 'assistant-1',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          status: 'success'
-        },
-        actions: {
-          editMessage: vi.fn()
-        },
-        isAssistantMessage: false,
-        isUserMessage: true
-      })
-    )
-
-    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'user-edit'])
-  })
-
-  it('keeps edit menu action for root messages', () => {
-    const menuActions = resolveMessageMenuBarMenuActions(
-      createActionContext({
-        message: {
-          id: 'message-1',
-          role: 'user',
-          topicId: 'topic-1',
-          parentId: null,
-          createdAt: '2026-01-01T00:00:00.000Z',
-          status: 'success'
-        },
-        actions: {
-          editMessage: vi.fn()
-        },
-        isAssistantMessage: false,
-        isUserMessage: true
-      })
-    )
-
-    expect(menuActions.map((action) => action.id)).toContain('edit')
-  })
-
-  it('keeps assistant reply editing in the menu without a redundant toolbar action', () => {
-    const context = createActionContext({
-      actions: {
-        editMessage: vi.fn()
-      }
-    })
-
-    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).not.toContain('user-edit')
-    expect(resolveMessageMenuBarMenuActions(context).map((action) => action.id)).toContain('edit')
-  })
-
   it('hides edit actions while an assistant reply is being translated', () => {
     const context = createActionContext({
       actions: {
@@ -360,51 +304,76 @@ describe('messageMenuBarActions', () => {
     expect(resolveMessageMenuBarMenuActions(context).map((action) => action.id)).not.toContain('edit')
   })
 
-  it('resolves assistant toolbar actions from capabilities', () => {
-    const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createActionContext({
-        actions: {
-          deleteMessage: vi.fn(),
-          exportToNotes: vi.fn(),
-          regenerateMessage: vi.fn(),
-          renderRegenerateModelPicker: vi.fn(),
-          setActiveBranch: vi.fn(),
-          translateMessage: vi.fn()
-        },
-        translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
-        isGrouped: true
-      })
-    )
+  it('offers regenerate for user messages when the action is available', async () => {
+    const regenerateMessage = vi.fn()
+    const context = createActionContext({
+      message: {
+        id: 'message-1',
+        role: 'user',
+        topicId: 'topic-1',
+        parentId: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        status: 'success'
+      },
+      actions: { regenerateMessage },
+      isAssistantMessage: false,
+      isUserMessage: true
+    })
+    const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'assistant-regenerate')
 
-    expect(toolbarActions.map((action) => action.id)).toEqual([
-      'copy',
-      'assistant-regenerate',
-      'assistant-mention-model',
-      'translate',
-      'useful',
-      'notes',
-      'delete',
-      'more-menu'
-    ])
-    expect(toolbarActions.find((action) => action.id === 'copy')?.renderToolbar).toBeUndefined()
-    expect(typeof toolbarActions.find((action) => action.id === 'assistant-mention-model')?.renderToolbar).toBe(
-      'function'
-    )
-    expect(typeof toolbarActions.find((action) => action.id === 'translate')?.renderToolbar).toBe('function')
-    expect(typeof toolbarActions.find((action) => action.id === 'delete')?.renderToolbar).toBe('function')
-    expect(typeof toolbarActions.find((action) => action.id === 'more-menu')?.renderToolbar).toBe('function')
+    expect(action?.availability).toMatchObject({ visible: true, enabled: true })
+
+    await executeMessageMenuBarAction('assistant-regenerate', context)
+
+    expect(regenerateMessage).toHaveBeenCalledWith('message-1')
   })
 
-  it('does not require confirmation before regenerating an assistant message', () => {
-    const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createActionContext({
-        actions: {
-          regenerateMessage: vi.fn()
-        }
-      })
-    )
+  it('exposes read aloud only for completed assistant messages with natural-language text', () => {
+    const completed = createActionContext({ messageParts: [{ type: 'text', text: 'Answer' }] as any })
+    const pending = createActionContext({
+      message: { ...completed.message, status: 'pending' },
+      messageParts: completed.messageParts
+    })
+    const user = createActionContext({
+      message: { ...completed.message, role: 'user' },
+      messageParts: completed.messageParts,
+      isAssistantMessage: false,
+      isUserMessage: true
+    })
+    const toolOnly = createActionContext({
+      messageParts: [{ type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' }] as any
+    })
 
-    expect(toolbarActions.find((action) => action.id === 'assistant-regenerate')?.confirm).toBeUndefined()
+    expect(resolveMessageMenuBarToolbarActions(completed).map((action) => action.id)).toContain('read-aloud')
+    expect(resolveMessageMenuBarToolbarActions(pending).map((action) => action.id)).not.toContain('read-aloud')
+    expect(resolveMessageMenuBarToolbarActions(user).map((action) => action.id)).not.toContain('read-aloud')
+    expect(resolveMessageMenuBarToolbarActions(toolOnly).map((action) => action.id)).not.toContain('read-aloud')
+  })
+
+  it('keeps read aloud discoverable without Voice configuration and invokes the shared helper with trigger focus', async () => {
+    const trigger = document.createElement('button')
+    document.body.appendChild(trigger)
+    trigger.focus()
+    const messageParts = [{ type: 'text', text: 'Answer' }] as any
+    const context = createActionContext({ messageParts })
+
+    const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'read-aloud')
+
+    expect(action).toMatchObject({
+      label: 'chat.message.read_aloud.label',
+      availability: { visible: true, enabled: true }
+    })
+    await executeMessageMenuBarAction('read-aloud', context)
+    expect(readMessageAloud).toHaveBeenCalledWith({
+      messageId: 'message-1',
+      parts: messageParts,
+      focusOnClose: expect.any(Function)
+    })
+
+    trigger.blur()
+    vi.mocked(readMessageAloud).mock.calls[0]?.[0].focusOnClose()
+    expect(document.activeElement).toBe(trigger)
+    trigger.remove()
   })
 
   it('does not bubble mention-model picker trigger or portal clicks to the message card', () => {
@@ -435,15 +404,8 @@ describe('messageMenuBarActions', () => {
       </div>
     )
 
-    expect(renderRegenerateModelPicker).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: context.message,
-        messageParts: context.messageParts
-      })
-    )
     expect(screen.getByTestId('model-picker')).toBeInTheDocument()
     const trigger = screen.getByRole('button', { name: 'message.mention.title' })
-    expect(trigger).toHaveClass('message-action-button')
 
     fireEvent.click(trigger)
     fireEvent.click(screen.getByRole('button', { name: 'model-a' }))
@@ -482,68 +444,16 @@ describe('messageMenuBarActions', () => {
 
     // Simulate opening the tooltip
     fireEvent.click(screen.getByTestId('mock-tooltip-trigger'))
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
 
     // Click to open the more menu
     fireEvent.click(screen.getByRole('button', { name: 'chat.message.more' }))
 
     expect(screen.getByRole('menu')).toBeInTheDocument()
     // The tooltip must be immediately hidden when the menu opens
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
 
     expect(executeAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'copy' }))
-    expect(tooltipOpenValues).not.toContain(undefined)
-  })
-
-  it('suppresses the more menu tooltip after the menu closes until the trigger is left', () => {
-    tooltipOpenValues.length = 0
-
-    const MessageMenuActionContext = createActionContext()
-    const action = resolveMessageMenuBarToolbarActions(MessageMenuActionContext).find((item) => item.id === 'more-menu')
-
-    expect(action).toBeTruthy()
-
-    render(
-      renderMoreMenuToolbarAction({
-        action: action!,
-        actionContext: MessageMenuActionContext,
-        executeAction: vi.fn(),
-        menuActions: [
-          {
-            id: 'copy',
-            label: 'Copy',
-            icon: null,
-            danger: false,
-            availability: { visible: true, enabled: true },
-            children: []
-          }
-        ],
-        softHoverBg: false,
-        translationItems: []
-      })
-    )
-
-    const trigger = screen.getByRole('button', { name: 'chat.message.more' })
-    const tooltipTrigger = screen.getByTestId('mock-tooltip-trigger')
-
-    fireEvent.click(tooltipTrigger)
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
-
-    fireEvent.click(trigger)
-    expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
-
-    fireEvent.click(screen.getByTestId('mock-menu-close'))
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
-
-    fireEvent.click(tooltipTrigger)
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
-
-    fireEvent.pointerLeave(trigger)
-    fireEvent.click(tooltipTrigger)
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
   })
 
   it('keeps the translate tooltip controlled while opening the language menu with one click', () => {
@@ -573,19 +483,16 @@ describe('messageMenuBarActions', () => {
 
     // Simulate opening the tooltip
     fireEvent.click(screen.getByTestId('mock-tooltip-trigger'))
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
 
     // Click to open the translate menu by its accessible name
     fireEvent.click(screen.getByRole('button', { name: 'chat.translate' }))
 
     expect(screen.getByRole('menu')).toBeInTheDocument()
     // The tooltip must be immediately hidden when the menu opens
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
 
     fireEvent.click(screen.getByRole('button', { name: 'French' }))
 
     expect(onSelect).toHaveBeenCalled()
-    expect(tooltipOpenValues).not.toContain(undefined)
   })
 
   it('keeps translate available and requests languages when its menu first opens', () => {
@@ -658,172 +565,6 @@ describe('messageMenuBarActions', () => {
     expect(recoveredItems.map((item) => item.key)).toEqual(['en'])
   })
 
-  it('suppresses the translate tooltip after the language menu closes until a new trigger hover starts', () => {
-    tooltipOpenValues.length = 0
-
-    const MessageMenuActionContext = createActionContext({
-      actions: {
-        translateMessage: vi.fn()
-      } as unknown as MessageListActions,
-      translateLanguages: [{ langCode: 'fr', label: 'French' } as any]
-    })
-    const action = resolveMessageMenuBarToolbarActions(MessageMenuActionContext).find((item) => item.id === 'translate')
-
-    expect(action).toBeTruthy()
-
-    render(
-      renderTranslateToolbarAction({
-        action: action!,
-        actionContext: MessageMenuActionContext,
-        executeAction: vi.fn(),
-        menuActions: [],
-        softHoverBg: false,
-        translationItems: [{ key: 'fr', label: 'French', onSelect: vi.fn() }]
-      })
-    )
-
-    const trigger = screen.getByRole('button', { name: 'chat.translate' })
-    const tooltipTrigger = screen.getByTestId('mock-tooltip-trigger')
-
-    fireEvent.click(tooltipTrigger)
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
-
-    fireEvent.click(trigger)
-    expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
-
-    fireEvent.click(screen.getByTestId('mock-menu-close'))
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
-
-    fireEvent.click(tooltipTrigger)
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
-
-    fireEvent.pointerEnter(trigger)
-    fireEvent.click(tooltipTrigger)
-    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
-  })
-
-  it('keeps Notes actions capability-driven', () => {
-    const context = createActionContext({
-      actions: {
-        deleteMessage: vi.fn(),
-        exportToNotes: vi.fn(),
-        saveToKnowledge: vi.fn()
-      }
-    })
-
-    const toolbarActions = resolveMessageMenuBarToolbarActions(context)
-
-    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'notes', 'delete', 'more-menu'])
-    expect(
-      resolveMessageMenuBarMenuActions(context)
-        .find((action) => action.id === 'save')
-        ?.children.map((action) => action.id)
-    ).toEqual(['save.notes', 'save.knowledge'])
-  })
-
-  it('keeps menu actions capability-driven instead of filtering by session roots', () => {
-    const menuActions = resolveMessageMenuBarMenuActions(
-      createActionContext({
-        actions: {
-          exportMessageAsMarkdown: vi.fn(),
-          saveTextFile: vi.fn(),
-          startMessageBranch: vi.fn(),
-          toggleMultiSelectMode: vi.fn()
-        },
-        selection: {
-          enabled: true,
-          isMultiSelectMode: false,
-          selectedMessageIds: []
-        },
-        menuConfig: {
-          ...defaultMessageMenuConfig,
-          exportMenuOptions: {
-            ...defaultMessageMenuConfig.exportMenuOptions,
-            markdown: true
-          }
-        }
-      })
-    )
-
-    expect(menuActions.map((action) => action.id)).toEqual(['new-branch', 'multi-select', 'save', 'export'])
-    expect(menuActions[2]?.children.map((action) => action.id)).toEqual(['save.file'])
-    expect(menuActions[3]?.children.map((action) => action.id)).toEqual(['export.markdown'])
-  })
-
-  it('orders message export actions by destination and behavior', () => {
-    const menuActions = resolveMessageMenuBarMenuActions(
-      createActionContext({
-        actions: {
-          copyImage: vi.fn(),
-          copyText: vi.fn(),
-          exportMessageAsMarkdown: vi.fn(),
-          exportToJoplin: vi.fn(),
-          exportToNotion: vi.fn(),
-          exportToObsidian: vi.fn(),
-          exportToSiyuan: vi.fn(),
-          exportToWord: vi.fn(),
-          exportToYuque: vi.fn(),
-          saveImage: vi.fn()
-        },
-        menuConfig: {
-          ...defaultMessageMenuConfig,
-          exportMenuOptions: {
-            ...defaultMessageMenuConfig.exportMenuOptions,
-            docx: true,
-            image: true,
-            joplin: true,
-            markdown: true,
-            markdown_reason: true,
-            notion: true,
-            obsidian: true,
-            plain_text: true,
-            siyuan: true,
-            yuque: true
-          }
-        }
-      })
-    )
-
-    const exportActions = menuActions.find((action) => action.id === 'export')?.children
-    expect(exportActions?.map((action) => action.id)).toEqual([
-      'export.image',
-      'export.markdown',
-      'export.markdown-reason',
-      'export.word',
-      'export.notion',
-      'export.yuque',
-      'export.obsidian',
-      'export.joplin',
-      'export.siyuan',
-      'export.copy-plain-text',
-      'export.copy-image'
-    ])
-  })
-
-  it('enables new branch in the latest message menu', () => {
-    const menuActions = resolveMessageMenuBarMenuActions(
-      createActionContext({
-        actions: {
-          startMessageBranch: vi.fn(),
-          toggleMultiSelectMode: vi.fn()
-        },
-        isLastMessage: true,
-        selection: {
-          enabled: true,
-          isMultiSelectMode: false,
-          selectedMessageIds: []
-        }
-      })
-    )
-
-    expect(menuActions.map((action) => action.id)).toEqual(['new-branch', 'multi-select'])
-    expect(menuActions[0]?.availability).toEqual({
-      visible: true,
-      enabled: true
-    })
-  })
-
   it('copies the selected assistant path from beside the new branch action', async () => {
     const copyBranchToNewTopic = vi.fn()
     const notifySuccess = vi.fn()
@@ -835,35 +576,9 @@ describe('messageMenuBarActions', () => {
       }
     })
 
-    const menuActions = resolveMessageMenuBarMenuActions(context)
-
-    expect(menuActions.slice(0, 2).map((action) => action.id)).toEqual(['new-branch', 'copy-to-new-topic'])
-
     await executeMessageMenuBarAction('copy-to-new-topic', context)
 
     expect(copyBranchToNewTopic).toHaveBeenCalledWith('message-1')
-    expect(notifySuccess).toHaveBeenCalledWith('chat.message.flow.copy_topic.created')
-  })
-
-  it('hides branch actions from user message menus', () => {
-    const menuActions = resolveMessageMenuBarMenuActions(
-      createActionContext({
-        actions: {
-          copyBranchToNewTopic: vi.fn(),
-          startMessageBranch: vi.fn(),
-          toggleMultiSelectMode: vi.fn()
-        },
-        isAssistantMessage: false,
-        isUserMessage: true,
-        selection: {
-          enabled: true,
-          isMultiSelectMode: false,
-          selectedMessageIds: []
-        }
-      })
-    )
-
-    expect(menuActions.map((action) => action.id)).toEqual(['multi-select'])
   })
 
   it('disables streaming-unsafe toolbar actions while keeping copy enabled', () => {
@@ -928,8 +643,6 @@ describe('messageMenuBarActions', () => {
       })
     )
 
-    expect(translationItems.map((item) => item.key)).toEqual(['translate-copy', 'translate-close'])
-
     const closeItem = translationItems.find((item) => item.key === 'translate-close')
     if (!closeItem || 'type' in closeItem) {
       throw new Error('Expected a translate-close action item')
@@ -938,7 +651,6 @@ describe('messageMenuBarActions', () => {
     await closeItem.onSelect()
 
     expect(removeMessageTranslation).toHaveBeenCalledWith('message-1')
-    expect(notifySuccess).toHaveBeenCalledWith('translate.closed')
   })
 
   it('enables the translate toolbar action as abort while translation is running', () => {

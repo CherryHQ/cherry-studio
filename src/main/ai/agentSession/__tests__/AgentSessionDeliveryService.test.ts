@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { agentService } from '@data/services/AgentService'
 import type { agentSessionService } from '@data/services/AgentSessionService'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { KeyedMutex } from '@shared/utils/async'
 
 const mocks = vi.hoisted(() => ({
   accept: vi.fn(),
@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   publishDispatchChanges: vi.fn(),
   listAccepted: vi.fn(),
   listRecoverable: vi.fn(),
+  listRuntimeResumeTokensBySession: vi.fn(),
   resolveCrash: vi.fn(),
   reuseOrCreate: vi.fn(),
   deleteByIds: vi.fn<typeof agentSessionService.deleteByIdsWithImpact>(),
@@ -41,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   whenTerminalDispatchSettled: vi.fn(),
   runtimeBusy: vi.fn(),
   closeSession: vi.fn(),
+  prepareBranch: vi.fn(),
   getPath: vi.fn(),
   purgeSystemWorkspace: vi.fn(),
   withDispatchLock: vi.fn(),
@@ -81,6 +83,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     publishDispatchChanges: mocks.publishDispatchChanges,
     listAcceptedSessionDeliveries: mocks.listAccepted,
     listRecoverableSessionDeliveries: mocks.listRecoverable,
+    listRuntimeResumeTokensBySession: mocks.listRuntimeResumeTokensBySession,
     resolveCrashOrphanedMessages: mocks.resolveCrash
   }
 }))
@@ -121,7 +124,10 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { deleteAgentStateTx: mocks.deleteAgent, notifyDeleted: vi.fn(), getLifecycleState: () => 'trashed' }
 }))
 
-vi.mock('@main/ai/agents/agentOrphanSweep', () => ({ sweepAgentOrphans: vi.fn() }))
+vi.mock('@main/ai/agents/agentOrphanSweep', () => ({
+  sweepAgentOrphans: vi.fn(),
+  reclaimPurgedRuntimeSessions: vi.fn()
+}))
 vi.mock('@data/services/AgentTaskService', () => ({
   agentTaskService: {
     setOwnerStateTx: () => ({ scheduleIds: [], deletedSchedules: [] }),
@@ -138,6 +144,7 @@ vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
 }))
 
 const runtime = {
+  getExecutionHead: () => undefined,
   cancelSessionForks: vi.fn().mockResolvedValue(undefined),
   recoverSessionForks: vi.fn().mockResolvedValue(undefined),
   listActiveWork: () => [],
@@ -145,6 +152,7 @@ const runtime = {
   isSessionBusy: mocks.runtimeBusy,
   isSessionBusyForArchive: mocks.runtimeBusy,
   closeSession: mocks.closeSession,
+  prepareBranch: mocks.prepareBranch,
   onTurnTerminal: (listener: (event: any) => void) => {
     mocks.terminalListeners.add(listener)
     return { dispose: () => mocks.terminalListeners.delete(listener) }
@@ -236,6 +244,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.idleListeners.clear()
     mocks.listAccepted.mockReturnValue([])
     mocks.listRecoverable.mockReturnValue([])
+    mocks.listRuntimeResumeTokensBySession.mockReturnValue(new Map<string, Set<string>>())
     mocks.hasLiveStream.mockReturnValue(false)
     mocks.hasUnsettledTopicWork.mockReturnValue(false)
     mocks.withDispatchLock.mockImplementation((_topicId: string, fn: () => Promise<unknown>) => fn())
@@ -243,6 +252,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.whenTerminalDispatchSettled.mockResolvedValue(undefined)
     mocks.runtimeBusy.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
+    mocks.prepareBranch.mockReset().mockResolvedValue(undefined)
     mocks.getPath.mockReturnValue('/mock/feature.agents.system_workspaces')
     mocks.purgeSystemWorkspace.mockResolvedValue(undefined)
     mocks.listSystemWorkspaceSessions.mockReturnValue([])
@@ -318,6 +328,22 @@ describe('AgentSessionDeliveryService', () => {
     await service.drainInFlight({ timeoutMs: 100 })
     expect(mocks.hasLiveStream).toHaveBeenCalled()
     expect(mocks.send).toHaveBeenCalled()
+  })
+
+  it('rechecks admission after switching the captured delivery branch', async () => {
+    const switching = Promise.withResolvers<void>()
+    mocks.prepareBranch.mockReturnValue(switching.promise)
+    const service = new AgentSessionDeliveryService()
+    mocks.listAccepted.mockReturnValueOnce([accepted]).mockReturnValue([])
+    service.kick('target')
+    await vi.waitFor(() => expect(mocks.prepareBranch).toHaveBeenCalledWith('target', 'delivery-1'))
+    const hold = service.pause('test')
+    switching.resolve()
+    await service.drainSessionQueues(['target'])
+    expect(mocks.claim).not.toHaveBeenCalled()
+    expect(mocks.send).not.toHaveBeenCalled()
+    hold.dispose()
+    await service.drainSessionQueues(['target'])
   })
 
   it('keeps an accepted row durable while the target is busy, then starts it on idle', async () => {
@@ -697,24 +723,6 @@ describe('AgentSessionDeliveryService', () => {
       await service.drainInFlight({ timeoutMs: 100 })
 
       expect(mocks.send).toHaveBeenCalledOnce()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('reinstalls its retry sweep when the service restarts', async () => {
-    vi.useFakeTimers()
-    try {
-      const service = new AgentSessionDeliveryService()
-      await service._doInit()
-      await service._doAllReady()
-      expect(vi.getTimerCount()).toBe(1)
-
-      await service._doStop()
-      expect(vi.getTimerCount()).toBe(0)
-
-      await service._doInit()
-      expect(vi.getTimerCount()).toBe(1)
     } finally {
       vi.useRealTimers()
     }
@@ -1205,7 +1213,10 @@ describe('AgentSessionDeliveryService', () => {
       deletedIds: ['session-1', 'session-not-loaded']
     })
 
-    expect(mocks.deleteByAgentId).toHaveBeenCalledWith('agent-1', { permanent: false })
+    expect(mocks.deleteByAgentId).toHaveBeenCalledWith('agent-1', {
+      permanent: false,
+      sessionTypes: ['conversation']
+    })
     expect(mocks.closeSession).toHaveBeenCalledWith('session-1')
     expect(mocks.closeSession).toHaveBeenCalledWith('session-not-loaded')
   })

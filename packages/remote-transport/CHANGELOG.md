@@ -1,5 +1,45 @@
 # @cherrystudio/remote-transport
 
+## Unreleased
+
+### Patch Changes
+
+- Declare the MIT license and include a package-local license file.
+
+## 0.2.6
+
+### Patch Changes
+
+- [#24234](https://github.com/CherryHQ/cherry-studio/pull/24234) [`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658) Thanks [@DeJeune](https://github.com/DeJeune)! - Standardize public libraries on MIT and include package-local license files.
+- Updated dependencies [[`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658), [`0648691`](https://github.com/CherryHQ/cherry-studio/commit/06486919592b74c5996dc3485051db9250a6073f)]:
+  - @cherrystudio/remote-protocol@0.8.0
+
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies [[`bc570d2`](https://github.com/CherryHQ/cherry-studio/commit/bc570d2b98f81be7922fbc1f879b8db530c5b60d)]:
+  - @cherrystudio/remote-protocol@0.7.0
+
+## 0.2.4
+
+### Patch Changes
+
+- [#21979](https://github.com/CherryHQ/cherry-studio/pull/21979) [`332717f`](https://github.com/CherryHQ/cherry-studio/commit/332717fa06c47f361d85039e7e9a16693ffd66b1) Thanks [@drakeo338](https://github.com/drakeo338)! - Apply backpressure when a remote socket's queued bytes reach the cap instead of aborting the stream; the stream waits for the buffer to drain and aborts only if it stays congested past the idle timeout.
+
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [[`8bf2fe2`](https://github.com/CherryHQ/cherry-studio/commit/8bf2fe28d50170eb7b04c99dd5f8bfcf1913f2ae)]:
+  - @cherrystudio/remote-protocol@0.6.0
+
+## 0.2.2
+
+### Patch Changes
+
+- [#21687](https://github.com/CherryHQ/cherry-studio/pull/21687) [`0b12bae`](https://github.com/CherryHQ/cherry-studio/commit/0b12bae17ae1de88c83c96fc79cb086cb5bb2898) Thanks [@lianshuang-photo](https://github.com/lianshuang-photo)! - Add `RemoteRpcServer.refuse()` so admission control above the server can answer a request without dispatching it.
+
 ## 0.2.1
 
 ### Patch Changes

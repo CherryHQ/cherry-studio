@@ -207,6 +207,37 @@ pnpm theme:check
 pnpm test
 ```
 
+### Headless Code Highlighting
+
+`@cherrystudio/ui/code-highlight` exposes language/theme metadata, a lazy Highlights runtime,
+synchronous document sessions, and a bounded asynchronous snapshot executor. It imports neither
+React nor application services; metadata access does not initialize WASM. Import this subpath
+instead of the component entry in workers and editor adapters.
+
+`createCodeHighlightPlugin({ execute, themes })` connects Streamdown to a snapshot executor.
+Standalone Markdown defaults to a shared local executor and GitHub light/dark themes. The app
+injects its renderer worker executor and viewer theme preferences. Adopted message editors use the same selected code palette; generic CodeMirror editors and standalone UI consumers retain their own themes.
+
+`@cherrystudio/ui/code-block` supplies the shared code-block language loader, semantic
+HighlightStyle, palette variables and incremental parser documents. CodeViewer range jobs
+and Tiptap decorations use it in the existing renderer worker; adopted message editors install the same syntax
+classes and palette. Snapshot/HTML/Markdown jobs use its bounded snapshot adapter as well. It does not construct EditorView or import application services.
+`readCodeBlockState` reads an already parsed editor range to preserve syntax on the first
+viewer paint; it returns `null` when that range is not parsed, without starting parsing.
+Grammar modules can still depend on CodeMirror runtime modules and are cached separately
+in the worker and renderer.
+
+### Mermaid Diagrams
+
+`@cherrystudio/ui/mermaid` renders Mermaid source with Merman (`@mermanjs/web-render`, Mermaid
+compiled from Rust to WASM). `renderMermaidSvg(source, { theme, diagramId })` loads the runtime once
+per realm on first use and measures labels with an `OffscreenCanvas`, so it runs on the page or in a
+Web Worker; the app runs it in a worker. A worker must load the theme's `fontFaces` first, which
+`renderMermaidSvg` does. `resolveMermaidTheme(element)`
+maps the design tokens and the background actually painted behind `element` to Merman's semantic
+roles, so diagrams follow light/dark mode and sit on their surface. The Markdown `withMermaid()`
+preset uses the same renderer for Streamdown.
+
 ### Icon Generation
 
 Use the package command for all icon generation so ESLint fixes and the repository formatter run after the generated files are updated.
@@ -282,7 +313,7 @@ semantics and emits the corresponding public `data-ui` `part:*` tokens without r
 Existing renderer code, application tests, and custom themes that use `data-slot` continue to work; new selectors can
 use the generated semantic layer. The application-level token grammar, stability tiers, maintained anchors, and
 selector rules are defined by the
-[UI Semantic Contract](../../docs/references/components/ui-semantic-contract.md). Explicit roles and maintained `part:*` tokens
+[UI Semantic Contract](../../docs/dev/references/components/ui-semantic-contract.md). Explicit roles and maintained `part:*` tokens
 are public selectors; inferred roles are best-effort discovery coordinates.
 
 ## Directory Structure
@@ -307,7 +338,7 @@ icons/                  # Raw icon assets for code generation
 
 ## Naming Conventions
 
-All file and directory names under `packages/ui/` follow **kebab-case** (per shadcn CLI convention and project-wide rule §4.5 in [`../../docs/references/architecture/naming-conventions.md`](../../docs/references/architecture/naming-conventions.md)). This covers `primitives/`, `composites/`, `icons/`, `hooks/`, and `stories/` alike. Exported identifiers inside files remain `PascalCase` for components and `camelCase` for utilities and hooks.
+All file and directory names under `packages/ui/` follow **kebab-case** (per shadcn CLI convention and project-wide rule §4.5 in [`../../docs/dev/references/architecture/naming-conventions.md`](../../docs/dev/references/architecture/naming-conventions.md)). This covers `primitives/`, `composites/`, `icons/`, `hooks/`, and `stories/` alike. Exported identifiers inside files remain `PascalCase` for components and `camelCase` for utilities and hooks.
 
 Examples:
 
@@ -371,3 +402,25 @@ Delay for imperative Dialog hosts before unmounting: 200 ms.
 ## License
 
 MIT
+
+## ScrollArea spacing contract
+
+`ScrollArea.className` owns the scroll region's dimensions and boundary. `viewportProps` owns
+scroll events, focus, and viewport behavior. Neither carries content padding; put that spacing
+in `contentProps.className`. The scrollbar stays anchored to the root, independently of the
+content inset. Internal scrollbar track spacing is part of the primitive and remains unchanged.
+
+```tsx
+<ScrollArea
+  className="max-h-60"
+  viewportProps={{ className: 'overflow-x-hidden', tabIndex: 0 }}
+  contentProps={{ className: 'pl-5 pr-3' }}>
+  {children}
+</ScrollArea>
+```
+
+An ancestor with padding still insets the whole scroll region. For edge-aligned nested lists,
+keep the group full width, pad its heading and content separately, and reserve a separate lane
+for the outer scrollbar when both tracks can be visible. Preserve native scroll chaining.
+The `cherry-scroll-area/no-container-padding` Oxlint rule checks explicit consumer padding;
+it cannot decide whether an ancestor's inset is intentional or verify rendered geometry.

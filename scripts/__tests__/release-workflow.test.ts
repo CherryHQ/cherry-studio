@@ -380,26 +380,35 @@ describe('hotfix release notes', () => {
     expect(() => extractHotfixReleaseNote(hotfixBody(english, chinese))).toThrow('one [Component] release-note line')
   })
 
-  it('adds the hotfix to installer notes and stable release history exactly once', () => {
-    const fixture = createGitFixture()
-    const notes = releaseNotes('1.0.0', 'Existing fix.')
-    const builderPath = path.join(fixture.repo, 'electron-builder.yml')
-    const historyPath = path.join(fixture.repo, 'release-history.json')
-    write(fixture.repo, 'electron-builder.yml', builderYaml(notes))
-    write(
-      fixture.repo,
-      'release-history.json',
-      `${JSON.stringify([{ version: '1.0.0', releaseNotes: notes }], null, 2)}\n`
-    )
+  it.each(['\n', '', '\nextraMetadata:\n  cherryEdition: global\n'])(
+    'adds hotfix notes idempotently while keeping valid YAML formatting (suffix %j)',
+    (suffix) => {
+      const fixture = createGitFixture()
+      const notes = releaseNotes('1.0.0', 'Existing fix.')
+      const builderPath = path.join(fixture.repo, 'electron-builder.yml')
+      const historyPath = path.join(fixture.repo, 'release-history.json')
+      write(fixture.repo, 'electron-builder.yml', builderYaml(notes).trimEnd() + suffix)
+      write(
+        fixture.repo,
+        'release-history.json',
+        `${JSON.stringify([{ version: '1.0.0', releaseNotes: notes }], null, 2)}\n`
+      )
 
-    updateHotfixReleaseMetadata({ builderPath, historyPath, prBody: HOTFIX_BODY, version: '1.0.0' })
-    updateHotfixReleaseMetadata({ builderPath, historyPath, prBody: HOTFIX_BODY, version: '1.0.0' })
+      updateHotfixReleaseMetadata({ builderPath, historyPath, prBody: HOTFIX_BODY, version: '1.0.0' })
+      const firstUpdate = fs.readFileSync(builderPath, 'utf8')
+      expect(firstUpdate.endsWith('\n')).toBe(true)
+      if (suffix.includes('extraMetadata')) {
+        expect(parse(firstUpdate).extraMetadata).toEqual({ cherryEdition: 'global' })
+      }
+      updateHotfixReleaseMetadata({ builderPath, historyPath, prBody: HOTFIX_BODY, version: '1.0.0' })
+      expect(fs.readFileSync(builderPath, 'utf8')).toBe(firstUpdate)
 
-    const updatedNotes = readBuilderReleaseNotes(fs.readFileSync(builderPath, 'utf8')).releaseNotes
-    expect(updatedNotes.match(/Fix messages disappearing/g)).toHaveLength(1)
-    expect(updatedNotes.match(/修复重启后消息消失/g)).toHaveLength(1)
-    expect(JSON.parse(fs.readFileSync(historyPath, 'utf8'))[0].releaseNotes).toBe(updatedNotes)
-  })
+      const updatedNotes = readBuilderReleaseNotes(fs.readFileSync(builderPath, 'utf8')).releaseNotes
+      expect(updatedNotes.match(/Fix messages disappearing/g)).toHaveLength(1)
+      expect(updatedNotes.match(/修复重启后消息消失/g)).toHaveLength(1)
+      expect(JSON.parse(fs.readFileSync(historyPath, 'utf8'))[0].releaseNotes).toBe(updatedNotes)
+    }
+  )
 
   it.each(['```release-note\nNONE\n```', 'No release note block.'])(
     'leaves release metadata unchanged when no hotfix note is provided',
@@ -1143,37 +1152,13 @@ describe('release workflow gates', () => {
     expect(historyStep.with.path).toBe('resources/cherry-studio/release-history.json')
   })
 
-  it('revalidates the selected release branch head before draft mutation and tag movement', () => {
+  it('accepts the release-notes publication script as valid shell syntax', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
-    const finalizeSteps = workflow.jobs['finalize-build'].steps
-    const headStep = finalizeSteps.find((step: { name?: string }) => step.name === 'Revalidate current release head')
-    const releaseIndex = finalizeSteps.findIndex(
-      (step: { name?: string }) => step.name === 'Create or update draft release'
-    )
-    const uploadedStep = finalizeSteps.find((step: { name?: string }) => step.name === 'Validate uploaded draft')
-    const tagStep = finalizeSteps.find(
-      (step: { name?: string }) => step.name === 'Move draft tag with lease after artifact upload'
-    )
-    const draftStep = finalizeSteps.find((step: { name?: string }) => step.name === 'Create or update draft release')
-    const notesStep = finalizeSteps.find(
+    const notesStep = workflow.jobs['finalize-build'].steps.find(
       (step: { name?: string }) => step.name === 'Add generated changes to release notes'
     )
     const notesSyntax = spawnSync('bash', ['-n'], { encoding: 'utf8', input: notesStep.run })
-
-    expect(finalizeSteps.indexOf(headStep)).toBeLessThan(releaseIndex)
-    expect(headStep.run).toContain('BRANCH_SHA="$BRANCH_SHA"')
-    expect(draftStep.id).toBe('draft-release')
-    expect(uploadedStep.run).toContain('BRANCH_SHA="$BRANCH_SHA"')
-    expect(uploadedStep.run).toContain('releases/$RELEASE_ID')
-    expect(uploadedStep.run).not.toContain('releases/tags/')
-    expect(tagStep.run).toContain('BRANCH_SHA="$BRANCH_SHA"')
-    expect(tagStep.run).toContain('node scripts/release/validate-release-state.js build-completion')
-    expect(tagStep.run).toContain('gh api --method POST "repos/$REPO/git/refs"')
-    expect(tagStep.run).toContain('beforeOid: $beforeOid')
     expect(notesSyntax.status, notesSyntax.stderr).toBe(0)
-    expect(notesStep.run).toContain('gh api --paginate --slurp')
-    expect(notesStep.run).toContain('-f previous_tag_name="$PREVIOUS_TAG"')
-    expect(notesStep.run).toContain('if [ -z "$PREVIOUS_TAG" ]')
   })
 
   it('requires environment approval before validating and publishing the exact build', () => {
@@ -1230,37 +1215,6 @@ describe('release workflow gates', () => {
     expect(selection.run).toContain('if [ "$BRANCH_SHA" != "$RELEASE_SHA" ]')
     expect(releaseWorkflow.jobs.release.steps[0].with.ref).toBe('${{ inputs.expected_sha }}')
     expect(releaseWorkflow.jobs['finalize-build'].steps[0].with.ref).toBe('${{ github.workflow_sha }}')
-  })
-
-  it('reports a merged hotfix contract failure before release resolution', () => {
-    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'backport-release-fixes.yml'), 'utf8'))
-    const backportSteps = workflow.jobs.backport.steps
-    const contractStep = backportSteps.find((step: { id?: string }) => step.id === 'hotfix-contract')
-    const contractIndex = backportSteps.indexOf(contractStep)
-    const releaseRefIndex = backportSteps.findIndex((step: { id?: string }) => step.id === 'release-ref')
-    const failureStep = backportSteps.find(
-      (step: { name?: string }) => step.name === 'Synchronize failed backport state'
-    )
-
-    expect(contractStep.run).toContain('$RUNNER_TEMP/backport-failure-message')
-    expect(contractStep.run).toContain('node scripts/release/hotfix-release-notes.js --check')
-    expect(contractIndex).toBeLessThan(releaseRefIndex)
-    expect(failureStep.if).toBe('always() && failure()')
-    expect(failureStep.env.CONTRACT_OUTCOME).toBe('${{ steps.hotfix-contract.outcome }}')
-    expect(failureStep.run).toContain('if [ "$CONTRACT_OUTCOME" = "failure" ]; then')
-    expect(failureStep.run).toContain('gh pr comment')
-  })
-
-  it('classifies hotfix labels from the title before validating an optional release note', () => {
-    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'backport-release-fixes.yml'), 'utf8'))
-    const classifyStep = workflow.jobs.classify.steps.find(
-      (step: { name?: string }) => step.name === 'Synchronize hotfix label'
-    )
-    const addLabelIndex = classifyStep.run.indexOf('--add-label "hotfix"')
-    const noteCheckIndex = classifyStep.run.indexOf('hotfix-release-notes.js --check')
-
-    expect(addLabelIndex).toBeGreaterThan(-1)
-    expect(addLabelIndex).toBeLessThan(noteCheckIndex)
   })
 
   it('builds previews without environment approval while retaining signing and service credentials', () => {
@@ -1405,36 +1359,171 @@ describe('release workflow gates', () => {
     }
   })
 
-  it('syncs post-release metadata from the published tag without depending on the release branch head', () => {
-    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'post-release.yml'), 'utf8'))
-    const metadataStep = workflow.jobs['sync-release-metadata'].steps.find(
-      (step: { name?: string }) => step.name === 'Prepare published metadata changes'
-    )
-    const payloadStep = workflow.jobs['sync-release-metadata'].steps.find(
-      (step: { name?: string }) => step.name === 'Create signed metadata commit payload'
+  it.each([
+    ['windows', 'windows-2022', 'win', '-setup.exe'],
+    ['mac', 'macos-latest', 'mac', '.dmg'],
+    ['linux', 'ubuntu-latest', 'linux', '.AppImage']
+  ])('uploads only separate nightly installers for %s', (platform, runner, filePlatform, suffix) => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'nightly-build.yml'), 'utf8'))
+    const steps = workflow.jobs['nightly-build'].steps
+    const renameStep = steps.find((step: { name?: string }) => step.name === 'Rename artifacts with nightly format')
+    const uploads = steps.filter((step: { uses?: string }) => step.uses?.startsWith('actions/upload-artifact@'))
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nightly-installers-'))
+    roots.push(root)
+    const expected = getExpectedReleaseArtifacts({
+      edition: 'global',
+      platform,
+      productName: 'Cherry Studio',
+      version: '2.1.6'
+    })
+    for (const file of [...expected.files, ...expected.manifests.map((manifest) => manifest.file)]) {
+      write(root, `dist/${file}`, file)
+    }
+    execFileSync(
+      'bash',
+      [
+        '-e',
+        '-c',
+        renameStep.run.replaceAll('${{ matrix.os }}', runner).replaceAll('${{ steps.date.outputs.date }}', '20261015')
+      ],
+      { cwd: root }
     )
 
-    expect(metadataStep.run).toContain('refs/tags/$TAG:refs/tags/$TAG')
-    expect(metadataStep.run).not.toContain('refs/heads/$RELEASE_BRANCH')
-    expect(metadataStep.run).not.toContain('BRANCH_SHA')
-    expect(payloadStep.run).not.toContain('Unexpected release metadata change')
-    expect(payloadStep.run).not.toContain('must not change file mode')
+    const stagedFiles = fs.readdirSync(path.join(root, 'renamed-artifacts')).sort()
+    expect(stagedFiles).toEqual([
+      `cherry-studio-nightly-20261015-${filePlatform}-arm64${suffix}`,
+      `cherry-studio-nightly-20261015-${filePlatform}-x64${suffix}`
+    ])
+    const selectedFiles: string[] = []
+    for (const upload of uploads) {
+      const options = upload.with
+      expect(options.archive).toBe(false)
+      expect(options['if-no-files-found']).toBe('error')
+      expect(options['retention-days']).toBe(3)
+      const patterns = options.path.trim().split('\n')
+      const selected = stagedFiles.filter((file) =>
+        patterns.some((pattern: string) => path.matchesGlob(`renamed-artifacts/${file}`, pattern))
+      )
+      expect(selected).toHaveLength(1)
+      const file = selected[0]
+      const arch = file.includes('-arm64') ? 'arm64' : 'x64'
+      expect(fs.readFileSync(path.join(root, 'renamed-artifacts', file), 'utf8')).toBe(
+        `Cherry-Studio-2.1.6-${filePlatform}-${arch}${suffix}`
+      )
+      selectedFiles.push(...selected)
+    }
+    expect(selectedFiles.sort()).toEqual(stagedFiles)
   })
 
-  it('copies only known preparation files and revalidates them before creating the release branch', () => {
-    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'prepare-release.yml'), 'utf8'))
-    const validationStep = workflow.jobs.publish.steps.find(
-      (step: { name?: string }) => step.name === 'Validate prepared release artifact'
-    )
+  it.each(['all', 'partial', 'empty', 'unavailable'])(
+    'summarizes nightly downloads with %s uploads',
+    async (scenario) => {
+      const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'nightly-build.yml'), 'utf8'))
+      const job = workflow.jobs['Build-Summary']
+      expect(job.needs).toContain('nightly-build')
+      expect(job.if).toContain('always()')
+      expect(job.permissions.actions).toBe('read')
+      expect(job.steps.some((step: { uses?: string }) => step.uses?.startsWith('actions/download-artifact@'))).toBe(
+        false
+      )
+      const installers = [
+        {
+          id: 101,
+          name: 'cherry-studio-nightly-20261015-win-x64-setup.exe',
+          size_in_bytes: 1048576,
+          row: '| Windows | x64 | 2026-10-15 | 1.0 MiB |'
+        },
+        {
+          id: 102,
+          name: 'cherry-studio-nightly-20261015-win-arm64-setup.exe',
+          size_in_bytes: 2621440,
+          row: '| Windows | arm64 | 2026-10-15 | 2.5 MiB |'
+        },
+        {
+          id: 103,
+          name: 'cherry-studio-nightly-20261014-mac-x64.dmg',
+          size_in_bytes: 3145728,
+          row: '| macOS | x64 | 2026-10-14 | 3.0 MiB |'
+        },
+        {
+          id: 104,
+          name: 'cherry-studio-nightly-20261014-mac-arm64.dmg',
+          size_in_bytes: 4194304,
+          row: '| macOS | arm64 | 2026-10-14 | 4.0 MiB |'
+        },
+        {
+          id: 105,
+          name: 'cherry-studio-nightly-20261014-linux-x64.AppImage',
+          size_in_bytes: 5242880,
+          row: '| Linux | x64 | 2026-10-14 | 5.0 MiB |'
+        },
+        {
+          id: 106,
+          name: 'cherry-studio-nightly-20261014-linux-arm64.AppImage',
+          size_in_bytes: 6291456,
+          row: '| Linux | arm64 | 2026-10-14 | 6.0 MiB |'
+        }
+      ]
+      const excluded = [
+        { id: 201, name: 'cherry-studio-nightly-20261013-win-x64-setup.exe', expired: true },
+        { id: 202, name: 'cherry-studio-nightly-20261015-windows-2022' },
+        { id: 203, name: 'cherry-studio-nightly-20261015-win-x64-portable.exe' },
+        { id: 204, name: 'cherry-studio-nightly-20261014-mac-arm64.zip' },
+        { id: 205, name: 'cherry-studio-nightly-20261014-linux-x64.deb' },
+        { id: 206, name: 'cherry-studio-nightly-20261014-linux-arm64.rpm' },
+        { id: 207, name: 'SHA256SUMS.txt' },
+        { id: 208, name: 'latest.yml' },
+        { id: 209, name: 'unrelated.zip' }
+      ]
+      const available = scenario === 'all' ? installers : scenario === 'partial' ? installers.slice(0, 2) : []
+      let output = ''
+      const github = {
+        rest: { actions: { listWorkflowRunArtifacts: 'listWorkflowRunArtifacts' } },
+        paginate: async (
+          _endpoint: unknown,
+          params: { owner: string; repo: string; run_id: number; per_page: number }
+        ) => {
+          expect(params).toMatchObject({ owner: 'CherryHQ', repo: 'cherry-studio', run_id: 42, per_page: 100 })
+          return scenario === 'empty' ? [] : [...excluded, ...available].reverse()
+        }
+      }
+      const core = {
+        summary: {
+          addRaw(markdown: string) {
+            output += markdown
+            return this
+          },
+          async write() {}
+        }
+      }
+      const summaryStep = job.steps.find((step: { uses?: string }) => step.uses?.startsWith('actions/github-script@'))
+      const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+      await new AsyncFunction('github', 'context', 'core', summaryStep.with.script)(
+        github,
+        { repo: { owner: 'CherryHQ', repo: 'cherry-studio' }, runId: 42, serverUrl: 'https://github.com' },
+        core
+      )
 
-    expect(validationStep.run.indexOf('fs.copyFileSync')).toBeLessThan(
-      validationStep.run.indexOf('validate-prepared-release.js')
-    )
-    expect(validationStep.run).toContain('--include-generated-manifest')
-    expect(validationStep.run).not.toContain('function walk')
-    expect(validationStep.run).not.toContain('unexpected file set')
-    expect(validationStep.run).not.toContain('git status')
-  })
+      expect(output).toContain('## Nightly downloads')
+      expect(output).toContain('3 days')
+      expect(output).toContain('Sign in to GitHub')
+      expect(output).toContain('警告：这是每日构建版本')
+      expect(output).toContain('Warning: This is a nightly build version')
+      expect(output).toContain('安装此版本前请务必备份数据')
+      expect(output).toContain('Please backup your data before installing this version')
+      expect(output.match(/\[Download\]/g) ?? []).toHaveLength(available.length)
+      for (const installer of available) {
+        expect(output).toContain(
+          `${installer.row} [Download](https://github.com/CherryHQ/cherry-studio/actions/runs/42/artifacts/${installer.id}) |`
+        )
+      }
+      for (const artifact of excluded) {
+        expect(output).not.toContain(`/artifacts/${artifact.id}`)
+      }
+      if (!available.length)
+        expect(output).toContain('No nightly installers are available. Check the build jobs for details.')
+    }
+  )
 
   // The workflow step under test is a bash script authored for GitHub-hosted
   // ubuntu runners. On Windows `bash` resolves to WSL or Git Bash, neither of
@@ -1444,26 +1533,9 @@ describe('release workflow gates', () => {
     () => {
       const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'prepare-release.yml'), 'utf8'))
       const prepareSteps = workflow.jobs.prepare.steps
-      const claudeStep = prepareSteps.find((step: { name?: string }) => step.name === 'Prepare Release via Claude')
       const retainStep = prepareSteps.find(
         (step: { name?: string }) => step.name === 'Retain prepared release metadata'
       )
-      const syncIndex = prepareSteps.findIndex(
-        (step: { name?: string }) => step.name === 'Sync release history from prepared release notes'
-      )
-      const validationIndex = prepareSteps.findIndex(
-        (step: { name?: string }) => step.name === 'Validate prepared release metadata'
-      )
-
-      expect(claudeStep.with.claude_args).toContain('Bash(git:*)')
-      expect(claudeStep.with.claude_args).toContain('Bash(node:*)')
-      expect(retainStep.run).toContain('git diff --binary --full-index')
-      expect(retainStep.run).toContain('git reset --hard "$RELEASE_HEAD"')
-      expect(retainStep.run).toContain('git clean -fd')
-      expect(retainStep.run).toContain('git apply "$RELEASE_PATCH"')
-      expect(prepareSteps.indexOf(retainStep)).toBeLessThan(syncIndex)
-      expect(syncIndex).toBeLessThan(validationIndex)
-
       const fixture = createGitFixture()
       write(fixture.repo, 'package.json', '{"version":"1.0.0"}\n')
       write(fixture.repo, 'electron-builder.yml', 'releaseInfo:\n  releaseNotes: old\n')

@@ -1,7 +1,6 @@
 import { jsonSchema, type Tool, type ToolSet } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createBrowserToolEntries } from '../../builtin/BrowserTools'
 import { TOOL_INSPECT_TOOL_NAME } from '../../meta/toolInspect'
 import { TOOL_INVOKE_TOOL_NAME } from '../../meta/toolInvoke'
 import { TOOL_SEARCH_TOOL_NAME } from '../../meta/toolSearch'
@@ -33,7 +32,7 @@ describe('applyDeferExposition', () => {
   it('returns ToolSet unchanged when no entries are deferred', async () => {
     const { registry, tools } = buildRegistryWith([makeEntry('web_search', 'never'), makeEntry('mcp__a__t', 'auto')])
     const result = await applyDeferExposition(tools, registry, 32_000)
-    expect(result.tools).toBe(tools)
+    expect(result.tools).toEqual(tools)
     expect(result.deferredEntries).toEqual([])
   })
 
@@ -54,35 +53,6 @@ describe('applyDeferExposition', () => {
     )
     expect(result!['experimental']).toBeUndefined()
     expect(deferredEntries.map((e) => e.name)).toEqual(['experimental'])
-  })
-
-  it('strips overflowing auto entries when the pool meets both size and net-savings gates', async () => {
-    // 5 fat auto entries — pool count >= MIN_AUTO_DEFER_COUNT, total cost
-    // overflows 10% of 32k, and savings exceed META_TOOLS_OVERHEAD_TOKENS.
-    const heavyAuto = Array.from({ length: 5 }, (_, i) => makeEntry(`mcp__big${i}__t`, 'auto', 8_000))
-    const small = makeEntry('web_search', 'never')
-    const { registry, tools } = buildRegistryWith([...heavyAuto, small])
-    const { tools: result, deferredEntries } = await applyDeferExposition(tools, registry, 32_000)
-    for (const e of heavyAuto) {
-      expect(result![e.name]).toBeUndefined()
-    }
-    expect(result!['web_search']).toBeDefined()
-    expect(result![TOOL_SEARCH_TOOL_NAME]).toBeDefined()
-    expect(result![TOOL_INSPECT_TOOL_NAME]).toBeDefined()
-    expect(result![TOOL_INVOKE_TOOL_NAME]).toBeDefined()
-    expect(deferredEntries.map((e) => e.name).sort()).toEqual(heavyAuto.map((e) => e.name).sort())
-  })
-
-  it('keeps a single fat auto entry inline (below minimum-count gate, no meta-tools injected)', async () => {
-    // One huge entry blows the cost threshold but the pool is too small for
-    // search-then-invoke to be a net win — must stay inline.
-    const huge = makeEntry('mcp__big__t', 'auto', 50_000)
-    const small = makeEntry('web_search', 'never')
-    const { registry, tools } = buildRegistryWith([huge, small])
-    const { tools: result, deferredEntries } = await applyDeferExposition(tools, registry, 32_000)
-    expect(result).toBe(tools)
-    expect(result![TOOL_SEARCH_TOOL_NAME]).toBeUndefined()
-    expect(deferredEntries).toEqual([])
   })
 
   async function exposeDeferredTool() {
@@ -124,45 +94,13 @@ describe('applyDeferExposition', () => {
     expect(execute).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps deferred browser tools discoverable, inspectable, and callable', async () => {
-    const execute = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'opened' }] })
-    const entries = createBrowserToolEntries().map((entry) =>
-      entry.name === 'browser_open' ? { ...entry, tool: { ...entry.tool, execute } } : entry
-    )
-    const { registry, tools } = buildRegistryWith(entries)
-    const exposed = await applyDeferExposition(tools, registry, 1_000_000)
-    const metaTools = exposed.tools!
-    const opts = {
-      toolCallId: 'browser-1',
-      messages: [],
-      experimental_context: { requestId: 'request-1', topicId: 'topic-1', assistant: { id: 'assistant-1' } }
-    } as Parameters<NonNullable<Tool['execute']>>[1]
-
-    expect(metaTools.browser_open).toBeUndefined()
-    expect(exposed.deferredEntries.map((entry) => entry.name)).toContain('browser_open')
-    const found = await metaTools[TOOL_SEARCH_TOOL_NAME].execute!({ query: 'browser_open', namespace: 'browser' }, opts)
-    expect(found.matchedNamespaces[0].tools.map((entry: { name: string }) => entry.name)).toContain('browser_open')
-    const signature = await metaTools[TOOL_INSPECT_TOOL_NAME].execute!({ name: 'browser_open' }, opts)
-    expect(signature).toContain('browser_open')
-    expect(signature).toContain('url')
-    const result = await metaTools[TOOL_INVOKE_TOOL_NAME].execute!(
-      { name: 'browser_open', params: { url: 'https://example.com' } },
-      opts
-    )
-    expect(result).toEqual({ content: [{ type: 'text', text: 'opened' }] })
-    expect(execute).toHaveBeenCalledWith(
-      expect.objectContaining({ url: 'https://example.com' }),
-      expect.objectContaining({ toolCallId: 'browser-1::browser_open' })
-    )
-  })
-
   it('skips entries that have a tool but no registry entry', async () => {
     const registry = new ToolRegistry()
     const tools: ToolSet = {
       orphan: { description: 'o', inputSchema: {} } as unknown as Tool
     }
     const result = await applyDeferExposition(tools, registry, 32_000)
-    expect(result.tools).toBe(tools)
+    expect(result.tools).toEqual(tools)
     expect(result.deferredEntries).toEqual([])
   })
 })

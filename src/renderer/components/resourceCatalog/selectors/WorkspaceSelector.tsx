@@ -2,10 +2,10 @@ import { CircleSlash, Folder, FolderPlus, Pencil, Trash2 } from 'lucide-react'
 import { lazy, type ReactElement, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from '@renderer/components/ModelSelector'
-import Scrollbar from '@renderer/components/Scrollbar'
 import {
   DEFAULT_SELECTOR_CONTENT_HEIGHT,
   SelectorShell,
@@ -13,6 +13,7 @@ import {
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
 import { useDataChange, useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
@@ -78,6 +79,7 @@ export function WorkspaceSelector({
   const [searchValue, setSearchValue] = useState('')
   const [deletingWorkspace, setDeletingWorkspace] = useState<AgentWorkspaceEntity | null>(null)
   const [editingWorkspace, setEditingWorkspace] = useState<AgentWorkspaceEntity | null>(null)
+  const { value: retainedDeletingWorkspace } = useExitPresence(deletingWorkspace)
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
   const open = openProp ?? internalOpen
   const listboxId = useId()
@@ -275,15 +277,19 @@ export function WorkspaceSelector({
           const listHeight = availableListHeight ?? DEFAULT_MIN_LIST_HEIGHT
 
           return (
-            <Scrollbar
-              ref={listRef}
-              id={listboxId}
-              role="listbox"
-              tabIndex={-1}
-              className="min-h-0 flex-1 px-1 py-1 outline-none"
+            <ScrollArea
+              contentProps={{ className: 'px-1 py-1' }}
+              viewportProps={{
+                ref: listRef,
+                id: listboxId,
+                role: 'listbox',
+                tabIndex: -1,
+                className: 'outline-none'
+              }}
+              className="min-h-0 flex-1"
               style={{ height: listHeight }}>
               {workspaceListContent}
-            </Scrollbar>
+            </ScrollArea>
           )
         }}
       </SelectorShell>
@@ -293,10 +299,11 @@ export function WorkspaceSelector({
           <WorkspaceEditDialog workspace={editingWorkspace} onClose={() => setEditingWorkspace(null)} />
         </Suspense>
       ) : null}
-      {deletingWorkspace ? (
+      {retainedDeletingWorkspace ? (
         <Suspense fallback={null}>
           <WorkspaceDeleteConfirmDialog
-            workspace={deletingWorkspace}
+            workspace={retainedDeletingWorkspace}
+            open={deletingWorkspace !== null}
             onDeleted={handleWorkspaceDeleted}
             onClose={() => setDeletingWorkspace(null)}
           />

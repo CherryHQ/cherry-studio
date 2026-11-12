@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-19-permanent-deletion-guards.md
+2026-10-19-permanent-deletion-guards.md: 1c91ece7c9fa3f48b911a1095c13bc7e55c884aa
+2026-10-19-permanent-deletion-guards.zh.md: c1a5e92918d4cce35ce04e84f47bc62497258bae

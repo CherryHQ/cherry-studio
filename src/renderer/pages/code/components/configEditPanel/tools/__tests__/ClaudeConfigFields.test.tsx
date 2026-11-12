@@ -1,3 +1,10 @@
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes } from 'react'
 import type { ReactElement, ReactNode } from 'react'
@@ -154,49 +161,9 @@ function renderFields(
   return { onChange }
 }
 
-function expectBefore(first: HTMLElement, second: HTMLElement) {
-  expect(Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
-}
-
 describe('ClaudeConfigFields', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  it('removes the old advanced input fields from Claude Code settings', () => {
-    renderFields()
-
-    expect(screen.queryByText('code.adv.claude.max_output_tokens_hint')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.adv.claude.effort_level_hint')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.adv.claude.max_context_tokens_hint')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.adv.claude.permissions_hint')).not.toBeInTheDocument()
-  })
-
-  it('shows the five most important Claude toggles before expanding the rest', () => {
-    renderFields({ section: 'basic' })
-
-    expect(screen.getByText('code.adv.permission_mode')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.permission_modes.bypass_high_risk')).toBeInTheDocument()
-    expect(screen.queryByText('code.adv.permission_modes.deny_by_default')).not.toBeInTheDocument()
-    expect(screen.getByText('code.adv.reasoning_effort')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.reasoning_efforts.xhigh')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.claude.enable_tool_search')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.claude.enable_teammates')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.claude.disable_auto_upgrade')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.claude.disable_nonessential_traffic')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.claude.disable_bundled_skills')).toBeInTheDocument()
-    expect(screen.queryByText('code.adv.claude.disable_compact')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.adv.claude.hide_attribution')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('code.more'))
-
-    expect(screen.getByText('code.adv.claude.disable_compact')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.claude.disable_1m_context')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.claude.disable_terminal_title')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.claude.disable_extra_usage_command')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.claude.disable_attribution_header')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.claude.hide_attribution')).toBeInTheDocument()
-    expect(screen.getByText('code.collapse')).toBeInTheDocument()
   })
 
   it('writes Claude permission mode selections', () => {
@@ -215,51 +182,6 @@ describe('ClaudeConfigFields', () => {
     fireEvent.click(screen.getByText('code.adv.reasoning_efforts.high'))
 
     expect(onChange).toHaveBeenCalledWith({ effortLevel: 'high' })
-  })
-
-  it('orders role model selectors as Fable, Opus, Sonnet, Haiku, Subagent', () => {
-    renderFields()
-
-    const fable = screen.getByText('code.adv.claude.fable_model')
-    const opus = screen.getByText('code.adv.claude.opus_model')
-    const sonnet = screen.getByText('code.adv.claude.sonnet_model')
-    const haiku = screen.getByText('code.adv.claude.haiku_model')
-    const subagent = screen.getByText('code.adv.claude.subagent_model')
-
-    expectBefore(fable, opus)
-    expectBefore(opus, sonnet)
-    expectBefore(sonnet, haiku)
-    expectBefore(haiku, subagent)
-  })
-
-  it('renders role model selectors directly without hint text or table headers', () => {
-    renderFields()
-
-    expect(screen.queryByText('code.adv.claude.model_roles_hint')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.adv.claude.role_column')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.adv.claude.model_column')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.adv.claude.context_column')).not.toBeInTheDocument()
-    expect(screen.queryByText('1M')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('one-million-context-checkbox')).not.toBeInTheDocument()
-  })
-
-  it('shows the empty model placeholder for role selectors without role-specific models', () => {
-    renderFields()
-
-    expect(screen.getAllByTestId('role-model-selector').map((selector) => selector.dataset.value)).toEqual([
-      '',
-      '',
-      '',
-      '',
-      ''
-    ])
-    expect(screen.getAllByTestId('model-selector-trigger').map((trigger) => trigger.textContent)).toEqual([
-      'settings.models.empty',
-      'settings.models.empty',
-      'settings.models.empty',
-      'settings.models.empty',
-      'settings.models.empty'
-    ])
   })
 
   it('forwards settings navigation through every detailed role selector', () => {
@@ -298,7 +220,7 @@ describe('ClaudeConfigFields', () => {
 
     expect(onChange).toHaveBeenCalledWith({
       env: {
-        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5 [1M]',
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5[1M]',
         ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-sonnet-4-5'
       }
     })

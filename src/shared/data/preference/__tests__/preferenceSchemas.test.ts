@@ -5,40 +5,45 @@ import { DefaultPreferences } from '../preferenceSchemas'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '../preferenceTypes'
 
 describe('DefaultPreferences', () => {
-  it('leaves the client ID empty until runtime generates a UUID', () => {
-    expect(DefaultPreferences.default['app.user.id']).toBe('')
+  it('keeps notification history enabled while sound, usage popups and an unset budget remain opt-in', () => {
+    const defaults = DefaultPreferences.default as Record<string, unknown>
+    expect({
+      system: defaults['app.notification.center.system.enabled'],
+      usage: defaults['app.notification.center.usage.enabled'],
+      official: defaults['app.notification.center.official.enabled'],
+      os: defaults['app.notification.usage.os.enabled'],
+      sound: defaults['app.notification.completion_sound.enabled'],
+      budget: defaults['app.notification.daily_budget.tokens'],
+      threshold: defaults['app.notification.daily_budget.threshold']
+    }).toEqual({ system: true, usage: true, official: true, os: false, sound: false, budget: 0, threshold: 80 })
   })
 
-  it('uses flat file processing default keys', () => {
-    const markdownConversionDefault: PreferenceSchemas['default']['feature.file_processing.default_document_to_markdown'] =
-      null
+  it('seeds Voice selections without guessing resources or enabling auto-read', () => {
+    const speechSpeed: PreferenceSchemas['default']['feature.voice.speech.speed'] = 1
+    const recognitionModelId: PreferenceSchemas['default']['feature.voice.recognition.model_id'] = ''
+    const autoRead: PreferenceSchemas['default']['feature.voice.auto_read.enabled'] = false
+    const defaults = DefaultPreferences.default as Record<string, unknown>
 
-    expect(markdownConversionDefault).toBeNull()
-    expect(DefaultPreferences.default['feature.file_processing.default_document_to_markdown']).toBeNull()
-    expect(DefaultPreferences.default['feature.file_processing.default_image_to_text']).toBeNull()
-    expect('feature.file_processing.default.document_to_markdown' in DefaultPreferences.default).toBe(false)
-    expect('feature.file_processing.default.image_to_text' in DefaultPreferences.default).toBe(false)
-  })
-
-  it('defaults the URL fetch web search provider to jina', () => {
-    const fetchUrlsDefault: PreferenceSchemas['default']['chat.web_search.default_fetch_urls_provider'] = 'jina'
-
-    expect(DefaultPreferences.default['chat.web_search.default_fetch_urls_provider']).toBe(fetchUrlsDefault)
-  })
-
-  it('defaults the keyword search web search provider to exa-mcp', () => {
-    const searchKeywordsDefault: PreferenceSchemas['default']['chat.web_search.default_search_keywords_provider'] =
-      'exa-mcp'
-
-    expect(DefaultPreferences.default['chat.web_search.default_search_keywords_provider']).toBe(searchKeywordsDefault)
-  })
-
-  it('groups conversations and agent sessions by the assistant and agent defaults for new users', () => {
-    const topicDisplayDefault: PreferenceSchemas['default']['topic.tab.display_mode'] = 'assistant'
-    const agentSessionDisplayDefault: PreferenceSchemas['default']['agent.session.display_mode'] = 'agent'
-
-    expect(DefaultPreferences.default['topic.tab.display_mode']).toBe(topicDisplayDefault)
-    expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
+    expect({
+      recognitionModelId: defaults['feature.voice.recognition.model_id'],
+      recognitionLanguage: defaults['feature.voice.recognition.language'],
+      speechModelId: defaults['feature.voice.speech.model_id'],
+      speechVoiceId: defaults['feature.voice.speech.voice_id'],
+      speechLanguage: defaults['feature.voice.speech.language'],
+      speechSpeed: defaults['feature.voice.speech.speed'],
+      autoRead: defaults['feature.voice.auto_read.enabled'],
+      disclosureConfirmed: defaults['feature.voice.auto_read.disclosure_confirmed']
+    }).toEqual({
+      recognitionModelId: '',
+      recognitionLanguage: '',
+      speechModelId: '',
+      speechVoiceId: '',
+      speechLanguage: '',
+      speechSpeed,
+      autoRead,
+      disclosureConfirmed: false
+    })
+    expect(recognitionModelId).toBe('')
   })
 
   it('preserves the legacy favorites shape independently of resource shortcut defaults', () => {
@@ -54,6 +59,7 @@ describe('DefaultPreferences', () => {
     const sidebarShortcutsDefault: PreferenceSchemas['default']['ui.sidebar_shortcut'] = [
       'agents',
       'assistants',
+      'scheduled_tasks',
       'translate',
       'paintings',
       'knowledge'
@@ -66,36 +72,5 @@ describe('DefaultPreferences', () => {
     })
 
     expect(DefaultPreferences.default['ui.sidebar_shortcut']).toEqual(sidebarShortcutsDefault)
-  })
-
-  it('pins permission mode on the agent composer toolbar for new users', () => {
-    const agentPinnedToolsDefault: PreferenceSchemas['default']['agent.input.toolbar.pinned_tools'] = [
-      'composer:new-session',
-      'skills',
-      'permission-mode'
-    ]
-
-    expect(DefaultPreferences.default['agent.input.toolbar.pinned_tools']).toEqual(agentPinnedToolsDefault)
-  })
-
-  it('defaults transparent windows on for new users', () => {
-    const windowStyleDefault: PreferenceSchemas['default']['ui.window_style'] = 'transparent'
-
-    expect(DefaultPreferences.default['ui.window_style']).toBe(windowStyleDefault)
-  })
-
-  it('defaults message navigation to the anchor rail for new users', () => {
-    const messageNavigationDefault: PreferenceSchemas['default']['chat.message.navigation_mode'] = 'anchor'
-
-    expect(DefaultPreferences.default['chat.message.navigation_mode']).toBe(messageNavigationDefault)
-  })
-
-  it('shows estimated input tokens by default for new users', () => {
-    expect(DefaultPreferences.default['chat.input.show_estimated_tokens']).toBe(true)
-  })
-
-  it('does not keep legacy classic/modern layout preferences', () => {
-    expect('topic.layout' in DefaultPreferences.default).toBe(false)
-    expect('agent.layout' in DefaultPreferences.default).toBe(false)
   })
 })

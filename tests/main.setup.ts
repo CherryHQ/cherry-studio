@@ -9,6 +9,12 @@ vi.mock('@main/services/readableContent/readableContentWorker?nodeWorker', () =>
   })
 }))
 
+vi.mock('@main/ai/messages/attachmentWorker?nodeWorker', () => ({
+  default: vi.fn(() => {
+    throw new Error('Attachment worker factory must be mocked by tests that invoke it')
+  })
+}))
+
 // Mock LoggerService globally for main process tests
 vi.mock('@logger', async () => {
   const { MockMainLoggerService, mockMainLoggerService } = await import('./__mocks__/MainLoggerService')
@@ -59,10 +65,15 @@ vi.mock('@application', async () => {
 })
 
 // Mock electron modules that are commonly used in main process
-vi.mock('electron', () => {
-  const partitionSessions = new Map<string, Record<string, unknown>>()
+vi.mock('electron', async () => {
+  const { EventEmitter } = await import('node:events')
+  const partitionSessions = new Map<string, object>()
   const mock = {
     app: {
+      commandLine: {
+        hasSwitch: vi.fn(() => false),
+        getSwitchValue: vi.fn(() => '')
+      },
       getPath: vi.fn((key: string) => {
         switch (key) {
           case 'userData':
@@ -127,7 +138,7 @@ vi.mock('electron', () => {
       fromPartition: vi.fn((partition: string) => {
         const cached = partitionSessions.get(partition)
         if (cached) return cached
-        const created = {
+        const created = Object.assign(new EventEmitter(), {
           fetch: vi.fn(),
           clearCache: vi.fn(),
           clearStorageData: vi.fn(),
@@ -143,7 +154,7 @@ vi.mock('electron', () => {
             onBeforeSendHeaders: vi.fn(),
             onHeadersReceived: vi.fn()
           }
-        }
+        })
         partitionSessions.set(partition, created)
         return created
       })
@@ -242,12 +253,13 @@ vi.mock('electron-store', () => {
 // tests assume this deterministic value when building expected paths.
 vi.mock('node:os', async () => {
   const actual = await vi.importActual<typeof import('node:os')>('node:os')
+  const { resolve } = await vi.importActual<typeof import('node:path')>('node:path')
   return {
     ...actual,
-    homedir: vi.fn(() => '/mock/home'),
+    homedir: vi.fn(() => resolve('/mock/home')),
     default: {
       ...actual,
-      homedir: () => '/mock/home'
+      homedir: () => resolve('/mock/home')
     }
   }
 })

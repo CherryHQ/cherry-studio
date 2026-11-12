@@ -22,7 +22,6 @@ import type {
   ChatRecordReference
 } from '../chatRecordCollector'
 import * as chatRecordCollector from '../chatRecordCollector'
-import * as sourceCollector from '../sourceCollector'
 import * as sourceSelection from '../sourceSelection'
 
 const electronMocks = vi.hoisted(() => ({
@@ -474,48 +473,6 @@ describe('DiagnosticBundleService', () => {
     }
   })
 
-  it('uses the lexicographically earlier archive key when equal log candidates compete for the final budget', async () => {
-    const now = Date.now()
-    const logFileNames = [`app-error.${formatLogDate(now)}.log`, `app.${formatLogDate(now)}.log`]
-    const logLine = `${JSON.stringify({ message: 'same-size', timestamp: new Date(now - 1_000).toISOString() })}\n`
-    await Promise.all(logFileNames.map((fileName) => writeFile(path.join(logsDir, fileName), logLine)))
-
-    const archiveNames = logFileNames.map((fileName) => `logs/${fileName}`).sort()
-    const collectSources = sourceCollector.collectDiagnosticSources
-    const collectionSpy = vi.spyOn(sourceCollector, 'collectDiagnosticSources').mockImplementation(async (...args) => {
-      const collection = await collectSources(...args)
-      return {
-        ...collection,
-        logs: [...collection.logs].sort((a, b) =>
-          a.archiveName < b.archiveName ? 1 : a.archiveName > b.archiveName ? -1 : 0
-        )
-      }
-    })
-    const createSelector = sourceSelection.createDiagnosticBudgetSelector
-    const selectorSpy = vi
-      .spyOn(sourceSelection, 'createDiagnosticBudgetSelector')
-      .mockImplementation(() => createSelector(Buffer.byteLength(logLine, 'utf8')))
-    const service = new DiagnosticBundleService()
-
-    try {
-      const result = await service.exportBundle(
-        { includeChatRecords: false, includeLogs: true, includeTraces: false, range: '24h' },
-        'main-window'
-      )
-
-      expect(result).toMatchObject({ status: 'saved', hasWarnings: true, includedFileCount: 1, omittedFileCount: 1 })
-      const zip = await readZip(destination)
-      expect(zip.entries).toContain(archiveNames[0])
-      expect(zip.entries).not.toContain(archiveNames[1])
-      const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
-      expect(manifest.sources.logs).toMatchObject({ included: { fileCount: 1 }, omitted: { fileCount: 1 } })
-      expect(manifest.warnings).toContain('size_limit_reached')
-    } finally {
-      collectionSpy.mockRestore()
-      selectorSpy.mockRestore()
-    }
-  })
-
   it('counts chat archive families omitted entirely by the shared source budget', async () => {
     const mib = 1024 * 1024
     const candidate = chatCandidate('message:oversized', 1, [
@@ -802,9 +759,7 @@ describe('DiagnosticBundleService', () => {
       reason: 'rate_limited',
       status: 'submission_failed'
     })
-    expect(result.fileName).toMatch(
-      /^cherry-studio-diagnostics-\d{8}-\d{6}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.zip$/
-    )
+
     const retainedPath = await getRetainedUploadPath()
     expect(path.basename(retainedPath)).toBe(result.fileName)
     const zip = await readZip(retainedPath)

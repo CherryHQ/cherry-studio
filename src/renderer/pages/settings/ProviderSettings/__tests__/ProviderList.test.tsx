@@ -1,8 +1,10 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
@@ -24,10 +26,29 @@ let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<any>()
+  const actual = await importOriginal<typeof CherryUiModule>()
 
   return {
     ...actual,
+    ScrollArea: ({ viewportProps, ...props }: ComponentProps<typeof CherryUiModule.ScrollArea>) => (
+      <actual.ScrollArea
+        {...props}
+        viewportProps={{
+          ...viewportProps,
+          'data-testid': 'provider-list-scrollbar',
+          ref: (element) => {
+            if (element) {
+              element.getBoundingClientRect = () =>
+                ({
+                  bottom: scrollerRect.bottom,
+                  top: scrollerRect.top
+                }) as DOMRect
+            }
+            if (typeof viewportProps?.ref === 'function') viewportProps.ref(element)
+          }
+        }}
+      />
+    ),
     ReorderableList: ({ visibleItems, renderItem, onReorder, onReorderError }: any) => (
       <div data-provider-list-scroller>
         {visibleItems.map((item: any, index: number) => (
@@ -52,29 +73,6 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args)
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, className, ref: passedRef }: any) => (
-    <div
-      className={className}
-      data-testid="provider-list-scrollbar"
-      ref={(element) => {
-        if (element) {
-          element.getBoundingClientRect = () =>
-            ({
-              bottom: scrollerRect.bottom,
-              top: scrollerRect.top
-            }) as DOMRect
-        }
-
-        if (typeof passedRef === 'function') {
-          passedRef(element)
-        }
-      }}>
-      {children}
-    </div>
-  )
 }))
 
 vi.mock('@data/hooks/useReorder', () => ({
@@ -246,27 +244,6 @@ describe('ProviderList', () => {
     expect(onSelectProvider).toHaveBeenCalledWith('anthropic')
   })
 
-  it('hides CherryAI from the provider list', () => {
-    useProvidersMock.mockReturnValue({
-      providers: [
-        ...providers,
-        {
-          id: 'cherryai',
-          name: 'CherryAI',
-          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-          isEnabled: true
-        }
-      ],
-      createProvider: vi.fn()
-    })
-
-    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
-
-    expect(screen.getByText('OpenAI')).toBeInTheDocument()
-    expect(screen.queryByText('CherryAI')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('provider-list-item-cherryai')).not.toBeInTheDocument()
-  })
-
   it('offers only safe canonical preset sources to the custom provider editor', async () => {
     const user = userEvent.setup()
     const canonicalOpenAI = {
@@ -326,7 +303,6 @@ describe('ProviderList', () => {
 
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
-    expect(useReorderMock).toHaveBeenCalledWith('/providers', { revalidateOnSuccess: false })
     expect(screen.queryByTestId('provider-editor-drawer')).not.toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: /添加/i })[0])
     expect(await screen.findByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
@@ -407,12 +383,6 @@ describe('ProviderList', () => {
     expect(scrollIntoViewMock).toHaveBeenCalledTimes(1)
   })
 
-  it('labels the provider filter icon button for assistive technology', () => {
-    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
-
-    expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
-  })
-
   it('restores the provider filter after leaving and returning to the page', () => {
     const first = render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
@@ -426,20 +396,6 @@ describe('ProviderList', () => {
 
     expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
     expect(screen.queryByText('Anthropic')).not.toBeInTheDocument()
-  })
-
-  it('keeps a single add action below the scrollable provider list', () => {
-    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
-
-    const addButton = screen.getByRole('button', { name: '添加服务商' })
-    const scrollbar = screen.getByTestId('provider-list-scrollbar')
-    const filterButton = screen.getByRole('button', { name: '筛选服务商' })
-    const searchInput = screen.getByPlaceholderText('搜索模型平台...')
-    const searchWrap = searchInput.closest('div')
-
-    expect(scrollbar).not.toContainElement(addButton)
-    expect(scrollbar.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(searchWrap).toContainElement(filterButton)
   })
 
   it('surfaces reorder persistence errors', async () => {

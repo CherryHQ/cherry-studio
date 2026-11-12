@@ -193,8 +193,85 @@
     {
       "idx": 27,
       "version": "6",
-      "when": 1791750759198,
-      "tag": "0027_futuristic_sleepwalker",
+      "when": 1791545804060,
+      "tag": "0027_knowledge_base_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1792520576221,
+      "tag": "0028_slow_ravenous",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1792948344082,
+      "tag": "0029_sloppy_pandemic",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1793181295484,
+      "tag": "0030_skill_mirror_export",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1793700315599,
+      "tag": "0031_agent_native_contexts",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1793700436233,
+      "tag": "0032_agent_message_tree",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1793743411274,
+      "tag": "0033_child_context_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1793870902260,
+      "tag": "0034_big_johnny_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1794176949635,
+      "tag": "0035_agent_session_task_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1794385320323,
+      "tag": "0036_assistant_avatar",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1794385698412,
+      "tag": "0037_agent_avatar",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1794511975688,
+      "tag": "0038_gifted_khan",
       "breakpoints": true
     }
   ],

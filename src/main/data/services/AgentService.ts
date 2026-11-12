@@ -7,6 +7,7 @@ import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@
 import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { agentAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -19,6 +20,7 @@ import { pinService } from '@data/services/PinService'
 import { promptService } from '@data/services/PromptService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
+import { clearSingleFileRefTx, insertSingleFileRefTx } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
@@ -37,6 +39,7 @@ import {
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
@@ -103,6 +106,14 @@ function getAgentDescription(id: string, description: string, configuration: unk
 
 /** The doctor Agent only ever runs inside the System Doctor; it has no place in the Agents page. */
 const notDoctorAgent: SQL = sql`coalesce(json_extract(${agentsTable.configuration}, '$.builtin_role'), '') <> ${BUILTIN_AGENT_ROLE.DOCTOR}`
+
+/** Support also requires its reserved ID, so a legacy marker on another Agent never matches. */
+function builtinRolePredicate(builtinRole: string): SQL {
+  const roleMatch = sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
+  return builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
+    ? and(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID), roleMatch)!
+    : roleMatch
+}
 
 function buildAgentSearchPredicate(search: string): SQL {
   const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`
@@ -187,11 +198,13 @@ function rowToAgent(
   row: AgentRow,
   modelName: string | null = null,
   mcps: string[],
-  knowledgeBaseIds: string[]
+  knowledgeBaseIds: string[],
+  avatarFileId?: FileEntryId
 ): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
+    ...(avatarFileId ? { avatarFileId, avatarSrc: application.get('FileManager').getUrl(avatarFileId) } : {}),
     mcps,
     knowledgeBaseIds,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
@@ -267,6 +280,54 @@ export class AgentService {
   private readonly _onAgentUpdated = new Emitter<AgentUpdatedEvent>()
   readonly onAgentUpdated: Event<AgentUpdatedEvent> = this._onAgentUpdated.event
 
+  assertActiveTx(tx: DbOrTx, agentId: string): void {
+    if (
+      !tx
+        .select({ id: agentsTable.id })
+        .from(agentsTable)
+        .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
+        .get()
+    )
+      throw DataApiErrorFactory.notFound('Agent', agentId)
+  }
+
+  clearAvatarSlotTx(tx: DbOrTx, agentId: string): void {
+    clearSingleFileRefTx(tx, agentAvatarFileRefTable, agentId)
+    tx.update(agentsTable).set({ updatedAt: Date.now() }).where(eq(agentsTable.id, agentId)).run()
+  }
+
+  setAvatarSlotTx(tx: DbOrTx, agentId: string, fileId: FileEntryId): void {
+    this.assertActiveTx(tx, agentId)
+    this.clearAvatarSlotTx(tx, agentId)
+    insertSingleFileRefTx(tx, agentAvatarFileRefTable, agentId, fileId)
+  }
+
+  setAvatarEmojiTx(tx: DbOrTx, agentId: string, emoji: string): void {
+    this.assertActiveTx(tx, agentId)
+    const row = tx
+      .select({ configuration: agentsTable.configuration })
+      .from(agentsTable)
+      .where(eq(agentsTable.id, agentId))
+      .get()!
+    tx.update(agentsTable)
+      .set({ configuration: { ...row.configuration, avatar: emoji } })
+      .where(eq(agentsTable.id, agentId))
+      .run()
+    this.clearAvatarSlotTx(tx, agentId)
+  }
+
+  private avatarIds(tx: DbOrTx, ids: string[]): Map<string, FileEntryId> {
+    if (!ids.length) return new Map()
+    return new Map(
+      tx
+        .select({ id: agentAvatarFileRefTable.sourceId, fileId: agentAvatarFileRefTable.fileEntryId })
+        .from(agentAvatarFileRefTable)
+        .where(inArray(agentAvatarFileRefTable.sourceId, ids))
+        .all()
+        .map((row) => [row.id, row.fileId])
+    )
+  }
+
   notifyReadModelChange(agentIds: readonly string[], kind: 'membership' | 'projection'): void {
     if (agentIds.length === 0) return
     const entityIds = [...new Set(agentIds)]
@@ -310,15 +371,14 @@ export class AgentService {
     const globalSkillService = getDataService('AgentGlobalSkillService')
     const skillIds = Array.from(new Set(req.skillIds ?? []))
 
-    // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
-    // instructions has no DB DEFAULT — service supplies the product-strategic default.
-    // orderKey is omitted — `insertWithOrderKey` computes the fractional key for the requested position.
+    // Omit undefined fields so DB defaults apply; instructions is required and has no DB default.
+    // `insertWithOrderKey` computes the omitted orderKey for the requested position.
     const insertData: Omit<InsertAgentRow, 'orderKey'> = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
       description: req.description,
-      instructions: req.instructions || 'You are a helpful assistant.',
+      instructions: req.instructions ?? '',
       model: req.model,
       planModel: req.planModel,
       smallModel: req.smallModel,
@@ -410,13 +470,7 @@ export class AgentService {
     builtinRole: string,
     options: { includeDeleted?: boolean } = {}
   ): AgentRow | null {
-    const roleCondition =
-      builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
-        ? and(
-            eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID),
-            sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
-          )
-        : sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
+    const roleCondition = builtinRolePredicate(builtinRole)
     const [agent] = tx
       .select()
       .from(agentsTable)
@@ -503,7 +557,13 @@ export class AgentService {
         ? (modelService.getNamesByUniqueIdsTx(tx, [existing.model]).get(existing.model) ?? null)
         : null
       return {
-        agent: rowToAgent(existing, modelName, mcps, knowledgeBaseIds),
+        agent: rowToAgent(
+          existing,
+          modelName,
+          mcps,
+          knowledgeBaseIds,
+          this.avatarIds(tx, [existing.id]).get(existing.id)
+        ),
         created: false,
         restored
       }
@@ -583,10 +643,16 @@ export class AgentService {
     const modelName = agent.model
       ? (modelService.getNamesByUniqueIdsTx(database, [agent.model]).get(agent.model) ?? null)
       : null
-    return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
+    return rowToAgent(
+      agent,
+      modelName,
+      mcpsMap.get(id) ?? [],
+      knowledgeBasesMap.get(id) ?? [],
+      this.avatarIds(database, [id]).get(id)
+    )
   }
 
-  listAgents(options: ListOptions & { ids?: string[]; inTrash?: boolean } = {}): {
+  listAgents(options: ListOptions & { ids?: string[]; builtinRole?: BuiltinAgentRole; inTrash?: boolean } = {}): {
     agents: AgentEntity[]
     total: number
   } {
@@ -599,6 +665,7 @@ export class AgentService {
       notDoctorAgent
     ]
     if (options.ids) conditions.push(inArray(agentsTable.id, options.ids))
+    if (options.builtinRole) conditions.push(builtinRolePredicate(options.builtinRole))
     if (options.search) {
       conditions.push(buildAgentSearchPredicate(options.search))
     }
@@ -661,12 +728,14 @@ export class AgentService {
       result.map((row) => row.agent.model)
     )
 
+    const avatarIds = this.avatarIds(database, agentIds)
     const agents = result.map((row) =>
       rowToAgent(
         row.agent,
         row.agent.model ? (modelNames.get(row.agent.model) ?? null) : null,
         mcpsMap.get(row.agent.id) ?? [],
-        knowledgeBasesMap.get(row.agent.id) ?? []
+        knowledgeBasesMap.get(row.agent.id) ?? [],
+        avatarIds.get(row.agent.id)
       )
     )
 
@@ -820,6 +889,7 @@ export class AgentService {
 
     const updated = this.getAgent(id)
     if (updated) {
+      this.notifyReadModelChange([id], 'projection')
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
     }
     return updated
@@ -991,7 +1061,8 @@ export class AgentService {
       row,
       modelName,
       fetchMcpsForAgents(database, [id]).get(id) ?? [],
-      fetchKnowledgeBasesForAgents(database, [id]).get(id) ?? []
+      fetchKnowledgeBasesForAgents(database, [id]).get(id) ?? [],
+      this.avatarIds(database, [id]).get(id)
     )
     logger.info('Restored agent', { id })
     return { agent, restoredSessionIds }
@@ -1114,12 +1185,14 @@ export class AgentService {
       database,
       rows.map((row) => row.model)
     )
+    const avatarIds = this.avatarIds(database, agentIds)
     for (const row of rows) {
       const agent = rowToAgent(
         row,
         row.model ? (modelNames.get(row.model) ?? null) : null,
         mcpsMap.get(row.id) ?? [],
-        knowledgeBasesMap.get(row.id) ?? []
+        knowledgeBasesMap.get(row.id) ?? [],
+        avatarIds.get(row.id)
       )
       const updates: UpdateAgentDto =
         relation === 'mcps' ? { mcps: agent.mcps } : { knowledgeBaseIds: agent.knowledgeBaseIds ?? [] }

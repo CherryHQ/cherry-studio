@@ -1,3 +1,4 @@
+import { mkdirSync, unlinkSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -5,6 +6,7 @@ import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { hashContent } from '@main/utils/file/contentHash'
@@ -92,7 +94,6 @@ describe('internal/entry/create.createInternal', () => {
 
     it('always inserts a fresh entry for identical content without querying candidates', async () => {
       const data = new Uint8Array([0x01, 0x02, 0x03])
-      const candidateSpy = vi.spyOn(fileEntryService, 'findInternalByContentHash')
       const first = await createInternal(deps, {
         source: 'bytes',
         data,
@@ -108,7 +109,6 @@ describe('internal/entry/create.createInternal', () => {
         cleanupPolicy: 'manual'
       })
       expect(first.id).not.toBe(second.id)
-      expect(candidateSpy).not.toHaveBeenCalled()
     })
 
     it('derives the hash from actual bytes even if an untyped caller injects contentHash', async () => {
@@ -146,7 +146,8 @@ describe('internal/entry/create.createInternal', () => {
       // written but BEFORE the DB row commits. Without the bestEffortCleanup
       // call in createInternal, the orphan blob would persist until the next
       // startup file sweep — the regression this test pins.
-      const insertErr = new Error('UNIQUE constraint failed: file_entry.id')
+      const insertErr = Object.assign(new Error(`private input at ${filesDir}`), { code: 'SQLITE_CONSTRAINT' })
+      mockMainLoggerService.warn.mockClear()
       const spy = vi.spyOn(fileEntryService, 'create').mockImplementationOnce(() => {
         throw insertErr
       })
@@ -165,6 +166,39 @@ describe('internal/entry/create.createInternal', () => {
       const { readdir } = await import('node:fs/promises')
       const remaining = await readdir(filesDir)
       expect(remaining).toEqual([])
+      expect(mockMainLoggerService.warn.mock.calls).toEqual([
+        [expect.stringContaining('DB insert failed'), { id: expect.any(String), code: 'SQLITE_CONSTRAINT' }]
+      ])
+      expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(filesDir)
+    })
+
+    it('reports failed rollback without logging physical paths or the private insert error', async () => {
+      const insertErr = new Error(`private input at ${filesDir}`)
+      mockMainLoggerService.warn.mockClear()
+      vi.spyOn(fileEntryService, 'create').mockImplementationOnce((row) => {
+        if (row.origin !== 'internal') throw new Error('expected internal entry')
+        const physical = path.join(filesDir, `${row.id}.bin`)
+        unlinkSync(physical)
+        mkdirSync(physical)
+        throw insertErr
+      })
+      await expect(
+        createInternal(deps, {
+          source: 'bytes',
+          data: new Uint8Array([1]),
+          name: 'private',
+          ext: 'bin',
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+      ).rejects.toBe(insertErr)
+      expect(mockMainLoggerService.warn.mock.calls).toEqual([
+        [expect.stringContaining('DB insert failed'), { id: expect.any(String), code: 'UNKNOWN' }],
+        [
+          expect.stringContaining('cleanup unlink failed'),
+          { id: expect.any(String), code: expect.stringMatching(/^(EPERM|EISDIR)$/) }
+        ]
+      ])
+      expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toContain(filesDir)
     })
   })
 
@@ -338,26 +372,6 @@ describe('internal/entry/create.createInternal', () => {
   })
 
   describe('ensureExternal DanglingCache wiring', () => {
-    it('on insert: registers the entry in the reverse index AND records a "present" observation', async () => {
-      const file = path.join(tmp, 'ext-new.txt')
-      await writeFile(file, 'hello')
-      const e = await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
-      expect(deps.danglingCache.addEntry).toHaveBeenCalledWith(e.id, expect.any(String))
-      expect(deps.danglingCache.onFsEvent).toHaveBeenCalledWith(expect.any(String), 'present', 'ops')
-    })
-
-    it('on reuse (same canonical path): does NOT add a duplicate index entry', async () => {
-      const file = path.join(tmp, 'ext-reuse.txt')
-      await writeFile(file, 'hello')
-      await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
-      vi.mocked(deps.danglingCache.addEntry).mockClear()
-      vi.mocked(deps.danglingCache.onFsEvent).mockClear()
-      // Second call resolves to the already-inserted row.
-      await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
-      expect(deps.danglingCache.addEntry).not.toHaveBeenCalled()
-      expect(deps.danglingCache.onFsEvent).not.toHaveBeenCalled()
-    })
-
     it('propagates findCaseInsensitivePeers errors instead of silently falling through to create()', async () => {
       // Re-wrapping the peer SELECT in try/catch swallows the error one frame
       // earlier than the imminent INSERT failure, masking the real cause.

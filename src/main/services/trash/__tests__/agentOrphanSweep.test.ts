@@ -270,12 +270,10 @@ describe('sweepAgentOrphans', () => {
     function registerDriver(type: string, reclaim: AgentSessionRuntimeDriver['reclaimOrphanSessions']) {
       runtimeDriverRegistry.register({
         type,
-        capabilities: ['agent-session'],
         validateSession: vi.fn(),
-        listAvailableTools: vi.fn(),
         connect: vi.fn(),
         reclaimOrphanSessions: reclaim
-      } as unknown as AgentSessionRuntimeDriver)
+      })
     }
 
     afterEach(() => runtimeDriverRegistry.clearForTest())

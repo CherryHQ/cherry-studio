@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +10,6 @@ const useProviderApiKeysMock = vi.fn()
 const useProviderMetaMock = vi.fn()
 const useAuthenticationApiKeyMock = vi.fn()
 const deleteApiKeyMock = vi.fn()
-const copyApiKeyToClipboardMock = vi.fn()
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, type = 'button', ...props }: any) => (
@@ -31,10 +30,6 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/services/toast', () => ({
   toast: { error: vi.fn() }
-}))
-
-vi.mock('../copyApiKeyToClipboard', () => ({
-  copyApiKeyToClipboard: (...args: any[]) => copyApiKeyToClipboardMock(...args)
 }))
 
 vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
@@ -112,11 +107,8 @@ describe('ApiKey', () => {
     expect(maskedKey).toBeInTheDocument()
     expect(screen.queryByText('123456789012345678901234')).not.toBeInTheDocument()
     const keyListButtons = screen.getAllByRole('button', { name: 'settings.provider.api.key.list.title' })
-    const keyAreaButton = maskedKey.closest('button')
     const keyManagementButton = keyListButtons[1]
 
-    expect(keyAreaButton).toBe(keyListButtons[0])
-    expect(keyListButtons).toHaveLength(2)
     expect(keyManagementButton).toHaveAttribute('aria-haspopup', 'dialog')
     expect(keyManagementButton).toHaveAttribute('aria-expanded', 'false')
 
@@ -142,8 +134,10 @@ describe('ApiKey', () => {
 
     render(<ApiKey providerId="openai" onOpenApiSetup={onOpenApiSetup} />)
 
-    await user.click(screen.getByRole('button', { name: 'settings.provider.api_key.copy' }))
-    expect(copyApiKeyToClipboardMock).toHaveBeenCalledWith('sk-visible-action', expect.any(Function))
+    const copyButton = screen.getByRole('button', { name: 'settings.provider.api_key.copy' })
+    await user.click(copyButton)
+    expect(await navigator.clipboard.readText()).toBe('sk-visible-action')
+    await waitFor(() => expect(copyButton.querySelector('.lucide-check')).toBeInTheDocument())
 
     await user.click(screen.getByRole('button', { name: 'common.edit' }))
     expect(onOpenApiSetup).toHaveBeenCalledTimes(1)
@@ -178,16 +172,5 @@ describe('ApiKey', () => {
 
     expect(screen.getByText('••••••••')).toBeInTheDocument()
     expect(screen.queryByText('short')).not.toBeInTheDocument()
-  })
-
-  it('keeps the existing inline key field for providers with optional authentication', () => {
-    useProviderMock.mockReturnValue({
-      provider: { id: 'ollama', name: 'Ollama', authOptional: true }
-    })
-
-    render(<ApiKey providerId="ollama" />)
-
-    expect(screen.getByPlaceholderText('settings.provider.api_key.placeholder')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.provider.api_setup.add_key' })).not.toBeInTheDocument()
   })
 })

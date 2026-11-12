@@ -14,7 +14,6 @@ import {
   RestoreKnowledgeBaseSchema
 } from '../../../types/knowledge'
 import {
-  KNOWLEDGE_BASES_DEFAULT_LIMIT,
   KNOWLEDGE_BASES_MAX_LIMIT,
   ListKnowledgeBasesQuerySchema,
   ListKnowledgeItemsQuerySchema,
@@ -201,6 +200,13 @@ describe('Knowledge base schemas', () => {
         groupId: null
       }).success
     ).toBe(true)
+    expect(
+      KnowledgeAddItemInputSchema.safeParse({
+        type: 'url',
+        data: { source: 'not a valid URL', url: 'not a valid URL' },
+        groupId: null
+      }).success
+    ).toBe(false)
 
     expect(
       KnowledgeAddItemInputSchema.safeParse({
@@ -289,6 +295,7 @@ describe('Knowledge base schemas', () => {
   it('rejects invalid numeric tuning fields in entity schema', () => {
     const result = KnowledgeBaseSchema.safeParse({
       id: KNOWLEDGE_BASE_ID,
+      orderKey: 'a0',
       name: 'KB',
       dimensions: 1024,
       embeddingModelId: 'embed-model',
@@ -308,6 +315,7 @@ describe('Knowledge base schemas', () => {
     expect(
       KnowledgeBaseSchema.safeParse({
         id: KNOWLEDGE_BASE_ID,
+        orderKey: 'a0',
         name: 'KB',
         dimensions: 1024,
         embeddingModelId: 'embed-model',
@@ -328,6 +336,7 @@ describe('Knowledge base schemas', () => {
   it('accepts documentCount 0 for empty knowledge bases', () => {
     const result = KnowledgeBaseSchema.safeParse({
       id: KNOWLEDGE_BASE_ID,
+      orderKey: 'a0',
       name: 'KB',
       dimensions: 1024,
       embeddingModelId: 'embed-model',
@@ -352,6 +361,7 @@ describe('Knowledge base schemas', () => {
   it('accepts nullable groupId and requires persisted defaults in entity schema', () => {
     const result = KnowledgeBaseSchema.safeParse({
       id: KNOWLEDGE_BASE_ID,
+      orderKey: 'a0',
       name: 'KB',
       dimensions: 1024,
       embeddingModelId: 'embed-model',
@@ -373,6 +383,7 @@ describe('Knowledge base schemas', () => {
   it('requires completed bases to have positive dimensions and allows failed bases with unknown dimensions', () => {
     const failedBase = {
       id: KNOWLEDGE_BASE_ID,
+      orderKey: 'a0',
       name: 'KB',
       embeddingModelId: null,
       groupId: null,
@@ -403,6 +414,7 @@ describe('Knowledge base schemas', () => {
     expect(
       KnowledgeBaseSchema.safeParse({
         id: KNOWLEDGE_BASE_ID,
+        orderKey: 'a0',
         name: 'KB',
         dimensions: 1024,
         embeddingModelId: 'embed-model',
@@ -416,6 +428,7 @@ describe('Knowledge base schemas', () => {
     expect(
       KnowledgeBaseSchema.safeParse({
         id: KNOWLEDGE_BASE_ID,
+        orderKey: 'a0',
         name: 'KB',
         dimensions: 1024,
         embeddingModelId: 'embed-model',
@@ -456,6 +469,25 @@ describe('Knowledge base schemas', () => {
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success
     ).toBe(false)
+  })
+
+  it('lets a file wait in preparing while its bytes are copied in, but not a note or url', () => {
+    const preparing = (type: 'file' | 'note' | 'url', data: Record<string, string>) =>
+      KnowledgeItemSchema.safeParse({
+        id: KNOWLEDGE_ITEM_ID,
+        baseId: KNOWLEDGE_BASE_ID,
+        groupId: null,
+        type,
+        data,
+        status: 'preparing',
+        error: null,
+        createdAt: '2026-04-10T00:00:00.000Z',
+        updatedAt: '2026-04-10T00:00:00.000Z'
+      }).success
+
+    expect(preparing('file', { source: '/docs/report.pdf', relativePath: 'report.pdf' })).toBe(true)
+    expect(preparing('note', { source: 'hello', content: 'hello' })).toBe(false)
+    expect(preparing('url', { source: 'https://example.com', url: 'https://example.com' })).toBe(false)
   })
 
   it('uses status for knowledge item runtime progress', () => {
@@ -558,6 +590,7 @@ describe('Knowledge base schemas', () => {
 it('accepts failed knowledge bases with a null embedding model id', () => {
   const result = KnowledgeBaseSchema.safeParse({
     id: SECOND_KNOWLEDGE_BASE_ID,
+    orderKey: 'a0',
     name: 'KB nullable model',
     dimensions: 1024,
     embeddingModelId: null,
@@ -578,6 +611,7 @@ it('accepts failed knowledge bases with a null embedding model id', () => {
 it('rejects invalid knowledge base status error combinations', () => {
   const validBase = {
     id: KNOWLEDGE_BASE_ID,
+    orderKey: 'a0',
     name: 'KB',
     dimensions: 1024,
     groupId: null,
@@ -703,6 +737,7 @@ it('accepts only null or a non-blank groupId in knowledge patches', () => {
 describe('isCompletedKnowledgeBase', () => {
   const completedBase = KnowledgeBaseSchema.parse({
     id: KNOWLEDGE_BASE_ID,
+    orderKey: 'a0',
     name: 'KB',
     groupId: null,
     dimensions: 768,
@@ -756,6 +791,7 @@ describe('isCompletedKnowledgeBase', () => {
 describe('isCompletedVectorKnowledgeBase', () => {
   const vectorBase = KnowledgeBaseSchema.parse({
     id: KNOWLEDGE_BASE_ID,
+    orderKey: 'a0',
     name: 'KB',
     groupId: null,
     dimensions: 768,
@@ -804,9 +840,8 @@ describe('isCompletedVectorKnowledgeBase', () => {
 })
 
 describe('ListKnowledgeBasesQuerySchema', () => {
-  it('trims search and applies pagination defaults', () => {
-    expect(ListKnowledgeBasesQuerySchema.parse({ search: '  docs  ' })).toEqual({
-      limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
+  it('trims list search terms', () => {
+    expect(ListKnowledgeBasesQuerySchema.parse({ search: '  docs  ' })).toMatchObject({
       search: 'docs'
     })
   })
@@ -835,8 +870,7 @@ describe('ListKnowledgeBasesQuerySchema', () => {
         sortOrder: 'desc',
         updatedAtFrom: '2026-05-01T00:00:00.000Z'
       })
-    ).toEqual({
-      limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
+    ).toMatchObject({
       sortBy: 'updatedAt',
       sortOrder: 'desc',
       updatedAtFrom: '2026-05-01T00:00:00.000Z'

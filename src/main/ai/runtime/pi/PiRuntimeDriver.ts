@@ -3,14 +3,10 @@ import path from 'node:path'
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { mcpServerService } from '@data/services/McpServerService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
-import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
-import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { listEntries, reclaimStale } from '../orphanSessionReclaim'
 import type {
   AgentRuntimeConnectInput,
@@ -18,16 +14,19 @@ import type {
   AgentSessionRuntimeDriver,
   OrphanSessionReclaimOptions
 } from '../types'
-import { assertPiProviderUsable } from './modelInjection'
+import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { forkPiSession } from './piFork'
-import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
+import { piWorkspaceRelocation } from './workspaceRelocation'
 
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly workspaceRelocation = piWorkspaceRelocation
   readonly type = 'pi'
-  readonly capabilities = ['agent-session'] as const
   readonly fork = forkPiSession
+  isForkCheckpoint(value: unknown): boolean {
+    return PiForkCheckpointSchema.safeParse(value).success
+  }
   readonly recoverSessions = migrateRetiredSessionHistories
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
@@ -44,43 +43,6 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
       throw new Error(`pi agent ${session.agentId} has no model configured`)
     }
     await prepareAgentSessionWorkspaceDirectory(session)
-    // Side-effect free: dispatch validation must not consume API-key rotation;
-    // the concrete key is selected only when the runtime connection starts.
-    try {
-      await assertPiProviderUsable(agent.model)
-    } catch (error) {
-      if (error instanceof ApiGatewayNotRunningError) {
-        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: session.id })
-      }
-      throw error
-    }
-  }
-
-  async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
-    const builtins: Tool[] = PI_BUILTIN_TOOLS.map((tool) => ({
-      id: tool.name,
-      name: tool.name,
-      origin: 'builtin',
-      approval: tool.approval
-    }))
-    // Bridged MCP tools, read cache-only from the same catalog the session bridge uses
-    // (piMcpExtension warms it). Third-party, so they prompt in the default mode.
-    const catalog = application.get('McpCatalogService')
-    const mcpTools: Tool[] = mcpIds.flatMap((idOrName) => {
-      const server = mcpServerService.findByIdOrName(idOrName)
-      if (!server) return []
-      const tools = catalog.listTools(server.id, { includeDisabled: false })
-      const names = tools.map((tool) => buildPiMcpToolName(server.id, tool.name))
-      return tools.map((tool, index) => ({
-        id: buildPiMcpToolName(server.id, tool.name, names.indexOf(names[index]) !== names.lastIndexOf(names[index])),
-        name: tool.name,
-        origin: 'mcp' as const,
-        approval: 'prompt' as const,
-        sourceId: server.id,
-        sourceName: server.name
-      }))
-    })
-    return [...builtins, ...mcpTools]
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
@@ -100,7 +62,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
    * pi keeps one flat `{timestamp}_{resumeToken}.jsonl` per session generation
    * (see `resolveResumeTokenSessionFile`), so the token is the stem after the
    * FIRST `_` — the timestamp pi owns has none, but a token legally can. Every
-   * generation of a claimed token is kept — the connection resumes from the newest.
+   * file for a claimed token is kept; ambiguous identities fail closed when opening.
    */
   async reclaimOrphanSessions(
     keptResumeTokens: ReadonlySet<string>,
