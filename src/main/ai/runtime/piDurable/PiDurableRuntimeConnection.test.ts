@@ -874,7 +874,10 @@ describe('desktop Pi Durable connection', () => {
     const desktop = await prepareDurableDesktop(input, () => {})
     try {
       const registered = desktop.mcp.extension.tools?.map((tool) => tool.name) ?? []
-      const removed = desktop.agentConfig.tools?.remove?.map((tool) => tool.name) ?? []
+      const removed =
+        desktop.agentConfig.tools && 'remove' in desktop.agentConfig.tools
+          ? desktop.agentConfig.tools.remove.map((tool) => tool.name)
+          : []
       for (const name of ['kb_search', 'kb_list', 'kb_read']) {
         expect(registered).toContain(`mcp__cherry_tools__${name}`)
         expect(removed).toContain(`mcp__cherry_tools__${name}`)
