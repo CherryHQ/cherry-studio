@@ -10,7 +10,7 @@ Pi shell commands without an explicit timeout could hold a turn indefinitely. A 
 
 ## Decision
 
-Desktop Pi Bash and PowerShell tools supply a 120-second timeout when the call omits it. The native SDK still owns timeout validation, process-tree termination, partial output and error reporting. Explicit deadlines remain unchanged, including longer deadlines for intentional long-running work. The schema and description advertise the default.
+Desktop Pi and Pi Durable Bash and PowerShell tools supply a 120-second timeout when the call omits it. The native SDK still owns timeout validation, process-tree termination, partial output and error reporting. Explicit deadlines remain unchanged, including longer deadlines for intentional long-running work. The schema and description advertise the default.
 
 ## Alternatives considered
 
@@ -20,8 +20,10 @@ Desktop Pi Bash and PowerShell tools supply a 120-second timeout when the call o
 
 ## Consequences
 
-An omitted deadline no longer waits indefinitely. Explicitly requested long deadlines can still wait longer. This is scoped to the ordinary Pi desktop runtime used by the affected sessions; Pi Durable has a separate execution owner. No new setting, retry, background execution or command blacklist is introduced.
+An omitted deadline no longer waits indefinitely. Explicitly requested long deadlines can still wait longer. Each runtime delegates termination to its own native execution owner. No new setting, retry, background execution or command blacklist is introduced.
 
 ## Verification
 
 - Regression — `src/main/ai/runtime/pi/piShellTimeout.test.ts`: a real shell with an unfinished child times out and the child exits; explicit longer deadlines finish successfully; short and invalid deadlines retain native behavior.
+
+- Regression — `src/main/ai/runtime/piDurable/durableShellTimeout.test.ts`: the real Durable Node execution environment terminates stalled shell children while preserving explicit deadlines and successful output.

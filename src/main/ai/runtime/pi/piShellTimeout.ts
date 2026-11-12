@@ -1,8 +1,10 @@
 import type { createBashToolDefinition } from '@earendil-works/pi-coding-agent'
 
-/** Keep unbounded commands from holding a turn after their useful work has finished. */
 type ShellTool = ReturnType<typeof createBashToolDefinition>
 
+export const PI_SHELL_TIMEOUT_SECONDS = 120
+
+/** Keep unbounded commands from holding a turn after their useful work has finished. */
 export function withPiShellTimeout(tool: ShellTool): ShellTool {
   return {
     ...tool,
@@ -17,6 +19,6 @@ export function withPiShellTimeout(tool: ShellTool): ShellTool {
       }
     },
     execute: (id, args, signal, onUpdate, context) =>
-      tool.execute(id, { ...args, timeout: args.timeout ?? 120 }, signal, onUpdate, context)
+      tool.execute(id, { ...args, timeout: args.timeout ?? PI_SHELL_TIMEOUT_SECONDS }, signal, onUpdate, context)
   }
 }

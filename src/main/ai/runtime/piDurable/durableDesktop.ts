@@ -26,6 +26,7 @@ import { loadPiSdk } from '../pi/piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableMcp } from './durableMcp'
+import { withDurableShellTimeout } from './durableShellTimeout'
 
 export async function prepareDurableDesktop(
   input: AgentRuntimeConnectInput,
@@ -137,8 +138,8 @@ export async function prepareDurableDesktop(
         ...coding,
         tools: [
           ...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'),
-          bash,
-          ...(process.platform === 'win32' ? [tools.createPowerShellTool()] : [])
+          withDurableShellTimeout(bash),
+          ...(process.platform === 'win32' ? [withDurableShellTimeout(tools.createPowerShellTool())] : [])
         ]
       })
     )
