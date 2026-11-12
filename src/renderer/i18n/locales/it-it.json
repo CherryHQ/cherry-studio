@@ -5832,6 +5832,7 @@
   "settings.shortcuts.conflict_with": "Già usata da \"{{name}}\"",
   "settings.shortcuts.copy_last_message": "Copia ultimo messaggio",
   "settings.shortcuts.delete_current_list_item": "Elimina definitivamente l'elemento corrente dell'elenco",
+  "settings.shortcuts.delete_topic": "Elimina conversazione",
   "settings.shortcuts.edit_last_user_message": "Modifica ultimo messaggio dell'utente",
   "settings.shortcuts.empty": "Nessuna scorciatoia disponibile in questo gruppo",
   "settings.shortcuts.exit_fullscreen": "Esci da schermo intero",

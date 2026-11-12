@@ -34,6 +34,7 @@ export interface TopicMenuActionOptions {
   onCopyImage?: TopicMenuHandler
   onDelete: TopicDeleteHandler
   onDeletePermanently?: TopicDeleteHandler
+  deleteShortcut?: string
   permanentDeleteShortcut?: string
   onExportImage?: TopicMenuHandler
   assistantMoveTargets?: readonly TopicMoveAssistantTarget[]
@@ -72,6 +73,7 @@ export function createTopicActionContext({
   onSetPanePosition,
   onStartRename,
   panePosition,
+  deleteShortcut,
   permanentDeleteShortcut,
   sidebarPinned,
   t,
@@ -90,6 +92,7 @@ export function createTopicActionContext({
     onCopyPlainText: copyTopicAsPlainText,
     onDelete,
     onDeletePermanently,
+    deleteShortcut,
     permanentDeleteShortcut,
     onExportImage: onExportImage ?? ((topic) => void EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)),
     onExportJoplin: async (topic) => {
@@ -233,6 +236,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onSetPanePosition,
     onStartRename,
     panePosition,
+    deleteShortcut,
     permanentDeleteShortcut,
     sidebarPinned,
     t,
@@ -262,6 +266,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onSetPanePosition,
         onStartRename,
         panePosition,
+        deleteShortcut,
         permanentDeleteShortcut,
         sidebarPinned,
         t,
@@ -289,6 +294,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onSetPanePosition,
       onStartRename,
       panePosition,
+      deleteShortcut,
       permanentDeleteShortcut,
       sidebarPinned,
       t,

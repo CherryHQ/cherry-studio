@@ -222,6 +222,7 @@ export function Topics({
     refreshTopics,
     restoreTopic
   } = useTopicMutations()
+  const deleteShortcut = useResolvedCommand('topic.delete').shortcutLabel
   const permanentDeleteShortcut = useResolvedCommand('resource.delete_permanently').shortcutLabel
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [storedPanePosition, setStoredPanePosition] = usePreference('topic.tab.position')
@@ -1539,6 +1540,10 @@ export function Topics({
       <TopicResourceList<Topic>
         active={dataEnabled}
         key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-left-panel'}
+        archive={{
+          isItemEligible: (item) => !item.pinned && !isTopicPermanentDeleteBusy(item.id),
+          onArchive: handleDeleteTopicFromMenu
+        }}
         permanentDelete={{
           isItemEligible: (item) => !item.pinned && !isTopicPermanentDeleteBusy(item.id),
           onDelete: handlePermanentDeleteTopic
@@ -1652,6 +1657,7 @@ export function Topics({
             onClearMessages={handleClearMessages}
             onDeleteFromMenu={handleDeleteTopicFromMenu}
             onDeletePermanently={handlePermanentDeleteTopic}
+            deleteShortcut={deleteShortcut}
             permanentDeleteShortcut={permanentDeleteShortcut}
             onOpenInNewTab={tabs && !isWindowFrame ? openTopicInNewTab : undefined}
             onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}

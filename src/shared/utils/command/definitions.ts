@@ -345,6 +345,16 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'topic.delete',
+    titleKey: 'settings.shortcuts.delete_topic',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['Delete'],
+      when: 'resource.focused && !input.focused'
+    }
+  }),
+  defineCommand({
     id: 'topic.rename',
     titleKey: 'settings.shortcuts.rename_topic',
     categoryKey: 'settings.shortcuts.topic',

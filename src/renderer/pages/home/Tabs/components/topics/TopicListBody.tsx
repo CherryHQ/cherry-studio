@@ -95,6 +95,7 @@ interface TopicListBodyProps {
   onClearMessages: (topic: Topic) => void
   onDeleteFromMenu: (topic: Topic) => Promise<void>
   onDeletePermanently: (topic: Topic) => Promise<void>
+  deleteShortcut: string
   permanentDeleteShortcut: string
   onMoveToAssistant: (topic: Topic, assistantId: string) => void | Promise<void>
   onOpenInNewTab?: (topic: Topic) => void
@@ -125,6 +126,7 @@ export function TopicListBody(props: TopicListBodyProps) {
     onClearMessages,
     onDeleteFromMenu,
     onDeletePermanently,
+    deleteShortcut,
     permanentDeleteShortcut,
     onMoveToAssistant,
     onOpenInNewTab,
@@ -150,6 +152,7 @@ export function TopicListBody(props: TopicListBodyProps) {
       onClearMessages,
       onDeleteFromMenu,
       onDeletePermanently,
+      deleteShortcut,
       permanentDeleteShortcut,
       onMoveToAssistant,
       onOpenInNewTab,
@@ -172,6 +175,7 @@ export function TopicListBody(props: TopicListBodyProps) {
       onClearMessages,
       onDeleteFromMenu,
       onDeletePermanently,
+      deleteShortcut,
       permanentDeleteShortcut,
       onMoveToAssistant,
       onOpenInNewTab,
@@ -235,6 +239,7 @@ const TopicRow = memo(function TopicRow({
   onClearMessages,
   onDeleteFromMenu,
   onDeletePermanently,
+  deleteShortcut,
   permanentDeleteShortcut,
   onMoveToAssistant,
   onOpenInNewTab,
@@ -310,6 +315,7 @@ const TopicRow = memo(function TopicRow({
     onCopyImage: (topic) => onRequestTopicImageAction('copy', topic),
     onDelete: onDeleteFromMenu,
     onDeletePermanently,
+    deleteShortcut,
     permanentDeleteShortcut,
     onExportImage: (topic) => onRequestTopicImageAction('export', topic),
     onMoveToAssistant,

@@ -5904,6 +5904,7 @@
   "settings.shortcuts.conflict_with": "Używane już przez „{{name}}”",
   "settings.shortcuts.copy_last_message": "Kopiuj ostatnią wiadomość",
   "settings.shortcuts.delete_current_list_item": "Trwale usuń bieżący element listy",
+  "settings.shortcuts.delete_topic": "Usuń konwersację",
   "settings.shortcuts.edit_last_user_message": "Edytuj ostatnią wiadomość użytkownika",
   "settings.shortcuts.empty": "W tej grupie nie ma dostępnych skrótów",
   "settings.shortcuts.exit_fullscreen": "Opuść tryb pełnoekranowy",

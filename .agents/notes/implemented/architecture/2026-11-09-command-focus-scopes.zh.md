@@ -16,7 +16,7 @@ Renderer 持有附着于 DOM 的 `CommandFocusScope` 实例及其上下文/handl
 
 作用域 provider 附着于现有 `rootRef`，不添加布局包装节点。`useCommandHandler`、`useCommandContextKey` 和组件的程序调用绑定到最近作用域。键盘分发从事件路径解析该作用域，将其上下文与允许继承的父级/根值组合，在消费事件前选定单一合格 handler。兄弟作用域不参与竞争。较近作用域拥有的命令已禁用时，阻止该命令回退；未被局部拥有的命令可以沿父级解析。同一作用域内保留最后一个已启用注册项的优先级。
 
-上下文和 handler 值同步读取；局部订阅更新展示，不另设权威焦点注册表。在事件路径上识别 input/textarea/select 及继承的 contenteditable，包括明确声明的不可编辑区域。`resource.focused && !input.focused` 控制永久删除按键资格；目标就绪、重命名、固定/忙碌保护、待处理确认和实际删除仍由资源消费者负责。选中会话绝不替代缺失的焦点目标。
+上下文和 handler 值同步读取；局部订阅更新展示，不另设权威焦点注册表。在事件路径上识别 input/textarea/select 及继承的 contenteditable，包括明确声明的不可编辑区域。`resource.focused && !input.focused` 控制列表作用域内删除按键的资格，包括永久删除（`resource.delete_permanently`）和归档到回收站（`topic.delete`）；目标就绪、重命名、固定/忙碌保护、待处理确认和实际删除仍由资源消费者负责。选中会话绝不替代缺失的焦点目标。
 
 Provider 仅在激活状态或上下文值变化时发布选项更新。若每次 React 提交都发布新版本，订阅者向祖先回传上下文时就会形成反馈循环：即使作用域选项等价，祖先也会再次渲染 provider。因此，新分配但值相同的上下文对象不会再次触发发布。Handler 和上下文注册项保留各自的通知。DOM 元素和注册表不变时保留原有绑定；每次提交都解绑，会使子组件执行布局 effect 时路由短暂失效。提交后处理元素替换，在卸载或 Activity 隐藏时释放绑定。
 
