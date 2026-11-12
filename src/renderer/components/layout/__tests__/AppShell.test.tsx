@@ -2,16 +2,20 @@
 import '@testing-library/jest-dom/vitest'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { DragEvent, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUI from '@cherrystudio/ui'
 import type * as CommandHooks from '@renderer/hooks/command'
+import { useDrag } from '@renderer/hooks/useDrag'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 
 vi.mock('@cherrystudio/ui', async () => vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui'))
 
 const mocks = vi.hoisted(() => ({
+  openTab: vi.fn(() => 'preview'),
+  updateTab: vi.fn(),
   closeTab: vi.fn(),
   closeTabs: vi.fn(),
   detachTab: vi.fn(),
@@ -90,13 +94,13 @@ vi.mock('../../../hooks/tab', async () => {
       closeTab: mocks.closeTab,
       closeTabs: mocks.closeTabs,
       detachTab: mocks.detachTab,
-      openTab: vi.fn(),
+      openTab: mocks.openTab,
       pinTab: vi.fn(),
       reorderTabs: vi.fn(),
       setActiveTab: mocks.setActiveTab,
       tabs: mocks.tabs,
       unpinTab: vi.fn(),
-      updateTab: vi.fn()
+      updateTab: mocks.updateTab
     })
   }
 })
@@ -483,5 +487,136 @@ describe('AppShell', () => {
     render(<ShellWithCommands />)
     expect(pressShellCommand('w')).toBe(false)
     expect(mocks.closeTab).not.toHaveBeenCalled()
+  })
+})
+
+describe('window file drops', () => {
+  const originalGetPathForFile = window.api.file.getPathForFile
+  const getPathForFile = vi.fn<(file: File) => string>()
+
+  function transfer(files: File[], items: unknown[] = [], types = ['Files']) {
+    return { files, items, types, dropEffect: 'copy' }
+  }
+
+  function dispatch(target: EventTarget, type: string, dataTransfer: object) {
+    const event = new Event(type, { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'dataTransfer', { value: dataTransfer })
+    act(() => {
+      target.dispatchEvent(event)
+    })
+    return event
+  }
+
+  function setup(path = '/docs/notes.md') {
+    window.api.file.getPathForFile = getPathForFile
+    getPathForFile.mockReturnValue(path)
+    const view = render(<AppShell />)
+    return { ...view, target: screen.getByTestId('tab-router'), file: new File([''], 'notes.md') }
+  }
+
+  afterEach(() => {
+    window.api.file.getPathForFile = originalGetPathForFile
+    getPathForFile.mockReset()
+  })
+
+  it.each(['/docs/README.md', '/docs/notes.markdown', '/docs/component.mdx', '/docs/大 写 #?.MD'])(
+    'opens an unclaimed Markdown drop for %s',
+    (path) => {
+      const { target, file } = setup(path)
+      const event = dispatch(target, 'drop', transfer([file]))
+      expect(event.defaultPrevented).toBe(true)
+      expect(mocks.openTab).toHaveBeenCalledExactlyOnceWith(`/app/file-preview?${new URLSearchParams({ path })}`, {
+        title: path.split('/').at(-1),
+        metadata: { filePreviewRefreshKey: 0 }
+      })
+    }
+  )
+
+  it.each(['preventDefault', 'stopPropagation'] as const)('respects descendant %s', (method) => {
+    const { target, file } = setup()
+    target.addEventListener('drop', (event) => event[method](), { once: true })
+    const event = dispatch(target, 'drop', transfer([file]))
+    expect(event.defaultPrevented).toBe(method === 'preventDefault')
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('respects a same-document portal drop owner outside the React root container', () => {
+    const { container, file, rerender } = setup()
+    const onDrop = vi.fn((event: DragEvent<HTMLDivElement>) => event.preventDefault())
+    rerender(
+      <>
+        <AppShell />
+        {createPortal(<div data-testid="portal-drop-owner" onDrop={onDrop} />, document.body)}
+      </>
+    )
+
+    const target = screen.getByTestId('portal-drop-owner')
+    expect(document.body).toContainElement(target)
+    expect(container).not.toContainElement(target)
+    dispatch(target, 'drop', transfer([file]))
+
+    expect(onDrop).toHaveBeenCalledTimes(1)
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('respects a real useDrag consumer as the drop owner', () => {
+    const { file, rerender } = setup()
+    const onDrop = vi.fn()
+    function DragConsumer() {
+      const { handleDragOver, handleDrop } = useDrag<HTMLDivElement>((event) => onDrop(event.dataTransfer))
+      return <div data-testid="drag-consumer" onDragOver={handleDragOver} onDrop={handleDrop} />
+    }
+    rerender(
+      <>
+        <AppShell />
+        <DragConsumer />
+      </>
+    )
+
+    const dataTransfer = transfer([file])
+    dispatch(screen.getByTestId('drag-consumer'), 'drop', dataTransfer)
+
+    expect(onDrop).toHaveBeenCalledExactlyOnceWith(dataTransfer)
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('rejects multiple files, unsupported and invalid paths, and non-file payloads', () => {
+    const { target, file } = setup()
+    const other = new File([''], 'other.txt')
+    dispatch(target, 'drop', transfer([file, file]))
+    dispatch(target, 'drop', transfer([file, other]))
+    for (const path of ['/docs/notes.txt', '', 'relative.md']) {
+      getPathForFile.mockReturnValue(path)
+      expect(dispatch(target, 'drop', transfer([file])).defaultPrevented).toBe(false)
+    }
+    dispatch(target, 'drop', transfer([], [], ['text/plain', 'text/uri-list']))
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('rejects directory entries and accepts FileList-only transfers', () => {
+    const { target, file } = setup()
+    const directory = { kind: 'file', webkitGetAsEntry: () => ({ isDirectory: true }) }
+    expect(dispatch(target, 'drop', transfer([file], [directory])).defaultPrevented).toBe(false)
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(dispatch(target, 'drop', transfer([file])).defaultPrevented).toBe(true)
+    expect(mocks.openTab).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancels file dragover but preserves text dragover and its drop effect', () => {
+    const { target } = setup()
+    expect(dispatch(target, 'dragover', transfer([])).defaultPrevented).toBe(true)
+    const text = transfer([], [], ['text/plain'])
+    expect(dispatch(target, 'dragover', text).defaultPrevented).toBe(false)
+    expect(text.dropEffect).toBe('copy')
+  })
+
+  it('removes listeners on unmount and registers exactly once on remount', () => {
+    const { file, unmount } = setup()
+    unmount()
+    dispatch(window, 'drop', transfer([file]))
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    render(<AppShell />)
+    dispatch(screen.getByTestId('tab-router'), 'drop', transfer([file]))
+    expect(mocks.openTab).toHaveBeenCalledTimes(1)
   })
 })
