@@ -1,7 +1,7 @@
 import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { BehaviorEvent } from '../core/decisions'
-import type { CallKey, ToolCallFact, UsageFact } from '../core/facts'
+import type { CallKey, ToolCallFact } from '../core/facts'
 import type {
   ApprovalAnswer,
   ApprovalHostFacts,
@@ -9,7 +9,6 @@ import type {
   Attendance,
   Autonomy,
   CallRef,
-  CompactionReason,
   GoalDefaults,
   ModelFacts,
   PermissionMode,
@@ -118,31 +117,6 @@ export interface OutputStore {
   save(file: OutputFile): Promise<string>
 }
 
-export type SummaryRequest = {
-  readonly reason: CompactionReason
-  readonly thread: ThreadId
-  readonly messages: readonly JsonValue[]
-  readonly previousSummary?: string
-  readonly instructions?: string
-}
-/**
- * P6. Write a compaction summary with the host's model.
- *
- * Its caller is `LifecycleHandlers.onCompacting`; adapters never call `Summarizer` or build the `cherry.summary:` memo
- * name themselves.
- *
- * @harness coding-agent Before each compaction; a rejection or an empty summary cancels it.
- * @harness durable `beforeCompact` returns `{ summary }` or `{ decline: true }`; the select phase reruns after a crash.
- * @harness fake Scripted summaries; with none queued it rejects.
- * @keys The summary is memoized under `cherry.summary:<compactionKey>`.
- */
-export interface Summarizer {
-  summarize(
-    request: SummaryRequest,
-    signal: AbortSignal
-  ): Promise<string | { readonly summary: string; readonly usage: UsageFact }>
-}
-
 /**
  * P7. Tell the host what happened, for display only; results never reach a parent through here.
  *
@@ -182,7 +156,6 @@ export interface HostPorts {
   readonly models: Models
   readonly verifier: Verifier
   readonly outputStore: OutputStore
-  readonly summarizer: Summarizer
   readonly observation: Observation
   readonly settings: Settings
 }

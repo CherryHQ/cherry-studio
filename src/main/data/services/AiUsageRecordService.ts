@@ -1453,6 +1453,17 @@ export class AiUsageRecordService {
     return getAiUsageRecordStats(query)
   }
 
+  totalTokens(range: { from: number; to: number }): number {
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .select({ totalTokens: totalTokensSum() })
+      .from(aiUsageRecordTable)
+      .where(and(...rangeConditions(range)))
+      .all()
+    return row.totalTokens
+  }
+
   timeline(query: AiUsageRecordTimelineQuery): AiUsageRecordTimelineResponse {
     return getAiUsageRecordTimeline(query)
   }

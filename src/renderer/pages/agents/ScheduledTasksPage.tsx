@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react'
 import { lazy, Suspense, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
 import { ConversationNavigationPane } from '@renderer/components/chat/shell/ConversationNavigationPane'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
@@ -42,6 +42,7 @@ export default function ScheduledTasksPage() {
     swrOptions: { shouldRetryOnError: false }
   })
   const resultError =
+    selectedTask?.runSummary?.status === 'failed' &&
     notificationId &&
     notification?.id === notificationId &&
     !notificationError &&
@@ -135,9 +136,11 @@ export default function ScheduledTasksPage() {
         {selectedTask?.name ?? t('settings.scheduledTasks.title')}
       </span>
       {selectedTask?.runSummary && (
-        <span className="text-xs">
-          <TaskRunSummaryLine summary={selectedTask.runSummary} />
-        </span>
+        <Tooltip content={resultError} placement="bottom" asChild>
+          <span className="text-xs" tabIndex={resultError ? 0 : undefined}>
+            <TaskRunSummaryLine summary={selectedTask.runSummary} />
+          </span>
+        </Tooltip>
       )}
       {!!conversation.result?.logs.length && (
         <Select value={runId ?? conversation.result.runId ?? ''} onValueChange={selectRun}>
@@ -225,11 +228,6 @@ export default function ScheduledTasksPage() {
         conversationToolbar={toolbar}
         centerSurface={!conversation.session ? { content: empty } : null}
       />
-      {resultError && (
-        <div role="alert" className="px-3 py-2 text-sm text-destructive">
-          {resultError}
-        </div>
-      )}
       {conversation.session && !!error && (
         <div role="alert" className="flex items-center gap-2 px-3 py-1 text-sm">
           {t('agent.tasks.logs.loadError')}

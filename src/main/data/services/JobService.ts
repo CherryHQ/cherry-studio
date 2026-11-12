@@ -109,8 +109,8 @@ export class JobService {
           .select()
           .from(jobTable)
           .where(and(...conditions))
-          .orderBy(desc(jobTable.createdAt))
-      : db.select().from(jobTable).orderBy(desc(jobTable.createdAt))
+          .orderBy(desc(jobTable.createdAt), desc(jobTable.id))
+      : db.select().from(jobTable).orderBy(desc(jobTable.createdAt), desc(jobTable.id))
 
     const rows =
       filter.limit !== undefined

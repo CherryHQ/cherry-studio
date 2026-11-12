@@ -906,7 +906,7 @@ describe('desktop Pi Durable connection', () => {
         createTestBinding({ model: { ...MODEL, contextWindow: 1_000_000 }, stream: script.model })
       )
       script = respondingModel((call) =>
-        call.systemPrompt.startsWith('Summarize the conversation')
+        call.systemPrompt.startsWith('You are a context summarization assistant')
           ? summary.wait(assistantReply('Remember the original objective', outcome === 'error' ? 'error' : 'stop'))
           : assistantReply('answer')
       )
@@ -937,10 +937,8 @@ describe('desktop Pi Durable connection', () => {
       }
       await done(events)
       if (outcome === 'error') {
-        expect(events.filter((event) => event.type === 'compaction-complete')).toEqual([
-          { type: 'compaction-complete' }
-        ])
-        expect(events.filter((event) => event.type === 'error')).toEqual([])
+        expect(events.filter((event) => event.type === 'compaction-complete')).toEqual([])
+        expect(events.filter((event) => event.type === 'error')).toHaveLength(1)
         return
       }
       if (outcome !== 'complete') {
