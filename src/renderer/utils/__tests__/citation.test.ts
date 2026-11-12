@@ -657,6 +657,18 @@ describe('source-backed hidden numeric marks', () => {
   const sources = new Map([[1, { number: 1, url: 'https://example.com', title: 'One' }]])
   it.each([
     ['Claim [1].', 'Claim.'],
+    ['Claim [[1]](https://example.com).', 'Claim.'],
+    ['Ordinary [[1]](https://other.com).', 'Ordinary [[1]](https://other.com).'],
+    ['Claim *[1]*.', 'Claim.'],
+    ['**[1]**', ''],
+    ['***[1]***', ''],
+    ['Claim _[1]_.', 'Claim.'],
+    ['__ [1] __', '__ __'],
+    ['Claim **source [1]**.', 'Claim **source**.'],
+    ['Claim *text [1] and more*.', 'Claim *text and more*.'],
+    ['Claim **[1] [99]**.', 'Claim ** [99]**.'],
+    ['Claim *[[1]](https://example.com)*.', 'Claim.'],
+    ['`*[1]*` and **[99]**', '`*[1]*` and **[99]**'],
     ['Claim [99].', 'Claim [99].'],
     ['Claim [<sup>1</sup>](https://example.com).', 'Claim.'],
     ['Ordinary [<sup>1</sup>](https://other.com).', 'Ordinary [<sup>1</sup>](https://other.com).'],

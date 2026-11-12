@@ -259,8 +259,8 @@ export function stripKnownNumberedCitationMarkers(content: string, citations: Re
     if (start === undefined || end === undefined) return
     const raw = content.slice(start, end)
     if (node.type === 'link') {
-      const marker = /^\[<sup>(\d+)<\/sup>\]\([^]*\)$/.exec(raw)
-      if (marker && citations.get(Number(marker[1]))?.url === node.url) {
+      const marker = /^\[(?:<sup>(\d+)<\/sup>|\[(\d+)\])\]\([^]*\)$/.exec(raw)
+      if (marker && citations.get(Number(marker[1] ?? marker[2]))?.url === node.url) {
         removals.push({ start: start > 0 && /[ \t]/.test(content[start - 1]) ? start - 1 : start, end })
       }
       return
@@ -301,7 +301,27 @@ export function stripKnownNumberedCitationMarkers(content: string, citations: Re
       return
     // Raw inline HTML can wrap adjacent text nodes; leave that mixed paragraph intact.
     if ('children' in node && (node.type !== 'paragraph' || !node.children.some((child) => child.type === 'html'))) {
+      const firstRemoval = removals.length
       for (const child of node.children) visit(child)
+      // Removing a source marker must not turn empty emphasis into literal stars or a thematic break.
+      // Use parsed child offsets, not delimiter matching, so mixed-content and nested emphasis survive.
+      if ((node.type === 'emphasis' || node.type === 'strong') && removals.length > firstRemoval) {
+        const innerStart = node.children[0]?.position?.start.offset
+        const innerEnd = node.children.at(-1)?.position?.end.offset
+        if (innerStart !== undefined && innerEnd !== undefined) {
+          let cursor = innerStart
+          let remaining = ''
+          for (const removal of removals.slice(firstRemoval)) {
+            remaining += content.slice(cursor, Math.max(cursor, removal.start))
+            cursor = removal.end
+          }
+          remaining += content.slice(cursor, innerEnd)
+          if (!remaining.trim()) {
+            removals.splice(firstRemoval)
+            removals.push({ start: start > 0 && /[ \t]/.test(content[start - 1]) ? start - 1 : start, end })
+          }
+        }
+      }
     }
   }
   visit(fromMarkdown(content))

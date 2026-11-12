@@ -254,6 +254,22 @@ describe('export', () => {
       expect(copied).toContain('User:\nClaim.[cite:3f2a1b9c-1]')
     })
 
+    it.each([
+      ['Claim [[1]](https://example.com).', 'Claim.'],
+      ['Claim *[1]*.', 'Claim.'],
+      ['**[1]**', '']
+    ])('hides wrapped native-source markers before single and multiple copies: %s', async (content, expected) => {
+      const assistant = createExportView([
+        { type: 'source-url', sourceId: 'citation-0', url: 'https://example.com', title: 'One' },
+        { type: 'text', text: content }
+      ] as MessageExportView['parts'])
+      vi.mocked(preferenceService.get).mockResolvedValueOnce(false).mockResolvedValueOnce(false)
+      expect(await messageToPlainText(assistant)).toBe(expected)
+      const copied = await messagesToPlainText([assistant])
+      expect(copied).toBe(`Assistant:\n${expected}`)
+      expect(assistant.parts?.find((part) => part.type === 'text')).toMatchObject({ text: content })
+    })
+
     it('should convert a single message content to plain text without role prefix', async () => {
       const testMessage = createMessage({ role: 'user', id: 'single_msg_plain' }, [
         { type: MessageBlockType.MAIN_TEXT, content: '### Single Message Content' }

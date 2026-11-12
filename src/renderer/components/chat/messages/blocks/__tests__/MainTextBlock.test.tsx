@@ -1088,6 +1088,22 @@ Hidden answer
       expect(getRenderedMarkdown()).toHaveAttribute('data-content', expect.not.stringMatching(/\[1\]|<sup|cite:/))
     })
 
+    it.each([
+      ['Claim [[1]](https://example.com).', 'Claim.'],
+      ['Claim *[1]*.', 'Claim.'],
+      ['**[1]**', '']
+    ])('hides source-backed wrapped markers without leaving Markdown artifacts: %s', (content, expected) => {
+      mockRenderConfig.showCitationMarkers = false
+      renderMainTextBlock({
+        content,
+        role: 'assistant',
+        citations: [{ number: 1, url: 'https://example.com', title: 'Source' }],
+        citationReferences: [{ citationBlockSource: WEB_SEARCH_SOURCE.GROK }]
+      })
+      expect(getRenderedMarkdown()).toHaveAttribute('data-content', expected)
+      expect(mockWithCitationTags).not.toHaveBeenCalled()
+    })
+
     it('hides [cite:id] markers in assistant text when markers are disabled', () => {
       mockRenderConfig.showCitationMarkers = false
       renderMainTextBlock({ content: 'Claim.[cite:abc-1] Next.', role: 'assistant' })
