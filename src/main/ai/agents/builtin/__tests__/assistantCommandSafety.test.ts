@@ -702,3 +702,17 @@ describe('PowerShell simple variable assignment command RHS', () => {
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
   })
 })
+
+describe('PowerShell legacy deletion coverage on the shared guard', () => {
+  // These executable forms were covered by #23231. Keep them without reviving
+  // its separate tokenizer or changing the shared parser's comment boundaries.
+  it.each([
+    `pwsh -NoProfile -Command '$script:output = del victim.txt'`,
+    `pwsh -NoProfile -Command '$null = del victim.txt'`,
+    `pwsh -NoProfile -Command 'Get-Item victim.txt | del; Write-Output done'`,
+    `pwsh -NoProfile -Command '(Get-Item victim.txt | del)'`,
+    `pwsh -NoProfile -Command 'del("victim.txt")'`
+  ])('retains an executable deletion position: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+})
