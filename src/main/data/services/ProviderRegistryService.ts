@@ -213,6 +213,21 @@ export function matchesModelPricingBaseline(value: unknown, baseline: unknown): 
   return isEqual(value, baseline)
 }
 
+function resolveFallbackReasoningWire(
+  formatType: ReasoningFormatType,
+  wireDialect?: ReasoningWireDialect
+): ReasoningWireProfile {
+  const wire = selectFormatWire(REASONING_FORMAT_PROFILES[formatType], wireDialect)
+  // A non-disable Off must not become a disable on a wire that cannot express it.
+  // Authored wires and the native protocol retain their own Off semantics.
+  if (formatType === 'openai-chat' && wireDialect === 'adaptive-between-tools' && wire.off) {
+    const withoutOff = { ...wire }
+    delete withoutOff.off
+    return withoutOff
+  }
+  return wire
+}
+
 /** Resolve profile data without consulting model/provider ids or regexes. */
 export function resolveReasoningProfileFromRegistry(input: {
   endpointType: EndpointType | undefined
@@ -223,10 +238,10 @@ export function resolveReasoningProfileFromRegistry(input: {
 }): ResolvedReasoningProfile {
   const endpointDefault = input.endpointType ? DEFAULT_FORMAT_BY_ENDPOINT[input.endpointType] : undefined
   const formatType = input.format?.type ?? endpointDefault ?? 'openai-chat'
-  const formatDefault = REASONING_FORMAT_PROFILES[formatType]
   // Priority is unchanged; only the last-resort default becomes dialect-aware,
   // so per-model contracts and endpoint-wide wires still win outright.
-  const baseWire = input.contract?.wire ?? input.format?.wire ?? selectFormatWire(formatDefault, input.wireDialect)
+  const baseWire =
+    input.contract?.wire ?? input.format?.wire ?? resolveFallbackReasoningWire(formatType, input.wireDialect)
   const wire =
     formatType === 'openai-responses' && input.reasoningSummary !== undefined
       ? configureOpenAIResponsesSummary(baseWire, input.reasoningSummary)

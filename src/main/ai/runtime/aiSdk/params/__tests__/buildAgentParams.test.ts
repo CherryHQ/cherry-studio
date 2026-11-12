@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { inferCustomModelReasoning } from '@data/services/ProviderRegistryService'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
@@ -71,6 +72,50 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it.each(['none', 'high'] as const)(
+    'sends custom Sonnet chat selection %s without inventing a disable',
+    async (selection) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'openai-compatible', providerSettings: { name: 'custom-repro' } },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const apiModelId = 'anthropic/claude-sonnet-5.5'
+      const model = makeModel({
+        id: `custom-repro::${apiModelId}`,
+        providerId: 'custom-repro',
+        apiModelId,
+        presetModelId: null,
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: inferCustomModelReasoning(apiModelId)
+      })
+      const { options } = await buildAgentParams({
+        request: { conversation: CONVERSATION, reasoningEffort: selection },
+        provider: makeProvider({
+          id: 'custom-repro',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+        }),
+        model,
+        signal: undefined
+      })
+      let body: Record<string, unknown> | undefined
+      const sdkModel = createOpenAICompatible({
+        name: 'custom-repro',
+        baseURL: 'https://provider.test/v1',
+        fetch: async (_url, init) => {
+          body = JSON.parse(String(init?.body))
+          return new Response('{}')
+        }
+      })(apiModelId)
+      await sdkModel.doStream({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+        providerOptions: options.providerOptions
+      })
+      expect(body).toMatchObject({ model: apiModelId, messages: [{ role: 'user', content: 'Hello' }] })
+      if (selection === 'none') expect(body).not.toHaveProperty('reasoning_effort')
+      else expect(body).toHaveProperty('reasoning_effort', 'high')
+    }
+  )
+
   it('sends only selected MCP guidance to the provider and suppresses it for tool-disabled requests', async () => {
     const server = { id: 'docs', name: 'Documents', isActive: true, disabledTools: [], disabledAutoApproveTools: [] }
     const toolId = 'mcp__docs__read'

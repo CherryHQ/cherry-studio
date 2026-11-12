@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { computeLanguageCost, createAiUsagePricingSnapshot } from '@shared/utils/usagePricing'
 
@@ -136,6 +137,7 @@ import {
 // Must import after mocks are set up
 const {
   createCustomModel,
+  inferCustomModelReasoning,
   mergePresetModel,
   projectRuntimeReasoning,
   providerRegistryService,
@@ -1218,5 +1220,81 @@ describe('projectRuntimeReasoning summary options', () => {
 
     expect(projectRuntimeReasoning(effortSupport, enabled.wire).summaryOptions).toEqual(['auto', 'concise', 'detailed'])
     expect(projectRuntimeReasoning(effortSupport, disabled.wire).summaryOptions).toBeUndefined()
+  })
+})
+
+describe('custom-provider reasoning Off semantics', () => {
+  const provider = {
+    id: 'custom-repro',
+    presetProviderId: null,
+    defaultChatEndpoint: 'openai-chat-completions'
+  } as const
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearServiceCache()
+    mockReadModels.mockReturnValue(
+      JSON.parse(
+        readFileSync(new URL('../../../../../packages/provider-registry/data/models.json', import.meta.url), 'utf8')
+      )
+    )
+    mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] })
+    mockReadProviders.mockReturnValue({ version: '1.0', providers: [] })
+  })
+
+  function resolveOff(apiModelId: string, endpointType: 'openai-chat-completions' | 'anthropic-messages') {
+    const model = {
+      ...createCustomModel(provider.id, apiModelId),
+      presetModelId: null,
+      capabilities: ['reasoning' as const],
+      reasoning: inferCustomModelReasoning(apiModelId)
+    }
+    const profile = providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
+    const reasoning = projectRuntimeReasoning(profile.support!, profile.wire)
+    return {
+      profile,
+      reasoning,
+      invocation: resolveReasoningInvocation({
+        selection: 'none',
+        model: { ...model, reasoning },
+        profile: profile.wire
+      })
+    }
+  }
+
+  it('removes the misleading fallback Off for the reported custom Sonnet chat model', () => {
+    const { profile, reasoning, invocation } = resolveOff('anthropic/claude-sonnet-5.5', 'openai-chat-completions')
+    expect(profile.wireDialect).toBe('adaptive-between-tools')
+    expect(reasoning.selectableEfforts).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
+    expect(invocation).toMatchObject({ kind: 'omit', emissions: [] })
+  })
+
+  it('preserves native Sonnet between-tool reasoning at Off', () => {
+    const { reasoning, invocation } = resolveOff('anthropic/claude-sonnet-5.5', 'anthropic-messages')
+    expect(reasoning.selectableEfforts).toContain('none')
+    expect(invocation).toMatchObject({ kind: 'off', emissions: [{ target: 'thinking.type', value: 'between_tools' }] })
+  })
+
+  it.each([
+    ['claude-sonnet-4-5', 'budget'],
+    ['gpt-5.1', undefined]
+  ] as const)('preserves chat disable for %s', (apiModelId, dialect) => {
+    const { profile, reasoning, invocation } = resolveOff(apiModelId, 'openai-chat-completions')
+    expect(profile.wireDialect).toBe(dialect)
+    expect(reasoning.selectableEfforts).toContain('none')
+    expect(invocation).toMatchObject({ kind: 'off', emissions: [{ target: 'reasoningEffort', value: 'none' }] })
+  })
+
+  it.each(['contract', 'format'] as const)('preserves an authored %s Off and the source default', (owner) => {
+    const source = resolveReasoningProfileFromRegistry({ endpointType: 'openai-chat-completions' }).wire
+    const profile = resolveReasoningProfileFromRegistry({
+      endpointType: 'openai-chat-completions',
+      wireDialect: 'adaptive-between-tools',
+      ...(owner === 'contract' ? { contract: { wire: source } } : { format: { type: 'openai-chat', wire: source } })
+    })
+    expect(profile.wire).toBe(source)
+    expect(profile.wire.off).toEqual({
+      operations: [{ target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }]
+    })
   })
 })
