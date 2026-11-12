@@ -97,7 +97,10 @@ export const skillRequestSchemas = {
     output: z.custom<SkillResult<LocalSkill[]>>()
   }),
   'skill.reconcile': defineRoute({
-    input: z.strictObject({ skillId: z.string().min(1).optional() }),
+    input: z.union([
+      z.strictObject({ skillId: z.string().min(1).optional() }),
+      z.strictObject({ externalExportsOnly: z.literal(true) })
+    ]),
     output: z.custom<void>()
   }),
   'skill.remote.check': defineRoute({
