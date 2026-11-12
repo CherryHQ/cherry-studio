@@ -23,8 +23,7 @@ export interface ContractHarness {
    */
   sendUser(thread: ThreadId, text: string): Promise<void>
   /**
-   * Compacts `thread` now, a manual compaction: asks `onCompacting`, and with a summary adds a compaction entry and calls
-   * `onCompacted`; a decline leaves the history as it was.
+   * Compacts `thread` now using a scripted native summary and calls `onCompacted` after a successful compaction.
    */
   compact(thread: ThreadId): Promise<void>
   /** Resolves once no run is active and no job is live; inbox items a failed run left do not count. */
@@ -39,8 +38,8 @@ export interface ContractHarness {
 }
 /** Opens a fresh harness; `install` registers handlers at open and again after each restart. */
 export type OpenContractHarness = (install: (ports: HarnessPorts) => void) => Promise<ContractHarness>
-/** A capability a case needs; a harness without it skips the case (coding-agent: restart; Durable: context-filter). */
-export type ContractNeed = 'restart' | 'context-filter'
+/** A capability a case needs; a harness without it skips the case (coding-agent: restart; Durable: context-filter, foreground-continuation). */
+export type ContractNeed = 'restart' | 'context-filter' | 'foreground-continuation'
 export interface ContractCase {
   readonly name: string
   readonly covers: readonly PortMethod[]

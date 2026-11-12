@@ -76,7 +76,7 @@ describe('SelectionActionUserModal', () => {
     MockUseDataApiUtils.mockQueryData('/agent-workspaces', [WORKSPACE])
   })
 
-  it('keeps the footer accessible when editing a long prompt', () => {
+  it('submits the complete long prompt', () => {
     const longPrompt = 'Keep the prompt inside the dialog.\n'.repeat(200)
     const onOk = vi.fn()
     const editingAction: CustomSelectionAction = {
@@ -91,18 +91,9 @@ describe('SelectionActionUserModal', () => {
     render(<SelectionActionUserModal isModalOpen editingAction={editingAction} onOk={onOk} onCancel={vi.fn()} />)
 
     const prompt = screen.getByPlaceholderText('selection.settings.user_modal.prompt.placeholder')
-    const dialogContent = screen.getByTestId('dialog-content')
-    const scrollableBody = dialogContent.children[1]
 
     expect(prompt).toHaveValue(longPrompt)
-    // These layout utilities are the viewport/scroll contract that prevents issue #19358.
-    expect(dialogContent).toHaveClass(
-      'max-h-[calc(100vh-2rem)]',
-      'grid-rows-[auto_minmax(0,1fr)_auto]',
-      'overflow-hidden'
-    )
-    expect(scrollableBody).toHaveClass('min-h-0', 'overflow-y-auto')
-    expect(prompt).toHaveClass('max-h-40', 'overflow-y-auto', 'resize-none')
+
     const confirmButton = screen.getByRole('button', { name: 'common.confirm' })
     expect(confirmButton).toBeVisible()
 

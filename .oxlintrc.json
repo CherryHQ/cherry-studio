@@ -5,6 +5,14 @@
     "es2022": true
   },
   "globals": {},
+  "jsPlugins": ["@shadcn/lint", "./scripts/lint/scroll-area.mjs"],
+  "settings": {
+    "shadcn": {
+      "ui": "@cherrystudio/ui",
+      "themeImports": ["^@cherrystudio/ui/styles/"],
+      "note": "See DESIGN.md and packages/ui/docs/design-token-system.md."
+    }
+  },
   "ignorePatterns": [
     "node_modules/**",
     "build/**",
@@ -18,6 +26,7 @@
     "src/main/services/nutstore/sso/lib/**",
     "src/renderer/ui/**",
     "packages/**/dist",
+    "native/system-speech/dist",
     "eslint.config.mjs",
     "scripts/data-classify/**"
   ],
@@ -25,6 +34,42 @@
     "typeAware": true
   },
   "overrides": [
+    {
+      "files": [
+        "src/renderer/**/*.{ts,tsx}",
+        "packages/ui/src/**/*.{ts,tsx}",
+        "packages/file-preview/src/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "cherry-scroll-area/no-container-padding": "error",
+        "shadcn/no-raw-colors": ["off", { "allow": ["outline-dot", "outline-text"] }],
+        "shadcn/no-unknown-classes": [
+          "off",
+          {
+            "allow": [
+              "lucide-custom",
+              "selectable",
+              "message-content-container",
+              "message-thought-container",
+              "MessageFooter",
+              "message",
+              "message-user",
+              "message-assistant",
+              "in-popover",
+              "selected",
+              "multi-select-mode",
+              "drag",
+              "nodrag",
+              "clear-context-divider",
+              "source-view",
+              "mini-app-icon-frame",
+              "outline-dot",
+              "outline-text"
+            ]
+          }
+        ]
+      }
+    },
     {
       "env": {
         "node": true

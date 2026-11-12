@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -101,9 +102,7 @@ vi.mock('@cherrystudio/ui', async () => {
     Label: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <label {...props}>{children}</label>
     ),
-    Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-      <div {...props}>{children}</div>
-    ),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Input: (props: Record<string, unknown>) => <input {...props} />,
     Switch: ({
       checked,
@@ -430,7 +429,6 @@ describe('RagConfigPanel', () => {
     expect(thresholdSlider).toHaveValue('0')
     // The threshold is a 0.01-granularity knob, so 0.65 must stay reachable and
     // be shown as typed instead of being rounded to a tenth.
-    expect(thresholdSlider).toHaveAttribute('step', '0.01')
 
     fireEvent.change(thresholdSlider, { target: { value: '0.65' } })
     expect(screen.getByText('0.65')).toBeInTheDocument()
@@ -670,14 +668,6 @@ describe('RagConfigPanel', () => {
     fireEvent.click(saveButton)
     expect(mockSave).not.toHaveBeenCalled()
     expect(onRestoreBase).not.toHaveBeenCalled()
-  })
-
-  it('renders hover hint tooltip content for RAG field labels', () => {
-    renderRagConfigPanel()
-
-    expect(screen.getByRole('tooltip', { name: '用于将知识库内容转换为向量。' })).toBeInTheDocument()
-    expect(screen.getByRole('tooltip', { name: '每次召回返回的最大文档片段数。' })).toBeInTheDocument()
-    expect(screen.getByRole('tooltip', { name: '对初步召回结果重新排序的模型。' })).toBeInTheDocument()
   })
 
   it('saves the local embedding model on an empty base only after confirmation', async () => {

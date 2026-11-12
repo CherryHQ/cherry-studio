@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import JSZip from 'jszip'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
+import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
@@ -13,12 +14,16 @@ import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { readOwnedRecord } from '../../../../scripts/e2e/regression/lifecycle'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { dismissNativeMessageBox } from '../../../../scripts/e2e/regression/systemAutomation'
+import { chooseNativeFile, dismissNativeMessageBox } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { test, expect } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
+import { revealVirtualized } from '../helpers/virtualList'
+import { applicationDataMigration } from '../scenarios/applicationDataMigration'
+import { clearCacheItems } from '../scenarios/clearCacheItems'
+import { importConversationFixtures } from '../scenarios/importConversationFixtures'
 
 test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) => {
   testInfo.annotations.push({
@@ -286,6 +291,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       topicId
     )
 
+  let primaryFailure: unknown
   try {
     await openSettingsSection(page, 'Data')
     await page
@@ -353,6 +359,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
 
     const confirmation = await confirmRestore('MP-116-valid.zip')
     await attachScreenshot('MP-116 overwrite confirmation')
+    const nativeStartedAt = Date.now()
     const closed = page.waitForEvent('close', { timeout: 30_000 })
     // A development build ends the restore with a blocking native dialog before it exits,
     // so the box has to be acknowledged from the desktop while the click is still in flight.
@@ -360,8 +367,48 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       app.record.mode === 'branch'
         ? dismissNativeMessageBox(app.record.platform, app.paths, 'Manual Restart Required')
         : undefined
-    await confirmation.getByRole('button', { name: 'Confirm', exact: true }).click()
-    await Promise.all([closed, acknowledged])
+    if (app.record.platform === 'windows') {
+      const pending = Promise.allSettled([closed, acknowledged])
+      const failures: unknown[] = []
+      await confirmation
+        .getByRole('button', { name: 'Confirm', exact: true })
+        .click()
+        .catch((error) => failures.push(error))
+      const outcomes = await pending
+      for (const outcome of outcomes) {
+        if (outcome.status === 'rejected') failures.push(outcome.reason)
+      }
+      await testInfo
+        .attach('MP-116 restore close and native acknowledgement', {
+          body: JSON.stringify(
+            outcomes.map((outcome, index) => ({
+              operation: index === 0 ? 'page-close' : 'native-acknowledgement',
+              status: outcome.status,
+              errorName: outcome.status === 'rejected' && outcome.reason instanceof Error ? outcome.reason.name : null
+            }))
+          ),
+          contentType: 'application/json'
+        })
+        .catch((error) => failures.push(error))
+      if (app.record.mode === 'branch') {
+        const diagnostic = await readFile(join(app.paths.logs, 'native-message-box.json'), 'utf8')
+          .then((contents) => JSON.parse(contents))
+          .catch(() => null)
+        await testInfo
+          .attach('MP-116 native dialog state', {
+            body: JSON.stringify(
+              diagnostic && Date.parse(diagnostic.startedAt) >= nativeStartedAt ? diagnostic : { unavailable: true }
+            ),
+            contentType: 'application/json'
+          })
+          .catch((error) => failures.push(error))
+      }
+      if (failures.length)
+        throw new AggregateError(failures, 'Restore confirmation failed; click, close and native errors retained')
+    } else {
+      await confirmation.getByRole('button', { name: 'Confirm', exact: true }).click()
+      await Promise.all([closed, acknowledged])
+    }
     if (app.record.mode === 'branch') {
       const { runnerPid: runner, platform } = app.record
       const promotion = app.restart().then(
@@ -378,12 +425,12 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       // The packaged build relaunches itself; take ownership of the replacement before asserting.
       page = await app.adoptRelaunch()
     }
-    await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible()
+    await selectSidebarApp(page, 'Chat')
+    await expect(page.locator('#app-sidebar')).toBeVisible()
     const restored = await readTopic()
     expect(restored.status).toBe(200)
     expect(TopicSchema.parse(restored.data)).toMatchObject({ id: topicId, name: topicName, assistantId })
     expect(await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))).toBe(false)
-    await selectSidebarApp(page, 'Chat')
     const header = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await header.hover()
     const expand = header.getByRole('button', { name: 'Expand', exact: true })
@@ -404,25 +451,54 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(restoredManager.getByRole('row').filter({ hasText: 'MP-116-valid.zip' })).toBeVisible()
     await attachScreenshot('MP-116 manager lists the restored archive')
     await page.keyboard.press('Escape')
+  } catch (error) {
+    primaryFailure = error
+    throw error
   } finally {
     if (!page.isClosed()) {
-      await page.evaluate(
-        async ({ assistantId, originalPreferences }) => {
-          await window.api.preference.setMultiple({
-            'data.backup.local.dir': originalPreferences.dir,
-            'data.backup.local.auto_sync': originalPreferences.autoSync,
-            'data.backup.local.skip_backup_file': originalPreferences.slim,
-            'topic.naming.enabled': originalPreferences.naming
+      let cleanupTimer: ReturnType<typeof setTimeout> | undefined
+      try {
+        const cleanup = page.evaluate(
+          async ({ assistantId, originalPreferences }) => {
+            await window.api.preference.setMultiple({
+              'data.backup.local.dir': originalPreferences.dir,
+              'data.backup.local.auto_sync': originalPreferences.autoSync,
+              'data.backup.local.skip_backup_file': originalPreferences.slim,
+              'topic.naming.enabled': originalPreferences.naming
+            })
+            const permanentlyDeletedAssistant2 = (await window.api.ipcApi.request(
+              'trash.assistant.delete_permanently',
+              {
+                assistantId,
+                deleteTopics: true
+              }
+            )) as IpcResult<{ deleted: boolean }>
+            if (!permanentlyDeletedAssistant2.ok || !permanentlyDeletedAssistant2.data.deleted)
+              throw new Error('cleanup left the case assistant in the trash')
+          },
+          { assistantId, originalPreferences }
+        )
+        if (app.record.platform === 'windows') {
+          await Promise.race([
+            cleanup,
+            new Promise<never>((_resolve, reject) => {
+              cleanupTimer = setTimeout(
+                () => reject(new Error('MP-116 cleanup did not complete within 10 seconds')),
+                10_000
+              )
+            })
+          ])
+        } else await cleanup
+      } catch (cleanupError) {
+        if (primaryFailure !== undefined) {
+          throw new AggregateError([primaryFailure, cleanupError], 'MP-116 failed and cleanup also failed', {
+            cause: primaryFailure
           })
-          const permanentlyDeletedAssistant2 = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
-            assistantId,
-            deleteTopics: true
-          })) as IpcResult<{ deleted: boolean }>
-          if (!permanentlyDeletedAssistant2.ok || !permanentlyDeletedAssistant2.data.deleted)
-            throw new Error('cleanup left the case assistant in the trash')
-        },
-        { assistantId, originalPreferences }
-      )
+        }
+        throw cleanupError
+      } finally {
+        clearTimeout(cleanupTimer)
+      }
     }
   }
 })
@@ -448,7 +524,14 @@ test(...caseDefinition('MP-117'), async ({ app, mainWindow: page }, testInfo) =>
   const lastBackup = page.getByText(/^Last Backup: \d{2}:\d{2}:\d{2}$/)
   const selectInterval = async (name: string) => {
     await interval.click()
-    await page.getByRole('option', { name, exact: true }).click()
+    try {
+      await page.getByRole('listbox').hover()
+      await page.mouse.wheel(0, -1000)
+      await page.getByRole('option', { name, exact: true }).click()
+    } catch (error) {
+      await attachScreenshot(`MP-117 ${name} interval selection failure`)
+      throw error
+    }
     await expect(interval).toHaveText(name)
   }
 
@@ -540,5 +623,157 @@ test(...caseDefinition('MP-117'), async ({ app, mainWindow: page }, testInfo) =>
     }, original)
     await rm(directory, { recursive: true, force: true })
     await rm(savedDirectory, { recursive: true, force: true })
+  }
+})
+
+test(...caseDefinition('MP-118'), async ({ app, mainWindow }, testInfo) => {
+  await clearCacheItems(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-119'), async ({ app, mainWindow }, testInfo) => {
+  await applicationDataMigration(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-120'), async ({ app, mainWindow: page }, testInfo) => {
+  const attachScreenshot = async (name: string) => {
+    const path = testInfo.outputPath(`${name}.png`)
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach(name, { path, contentType: 'image/png' })
+  }
+  const readState = () =>
+    page.evaluate(async () => {
+      const assistants = await window.api.dataApi.request({
+        id: 'mp120-assistants',
+        method: 'GET',
+        path: '/assistants',
+        params: { limit: 200 }
+      })
+      const topics = await window.api.dataApi.request({
+        id: 'mp120-topics',
+        method: 'GET',
+        path: '/topics',
+        params: { limit: 200 }
+      })
+      if (assistants.status !== 200 || topics.status !== 200) throw new Error('Cannot read import state')
+      const a = assistants.data as { items: { id: string; name: string }[]; total: number }
+      const t = topics.data as { items: { id: string; name: string; assistantId?: string }[]; nextCursor?: string }
+      if (a.total > a.items.length || t.nextCursor) throw new Error('Import state exceeds one page')
+      const messages = await Promise.all(
+        t.items.map(async (topic) => {
+          const response = await window.api.dataApi.request({
+            id: `mp120-messages-${topic.id}`,
+            method: 'GET',
+            path: `/topics/${topic.id}/messages`
+          })
+          if (response.status !== 200) throw new Error('Cannot read imported messages')
+          return { topicId: topic.id, data: response.data }
+        })
+      )
+      return { assistants: a.items, topics: t.items, messages }
+    })
+  const original = await readState()
+  const importedIds: string[] = []
+  try {
+    for (const source of ['ChatGPT', 'Claude'] as const) {
+      const fixtures = importConversationFixtures(source)
+      const slug = source.toLowerCase()
+      const importsDir = join(app.paths.fixtures, 'imports')
+      await mkdir(importsDir, { recursive: true })
+      const validPath = join(importsDir, `${slug}-conversations.json`)
+      const invalidPath = join(importsDir, `${slug}-conversations-invalid.json`)
+      await writeFile(validPath, fixtures.valid)
+      await writeFile(invalidPath, fixtures.invalid)
+      const importFile = async (path: string) => {
+        await openSettingsSection(page, 'Data')
+        await page
+          .locator('[data-slot="menu-item"]')
+          .filter({ hasText: /^Import App Data$/ })
+          .click()
+        await page
+          .locator(`#setting-data-import-${slug}`)
+          .getByRole('button', { name: 'Import Json File', exact: true })
+          .click()
+        const dialog = page.getByRole('dialog', { name: `Import ${source} Conversations`, exact: true })
+        await expect(dialog).toBeVisible()
+        await dialog.getByRole('button', { name: 'Select File', exact: true }).click()
+        chooseNativeFile(app.record.platform, app.paths, path)
+        return dialog
+      }
+      const before = await readState()
+      const dialog = await importFile(validPath)
+      await expect(
+        page.getByText('Successfully imported 2 conversations with 6 messages', { exact: true })
+      ).toBeVisible()
+      await expect(dialog).toBeHidden()
+      await attachScreenshot(`MP-120 ${source} success counts`)
+      const after = await readState()
+      const newAssistants = after.assistants.filter((a) => !before.assistants.some((old) => old.id === a.id))
+      importedIds.push(...newAssistants.map((a) => a.id))
+      expect(newAssistants).toHaveLength(1)
+      expect(newAssistants[0].name).toBe(`${source} Import`)
+      const topics = after.topics.filter((t) => t.assistantId === newAssistants[0].id)
+      expect(topics.map((t) => t.name).sort()).toEqual(fixtures.conversations.map((c) => c.name).sort())
+      await selectSidebarApp(page, 'Chat')
+      const chat = page.locator('[data-ui~="chat.view"]:visible')
+      const scroller = chat.locator('[data-virtual-scrolling]').first()
+      const header = chat
+        .locator('[data-ui~="chat.group-header"]')
+        .filter({ hasText: `${source} Import` })
+        .first()
+      await revealVirtualized(page, scroller, header)
+      await expect(header).toBeVisible()
+      await header.hover()
+      const expand = header.getByRole('button', { name: 'Expand', exact: true })
+      if (await expand.isVisible()) await expand.click()
+      for (const conversation of fixtures.conversations) {
+        const topic = topics.find((t) => t.name === conversation.name)!
+        const stored = after.messages.find((m) => m.topicId === topic.id)!.data as BranchMessagesResponse
+        expect(stored.nextCursor).toBeUndefined()
+        expect(
+          stored.items.map(({ message }) => ({
+            role: message.role,
+            parts: message.data.parts
+          }))
+        ).toEqual(
+          conversation.messages.map((text, i) => ({
+            role: i % 2 ? 'assistant' : 'user',
+            parts: [{ type: 'text', text }]
+          }))
+        )
+        const topicRow = chat.getByTestId('topic-list-row').filter({ hasText: conversation.name })
+        await revealVirtualized(page, scroller, topicRow)
+        await topicRow.click()
+        const messages = page.locator('[data-ui~="chat.message"][data-message-id]:visible')
+        await expect(messages).toHaveCount(conversation.messages.length)
+        for (const [i, text] of conversation.messages.entries()) await expect(messages.nth(i)).toContainText(text)
+      }
+      await attachScreenshot(`MP-120 ${source} complete imported conversation`)
+      const beforeInvalid = await readState()
+      const invalidDialog = await importFile(invalidPath)
+      await expect(page.getByText(`Invalid ${source} format`, { exact: true })).toBeVisible()
+      await expect(invalidDialog.getByRole('button', { name: 'Select File', exact: true })).toBeEnabled()
+      expect(await readState()).toEqual(beforeInvalid)
+      await attachScreenshot(`MP-120 ${source} invalid file rejected without partial data`)
+      await invalidDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    }
+  } catch (error) {
+    await attachScreenshot('MP-120 import failure before cleanup')
+    throw error
+  } finally {
+    const current = await readState()
+    const ids = new Set([
+      ...importedIds,
+      ...current.assistants.filter((a) => !original.assistants.some((old) => old.id === a.id)).map((a) => a.id)
+    ])
+    for (const assistantId of ids) {
+      await page.evaluate(async (assistantId) => {
+        const permanentlyDeletedAssistant3 = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+          assistantId,
+          deleteTopics: true
+        })) as IpcResult<{ deleted: boolean }>
+        if (!permanentlyDeletedAssistant3.ok || !permanentlyDeletedAssistant3.data.deleted)
+          throw new Error('cleanup left the case assistant in the trash')
+      }, assistantId)
+    }
   }
 })

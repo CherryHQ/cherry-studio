@@ -27,13 +27,23 @@ import type {
   SystemSkillCandidate,
   SystemSkillPlacement
 } from '@shared/types/skill'
+import type { MarketplaceInstallResult, MarketplaceSkillDetail } from '@shared/types/skillMarketplace'
+import { marketplaceSkillNamespace, marketplaceSkillSource } from '@shared/utils/cherrySkillMarketplace'
 import {
   hasSkillRemoteUpdateProvenance,
   isSkillDirectoryContentHash,
   parseSkillSourceUrl
 } from '@shared/utils/skillMarketplace'
+import { skillInstallIdentity, subscriptionMemberSource } from '@shared/utils/skillSubscription'
 
-import { assertSkillDirectoryWithinLimits, extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
+import { downloadMarketplaceSkill, downloadSkillPackage, getMarketplaceSkill } from './cherrySkillMarketplace'
+import {
+  assertSkillDirectoryWithinLimits,
+  exportSkillArchive,
+  extractZip,
+  resolveSkillDirectory,
+  validateZipFile
+} from './skillArchive'
 import { SkillImportError } from './SkillImportError'
 import { SkillInstaller } from './SkillInstaller'
 import { createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
@@ -76,6 +86,7 @@ export class SkillService {
   private readonly mutationLock = new Mutex()
   // Dedupes concurrent reconcile-on-open triggers onto a single run.
   private reconcileInFlight: Promise<void> | null = null
+  private readonly marketplaceInstalls = new Map<string, Promise<MarketplaceInstallResult>>()
 
   constructor() {
     this.installer = new SkillInstaller()
@@ -94,6 +105,14 @@ export class SkillService {
    */
   async getById(id: string): Promise<InstalledSkill | null> {
     return agentGlobalSkillService.getById(id)
+  }
+
+  async exportArchive(id: string): Promise<Uint8Array> {
+    return this.mutationLock.runExclusive(async () => {
+      const skill = agentGlobalSkillService.getById(id)
+      if (!skill) throw new Error(`Skill not found: ${id}`)
+      return exportSkillArchive(this.getInstalledSkillDirectory(skill))
+    })
   }
 
   async list(query: ListSkillsQuery = {}): Promise<InstalledSkill[]> {
@@ -224,6 +243,106 @@ export class SkillService {
       return installed
     } finally {
       await safeRemoveDirectory(fetched.tempDir)
+    }
+  }
+
+  installMarketplace(id: string): Promise<MarketplaceInstallResult> {
+    const pending = this.marketplaceInstalls.get(id)
+    if (pending) return pending
+    const task = this.installMarketplacePackage(id).finally(() => this.marketplaceInstalls.delete(id))
+    this.marketplaceInstalls.set(id, task)
+    return task
+  }
+
+  private async installMarketplacePackage(id: string): Promise<MarketplaceInstallResult> {
+    const skill = await getMarketplaceSkill(id)
+    const namespace = marketplaceSkillNamespace(id)
+    const downloaded = await downloadMarketplaceSkill(skill)
+    const result: MarketplaceInstallResult = {
+      members: downloaded.directories.map(({ path, name }) => ({ path, name })),
+      installed: [],
+      alreadyInstalled: [],
+      failed: []
+    }
+    try {
+      await this.mutationLock.runExclusive(async () => {
+        const existing = await this.list()
+        for (const member of downloaded.directories) {
+          const sourceUrl = marketplaceSkillSource(id, member.path)
+          const installed = existing.find(
+            (entry) => entry.source === 'marketplace' && entry.namespace === namespace && entry.sourceUrl === sourceUrl
+          )
+          if (installed) {
+            result.alreadyInstalled.push(installed)
+            continue
+          }
+          try {
+            result.installed.push(
+              await this.installSkillDirLocked(member.skillDir, 'marketplace', sourceUrl, { namespace })
+            )
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            result.failed.push({ path: member.path, name: member.name, error: message })
+            logger.warn('Failed to install marketplace member', { id, member: member.path, error: message })
+          }
+        }
+      })
+      return result
+    } finally {
+      await safeRemoveDirectory(downloaded.tempDir)
+    }
+  }
+
+  async installSubscription(skill: MarketplaceSkillDetail): Promise<MarketplaceInstallResult> {
+    const source = skill.subscription!
+    const namespace = 'subscription:' + createHash('sha256').update(skillInstallIdentity(source.url)).digest('hex')
+    const fetched = source.kind === 'github' ? await fetchRemoteSkill('github', source.url) : null
+    const downloaded = fetched ? null : await downloadSkillPackage(source.url)
+    const directories = fetched
+      ? [{ path: '', name: skill.name.en, skillDir: fetched.skillDir }]
+      : downloaded!.directories
+    const result: MarketplaceInstallResult = {
+      members: directories.map(({ path, name }) => ({ path, name })),
+      installed: [],
+      alreadyInstalled: [],
+      failed: []
+    }
+    try {
+      await this.mutationLock.runExclusive(async () => {
+        const existing = await this.list()
+        for (const member of directories) {
+          const sourceUrl = fetched?.sourceUrl ?? subscriptionMemberSource(skill, member.path)
+          const installed = existing.find(
+            (entry) =>
+              entry.source === 'marketplace' &&
+              entry.sourceUrl &&
+              skillInstallIdentity(entry.sourceUrl) === skillInstallIdentity(sourceUrl)
+          )
+          if (installed) {
+            result.alreadyInstalled.push(installed)
+            continue
+          }
+          try {
+            result.installed.push(
+              await this.installSkillDirLocked(
+                member.skillDir,
+                'marketplace',
+                sourceUrl,
+                source.kind === 'zip' ? { namespace } : undefined
+              )
+            )
+          } catch (error) {
+            result.failed.push({
+              path: member.path,
+              name: member.name,
+              error: error instanceof Error ? error.message : String(error)
+            })
+          }
+        }
+      })
+      return result
+    } finally {
+      await safeRemoveDirectory(fetched?.tempDir ?? downloaded!.tempDir)
     }
   }
 
@@ -754,6 +873,8 @@ export class SkillService {
   }
 
   private async setExportEnabled(folderName: string, enabled: boolean): Promise<void> {
+    const appEnabled = application.get('PreferenceService').get('agent.skills.external_export.enabled') !== false
+    const shouldExport = enabled && appEnabled
     const root = path.resolve(application.getPath('external.agents.skills'))
     const target = path.resolve(root, folderName)
     if (!isPathInside(target, root) || target === root) throw new Error(`Invalid skill export: ${folderName}`)
@@ -768,16 +889,81 @@ export class SkillService {
       const owned =
         stat.isSymbolicLink() && path.resolve(path.dirname(target), await fs.promises.readlink(target)) === source
       if (!owned) {
-        if (enabled) throw new Error(`Skill export conflicts with an existing user entry: ${target}`)
+        if (shouldExport) throw new Error(`Skill export conflicts with an existing user entry: ${target}`)
         return
       }
-      if (!enabled) await fs.promises.unlink(target)
+      if (!shouldExport) await fs.promises.unlink(target)
       return
     }
-    if (enabled) {
+    if (shouldExport) {
       await fs.promises.mkdir(root, { recursive: true })
       await fs.promises.symlink(source, target, isWin ? 'junction' : 'dir')
     }
+  }
+
+  private async pruneExternalExports(): Promise<void> {
+    const root = path.resolve(application.getPath('external.agents.skills'))
+    let entries: string[]
+    try {
+      entries = await fs.promises.readdir(root)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+    const failures: unknown[] = []
+    for (const name of entries) {
+      const target = path.join(root, name)
+      try {
+        const stat = await fs.promises.lstat(target)
+        if (
+          stat.isSymbolicLink() &&
+          path.resolve(path.dirname(target), await fs.promises.readlink(target)) ===
+            path.resolve(this.getMirrorRoot(), name)
+        ) {
+          await fs.promises.unlink(target)
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') failures.push(error)
+      }
+    }
+    if (failures.length)
+      throw new AggregateError(
+        failures,
+        `Failed to prune ${failures.length} external skill exports: ${String(failures[0])}`
+      )
+  }
+
+  /** Project the export directory to match the current preference + per-skill choices. */
+  async syncExternalExports(): Promise<void> {
+    await this.mutationLock.runExclusive(async () => {
+      const enabled = application.get('PreferenceService').get('agent.skills.external_export.enabled') !== false
+      const skills = agentGlobalSkillService.listAll()
+      const failures: unknown[] = []
+      for (const skill of skills) {
+        try {
+          if (enabled) {
+            if (!(await this.linkMirror(skill.folderName, { throwOnError: true })))
+              throw new Error(`Failed to mirror skill: ${skill.folderName}`)
+          } else {
+            await this.setExportEnabled(skill.folderName, false)
+          }
+        } catch (error) {
+          failures.push(error)
+        }
+      }
+      if (!enabled) {
+        try {
+          await this.pruneExternalExports()
+        } catch (error) {
+          failures.push(...(error instanceof AggregateError ? error.errors : [error]))
+        }
+      }
+      if (failures.length)
+        throw new AggregateError(
+          failures,
+          `Failed to sync ${failures.length} external skill exports: ${String(failures[0])}`
+        )
+    })
   }
 
   /**
@@ -1297,7 +1483,7 @@ export class SkillService {
     try {
       entries = await fs.promises.readdir(root, { withFileTypes: true })
     } catch {
-      return
+      entries = []
     }
 
     for (const entry of entries) {
@@ -1308,6 +1494,13 @@ export class SkillService {
       // This is an app-owned one-way projection. Unknown entries are either stale POSIX symlinks,
       // stale Windows directory copies, or out-of-band writes; none belong in the SDK discovery root.
       await this.unlinkMirror(folderName)
+    }
+    if (application.get('PreferenceService').get('agent.skills.external_export.enabled') === false) {
+      try {
+        await this.pruneExternalExports()
+      } catch (error) {
+        logger.warn('Failed to prune external skill exports', { error })
+      }
     }
   }
 

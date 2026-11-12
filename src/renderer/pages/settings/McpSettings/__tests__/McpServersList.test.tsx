@@ -136,11 +136,13 @@ describe('McpServersList protocol install', () => {
       expect(mocks.ipcRequest).toHaveBeenCalledWith('mcp.protocol_install.install', { requestId: 'request-1' })
     )
     expect(mocks.refetch).toHaveBeenCalledOnce()
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: '/settings/mcp/settings/$serverId',
-      params: { serverId: 'second-server-id' },
-      search: { autoEnable: 'true' }
-    })
+    await waitFor(() =>
+      expect(mocks.navigate).toHaveBeenCalledWith({
+        to: '/settings/mcp/settings/$serverId',
+        params: { serverId: 'second-server-id' },
+        search: { autoEnable: 'true' }
+      })
+    )
   })
 
   it('restores a pending request after remount and removes it only after cancellation', async () => {
@@ -161,6 +163,41 @@ describe('McpServersList protocol install', () => {
     )
     expect(screen.queryByText('first-server')).not.toBeInTheDocument()
     expect(mocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('retains the canceled request through its exit before showing the next request', async () => {
+    const getComputedStyle = window.getComputedStyle
+    const styleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+      const styles = getComputedStyle(element)
+      return new Proxy(styles, {
+        get(target, property, receiver) {
+          if (property === 'animationName') return element.getAttribute('data-state') === 'closed' ? 'exit' : 'enter'
+          if (property === 'display') return 'grid'
+          return Reflect.get(target, property, receiver)
+        }
+      })
+    })
+    mocks.pendingProtocolInstalls.push({
+      requestId: 'request-2',
+      servers: [{ ...protocolServers[0], name: 'queued-server' }]
+    })
+    const user = userEvent.setup()
+    try {
+      render(<McpServersList />)
+      await screen.findByText('first-server')
+      const closingDialog = screen.getByRole('dialog')
+
+      await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+      expect(closingDialog).toBeInTheDocument()
+      expect(closingDialog).toHaveAttribute('data-state', 'closed')
+      expect(closingDialog).toHaveTextContent('first-server')
+      expect(screen.queryByText('queued-server')).not.toBeInTheDocument()
+      expect(await screen.findByText('queued-server')).toBeInTheDocument()
+      expect(closingDialog).not.toBeInTheDocument()
+    } finally {
+      styleSpy.mockRestore()
+    }
   })
 
   it('keeps a new request queued until the current install completes', async () => {
@@ -237,7 +274,7 @@ describe('MCP JSON export', () => {
     mocks.servers = [{ id: 'builtin', name: '@cherry/filesystem', type: 'stdio', isActive: true }]
     const view = render(<McpServersList />)
     await user.click(screen.getByRole('button', { name: 'Add' }))
-    expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'Export as JSON' })).toHaveAttribute('aria-disabled', 'true')
     await user.keyboard('{Escape}')
     mocks.servers = [{ id: 'user', name: 'User server', type: 'stdio', command: 'node', isActive: false }]
     view.rerender(<McpServersList />)
@@ -245,8 +282,8 @@ describe('MCP JSON export', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Search MCP servers' }), 'no matching server')
     expect(await screen.findByText('No results')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Add' }))
-    expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: 'Export as JSON' }))
+    expect(screen.getByRole('menuitem', { name: 'Export as JSON' })).not.toHaveAttribute('aria-disabled', 'true')
+    await user.click(screen.getByRole('menuitem', { name: 'Export as JSON' }))
     await waitFor(() => expect(save).toHaveBeenCalledOnce())
     expect(save.mock.calls[0][0]).toBe('mcp-servers.json')
     expect(ArrayBuffer.isView(save.mock.calls[0][1])).toBe(true)
@@ -267,7 +304,7 @@ describe('MCP JSON export', () => {
     ]
     const view = render(<McpServersList />)
     await user.click(screen.getByRole('button', { name: 'Add' }))
-    await user.click(screen.getByRole('button', { name: 'Export as JSON' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Export as JSON' }))
     expect(save).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('Cannot export MCP servers with duplicate names: same')
     mocks.servers = [mocks.servers[0]]
@@ -279,10 +316,10 @@ describe('MCP JSON export', () => {
     )
     view.rerender(<McpServersList />)
     await user.click(screen.getByRole('button', { name: 'Add' }))
-    await user.click(screen.getByRole('button', { name: 'Export as JSON' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Export as JSON' }))
     await user.click(screen.getByRole('button', { name: 'Add' }))
-    expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'Export as JSON' })).toHaveAttribute('aria-disabled', 'true')
     await act(async () => resolve(null))
-    expect(screen.getByRole('button', { name: 'Export as JSON' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Export as JSON' })).not.toHaveAttribute('aria-disabled', 'true')
   })
 })
