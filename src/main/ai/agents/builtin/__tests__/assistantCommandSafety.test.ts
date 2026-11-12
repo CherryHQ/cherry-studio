@@ -652,3 +652,26 @@ describe('PowerShell block comments inside substitutions', () => {
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
   })
 })
+
+describe('PowerShell comment delimiters in nested and mid-token programs', () => {
+  it.each([
+    `powershell -Command '$(<# ) #> Remove-Item victim.txt)'`,
+    `pwsh -Command '"$(<# ) #> del victim.txt)"'`,
+    `pwsh -Command '& {<# x #>Remove-Item victim.txt}'`,
+    `pwsh -Command 'if ($true) {<# x #> Remove-Item victim.txt}'`,
+    `pwsh -Command '$(& {<# x #>Remove-Item victim.txt})'`,
+    `pwsh -Command 'echo x<# ; Remove-Item victim.txt #>'`,
+    `pwsh -Command 'echo x<#; Remove-Item victim.txt'`,
+    `pwsh -Command '$("a"<# x #>; Remove-Item victim.txt)'`
+  ])('denies actual execution despite comment-shaped text: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    `pwsh -Command 'echo x<# del victim.txt #>'`,
+    `pwsh -Command '$(<# ) del victim.txt #> Write-Output ok)'`,
+    `pwsh -Command '& {<# del victim.txt #>Write-Output ok}'`
+  ])('does not execute text in comments or ordinary arguments: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+})

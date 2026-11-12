@@ -151,7 +151,11 @@ function readOperator(text: string, start: number): { value: string; end: number
 }
 
 /** Read a `$(` substitution starting at `start`; returns its body and the index after `)`. */
-function readParenthesized(text: string, start: number): { value: string; raw: string; end: number } {
+function readParenthesized(
+  text: string,
+  start: number,
+  powershell = false
+): { value: string; raw: string; end: number } {
   let index = start + 2
   let depth = 1
   let quote: string | undefined
@@ -170,6 +174,16 @@ function readParenthesized(text: string, start: number): { value: string; raw: s
     if (char === "'" || char === '"' || char === '`') {
       quote = char
       index++
+      continue
+    }
+    if (
+      powershell &&
+      char === '<' &&
+      text[index + 1] === '#' &&
+      (index === contentStart || /[\s;(){}\[\]'"]/.test(text[index - 1]))
+    ) {
+      const end = text.indexOf('#>', index + 2)
+      index = end === -1 ? text.length : end + 2
       continue
     }
     if (char === '(') depth++
@@ -199,7 +213,11 @@ function readBacktick(text: string, start: number): { value: string; raw: string
   return { value: text.slice(start + 1), raw: text.slice(start), end: text.length }
 }
 
-function readDoubleQuoted(text: string, start: number): { value: string; substitutions: string[]; end: number } {
+function readDoubleQuoted(
+  text: string,
+  start: number,
+  powershell = false
+): { value: string; substitutions: string[]; end: number } {
   let value = ''
   const substitutions: string[] = []
   let index = start + 1
@@ -213,7 +231,7 @@ function readDoubleQuoted(text: string, start: number): { value: string; substit
       continue
     }
     if (char === '$' && text[index + 1] === '(') {
-      const substitution = readParenthesized(text, index)
+      const substitution = readParenthesized(text, index, powershell)
       substitutions.push(substitution.value)
       value += substitution.raw
       index = substitution.end
@@ -232,13 +250,25 @@ function readDoubleQuoted(text: string, start: number): { value: string; substit
   return { value, substitutions, end: index }
 }
 
-function readWord(text: string, start: number): { value: string; substitutions: string[]; end: number } {
+function readWord(
+  text: string,
+  start: number,
+  powershell = false
+): { value: string; substitutions: string[]; end: number } {
   let value = ''
   const substitutions: string[] = []
   let index = start
   while (index < text.length) {
     const char = text[index]
-    if (WHITESPACE.has(char) || char === '\n' || isOperatorChar(char)) break
+    if (powershell && index > start && char === '<' && text[index + 1] === '#' && /[)'\"\]}]/.test(text[index - 1]))
+      break
+    if (
+      WHITESPACE.has(char) ||
+      char === '\n' ||
+      (isOperatorChar(char) && !(powershell && char === '<')) ||
+      (powershell && (char === '{' || char === '}'))
+    )
+      break
     if (char === '\\') {
       if (index + 1 < text.length) value += text[index + 1]
       index += 2
@@ -256,14 +286,14 @@ function readWord(text: string, start: number): { value: string; substitutions: 
       continue
     }
     if (char === '"') {
-      const quoted = readDoubleQuoted(text, index)
+      const quoted = readDoubleQuoted(text, index, powershell)
       value += quoted.value
       substitutions.push(...quoted.substitutions)
       index = quoted.end
       continue
     }
     if (char === '$' && text[index + 1] === '(') {
-      const substitution = readParenthesized(text, index)
+      const substitution = readParenthesized(text, index, powershell)
       substitutions.push(substitution.value)
       value += substitution.raw
       index = substitution.end
@@ -294,7 +324,12 @@ function tokenize(text: string, powershell: boolean): Token[] {
       atWordStart = true
       continue
     }
-    if (powershell && atWordStart && char === '<' && text[index + 1] === '#') {
+    if (
+      powershell &&
+      (atWordStart || /[)'\"\]}]/.test(text[index - 1] ?? '')) &&
+      char === '<' &&
+      text[index + 1] === '#'
+    ) {
       const end = text.indexOf('#>', index + 2)
       index = end === -1 ? text.length : end + 2
       atWordStart = true
@@ -310,14 +345,14 @@ function tokenize(text: string, powershell: boolean): Token[] {
       while (index < text.length && text[index] !== '\n') index++
       continue
     }
-    if (isOperatorChar(char)) {
+    if ((isOperatorChar(char) && !(powershell && char === '<')) || (powershell && (char === '{' || char === '}'))) {
       const operator = readOperator(text, index)
       tokens.push({ kind: 'operator', value: operator.value, glued: !atWordStart })
       index = operator.end
       atWordStart = true
       continue
     }
-    const word = readWord(text, index)
+    const word = readWord(text, index, powershell)
     tokens.push({
       kind: 'word',
       raw: text.slice(index, word.end),
