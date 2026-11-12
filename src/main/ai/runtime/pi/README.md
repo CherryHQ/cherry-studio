@@ -61,10 +61,9 @@ Approval and question identities use `CallRef`. The Pi facet resolves these opaq
 `toolCallId` values for cards, including nested calls. Persisted approval outcomes are read from the
 existing message parts; pending questions do not resume after restart. No new database table is used.
 
-Compaction calls the host summarizer once through the native gateway binding; goal completion calls
-the verifier through the same path without a tool loop. Empty or failed summaries cancel compaction.
-The summarizer returns the native response usage for goal and child-run accounting; the gateway
-remains the sole writer of provider billing records.
+Pi and Pi Durable generate compaction summaries using their native runtimes. Each native summary request is
+metered, and its reported usage is attributed to the initiating goal and child run. The gateway remains the sole
+writer of provider billing records. Goal completion calls the verifier through the gateway without a tool loop.
 `agent-behavior` provides `vcc_recall`; the old pi-vcc extension and build artifact are removed.
 Large tool output is saved under `feature.agents.outputs`, which read tools may access.
 
