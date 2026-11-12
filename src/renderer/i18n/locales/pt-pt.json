@@ -1587,6 +1587,7 @@
   "error.ocr_detail_failed": "O processador OCR configurado falhou: {{reason}} Verifique ou troque o processador OCR em Definições → Processamento de ficheiros.",
   "error.originalError": "Erro original",
   "error.originalMessage": "Mensagem original",
+  "error.output_token_limit_reached": "A resposta atingiu o limite de tokens de saída antes de terminar. O raciocínio também conta para este limite. Aumente o limite de saída do modelo ou reduza o esforço de raciocínio e tente novamente.",
   "error.parameter": "parâmetro",
   "error.prompt": "prompt",
   "error.provider": "fornecedor",

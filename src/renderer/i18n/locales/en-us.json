@@ -1587,6 +1587,7 @@
   "error.ocr_detail_failed": "The configured OCR processor failed: {{reason}} Check or switch the OCR processor under Settings → File Processing.",
   "error.originalError": "Original Error",
   "error.originalMessage": "Original Message",
+  "error.output_token_limit_reached": "The response reached its output token limit before finishing. Reasoning also counts toward this limit. Increase the model’s output limit or reduce its reasoning effort, then retry.",
   "error.parameter": "Parameter",
   "error.prompt": "Prompt",
   "error.provider": "Provider",
