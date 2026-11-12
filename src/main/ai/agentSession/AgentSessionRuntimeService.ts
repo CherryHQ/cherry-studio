@@ -86,7 +86,7 @@ import type {
 } from '../runtime/types'
 import type { AiStreamSource, MessageStreamEvent } from '../streamManager'
 import {
-  interruptedReplyParts,
+  interruptedReplyData,
   PersistenceListener,
   type StreamErrorResult,
   type StreamListener,
@@ -572,10 +572,7 @@ export class AgentSessionRuntimeService extends BaseService {
       })
       // Pending approvals and tool parts lost their in-memory owner; native identities remain valid.
       agentSessionMessageService.resolveCrashOrphanedMessages(
-        stale.map(({ id, data: { streamCheckpoint, ...data } }) => ({
-          id,
-          data: { ...data, parts: interruptedReplyParts(streamCheckpoint ?? data.parts ?? []) }
-        })),
+        stale.map(({ id, data }) => ({ id, data: interruptedReplyData(data) })),
         sessionIds
       )
     } catch (error) {

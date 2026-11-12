@@ -14,6 +14,8 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
+import type { PersistenceBackend } from '../../persistence/PersistenceBackend'
+import { CHECKPOINT_MAX_TOOL_OUTPUT_CHARS } from '../../persistence/trimToolOutputs'
 import type { StreamErrorResult } from '../../types'
 
 const appendAssistantMessageMock = vi.fn()
@@ -534,5 +536,86 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
       runtimeStats: { runtimeTiming, contextTokens: 13 }
     })
     expect(messageUpdateMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('PersistenceListener — checkpoints', () => {
+  function makeCheckpointListener(backend: PersistenceBackend) {
+    return new PersistenceListener({ topicId: 'abc', backend, onPersistFailed: () => {} })
+  }
+
+  const backend = (overrides: Partial<PersistenceBackend> = {}): PersistenceBackend => ({
+    kind: 'test',
+    persistAssistant: vi.fn(),
+    ...overrides
+  })
+
+  it('is a no-op when the backend does not implement checkpoint', () => {
+    const listener = makeCheckpointListener(backend())
+
+    expect(() => listener.onCheckpoint(makeFinalMessage('so far'), 'openai::gpt-4o')).not.toThrow()
+  })
+
+  it('does not let a failing checkpoint fail the stream', () => {
+    const listener = makeCheckpointListener(
+      backend({
+        checkpoint: () => {
+          throw new Error('disk full')
+        }
+      })
+    )
+
+    expect(() => listener.onCheckpoint(makeFinalMessage('so far'), 'openai::gpt-4o')).not.toThrow()
+  })
+
+  it('writes the visible parts and drops an oversized tool output', () => {
+    const checkpoint = vi.fn()
+    const listener = makeCheckpointListener(backend({ checkpoint }))
+    const hugeOutput = 'x'.repeat(CHECKPOINT_MAX_TOOL_OUTPUT_CHARS + 1)
+
+    listener.onCheckpoint(
+      {
+        id: 'm',
+        role: 'assistant',
+        parts: [
+          { type: 'text', text: 'so far' },
+          {
+            type: 'tool-search',
+            toolCallId: 'tc',
+            toolName: 'search',
+            state: 'output-available',
+            input: {},
+            output: hugeOutput
+          },
+          {
+            type: 'tool-search',
+            toolCallId: 'tc2',
+            toolName: 'search',
+            state: 'output-available',
+            input: {},
+            output: 'small'
+          }
+        ]
+      } as unknown as CherryUIMessage,
+      'openai::gpt-4o'
+    )
+
+    expect(checkpoint).toHaveBeenCalledTimes(1)
+    const parts = checkpoint.mock.calls[0][0] as Array<{ type: string }>
+    expect(parts.map((part) => part.type)).toEqual(['text', 'tool-search'])
+  })
+
+  it('ignores an execution owned by another modelId', () => {
+    const checkpoint = vi.fn()
+    const listener = new PersistenceListener({
+      topicId: 'abc',
+      modelId: 'openai::gpt-4o',
+      backend: backend({ checkpoint }),
+      onPersistFailed: () => {}
+    })
+
+    listener.onCheckpoint(makeFinalMessage('so far'), 'openai::other')
+
+    expect(checkpoint).not.toHaveBeenCalled()
   })
 })

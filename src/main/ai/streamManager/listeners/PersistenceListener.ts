@@ -23,6 +23,7 @@ import {
   type PersistenceBackend,
   stripTransientStatusParts
 } from '../persistence/PersistenceBackend'
+import { withoutOversizedToolOutputs } from '../persistence/trimToolOutputs'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 const logger = loggerService.withContext('PersistenceListener')
@@ -66,7 +67,9 @@ export class PersistenceListener implements StreamListener {
   onCheckpoint(message: CherryUIMessage, modelId: UniqueModelId): void {
     if (!this.owns(modelId) || !this.opts.backend.checkpoint) return
     try {
-      this.opts.backend.checkpoint(dropEmptyContentParts(stripTransientStatusParts(message.parts)))
+      this.opts.backend.checkpoint(
+        withoutOversizedToolOutputs(dropEmptyContentParts(stripTransientStatusParts(message.parts)))
+      )
     } catch (err) {
       logger.warn('Failed to checkpoint streaming assistant message', {
         backend: this.opts.backend.kind,

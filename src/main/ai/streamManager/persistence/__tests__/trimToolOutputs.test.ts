@@ -24,7 +24,7 @@ vi.mock('@main/ai/tools/adapters/aiSdk/registry', () => ({
 
 import { makeEntitiesCodec, makeTextFieldCodec } from '@main/ai/tools/outputCodec'
 
-import { trimOversizedToolOutputs } from '../trimToolOutputs'
+import { trimOversizedToolOutputs, withoutOversizedToolOutputs } from '../trimToolOutputs'
 
 const THRESHOLD = 2_000
 const BIG = Array.from({ length: 200 }, (_, i) => `line ${i + 1} — some longer padding text here`).join('\n')
@@ -265,5 +265,29 @@ describe('trimOversizedToolOutputs', () => {
       const [trimmed] = await trimOversizedToolOutputs([toolPart(BIG)], null)
       expect((trimmed as { output: { $persistedToolOutput?: unknown } }).output.$persistedToolOutput).toBeDefined()
     })
+  })
+})
+
+describe('withoutOversizedToolOutputs', () => {
+  const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as unknown as CherryMessagePart
+
+  it('keeps text parts and tool outputs within the cap', () => {
+    const parts = [textPart('so far'), toolPart('small output')]
+
+    expect(withoutOversizedToolOutputs(parts, 1_000)).toEqual(parts)
+  })
+
+  it('drops an oversized terminal tool output and keeps every other part', () => {
+    const kept = textPart('so far')
+    const parts = [kept, toolPart(BIG), toolPart('tiny', { toolCallId: 'call-2' })]
+
+    expect(withoutOversizedToolOutputs(parts, 1_000)).toEqual([kept, parts[2]])
+  })
+
+  it('keeps a large tool output that is still in flight', () => {
+    const streaming = toolPart(BIG, { state: 'input-available' })
+    const parts = [streaming]
+
+    expect(withoutOversizedToolOutputs(parts, 1_000)).toEqual(parts)
   })
 })

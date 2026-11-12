@@ -13,6 +13,7 @@ export type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } fr
 export {
   dropEmptyContentParts,
   finalizeInterruptedParts,
+  interruptedReplyData,
   interruptedReplyParts,
   stripTransientStatusParts
 } from './persistence/PersistenceBackend'

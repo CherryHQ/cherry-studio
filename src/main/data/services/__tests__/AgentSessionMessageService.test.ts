@@ -1176,6 +1176,40 @@ describe('AgentSessionMessageService', () => {
       })
     })
 
+    it('drops the streaming checkpoint when a terminal error settles the row', async () => {
+      const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d017'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: PENDING, role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveStreamCheckpoint(PENDING, [{ type: 'text', text: 'so far' }])
+
+      agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, PENDING)
+
+      const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
+      expect(row.status).toBe('error')
+      expect(row.data).not.toHaveProperty('streamCheckpoint')
+    })
+
+    it('keeps the streaming checkpoint through a patch that does not settle the row', async () => {
+      const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d018'
+      const soFar = [{ type: 'text' as const, text: 'so far' }]
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: PENDING, role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveStreamCheckpoint(PENDING, soFar)
+
+      agentSessionMessageService.updateSessionMessage(SESSION_ID, PENDING, {
+        data: { parts: [{ type: 'text', text: 'so far, more' }] }
+      })
+
+      const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
+      expect(row.status).toBe('pending')
+      expect(row.data.parts).toEqual([{ type: 'text', text: 'so far, more' }])
+      expect(row.data.streamCheckpoint).toEqual(soFar)
+    })
+
     it('finds settled assistant rows whose approval registry was lost on restart', () => {
       const ORPHANED = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d013'
       const COMPLETE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d014'

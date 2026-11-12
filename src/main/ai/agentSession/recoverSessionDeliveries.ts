@@ -1,7 +1,7 @@
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
-import { interruptedReplyParts } from '../streamManager'
+import { interruptedReplyData } from '../streamManager'
 
 export function recoverSessionDeliveries(): Set<string> {
   const affectedSessionIds = new Set<string>()
@@ -31,17 +31,8 @@ export function recoverSessionDeliveries(): Set<string> {
       continue
     }
     if (assistant.status === 'pending') {
-      const { streamCheckpoint, ...data } = assistant.data
       agentSessionMessageService.resolveCrashOrphanedMessages(
-        [
-          {
-            id: assistant.id,
-            data: {
-              ...data,
-              parts: interruptedReplyParts(streamCheckpoint ?? data.parts ?? [])
-            }
-          }
-        ],
+        [{ id: assistant.id, data: interruptedReplyData(assistant.data) }],
         [message.sessionId]
       )
     }

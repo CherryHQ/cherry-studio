@@ -929,6 +929,41 @@ describe('MessageService', () => {
       expect(a.data).toEqual(mainText('final'))
       expect(keep.data).toEqual(mainText('done'))
     })
+
+    it('drops the checkpoint when a settle only rewrites the status', async () => {
+      await seedStatuses()
+      messageService.saveStreamCheckpoint('m-a', mainText('so far').parts!)
+
+      messageService.update('m-a', { status: 'error' })
+
+      const [row] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'm-a'))
+      expect(row.status).toBe('error')
+      expect(row.data).not.toHaveProperty('streamCheckpoint')
+    })
+
+    it('keeps the checkpoint through an update that does not settle the row', async () => {
+      await seedStatuses()
+      messageService.saveStreamCheckpoint('m-a', mainText('so far').parts!)
+
+      messageService.update('m-a', { data: mainText('so far, more') })
+
+      const [row] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'm-a'))
+      expect(row.status).toBe('pending')
+      expect(row.data.streamCheckpoint).toEqual(mainText('so far').parts)
+      expect(row.data).toEqual({ ...mainText('so far, more'), streamCheckpoint: mainText('so far').parts })
+    })
+
+    it('does not carry the checkpoint into a copy of a pending message', async () => {
+      await seedStatuses()
+      messageService.saveStreamCheckpoint('m-a', mainText('so far').parts!)
+
+      const copy = topicService.duplicate('topic-e', { nodeId: 'm-a' })
+
+      const copiedRows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, copy.id))
+      const copiedAssistant = copiedRows.find((row) => row.role === 'assistant')
+      expect(copiedAssistant?.status).toBe('error')
+      expect(copiedAssistant?.data).not.toHaveProperty('streamCheckpoint')
+    })
   })
 
   describe('delete — context reply inheritance', () => {

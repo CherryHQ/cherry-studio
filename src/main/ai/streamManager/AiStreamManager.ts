@@ -64,7 +64,7 @@ import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { TerminalPersistenceError } from './listeners/PersistenceListener'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
-import { interruptedReplyParts } from './persistence/PersistenceBackend'
+import { interruptedReplyData } from './persistence/PersistenceBackend'
 import { pipeMessageStream } from './pipeMessageStream'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
@@ -714,10 +714,7 @@ export class AiStreamManager extends BaseService {
       if (stale.length === 0) return
       logger.info('Reconciling crash-orphaned pending assistant messages', { count: stale.length })
       messageService.resolveInterruptedAssistantMessages(
-        stale.map(({ id, data: { streamCheckpoint, ...data } }) => ({
-          id,
-          data: { ...data, parts: interruptedReplyParts(streamCheckpoint ?? data.parts ?? []) }
-        }))
+        stale.map(({ id, data }) => ({ id, data: interruptedReplyData(data) }))
       )
     } catch (error) {
       logger.error('Failed to reconcile stale pending messages', { error })

@@ -18,6 +18,7 @@ import {
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
+import { withoutStreamCheckpoint } from '@data/db/schemas/message'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionReadModelEffects, agentSessionService } from '@data/services/AgentSessionService'
@@ -338,11 +339,10 @@ function terminalResultData(
 }
 
 function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessageEntity['data'] {
-  const result = { ...data }
+  const result = withoutStreamCheckpoint(data)
   delete result.runtimeAnchor
   delete result.nativeSessionId
   delete result.deliveryReplyAnchor
-  delete result.streamCheckpoint
   return result
 }
 
@@ -1143,7 +1143,10 @@ export class AgentSessionMessageService {
       const updatedAt = Date.now()
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
-      const mergedData: SessionMessageRow['data'] = publicMessageData({ ...existing.data, ...dto.data })
+      // This write never settles the row, so the streaming checkpoint survives it.
+      const merged: SessionMessageRow['data'] = { ...existing.data, ...dto.data }
+      const mergedData: SessionMessageRow['data'] = publicMessageData(merged)
+      if (merged.streamCheckpoint) mergedData.streamCheckpoint = merged.streamCheckpoint
       if (existing.data.deliveryReplyAnchor) mergedData.deliveryReplyAnchor = existing.data.deliveryReplyAnchor
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
@@ -1294,7 +1297,11 @@ export class AgentSessionMessageService {
     const changed = application.get('DbService').withWriteTx((tx) => {
       const result = tx
         .update(sessionMessagesTable)
-        .set({ status: 'error', updatedAt: Date.now() })
+        .set({
+          status: 'error',
+          data: sql`json_remove(${sessionMessagesTable.data}, '$.streamCheckpoint')`,
+          updatedAt: Date.now()
+        })
         .where(
           and(
             eq(sessionMessagesTable.sessionId, sessionId),

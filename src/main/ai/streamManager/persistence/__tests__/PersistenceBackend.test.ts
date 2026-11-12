@@ -11,7 +11,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import { dropEmptyContentParts, finalizeInterruptedParts, stripTransientStatusParts } from '../PersistenceBackend'
+import {
+  dropEmptyContentParts,
+  finalizeInterruptedParts,
+  interruptedReplyData,
+  stripTransientStatusParts
+} from '../PersistenceBackend'
 
 // AI SDK tool-call UIMessagePart shapes. The non-terminal states the helper
 // targets are anything NOT in {output-available, output-error, output-denied}.
@@ -300,5 +305,37 @@ describe('dropEmptyContentParts', () => {
     const result = dropEmptyContentParts([reasoning, textPart('')])
 
     expect(result).toEqual([reasoning])
+  })
+})
+
+describe('interruptedReplyData', () => {
+  const isInterruptedNotice = (part: CherryMessagePart) =>
+    part.type === 'data-error' && (part as { data: { i18nKey?: string } }).data.i18nKey === 'reply_interrupted'
+
+  it('keeps the checkpointed text instead of the empty placeholder and drops the checkpoint', () => {
+    const settled = interruptedReplyData({
+      parts: [],
+      streamCheckpoint: [textPart('half a sen')],
+      turnOptions: { temperature: 0.5 } as never
+    })
+
+    expect(settled.parts.at(-1)).toSatisfy(isInterruptedNotice)
+    expect(settled).not.toHaveProperty('streamCheckpoint')
+    expect(settled.parts[0]).toEqual(textPart('half a sen'))
+    // Main-authoritative keys beside the parts must survive the settle.
+    expect(settled.turnOptions).toEqual({ temperature: 0.5 })
+  })
+
+  it('falls back to the row parts when no checkpoint was saved', () => {
+    const settled = interruptedReplyData({ parts: [textPart('already there')] })
+
+    expect(settled.parts[0]).toEqual(textPart('already there'))
+    expect(settled.parts.at(-1)).toSatisfy(isInterruptedNotice)
+  })
+
+  it('still reports the interruption when neither checkpoint nor parts exist', () => {
+    expect(interruptedReplyData({ parts: [] }).parts).toSatisfy((parts: CherryMessagePart[]) =>
+      isInterruptedNotice(parts[0])
+    )
   })
 })

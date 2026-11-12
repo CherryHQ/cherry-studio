@@ -15,7 +15,7 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
-import { type MessageRow, messageTable } from '@data/db/schemas/message'
+import { type MessageDataRow, type MessageRow, messageTable, withoutStreamCheckpoint } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -119,6 +119,11 @@ const MESSAGE_SEARCH_CURSOR_CONFIG = {
   errorMessage: 'Invalid message search cursor'
 }
 
+/** Row `data` without the main-only streaming fields, for anything outside the streaming write path. */
+function publicMessageData(data: MessageRow['data']): MessageData {
+  return withoutStreamCheckpoint(data)
+}
+
 /**
  * Convert database row to Message entity.
  *
@@ -131,13 +136,6 @@ const MESSAGE_SEARCH_CURSOR_CONFIG = {
  * Also handles JSON columns: ORM returns parsed objects; the parseJson
  * helper covers any legacy code path that still hands in JSON strings.
  */
-/** `data` without main-only fields, for anything outside this service. */
-function publicMessageData(data: MessageRow['data']): MessageData {
-  const result = { ...data }
-  delete result.streamCheckpoint
-  return result
-}
-
 function rowToMessage(row: MessageRow): Message {
   // Handle JSON strings from raw SQL queries (db.all with sql``)
   // ORM queries (.select().from()) return already-parsed objects
@@ -710,10 +708,11 @@ export class MessageService {
   }
 
   /**
-   * Ids of assistant rows still in `pending` — used by the boot reconcile of crash-orphaned turns.
-   * Selects only `id` (reconcile just flips them to `error`); backed by `message_status_idx`.
+   * Assistant rows still in `pending` with their `data` — used by the boot reconcile of
+   * crash-orphaned turns, which settles them with the parts their checkpoint kept. Backed by
+   * `message_status_idx`.
    */
-  findPendingAssistantMessages(): Array<{ id: string; data: MessageRow['data'] }> {
+  findPendingAssistantMessages(): Array<{ id: string; data: MessageDataRow }> {
     const db = application.get('DbService').getDb()
     return db
       .select({ id: messageTable.id, data: messageTable.data })
@@ -783,17 +782,20 @@ export class MessageService {
   }
 
   /**
-   * Flip the given rows to `error` in a single write. Paired with
-   * {@link findPendingAssistantMessages} for the boot reconcile of crash-orphaned `pending`
-   * turns.
+   * Settle replies a crash left `pending` as `error`, with the parts the boot reconcile kept.
+   * Callers pass `data` already stripped of main-only fields (see `interruptedReplyData`).
    */
-  /** Settle replies a crash left `pending` as `error`, with the parts the boot reconcile kept. */
   resolveInterruptedAssistantMessages(messages: Array<{ id: string; data: MessageData }>): void {
     if (messages.length === 0) return
     application.get('DbService').withWriteTx((tx) => {
       for (const { id, data } of messages) {
-        tx.update(messageTable).set({ status: 'error', data }).where(eq(messageTable.id, id)).run()
-        replaceChatMessageFileRefsTx(tx, id, data)
+        const [row] = tx
+          .update(messageTable)
+          .set({ status: 'error', data })
+          .where(eq(messageTable.id, id))
+          .returning()
+          .all()
+        if (row) replaceChatMessageFileRefsTx(tx, id, data, row.messageSnapshot)
       }
     })
   }
@@ -1399,14 +1401,16 @@ export class MessageService {
       // Build update object
       const updates: Partial<typeof messageTable.$inferInsert> = {}
 
-      // PATCH callers send partial data (usually just parts); shallow-merge so
-      // omitted keys like main-authoritative turnOptions survive the update.
-      if (dto.data !== undefined) updates.data = { ...existing.data, ...dto.data }
+      // PATCH callers send partial data (usually just parts); shallow-merge over the row's own data
+      // so omitted keys — main-authoritative turnOptions and main-only streaming fields — survive.
+      if (dto.data !== undefined) updates.data = { ...existingRow.data, ...dto.data }
       if (dto.parentId !== undefined) updates.parentId = dto.parentId
       if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
       let activityTransitionAt: number | null = null
       if (dto.status !== undefined) {
         updates.status = dto.status
+        // Leaving `pending` settles the reply: the checkpoint must not outlive it.
+        if (dto.status !== 'pending') updates.data = withoutStreamCheckpoint(updates.data ?? existingRow.data)
         if (
           isAssistantActivityTransition({
             existingStatus: existingRow.status,
@@ -2333,7 +2337,7 @@ export class MessageService {
         // so attach to the destination topic's virtual root.
         copiedParentId = destRootId
       }
-      // A copied pending row has no stream owner; make it terminal.
+      // A copied pending row has no stream owner; make it terminal and drop its checkpoint.
       const status = sourceMessage.status === 'pending' ? 'error' : sourceMessage.status
       const createdAt = Date.now()
       const [copiedMessage] = tx
@@ -2342,7 +2346,7 @@ export class MessageService {
           topicId: options.topicId,
           parentId: copiedParentId,
           role: sourceMessage.role,
-          data: sourceMessage.data,
+          data: withoutStreamCheckpoint(sourceMessage.data),
           status,
           siblingsGroupId: 0,
           modelId: sourceMessage.modelId,

@@ -8,7 +8,13 @@
  * never synthesise UIMessages or repeat projection logic.
  */
 
-import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
+import { type StreamCheckpointedData, withoutStreamCheckpoint } from '@data/db/schemas/message'
+import type {
+  CherryMessagePart,
+  CherryUIMessage,
+  MessageData,
+  MessageRuntimeStatsInput
+} from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import {
   type AgentTaskEventPartData,
@@ -132,6 +138,20 @@ export function interruptedReplyParts(parts: CherryMessagePart[]): CherryMessage
     }
   }
   return [...finalizeInterruptedParts(parts, 'error'), interrupted]
+}
+
+/**
+ * Settle a stale `pending` row's `data` at boot: prefer the last checkpoint over the placeholder's
+ * (empty) parts, and drop the checkpoint so it does not outlive the settle.
+ */
+export function interruptedReplyData<T extends MessageData & StreamCheckpointedData>(
+  data: T
+): Omit<T, 'streamCheckpoint'> {
+  const checkpoint = data.streamCheckpoint
+  return {
+    ...withoutStreamCheckpoint(data),
+    parts: interruptedReplyParts(checkpoint ?? data.parts ?? [])
+  }
 }
 
 export interface PersistAssistantInput {

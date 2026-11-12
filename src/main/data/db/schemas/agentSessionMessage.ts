@@ -2,12 +2,20 @@ import { asc, desc, sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
-import type { CherryMessagePart, MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
+import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentSessionTable } from './agentSession'
 import { agentSessionContextTable } from './agentSessionContext'
+import type { StreamCheckpointedData } from './message'
 import { userModelTable } from './userModel'
+
+/** `data` of an `agent_session_message` row — public content plus main-only runtime and streaming fields. */
+export type AgentSessionMessageDataRow = MessageData & {
+  runtimeAnchor?: unknown
+  nativeSessionId?: string
+  deliveryReplyAnchor?: string
+} & StreamCheckpointedData
 
 export const agentSessionMessageTable = sqliteTable(
   'agent_session_message',
@@ -18,18 +26,9 @@ export const agentSessionMessageTable = sqliteTable(
       .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
     role: text().notNull(),
     parentId: text(),
-    // `data` stores MessageData (`{ parts }`); Drizzle handles
+    // `data` stores `AgentSessionMessageDataRow`; Drizzle handles
     // JSON.stringify/parse automatically via `{ mode: 'json' }`.
-    data: text({ mode: 'json' })
-      .$type<
-        MessageData & {
-          runtimeAnchor?: unknown
-          nativeSessionId?: string
-          deliveryReplyAnchor?: string
-          streamCheckpoint?: CherryMessagePart[]
-        }
-      >()
-      .notNull(),
+    data: text({ mode: 'json' }).$type<AgentSessionMessageDataRow>().notNull(),
     searchableText: text().notNull().default(''),
     status: text().notNull(),
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
@@ -60,7 +59,7 @@ export const agentSessionMessageTable = sqliteTable(
       .where(sql`${t.role} = 'root'`),
     index('agent_session_message_session_created_id_idx').on(t.sessionId, t.createdAt, t.id),
     index('agent_session_message_created_at_id_idx').on(desc(t.createdAt), asc(t.id)),
-    // Backs findPendingAssistantMessageIds (boot reconcile); avoids a full SCAN. Plain, not
+    // Backs findPendingAssistantMessages (boot reconcile); avoids a full SCAN. Plain, not
     // partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('agent_session_message_status_idx').on(t.status),
     // Backs the model_id FK's ON DELETE SET NULL — same rationale as message_model_id_idx.
@@ -138,7 +137,11 @@ export const AGENT_SESSION_MESSAGE_FTS_STATEMENTS: string[] = [
     VALUES ('delete', OLD.fts_rowid, OLD.searchable_text);
   END`,
 
-  `CREATE TRIGGER agent_session_message_au AFTER UPDATE OF data ON agent_session_message BEGIN
+  // `searchable_text` derives from `$.parts` alone, so a write that leaves the parts alone (e.g. a
+  // streaming checkpoint) must not rebuild the index.
+  `CREATE TRIGGER agent_session_message_au AFTER UPDATE OF data ON agent_session_message
+   WHEN json_extract(NEW.data, '$.parts') IS NOT json_extract(OLD.data, '$.parts')
+   BEGIN
     INSERT INTO agent_session_message_fts(agent_session_message_fts, rowid, searchable_text)
     VALUES ('delete', OLD.fts_rowid, OLD.searchable_text);
     UPDATE agent_session_message SET searchable_text = COALESCE((

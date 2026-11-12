@@ -103,8 +103,7 @@ async function trimWholeText(output: unknown, threshold: number): Promise<Persis
  * Returns the same array when nothing needed trimming. Storage failures are
  * per-part and non-fatal — the full output stays in the message data (never
  * trade real data for a marker).
- */
-export async function trimOversizedToolOutputs(
+ */ export async function trimOversizedToolOutputs(
   parts: CherryMessagePart[],
   assistantOverride?: ContextSettingsOverride | null
 ): Promise<CherryMessagePart[]> {
@@ -142,4 +141,25 @@ export async function trimOversizedToolOutputs(
     }
   }
   return trimmed ?? parts
+}
+
+/** Upper bound on a single tool output kept in a checkpoint write. */
+export const CHECKPOINT_MAX_TOOL_OUTPUT_CHARS = 16_384
+
+/**
+ * Checkpoint writes are synchronous and land once per second, so they cannot move oversized tool
+ * outputs to FileManager the way the terminal write does. Keep the outputs cheap enough to rewrite
+ * at that rate and drop the rest: the checkpoint exists to keep the reply text the user already saw.
+ * Dropping rather than trimming is deliberate — an envelope without its blob would render content
+ * that no longer exists.
+ */
+export function withoutOversizedToolOutputs(
+  parts: CherryMessagePart[],
+  maxChars = CHECKPOINT_MAX_TOOL_OUTPUT_CHARS
+): CherryMessagePart[] {
+  return parts.filter((part) => {
+    if (!isToolUIPart(part) || part.state !== 'output-available') return true
+    if (isPersistedToolOutput(part.output) || isDeferredToolOutput(part.output)) return true
+    return JSON.stringify(part.output ?? '').length <= maxChars
+  })
 }

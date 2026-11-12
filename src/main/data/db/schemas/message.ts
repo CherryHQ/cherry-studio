@@ -8,10 +8,29 @@ import { topicTable } from './topic'
 import { userModelTable } from './userModel'
 
 /**
+ * Main-only partial reply kept beside `data.parts` while the row is still `pending`. It is never
+ * part of the public `data`: reads strip it, and settling the row must drop it.
+ */
+export type StreamCheckpointedData = { streamCheckpoint?: CherryMessagePart[] }
+
+/** `data` of a `message` row — the public message content plus main-only streaming fields. */
+export type MessageDataRow = MessageData & StreamCheckpointedData
+
+/**
+ * Row `data` without the main-only checkpoint, for anything outside the streaming write path
+ * (public reads, settle writes, copies). One place decides which fields are private.
+ */
+export function withoutStreamCheckpoint<T extends StreamCheckpointedData>(data: T): Omit<T, 'streamCheckpoint'> {
+  const rest = { ...data }
+  delete rest.streamCheckpoint
+  return rest
+}
+
+/**
  * Message table - stores chat messages with tree structure
  *
  * Uses adjacency list pattern (parentId) for tree navigation.
- * Message content (AI SDK UIMessage parts) is stored as JSON in the data field.
+ * Message content (AI SDK UIMessage.parts) is stored as JSON in the data field.
  * searchableText is a plain column populated by triggers for FTS5 indexing
  * (NOT a SQLite GENERATED column); see MESSAGE_FTS_STATEMENTS below.
  */
@@ -28,7 +47,7 @@ export const messageTable = sqliteTable(
     // Message role: user, assistant, system
     role: text().notNull(),
     // Main content - contains AI SDK UIMessage.parts (inline JSON); `streamCheckpoint` is main-only
-    data: text({ mode: 'json' }).$type<MessageData & { streamCheckpoint?: CherryMessagePart[] }>().notNull(),
+    data: text({ mode: 'json' }).$type<MessageDataRow>().notNull(),
     // Searchable text extracted from data.parts (populated by trigger, used for FTS5)
     searchableText: text().notNull().default(''),
     // Final status: SUCCESS, ERROR, PAUSED
@@ -62,7 +81,7 @@ export const messageTable = sqliteTable(
     index('message_parent_id_idx').on(t.parentId),
     index('message_topic_created_idx').on(t.topicId, t.createdAt),
     index('message_created_at_id_idx').on(desc(t.createdAt), asc(t.id)),
-    // Backs findPendingAssistantMessageIds (boot reconcile); without it that lookup full-SCANs.
+    // Backs findPendingAssistantMessages (boot reconcile); without it that lookup full-SCANs.
     // Plain, not partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('message_status_idx').on(t.status),
     // Backs the model_id FK's ON DELETE SET NULL. SQLite scans the whole child table once per
@@ -190,8 +209,11 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
 
   // Trigger: update searchable_text and sync FTS on UPDATE OF data. fts_rowid is stable across
   // data edits, so it is not reassigned here — only re-keyed delete + re-insert by fts_rowid.
-  // COALESCE: see message_ai above for rationale.
-  `CREATE TRIGGER message_au AFTER UPDATE OF data ON message BEGIN
+  // COALESCE: see message_ai above for rationale. `searchable_text` derives from `$.parts` alone,
+  // so a write that leaves the parts alone (e.g. a streaming checkpoint) must not rebuild the index.
+  `CREATE TRIGGER message_au AFTER UPDATE OF data ON message
+   WHEN json_extract(NEW.data, '$.parts') IS NOT json_extract(OLD.data, '$.parts')
+   BEGIN
     INSERT INTO message_fts(message_fts, rowid, searchable_text)
     VALUES ('delete', OLD.fts_rowid, OLD.searchable_text);
     UPDATE message SET searchable_text = ${searchableTextExpression('NEW.data')} WHERE id = NEW.id;
