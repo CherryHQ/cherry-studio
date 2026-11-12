@@ -5832,6 +5832,7 @@
   "settings.shortcuts.conflict_with": "已被「{{name}}」使用",
   "settings.shortcuts.copy_last_message": "複製上一則訊息",
   "settings.shortcuts.delete_current_list_item": "永久刪除目前清單項目",
+  "settings.shortcuts.delete_topic": "刪除對話",
   "settings.shortcuts.edit_last_user_message": "編輯最後一則使用者訊息",
   "settings.shortcuts.empty": "目前群組下沒有可顯示的快捷鍵",
   "settings.shortcuts.exit_fullscreen": "離開全螢幕",

@@ -1,14 +1,7 @@
-import { useRef } from 'react'
+import type { RefObject } from 'react'
 
-import { useCommandHandler } from '@renderer/hooks/command'
-
-import {
-  getResourceListOptionDomId,
-  type ResourceListItemBase,
-  useResourceListItemAccessors,
-  useResourceListUiStore,
-  useResourceListView
-} from './ResourceListContext'
+import type { ResourceListItemBase } from './ResourceListContext'
+import { useResourceListItemCommand } from './useResourceListItemCommand'
 
 export interface ResourceListPermanentDeleteProps<T extends ResourceListItemBase> {
   /**
@@ -36,76 +29,8 @@ export interface ResourceListPermanentDeleteProps<T extends ResourceListItemBase
 export function useResourceListPermanentDelete<T extends ResourceListItemBase>({
   isItemEligible,
   onDelete
-}: ResourceListPermanentDeleteProps<T>) {
-  const markerRef = useRef<HTMLSpanElement>(null)
-  const pendingRef = useRef(false)
-  const onDeleteRef = useRef(onDelete)
-  const isItemEligibleRef = useRef(isItemEligible)
-  const view = useResourceListView<T>()
-  const viewRef = useRef(view)
-  const accessors = useResourceListItemAccessors<T>()
-  const store = useResourceListUiStore()
-  onDeleteRef.current = onDelete
-  isItemEligibleRef.current = isItemEligible
-  viewRef.current = view
-
-  const readFocusedItem = (): T | null => {
-    if (pendingRef.current) return null
-
-    const marker = markerRef.current
-    const frame = marker?.closest('[data-resource-list-variant]')
-    const listbox = frame?.querySelector('[role="listbox"]')
-    if (!(listbox instanceof HTMLElement)) return null
-
-    const active = document.activeElement
-    if (!(active instanceof HTMLElement)) return null
-
-    const snapshot = store.getUiSnapshot()
-    if (snapshot.renamingId) return null
-
-    const visibleItems = viewRef.current.visibleItems
-    const option = active === listbox ? null : active.closest('[role="option"]')
-    let domId: string | null = null
-    if (option instanceof HTMLElement && listbox.contains(option)) {
-      if (!option.id) return null
-      domId = option.id
-    } else if (active === listbox) {
-      domId = listbox.getAttribute('aria-activedescendant')
-    } else {
-      return null
-    }
-
-    // A present descendant id that misses the visible rows is no target. activeId applies only before that attribute exists.
-    const item = domId
-      ? visibleItems.find((candidate) => getResourceListOptionDomId(accessors.getItemId(candidate)) === domId)
-      : visibleItems.find((candidate) => accessors.getItemId(candidate) === snapshot.activeId)
-    if (!item || (isItemEligibleRef.current && !isItemEligibleRef.current(item))) return null
-    return item
-  }
-
-  const readFocusedItemRef = useRef(readFocusedItem)
-  readFocusedItemRef.current = readFocusedItem
-
-  useCommandHandler(
-    'resource.delete_permanently',
-    () => {
-      if (pendingRef.current) return
-      const item = readFocusedItemRef.current()
-      if (!item) return
-      pendingRef.current = true
-      try {
-        return Promise.resolve(onDeleteRef.current(item)).finally(() => {
-          pendingRef.current = false
-        })
-      } catch (error) {
-        pendingRef.current = false
-        throw error
-      }
-    },
-    { enabled: () => readFocusedItemRef.current() !== null }
-  )
-
-  return markerRef
+}: ResourceListPermanentDeleteProps<T>): RefObject<HTMLSpanElement | null> {
+  return useResourceListItemCommand('resource.delete_permanently', { isItemEligible, onItemCommand: onDelete })
 }
 
 export function ResourceListPermanentDelete<T extends ResourceListItemBase>(

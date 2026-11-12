@@ -69,17 +69,26 @@ function createTopicActionFixture(overrides: Partial<TopicActionContext> = {}): 
 describe('topic context menu actions', () => {
   it('exposes recoverable Archive without a destructive style or confirmation', async () => {
     const onDelete = vi.fn()
-    const context = createTopicActionFixture({ onDelete })
+    const context = createTopicActionFixture({ onDelete, deleteShortcut: 'Ctrl+Shift+Delete' })
     const actions = resolveTopicMenuActions(context)
     const deleteAction = actions.find((action) => action.id === 'topic.delete')
 
     expect(deleteAction?.danger).toBe(false)
     expect(deleteAction?.label).toBe('common.archive')
+    expect(deleteAction?.shortcut).toBe('Ctrl+Shift+Delete')
     expect(deleteAction?.confirm).toBeUndefined()
 
     await executeTopicMenuAction(deleteAction!, context)
 
     expect(onDelete).toHaveBeenCalledWith(topic)
+  })
+
+  it.each([undefined, ''])('hides the Archive hint when the shortcut is absent or disabled (%s)', (deleteShortcut) => {
+    const action = resolveTopicMenuActions(createTopicActionFixture({ deleteShortcut })).find(
+      (action) => action.id === 'topic.delete'
+    )
+    expect(action?.label).toBe('common.archive')
+    expect(action?.shortcut ?? '').toBe('')
   })
 
   it('omits permanent deletion until the caller provides that callback', () => {
@@ -118,6 +127,7 @@ describe('topic context menu actions', () => {
       createTopicActionFixture({ onDeletePermanently, topic: { ...topic, pinned: true } })
     )
     expect(pinned.map((action) => action.id)).not.toContain('topic.delete-permanently')
+    expect(pinned.map((action) => action.id)).not.toContain('topic.delete')
 
     const blockedContext = createTopicActionFixture({ isArchiveBlocked: true, onDeletePermanently })
     const blockedAction = resolveTopicMenuActions(blockedContext).find(
@@ -147,12 +157,17 @@ describe('topic context menu actions', () => {
         onDeletePermanently,
         onPinTopic: vi.fn(),
         onStartRename: vi.fn(),
+        deleteShortcut: 'Delete',
         permanentDeleteShortcut: '⌥⌫',
         t,
         topic,
         topicsLength: 2
       })
     )
+
+    const archiveAction = result.current.getMenuActions().find((action) => action.id === 'topic.delete')
+    expect(archiveAction?.shortcut).toBe('Delete')
+    expect(archiveAction?.label).toBe('common.archive')
 
     const permanentAction = result.current.getMenuActions().find((action) => action.id === 'topic.delete-permanently')
     expect(permanentAction?.label).toBe('common.delete_permanently')
