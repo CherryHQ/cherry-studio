@@ -536,3 +536,45 @@ describe('CMD quote stripping for nested command programs', () => {
     }
   )
 })
+
+describe('CMD START command dispatch', () => {
+  it.each([
+    'cmd /c start /b del victim.txt',
+    'cmd /c "@start /b del victim.txt"',
+    'cmd /c "@@start /min /b del victim.txt"',
+    'cmd /c start "t" /min del victim.txt',
+    'cmd /c start /d C:\\work del victim.txt',
+    'cmd /c start /node 0 /affinity ff /machine amd64 del victim.txt',
+    'cmd /c start /b start /wait del victim.txt',
+    'cmd /c start "my start /b menu" /min del victim.txt',
+    'cmd /c start /b "" del victim.txt',
+    'start "restart job" del victim.txt',
+    'cmd /c "2> "log file.txt" del victim.txt"',
+    'cmd /c "1> out.txt 2>&1 del victim.txt"'
+  ])('denies the dispatched deletion: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    'cmd /c start "del" echo hello',
+    'cmd /c start "my start menu" echo del victim.txt',
+    'cmd /c start /d del echo hello',
+    'cmd /c start /node del echo hello',
+    'cmd /c start /affinity del echo hello',
+    'cmd /c start /machine del echo hello',
+    'cmd /c start /?',
+    'cmd /c start /unknown del victim.txt',
+    'cmd /c start the job and del the files',
+    'cmd /c start "del victim.txt"',
+    'cmd /c start "" echo del victim.txt',
+    'cmd /c "2> "del victim.txt" echo hello"'
+  ])('does not treat a title, option value or argument as the command: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+
+  it('walks nested START wrappers without recursion or suffix rescans', () => {
+    expect(detectDestructiveAssistantCommand('cmd /c ' + 'start /b '.repeat(20000) + 'del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+  })
+})

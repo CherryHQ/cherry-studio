@@ -324,6 +324,23 @@ function tokenize(text: string): Token[] {
   return tokens
 }
 
+const CMD_START_FLAGS = new Set([
+  '/i',
+  '/min',
+  '/max',
+  '/separate',
+  '/shared',
+  '/low',
+  '/normal',
+  '/high',
+  '/realtime',
+  '/abovenormal',
+  '/belownormal',
+  '/wait',
+  '/b'
+])
+const CMD_START_VALUE_FLAGS = new Set(['/d', '/node', '/affinity', '/machine'])
+
 const CMD_COMPARISONS = new Set(['equ', 'neq', 'lss', 'leq', 'gtr', 'geq'])
 
 /** Consume one CMD IF condition without scanning for a deletion word inside its operands. */
@@ -369,6 +386,28 @@ export function resolveCommand(
       continue
     }
     const name = normalizeCommandName(unprefixed)
+    if (name === 'start') {
+      index++
+      let titleConsumed = false
+      while (index < words.length) {
+        if (!titleConsumed && rawWords?.[index].startsWith('"')) {
+          titleConsumed = true
+          index++
+          continue
+        }
+        const flag = words[index].toLowerCase()
+        if (CMD_START_VALUE_FLAGS.has(flag)) {
+          if (words[index + 1] === undefined) return undefined
+          index += 2
+        } else if (CMD_START_FLAGS.has(flag)) {
+          index++
+        } else {
+          if (flag.startsWith('/')) return undefined
+          break
+        }
+      }
+      continue
+    }
     if (name === 'if') {
       const end = cmdConditionEnd(words, index + 1, rawWords)
       index = end ?? index + 1
