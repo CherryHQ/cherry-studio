@@ -10,6 +10,7 @@ import { BaseService, Emitter } from '@main/core/lifecycle'
 import { memoryHandlers } from '@main/ipc/handlers/memory'
 
 import { MemoryEditorService } from '../MemoryEditorService'
+import { parseMemoryEntries } from '../memoryEntries'
 import { MemoryService } from '../MemoryService'
 
 let fixture: string
@@ -79,16 +80,24 @@ describe('memory editor command boundary', () => {
     expect(await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')).toBe('Keep me')
   })
 
-  it('requires a matching clear preview and restores the confirmed operation', async () => {
+  it('clears through IPC and refuses recovery that would erase the unknown-source tombstone', async () => {
     const { editorId } = await memoryHandlers['memory.editor.open']({ kind: 'shared' }, main)
     await memoryHandlers['memory.clear.preview']({ editorId }, main)
     await writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'Remember me')
     const preview = await memoryHandlers['memory.clear.preview']({ editorId }, main)
     const cleared = await memoryHandlers['memory.clear.confirm']({ editorId, token: preview.token }, main)
     expect(cleared.files).toMatchObject([{ path: 'MEMORY.md', outcome: 'applied' }])
+    const file = path.join(fixture, 'feature.memory.data', 'MEMORY.md')
+    const tombstone = await readFile(file, 'utf8')
+    expect(tombstone).not.toContain('Remember me')
+    expect(parseMemoryEntries(tombstone).filter((part) => typeof part !== 'string')).toEqual([
+      expect.objectContaining({ status: 'forgotten', text: '', sources: [] })
+    ])
     const recovery = await memoryHandlers['memory.recovery.preview']({ editorId }, main)
-    await memoryHandlers['memory.recovery.confirm']({ editorId, token: recovery!.token }, main)
-    expect(await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')).toBe('Remember me')
+    await expect(
+      memoryHandlers['memory.recovery.confirm']({ editorId, token: recovery!.token }, main)
+    ).rejects.toMatchObject({ data: { reason: 'conflict' } })
+    expect(await readFile(file, 'utf8')).toBe(tombstone)
   })
 
   it('expires editors when their window is destroyed even if that window ID is later reused', async () => {

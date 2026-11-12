@@ -3,10 +3,36 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Worker } from 'node:worker_threads'
 
+import type * as ClaudeSdk from '@anthropic-ai/claude-agent-sdk'
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { MemoryService } from '@main/ai/memory/MemoryService'
+import { BaseService } from '@main/core/lifecycle'
+
 import type { RuntimeForkResult } from '../../fork'
+import type * as Warmup from '../agentSessionWarmup'
+import { ClaudeCodeRuntimeDriver } from '../ClaudeCodeRuntimeDriver'
+import { ClaudeCodeSessionStateService } from '../ClaudeCodeSessionStateService'
+import { ClaudeCodeWarmQueryManager } from '../ClaudeCodeWarmQueryManager'
 import { forkClaudeSession } from '../claudeFork'
+import * as processDiagnostics from '../processExitDiagnostics'
+
+const memoryRuntimeMocks = vi.hoisted(() => ({ build: vi.fn(), startup: vi.fn(), runtime: vi.fn() }))
+vi.mock('../agentSessionWarmup', async (original) => ({
+  ...(await original<typeof Warmup>()),
+  buildClaudeCodeQueryRequestForAgentSession: memoryRuntimeMocks.build
+}))
+vi.mock('@anthropic-ai/claude-agent-sdk', async (original) => ({
+  ...(await original<typeof ClaudeSdk>()),
+  startup: memoryRuntimeMocks.startup
+}))
+vi.mock('@cherrystudio/agent-runtime-claude-code', () => ({ createClaudeCodeRuntime: memoryRuntimeMocks.runtime }))
 
 vi.mock('../forkWorker?nodeWorker', () => ({
   default: (options: ConstructorParameters<typeof Worker>[1]) =>
@@ -287,5 +313,100 @@ describe('Claude native forks', () => {
     await mkdir(path.dirname(file), { recursive: true })
     await writeFile(file, content)
     await expect(forkClaudeSession(forkInput())).rejects.toMatchObject({ reason })
+  })
+})
+
+describe('Claude warm memory handoff', () => {
+  const dbh = setupTestDatabase()
+  beforeEach(() => {
+    BaseService.resetInstances()
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+    MockApplicationUtils.resetServices()
+  })
+
+  it.each(['open', 'handoff', 'none'] as const)('guards the runtime receiver when invalidated at %s', async (phase) => {
+    const root = await mkdtemp(path.join(tmpdir(), 'claude-memory-handoff-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key, name) => path.join(root, key, name ?? ''))
+    vi.spyOn(processDiagnostics, 'createClaudeCodeProcessDiagnostics').mockImplementation(() => ({
+      reference: crypto.randomUUID(),
+      exited: Promise.resolve()
+    }))
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent', type: 'claude-code', name: 'A', instructions: '', orderKey: 'a0' })
+      .run()
+    dbh.db.insert(agentWorkspaceTable).values({ id: 'workspace', name: 'W', path: root, orderKey: 'a0' }).run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'session', agentId: 'agent', workspaceId: 'workspace', name: 'S', orderKey: 'a0' })
+      .run()
+    await mkdir(path.join(root, 'feature.agents.data', 'agent'), { recursive: true })
+    const memory = new MemoryService()
+    const manager = new ClaudeCodeWarmQueryManager()
+    MockApplicationUtils.setService('MemoryService', memory)
+    MockApplicationUtils.setService('ClaudeCodeWarmQueryManager', manager)
+    MockApplicationUtils.setService('ClaudeCodeSessionStateService', new ClaudeCodeSessionStateService())
+    const editor = memory.open({ scope: { kind: 'shared' }, assertAuthorized: () => undefined })
+    await editor.entry()
+    const file = path.join(root, 'feature.memory.data', 'MEMORY.md')
+    await writeFile(file, 'OLD_FACT_TOOL_RESULT_SUMMARY')
+    const clear = async () => {
+      const preview = await editor.previewClear()
+      await editor.clear(preview.token, async () => () => undefined)
+    }
+    const warm = { query: () => undefined, [Symbol.asyncDispose]: async () => undefined }
+    const request = { key: 'session', options: { model: 'sonnet', resume: 'native-old', cwd: root }, settings: {} }
+    memoryRuntimeMocks.build.mockResolvedValue(request)
+    memoryRuntimeMocks.startup.mockResolvedValue(warm)
+    const received: unknown[] = []
+    let observe: ((batch: any) => Promise<void>) | undefined
+    const handle = {
+      thread: { id: 'native-old' },
+      claude: {
+        start: (query: unknown) => {
+          received.push(query)
+          return { status: 'confirmed' }
+        },
+        observe: async (listener: typeof observe) => {
+          observe = listener
+          if (phase === 'handoff') await clear()
+          return { status: 'confirmed', value: { drain: async () => {}, stop: async () => {} } }
+        }
+      }
+    }
+    memoryRuntimeMocks.runtime.mockReturnValue({
+      open: async () => {
+        if (phase === 'open') await clear()
+        return { status: 'confirmed', value: handle }
+      },
+      shutdown: async () => {
+        await observe?.({ events: [{ type: 'closed', reason: 'shutdown' }], retracted: [], invocations: [] })
+        return { status: 'confirmed' }
+      }
+    })
+    try {
+      await manager.prewarm(request)
+      const connecting = new ClaudeCodeRuntimeDriver().connect({
+        agentId: 'agent',
+        sessionId: 'session',
+        modelId: 'test::test',
+        resumeToken: 'native-old'
+      })
+      if (phase === 'none') {
+        const connection = await connecting
+        expect(received).toEqual([{ query: warm, exited: expect.any(Promise) }])
+        await connection.close()
+      } else {
+        await expect(connecting).rejects.toThrow()
+        expect(received).toEqual([])
+        expect(await readFile(file, 'utf8')).not.toContain('OLD_FACT_TOOL_RESULT_SUMMARY')
+      }
+    } finally {
+      await manager.closeAll()
+      editor.dispose()
+      await memory['onStop']()
+    }
   })
 })

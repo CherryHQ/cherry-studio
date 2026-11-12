@@ -178,9 +178,10 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   })
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
-  const usageContext = config.requestHeaders
+  const capturedUsage = config.requestHeaders
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
     : undefined
+  const usageContext = capturedUsage ?? (agentSessionId ? { agentSessionId, source: null } : undefined)
 
   const streamId = `gateway-${uuidv4()}`
   if (messages !== convertedMessages) {

@@ -80,7 +80,6 @@ export async function generateDreamingPlan(
     prompt: batch.prompt,
     disableTools: true,
     contextOwner: 'caller',
-    callOverrides: { maxOutputTokens: batch.outputTokens },
     requestOptions: { signal, maxRetries: 0 }
   })
   if (result.finishReason !== 'stop' || Buffer.byteLength(result.text, 'utf8') > 550_000)

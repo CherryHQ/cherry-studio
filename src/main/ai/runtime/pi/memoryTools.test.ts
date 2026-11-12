@@ -12,6 +12,8 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { serializeMemoryEntries } from '@main/ai/memory/memoryEntries'
+import { agentMemoryReference } from '@main/ai/memory/memoryPrompt'
 import { MemoryService } from '@main/ai/memory/MemoryService'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService } from '@main/core/lifecycle'
@@ -23,6 +25,7 @@ import { loadPiSdk } from './piSdk'
 
 describe('Pi managed file destinations', () => {
   const dbh = setupTestDatabase()
+  let sessionId: string
   let root: string
   let memory: MemoryService
   let controlled: ReturnType<typeof createPiMemoryTools>
@@ -50,7 +53,7 @@ describe('Pi managed file destinations', () => {
     memory = new MemoryService()
     MockApplicationUtils.setService('MemoryService', memory)
     const agentId = randomUUID()
-    const sessionId = randomUUID()
+    sessionId = randomUUID()
     const workspaceId = randomUUID()
     const workspacePath = path.join(root, 'workspace')
     await mkdir(workspacePath)
@@ -96,6 +99,30 @@ describe('Pi managed file destinations', () => {
     const tool = controlled.tools.find((item) => item.name === name)!
     return tool.execute(randomUUID(), args, undefined, undefined, {} as ExtensionToolContext)
   }
+
+  it('returns a filtered model view without an edit credential', async () => {
+    const entry = application.getPath('feature.memory.data', 'MEMORY.md')
+    await mkdir(path.dirname(entry), { recursive: true })
+    const original = serializeMemoryEntries([
+      { schemaVersion: 1, id: 'active', status: 'active', sources: [], derivedFrom: [], text: 'visible fact' },
+      { schemaVersion: 1, id: 'expired', status: 'expired', sources: [], derivedFrom: [], text: 'expired secret' }
+    ])
+    await writeFile(entry, original)
+    const result = await execute('read', { path: entry })
+    const view = JSON.parse(result.content.find((part) => part.type === 'text')!.text)
+    expect(view.content).toContain('visible fact')
+    expect(view.content).not.toContain('expired secret')
+    expect(view.memoryReceipt).toBeUndefined()
+    const historical = await execute('read', { path: entry, memoryPurpose: 'historical' })
+    expect(historical.content.find((part) => part.type === 'text')!.text).toContain('expired secret')
+    const prompt = await agentMemoryReference(sessionId, () => ({ currentTurn: 'interactive', userResponse: 'stream' }))
+    expect(prompt).toContain('visible fact')
+    expect(prompt).not.toContain('expired secret')
+    await expect(
+      execute('edit', { path: entry, edits: [{ oldText: 'visible', newText: 'changed' }] })
+    ).rejects.toThrow()
+    expect(await readFile(entry, 'utf8')).toBe(original)
+  })
 
   it.each([true, false])(
     'requires a decision on the complete computed memory proposal (approved=%s)',

@@ -19,6 +19,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { assistantDataService } from '@data/services/AssistantService'
+import { createClaudeCodeIdentityHooks } from '@main/ai/runtime/claudeCode/identityHooks'
 import { BaseService, Emitter } from '@main/core/lifecycle'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
@@ -28,6 +29,8 @@ import {
   editorMemoryAuthority,
   type MemoryAuthority
 } from '../memoryAuthority'
+import { serializeMemoryEntries } from '../memoryEntries'
+import { openRuntimeMemoryGuard } from '../memoryRuntime'
 import { MemoryService } from '../MemoryService'
 import type { MemoryApproval } from '../MemoryStore'
 
@@ -79,6 +82,59 @@ describe('lifecycle memory owner', () => {
     await mkdir(path.join(fixture, 'feature.agents.data', agentId), { recursive: true })
     return { agentId, sessionId }
   }
+
+  it('retires the native owner on clear and rejects Claude resume even with sharing switched off', async () => {
+    const { agentId, sessionId } = await seedAgentSession()
+    MockApplicationUtils.setService('MemoryService', service)
+    const editor = service.open(authority())
+    await editor.entry()
+    const file = path.join(fixture, 'feature.memory.data', 'MEMORY.md')
+    await fs.writeFile(
+      file,
+      serializeMemoryEntries([
+        {
+          schemaVersion: 1,
+          id: 'old-home',
+          status: 'active',
+          text: 'OLD_HOME',
+          sources: [],
+          derivedFrom: []
+        }
+      ])
+    )
+    const stopped = new AbortController()
+    const guard = openRuntimeMemoryGuard(sessionId, () => stopped.abort())
+    await guard.check()
+    const preview = await editor.previewClear()
+    await editor.clear(preview.token, approve)
+    expect(stopped.signal.aborted).toBe(true)
+    await expect(guard.check()).rejects.toThrow('expired')
+    guard.dispose()
+    agentService.updateAgent(agentId, { configuration: { shared_memory_enabled: false } })
+    const hooks = createClaudeCodeIdentityHooks(path.join(fixture, 'feature.agents.data', agentId), sessionId)
+    const result = await hooks.SessionStart![0].hooks[0](
+      {
+        hook_event_name: 'SessionStart',
+        source: 'resume',
+        session_id: 'native-old',
+        transcript_path: '',
+        cwd: fixture
+      },
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    expect(result).toMatchObject({ continue: false })
+    expect(JSON.stringify(result)).not.toContain('OLD_HOME')
+    expect(await readFile(file, 'utf8')).not.toContain('OLD_HOME')
+    const { PiRuntimeConnection } = await import('@main/ai/runtime/pi/PiRuntimeConnection')
+    const { ClaudeCodeRuntimeDriver } = await import('@main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver')
+    const { ClaudeCodeSessionStateService } = await import('@main/ai/runtime/claudeCode/ClaudeCodeSessionStateService')
+    MockApplicationUtils.setService('ClaudeCodeSessionStateService', new ClaudeCodeSessionStateService())
+    const input = { agentId, sessionId, modelId: 'test::test' as const, resumeToken: 'old-native-session' }
+    await expect(new PiRuntimeConnection(input).start()).rejects.toThrow('isolation')
+    await expect(new ClaudeCodeRuntimeDriver().connect(input)).rejects.toThrow('isolation')
+    editor.dispose()
+  })
 
   it.each(['disable', 'owner'] as const)(
     'permanently expires a channel edit after %s and restoration',

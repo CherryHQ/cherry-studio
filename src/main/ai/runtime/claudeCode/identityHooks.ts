@@ -3,6 +3,7 @@ import type { HookCallback, HookEvent, HookCallbackMatcher } from '@anthropic-ai
 import { application } from '@application'
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import { agentMemoryReference } from '@main/ai/memory/memoryPrompt'
+import { openRuntimeMemoryGuard } from '@main/ai/memory/memoryRuntime'
 
 /** Per-connection identity delivery; SessionStart also runs after native context compaction. */
 export function createClaudeCodeIdentityHooks(
@@ -14,6 +15,17 @@ export function createClaudeCodeIdentityHooks(
   const refresh: HookCallback = async (input, _toolUseId, { signal }) => {
     if (input.hook_event_name !== 'SessionStart' && input.hook_event_name !== 'UserPromptSubmit') return {}
     if (input.agent_id || signal.aborted) return {}
+    if (sessionId) {
+      let guard: ReturnType<typeof openRuntimeMemoryGuard> | undefined
+      try {
+        guard = openRuntimeMemoryGuard(sessionId, () => {})
+        await guard.check()
+      } catch {
+        return { continue: false, stopReason: 'Memory history requires isolation before this session can continue' }
+      } finally {
+        guard?.dispose()
+      }
+    }
     const migrated = sessionId ? await application.get('MemoryMigrationService').ensureSession(sessionId) : false
     const sections = await Promise.all([
       builder.buildMemoriesSection(agentDataPath, !migrated),

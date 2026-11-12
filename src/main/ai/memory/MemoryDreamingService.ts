@@ -283,7 +283,16 @@ export class MemoryDreamingService extends BaseService {
         this.active = { scope, controller, extraction: ticket }
         try {
           revoke = initial.authority.onRevoked?.(() => controller.abort('source-revoked'))
-          session = application.get('MemoryService').open({ scope, assertAuthorized: assertCurrent }, 'extraction')
+          session = application.get('MemoryService').open(
+            { scope, assertAuthorized: assertCurrent },
+            'extraction',
+            source.messages.map((message) => ({
+              kind: ticket.input.kind === 'assistant' ? 'chat' : 'agent',
+              conversationId: ticket.input.kind === 'assistant' ? ticket.input.topicId : ticket.input.sessionId,
+              messageId: message.id,
+              sourceVersion: message.version
+            }))
+          )
           const paths = await session.list()
           if (paths.length > 40) throw new DreamingError('budget')
           const files: MemoryRead[] = []
@@ -298,7 +307,10 @@ export class MemoryDreamingService extends BaseService {
             source,
             files.map(({ path, hash, content }) => ({ path, hash, content })),
             controller.signal,
-            assertCurrent
+            async () => {
+              await session!.validateModelReads()
+              return assertCurrent()
+            }
           )
           if (JSON.stringify(await session.list()) !== JSON.stringify(paths)) throw new DreamingError('conflict')
           for (const file of files)
@@ -488,20 +500,26 @@ export class MemoryDreamingService extends BaseService {
       assertCurrent()
       const source = readExtractionSource(ticket.input)
       revoke = source.authority.onRevoked?.(() => controller.abort('source-revoked'))
-      session = application.get('MemoryService').open({ scope, assertAuthorized: assertCurrent }, 'extraction')
+      session = application.get('MemoryService').open({ scope, assertAuthorized: assertCurrent }, 'extraction', [
+        {
+          kind: ticket.input.kind === 'assistant' ? 'chat' : 'agent',
+          conversationId: ticket.input.kind === 'assistant' ? ticket.input.topicId : ticket.input.sessionId,
+          messageId: source.messageId,
+          sourceVersion: source.hash!
+        }
+      ])
       const entry = await session.read(MEMORY_ENTRY)
+      if (!entry.receipt) throw new DreamingError('conflict')
       const start = readDreamingState(scope)
       start.status = 'running'
       start.lastRunAt = Date.now()
       start.reason = undefined
       writeDreamingState(start)
-      const content = await extractMemoryQuotes(
-        ctx.jobId,
-        source,
-        entry.content ?? '',
-        controller.signal,
-        assertCurrent
-      )
+      const content = await extractMemoryQuotes(ctx.jobId, source, entry.content ?? '', controller.signal, async () => {
+        await session!.validateModelReads()
+        return assertCurrent()
+      })
+      await session.validateModelReads()
       assertCurrent()
       const result = await session.commit(
         content === (entry.content ?? '') ? [] : [{ kind: 'write', receipt: entry.receipt, content }],
@@ -661,10 +679,12 @@ export class MemoryDreamingService extends BaseService {
         writeDreamingState(latest)
         attempted = true
       }
+      await session.validateModelReads()
       const text =
         batch && resolved
           ? await generateDreamingPlan(ctx.jobId, resolved, batch, controller.signal)
           : '{"writes":[],"deletes":[]}'
+      await session.validateModelReads()
       assertCurrent()
       let plan: Awaited<ReturnType<typeof prepareDreamingPlan>>
       try {

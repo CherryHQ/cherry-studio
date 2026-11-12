@@ -17,6 +17,17 @@ import {
   saveMemoryBackup
 } from './memoryBackups'
 import {
+  entriesIn,
+  forgottenEntry,
+  invalidEntries,
+  memorySourceKey,
+  memoryModelView,
+  type MemoryUse,
+  type MemoryEntry,
+  parseMemoryEntries,
+  serializeMemoryEntries
+} from './memoryEntries'
+import {
   assertMemoryContent,
   assertMemoryPath,
   assertMemoryTarget,
@@ -25,8 +36,8 @@ import {
   MEMORY_ENTRY,
   MemoryError,
   memoryHash,
+  memoryEntryPreview,
   readMemoryBytes,
-  readMemoryEntry,
   writeMemoryBytes
 } from './memoryFiles'
 
@@ -137,12 +148,56 @@ export class MemoryStore {
   }
 
   async entry(access: MemoryAccess): Promise<{ content: string; truncated: boolean }> {
-    const generation = this.generation
+    const view = await this.modelRead(access, MEMORY_ENTRY)
+    return memoryEntryPreview(view.content ?? '')
+  }
+
+  async modelRead(
+    access: MemoryAccess,
+    target: string,
+    purpose: MemoryUse = 'current',
+    extractionSources?: readonly MemoryEntry['sources'][number][]
+  ) {
+    assertMemoryTarget(target)
     access.assertAuthorized()
-    const entry = await readMemoryEntry(this.root)
+    const generation = this.generation
+    const snapshot = await this.entrySnapshot()
+    const files = new Map([...snapshot].map(([name, bytes]) => [name, bytes ? this.decode(bytes) : '']))
+    const content = memoryModelView(files, target, purpose, extractionSources)
+    const structured = [...files.values()].some((text) => entriesIn(parseMemoryEntries(text)).length > 0)
+    const validate = async () => {
+      access.assertAuthorized()
+      this.assertGeneration(generation)
+      await this.assertEntrySnapshot(snapshot)
+      access.assertAuthorized()
+      this.assertGeneration(generation)
+    }
+    await validate()
+    const raw = structured ? undefined : await this.read(access, target)
+    await validate()
+    return {
+      path: target,
+      content,
+      hash: memoryHash(snapshot.get(target) ?? null),
+      receipt: raw?.receipt ?? '',
+      validate
+    }
+  }
+
+  /** Native transcripts have no per-fragment memory provenance yet. */
+  async assertRuntimeSafe(access: MemoryAccess): Promise<void> {
+    access.assertAuthorized()
+    const generation = this.generation
+    const snapshot = await this.entrySnapshot()
+    const files = new Map([...snapshot].map(([name, bytes]) => [name, bytes ? this.decode(bytes) : '']))
+    memoryModelView(files, 'MEMORY.md', 'current')
+    if (
+      [...files.values()].some((text) => entriesIn(parseMemoryEntries(text)).some((entry) => entry.status !== 'active'))
+    )
+      throw new MemoryError('conflict', 'Memory history requires isolation before this runtime can continue')
+    await this.assertEntrySnapshot(snapshot)
     access.assertAuthorized()
     this.assertGeneration(generation)
-    return entry
   }
 
   async read(access: MemoryAccess, target: string): Promise<MemoryRead> {
@@ -151,6 +206,7 @@ export class MemoryStore {
     const generation = this.generation
     const bytes = await readMemoryBytes(this.root, target)
     const content = bytes === null ? null : this.decode(bytes)
+    if (content !== null) parseMemoryEntries(content)
     access.assertAuthorized()
     this.assertGeneration(generation)
     const receipt = randomUUID()
@@ -170,6 +226,17 @@ export class MemoryStore {
     source: MemoryMutationSource,
     approve: MemoryApproval,
     conditions: MemoryCommitConditions = {}
+  ): Promise<MemoryCommitResult> {
+    return this.commitProtected(access, mutations, source, approve, conditions, false)
+  }
+
+  private async commitProtected(
+    access: MemoryAccess,
+    mutations: readonly MemoryMutation[],
+    source: MemoryMutationSource,
+    approve: MemoryApproval,
+    conditions: MemoryCommitConditions,
+    clearing: boolean
   ): Promise<MemoryCommitResult> {
     const intent = mutations.map((mutation) => ({ ...mutation }))
     access.assertAuthorized()
@@ -199,7 +266,10 @@ export class MemoryStore {
       }
     }
     await this.assertDistinctTargets(changes)
+    const scope = await this.entrySnapshot()
+    this.protectEntries(changes, scope, clearing ? 'clear' : 'ordinary')
     this.assertGeneration(generation)
+    access.assertAuthorized()
     const approval = await approve(this.preview(changes))
     const validateApproval = (): undefined => {
       approval()
@@ -218,6 +288,7 @@ export class MemoryStore {
         await this.readMatching({ path: change.path, hash: memoryHash(change.before), generation })
       await this.assertDistinctTargets(changes)
       await assertLegacy()
+      await this.assertEntrySnapshot(scope)
       this.assertGeneration(generation)
       const advanceGeneration = source === 'clear' || source === 'recovery'
       if (advanceGeneration) this.invalidate()
@@ -248,9 +319,16 @@ export class MemoryStore {
         ? { kind: 'write', receipt: file.receipt, content: '' }
         : { kind: 'delete', receipt: file.receipt }
     )
-    const result = await this.commit(access, mutations, 'clear', approve, {
-      clearTargets: files.map((file) => file.path)
-    })
+    const result = await this.commitProtected(
+      access,
+      mutations,
+      'clear',
+      approve,
+      {
+        clearTargets: files.map((file) => file.path)
+      },
+      true
+    )
     this.clears.delete(access)
     return result
   }
@@ -297,6 +375,10 @@ export class MemoryStore {
         changes.push({ path: step.path, before, after: decodeOriginal(step) })
       }
     }
+    const scope = await this.entrySnapshot()
+    this.protectEntries(changes, scope, 'recovery')
+    this.assertGeneration(preview.generation)
+    access.assertAuthorized()
     const approval = await approve(this.preview(changes))
     const validateApproval = (): undefined => {
       approval()
@@ -313,6 +395,7 @@ export class MemoryStore {
       for (const [target, hash] of preview.hashes) {
         await this.readMatching({ path: target, hash, generation: preview.generation })
       }
+      await this.assertEntrySnapshot(scope)
       this.assertGeneration(preview.generation)
       this.recoveries.delete(access)
       this.invalidate()
@@ -421,6 +504,115 @@ export class MemoryStore {
       batch = await latestMemoryBackup(this.backupRoot)
     }
     return undefined
+  }
+
+  private async entrySnapshot(): Promise<Map<string, Buffer | null>> {
+    const snapshot = new Map<string, Buffer | null>()
+    const ids = new Set<string>()
+    let bytes = 0
+    for (const target of await listMemoryFiles(this.root)) {
+      const content = await readMemoryBytes(this.root, target)
+      bytes += content?.length ?? 0
+      if (bytes > 20 * 1024 * 1024) throw new MemoryError('limit', 'Memory state scan exceeds the read budget')
+      for (const entry of entriesIn(parseMemoryEntries(content ? this.decode(content) : ''))) {
+        if (ids.has(entry.id)) invalidEntries()
+        ids.add(entry.id)
+      }
+      snapshot.set(target, content)
+    }
+    return snapshot
+  }
+
+  private async assertEntrySnapshot(expected: Map<string, Buffer | null>): Promise<void> {
+    const actual = await this.entrySnapshot()
+    if (
+      actual.size !== expected.size ||
+      [...expected].some(
+        ([target, bytes]) => !actual.has(target) || memoryHash(actual.get(target) ?? null) !== memoryHash(bytes)
+      )
+    ) {
+      throw new MemoryError('conflict', 'Memory entry state changed during approval')
+    }
+  }
+
+  private protectEntries(
+    changes: MemoryFileChange[],
+    scope: Map<string, Buffer | null>,
+    mode: 'ordinary' | 'clear' | 'recovery'
+  ): void {
+    const parse = (bytes: Buffer | null) => parseMemoryEntries(bytes === null ? '' : this.decode(bytes))
+    const protectedEntries = [...scope.values()]
+      .flatMap((bytes) => entriesIn(parse(bytes)))
+      .filter((entry) => entry.status !== 'active')
+    const blockedSources = new Set(protectedEntries.flatMap((entry) => entry.sources.map(memorySourceKey)))
+    const blockedIds = new Set(protectedEntries.map((entry) => entry.id))
+    const candidates = [...scope.values(), ...changes.map((change) => change.after)].flatMap((bytes) =>
+      entriesIn(parse(bytes))
+    )
+    let size: number
+    do {
+      size = blockedIds.size
+      for (const entry of candidates) {
+        if (
+          entry.sources.some((source) => blockedSources.has(memorySourceKey(source))) ||
+          entry.derivedFrom.some((id) => blockedIds.has(id))
+        )
+          blockedIds.add(entry.id)
+      }
+    } while (size !== blockedIds.size)
+    for (const change of changes) {
+      const before = parse(change.before)
+      const oldEntries = entriesIn(before)
+      let after = parse(change.after)
+      if (mode === 'clear') {
+        after = oldEntries.flatMap((entry) => [forgottenEntry(entry), '\n'])
+        if (before.some((part) => typeof part === 'string' && part.trim())) {
+          after.push({
+            schemaVersion: 1,
+            id: randomUUID(),
+            status: 'forgotten',
+            sources: [],
+            text: '',
+            derivedFrom: []
+          })
+        }
+      } else if (mode === 'ordinary') {
+        if (JSON.stringify(oldEntries) !== JSON.stringify(entriesIn(after))) invalidEntries()
+        if (
+          protectedEntries.length &&
+          JSON.stringify(before.filter((part) => typeof part === 'string')) !==
+            JSON.stringify(after.filter((part) => typeof part === 'string'))
+        )
+          invalidEntries()
+      } else {
+        if (protectedEntries.length && after.some((part) => typeof part === 'string' && part.trim())) invalidEntries()
+        const localProtected = oldEntries.filter((entry) => entry.status !== 'active')
+        after = after.map((part) => {
+          if (typeof part === 'string') return part
+          const current = localProtected.find((entry) => entry.id === part.id)
+          if (current) return current
+          if (
+            blockedIds.has(part.id) ||
+            protectedEntries.some((entry) => !entry.sources.length) ||
+            (protectedEntries.length > 0 && !part.sources.length)
+          )
+            invalidEntries()
+          return part
+        })
+        for (const entry of localProtected) {
+          if (!entriesIn(after).some((part) => part.id === entry.id)) after.push('\n', entry)
+        }
+      }
+      const content = serializeMemoryEntries(after)
+      assertMemoryContent(change.path, content)
+      if (mode !== 'ordinary')
+        change.after = content ? Buffer.from(content) : change.after === null ? null : Buffer.from('')
+    }
+    const finalScope = new Map(scope)
+    for (const change of changes) finalScope.set(change.path, change.after)
+    const finalEntries = [...finalScope.values()].flatMap((bytes) => entriesIn(parse(bytes)))
+    const ids = finalEntries.map((entry) => entry.id)
+    if (new Set(ids).size !== ids.length) invalidEntries()
   }
 
   private async assertDistinctTargets(changes: readonly MemoryFileChange[]): Promise<void> {

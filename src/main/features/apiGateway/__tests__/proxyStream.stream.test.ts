@@ -749,7 +749,7 @@ describe('processMessage (streaming)', () => {
 
     const streamPromptInput = mockStreamPrompt.mock.calls[0][0]
     expect(streamPromptInput).toEqual(expect.objectContaining({ tokenUsageSource: 'agent' }))
-    expect(streamPromptInput).not.toHaveProperty('usageContext')
+    expect(streamPromptInput.usageContext).toEqual({ agentSessionId: 'session-1', source: null })
 
     commit(captured.listener!)
     await captured.listener!.onDone({} as any)

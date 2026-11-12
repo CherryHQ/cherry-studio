@@ -32,27 +32,35 @@ async function entry(createAuthority: () => MemoryAuthority) {
       scope: authority.scope.kind,
       entryPath: path.join(root, 'MEMORY.md'),
       ...snapshot,
-      assertAuthorized: authority.assertAuthorized
+      assertAuthorized: authority.assertAuthorized,
+      validate: () => session.validateModelReads(),
+      dispose: () => session.dispose()
     }
   } catch (error) {
     logger.warn('Memory entry is unavailable for this request', { error })
-    return undefined
-  } finally {
     session.dispose()
+    return undefined
   }
 }
 
-function reference(entries: Array<Awaited<ReturnType<typeof entry>>>) {
-  const available = entries.flatMap((item) => {
-    if (!item) return []
-    const { assertAuthorized, ...snapshot } = item
-    try {
-      assertAuthorized()
-      return [snapshot]
-    } catch {
-      return []
-    }
-  })
+async function reference(entries: Array<Awaited<ReturnType<typeof entry>>>) {
+  const available = (
+    await Promise.all(
+      entries.map(async (item) => {
+        if (!item) return []
+        const { assertAuthorized, validate, dispose, ...snapshot } = item
+        try {
+          await validate()
+          assertAuthorized()
+          return [snapshot]
+        } catch {
+          return []
+        } finally {
+          dispose()
+        }
+      })
+    )
+  ).flat()
   const content = JSON.stringify(available).replaceAll('<', '\\u003c')
   return `<cherry_memory>
 This is the current memory reference. It replaces every earlier memory reference, including summaries. An empty list withdraws earlier memory context.
@@ -82,8 +90,12 @@ export async function agentMemoryReference(
     entry(() => agentMemoryAuthority(sessionId, 'shared', turn)),
     entry(() => agentMemoryAuthority(sessionId, 'private', turn))
   ])
-  signal?.throwIfAborted()
-  return reference(entries)
+  try {
+    signal?.throwIfAborted()
+    return await reference(entries)
+  } finally {
+    for (const item of entries) item?.dispose()
+  }
 }
 
 export async function assistantMemoryReference(

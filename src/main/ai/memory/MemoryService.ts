@@ -6,8 +6,10 @@ import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import { BaseService, type Disposable, Emitter, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { MemoryScope } from '@shared/types/memory'
 
-import type { MemoryAuthority } from './memoryAuthority'
+import { isMemoryEditor, type MemoryAuthority } from './memoryAuthority'
 import type { MemoryLegacyOriginal, MemoryMutationSource } from './memoryBackups'
+import type { MemoryEntry, MemoryUse } from './memoryEntries'
+import { memoryEntryPreview } from './memoryFiles'
 import {
   type MemoryAccess,
   type MemoryApproval,
@@ -20,7 +22,9 @@ export interface MemorySession extends Disposable {
   readonly scope: MemoryScope
   list(): ReturnType<MemoryStore['list']>
   entry(): ReturnType<MemoryStore['entry']>
-  read(target: string): ReturnType<MemoryStore['read']>
+  validateModelReads(): Promise<void>
+  assertRuntimeSafe(): Promise<void>
+  read(target: string, purpose?: MemoryUse): ReturnType<MemoryStore['read']>
   commit(
     mutations: readonly MemoryMutation[],
     approve: MemoryApproval,
@@ -59,7 +63,8 @@ export class MemoryService extends BaseService {
   /** Authority objects are created only by main-process runtime/editor owners. */
   open(
     authority: MemoryAuthority,
-    source: 'controlled' | 'dreaming' | 'migration' | 'extraction' = 'controlled'
+    source: 'controlled' | 'dreaming' | 'migration' | 'extraction' = 'controlled',
+    extractionSources?: readonly MemoryEntry['sources'][number][]
   ): MemorySession {
     authority.assertAuthorized()
     const scope = Object.freeze({ ...authority.scope })
@@ -103,12 +108,37 @@ export class MemoryService extends BaseService {
       if (result.batchId) this.changed.fire({ scope, source, result })
       return result
     }
+    const validations: Array<() => Promise<void>> = []
+    const validateModelReads = async () => {
+      for (const validate of validations) await validate()
+      access.assertAuthorized()
+    }
+    const read = (target: string, purpose: MemoryUse = 'current') =>
+      run(async (store) => {
+        if (isMemoryEditor(authority) || source === 'migration') return store.read(access, target)
+        const view = await store.modelRead(
+          access,
+          target,
+          source === 'controlled' ? purpose : 'extraction',
+          extractionSources
+        )
+        if (source === 'dreaming' && !view.receipt) throw new Error('Structured memory organization is not available')
+        validations.push(view.validate)
+        return view
+      })
     return {
       scope,
       dispose: release.dispose,
       list: () => run((store) => store.list(access)),
-      entry: () => run((store) => store.entry(access)),
-      read: (target) => run((store) => store.read(access, target)),
+      entry: () =>
+        run(async (store) => {
+          const view = await store.modelRead(access, 'MEMORY.md')
+          validations.push(view.validate)
+          return memoryEntryPreview(view.content ?? '')
+        }),
+      read,
+      validateModelReads,
+      assertRuntimeSafe: () => run((store) => store.assertRuntimeSafe(access)),
       commit: (mutations, approve, readReceipts, legacy, managedTargets) =>
         run(async (store) =>
           notify(

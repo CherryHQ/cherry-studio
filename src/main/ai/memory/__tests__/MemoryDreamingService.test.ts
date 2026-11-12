@@ -35,6 +35,8 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import { MemoryDreamingService } from '../MemoryDreamingService'
 import { needsDreaming, observeMemory, readDreamingState, writeDreamingState } from '../memoryDreamingState'
+import { serializeMemoryEntries } from '../memoryEntries'
+import { extractContextCandidates, readExtractionRange } from '../memoryExtraction'
 import { memoryHash } from '../memoryFiles'
 import { MemoryService, type MemorySession } from '../MemoryService'
 
@@ -300,9 +302,8 @@ describe('memory organization lifecycle and commit fences', () => {
           reason: '明确长期约束',
           evidence: prompt.messages
             .filter((message: { role: string }) => message.role === 'user')
-            .map((message: { id: string; version: string; text: string }) => ({
+            .map((message: { id: string; text: string }) => ({
               messageId: message.id,
-              version: message.version,
               quote: message.text
             })),
           existing: []
@@ -311,10 +312,68 @@ describe('memory organization lifecycle and commit fences', () => {
     }
   }
 
+  it.each([true, false])('blocks preview for forgotten source (known=%s)', async (known) => {
+    const { chat, range } = previewFixture()
+    await save('')
+    const content = serializeMemoryEntries([
+      {
+        schemaVersion: 1,
+        id: 'forgotten',
+        status: 'forgotten',
+        text: '',
+        derivedFrom: [],
+        sources: known
+          ? [{ kind: 'chat', conversationId: chat.topicId, messageId: chat.user.id, sourceVersion: 'old-version' }]
+          : []
+      }
+    ])
+    const target = application.getPath('feature.memory.data', 'MEMORY.md')
+    await writeFile(target, content)
+    const inputs: string[] = []
+    generate.mockImplementation(async (input) => {
+      inputs.push(input.prompt ?? '')
+      return { text: JSON.stringify(candidateReply(input)), finishReason: 'stop' }
+    })
+    await expect(dreaming.previewExtraction(range, () => undefined)).rejects.toThrow()
+    expect(inputs).toEqual([])
+    expect(await readFile(target, 'utf8')).toBe(content)
+  })
+
+  it('filters actual candidate input and rejects a result after scope state changes', async () => {
+    const { range } = previewFixture()
+    await save('')
+    const target = application.getPath('feature.memory.data', 'MEMORY.md')
+    const entries = [
+      {
+        schemaVersion: 1 as const,
+        id: 'old',
+        status: 'expired' as const,
+        text: 'expired secret',
+        derivedFrom: [],
+        sources: [
+          { kind: 'chat' as const, conversationId: 'other-topic', messageId: 'other-message', sourceVersion: 'v1' }
+        ]
+      }
+    ]
+    await writeFile(target, serializeMemoryEntries(entries))
+    let inputText: string | undefined
+    generate.mockImplementationOnce(async (input) => {
+      inputText = input.prompt!
+      await writeFile(target, serializeMemoryEntries([{ ...entries[0], status: 'forgotten', text: '' }]))
+      return { text: JSON.stringify(candidateReply(input)), finishReason: 'stop' }
+    })
+    await expect(dreaming.previewExtraction(range, () => undefined)).rejects.toThrow()
+    expect(inputText).toContain('messages')
+    expect(inputText).not.toContain('expired secret')
+    expect(await readFile(target, 'utf8')).toContain('forgotten')
+  })
+
   it('previews a complete multi-turn candidate with topic memory without saving, advancing a cursor or reading a sibling', async () => {
     const { chat, range } = previewFixture()
     await save('已有入口')
     await save('本机仍然执行其他构建。', '.memories/build.md')
+    const source = readExtractionRange(range, 0)
+    const existing = await session.read('.memories/build.md')
     dbh.db
       .insert(messageTable)
       .values({
@@ -332,7 +391,14 @@ describe('memory organization lifecycle and commit fences', () => {
       expect(prompt.existingMemory).toContainEqual(
         expect.objectContaining({ path: '.memories/build.md', content: '本机仍然执行其他构建。' })
       )
-      return { text: JSON.stringify(candidateReply(input)), finishReason: 'stop' }
+      for (const message of source.messages) expect(input.prompt).not.toContain(message.version)
+      expect(input.prompt).not.toContain(existing.hash!)
+      const reply = candidateReply(input)
+      Object.assign(reply.candidates[0], {
+        action: 'exists',
+        existing: [{ path: '.memories/build.md', quote: '本机仍然执行其他构建。' }]
+      })
+      return { text: JSON.stringify(reply), finishReason: 'stop' }
     })
     const before = dbh.db.select().from(appStateTable).all()
     const result = await dreaming.previewExtraction(range, () => undefined)
@@ -343,30 +409,88 @@ describe('memory organization lifecycle and commit fences', () => {
       candidates: [{ action: 'out_of_scope', evidence: [{ messageId: chat.user.id }, {}] }]
     })
     expect((await session.read('MEMORY.md')).content).toBe('已有入口')
+    expect(result.candidates[0].evidence).toEqual(
+      source.messages
+        .filter((message) => message.role === 'user')
+        .map((message) => ({ messageId: message.id, version: message.version, quote: message.text }))
+    )
+    expect(result.candidates[0].existing).toEqual([
+      { path: '.memories/build.md', version: existing.hash, quote: '本机仍然执行其他构建。' }
+    ])
     expect((await session.read('.memories/build.md')).content).toBe('本机仍然执行其他构建。')
     expect(dbh.db.select().from(appStateTable).all()).toEqual(before)
   })
 
-  it.each(['assistant-evidence', 'invented-quote', 'wrong-version', 'invented-memory'])(
-    'rejects unsupported preview evidence: %s',
-    async (kind) => {
-      const { range } = previewFixture()
-      generate.mockImplementationOnce(async (input) => {
-        const output = candidateReply(input)
-        const evidence = output.candidates[0].evidence[0]
-        if (kind === 'assistant-evidence') {
-          const message = JSON.parse(input.prompt!).messages[1]
-          Object.assign(evidence, { messageId: message.id, version: message.version, quote: message.text })
-        }
-        if (kind === 'invented-quote') evidence.quote = '用户讨厌语音'
-        if (kind === 'wrong-version') evidence.version = 'stale'
-        if (kind === 'invented-memory') output.candidates[0].action = 'exists'
-        return { text: JSON.stringify(output), finishReason: 'stop' }
+  it.each([
+    ['personal', 'experience', 'add'],
+    ['personal', 'decision', 'add'],
+    ['personal', 'constraint', 'add'],
+    ['project', 'experience', 'out_of_scope'],
+    ['customer', 'experience', 'out_of_scope'],
+    ['uncertain', 'experience', 'insufficient']
+  ])('classifies %s %s by ownership rather than rejecting all experiences', async (scope, kind, action) => {
+    const text = 'I completed a charity run for mental health in May 2023.'
+    const chat = conversation(true, text)
+    await save('Existing memory')
+    generate.mockImplementationOnce(async (input) => {
+      const reply = candidateReply(input)
+      Object.assign(reply.candidates[0], {
+        text,
+        subject: 'user',
+        scope,
+        kind,
+        conditions: '',
+        time: 'May 2023',
+        usefulness: 'Recall the cause supported by the user when discussing future charity runs',
+        reason: 'Supported information with a concrete future use'
       })
-      await expect(dreaming.previewExtraction(range, () => undefined)).rejects.toMatchObject({ reason: 'output' })
-      expect((await session.read('MEMORY.md')).content ?? '').toBe('')
-    }
-  )
+      return { text: JSON.stringify(reply), finishReason: 'stop' }
+    })
+    const result = await dreaming.previewExtraction(
+      {
+        source: { kind: 'assistant', topicId: chat.topicId, responseId: chat.response.id },
+        fromMessageId: chat.user.id
+      },
+      () => undefined
+    )
+    expect(result).toMatchObject({
+      saveBlocked: 'forgetting_protection_required',
+      candidates: [{ text, action, scope, kind }]
+    })
+    expect((await session.read('MEMORY.md')).content).toBe('Existing memory')
+  })
+
+  it.each([
+    'assistant-evidence',
+    'invented-quote',
+    'unknown-message',
+    'injected-version',
+    'invented-memory',
+    'unknown-memory',
+    'wrong-memory-quote'
+  ])('rejects unsupported preview evidence: %s', async (kind) => {
+    const { range } = previewFixture()
+    generate.mockImplementationOnce(async (input) => {
+      const output = candidateReply(input)
+      const evidence = output.candidates[0].evidence[0]
+      if (kind === 'assistant-evidence') {
+        const message = JSON.parse(input.prompt!).messages[1]
+        Object.assign(evidence, { messageId: message.id, quote: message.text })
+      }
+      if (kind === 'invented-quote') evidence.quote = '用户讨厌语音'
+      if (kind === 'unknown-message') evidence.messageId = 'unknown'
+      if (kind === 'injected-version') Object.assign(evidence, { version: 'stale' })
+      if (kind === 'unknown-memory' || kind === 'wrong-memory-quote')
+        Object.assign(output.candidates[0], {
+          action: 'exists',
+          existing: [{ path: kind === 'unknown-memory' ? '.memories/missing.md' : 'MEMORY.md', quote: 'invented' }]
+        })
+      if (kind === 'invented-memory') output.candidates[0].action = 'exists'
+      return { text: JSON.stringify(output), finishReason: 'stop' }
+    })
+    await expect(dreaming.previewExtraction(range, () => undefined)).rejects.toMatchObject({ reason: 'output' })
+    expect((await session.read('MEMORY.md')).content ?? '').toBe('')
+  })
 
   it.each(['source-edit', 'memory-edit', 'cancel', 'clear', 'disable', 'revoke', 'stop'])(
     'discards a delayed preview after %s',
@@ -488,92 +612,187 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(inputs[1].leftContextIncomplete).toBe(true)
   })
 
-  it.each(['conflict', 'duplicate', 'independent', 'insufficient', 'missing', 'repeated', 'unknown', 'cancel', 'edit'])(
-    'reconciles cross-batch candidates without losing evidence or returning unchecked additions: %s',
-    async (kind) => {
-      const { chat, range } = previewFixture()
-      const last = dbh.db.select().from(messageTable).where(eq(messageTable.id, range.source.responseId)).get()!
-      const quotes = [
-        '以后回答一律详细。',
-        kind === 'duplicate'
-          ? '以后回答都请详细展开。'
-          : kind === 'independent'
-            ? '以后使用中文回答。'
-            : '更正：以后回答一律简短。'
-      ]
-      for (const [id, text] of [
-        [chat.user.id, quotes[0]],
-        [chat.response.id, '收到。'],
-        [last.parentId!, quotes[1]]
-      ]) {
+  it.each([
+    'conflict',
+    'cross-kind-conflict',
+    'duplicate',
+    'independent',
+    'insufficient',
+    'missing',
+    'repeated',
+    'unknown',
+    'cancel',
+    'edit'
+  ])('reconciles cross-batch candidates without losing evidence or returning unchecked additions: %s', async (kind) => {
+    const { chat, range } = previewFixture()
+    const last = dbh.db.select().from(messageTable).where(eq(messageTable.id, range.source.responseId)).get()!
+    const quotes = [
+      '以后回答一律详细。',
+      kind === 'duplicate'
+        ? '以后回答都请详细展开。'
+        : kind === 'independent'
+          ? '以后使用中文回答。'
+          : '更正：以后回答一律简短。'
+    ]
+    for (const [id, text] of [
+      [chat.user.id, quotes[0]],
+      [chat.response.id, '收到。'],
+      [last.parentId!, quotes[1]]
+    ]) {
+      dbh.db
+        .update(messageTable)
+        .set({ data: { parts: [{ type: 'text', text: text + 'x'.repeat(7000) }] } })
+        .where(eq(messageTable.id, id))
+        .run()
+    }
+    let extractionCalls = 0
+    generate.mockImplementation(async (input) => {
+      const prompt = JSON.parse(input.prompt!)
+      if (prompt.messages) {
+        const message = prompt.messages.find((item: { role: string }) => item.role === 'user')
+        const quote = quotes[extractionCalls++]
+        const candidate = {
+          ...candidateReply(input).candidates[0],
+          text: quote,
+          subject: '用户',
+          scope: 'personal',
+          kind: kind === 'cross-kind-conflict' && extractionCalls === 2 ? 'decision' : 'preference',
+          conditions: '',
+          evidence: [{ messageId: message.id, quote }]
+        }
+        return {
+          text: JSON.stringify({ outcome: 'candidates', reason: 'Explicit preference', candidates: [candidate] }),
+          finishReason: 'stop'
+        }
+      }
+      expect(prompt.candidates.map((item: { text: string }) => item.text)).toEqual(quotes)
+      expect(input.prompt).not.toContain('"version"')
+      expect(
+        prompt.candidates.flatMap((item: { evidence: { messageId: string }[] }) =>
+          item.evidence.map((e) => e.messageId)
+        )
+      ).toEqual([chat.user.id, last.parentId])
+      if (kind === 'cancel') dreaming.cancel(scope)
+      if (kind === 'edit')
         dbh.db
           .update(messageTable)
-          .set({ data: { parts: [{ type: 'text', text: text + 'x'.repeat(7000) }] } })
-          .where(eq(messageTable.id, id))
+          .set({ data: { parts: [{ type: 'text', text: 'edited' }] } })
+          .where(eq(messageTable.id, chat.user.id))
           .run()
-      }
-      let extractionCalls = 0
+      const groups =
+        kind === 'independent'
+          ? [{ ids: [0, 1], relation: 'independent', reason: 'Different preferences' }]
+          : [
+              {
+                ids: kind === 'missing' ? [0] : kind === 'repeated' ? [0, 0] : kind === 'unknown' ? [0, 2] : [0, 1],
+                relation: ['duplicate', 'insufficient'].includes(kind) ? kind : 'conflict',
+                reason: 'Checked user evidence'
+              }
+            ]
+      return { text: JSON.stringify({ groups }), finishReason: 'stop' }
+    })
+    const preview = dreaming.previewExtraction(range, () => undefined)
+    if (['missing', 'repeated', 'unknown'].includes(kind)) {
+      await expect(preview).rejects.toMatchObject({ reason: 'output' })
+    } else if (['cancel', 'edit'].includes(kind)) {
+      await expect(preview).rejects.toBeInstanceOf(Error)
+    } else {
+      const result = await preview
+      expect(result.calls).toBe(3)
+      expect(result.candidates.map((item) => item.action)).toEqual(
+        kind === 'duplicate' ? ['add'] : kind === 'independent' ? ['add', 'add'] : ['insufficient', 'insufficient']
+      )
+      expect(new Set(result.candidates.flatMap((item) => item.evidence.map((e) => e.messageId)))).toEqual(
+        new Set([chat.user.id, last.parentId])
+      )
+      expect(result.candidates.map((item) => item.text)).toEqual(kind === 'duplicate' ? [quotes[0]] : quotes)
+    }
+    expect((await session.read('MEMORY.md')).content ?? '').toBe('')
+  })
+
+  it.each(['subject', 'scope', 'kind', 'action', 'conditions', 'time', 'references', 'singleton'])(
+    'retains original candidates and unrelated facts when a duplicate merge fails: %s',
+    async (mismatch) => {
+      const messages = ['I practice tennis.', 'I hope to reach the quarterfinals.', 'My 5K best is 27:12.'].map(
+        (text, id) => ({ id: String(id), role: 'user', version: 'v1', createdAt: id, text: text + 'x'.repeat(7000) })
+      )
+      const originals: ReturnType<typeof candidateReply>['candidates'] = []
+      let batch = 0
       generate.mockImplementation(async (input) => {
         const prompt = JSON.parse(input.prompt!)
         if (prompt.messages) {
-          const message = prompt.messages.find((item: { role: string }) => item.role === 'user')
-          const quote = quotes[extractionCalls++]
+          const message = prompt.messages[0]
           const candidate = {
             ...candidateReply(input).candidates[0],
-            text: quote,
-            subject: '用户',
+            text: batch === 0 ? 'I practice tennis.' : 'I train at tennis.',
+            subject: 'user',
             scope: 'personal',
-            kind: 'preference',
+            kind: 'personal_fact',
             conditions: '',
-            evidence: [{ messageId: message.id, version: message.version, quote }]
+            time: '',
+            evidence: [{ messageId: message.id, quote: message.text.slice(0, 20) }]
           }
+          if (batch++ === 1) {
+            if (mismatch === 'scope') candidate.scope = 'project'
+            else if (mismatch === 'kind') candidate.kind = 'decision'
+            else if (mismatch === 'action') candidate.action = 'omit'
+            else if (['subject', 'conditions', 'time'].includes(mismatch))
+              Object.assign(candidate, { [mismatch]: 'different' })
+          }
+          if (mismatch === 'references') {
+            candidate.evidence = Array.from({ length: 7 }, (_, index) => ({
+              messageId: message.id,
+              quote: message.text.slice(0, 20 + index)
+            }))
+          }
+          const reply = [candidate]
+          if (batch === 2)
+            reply.push({
+              ...candidate,
+              text: 'My 5K best is 27:12.',
+              scope: 'personal',
+              action: 'add',
+              evidence: [{ messageId: '2', quote: 'My 5K best is 27:12.' }]
+            })
+          originals.push(
+            ...reply.map((item) => ({
+              ...item,
+              action: item.scope === 'project' ? 'out_of_scope' : item.action,
+              evidence: item.evidence.map((e) => ({ ...e, version: 'v1' }))
+            }))
+          )
           return {
-            text: JSON.stringify({ outcome: 'candidates', reason: 'Explicit preference', candidates: [candidate] }),
+            text: JSON.stringify({ outcome: 'candidates', reason: 'Useful facts', candidates: reply }),
             finishReason: 'stop'
           }
         }
-        expect(prompt.candidates.map((item: { text: string }) => item.text)).toEqual(quotes)
-        expect(
-          prompt.candidates.flatMap((item: { evidence: { messageId: string }[] }) =>
-            item.evidence.map((e) => e.messageId)
-          )
-        ).toEqual([chat.user.id, last.parentId])
-        if (kind === 'cancel') dreaming.cancel(scope)
-        if (kind === 'edit')
-          dbh.db
-            .update(messageTable)
-            .set({ data: { parts: [{ type: 'text', text: 'edited' }] } })
-            .where(eq(messageTable.id, chat.user.id))
-            .run()
-        const groups =
-          kind === 'independent'
-            ? [{ ids: [0, 1], relation: 'independent', reason: 'Different preferences' }]
-            : [
-                {
-                  ids: kind === 'missing' ? [0] : kind === 'repeated' ? [0, 0] : kind === 'unknown' ? [0, 2] : [0, 1],
-                  relation: ['duplicate', 'insufficient'].includes(kind) ? kind : 'conflict',
-                  reason: 'Checked user evidence'
-                }
-              ]
-        return { text: JSON.stringify({ groups }), finishReason: 'stop' }
+        if (!['references', 'singleton'].includes(mismatch)) {
+          expect(prompt.duplicateGroups.some((ids: number[]) => ids.includes(0) && ids.includes(1))).toBe(false)
+        } else expect(prompt.duplicateGroups).toContainEqual([0, 1, 2])
+        return {
+          text: JSON.stringify({
+            groups:
+              mismatch === 'singleton'
+                ? [
+                    { ids: [0], relation: 'duplicate', reason: 'Invalid singleton' },
+                    { ids: [1, 2], relation: 'independent', reason: 'Distinct facts' }
+                  ]
+                : [
+                    { ids: [0, 1], relation: 'duplicate', reason: 'Equivalent tennis facts' },
+                    { ids: [2], relation: 'independent', reason: 'Running record' }
+                  ]
+          }),
+          finishReason: 'stop'
+        }
       })
-      const preview = dreaming.previewExtraction(range, () => undefined)
-      if (['missing', 'repeated', 'unknown'].includes(kind)) {
-        await expect(preview).rejects.toMatchObject({ reason: 'output' })
-      } else if (['cancel', 'edit'].includes(kind)) {
-        await expect(preview).rejects.toBeInstanceOf(Error)
-      } else {
-        const result = await preview
-        expect(result.calls).toBe(3)
-        expect(result.candidates.map((item) => item.action)).toEqual(
-          kind === 'duplicate' ? ['add'] : kind === 'independent' ? ['add', 'add'] : ['insufficient', 'insufficient']
-        )
-        expect(new Set(result.candidates.flatMap((item) => item.evidence.map((e) => e.messageId)))).toEqual(
-          new Set([chat.user.id, last.parentId])
-        )
-        expect(result.candidates.map((item) => item.text)).toEqual(kind === 'duplicate' ? [quotes[0]] : quotes)
-      }
-      expect((await session.read('MEMORY.md')).content ?? '').toBe('')
+      const result = await extractContextCandidates(
+        { messages, hash: 'fixture' },
+        [],
+        new AbortController().signal,
+        () => undefined
+      )
+      expect(result.candidates).toEqual(originals)
+      expect(result.saveBlocked).toBe('forgetting_protection_required')
     }
   )
 
@@ -679,10 +898,14 @@ describe('memory organization lifecycle and commit fences', () => {
     await save('Original fact')
     const chat = conversation()
     const response = Promise.withResolvers<{ text: string; finishReason: string }>()
-    generate.mockImplementationOnce(() => response.promise)
+    const started = Promise.withResolvers<void>()
+    generate.mockImplementationOnce(() => {
+      started.resolve()
+      return response.promise
+    })
     chat.emit()
     const outcome = dreaming.execute(job()).catch((error: unknown) => error)
-    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1))
+    await started.promise
     if (action === 'edit')
       dbh.db
         .update(messageTable)
@@ -757,7 +980,7 @@ describe('memory organization lifecycle and commit fences', () => {
       { kind: 'customer', quote: 'Customer A requires a December release.' },
       { kind: 'uncertain', quote: 'This might describe me or the customer.' }
     ]
-    conversation(true, `Please remember: ${candidates.map(({ quote }) => quote).join(' ')}`).emit()
+    conversation(true, candidates.map(({ quote }) => quote).join(' ')).emit()
     generate.mockResolvedValueOnce({ text: JSON.stringify({ candidates }), finishReason: 'stop' })
     expect(await dreaming.execute(job())).toEqual({ extracted: 1 })
     expect((await session.read('MEMORY.md')).content).toBe(
@@ -906,7 +1129,7 @@ describe('memory organization lifecycle and commit fences', () => {
                 usefulness: 'Choose answer length',
                 action: 'add',
                 reason: 'Explicit lasting preference',
-                evidence: [{ messageId: message.id, version: message.version, quote: message.text }],
+                evidence: [{ messageId: message.id, quote: message.text }],
                 existing: []
               }
             ]

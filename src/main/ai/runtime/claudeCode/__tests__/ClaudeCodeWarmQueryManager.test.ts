@@ -8,14 +8,18 @@ import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { packWorkspaceDirectory, unpackWorkspaceArchive } from '@main/ai/agents/agentWorkspaceStorage'
+import { MemoryService } from '@main/ai/memory/MemoryService'
 import { BaseService, LifecycleManager, ServiceContainer } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { prepareClaudeBranch } from '../claudeContext'
+import * as processDiagnostics from '../processExitDiagnostics'
 
 const { startupMock, buildWarmRequestMock, traceModeEnabledMock, prepareTraceMock } = vi.hoisted(() => ({
   startupMock: vi.fn(),
@@ -57,7 +61,17 @@ function createDeferred<T>() {
 
 describe('ClaudeCodeWarmQueryManager', () => {
   const dbh = setupTestDatabase()
+  const managers: InstanceType<typeof ClaudeCodeWarmQueryManager>[] = []
+  function createManager() {
+    const manager = new ClaudeCodeWarmQueryManager()
+    managers.push(manager)
+    return manager
+  }
   beforeEach(() => {
+    vi.spyOn(processDiagnostics, 'createClaudeCodeProcessDiagnostics').mockImplementation(() => ({
+      reference: crypto.randomUUID(),
+      exited: Promise.resolve()
+    }))
     LifecycleManager.reset()
     ServiceContainer.reset()
     BaseService.resetInstances()
@@ -74,19 +88,143 @@ describe('ClaudeCodeWarmQueryManager', () => {
       .values({ id: 'workspace-1', name: 'Work', type: 'user', path: '/test/work', orderKey: 'a0' })
       .run()
     dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent-1', type: 'claude-code', name: 'A', instructions: '', orderKey: 'a0' })
+      .run()
+    dbh.db
       .insert(agentSessionTable)
-      .values({ id: 'session-1', workspaceId: 'workspace-1', name: 'Root', orderKey: 'a0' })
+      .values([
+        { id: 'session-1', agentId: 'agent-1', workspaceId: 'workspace-1', name: 'Root', orderKey: 'a0' },
+        { id: 'session-2', agentId: 'agent-1', workspaceId: 'workspace-1', name: 'Other', orderKey: 'a1' }
+      ])
       .run()
     traceModeEnabledMock.mockReturnValue(false)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await Promise.all(managers.splice(0).map((manager) => manager.closeAll()))
+    vi.restoreAllMocks()
     MockApplicationUtils.resetServices()
     vi.useRealTimers()
   })
 
+  it.each(['startup', 'consume', 'handoff'] as const)(
+    'does not hand off a query invalidated during %s after real memory clear',
+    async (phase) => {
+      vi.useRealTimers()
+      const root = await mkdtemp(path.join(os.tmpdir(), 'warm-memory-'))
+      vi.spyOn(application, 'getPath').mockImplementation((key, name) => path.join(root, key, name ?? ''))
+      await mkdir(path.join(root, 'feature.agents.data', 'agent-1'), { recursive: true })
+      const memory = new MemoryService()
+      MockApplicationUtils.setService('MemoryService', memory)
+      const editor = memory.open({ scope: { kind: 'shared' }, assertAuthorized: () => undefined })
+      await editor.entry()
+      const file = path.join(root, 'feature.memory.data', 'MEMORY.md')
+      await writeFile(file, 'UNIQUE_FORGOTTEN_FACT')
+      const manager = createManager()
+      const ready = createDeferred<ReturnType<typeof warmQuery>>()
+      const warm = warmQuery()
+      const accepted: unknown[] = []
+      const request = { key: 'session-1', options: { model: 'sonnet' } }
+      startupMock.mockReturnValueOnce(ready.promise)
+      let consuming: ReturnType<typeof manager.consume> | undefined
+      try {
+        await manager.prewarm(request)
+        if (phase !== 'startup') {
+          if (phase === 'handoff') ready.resolve(warm)
+          consuming = manager.consume(request)
+          // Attach before invalidation; no unhandled rejected consumer promise.
+          void consuming.catch(() => undefined)
+        }
+        const offered = phase === 'handoff' ? await consuming : undefined
+        const preview = await editor.previewClear()
+        await editor.clear(preview.token, async () => () => undefined)
+        expect(await readFile(file, 'utf8')).not.toContain('UNIQUE_FORGOTTEN_FACT')
+        ready.resolve(warm)
+        if (offered) {
+          await expect(offered.checkMemory()).rejects.toThrow()
+          expect(() => {
+            offered.takeOwnership()
+            accepted.push(offered.warmQuery)
+          }).toThrow()
+        } else if (consuming) {
+          await expect(
+            consuming.then((value) => {
+              if (value) accepted.push(value.warmQuery)
+            })
+          ).rejects.toThrow()
+        } else expect(await manager.consume(request)).toBeUndefined()
+        await manager.close('session-1')
+        expect(accepted).toEqual([])
+        expect(await manager.consume(request)).toBeUndefined()
+      } finally {
+        ready.resolve(warm)
+        await manager.closeAll()
+        editor.dispose()
+        await memory['onStop']()
+      }
+    }
+  )
+
+  it('retains failed cancellation and waits for process exit before releasing the parked resource', async () => {
+    const manager = createManager()
+    const exited = createDeferred<void>()
+    vi.mocked(processDiagnostics.createClaudeCodeProcessDiagnostics).mockReturnValueOnce({
+      reference: 'exit',
+      exited: exited.promise
+    })
+    const warm = warmQuery()
+    warm[Symbol.asyncDispose].mockRejectedValueOnce(new Error('still alive'))
+    startupMock.mockResolvedValueOnce(warm)
+    const request = { key: 'session-1', options: { model: 'sonnet' } }
+    await manager.prewarm(request)
+    const offered = await manager.consume(request)
+    await expect(offered!.close()).rejects.toThrow('still alive')
+    expect(() => offered!.takeOwnership()).toThrow()
+    await expect(manager.prewarm(request)).rejects.toThrow('requires retry')
+    let closed = false
+    const closing = manager.close('session-1').then(() => {
+      closed = true
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(closed).toBe(false)
+    exited.resolve()
+    await closing
+    expect(closed).toBe(true)
+    expect(await manager.consume(request)).toBeUndefined()
+  })
+
+  it('rejects missing exit evidence and does not fall through to a cold replacement', async () => {
+    const manager = createManager()
+    const diagnostics = { reference: 'missing-exit' }
+    vi.mocked(processDiagnostics.createClaudeCodeProcessDiagnostics).mockReturnValueOnce(diagnostics)
+    startupMock.mockResolvedValueOnce(warmQuery())
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
+    await expect(manager.consume({ key: 'session-1', options: { model: 'opus' } })).rejects.toThrow('no exit barrier')
+    await expect(manager.consume({ key: 'session-1', options: { model: 'sonnet' } })).rejects.toThrow('requires retry')
+    Object.assign(diagnostics, { exited: Promise.resolve() })
+    await manager.close('session-1')
+    expect(await manager.consume({ key: 'session-1', options: { model: 'sonnet' } })).toBeUndefined()
+  })
+
+  it('releases a failed startup and permits a later safe startup', async () => {
+    const manager = createManager()
+    startupMock.mockRejectedValueOnce(new Error('startup failed'))
+    const request = { key: 'session-1', options: { model: 'sonnet' } }
+    await manager.prewarm(request)
+    await manager.close('session-1')
+    const replacement = warmQuery()
+    startupMock.mockResolvedValueOnce(replacement)
+    await manager.prewarm(request)
+    const offered = await manager.consume(request)
+    expect(offered?.warmQuery).toBe(replacement)
+    offered!.takeOwnership()
+    await expect(offered!.checkMemory()).rejects.toThrow('disposed')
+  })
+
   it('consumes a matching warm query once', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const warm = warmQuery()
     const abortController = new AbortController()
     startupMock.mockResolvedValueOnce(warm)
@@ -110,7 +248,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('preserves the host spawn wrapper on the warm startup path', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const warm = warmQuery()
     const ignoredSpawn = vi.fn()
     startupMock.mockResolvedValueOnce(warm)
@@ -133,7 +271,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('keeps process diagnostics isolated between warm queries', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     startupMock.mockResolvedValueOnce(warmQuery()).mockResolvedValueOnce(warmQuery())
 
     await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
@@ -146,7 +284,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('waits for every warm cleanup in closeAll', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const firstCleanup = createDeferred<void>()
     const secondCleanup = createDeferred<void>()
     const firstWarm = warmQuery(firstCleanup.promise)
@@ -174,7 +312,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('closes every warm entry on service stop', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
     await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
@@ -185,7 +323,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('does not reject stop when a warm cleanup fails', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const cleanupFailure = Promise.reject(new Error('dispose failed'))
     // Park a handler: prewarm yields to the SDK import before the dispose chain attaches the real
     // one, so the bare rejection would otherwise be reported as unhandled.
@@ -200,7 +338,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('closes a stale warm query when session options change', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const stale = warmQuery()
     const current = warmQuery()
     startupMock.mockResolvedValueOnce(stale).mockResolvedValueOnce(current)
@@ -216,7 +354,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('does not consume a warm query with different notification authority', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
     const sourceContext = {
@@ -323,7 +461,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('consumes a warm query whose rotated key differs but whose fingerprint matches', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
 
@@ -343,7 +481,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('returns the receipt captured by the warm process instead of the separately rotated consume request', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
 
@@ -388,7 +526,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('discards a warm query when the enabled key set changed between park and consume', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
 
@@ -409,7 +547,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('discards a warm query when the connection rebuild signature changes', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
 
@@ -430,7 +568,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('discards a warm query when knowledge bindings change between park and consume', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
 
@@ -453,7 +591,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   it.each(['session', 'all'] as const)(
     '%s close drains delayed workspace preparation before archiving',
     async (scope) => {
-      const manager = new ClaudeCodeWarmQueryManager()
+      const manager = createManager()
       const root = await mkdtemp(path.join(os.tmpdir(), 'warm-archive-'))
       const workspace = path.join(root, 'session-1')
       const entered = createDeferred<void>()
@@ -498,7 +636,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   it.each(['idle', 'replacement', 'mismatch', 'manual'] as const)(
     'drains %s disposal after the warm entry has been detached',
     async (reason) => {
-      const manager = new ClaudeCodeWarmQueryManager()
+      const manager = createManager()
       const disposal = createDeferred<void>()
       const warm = warmQuery(disposal.promise)
       startupMock.mockResolvedValueOnce(warm)
@@ -506,8 +644,10 @@ describe('ClaudeCodeWarmQueryManager', () => {
       await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
       let initialClose: Promise<void> | undefined
       if (reason === 'idle') vi.advanceTimersByTime(5 * 60 * 1000)
-      else if (reason === 'replacement') await manager.prewarm({ key: 'session-1', options: { model: 'opus' } })
-      else if (reason === 'mismatch') await manager.consume({ key: 'session-1', options: { model: 'opus' } })
+      else if (reason === 'replacement')
+        initialClose = manager.prewarm({ key: 'session-1', options: { model: 'opus' } })
+      else if (reason === 'mismatch')
+        initialClose = manager.consume({ key: 'session-1', options: { model: 'opus' } }).then(() => undefined)
       else initialClose = manager.close('session-1')
       let drained = false
       const closing = manager.close('session-1').then(() => {
@@ -519,13 +659,14 @@ describe('ClaudeCodeWarmQueryManager', () => {
       disposal.resolve()
       await closing
       await initialClose
+      await manager.close('session-1')
       expect(drained).toBe(true)
       expect(await manager.consume({ key: 'session-1', options: { model: 'sonnet' } })).toBeUndefined()
     }
   )
 
   it('blocks storage shutdown after failed disposal and retries the same resource', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const warm = warmQuery()
     warm[Symbol.asyncDispose].mockRejectedValueOnce(new Error('process still alive'))
     startupMock.mockResolvedValueOnce(warm)
@@ -539,7 +680,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     ['pending', { sessionId: 'native-root', resume: undefined }],
     ['bound', { sessionId: undefined, resume: 'native-root' }]
   ] as const)('prewarms a %s native identity with the matching SDK operation', async (state, expected) => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const context = prepareClaudeBranch('session-1', '/test/claude', 'native-root')
     if (state === 'bound') contexts.bindContext(context.id, 'native-root')
     buildWarmRequestMock.mockResolvedValueOnce({
@@ -558,7 +699,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('prewarms an agent session from the session request builder', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const warm = warmQuery()
     buildWarmRequestMock.mockResolvedValueOnce({
       key: 'session-1',
@@ -585,7 +726,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
       TRACEPARENT: `00-${traceId}-${deriveRootSpanId(traceId)}-01`
     }
     prepareTraceMock.mockResolvedValue(traceEnv)
-    const manager = new ClaudeCodeWarmQueryManager()
+    const manager = createManager()
     const warm = warmQuery()
     buildWarmRequestMock.mockResolvedValueOnce({
       key: 'session-1',

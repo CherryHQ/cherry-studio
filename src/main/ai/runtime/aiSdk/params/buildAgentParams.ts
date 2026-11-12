@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { assistantMemoryReference } from '@main/ai/memory/memoryPrompt'
+import { memoryRuntimeFetch, runtimeMemoryAuthorities } from '@main/ai/memory/memoryRuntime'
 import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AutomationRun } from '@main/services/automation'
@@ -99,6 +100,8 @@ const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
 const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' }
 
 export interface BuildAgentParamsInput {
+  /** Main-process gateway ownership; never a model or renderer argument. */
+  memoryAgentSessionId?: string
   traceContext?: AgentRuntimeTraceContext
   request: AiChatRequest & {
     system?: string
@@ -433,6 +436,16 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         return 'abort' as const
       }
     })
+  }
+
+  const memoryOwner = input.memoryAgentSessionId
+    ? { agentSessionId: input.memoryAgentSessionId }
+    : request.memoryContext
+  if (memoryOwner) {
+    sdkConfig.providerSettings.fetch = memoryRuntimeFetch(
+      sdkConfig.providerSettings.fetch ?? globalThis.fetch,
+      (signal) => runtimeMemoryAuthorities(memoryOwner, signal)
+    )
   }
 
   return {

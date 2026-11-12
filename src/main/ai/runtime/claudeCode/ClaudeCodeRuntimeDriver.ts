@@ -24,6 +24,7 @@ import {
   bindNativeInput
 } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
+import { openRuntimeMemoryGuard } from '@main/ai/memory/memoryRuntime'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
@@ -123,6 +124,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
   private readonly abortController = new AbortController()
+  private memoryGuard?: ReturnType<typeof openRuntimeMemoryGuard>
   private runtime?: ClaudeCodeRuntime
   private handle?: ClaudeThreadHandle
   private readonly observations: Observation[] = []
@@ -168,6 +170,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
+    this.memoryGuard = openRuntimeMemoryGuard(this.input.sessionId, () => {
+      this.abortController.abort(new Error('Memory runtime context expired'))
+      void this.close().catch((error) => logger.error('Failed to stop invalidated memory runtime', { error }))
+    })
+    await this.memoryGuard.check()
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
@@ -179,6 +186,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.knowledgeBaseIds,
       this.input.serviceTier
     )
+    await this.memoryGuard.check()
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
@@ -193,6 +201,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     )
 
     const traceEnv = await this.prepareTraceEnv()
+    await this.memoryGuard.check()
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
     const options: Options = {
       ...request.options,
@@ -224,6 +233,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       notificationContext: request.notificationContext
     })
     this.parkedQuery = consumedWarmQuery
+    await this.memoryGuard.check()
 
     // A matching warm process may have selected a different rotated key when
     // it was started. Its receipt, not the freshly materialized request's,
@@ -234,6 +244,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
       : options
     const { createClaudeCodeRuntime } = await import('@cherrystudio/agent-runtime-claude-code')
+    await this.memoryGuard.check()
     const { resume, cwd, ...nativeOptions } = options
     if (!cwd) throw new Error('Claude Code workspace is unavailable')
     const config = { ...nativeOptions, cwd }
@@ -249,6 +260,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const opened = resume
       ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(resume) })
       : await this.runtime.create(config)
+    await this.memoryGuard.check()
     if (opened.status !== 'confirmed') throw new Error(opened.error.message)
     this.handle = opened.value
     this.sdkModelId = request.sdkModelId
@@ -270,6 +282,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     await this.observeRoot(this.handle)
     if (consumedWarmQuery && !consumedWarmQuery.processDiagnostics.exited)
       throw new Error('Prewarmed process has no exit barrier')
+    await this.memoryGuard.check()
+    await consumedWarmQuery?.checkMemory()
+    this.memoryGuard.assertActive()
+    consumedWarmQuery?.takeOwnership()
     const started = this.handle.claude.start(
       consumedWarmQuery && {
         query: consumedWarmQuery.warmQuery,
@@ -291,6 +307,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: AgentRuntimeCommand): Promise<void> {
+    await this.memoryGuard?.check()
     this.currentSources.clear()
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
@@ -306,6 +323,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       parts: input.message.data.parts
     })
     this.input.onInputPrepared?.(input.message.id, contextId)
+    await this.memoryGuard?.check()
     const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'follow-up')
     this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
@@ -323,6 +341,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async submitSteer(input: AgentRuntimeCommand): Promise<void> {
+    await this.memoryGuard?.check()
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
@@ -333,6 +352,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       parts: input.message.data.parts
     })
     this.input.onInputPrepared?.(input.message.id, contextId)
+    await this.memoryGuard?.check()
     const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'steer')
     this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
@@ -470,10 +490,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private async closeQuery(): Promise<void> {
     this.closing = true
+    this.memoryGuard?.dispose()
     this.closingAccess.abort()
     if (this.parkedQuery) {
-      await this.parkedQuery.warmQuery[Symbol.asyncDispose]()
-      await this.parkedQuery.processDiagnostics.exited
+      await this.parkedQuery.close()
       this.parkedQuery = undefined
     }
     const closed = await this.runtime?.shutdown()
@@ -895,6 +915,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
    * repeated by-id dispose would destroy the successor's state, not ours.
    */
   private teardownSession(): void {
+    this.memoryGuard?.dispose()
     if (this.sessionTornDown) return
     this.sessionTornDown = true
     this.approvalEmitter?.dispose?.()

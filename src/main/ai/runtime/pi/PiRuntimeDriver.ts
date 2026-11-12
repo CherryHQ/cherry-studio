@@ -55,7 +55,13 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
           nativeSessionId: undefined
         }
       : input
-    return new PiRuntimeConnection(migratedInput).start()
+    const connection = new PiRuntimeConnection(migratedInput)
+    try {
+      return await connection.start()
+    } catch (error) {
+      await connection.close()
+      throw error
+    }
   }
 
   /**

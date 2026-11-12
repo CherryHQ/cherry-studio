@@ -15,6 +15,12 @@ export interface MemoryAuthority extends MemoryAccess {
   onRevoked?(listener: () => void): Disposable
 }
 
+const editors = new WeakSet<MemoryAuthority>()
+
+export function isMemoryEditor(authority: MemoryAuthority): boolean {
+  return editors.has(authority)
+}
+
 /** Supplied by the main-process turn owner, never by tool arguments. */
 export interface MemoryTurn {
   assertActive(): undefined
@@ -118,7 +124,7 @@ export function editorMemoryAuthority(senderId: string | null, target: MemorySco
     return undefined
   }
   assertAuthorized()
-  return {
+  const authority: MemoryAuthority = {
     scope,
     assertAuthorized,
     onRevoked:
@@ -129,4 +135,6 @@ export function editorMemoryAuthority(senderId: string | null, target: MemorySco
             })
         : undefined
   }
+  editors.add(authority)
+  return authority
 }
