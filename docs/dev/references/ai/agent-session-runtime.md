@@ -931,12 +931,10 @@ after any applicable live tightening has landed.
 
 ### Pi conversation compaction
 
-The desktop Pi connection installs `agent-behavior` through the Runtime adapter.
-The shared context handlers request a summary from `piBehaviorHost.ts`, which makes
-one native model request through Cherry's gateway without starting another agent
-loop. Automatic compaction and `/compact` use this same path; text following
-`/compact` becomes summary instructions, never another user turn. An empty or
-failed summary cancels compaction without a second native fallback.
+The desktop Pi connection installs `agent-behavior` through the Runtime adapter. Pi generates its own
+summaries through Cherry's gateway for automatic compaction and `/compact`; text after `/compact` becomes
+summary instructions, never another user turn. Each summary request is metered and its usage is attributed to
+the originating goal and child run. Empty or failed summaries cancel compaction.
 
 Pi retains its native JSONL history and writes the compaction boundary. Product
 messages remain a display projection. The shared `vcc_recall` tool searches the
@@ -947,7 +945,7 @@ disabled. Disabling recall does not disable compaction.
 The previous pi-vcc dependency, patch, ESM bundle and configuration override are
 removed. There is no `/pi-vcc` command or separate compaction toggle. Tests in
 `PiRuntimeConnection.test.ts` cover instruction forwarding and product input
-boundaries, while the package behavior tests cover declined summaries and
+boundaries, while the package behavior tests cover summary failures and
 reopening native compaction history. Electron acceptance is checked separately.
 
 ### Pi behavior host

@@ -140,10 +140,10 @@ cancelling; child interruption follows its current shared ownership. Opening ins
 model bindings and runs `onOpen` before scheduler resume. Desktop hosts can select owned conversations and rebind root configuration before this recovery. Inherited model context remains visible, while behavior authority and summary charges come only from conversation-owned records. That policy stops interrupted
 background children and disarms goals; ordinary unfinished root tasks can resume.
 
-Compaction captures the behavior history before summarizing. The native dependency patch preserves
-opaque summary metadata on the compaction entry, including the keyed usage record returned by the
-shared lifecycle. Task memos expire at completion and are not the accounting archive. Reopening
-projects each stored summary charge once; a compaction during a child run retains that run's identity.
+Native Durable compaction generates its own summary. Its task captures the history boundary and initiating run;
+each summary request checks that run's request limit. Reported usage is persisted in the same native transaction
+as the response and projected once into goal and child-run accounting, including after restart. The gateway owns
+provider billing independently.
 
 Tool-result gates transform contiguous text spans and retain their positions among images. Native
 structured output, UI details and other result fields survive the transformation.

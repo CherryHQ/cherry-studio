@@ -466,6 +466,39 @@ describe('AiStreamManager', () => {
   })
 
   describe('streamPrompt', () => {
+    it.each([true, false])('keeps the original exception restricted to prompt streams (%s)', async (prompt) => {
+      vi.useRealTimers()
+      const original = new APICallError({
+        message: 'Provider refused request',
+        url: 'https://private.invalid',
+        requestBodyValues: { secret: 'request-secret' },
+        statusCode: 400
+      })
+      mockStreamText.mockRejectedValueOnce(original)
+      const onError = vi.fn<(result: StreamErrorResult, original?: unknown) => void>()
+      const listener: StreamListener = {
+        id: 'exception-listener',
+        onChunk: () => {},
+        onDone: () => {},
+        onPaused: () => {},
+        onError,
+        isAlive: () => true
+      }
+      if (prompt) {
+        mgr.streamPrompt({ streamId: 'test-prompt', uniqueModelId: 'provider-a::model-a', prompt: 'hello', listener })
+      } else {
+        startSingle(mgr, {
+          topicId: 'test-chat',
+          modelId: 'provider-a::model-a',
+          request: req('test-chat'),
+          listeners: [listener]
+        })
+      }
+      await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce())
+      expect(onError.mock.calls[0][1]).toBe(prompt ? original : undefined)
+      expect(JSON.stringify(onError.mock.calls[0][0].error)).not.toContain('request-secret')
+    })
+
     it('forwards context ownership to AiService.streamText', () => {
       mgr.streamPrompt({
         streamId: 'gateway-request-1',
