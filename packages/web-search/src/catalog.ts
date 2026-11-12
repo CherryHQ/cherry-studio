@@ -59,6 +59,10 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
     searchapi: provider('searchapi', 'SearchApi', [
       capability('searchKeywords', 'required', 'https://www.searchapi.io')
     ]),
-    serpkite: provider('serpkite', 'SerpKite', [capability('searchKeywords', 'required', 'https://api.serpkite.com')])
+    serpkite: provider('serpkite', 'SerpKite', [capability('searchKeywords', 'required', 'https://api.serpkite.com')]),
+    olostep: provider('olostep', 'Olostep', [
+      capability('searchKeywords', 'required', 'https://api.olostep.com'),
+      capability('fetchUrls', 'required', 'https://api.olostep.com')
+    ])
   }
 )

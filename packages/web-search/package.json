@@ -319,6 +319,21 @@
       },
       "default": "./dist/providers/serpkite.mjs"
     },
+    "./providers/olostep": {
+      "react-native": {
+        "types": "./dist/providers/olostep.d.mts",
+        "default": "./dist/providers/olostep.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/olostep.d.mts",
+        "default": "./dist/providers/olostep.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/olostep.d.cts",
+        "default": "./dist/providers/olostep.cjs"
+      },
+      "default": "./dist/providers/olostep.mjs"
+    },
     "./tools/config": {
       "react-native": {
         "types": "./dist/tools/config.d.mts",

@@ -1,0 +1,20 @@
+{
+  "id": "search_olostep_fixture",
+  "object": "search",
+  "created": 1794489250,
+  "query": "latest web research",
+  "credits_consumed": 5,
+  "result": {
+    "links": [
+      {
+        "url": "https://olostep.example/result",
+        "title": " Olostep Title ",
+        "description": " Olostep Description "
+      },
+      {
+        "url": "https://olostep.example/second"
+      }
+    ],
+    "size_exceeded": false
+  }
+}

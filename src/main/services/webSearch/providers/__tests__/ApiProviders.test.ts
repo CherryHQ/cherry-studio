@@ -52,6 +52,7 @@ import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { FirecrawlProvider } from '../api/FirecrawlProvider'
 import { JinaProvider } from '../api/JinaProvider'
+import { OlostepProvider } from '../api/OlostepProvider'
 import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
@@ -651,6 +652,93 @@ describe('main web search API providers', () => {
         }
       ]
     })
+  })
+
+  it('matches the Olostep search request and normalizes fixture links', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('olostep-search-response.json')))
+
+    const provider = createProviderDriver(
+      OlostepProvider,
+      createProvider({
+        id: 'olostep',
+        name: 'Olostep',
+        apiKeys: ['olostep-key'],
+        capabilities: [
+          { feature: 'searchKeywords', apiHost: 'https://api.olostep.com' },
+          { feature: 'fetchUrls', apiHost: 'https://api.olostep.com' }
+        ]
+      })
+    )
+
+    const abortController = new AbortController()
+    const result = await provider.searchKeywords('latest web research', runtimeConfig, {
+      signal: abortController.signal
+    })
+
+    expect(fetchMock.mock.lastCall?.[1]?.signal).toBe(abortController.signal)
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: { query: 'latest web research', limit: 4 },
+      headers: {
+        accept: 'application/json',
+        authorization: 'Bearer olostep-key',
+        'content-type': 'application/json'
+      },
+      method: 'POST',
+      url: 'https://api.olostep.com/v1/searches'
+    })
+    expect(result).toEqual({
+      capability: 'searchKeywords',
+      inputs: ['latest web research'],
+      providerId: 'olostep',
+      query: 'latest web research',
+      results: [
+        {
+          content: 'Olostep Description',
+          sourceInput: 'latest web research',
+          title: 'Olostep Title',
+          url: 'https://olostep.example/result'
+        },
+        { content: '', sourceInput: 'latest web research', title: '', url: 'https://olostep.example/second' }
+      ]
+    })
+  })
+
+  it('matches the Olostep scrape request and uses the URL as title', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('olostep-scrape-response.json')))
+
+    const provider = createProviderDriver(
+      OlostepProvider,
+      createProvider({
+        id: 'olostep',
+        name: 'Olostep',
+        apiKeys: ['olostep-key'],
+        capabilities: [
+          { feature: 'searchKeywords', apiHost: 'https://api.olostep.com' },
+          { feature: 'fetchUrls', apiHost: 'https://api.olostep.com' }
+        ]
+      })
+    )
+
+    const result = await provider.fetchUrls(' https://example.com ', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: { url_to_scrape: 'https://example.com', formats: ['markdown'] },
+      headers: {
+        accept: 'application/json',
+        authorization: 'Bearer olostep-key',
+        'content-type': 'application/json'
+      },
+      method: 'POST',
+      url: 'https://api.olostep.com/v1/scrapes'
+    })
+    expect(result.results).toEqual([
+      {
+        content: 'Example Domain\n\nThis domain is for use in documentation examples.',
+        sourceInput: 'https://example.com',
+        title: 'https://example.com',
+        url: 'https://example.com'
+      }
+    ])
   })
 
   it('matches the DeepSeek search request and prefers the model-facing summary', async () => {

@@ -77,6 +77,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://jina.ai/reader',
     apiKeyWebsite: 'https://jina.ai'
   },
+  olostep: {
+    descriptionKey: 'settings.tool.websearch.provider_description.olostep',
+    iconRef: providerIconRef('olostep'),
+    officialWebsite: 'https://www.olostep.com',
+    apiKeyWebsite: 'https://www.olostep.com/dashboard/api-keys'
+  },
   parallel: {
     descriptionKey: 'settings.tool.websearch.provider_description.parallel',
     iconRef: providerIconRef('parallel'),

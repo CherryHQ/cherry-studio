@@ -6065,6 +6065,7 @@
   "settings.tool.websearch.provider_description.fetch": "Proveedor de obtención de URL integrado. Obtiene el contenido de la página web desde una URL para enriquecer los resultados de búsqueda.",
   "settings.tool.websearch.provider_description.firecrawl": "Servicio de rastreo y búsqueda Firecrawl, optimizado para convertir sitios web en Markdown.",
   "settings.tool.websearch.provider_description.jina": "APIs de búsqueda y lectura de Jina Reader para recuperar contenido web limpio.",
+  "settings.tool.websearch.provider_description.olostep": "API de búsqueda y scraping de Olostep para agentes de IA, que devuelven resultados web clasificados y el contenido de las páginas en Markdown.",
   "settings.tool.websearch.provider_description.parallel": "API de búsqueda web para agentes de IA que devuelve enlaces clasificados y extractos densos en información.",
   "settings.tool.websearch.provider_description.querit": "Servicio de búsqueda para aplicaciones de IA con resultados de recuperación web.",
   "settings.tool.websearch.provider_description.searchapi": "API de búsqueda en tiempo real de SearchApi que devuelve resultados de Google en JSON estructurado.",

@@ -6065,6 +6065,7 @@
   "settings.tool.websearch.provider_description.fetch": "內建 URL 擷取供應商，用於從指定 URL 擷取網頁內容，適合補全搜尋結果正文。",
   "settings.tool.websearch.provider_description.firecrawl": "Firecrawl 網頁抓取與搜尋服務，支援將網頁轉換為 Markdown 格式。",
   "settings.tool.websearch.provider_description.jina": "Jina Reader 搜尋與閱讀介面，用於檢索並提取網頁正文。",
+  "settings.tool.websearch.provider_description.olostep": "Olostep 搜尋與擷取 API，面向 AI 代理，回傳排序後的網頁結果與 Markdown 格式的網頁內文。",
   "settings.tool.websearch.provider_description.parallel": "面向 AI 智慧代理的網頁搜尋 API，傳回依相關性排序的連結與高密度摘要。",
   "settings.tool.websearch.provider_description.querit": "面向 AI 應用程式的搜尋服務，提供可接入的網頁檢索結果。",
   "settings.tool.websearch.provider_description.searchapi": "SearchApi 即時搜尋 API，以結構化 JSON 回傳 Google 搜尋結果。",
