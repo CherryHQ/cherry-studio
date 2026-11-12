@@ -149,6 +149,24 @@ describe('resolveCommandKeybinding', () => {
 })
 
 describe('resolveCommandByKeybinding', () => {
+  it.each(['darwin', 'win32', 'linux'] as const)('resolves stop only for an eligible handler on %s', (platform) => {
+    const options = {
+      binding: ['CommandOrControl', 'Shift', 'S'] as const,
+      context: {},
+      scope: 'renderer' as const,
+      platform
+    }
+    expect(resolveCommandByKeybinding({ ...options, canExecuteCommand: () => true })).toBe('chat.generation.stop')
+    expect(resolveCommandByKeybinding({ ...options, canExecuteCommand: () => false })).toBeUndefined()
+    expect(
+      findKeybindingConflicts({
+        command: 'chat.generation.stop',
+        preference: getCommandDefaultShortcutPreference('chat.generation.stop', platform)!,
+        platform
+      })
+    ).toEqual([])
+  })
+
   it('does not resolve disabled, cleared, unsupported, or unavailable commands', () => {
     expect(
       resolveCommandByKeybinding({

@@ -5878,6 +5878,7 @@
   "settings.shortcuts.selection_assistant_toggle": "Bật Trợ lý Chọn",
   "settings.shortcuts.show_app": "Hiện/Ẩn ứng dụng",
   "settings.shortcuts.show_settings": "Mở Cài đặt",
+  "settings.shortcuts.stop_generation": "Dừng tạo",
   "settings.shortcuts.title": "Phím tắt",
   "settings.shortcuts.toggle_left_sidebar": "Bật/tắt thanh bên trái",
   "settings.shortcuts.toggle_new_context": "Ngữ cảnh rõ ràng",

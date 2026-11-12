@@ -5878,6 +5878,7 @@
   "settings.shortcuts.selection_assistant_toggle": "Toggle Selection Assistant",
   "settings.shortcuts.show_app": "Show/Hide App",
   "settings.shortcuts.show_settings": "Open Settings",
+  "settings.shortcuts.stop_generation": "Stop Generation",
   "settings.shortcuts.title": "Keyboard Shortcuts",
   "settings.shortcuts.toggle_left_sidebar": "Toggle Left Sidebar",
   "settings.shortcuts.toggle_new_context": "Clear Context",

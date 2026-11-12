@@ -14,8 +14,11 @@ import type {
   ChatConversationControlsChangeHandler
 } from '@renderer/components/composer/variants/ChatComposer'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
+import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -171,6 +174,12 @@ const ChatContentInner: FC<InnerProps> = ({
     assistant,
     composerModelId,
     onBranchLiveStateChange
+  })
+  const isActiveTab = useIsActiveTab()
+  const { isPending } = useTopicStreamStatus(topic.id)
+  useCommandHandler('chat.generation.stop', runtime.chatWriteActions.pause, {
+    enabled: isActiveTab && isPending,
+    shouldHandleKeyEvent: (event) => !event.defaultPrevented
   })
   const locateRuntimeMessage = runtime.locateMessage
   const handleConversationControlsChange = useCallback<ChatConversationControlsChangeHandler>(

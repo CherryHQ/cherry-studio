@@ -5878,6 +5878,7 @@
   "settings.shortcuts.selection_assistant_toggle": "Textauswahl-Assistent umschalten",
   "settings.shortcuts.show_app": "App anzeigen/ausblenden",
   "settings.shortcuts.show_settings": "Einstellungen öffnen",
+  "settings.shortcuts.stop_generation": "Generierung stoppen",
   "settings.shortcuts.title": "Tastenkürzel",
   "settings.shortcuts.toggle_left_sidebar": "Linke Seitenleiste umschalten",
   "settings.shortcuts.toggle_new_context": "Kontext löschen",

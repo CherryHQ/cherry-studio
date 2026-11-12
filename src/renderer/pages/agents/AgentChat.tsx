@@ -33,6 +33,8 @@ import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { useIsActiveTab } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
@@ -260,6 +262,16 @@ const AgentChat = ({
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES
+  })
+  const isActiveTab = useIsActiveTab()
+  useCommandHandler('chat.generation.stop', runtime.stop, {
+    enabled:
+      isActiveTab &&
+      !centerSurface &&
+      !!sessionSnapshot &&
+      runtime.sessionId === sessionSnapshot.id &&
+      runtime.isPending,
+    shouldHandleKeyEvent: (event) => !event.defaultPrevented
   })
   const {
     hasOlder: runtimeHasOlder,

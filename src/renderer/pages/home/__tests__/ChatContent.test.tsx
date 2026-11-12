@@ -1,10 +1,18 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { act, type ReactNode } from 'react'
+import { act, type ReactNode, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CommandFocusScope } from '@renderer/components/command/CommandFocusScope'
+import { CommandProvider } from '@renderer/components/command/CommandProvider'
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
+import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
+import { TabIdContext } from '@renderer/hooks/tab/useCurrentTab'
+import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab/useTabsContext'
 import type { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { useStreamCommands } from '@renderer/hooks/useStreamCommands'
+import { platform } from '@renderer/utils/platform'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -202,7 +210,10 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
       data-placement={placement}
       data-main-visible={String(placement === 'docked')}>
       <div data-testid="composer-dock-main">{main}</div>
-      <div data-testid="composer-dock-composer">{composer}</div>
+      <div data-testid="composer-dock-composer">
+        <textarea aria-label="Chat message" />
+        {composer}
+      </div>
     </div>
   )
 }))
@@ -251,6 +262,15 @@ vi.mock('@renderer/components/chat/messages/MessageList', () => ({
       </div>
     )
 }))
+
+function ConversationScope({ children, active = true }: { children: ReactNode; active?: boolean }) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  return (
+    <CommandFocusScope rootRef={rootRef} active={active}>
+      <div ref={rootRef}>{children}</div>
+    </CommandFocusScope>
+  )
+}
 
 function createUiMessage(id: string, role: CherryUIMessage['role']): CherryUIMessage {
   return {
@@ -338,6 +358,148 @@ describe('ChatContent', () => {
     mockChatWriteValue.current = null
     mockEventEmit.mockReset()
     mockUseExecutionOverlay.mockReset()
+  })
+
+  it.each([true, false])('stops a pending conversation without consuming an idle chord (pending=%s)', (pending) => {
+    const stop = vi.fn().mockResolvedValue(undefined)
+    mockUseChatWithHistory.mockReturnValue({ ...mockUseChatWithHistory(), stop })
+    MockUseCacheUtils.setSharedCacheValue('topic.stream.statuses.topic-1', {
+      status: pending ? 'streaming' : 'done',
+      activeExecutions: [],
+      awaitingApprovalAnchors: [],
+      lastCompletedAt: undefined
+    })
+    render(
+      <TabsContext value={{ activeTabId: 'chat-tab' } as TabsContextValue}>
+        <TabIdContext value="chat-tab">
+          <CommandProvider>
+            <ConversationScope>
+              <ChatContent topic={topic} />
+            </ConversationScope>
+          </CommandProvider>
+        </TabIdContext>
+      </TabsContext>
+    )
+    const event = new KeyboardEvent('keydown', {
+      key: 'S',
+      code: 'KeyS',
+      shiftKey: true,
+      metaKey: platform === 'darwin',
+      ctrlKey: platform !== 'darwin',
+      bubbles: true,
+      cancelable: true
+    })
+    fireEvent(screen.getByRole('button', { name: 'send' }), event)
+    expect(stop).toHaveBeenCalledTimes(pending ? 1 : 0)
+    expect(event.defaultPrevented).toBe(pending)
+  })
+
+  function setStreamStatus(topicId: string, status: 'pending' | 'streaming' | 'done' | 'aborted') {
+    MockUseCacheUtils.setSharedCacheValue(`topic.stream.statuses.${topicId}`, {
+      status,
+      activeExecutions: [],
+      awaitingApprovalAnchors: [],
+      lastCompletedAt: undefined
+    })
+  }
+
+  function shortcut(target: HTMLElement, prevented = false) {
+    const event = new KeyboardEvent('keydown', {
+      key: 'S',
+      code: 'KeyS',
+      shiftKey: true,
+      metaKey: platform === 'darwin',
+      ctrlKey: platform !== 'darwin',
+      bubbles: true,
+      cancelable: true
+    })
+    if (prevented) event.preventDefault()
+    fireEvent(target, event)
+    return event
+  }
+
+  function ChatTabs({ activeTabId = 'chat-a', firstTopicId = 'topic-1', keepInactiveScopeActive = false }) {
+    return (
+      <TabsContext value={{ activeTabId } as TabsContextValue}>
+        <CommandProvider>
+          {['chat-a', 'chat-b'].map((tabId, index) => (
+            <ConversationScope key={tabId} active={keepInactiveScopeActive || activeTabId === tabId}>
+              <TabIdProvider tabId={tabId}>
+                <ChatContent topic={{ ...topic, id: index === 0 ? firstTopicId : 'topic-2' }} />
+              </TabIdProvider>
+            </ConversationScope>
+          ))}
+        </CommandProvider>
+      </TabsContext>
+    )
+  }
+
+  function observeAbortPayloads() {
+    const abort = vi.fn().mockResolvedValue(undefined)
+    ipcMock.request = (route, input) => (route === 'ai.stream.abort' ? abort(input) : Promise.resolve(undefined))
+    mockUseChatWithHistory.mockImplementation(function useCancellationRuntime(topicId: string) {
+      return { ...useStreamCommands(topicId), activeExecutions: [] }
+    })
+    return abort
+  }
+
+  it('cancels only the active topic and follows tab switches while leaving the background live', () => {
+    const abort = observeAbortPayloads()
+    setStreamStatus('topic-1', 'streaming')
+    setStreamStatus('topic-2', 'streaming')
+    const view = render(<ChatTabs />)
+    const [first, second] = screen.getAllByRole('button', { name: 'send' })
+    expect(shortcut(first).defaultPrevented).toBe(true)
+    expect(abort.mock.calls).toEqual([[{ topicId: 'topic-1' }]])
+    abort.mockClear()
+    setStreamStatus('topic-1', 'done')
+    view.rerender(<ChatTabs />)
+    expect(shortcut(first).defaultPrevented).toBe(false)
+    expect(abort).not.toHaveBeenCalled()
+    view.rerender(<ChatTabs activeTabId="chat-b" />)
+    expect(shortcut(second).defaultPrevented).toBe(true)
+    expect(abort.mock.calls).toEqual([[{ topicId: 'topic-2' }]])
+    abort.mockClear()
+    setStreamStatus('topic-1', 'streaming')
+    view.rerender(<ChatTabs />)
+    expect(shortcut(first).defaultPrevented).toBe(true)
+    expect(abort.mock.calls).toEqual([[{ topicId: 'topic-1' }]])
+  })
+
+  it('updates mounted eligibility through pending before text, streaming, terminal, and a new topic owner', () => {
+    const abort = observeAbortPayloads()
+    mockUseTopicMessages.mockReturnValue({ ...mockUseTopicMessages(), uiMessages: [] })
+    setStreamStatus('topic-1', 'done')
+    setStreamStatus('topic-2', 'streaming')
+    const view = render(<ChatTabs />)
+    const first = screen.getAllByRole('textbox', { name: 'Chat message' })[0]
+    for (const status of ['done', 'pending', 'streaming', 'aborted'] as const) {
+      setStreamStatus('topic-1', status)
+      // The unified cache mock is per-render; production subscribes via useSyncExternalStore (useCache.ts:399).
+      view.rerender(<ChatTabs />)
+      expect(screen.getAllByRole('textbox', { name: 'Chat message' })[0]).toBe(first)
+      abort.mockClear()
+      const live = status === 'pending' || status === 'streaming'
+      expect(shortcut(first).defaultPrevented).toBe(live)
+      expect(abort.mock.calls).toEqual(live ? [[{ topicId: 'topic-1' }]] : [])
+    }
+    setStreamStatus('topic-new', 'pending')
+    view.rerender(<ChatTabs firstTopicId="topic-new" />)
+    expect(screen.getAllByRole('textbox', { name: 'Chat message' })[0]).toBe(first)
+    expect(shortcut(first).defaultPrevented).toBe(true)
+    expect(abort.mock.calls).toEqual([[{ topicId: 'topic-new' }]])
+  })
+
+  it.each(['inactive', 'prevented'])('does not cancel a live topic for an %s composer event', (scenario) => {
+    const abort = observeAbortPayloads()
+    setStreamStatus('topic-1', 'streaming')
+    setStreamStatus('topic-2', 'streaming')
+    // Keep scopes eligible to independently exercise the page's active-tab guard.
+    render(<ChatTabs keepInactiveScopeActive />)
+    const target = screen.getAllByRole('textbox', { name: 'Chat message' })[scenario === 'inactive' ? 1 : 0]
+    const event = shortcut(target, scenario === 'prevented')
+    expect(abort).not.toHaveBeenCalled()
+    expect(event.defaultPrevented).toBe(scenario === 'prevented')
   })
 
   it('opens a stream against the active branch node', async () => {

@@ -5878,6 +5878,7 @@
   "settings.shortcuts.selection_assistant_toggle": "選択アシスタントを切り替え",
   "settings.shortcuts.show_app": "アプリを表示/非表示",
   "settings.shortcuts.show_settings": "設定を開く",
+  "settings.shortcuts.stop_generation": "生成を停止",
   "settings.shortcuts.title": "ショートカット",
   "settings.shortcuts.toggle_left_sidebar": "左サイドバーを切り替え",
   "settings.shortcuts.toggle_new_context": "コンテキストをクリア",
