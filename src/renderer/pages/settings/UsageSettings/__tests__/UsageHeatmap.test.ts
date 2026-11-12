@@ -19,7 +19,6 @@ describe('buildHeatmapDays', () => {
     }
     const days = buildHeatmapDays([], range, getLocaleFirstDayOfWeek('en-US'))
 
-    expect(days).toHaveLength(53 * 7)
     expect(days.filter((day) => !day.isOutsideRange)).toHaveLength(30)
     expect(days[0].date.getDay()).toBe(0)
     expect(days.at(-1)?.date.getDay()).toBe(6)

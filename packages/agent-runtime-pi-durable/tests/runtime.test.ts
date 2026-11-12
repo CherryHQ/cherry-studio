@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { awaitWithContext } from '@earendil-works/chord/context'
 import {
   createModels,
   fauxAssistantMessage,
@@ -18,7 +19,7 @@ import {
   StorageRequestError
 } from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
-import { obj } from '@earendil-works/pi-schema'
+import { obj, str } from '@earendil-works/pi-schema'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { createScriptedHost } from '@cherrystudio/agent-behavior'
@@ -800,4 +801,197 @@ it('resolves a fresh model registry for each request with shared behavior enable
     .toBe(true)
   expect(first.state.callCount).toBe(1)
   expect(second.state.callCount).toBe(1)
+})
+
+it.each([false, true])('retains nested results after task retirement and SQLite reopen (%s)', async (fails) => {
+  const dir = await mkdtemp(join(tmpdir(), 'durable-nested-'))
+  onTestFinished(() => rm(dir, { recursive: true, force: true }))
+  const { runtime, faux, registry, options } = await setup(() => openNodeSqliteStorage(join(dir, 'session.sqlite')))
+  const value = 'retained-'.repeat(60)
+  let executions = 0
+  registry.install(
+    defineExtension({
+      name: 'nested-evidence',
+      tools: [
+        defineTool({
+          name: 'leaf',
+          description: 'Return evidence',
+          parameters: obj({ value: str() }),
+          prepareArguments: () => ({ value }),
+          callers: ['tools'],
+          execute: async (args, api) => {
+            executions++
+            api.output('working')
+            return {
+              output: [{ type: 'text' as const, text: args.value }],
+              details: { proof: true }
+            }
+          }
+        }),
+        defineTool({
+          name: 'script',
+          description: 'Call nested tools',
+          parameters: obj({}),
+          execute: async (_args, api, context) => {
+            await Promise.all([
+              api.executeTool('leaf', { value: 'repair me' }, context, { key: 'a' }),
+              api.executeTool('leaf', { value: 'repair me' }, context, { key: 'b' })
+            ])
+            if (fails) throw new Error('outer failure')
+            return { output: [{ type: 'text' as const, text: 'done' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create(sessionOptions))
+  await handle.input.submit(draft('nested'))
+  await runtime.settled()
+  const archived = confirmed(await handle.archive())
+  const parts = archived.messages
+    .flatMap((message) => message.parts)
+    .filter((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')
+  expect(parts).toHaveLength(2)
+  expect(new Set(parts.map((part) => (part.type === 'dynamic-tool' ? part.toolCallId : ''))).size).toBe(2)
+  for (const part of parts)
+    expect(part).toMatchObject({
+      state: 'output-available',
+      input: { value },
+      output: { content: [{ type: 'text', text: value }], details: { proof: true } },
+      callProviderMetadata: { pi: { parentToolCallId: 'script' } }
+    })
+  await runtime.shutdown()
+  const recovered = confirmed(await createPiDurableRuntime(options))
+  onTestFinished(async () => {
+    await recovered.shutdown()
+  })
+  const reopened = confirmed(await recovered.open(handle.thread))
+  expect(confirmed(await reopened.archive()).messages).toEqual(archived.messages)
+  expect(executions).toBe(2)
+})
+
+it.each([false, true])('keeps recursive nested errors terminal (cancel=%s)', async (cancel) => {
+  const { runtime, faux, registry } = await setup()
+  const reached = gate()
+  registry.install(
+    defineExtension({
+      name: 'recursive',
+      tools: [
+        defineTool({
+          name: 'leaf',
+          description: 'Fail or wait',
+          parameters: obj({}),
+          callers: ['tools'],
+          execute: async (_args, _api, context) => {
+            reached.resolve()
+            if (cancel) await awaitWithContext(new Promise<never>(() => {}), context)
+            throw new Error('nested failure')
+          }
+        }),
+        defineTool({
+          name: 'middle',
+          description: 'Nested owner',
+          parameters: obj({}),
+          callers: ['tools'],
+          execute: async (_args, api, context) => {
+            const result = await api.executeTool('leaf', {}, context, { key: 'leaf' })
+            return { output: [{ type: 'text' as const, text: 'middle' }], isError: result.isError }
+          }
+        }),
+        defineTool({
+          name: 'script',
+          description: 'Outer owner',
+          parameters: obj({}),
+          execute: async (_args, api, context) => {
+            await api.executeTool('middle', {}, context, { key: 'middle' })
+            return { output: [{ type: 'text' as const, text: 'outer' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create(sessionOptions))
+  await handle.input.submit(draft('recursive'))
+  await reached.promise
+  if (cancel) confirmed(await handle.interrupt!())
+  await runtime.settled()
+  const parts = confirmed(await handle.archive()).messages.flatMap((message) => message.parts)
+  const leaf = parts.find((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')
+  expect(leaf).toMatchObject({
+    state: 'output-error',
+    callProviderMetadata: { pi: { parentToolCallId: 'script/middle' } }
+  })
+  expect(parts.find((part) => part.type === 'dynamic-tool' && part.toolName === 'middle')).toMatchObject({
+    state: 'output-error'
+  })
+})
+
+it('recovers retained nested evidence without rerunning a completed leaf after shutdown', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'durable-nested-recovery-'))
+  onTestFinished(() => rm(dir, { recursive: true, force: true }))
+  const { runtime, faux, registry, options } = await setup(() => openNodeSqliteStorage(join(dir, 'session.sqlite')))
+  const reached = gate()
+  let executions = 0
+  let recovering = false
+  registry.install(
+    defineExtension({
+      name: 'nested-recovery',
+      tools: [
+        defineTool({
+          name: 'leaf',
+          description: 'Produce evidence once',
+          parameters: obj({}),
+          callers: ['tools'],
+          execute: async () => {
+            executions++
+            return { output: [{ type: 'text' as const, text: 'retained before shutdown' }] }
+          }
+        }),
+        defineTool({
+          name: 'script',
+          description: 'Wait after a completed child',
+          parameters: obj({}),
+          execute: async (_args, api, context) => {
+            await api.executeTool('leaf', {}, context, { key: 'leaf' })
+            reached.resolve()
+            if (!recovering) await awaitWithContext(new Promise<never>(() => {}), context)
+            return { output: [{ type: 'text' as const, text: 'resumed' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create(sessionOptions))
+  await handle.input.submit(draft('recover nested'))
+  await reached.promise
+  await runtime.shutdown()
+  recovering = true
+  const recovered = confirmed(await createPiDurableRuntime(options))
+  onTestFinished(async () => {
+    await recovered.shutdown()
+  })
+  const reopened = confirmed(await recovered.open(handle.thread))
+  confirmed(await recovered.resume())
+  await recovered.settled()
+  const parts = confirmed(await reopened.archive()).messages.flatMap((message) => message.parts)
+  expect(parts.filter((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')).toEqual([
+    expect.objectContaining({
+      toolCallId: 'script/leaf',
+      state: 'output-available',
+      output: expect.objectContaining({ content: [{ type: 'text', text: 'retained before shutdown' }] })
+    })
+  ])
+  expect(executions).toBe(1)
 })

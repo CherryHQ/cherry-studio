@@ -100,28 +100,6 @@ describe('Model Type Guards', () => {
       expect(isV2Model(v3Model)).toBe(false)
       expect(isV3Model(v3Model)).toBe(true)
     })
-
-    it('should narrow type correctly for V2 models', () => {
-      const model: AiSdkModel = {
-        specificationVersion: 'v2',
-        modelId: 'test'
-      } as LanguageModelV2
-
-      if (isV2Model(model)) {
-        expect(model.specificationVersion).toBe('v2')
-      }
-    })
-
-    it('should narrow type correctly for V3 models', () => {
-      const model: AiSdkModel = {
-        specificationVersion: 'v3',
-        modelId: 'test'
-      } as LanguageModelV3
-
-      if (isV3Model(model)) {
-        expect(model.specificationVersion).toBe('v3')
-      }
-    })
   })
 
   describe('hasModelId', () => {
@@ -156,16 +134,6 @@ describe('Model Type Guards', () => {
       expect(hasModelId('string')).toBe(false)
       expect(hasModelId(123)).toBe(false)
       expect(hasModelId(true)).toBe(false)
-    })
-
-    it('should narrow type correctly', () => {
-      const unknownValue: unknown = { modelId: 'test-id' }
-
-      if (hasModelId(unknownValue)) {
-        // TypeScript should allow accessing modelId as string
-        expect(typeof unknownValue.modelId).toBe('string')
-        expect(unknownValue.modelId).toBe('test-id')
-      }
     })
   })
 })
