@@ -8,6 +8,11 @@ import { MarkdownLivePreview } from '../MarkdownLivePreview'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
+// JSDOM has no layout; ProseMirror still measures the caret during paste and pointer events.
+Range.prototype.getClientRects = () => [] as unknown as DOMRectList
+Range.prototype.getBoundingClientRect = () => new DOMRect()
+document.elementFromPoint = () => null
+
 // The real pipeline must render document-wide references, rather than independently parsed fragments.
 describe('Markdown document live preview', () => {
   it('renders tables, formulas and reference links without changing the source', async () => {
@@ -63,6 +68,22 @@ describe('Markdown document live preview', () => {
     await user.click(screen.getByRole('button', { name: 'Outside' }))
     expect(await screen.findByRole('heading', { name: 'Heading' })).toBeVisible()
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['first', 'First explanation.'],
+    ['second', 'Second explanation.']
+  ])('edits the %s footnote definition when its rendered text is clicked', async (id, explanation) => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const source =
+      'Text[^second] and [^first].\n\n[^first]: First explanation.\n\n[^second]: Second explanation.\n\n# End'
+    render(<MarkdownLivePreview label="Document" value={source} onChange={onChange} />)
+
+    await user.click(await screen.findByText(explanation))
+    await user.paste('EDIT ')
+
+    expect(onChange).toHaveBeenLastCalledWith(source.replace(`[^${id}]:`, `EDIT [^${id}]:`))
   })
 
   it('keeps read-only documents rendered when clicked', async () => {

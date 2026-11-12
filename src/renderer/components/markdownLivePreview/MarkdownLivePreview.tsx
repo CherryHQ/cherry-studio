@@ -20,6 +20,17 @@ import { handleMarkdownFormatKey } from './selectionFormatKeys'
 import { ComposerDocument, ComposerHardBreak, ComposerParagraph, ComposerText, ComposerUndoRedo } from './sourceSchema'
 
 const portalBlocks: Plugin<[], Root> = () => (tree) => {
+  for (const node of tree.children) {
+    if (node.type !== 'element' || !('dataFootnotes' in node.properties)) continue
+    const list = node.children.find((child) => child.type === 'element' && child.tagName === 'ol')
+    if (list?.type !== 'element') continue
+    // Footnotes render in reference order; each item retains its definition's source position.
+    for (const item of list.children) {
+      if (item.type === 'element' && item.position?.start.offset !== undefined) {
+        item.properties['data-source-from'] = item.position.start.offset
+      }
+    }
+  }
   tree.children = tree.children.map((node) => ({
     type: 'element',
     tagName: 'div',

@@ -59,7 +59,7 @@ export function createDocumentPreviewPlugin(onChange: (state: PreviewState) => v
       const dom = previousTargets.get(block.from)?.dom ?? document.createElement('div')
       dom.contentEditable = 'false'
       dom.className = 'markdown-live-block'
-      dom.dataset.sourceFrom = String(from)
+      dom.dataset.sourceFrom = String(block.from)
       dom.toggleAttribute('data-preview-first', block === renderedBlocks[0])
       dom.toggleAttribute('data-preview-last', block === renderedBlocks.at(-1))
       const index = renderedIndexes.get(block)
@@ -125,7 +125,8 @@ export function createDocumentPreviewPlugin(onChange: (state: PreviewState) => v
           const block = event.target.closest<HTMLElement>('[data-source-from]')
           if (!block) return false
           event.preventDefault()
-          const position = Number(block.dataset.sourceFrom)
+          const session = createMarkdownSession(view.state.doc, cachedSession)
+          const position = toDocumentPosition(session.lines, Number(block.dataset.sourceFrom))
           view.dispatch(
             view.state.tr.setSelection(TextSelection.create(view.state.doc, position)).setMeta(documentPreviewKey, true)
           )
