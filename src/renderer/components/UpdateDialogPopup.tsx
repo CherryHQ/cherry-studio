@@ -78,7 +78,10 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
           </p>
         </DialogHeader>
         <Divider className="my-0" />
-        <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-2' }} className="min-h-0 max-h-96">
+        <ScrollArea
+          contentProps={{ className: 'pr-2' }}
+          viewportProps={{ className: 'overflow-x-hidden' }}
+          className="min-h-0 max-h-96">
           {releaseInfo ? <UpgradeReleaseNotes releaseInfo={releaseInfo} /> : t('update.noReleaseNotes')}
         </ScrollArea>
         <Divider className="my-0" />

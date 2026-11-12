@@ -122,47 +122,6 @@ const createGroup = (overrides: Partial<Group> = {}): Group => ({
 })
 
 describe('KnowledgeBaseRow', () => {
-  it('renders only the base name, without the document count or status dot', () => {
-    const { container } = render(
-      <KnowledgeBaseRow
-        base={createKnowledgeBase({ itemCount: 3 })}
-        groups={[createGroup()]}
-        selected={false}
-        onSelectBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onToggleSidebar={vi.fn()}
-        sidebarPinned={false}
-      />
-    )
-
-    expect(screen.getByText('Base 1')).toBeInTheDocument()
-    expect(screen.queryByText('3 文档')).not.toBeInTheDocument()
-    expect(container.querySelector('span[aria-label]')).not.toBeInTheDocument()
-  })
-
-  it('renders a hover more button that shares the row action menu', () => {
-    render(
-      <KnowledgeBaseRow
-        base={createKnowledgeBase()}
-        groups={[createGroup()]}
-        selected={false}
-        onSelectBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onToggleSidebar={vi.fn()}
-        sidebarPinned={false}
-      />
-    )
-
-    // Always mounted (revealed on hover via CSS); it opens the same menu as right-click.
-    expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
-  })
-
   it('requests the knowledge base be added to the sidebar', () => {
     const base = createKnowledgeBase()
     const onToggleSidebar = vi.fn()

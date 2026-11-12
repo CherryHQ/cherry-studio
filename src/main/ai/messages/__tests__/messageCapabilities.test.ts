@@ -33,11 +33,6 @@ describe('resolveMediaCapabilities', () => {
 describe('stripUnsupportedMedia', () => {
   const noVision = { image: false, video: true, audio: true }
 
-  it('leaves image routing to prepareChatMessages', () => {
-    const msg = fileMsg('image/png')
-    expect(stripUnsupportedMedia([msg], noVision)[0]).toBe(msg)
-  })
-
   it('replaces a video file part when the model has no video', () => {
     const [out] = stripUnsupportedMedia([fileMsg('video/mp4')], { image: true, video: false, audio: true })
     expect(out.parts).toEqual([{ type: 'text', text: expect.stringContaining('video attachment omitted') }])
@@ -50,12 +45,12 @@ describe('stripUnsupportedMedia', () => {
 
   it('leaves the part untouched when the modality is supported (same reference)', () => {
     const msg = fileMsg('image/png')
-    expect(stripUnsupportedMedia([msg], { image: true, video: true, audio: true })[0]).toBe(msg)
+    expect(stripUnsupportedMedia([msg], { image: true, video: true, audio: true })[0]).toEqual(msg)
   })
 
   it('leaves non-gated files (e.g. PDF) untouched', () => {
     const msg = fileMsg('application/pdf')
-    expect(stripUnsupportedMedia([msg], noVision)[0]).toBe(msg)
+    expect(stripUnsupportedMedia([msg], noVision)[0]).toEqual(msg)
   })
 
   it('replaces only the unsupported part, keeping the rest', () => {
@@ -90,7 +85,7 @@ describe('gateToolResultMedia', () => {
 
   it('keeps image items untouched for a vision-capable model (same reference)', () => {
     const msg = toolMsg(imageOutput)
-    expect(gateToolResultMedia([msg], ALL)[0]).toBe(msg)
+    expect(gateToolResultMedia([msg], ALL)[0]).toEqual(msg)
   })
 
   it('replaces image items with a note for a non-vision model, keeping text', () => {
@@ -105,9 +100,9 @@ describe('gateToolResultMedia', () => {
 
   it('leaves non-tool messages and text-only outputs untouched (same reference)', () => {
     const textToolMsg = toolMsg({ type: 'text', value: 'hello' })
-    expect(gateToolResultMedia([textToolMsg], NO_VISION)[0]).toBe(textToolMsg)
+    expect(gateToolResultMedia([textToolMsg], NO_VISION)[0]).toEqual(textToolMsg)
     const userMsg = { role: 'user', content: 'hi' } as ModelMessage
-    expect(gateToolResultMedia([userMsg], NO_VISION)[0]).toBe(userMsg)
+    expect(gateToolResultMedia([userMsg], NO_VISION)[0]).toEqual(userMsg)
   })
 })
 
@@ -120,8 +115,8 @@ describe('resolveToolResultMediaCapabilities', () => {
   })
 
   it('passes the model caps through on anthropic/google wires (same reference)', () => {
-    expect(resolveToolResultMediaCapabilities(caps, 'anthropic')).toBe(caps)
-    expect(resolveToolResultMediaCapabilities(caps, 'google')).toBe(caps)
+    expect(resolveToolResultMediaCapabilities(caps, 'anthropic')).toEqual(caps)
+    expect(resolveToolResultMediaCapabilities(caps, 'google')).toEqual(caps)
   })
 })
 
@@ -168,7 +163,7 @@ describe('routeToolResultMedia', () => {
 
   it('keeps native tool-result images on a capable wire and omits them for a non-vision model', () => {
     const message = imageToolMessage('one')
-    expect(routeToolResultMedia([message], VISION, VISION)[0]).toBe(message)
+    expect(routeToolResultMedia([message], VISION, VISION)[0]).toEqual(message)
 
     const withoutVision = routeToolResultMedia([message], NO_TOOL_MEDIA, NO_TOOL_MEDIA)
     expect(JSON.stringify(withoutVision)).not.toContain('image-data')

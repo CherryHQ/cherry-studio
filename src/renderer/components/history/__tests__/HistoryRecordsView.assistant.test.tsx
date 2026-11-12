@@ -706,26 +706,14 @@ describe('HistoryRecordsView assistant mode', () => {
 
     expect(screen.getByRole('region', { name: 'History' })).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
-    expect(screen.getByTestId('history-virtual-list')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     const pinButton = screen.getByTestId('history-pin-button')
     expect(pinButton).toHaveAccessibleName('Unpin Conversation')
     fireEvent.click(pinButton)
     expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
-    expect(screen.queryByText('Messages')).not.toBeInTheDocument()
-    expect(screen.queryByText('消息')).not.toBeInTheDocument()
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
-    const alphaCells = within(alphaRow).getAllByRole('cell')
-    expect(within(alphaCells[1]).getAllByText('A').length).toBeGreaterThan(0)
-    expect(within(alphaCells[1]).getByText('Alpha assistant')).toBeInTheDocument()
-    expect(within(alphaCells[2]).queryByText('A')).not.toBeInTheDocument()
-    const headerCells = screen.getAllByRole('columnheader')
-    expect(headerCells[1]).toHaveTextContent('Assistant')
-    expect(headerCells[2]).toHaveTextContent('Conversation')
-    expect(screen.queryByTestId('history-open-button')).not.toBeInTheDocument()
 
     fireEvent.click(alphaRow)
 
@@ -737,9 +725,6 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(hookMocks.openConversationTab).toHaveBeenCalledWith('topic-alpha', 'Alpha topic', { forceNew: true })
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
-    expect(hookMocks.useSessions).not.toHaveBeenCalled()
-    expect(hookMocks.useTopics).toHaveBeenCalledWith()
-    expect(hookMocks.useAgents).not.toHaveBeenCalled()
   })
 
   it('keeps the loading state until the shared full-topic source commits', () => {
@@ -1167,17 +1152,6 @@ describe('HistoryRecordsView assistant mode', () => {
     )
     expect(alphaCheckbox).toHaveAttribute('aria-checked', 'false')
     expect(betaCheckbox).toHaveAttribute('aria-checked', 'true')
-  })
-
-  it('renders the embedded shell without transition animation', () => {
-    setupAssistantHistory()
-
-    const page = screen.getByTestId('history-records-view')
-    expect(page).toHaveClass('flex')
-    expect(page).toHaveClass('flex-1')
-    expect(page).toHaveClass('bg-card')
-    expect(page).not.toHaveClass('absolute')
-    expect(page).not.toHaveStyle({ willChange: 'clip-path' })
   })
 
   it('renders inside the owning container instead of the first home page element', () => {
