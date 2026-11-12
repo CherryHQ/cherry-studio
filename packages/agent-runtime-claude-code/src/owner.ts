@@ -809,7 +809,8 @@ export class ClaudeOwner {
       await Promise.race([
         Promise.all([this.pump, this.exit]),
         new Promise<void>((resolve) => {
-          timeout = setTimeout(resolve, 5000)
+          // Allow the SDK's exit escalation, which waits 2s + 5s before SIGKILL on Windows.
+          timeout = setTimeout(resolve, 10_000)
         })
       ])
       clearTimeout(timeout)

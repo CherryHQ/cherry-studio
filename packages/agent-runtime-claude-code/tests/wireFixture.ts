@@ -57,28 +57,34 @@ export function assistantMessage(
 }
 
 /** Controlled subprocess transport consumed by the real native SDK. */
-export function wireProcess(contextUsage?: () => Promise<SDKControlGetContextUsageResponse>) {
+export function wireProcess(contextUsage?: () => Promise<SDKControlGetContextUsageResponse>, autoExit = true) {
   const stdin = new PassThrough()
   const stdout = new PassThrough()
   const process = new EventEmitter() as EventEmitter & SpawnedProcess
   let exited = false
+  let exitCode: number | null = null
+  let killed = false
   Object.assign(process, {
     stdin,
     stdout,
     kill: () => {
-      exit()
+      killed = true
+      if (autoExit) exit()
       return true
     }
   })
-  Object.defineProperty(process, 'exitCode', { get: () => (exited ? 0 : null) })
-  Object.defineProperty(process, 'killed', { get: () => exited })
-  function exit() {
+  Object.defineProperty(process, 'exitCode', { get: () => exitCode })
+  Object.defineProperty(process, 'killed', { get: () => killed })
+  function exit(code = 0) {
     if (exited) return
     exited = true
+    exitCode = code
     stdout.end()
-    process.emit('exit', 0, null)
+    process.emit('exit', code, null)
   }
-  stdin.on('finish', exit)
+  stdin.on('finish', () => {
+    if (autoExit) exit()
+  })
   const inputs: SDKUserMessage[] = []
   let buffer = ''
   stdin.on('data', (chunk) => {

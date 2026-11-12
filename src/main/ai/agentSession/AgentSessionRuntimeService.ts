@@ -3349,9 +3349,15 @@ export class AgentSessionRuntimeService extends BaseService {
     const connectionAttempt = this.connectionAttempts.get(entry.sessionId)?.promise
     const connection = this.currentConnection(entry)
     const connectionLoop = entry.connectionLoop
-    await this.closeRuntimeConnection(connection, entry.sessionId, true, interrupt)
+    let nativeClosed = false
+    try {
+      await this.closeRuntimeConnection(connection, entry.sessionId, true, interrupt)
+      nativeClosed = true
+    } catch {
+      // Failed native ownership stays tracked while product reply persistence releases admission.
+    }
     if (connectionAttempt) await connectionAttempt.catch(() => undefined)
-    if (connectionLoop) await connectionLoop
+    if (nativeClosed && connectionLoop) await connectionLoop
     await streamDrain
     for (const turn of getAgentSessionRuntimeTurns(entry.runtimeState)) {
       const reply = getAgentSessionRuntimeReply(entry.runtimeState, turn)
@@ -3467,7 +3473,10 @@ export class AgentSessionRuntimeService extends BaseService {
           this.failedClosureResumeTokens.delete(connection)
           if (failed?.size === 0) this.failedClosures.delete(sessionId)
           if (completedLate && entry?.closing && this.isCurrentEntry(entry))
-            queueMicrotask(() => void this.closeSession(sessionId))
+            queueMicrotask(() => {
+              if (this.entries.get(sessionId) === entry && this.currentConnection(entry) === connection)
+                void this.closeSession(sessionId)
+            })
           this.syncRuntimeActivity()
         }),
         new Promise<never>((_, reject) => {

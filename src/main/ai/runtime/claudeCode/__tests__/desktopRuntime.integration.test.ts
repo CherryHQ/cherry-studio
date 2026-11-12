@@ -1,16 +1,19 @@
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, realpath, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { Worker } from 'node:worker_threads'
 
-import { startup, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import { startup, type SDKUserMessage, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterEach, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
 import type { ClaudeThreadHandle } from '@cherrystudio/agent-runtime-claude-code'
 import { agentTable } from '@data/db/schemas/agent'
@@ -28,8 +31,10 @@ import { ChildThreadProjection, savedChildView } from '@main/ai/agentSession/Chi
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import { ClaudeFeed } from '../../../../../../packages/agent-runtime-claude-code/src/observation'
@@ -46,6 +51,11 @@ vi.mock(
   '@cherrystudio/agent-runtime-claude-code',
   () => import('../../../../../../packages/agent-runtime-claude-code/src')
 )
+
+vi.mock('../forkWorker?nodeWorker', () => ({
+  default: (options: ConstructorParameters<typeof Worker>[1]) =>
+    new Worker(new URL('../forkWorker.ts', import.meta.url), options)
+}))
 
 const ports = vi.hoisted(() => ({ build: vi.fn(), consume: vi.fn(), spawn: vi.fn(), derive: vi.fn() }))
 vi.mock('../agentSessionWarmup', async (original) => {
@@ -1378,4 +1388,330 @@ it.each([
     expect(existsSync(path.join(test.options.cwd, 'marker.txt'))).toBe(runs)
   },
   30000
+)
+
+// The child is a live wire-protocol fixture; SDK termination requests are recorded without killing it.
+it.each([8_000, 12_000, 22_000])(
+  'recovers Stop admission and ownership after a live subprocess exits at %i ms',
+  async (exitDelay) => {
+    BaseService.resetInstances()
+    runtimeDriverRegistry.clearForTest()
+    const observations: {
+      event: string
+      elapsed: number
+      pid?: number
+      code?: number | null
+      busy?: boolean
+      activity?: boolean
+      tokens?: string[]
+    }[] = []
+    let stoppedAt = 0
+    const mark = (event: string, extra = {}) =>
+      observations.push({ event, elapsed: stoppedAt ? Date.now() - stoppedAt : 0, ...extra })
+    const inputs: SDKUserMessage[] = []
+    const exited = Promise.withResolvers<void>()
+    let first = true
+    const replacement = wireProcess()
+    const answer = assistantMessage('fixture', [{ type: 'text', text: 'Persist this paused answer', citations: null }])
+    const child = spawn(
+      process.execPath,
+      [
+        '-e',
+        String.raw`
+    const readline = require('node:readline');
+    let endpoint;
+    const send = value => process.stdout.write(JSON.stringify(value) + '\n');
+    process.on('message', value => { if (value.endpoint) endpoint = value.endpoint; });
+    const lines = readline.createInterface({ input: process.stdin });
+    lines.on('line', line => {
+      const frame = JSON.parse(line);
+      if (frame.type === 'control_request') send({ type: 'control_response', response: { subtype: 'success', request_id: frame.request_id, response: { commands: [], models: [], agents: [] } } });
+      if (frame.type === 'user') {
+        process.send(frame);
+        send({ type: 'system', subtype: 'init', session_id: frame.session_id, uuid: frame.uuid, tools: [], mcp_servers: [], model: 'claude-sonnet-4-6', permissionMode: 'default', slash_commands: [], agents: [], skills: [], plugins: [] });
+        if (endpoint) fetch(endpoint + '/v1/messages', { method: 'POST', body: JSON.stringify({ messages: [frame.message] }) })
+          .then(response => response.text()).then(body => {
+            const text = body.split('\n').filter(line => line.startsWith('data: ')).map(line => JSON.parse(line.slice(6))).filter(event => event.type === 'content_block_delta').map(event => event.delta.text || '').join('');
+            const template = ${JSON.stringify(answer)};
+            send({ ...template, session_id: frame.session_id, user_message_uuid: frame.uuid, message: { ...template.message, content: [{ type: 'text', text, citations: null }] } });
+          }).catch(error => { process.stderr.write(String(error)); process.exit(2); });
+      }
+    });
+    lines.on('close', () => { process.send({ type: 'stdin-ended' }); setTimeout(() => process.exit(1), ${exitDelay}); });
+  `
+      ],
+      { stdio: ['pipe', 'pipe', 'pipe', 'ipc'] as const }
+    ) as ChildProcessWithoutNullStreams
+    child.stderr.resume()
+    const kill = child.kill.bind(child)
+    child.kill = () => {
+      mark('sdk-kill-request')
+      return true
+    }
+    child.on('message', (message) => {
+      const frame = message as SDKUserMessage | { type: 'stdin-ended' }
+      if (frame.type === 'user') inputs.push(frame)
+      else mark('stdin-ended')
+    })
+    child.once('exit', (code) => {
+      mark('raw-exit', { pid: child.pid, code })
+      exited.resolve()
+    })
+    cleanups.push(async () => {
+      if (child.exitCode === null) kill('SIGKILL')
+      await exited.promise
+    })
+    const test = await desktop({
+      spawnClaudeCodeProcess: () => {
+        if (first) {
+          first = false
+          return child
+        }
+        return replacement.process
+      }
+    })
+    const agentId = randomUUID()
+    const modelId = 'native-test::claude-sonnet-4-6'
+    dbh.db.insert(userProviderTable).values({ providerId: 'native-test', name: 'Test', orderKey: 'a0' }).run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: modelId,
+        providerId: 'native-test',
+        modelId: 'claude-sonnet-4-6',
+        name: 'Model',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db
+      .insert(agentTable)
+      .values({ id: agentId, type: 'claude-code', name: 'Agent', instructions: '', model: modelId, orderKey: 'a0' })
+      .run()
+    dbh.db.update(agentSessionTable).set({ agentId }).where(eq(agentSessionTable.id, test.sessionId)).run()
+    let ownedConnection: AgentRuntimeConnection | undefined
+    const driver = new ClaudeCodeRuntimeDriver()
+    vi.spyOn(driver, 'validateSession').mockResolvedValue(undefined)
+    vi.spyOn(driver, 'connect').mockImplementation(async (input) => {
+      const connection = await test.connect(undefined, undefined, false, input)
+      vi.spyOn(connection, 'reconcile').mockResolvedValue('current')
+      ownedConnection ??= connection
+      return connection
+    })
+    runtimeDriverRegistry.register(driver)
+    const service = new AgentSessionRuntimeService()
+    const manager = new AiStreamManager()
+    const activity = new RuntimeActivityService()
+    MockApplicationUtils.setService('AgentSessionRuntimeService', service)
+    MockApplicationUtils.setService('AiStreamManager', manager)
+    MockApplicationUtils.setService('RuntimeActivityService', activity)
+    MockApplicationUtils.setService('PowerService', { preventSleep: () => ({ dispose() {} }) })
+    cleanups.push(async () => {
+      replacement.exit(1)
+      if (child.exitCode === null) kill('SIGKILL')
+      await exited.promise
+      await service.closeSession(test.sessionId)
+      runtimeDriverRegistry.clearForTest()
+      BaseService.resetInstances()
+    })
+    const topicId = `agent-session:${test.sessionId}`
+    const begin = (text: string) => {
+      const user = test.input(text).message
+      const reply = messages.saveMessage({
+        sessionId: test.sessionId,
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      const handle = service.beginTurn({
+        sessionId: test.sessionId,
+        topicId,
+        agentId,
+        agentType: 'claude-code',
+        modelId,
+        assistantMessageId: reply.id,
+        userMessage: user,
+        headless: true
+      })
+      const source = service.openTurnStream({
+        sessionId: test.sessionId,
+        turnId: handle.turnId,
+        signal: handle.abortController.signal
+      })
+      if (source.kind !== 'messages') throw new Error('Expected message stream')
+      const observed: string[] = []
+      const reading = pipeMessageStream(
+        source.stream,
+        handle.abortController.signal,
+        { id: reply.id, role: 'assistant', parts: [] },
+        (message) => {
+          observed.splice(
+            0,
+            observed.length,
+            ...message.parts.filter((part) => part.type === 'text').map((part) => part.text)
+          )
+        },
+        () => {}
+      )
+      return { user, reply, handle, reading, observed }
+    }
+    child.send({ endpoint: test.options.env?.ANTHROPIC_BASE_URL })
+    const run = begin('Before Stop')
+    await Promise.race([
+      expect.poll(() => inputs.length).toBe(1),
+      run.reading.then((result) => {
+        throw new Error(
+          JSON.stringify({
+            result,
+            error: result.threw && String(result.threw.error),
+            snapshot: service.inspect(test.sessionId)
+          })
+        )
+      })
+    ])
+    const request = await test.request()
+    request.reply.block({ type: 'text', text: 'Persist this paused answer' })
+    request.reply.finish()
+    await expect.poll(() => run.observed).toEqual(['Persist this paused answer'])
+    const nativeSessionId = inputs[0].session_id
+    const archiveDirectory = path.join(
+      test.configDir,
+      'projects',
+      (await realpath(test.options.cwd)).replace(/[^a-zA-Z0-9]/g, '-')
+    )
+    await mkdir(archiveDirectory, { recursive: true })
+    const userEntry = {
+      type: 'user',
+      uuid: inputs[0].uuid,
+      parentUuid: null,
+      sessionId: nativeSessionId,
+      cwd: test.options.cwd,
+      timestamp: new Date().toISOString(),
+      version: '2.1.0',
+      isSidechain: false,
+      message: inputs[0].message
+    }
+    const assistantEntry = {
+      ...userEntry,
+      type: 'assistant',
+      uuid: answer.uuid,
+      parentUuid: inputs[0].uuid,
+      message: answer.message
+    }
+    await writeFile(
+      path.join(archiveDirectory, `${nativeSessionId}.jsonl`),
+      [userEntry, assistantEntry].map((value) => JSON.stringify(value)).join('\n') + '\n'
+    )
+    await expect.poll(() => service.listClaimedResumeTokens()).toEqual(new Set([nativeSessionId]))
+    stoppedAt = Date.now()
+    mark('stop', { pid: child.pid })
+    let barrierSettled = false
+    const closing = manager.abortAndDrain(topicId, 'user-stop').then(() => {
+      barrierSettled = true
+      mark('stop-barrier')
+    })
+    await new Promise((resolve) => setTimeout(resolve, 5_100))
+    expect(barrierSettled).toBe(false)
+    expect(child.exitCode).toBeNull()
+    expect(() => service.assertSessionWritable(test.sessionId)).toThrow('busy')
+    const nativeClose = ownedConnection!.close()
+    expect(ownedConnection!.close()).toBe(nativeClose)
+    let nativeSettled = false
+    void Promise.resolve(nativeClose).then(() => {
+      nativeSettled = true
+    })
+    if (exitDelay > 10_000) {
+      await new Promise((resolve) => setTimeout(resolve, 5_100))
+      expect(barrierSettled).toBe(false)
+      expect(child.exitCode).toBeNull()
+      expect(nativeSettled).toBe(false)
+      mark('owner-budget-passed', { busy: service.hasBusySessions(), activity: activity.hasActiveTasks() })
+    }
+    if (exitDelay > 20_000) {
+      await closing
+      expect(child.exitCode).toBeNull()
+      expect(service.isSessionBusy(test.sessionId)).toBe(false)
+      expect(service.hasBusySessions()).toBe(true)
+      expect(activity.hasActiveTasks()).toBe(true)
+      expect(service.listClaimedResumeTokens().size).toBe(1)
+      expect(() => service.assertSessionEditable(test.sessionId)).toThrow('close_failed')
+      expect(() => service.forkSession(test.sessionId, run.reply.id)).toThrow('close_failed')
+      mark('deadline-released-admission', {
+        busy: service.hasBusySessions(),
+        activity: activity.hasActiveTasks(),
+        tokens: [...service.listClaimedResumeTokens()]
+      })
+      const next = begin('Append while old child is alive')
+      await expect.poll(() => replacement.inputs.length).toBe(1)
+      expect(replacement.inputs[0].uuid).toBe(next.user.id)
+      await manager.abortAndDrain(topicId, 'user-stop')
+      await next.reading
+    }
+    await exited.promise
+    await nativeClose
+    await closing
+    await run.reading
+    await expect.poll(() => service.hasBusySessions()).toBe(false)
+    expect(activity.hasActiveTasks()).toBe(false)
+    expect(service.listClaimedResumeTokens()).toEqual(new Set())
+    service.assertSessionEditable(test.sessionId)
+    const saved = messages.getSessionMessage(test.sessionId, run.reply.id)
+    expect(saved.status).toBe('paused')
+    expect(saved.data.parts?.filter((part) => part.type === 'text').map((part) => part.text)).toEqual([
+      'Persist this paused answer'
+    ])
+    expect(child.exitCode).toBe(1)
+    mark('automatic-release', {
+      busy: service.hasBusySessions(),
+      activity: activity.hasActiveTasks(),
+      tokens: [...service.listClaimedResumeTokens()]
+    })
+    if (exitDelay < 20_000) {
+      const next = begin('Append after teardown')
+      await expect.poll(() => replacement.inputs.length).toBe(1)
+      expect(replacement.inputs[0].uuid).toBe(next.user.id)
+      await manager.abortAndDrain(topicId, 'user-stop')
+      await next.reading
+      expect(service.hasBusySessions()).toBe(false)
+    }
+    const getPath = application.getPath.bind(application)
+    const paths = vi
+      .spyOn(application, 'getPath')
+      .mockImplementation((key, filename) =>
+        key === 'feature.agents.forks' ? path.join(test.directory, 'forks', filename ?? '') : getPath(key, filename)
+      )
+    cleanups.push(async () => {
+      paths.mockRestore()
+    })
+    const context = sessionContexts(test.sessionId).find((value) => value.nativeThreadId === nativeSessionId)!
+    const history = messages.saveMessage({
+      sessionId: test.sessionId,
+      runtimeResumeToken: nativeSessionId,
+      nativeContextId: context.id,
+      runtimeAnchor: {
+        checkpoint: {
+          runtime: 'claude-code',
+          runtimeSessionId: nativeSessionId,
+          messageUuid: answer.uuid,
+          configDir: test.configDir
+        }
+      },
+      message: {
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Completed history fixture' }] }
+      }
+    })
+    const forked = await service.forkSession(test.sessionId, history.id)
+    expect(forked).not.toBe(test.sessionId)
+    expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, forked)).get()).toBeDefined()
+    const target = await service.getEditTarget(test.sessionId, run.user.id)
+    expect(target.parts).toEqual([{ type: 'text', text: 'Before Stop' }])
+    await expect(service.editSession(test.sessionId, target, () => 'edited')).resolves.toBe('edited')
+    if (process.env.CLAUDE_STOP_PROBE_DIR)
+      await writeFile(
+        path.join(process.env.CLAUDE_STOP_PROBE_DIR, `stop-${exitDelay}.json`),
+        JSON.stringify(observations, null, 2)
+      )
+  },
+  60_000
 )
