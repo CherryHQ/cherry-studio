@@ -36,11 +36,18 @@ $start | ConvertTo-Json -Compress
 $verifiedPath = Join-Path $PSScriptRoot "$EvidencePrefix-sqlite-evidence.json"
 $deadline = [DateTime]::UtcNow.AddSeconds(150)
 do {
-  $output = node (Join-Path $PSScriptRoot 'verify-migrated-data.cjs') $root $verifiedPath 2>&1
-  if ($LASTEXITCODE -eq 0) { break }
+  $previousErrorAction = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $output = node (Join-Path $PSScriptRoot 'verify-migrated-data.cjs') $root $verifiedPath 2>&1
+    $verificationExit = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorAction
+  }
+  if ($verificationExit -eq 0) { break }
   Start-Sleep -Seconds 1
 } while ([DateTime]::UtcNow -lt $deadline)
-if ($LASTEXITCODE -ne 0) { throw ($output | Out-String) }
+if ($verificationExit -ne 0) { throw ($output | Out-String) }
 $output
 
 $deadline = [DateTime]::UtcNow.AddSeconds(15)
