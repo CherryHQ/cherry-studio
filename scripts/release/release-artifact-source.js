@@ -39,6 +39,12 @@ function selectArchive(artifacts, { tag, sha, excludedRunId }) {
     .sort((a, b) => b.id - a.id)[0]
 }
 
+function validatePublishedRelease(release, tag, sha, tagSha) {
+  if (release.draft !== false || release.tag_name !== tag || release.target_commitish !== sha || tagSha !== sha) {
+    throw new Error('Sync requires a published GitHub release and tag matching the archive SHA')
+  }
+}
+
 function main() {
   const command = process.argv[2]
   const { GH_REPO: repository, TAG: tag, RELEASE_SHA: sha } = process.env
@@ -74,12 +80,7 @@ function main() {
     throw new Error('sync-only requires the original release run_id')
   }
   const run = api(`repos/${repository}/actions/runs/${runId}`)
-  const releaseSha = validateSourceRun(run, {
-    repository,
-    tag,
-    sha: command === 'baseline' ? sha : undefined,
-    allPlatforms: command === 'sync'
-  })
+  const releaseSha = validateSourceRun(run, { repository, tag, sha, allPlatforms: command === 'sync' })
   if (!archive) {
     const pages = JSON.parse(
       gh(['api', '--paginate', '--slurp', `repos/${repository}/actions/runs/${runId}/artifacts?per_page=100`])
@@ -90,7 +91,15 @@ function main() {
     )
     if (!archive) throw new Error('Release archive is missing or expired; it cannot be rebuilt by sync-only')
   }
-  fs.appendFileSync(process.env.GITHUB_OUTPUT, `run-id=${runId}\nartifact-id=${archive.id}\n`)
+  if (command === 'sync') {
+    const release = api(`repos/${repository}/releases/tags/${tag}`)
+    const tagSha = gh(['api', `repos/${repository}/commits/${tag}`, '--jq', '.sha'])
+    validatePublishedRelease(release, tag, releaseSha, tagSha)
+  }
+  fs.appendFileSync(
+    process.env.GITHUB_OUTPUT,
+    `run-id=${runId}\nsha=${releaseSha}\nartifact-id=${archive.id}\ntag=${tag}\n`
+  )
 }
 if (require.main === module) {
   try {
@@ -100,4 +109,4 @@ if (require.main === module) {
     process.exitCode = 1
   }
 }
-module.exports = { selectArchive, validateSourceRun }
+module.exports = { selectArchive, validatePublishedRelease, validateSourceRun }

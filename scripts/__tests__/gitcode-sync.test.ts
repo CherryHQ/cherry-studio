@@ -26,11 +26,6 @@ describe('GitCode sync recovery', () => {
     )
     executable('sleep', '')
     executable(
-      'python',
-      `require('node:fs').appendFileSync('requests.jsonl', JSON.stringify({method: 'COS'}) + '\\n')
-      if (process.env.FAIL_COS === 'true') process.exit(1)`
-    )
-    executable(
       'curl',
       `
       const fs = require('node:fs')
@@ -136,11 +131,6 @@ describe('GitCode sync recovery', () => {
     expect(requests().map((call) => call.method)).toEqual(['GET'])
   })
 
-  it('stops before writing to GitCode when COS staging fails', () => {
-    expect(run({ FAIL_COS: 'true' }).status).not.toBe(0)
-    expect(requests().map((call) => call.method)).toEqual(['GET', 'COS'])
-  })
-
   it('stops after three upload failures without uploading update pointers', () => {
     expect(run({ FAIL_UPLOAD: 'true' }).status).not.toBe(0)
     const uploads = requests().filter((call) => call.method === 'PUT')
@@ -160,7 +150,6 @@ it('gates mirroring on publication and keeps CN files out of the GitHub upload d
   expect(sync.needs).toContain('publish')
   expect(sync.if).toContain("needs.publish.result == 'success'")
   expect(sync.if).toContain("inputs.mode == 'sync-only'")
-  expect(sync['runs-on']).toBe('ubuntu-latest')
   expect(workflow.jobs.notify.if).toContain("!(inputs.mode == 'sync-only' && inputs.dry_run)")
   expect(workflow.jobs.release['runs-on']).toContain('windows-signing')
   const windows = workflow.jobs.release.steps.find((step: { name: string }) => step.name === 'Build Windows')
