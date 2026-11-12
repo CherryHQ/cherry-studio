@@ -1,6 +1,8 @@
 import { execFileSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 
 import AdmZip from 'adm-zip'
 import { parse } from 'yaml'
@@ -21,7 +23,7 @@ import { startMockUpdateServer } from '../../../helpers/http/mockUpdateServer'
 import { expect, test } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
 import { selectVisibleModel } from '../helpers/models'
-import { selectSidebarApp, dismissOnboarding, openHelpMenu } from '../helpers/navigation'
+import { selectSidebarApp, dismissOnboarding, openAccountMenu, openHelpMenu } from '../helpers/navigation'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
 import { revealVirtualized } from '../helpers/virtualList'
 import { feishuChannelSettings } from '../scenarios/feishuChannelSettings'
@@ -1202,4 +1204,78 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
 
 test(...caseDefinition('MP-147'), async ({ app, mainWindow }, testInfo) => {
   await longUserMessageExpansion(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-172'), async ({ app, mainWindow: page }, testInfo) => {
+  const ids = [randomUUID(), randomUUID()]
+  const database = new DatabaseSync(
+    join(
+      app.paths.profiles,
+      app.record.profile,
+      ...(app.record.mode === 'branch' ? ['userData'] : []),
+      'Data',
+      'cherrystudio.sqlite'
+    )
+  )
+  const unread = database
+    .prepare('SELECT id FROM notification_record WHERE read_at IS NULL AND dismissed_at IS NULL')
+    .all() as { id: string }[]
+  const insert = database.prepare(
+    'INSERT INTO notification_record (id, event_key, category, kind, title, message, created_at, target) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  )
+  try {
+    for (const [index, id] of ids.entries()) {
+      insert.run(
+        id,
+        `MP-172-${id}`,
+        'system',
+        'test',
+        `MP-172 notification ${index + 1}`,
+        'Notification regression',
+        Date.now() + index,
+        JSON.stringify({ kind: 'settings', tab: 'data' })
+      )
+    }
+    await page.reload()
+    const trigger = page.locator('[data-notification-anchor="left"]').first()
+    await expect(trigger).toHaveAccessibleDescription(/Unread/)
+    let menu = await openAccountMenu(page)
+    const entry = menu.getByRole('button', { name: 'Notifications', exact: true })
+    await expect(entry).toHaveAccessibleDescription('Unread')
+    await entry.click()
+    let center = page.locator('#notification-center')
+    await expect(center).toBeVisible()
+    const item = center.getByRole('button', { name: 'MP-172 notification 1', exact: true })
+    await expect(item).toHaveAccessibleDescription('Unread')
+    const path = testInfo.outputPath('MP-172 notification center.png')
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach('MP-172 notification center', { path, contentType: 'image/png' })
+    await item.click()
+    await expect(center).toBeHidden()
+    await expect(page.locator('[data-ui~="settings.view"]')).toBeVisible()
+    await expect(page.locator('[data-ui~="settings.content"]')).toContainText('Data')
+    await closeSettings(page)
+    menu = await openAccountMenu(page)
+    await menu.getByRole('button', { name: 'Notifications', exact: true }).click()
+    center = page.locator('#notification-center')
+    await expect(
+      center.getByRole('button', { name: 'MP-172 notification 1', exact: true })
+    ).not.toHaveAccessibleDescription('Unread')
+    await expect(
+      center.getByRole('button', { name: 'MP-172 notification 2', exact: true })
+    ).toHaveAccessibleDescription('Unread')
+    await center.getByRole('button', { name: 'Mark all as read', exact: true }).click()
+    await expect(center.getByRole('button', { name: 'Mark all as read', exact: true })).toBeDisabled()
+    await expect(trigger).not.toHaveAccessibleDescription(/Unread/)
+    await expect(
+      center.getByRole('button', { name: 'MP-172 notification 2', exact: true })
+    ).not.toHaveAccessibleDescription('Unread')
+  } finally {
+    const remove = database.prepare('DELETE FROM notification_record WHERE id = ?')
+    for (const id of ids) remove.run(id)
+    const restore = database.prepare('UPDATE notification_record SET read_at = NULL WHERE id = ?')
+    for (const { id } of unread) restore.run(id)
+    database.close()
+    await page.reload()
+  }
 })

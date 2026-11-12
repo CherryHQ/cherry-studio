@@ -36,13 +36,20 @@ export async function openLaunchpadApp(page: Page, name: string): Promise<void> 
   await page.getByRole('button', { name, exact: true }).last().click()
 }
 
-async function openAccountMenu(page: Page): Promise<Locator> {
+export async function openAccountMenu(page: Page): Promise<Locator> {
   const accountMenu = page.locator('[aria-label="Account menu"], [aria-label="账户菜单"]')
-  if (!(await accountMenu.isVisible())) {
-    await page
-      .locator('[data-ui~="app.sidebar"]')
-      .getByRole('button', { name: /^(User|用户)$/ })
-      .click()
+  if (!(await accountMenu.isVisible().catch(() => false))) {
+    // The sidebar user trigger no longer exposes a fixed "User" accessible name: it is
+    // labelled with the signed-in account name and carries data-notification-anchor="left".
+    const userTrigger = page.locator('[data-notification-anchor="left"]')
+    if ((await userTrigger.count()) > 0) {
+      await userTrigger.first().click()
+    } else {
+      await page
+        .locator('[data-ui~="app.sidebar"]')
+        .getByRole('button', { name: /^(User|用户)$/ })
+        .click()
+    }
   }
   await expect(accountMenu).toBeVisible()
   return accountMenu
