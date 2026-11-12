@@ -491,3 +491,30 @@ describe('CMD conditional command positions', () => {
     expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
   })
 })
+
+describe('CMD empty quoted equality operands', () => {
+  for (const prefix of ['', 'cmd /c ', 'cmd.exe /k ']) {
+    for (const condition of [
+      '"%x%"==""',
+      '"a"==""',
+      '""==""',
+      '""=="a"',
+      '"a" == ""',
+      '"" == ""',
+      '"a"== ""',
+      '"" =="a"'
+    ]) {
+      it(`denies ${prefix}if ${condition} del`, () => {
+        expect(detectDestructiveAssistantCommand(`${prefix}if ${condition} del b`)).toBe(
+          'permanent Windows file deletion'
+        )
+        expect(detectDestructiveAssistantCommand(`${prefix}if ${condition} rd /s x`)).toBe(
+          'permanent Windows file deletion'
+        )
+      })
+      it(`allows ${prefix}if ${condition} echo del`, () => {
+        expect(detectDestructiveAssistantCommand(`${prefix}if ${condition} echo del x`)).toBeUndefined()
+      })
+    }
+  }
+})

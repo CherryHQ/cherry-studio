@@ -403,9 +403,14 @@ function powershellCommand(args: readonly string[]): string | undefined {
   return index < args.length ? args.slice(index).join(' ') : undefined
 }
 
-function cmdCommand(args: readonly string[]): string | undefined {
+function cmdCommand(args: readonly string[], rawArgs?: readonly string[]): string | undefined {
   const flagIndex = args.findIndex((arg) => /^\/[ck]$/i.test(arg))
-  return flagIndex >= 0 && args[flagIndex + 1] !== undefined ? args.slice(flagIndex + 1).join(' ') : undefined
+  if (flagIndex < 0 || args[flagIndex + 1] === undefined) return undefined
+  const values = args.slice(flagIndex + 1)
+  const source = rawArgs?.slice(flagIndex + 1)
+  // One quoted argument is the command program, not a quoted executable name.
+  if (values.length === 1 && source?.[0].startsWith('"') && source[0].endsWith('"')) return source[0].slice(1, -1)
+  return (source ?? values).join(' ')
 }
 
 function skipOptions(args: readonly string[], start: number, valueFlags: ReadonlySet<string>): number {
@@ -561,7 +566,12 @@ function analyzeArgv(argv: readonly string[] | undefined, depth: number): string
   return resolved === undefined ? undefined : reasonForCommand({ ...resolved, substitutions: [] }, depth + 1)
 }
 
-function reasonForNestedCommand(name: string, args: readonly string[], depth: number): string | undefined {
+function reasonForNestedCommand(
+  name: string,
+  args: readonly string[],
+  depth: number,
+  rawArgs?: readonly string[]
+): string | undefined {
   if (depth >= MAX_ANALYSIS_DEPTH) return undefined
   if (SHELLS.has(name)) return analyzeNested(shellCodeArgument(args), depth)
   if (PYTHON.has(name)) {
@@ -573,7 +583,7 @@ function reasonForNestedCommand(name: string, args: readonly string[], depth: nu
     return code === undefined ? undefined : detectNodeDeletion(code)
   }
   if (POWERSHELL.has(name)) return analyzeNested(powershellCommand(args), depth)
-  if (CMD.has(name)) return analyzeNested(cmdCommand(args), depth)
+  if (CMD.has(name)) return analyzeNested(cmdCommand(args, rawArgs), depth)
   if (name === 'ssh') return analyzeNested(sshCommand(args), depth)
   if (name === 'su' || name === 'runuser') return analyzeNested(suCommand(args), depth)
   if (name === 'chroot') return analyzeArgv(chrootArgv(args), depth)
@@ -587,7 +597,7 @@ function reasonForCommand(command: ShellCommand, depth: number): string | undefi
   if (UNIX_DELETION.has(name)) return 'permanent file deletion'
   if (WINDOWS_DELETION.has(name)) return 'permanent Windows file deletion'
 
-  const scripted = reasonForNestedCommand(name, args, depth)
+  const scripted = reasonForNestedCommand(name, args, depth, command.rawArgs)
   if (scripted) return scripted
 
   if (name === 'find' && findDeletes(args)) return 'recursive find deletion'
