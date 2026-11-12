@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -112,6 +113,39 @@ function sameLocation(a: string, b: string) {
   const normalize = (value: string) =>
     process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value)
   return normalize(a) === normalize(b)
+}
+
+const portableTrayBackupSchema = z.object({ configExisted: z.boolean(), trayOnClose: z.unknown().optional() })
+const legacySettingsSchema = z.record(z.string(), z.unknown())
+
+/** The original launcher can recover its legacy close setting after an interrupted portable handoff. */
+export function restoreInterruptedPortableTraySetting(executable: string, profile: string): 'busy' | 'ready' {
+  const config = getLegacyProfilePaths(profile).config
+  const backup = config + '.portable-migration.json'
+  try {
+    if (statIfPresent(executable + '.update-lock')) return 'busy'
+  } catch (error) {
+    if (['EACCES', 'EPERM', 'EBUSY'].includes((error as NodeJS.ErrnoException).code ?? '')) return 'busy'
+    throw error
+  }
+  if (!statIfPresent(backup)) return 'ready'
+  const saved = portableTrayBackupSchema.parse(JSON.parse(fs.readFileSync(backup, 'utf8')))
+  const settings = statIfPresent(config) ? legacySettingsSchema.parse(JSON.parse(fs.readFileSync(config, 'utf8'))) : {}
+  if (Object.hasOwn(saved, 'trayOnClose')) settings.trayOnClose = saved.trayOnClose
+  else delete settings.trayOnClose
+  if (saved.configExisted || Object.keys(settings).length) {
+    const temporary = config + '.' + randomUUID() + '.tmp'
+    try {
+      fs.writeFileSync(temporary, JSON.stringify(settings), { flag: 'wx' })
+      fs.renameSync(temporary, config)
+    } finally {
+      fs.rmSync(temporary, { force: true })
+    }
+  } else {
+    fs.rmSync(config, { force: true })
+  }
+  fs.unlinkSync(backup)
+  return 'ready'
 }
 
 export function isLegacyPortableDefaultProfile(profile: string, portableDir: string): boolean {

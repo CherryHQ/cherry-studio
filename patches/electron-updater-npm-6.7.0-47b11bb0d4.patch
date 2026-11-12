@@ -245,10 +245,10 @@ index 7052a0e9726f2ac26155f77319a108ff86c61396..a401598afad378effc8d1c58a829789d
 +Object.defineProperty(exports, "PortableUpdater", { enumerable: true, get: function () { return require("./PortableUpdater").PortableUpdater; } });
 diff --git a/out/portableInstallScript.js b/out/portableInstallScript.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..6a889648bce312fd2a539da14d4f60fccad44fcd
+index 0000000000000000000000000000000000000000..b9b41304b48c915259c3f38e43f6e5108b74a29d
 --- /dev/null
 +++ b/out/portableInstallScript.js
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,155 @@
 +"use strict";
 +exports.portableInstallScript = String.raw`
 +$ErrorActionPreference = 'Stop'
@@ -257,12 +257,15 @@ index 0000000000000000000000000000000000000000..6a889648bce312fd2a539da14d4f60fc
 +$ready = $false
 +$lock = $null
 +
-+function Assert-PortablePackage($file, $expectedHash, $publisher) {
++function Get-PortableHash($file) {
 +    $stream = [IO.File]::OpenRead($file)
 +    $sha = [Security.Cryptography.SHA512]::Create()
-+    try { $hash = [Convert]::ToBase64String($sha.ComputeHash($stream)) }
++    try { return [Convert]::ToBase64String($sha.ComputeHash($stream)) }
 +    finally { $sha.Dispose(); $stream.Dispose() }
-+    if ($hash -cne $expectedHash) { throw 'Portable SHA512 verification failed' }
++}
++
++function Assert-PortablePackage($file, $expectedHash, $publisher) {
++    if ((Get-PortableHash $file) -cne $expectedHash) { throw 'Portable SHA512 verification failed' }
 +    $signature = Get-AuthenticodeSignature -LiteralPath $file
 +    if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -cne $publisher) {
 +        throw 'Portable publisher verification failed'
@@ -288,6 +291,68 @@ index 0000000000000000000000000000000000000000..6a889648bce312fd2a539da14d4f60fc
 +    }
 +}
 +
++function Read-MigrationConfig($file) {
++    if (![IO.File]::Exists($file)) { return ,$json.DeserializeObject('{}') }
++    $value = $json.DeserializeObject([IO.File]::ReadAllText($file))
++    if ($value -isnot [Collections.IDictionary]) { throw 'Invalid legacy settings' }
++    return ,$value
++}
++
++function Write-MigrationConfig($file, $value) {
++    $temp = $file + '.' + [Guid]::NewGuid().ToString() + '.tmp'
++    try {
++        [IO.File]::WriteAllText($temp, $json.Serialize($value))
++        if ([IO.File]::Exists($file)) {
++            [IO.File]::Replace($temp, $file, [NullString]::Value)
++        } else {
++            [IO.File]::Move($temp, $file)
++        }
++    } finally {
++        [IO.File]::Delete($temp)
++    }
++}
++
++function Start-Prerequisite {
++    Add-Type -AssemblyName System.Web.Extensions
++    $json = [Web.Script.Serialization.JavaScriptSerializer]::new()
++    $json.MaxJsonLength = [int]::MaxValue
++    $json.RecursionLimit = 100
++    $config = Join-Path ([IO.Path]::GetDirectoryName($c.followup.versionLog)) 'config.json'
++    $savedConfig = $config + '.portable-migration.json'
++    if ([IO.File]::Exists($savedConfig)) { throw 'A portable migration settings backup already exists' }
++    $settings = Read-MigrationConfig $config
++    $override = $settings['trayOnClose'] -isnot [bool] -or $settings['trayOnClose']
++    if ($override) {
++        $original = @{ configExisted = [IO.File]::Exists($config) }
++        if ($settings.ContainsKey('trayOnClose')) { $original['trayOnClose'] = $settings['trayOnClose'] }
++        Write-MigrationConfig $savedConfig $original
++    }
++    try {
++        if ($override) {
++            $settings['trayOnClose'] = $false
++            Write-MigrationConfig $config $settings
++        }
++        $process = Start-Process -FilePath $stage -WorkingDirectory ([IO.Path]::GetDirectoryName($c.target)) -PassThru
++        $process.WaitForExit()
++        return $process.ExitCode
++    } finally {
++        if ($override) {
++            $settings = Read-MigrationConfig $config
++            if ($original.ContainsKey('trayOnClose')) {
++                $settings['trayOnClose'] = $original['trayOnClose']
++            } else {
++                $null = $settings.Remove('trayOnClose')
++            }
++            if ($original.configExisted -or $settings.Count) {
++                Write-MigrationConfig $config $settings
++            } else {
++                [IO.File]::Delete($config)
++            }
++            [IO.File]::Delete($savedConfig)
++        }
++    }
++}
++
 +try {
 +    $parentProcess = [Diagnostics.Process]::GetProcessById($c.parent)
 +    $lock = [IO.FileStream]::new($c.target + '.update-lock', [IO.FileMode]::OpenOrCreate,
@@ -301,6 +366,7 @@ index 0000000000000000000000000000000000000000..6a889648bce312fd2a539da14d4f60fc
 +        Copy-Item -LiteralPath $c.followup.source -Destination $bridgeStage
 +        Assert-PortablePackage $bridgeStage $c.followup.sha512 $publisher
 +        $versionHistory = [IO.File]::ReadAllText($c.followup.versionLog)
++        $originalHash = Get-PortableHash $c.target
 +    }
 +    [Console]::Out.WriteLine('ready')
 +    [Console]::Out.Flush()
@@ -309,23 +375,23 @@ index 0000000000000000000000000000000000000000..6a889648bce312fd2a539da14d4f60fc
 +    if (!$parentProcess.WaitForExit(120000)) { throw 'Application did not exit' }
 +
 +    $backup = $stage + '.previous'
-+    $firstProcess = Replace-AndLaunch $stage $backup
 +    if ($c.followup) {
-+        $firstProcess.WaitForExit()
-+        if ($firstProcess.ExitCode -ne 0) { throw "Portable prerequisite exited with code $($firstProcess.ExitCode)" }
++        $exitCode = Start-Prerequisite
++        if ($exitCode -ne 0) { throw "Portable prerequisite exited with code $exitCode" }
 +        $history = [IO.File]::ReadAllText($c.followup.versionLog)
 +        $version = [regex]::Escape($c.followup.prerequisiteVersion)
 +        $record = '^' + $version + '\|win\|prod\|packaged\|portable\|\d{4}-\d{2}-\d{2}T'
-+        if (!$history.StartsWith($versionHistory, [StringComparison]::Ordinal) -or
++        if ($history.Length -le $versionHistory.Length -or
++            !$history.StartsWith($versionHistory, [StringComparison]::Ordinal) -or
 +            $history.TrimEnd().Split([char]10)[-1] -cnotmatch $record) {
 +            throw 'Portable prerequisite did not record startup in the migration profile'
 +        }
 +
-+        Assert-PortablePackage $c.target $c.sha512 $publisher
++        Assert-PortablePackage $c.target $originalHash $publisher
 +        Assert-PortablePackage $bridgeStage $c.followup.sha512 $publisher
-+        $bridgeBackup = $bridgeStage + '.previous'
-+        $null = Replace-AndLaunch $bridgeStage $bridgeBackup
-+        Remove-Item -LiteralPath $bridgeBackup -ErrorAction SilentlyContinue
++        $null = Replace-AndLaunch $bridgeStage $backup
++    } else {
++        $null = Replace-AndLaunch $stage $backup
 +    }
 +    Remove-Item -LiteralPath $backup -ErrorAction SilentlyContinue
 +} catch {

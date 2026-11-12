@@ -14,7 +14,12 @@ import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation
 import type * as UserDataLocationModule from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 
-import { findLegacyUpgradeProfile, getLegacyUpgradeDownloadUrl, inspectLegacyProfile } from '../legacyUpgrade'
+import {
+  findLegacyUpgradeProfile,
+  getLegacyUpgradeDownloadUrl,
+  inspectLegacyProfile,
+  restoreInterruptedPortableTraySetting
+} from '../legacyUpgrade'
 import { MIGRATION_V2_STATUS, readMigrationV2CompletedAt } from '../migrationStatus'
 import { isMigratedFromV1 } from '../v1MigrationOrigin'
 
@@ -51,6 +56,35 @@ describe('legacy profile detection', () => {
     fs.mkdirSync(path.join(profile, 'Data'))
     await dbh.sqlite.backup(path.join(profile, 'Data/cherrystudio.sqlite'))
   }
+
+  it.each([true, undefined])('restores an interrupted tray-on-close preference (%s)', (trayOnClose) => {
+    const exe = path.join(root, 'Cherry Studio Portable.exe')
+    const config = path.join(profile, 'config.json')
+    const backup = config + '.portable-migration.json'
+    const lock = exe + '.update-lock'
+    fs.writeFileSync(config, JSON.stringify({ tray: true, trayOnClose: false, theme: 'dark' }))
+    fs.writeFileSync(backup, JSON.stringify({ configExisted: true, trayOnClose }))
+    fs.writeFileSync(lock, '')
+    expect(restoreInterruptedPortableTraySetting(exe, profile)).toBe('busy')
+    expect(fs.existsSync(backup)).toBe(true)
+    expect(JSON.parse(fs.readFileSync(config, 'utf8')).trayOnClose).toBe(false)
+    fs.unlinkSync(lock)
+
+    expect(restoreInterruptedPortableTraySetting(exe, profile)).toBe('ready')
+    expect(JSON.parse(fs.readFileSync(config, 'utf8'))).toEqual(
+      trayOnClose === undefined ? { tray: true, theme: 'dark' } : { tray: true, trayOnClose, theme: 'dark' }
+    )
+    expect(fs.existsSync(backup)).toBe(false)
+    expect(fs.existsSync(lock)).toBe(false)
+  })
+
+  it('removes a settings file created only to override close behavior', () => {
+    const config = path.join(profile, 'config.json')
+    fs.writeFileSync(config, '{"trayOnClose":false}')
+    fs.writeFileSync(config + '.portable-migration.json', '{"configExisted":false}')
+    expect(restoreInterruptedPortableTraySetting(path.join(root, 'portable.exe'), profile)).toBe('ready')
+    expect(fs.existsSync(config)).toBe(false)
+  })
 
   it('leaves a fresh profile empty and does not create a database', () => {
     expect(findLegacyUpgradeProfile()).toBeUndefined()

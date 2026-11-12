@@ -1,9 +1,15 @@
+import path from 'node:path'
+
 import { app, dialog } from 'electron'
 
 import { application } from '@application'
 import { getLegacyBridgeEligibility, getLegacyLinuxPackageType } from '@data/migration/legacyBridgeInstaller'
 import { LEGACY_PREREQUISITE_VERSION, LEGACY_UPGRADE_VERSION } from '@data/migration/legacyBridgeTarget'
-import { findLegacyUpgradeProfile, getLegacyUpgradeDownloadUrl } from '@data/migration/legacyUpgrade'
+import {
+  findLegacyUpgradeProfile,
+  getLegacyUpgradeDownloadUrl,
+  restoreInterruptedPortableTraySetting
+} from '@data/migration/legacyUpgrade'
 import { showLegacyUpgradeWindow } from '@data/migration/legacyUpgradeWindow'
 import { loggerService } from '@logger'
 import { isPortable } from '@main/core/platform'
@@ -17,6 +23,16 @@ const logger = loggerService.withContext('LegacyUpgradeGate')
 
 export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
   try {
+    if (app.isPackaged && process.platform === 'win32' && isPortable) {
+      const executable = application.getPath('app.portable_executable')
+      if (
+        executable &&
+        restoreInterruptedPortableTraySetting(executable, path.join(path.dirname(executable), 'data')) === 'busy'
+      ) {
+        application.quit()
+        return 'handled'
+      }
+    }
     const profile = findLegacyUpgradeProfile()
     if (!profile) return 'skipped'
     if (profile.kind === 'recover') {
