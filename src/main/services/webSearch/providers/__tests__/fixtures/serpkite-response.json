@@ -1,0 +1,21 @@
+{
+  "request": {
+    "q": "latest web research",
+    "num": 4
+  },
+  "results": [
+    {
+      "position": 1,
+      "title": " SerpKite Title ",
+      "link": "https://serpkite.example/result",
+      "displayed_link": "serpkite.example › result",
+      "domain": "serpkite.example",
+      "snippet": " SerpKite Snippet "
+    }
+  ],
+  "related_searches": [],
+  "meta": {
+    "engine": "google",
+    "cached": false
+  }
+}

@@ -1,5 +1,39 @@
 # @cherrystudio/ai-core
 
+## Unreleased
+
+### Patch Changes
+
+- Include a package-local MIT license file and correct the README license link.
+
+## 2.4.9
+
+### Patch Changes
+
+- [#24234](https://github.com/CherryHQ/cherry-studio/pull/24234) [`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658) Thanks [@DeJeune](https://github.com/DeJeune)! - Standardize public libraries on MIT and include package-local license files.
+- Updated dependencies [[`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658)]:
+  - @cherrystudio/ai-sdk-provider@0.1.12
+
+## 2.4.8
+
+### Patch Changes
+
+- [#23678](https://github.com/CherryHQ/cherry-studio/pull/23678) [`b027c45`](https://github.com/CherryHQ/cherry-studio/commit/b027c45369c18d6775b907ea8100c3868a652e73) Thanks [@ousugo](https://github.com/ousugo)! - Require the AI SDK 6-compatible OpenAI adapter with GPT Image 2.6 complexity and animated GIF generation options.
+- Updated dependencies [[`b027c45`](https://github.com/CherryHQ/cherry-studio/commit/b027c45369c18d6775b907ea8100c3868a652e73)]:
+  - @cherrystudio/ai-sdk-provider@0.1.11
+
+## 2.4.7
+
+### Patch Changes
+
+- [#23893](https://github.com/CherryHQ/cherry-studio/pull/23893) [`02f8389`](https://github.com/CherryHQ/cherry-studio/commit/02f8389bd4f94602a5d701dd8eacf9809b160d49) Thanks [@kovsu](https://github.com/kovsu)! - Drop the unused `@ai-sdk/provider-utils` runtime dependency.
+
+## 2.4.6
+
+### Patch Changes
+
+- [#23793](https://github.com/CherryHQ/cherry-studio/pull/23793) [`354ca0c`](https://github.com/CherryHQ/cherry-studio/commit/354ca0cb88fb0e8ed34d64b28568abc7fb73e4ce) Thanks [@404-Page-Found](https://github.com/404-Page-Found)! - Assign the resolved model to `context.model` in the non-streaming text and image paths, so plugins observe the same resolved model there as they do in the streaming path.
+
 ## 2.4.5
 
 ### Patch Changes

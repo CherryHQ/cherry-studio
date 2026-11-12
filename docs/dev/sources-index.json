@@ -39,7 +39,7 @@
     },
     {
       "path": "docs/dev/references/ai/agent-session-fork.md",
-      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agentSession/fork","src/main/ai/agentSession/persistence/AgentSessionMessageBackend.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/fork","src/main/ai/runtime/pi","src/main/data/services/AgentSessionForkService.ts","src/main/data/services/AgentSessionMessageService.ts","src/main/ipc/handlers/ai.ts","src/renderer/pages/agents/messages/agentMessageListAdapter.tsx"]
+      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agentSession/fork","src/main/ai/agentSession/persistence/AgentSessionMessageBackend.ts","src/main/ai/runtime/claudeCode","src/main/ai/runtime/fork","src/main/ai/runtime/pi","src/main/ai/runtime/piDurable","src/main/data/services/AgentSessionForkService.ts","src/main/data/services/AgentSessionMessageService.ts","src/main/ipc/handlers/ai.ts","src/renderer/pages/agents/messages/agentMessageListAdapter.tsx"]
     },
     {
       "path": "docs/dev/references/ai/agent-session-runtime.md",
@@ -59,7 +59,7 @@
     },
     {
       "path": "docs/dev/references/ai/chat-attachments.md",
-      "sources": ["src/main/ai/messages/attachmentRouting.ts","src/main/ai/messages/fileProcessor.ts","src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts","src/renderer/utils/file.ts","src/shared/utils/file/fileExtensions.ts"]
+      "sources": ["src/main/ai/messages/attachmentBudget.ts","src/main/ai/messages/attachmentInlineBudget.ts","src/main/ai/messages/attachmentRouting.ts","src/main/ai/messages/attachmentTextExtraction.ts","src/main/ai/messages/attachmentWorkerClient.ts","src/main/ai/messages/fileProcessor.ts","src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts","src/renderer/utils/file.ts","src/shared/utils/file/fileExtensions.ts"]
     },
     {
       "path": "docs/dev/references/ai/core-architecture.md",
@@ -127,7 +127,7 @@
     },
     {
       "path": "docs/dev/references/ai/tool-approval.md",
-      "sources": ["src/main/ai/AiService.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/mcp/McpRuntimeService.ts","src/main/ai/mcp/connections/ClientMcpConnection.ts","src/main/ai/mcp/connections/ExternalMcpConnection.ts","src/main/ai/mcp/createMcpBridgeServer.ts","src/main/ai/mcp/mcpRequestOptions.ts","src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts","src/main/ai/runtime/claudeCode/hooks.ts","src/main/ai/runtime/claudeCode/settingsBuilder.ts","src/main/ai/runtime/claudeCode/streamAdapter.ts","src/main/ai/toolApproval/ToolApprovalRegistry.ts","src/main/ai/toolApproval/builtinToolPolicy.ts","src/main/ai/tools/adapters/claudeCode/agentTools.ts","src/main/ipc/handlers/ai.ts","src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts","src/renderer/components/chat/messages/tools/shared/ArgsTable.tsx","src/renderer/components/chat/messages/tools/toolResponse.ts","src/renderer/components/composer/variants/PermissionRequestComposer.tsx","src/renderer/hooks/useToolApprovalBridge.ts","src/shared/ai/claudecode/toolRules.ts","src/shared/ai/tools/mcpSourcePolicy.ts","src/shared/ipc/schemas/ai.ts"]
+      "sources": ["src/main/ai/AiService.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/agentSession/RootMessageProjection.ts","src/main/ai/mcp/McpRuntimeService.ts","src/main/ai/mcp/connections/ClientMcpConnection.ts","src/main/ai/mcp/connections/ExternalMcpConnection.ts","src/main/ai/mcp/createMcpBridgeServer.ts","src/main/ai/mcp/mcpRequestOptions.ts","src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts","src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts","src/main/ai/runtime/claudeCode/hooks.ts","src/main/ai/runtime/claudeCode/settingsBuilder.ts","src/main/ai/toolApproval/ToolApprovalRegistry.ts","src/main/ai/toolApproval/builtinToolPolicy.ts","src/main/ai/tools/adapters/claudeCode/agentTools.ts","src/main/ipc/handlers/ai.ts","src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts","src/renderer/components/chat/messages/tools/shared/ArgsTable.tsx","src/renderer/components/chat/messages/tools/toolResponse.ts","src/renderer/components/composer/variants/PermissionRequestComposer.tsx","src/renderer/pages/home/hooks/useToolApprovalBridge.ts","src/shared/ai/claudecode/toolRules.ts","src/shared/ai/tools/mcpSourcePolicy.ts","src/shared/ipc/schemas/ai.ts"]
     },
     {
       "path": "docs/dev/references/ai/tool-registry.md",
@@ -187,7 +187,7 @@
     },
     {
       "path": "docs/dev/references/chat/README.md",
-      "sources": ["src/main/data/services/MessageService.ts","src/renderer/components/chat","src/renderer/components/composer","src/renderer/pages/agents/messages","src/renderer/pages/home/messages"]
+      "sources": ["scripts/data-classify/data/target-key-definitions.json","src/main/ai/constants.ts","src/main/ai/contextBuild","src/main/ai/messages/attachmentBudget.ts","src/main/ai/messages/attachmentRouting.ts","src/main/ai/runtime/aiSdk/params/features/contextBuild.ts","src/main/ai/runtime/aiSdk/params/features/inLoopCompaction.ts","src/main/ai/streamManager/context/PersistentChatContextProvider.ts","src/main/ai/streamManager/persistence/trimToolOutputs.ts","src/main/data/services/MessageService.ts","src/main/data/services/ModelService.ts","src/renderer/components/chat","src/renderer/components/composer","src/renderer/pages/agents/messages","src/renderer/pages/home/hooks/useChatWriteActions.ts","src/renderer/pages/home/messages","src/renderer/pages/home/useChatRuntimeState.ts","src/renderer/utils/errorToast.ts","src/shared/data/preference/preferenceSchemas.ts","src/shared/data/types/assistant.ts","src/shared/data/types/contextSettings.ts","src/shared/data/types/model.ts","src/shared/utils/errorCategory.ts"]
     },
     {
       "path": "docs/dev/references/command/command-usage.md",
@@ -388,6 +388,10 @@
     {
       "path": "docs/dev/references/job-and-scheduler/README.md",
       "sources": ["src/main/core/job","src/main/core/scheduler"]
+    },
+    {
+      "path": "docs/dev/references/job-and-scheduler/scheduled-tasks-page.md",
+      "sources": ["src/main/data/db/seeding/seeders/scheduledTasksShortcutSeeder.ts","src/main/data/services/AgentTaskService.ts","src/renderer/components/app/sidebarIcons.tsx","src/renderer/hooks/agent/useTaskConversation.ts","src/renderer/pages/agents/AgentChat.tsx","src/renderer/pages/agents/ScheduledTasksPage.tsx","src/renderer/pages/agents/components/ScheduledTaskSidebar.tsx","src/renderer/services/taskConversation.ts"]
     },
     {
       "path": "docs/dev/references/job-and-scheduler/scheduler-usage.md",

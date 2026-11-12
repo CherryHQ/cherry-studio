@@ -7,9 +7,11 @@ import { agentSessionHandlers } from '@data/api/handlers/agentSessions'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import '@data/services/AgentTaskService'
 import { ErrorCode } from '@shared/data/api/errors'
 
 const { notify } = vi.hoisted(() => ({ notify: vi.fn() }))
@@ -95,7 +97,7 @@ describe('background session isolation', () => {
     expect(dbh.db.select().from(agentSessionTable).all()).toEqual([])
   })
 
-  it('excludes background rows before pin pagination and latest selection, including orphaned sessions', () => {
+  it('excludes background rows before DataApi pin pagination and latest selection, including orphaned sessions', async () => {
     const first = create('first')
     const second = create('second')
     const background = create('background', 'background')
@@ -121,18 +123,121 @@ describe('background session isolation', () => {
     const ids: string[] = []
     let cursor: string | undefined
     do {
-      const page = agentSessionService.listByCursor({ limit: 1, cursor })
+      const response = await agentSessionHandlers['/agent-sessions'].GET({ query: { limit: '1', cursor } })
+      const page = 'data' in response ? response.data : response
+      expect(page.items).toHaveLength(1)
       ids.push(...page.items.map((row) => row.id))
       cursor = page.nextCursor
     } while (cursor)
     expect(ids).toEqual([first.id, second.id])
     expect(agentSessionService.getLatestActive()?.id).toBe(second.id)
-    expect(agentSessionService.listByCursor({ agentId: 'agent' }).items.map((row) => row.id)).toEqual(ids)
+    expect(
+      agentSessionService.listByCursor({ scope: 'ordinary', agentId: 'agent' }).items.map((row) => row.id)
+    ).toEqual(ids)
 
     dbh.db.update(agentSessionTable).set({ agentId: null }).run()
     expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe(second.id)
     expect(agentSessionService.getById(background.id).id).toBe(background.id)
     expect(agentSessionService.getById(unpinnedBackground.id).id).toBe(unpinnedBackground.id)
+  })
+
+  it('excludes task conversations from DataApi pagination and latest restore, but keeps remote discovery and reads', async () => {
+    const ordinary = create('ordinary')
+    const sticky = create('sticky task')
+    const perRun = create('per-run task')
+    const legacy = create('legacy task')
+    dbh.db
+      .insert(jobScheduleTable)
+      .values({
+        id: 'task',
+        type: 'agent.task',
+        name: 'task',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      .run()
+    dbh.db
+      .update(agentSessionTable)
+      .set({ isTaskReuseTarget: true, taskId: 'task' })
+      .where(eq(agentSessionTable.id, sticky.id))
+      .run()
+    for (const [session, metadata, output] of [
+      [perRun, { sessionId: perRun.id }, null],
+      [legacy, {}, { sessionId: legacy.id }]
+    ] as const) {
+      dbh.db
+        .insert(jobTable)
+        .values({
+          id: `job-${session.id}`,
+          scheduleId: 'task',
+          type: 'agent.task',
+          status: 'completed',
+          queue: 'agent',
+          input: {},
+          scheduledAt: Date.now(),
+          metadata,
+          output
+        })
+        .run()
+    }
+    for (const session of [sticky, perRun, legacy]) {
+      dbh.db
+        .update(agentSessionTable)
+        .set({ taskId: 'task', lastActivityAt: Date.now() + 60_000 })
+        .where(eq(agentSessionTable.id, session.id))
+        .run()
+    }
+    dbh.db.insert(pinTable).values({ id: 'task-pin', entityType: 'session', entityId: perRun.id, orderKey: 'a0' }).run()
+    const ids: string[] = []
+    let cursor: string | undefined
+    do {
+      const response = await agentSessionHandlers['/agent-sessions'].GET({
+        query: { agentId: 'agent', limit: '1', cursor }
+      })
+      const page = 'data' in response ? response.data : response
+      ids.push(...page.items.map((row) => row.id))
+      cursor = page.nextCursor
+    } while (cursor)
+    expect(ids).toEqual([ordinary.id])
+    const discovered: string[] = []
+    cursor = undefined
+    do {
+      const page = agentSessionService.listByCursor({ scope: 'all-conversations', agentId: 'agent', limit: 1, cursor })
+      discovered.push(...page.items.map((row) => row.id))
+      cursor = page.nextCursor
+    } while (cursor)
+    expect(discovered[0]).toBe(perRun.id)
+    expect(new Set(discovered)).toEqual(new Set([ordinary.id, sticky.id, perRun.id, legacy.id]))
+    expect(agentSessionService.getLatestActive()?.id).toBe(ordinary.id)
+    expect(agentSessionService.getLatestActive({ agentId: 'agent' })?.id).toBe(ordinary.id)
+    for (const session of [sticky, perRun, legacy]) {
+      expect(agentSessionService.getConversationById(session.id).id).toBe(session.id)
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId'].GET({
+          params: { sessionId: session.id },
+          query: { excludeTaskSessions: true }
+        })
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId'].GET({
+          params: { sessionId: session.id }
+        })
+      ).resolves.toMatchObject({ id: session.id })
+      expect(
+        agentSessionService.listByCursor({ scope: 'ordinary', ids: [session.id] }).items.map((row) => row.id)
+      ).toEqual([session.id])
+    }
+    await expect(
+      agentSessionHandlers['/agent-sessions/:sessionId'].GET({
+        params: { sessionId: ordinary.id },
+        query: { excludeTaskSessions: true }
+      })
+    ).resolves.toMatchObject({ id: ordinary.id })
+    agentSessionService.delete(perRun.id)
+    expect(agentSessionService.listByCursor({ scope: 'ordinary', inTrash: true }).items.map((row) => row.id)).toEqual([
+      perRun.id
+    ])
   })
 
   it('keeps background sessions out of both active and trash conversation lists', () => {
@@ -144,8 +249,13 @@ describe('background session isolation', () => {
       dbh.db.update(agentSessionTable).set({ deletedAt: Date.now() }).where(eq(agentSessionTable.id, session.id)).run()
     }
 
-    expect(agentSessionService.listByCursor().items.map((row) => row.id)).toEqual([active.id])
-    expect(agentSessionService.listByCursor({ inTrash: true }).items.map((row) => row.id)).toEqual([trashed.id])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((row) => row.id)).toEqual([active.id])
+    expect(agentSessionService.listByCursor({ scope: 'all-conversations' }).items.map((row) => row.id)).toEqual([
+      active.id
+    ])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary', inTrash: true }).items.map((row) => row.id)).toEqual([
+      trashed.id
+    ])
     expect(agentSessionService.search({ q: 'needle', limit: 10 }).map((row) => row.id)).toEqual([active.id])
     expect(agentSessionService.listAddressableByCursor({}).items.map((row) => row.sessionId)).toEqual([active.id])
     expect(agentSessionService.getById(background.id).id).toBe(background.id)
@@ -200,7 +310,9 @@ describe('background session isolation', () => {
     expect(placeholder.created).toBe(true)
     expect(placeholder.session.id).not.toBe(background.id)
     expect(agentSessionService.getById(background.id).id).toBe(background.id)
-    expect(agentSessionService.listByCursor().items.map((row) => row.id)).toEqual([placeholder.session.id])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((row) => row.id)).toEqual([
+      placeholder.session.id
+    ])
   })
 
   it('excludes background metadata and message results from discovery, including short-term search', () => {

@@ -257,6 +257,10 @@ type IsolatedEnvSnapshot = {
   usesDefaultChinaPipIndex: boolean
 }
 
+// The Windows ARM64 Claude install uses mise's HTTP backend, which lists it as
+// `http:claude` while the recipe identity is `claude`.
+const LEGACY_TOOL_IDENTITIES: ReadonlyMap<string, string> = new Map([['http:claude', 'claude']])
+
 // Code-owned catalog of the fixed tools Cherry ships: every Dependencies preset
 // executable and every Code CLI executable mapped to its canonical mise recipe.
 // Derived from the two preset sources so their names and recipes stay the single
@@ -268,8 +272,10 @@ type IsolatedEnvSnapshot = {
 // installed package identity, so every comparison goes through this normalizer.
 // The normalized application fact does not prove bracketed install options such as
 // Hermes's `extras=web`; those options are not observable in the mise listing.
-const normalizeToolIdentity = (tool: string): string =>
-  (tool.startsWith('core:') ? tool.slice('core:'.length) : tool).replace(/\[[^\]]*]/g, '')
+const normalizeToolIdentity = (tool: string): string => {
+  const identity = (tool.startsWith('core:') ? tool.slice('core:'.length) : tool).replace(/\[[^\]]*]/g, '')
+  return LEGACY_TOOL_IDENTITIES.get(identity) ?? identity
+}
 
 function addNpmAllowBuildsOption(tool: string, packages?: readonly string[]): string {
   if (!packages?.length) return tool
@@ -1693,6 +1699,14 @@ export class BinaryManager extends BaseService {
     return matching.version
   }
 
+  // mise filters `ls`/`uninstall` by the recipe's own backend, so an install listed
+  // under a legacy identity must be addressed by the exact key mise reports.
+  private async listLegacyInstalledSpecs(tool: string): Promise<string[]> {
+    const identity = normalizeToolIdentity(tool)
+    if (![...LEGACY_TOOL_IDENTITIES.values()].includes(identity)) return []
+    return Object.keys(await this.listMiseInstalls()).filter((spec) => LEGACY_TOOL_IDENTITIES.get(spec) === identity)
+  }
+
   private async isMiseToolAbsent(tool: string): Promise<boolean> {
     const { stdout } = await this.runMise(['ls', '--json', tool])
     const entries = Object.values(JSON.parse(stdout) as Record<string, Array<{ version?: string }>>).flat()
@@ -2479,8 +2493,15 @@ export class BinaryManager extends BaseService {
         this.bumpMutationRevision()
         await this.runMise(['unuse', '-g', definition.tool])
         await this.runMise(['uninstall', '--all', definition.tool])
+        const legacySpecs = await this.listLegacyInstalledSpecs(definition.tool)
+        for (const spec of legacySpecs) {
+          await this.runMise(['unuse', '-g', spec])
+          await this.runMise(['uninstall', '--all', spec])
+        }
         await this.runMise(['reshim'])
-        if (!(await this.isMiseToolAbsent(definition.tool))) {
+        const specs = [definition.tool, ...legacySpecs]
+        for (const spec of specs) {
+          if (await this.isMiseToolAbsent(spec)) continue
           this.setOperation(name, null)
           return {
             status: 'cleanup_blocked',

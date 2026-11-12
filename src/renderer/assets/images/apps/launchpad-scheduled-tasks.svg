@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="1.5 1 64 64">
+  <defs>
+    <linearGradient id="body" x1="10" y1="14" x2="44" y2="50" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A4EEE3"/>
+      <stop offset="1" stop-color="#5CD3C1"/>
+    </linearGradient>
+    <linearGradient id="header" x1="9" y1="13" x2="47" y2="25" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4FDAC6"/>
+      <stop offset="1" stop-color="#19B19E"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="17" y1="8" x2="21" y2="20" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3DCDB9"/>
+      <stop offset="1" stop-color="#0E8F80"/>
+    </linearGradient>
+    <linearGradient id="bezel" x1="34" y1="33" x2="56" y2="57" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#45DDC9"/>
+      <stop offset=".55" stop-color="#16B29E"/>
+      <stop offset="1" stop-color="#0A9282"/>
+    </linearGradient>
+    <linearGradient id="face" x1="45" y1="35.5" x2="45" y2="54.5" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D6F6F1"/>
+    </linearGradient>
+    <clipPath id="body-shape">
+      <rect x="9" y="13" width="38" height="36" rx="9"/>
+    </clipPath>
+    <clipPath id="bezel-shape">
+      <circle cx="45" cy="45" r="13.5"/>
+    </clipPath>
+  </defs>
+  <rect x="9" y="13" width="38" height="36" rx="9" fill="url(#body)"/>
+  <g clip-path="url(#body-shape)">
+    <path d="M9 13h38v12H9Z" fill="url(#header)"/>
+    <path d="M9 22.5c5.8-5.6 13.4-8.8 22.8-9.5H18a9 9 0 0 0-9 9v.5Z" fill="#fff" fill-opacity=".2"/>
+    <path d="M9 42c9.6 3.6 21.1 4 34.6 1.2L47 49H9v-7Z" fill="#0B7F72" fill-opacity=".12"/>
+    <circle cx="45" cy="46.4" r="14.3" fill="#087567" fill-opacity=".26"/>
+  </g>
+  <g fill="#0B7F72" fill-opacity=".38">
+    <ellipse cx="19" cy="19.4" rx="2.4" ry="1.5"/>
+    <ellipse cx="37" cy="19.4" rx="2.4" ry="1.5"/>
+  </g>
+  <rect x="17.25" y="8" width="3.5" height="12" rx="1.75" fill="url(#ring)"/>
+  <rect x="35.25" y="8" width="3.5" height="12" rx="1.75" fill="url(#ring)"/>
+  <g fill="#fff" fill-opacity=".45">
+    <rect x="18" y="9.2" width="1" height="5.6" rx=".5"/>
+    <rect x="36" y="9.2" width="1" height="5.6" rx=".5"/>
+  </g>
+  <g fill="#fff" fill-opacity=".58">
+    <rect x="14.5" y="29" width="5" height="5" rx="1.6"/>
+    <rect x="30.5" y="29" width="5" height="5" rx="1.6"/>
+    <rect x="14.5" y="37" width="5" height="5" rx="1.6"/>
+    <rect x="22.5" y="37" width="5" height="5" rx="1.6"/>
+  </g>
+  <rect x="22.5" y="29" width="5" height="5" rx="1.6" fill="#fff" fill-opacity=".96"/>
+  <circle cx="45" cy="45" r="13.5" fill="url(#bezel)"/>
+  <g clip-path="url(#bezel-shape)">
+    <path d="M31.5 45A13.5 13.5 0 0 1 45 31.5c-6.3 1.6-11.1 5.8-13.5 12.8V45Z" fill="#fff" fill-opacity=".3"/>
+  </g>
+  <circle cx="45" cy="45" r="10.3" fill="url(#face)"/>
+  <path d="M34.9 46.2a10.3 10.3 0 0 0 20.2 0c-6 3.8-14.2 3.8-20.2 0Z" fill="#0B7F72" fill-opacity=".06"/>
+  <g fill="#7FD6C8">
+    <circle cx="45" cy="37.6" r=".95"/>
+    <circle cx="52.4" cy="45" r=".95"/>
+    <circle cx="45" cy="52.4" r=".95"/>
+    <circle cx="37.6" cy="45" r=".95"/>
+  </g>
+  <path d="M45 39.2V45l4 2.6" fill="none" stroke="#0E8F80" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="45" cy="45" r="1.9" fill="#0E8F80"/>
+  <circle cx="45" cy="45" r=".6" fill="#fff"/>
+</svg>
