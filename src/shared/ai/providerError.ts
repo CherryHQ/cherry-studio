@@ -74,10 +74,11 @@ function providerPayloadText(value: unknown): string {
 }
 
 function payloadText(value: unknown, decodeDepth = 0): string {
+  if (decodeDepth >= MAX_NESTED_PROVIDER_ERROR_DEPTH) return ''
   if (typeof value === 'string') {
-    if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH || decodeDepth >= MAX_PROVIDER_ERROR_DECODE_DEPTH) return ''
+    if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
     try {
-      return payloadText(JSON.parse(value), decodeDepth + 1)
+      return payloadText(JSON.parse(value.replace(/\s+\(request id: [\w-]+\)$/, '')), decodeDepth + 1)
     } catch {
       return ''
     }
@@ -93,7 +94,7 @@ function payloadText(value: unknown, decodeDepth = 0): string {
 
   return (
     [error?.message, payload.message, detailError?.message, detail?.message, payload.msg, payload.detail, payload.error]
-      .map(providerPayloadText)
+      .map((candidate) => providerPayloadText(candidate) || payloadText(candidate, decodeDepth + 1))
       .find(Boolean) ?? ''
   )
 }
@@ -132,6 +133,28 @@ export function stripClaudeCodeRejectionPrefix(text: string): string {
 export function getSafeProviderErrorMessage(source: ProviderErrorSource): string {
   const text = payloadText(source.responseBody) || payloadText(source.data) || providerPayloadText(source.message)
   return text.length > MAX_PROVIDER_ERROR_MESSAGE_LENGTH ? `${text.slice(0, MAX_PROVIDER_ERROR_MESSAGE_LENGTH)}…` : text
+}
+
+/** Restore an HTTP rejection flattened by an SDK to a status followed by a provider JSON envelope. */
+export function deserializeProviderHttpError(value: unknown): APICallError | undefined {
+  if (value instanceof Error && ('statusCode' in value || 'status' in value || AISDKError.isInstance(value))) {
+    return undefined
+  }
+  const text = value instanceof Error ? value.message : value
+  if (typeof text !== 'string') return undefined
+  if (text.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return undefined
+  const match = /^([45]\d{2})\s+(\{[\s\S]*\})$/.exec(text.trim())
+  if (!match) return undefined
+
+  const [, status, responseBody] = match
+  let error: unknown
+  try {
+    error = JSON.parse(responseBody)?.error
+  } catch {
+    return undefined
+  }
+  if (!error || typeof error !== 'object' || Array.isArray(error)) return undefined
+  return new APICallError({ message: '', url: '', requestBodyValues: null, statusCode: Number(status), responseBody })
 }
 
 export function getSafeAiSdkErrorDiscriminants(source: Record<string, unknown>): Record<string, Serializable> {
@@ -228,6 +251,7 @@ function serializeNestedAiSdkError(error: AISDKError, depth: number): Serialized
 
 function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Serializable {
   if (depth >= MAX_NESTED_PROVIDER_ERROR_DEPTH) return null
+  value = deserializeProviderHttpError(value) ?? value
   if (APICallError.isInstance(value)) {
     const safeMessage = getSafeProviderErrorMessage(value)
     const diagnostic = apiResponseDiagnostic(value, depth)
