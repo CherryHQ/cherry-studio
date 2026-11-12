@@ -11,7 +11,7 @@ import type { ExternalOpenTarget } from '@shared/types/externalApp'
 
 import { MessageListProvider } from '../../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../../types'
-import { MessageReportArtifacts } from '../ReportArtifacts'
+import { getReportArtifactsViewModel, isReportArtifactsToolResponse, MessageReportArtifacts } from '../ReportArtifacts'
 
 // The global UI mock does not implement DropdownMenuTrigger's asChild contract,
 // so use the real menu primitives for these interaction tests.
@@ -312,4 +312,60 @@ describe('MessageReportArtifacts', () => {
       expect(copyText).toHaveBeenCalledWith('/workspace/dist/report.md', { successMessage: 'Copied' })
     })
   })
+})
+
+it.each(['invoking', 'error', 'cancelled'] as const)('does not declare artifacts from %s calls', (status) => {
+  expect(
+    getReportArtifactsViewModel([
+      {
+        id: 'nested',
+        toolCallId: 'nested',
+        tool: { id: 'artifact', name: 'report_artifacts', type: 'builtin' },
+        status,
+        arguments: { artifacts: [{ path: '/tmp/report.html' }] }
+      }
+    ])
+  ).toBeNull()
+})
+
+it('does not treat a foreign MCP tool as an artifact declaration', () => {
+  expect(
+    getReportArtifactsViewModel([
+      {
+        id: 'nested',
+        toolCallId: 'nested',
+        tool: {
+          id: 'artifact',
+          name: 'report_artifacts',
+          type: 'mcp',
+          serverId: 'foreign',
+          serverName: 'foreign',
+          description: '',
+          inputSchema: { type: 'object' }
+        },
+        status: 'done',
+        arguments: { artifacts: [{ path: '/tmp/report.html' }] }
+      }
+    ])
+  ).toBeNull()
+})
+
+it('keeps foreign artifact-named calls in the generic tool stream', () => {
+  expect(
+    isReportArtifactsToolResponse({
+      id: 'foreign',
+      arguments: {},
+      toolCallId: 'foreign',
+      status: 'done',
+      tool: {
+        id: 'foreign',
+        name: 'report_artifacts',
+        type: 'mcp',
+        serverId: 'foreign',
+        serverName: 'foreign',
+        description: '',
+        inputSchema: { type: 'object' }
+      }
+    })
+  ).toBe(false)
 })

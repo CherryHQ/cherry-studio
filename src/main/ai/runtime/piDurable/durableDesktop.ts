@@ -26,6 +26,7 @@ import { loadPiSdk } from '../pi/piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableMcp } from './durableMcp'
+import { withDurableShellTimeout } from './durableShellTimeout'
 
 export async function prepareDurableDesktop(
   input: AgentRuntimeConnectInput,
@@ -138,8 +139,8 @@ export async function prepareDurableDesktop(
         ...coding,
         tools: [
           ...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'),
-          bash,
-          ...(process.platform === 'win32' ? [tools.createPowerShellTool()] : [])
+          withDurableShellTimeout(bash),
+          ...(process.platform === 'win32' ? [withDurableShellTimeout(tools.createPowerShellTool())] : [])
         ]
       })
     )
@@ -156,6 +157,31 @@ export async function prepareDurableDesktop(
             async render() {
               const { text, resources } = await builder.buildMemoriesContext(agentDataPath)
               return { text, source: { kind: 'memory-files', resources } }
+            }
+          },
+          {
+            key: 'project_context',
+            render() {
+              const files = pi.loadProjectContextFiles({ cwd, agentDir: application.getPath('feature.agents.pi.root') })
+              if (!files.length) return undefined
+              const entries = files.map((file) => ({
+                ...file,
+                text: `<project_instructions path="${file.path}">\n${file.content}\n</project_instructions>`
+              }))
+              return {
+                text: ['Project-specific instructions and guidelines:', ...entries.map((entry) => entry.text)].join(
+                  '\n\n'
+                ),
+                source: {
+                  kind: 'memory-files',
+                  resources: entries.map((entry) => ({
+                    id: entry.path,
+                    name: entry.path,
+                    source: entry.path,
+                    characters: entry.text.length
+                  }))
+                }
+              }
             }
           },
           {

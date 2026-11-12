@@ -80,6 +80,7 @@ import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 import { loadPiSdk } from './piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from './piShell'
+import { withPiShellTimeout } from './piShellTimeout'
 import { PiTurnUsage } from './PiTurnUsage'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
@@ -284,17 +285,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       commandPrefix: loginPathPrefix,
       shellPath,
       spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
-    }) as ToolDefinition
+    })
     const managedShellTools = [
       managedBashTool,
       ...(process.platform === 'win32'
         ? [
             pi.createPowerShellToolDefinition(workspacePath, {
               spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
-            }) as ToolDefinition
+            })
           ]
         : [])
-    ]
+    ].map(withPiShellTimeout) as ToolDefinition[]
     const toolCallId = async (call: CallRef) => {
       const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
