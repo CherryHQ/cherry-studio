@@ -3934,33 +3934,6 @@ describe('AiStreamManager', () => {
       expect(mockMainLoggerService.error).not.toHaveBeenCalled()
     })
 
-    it('retains the status and detail of a provider rejection carried only by an error chunk', async () => {
-      vi.useRealTimers()
-      const controlled = controlledStream()
-      mockStreamText.mockResolvedValueOnce(controlled.stream)
-      const listener = new FakeListener('l:a')
-      startSingle(mgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [listener]
-      })
-      controlled.enqueue({ type: 'start', messageId: 'reply' })
-      controlled.enqueue({
-        type: 'error',
-        errorText: '400 {"error":{"message":"ValidationException: Extra inputs are not permitted"}}'
-      })
-      controlled.close()
-
-      await vi.waitFor(() =>
-        expect(listener.errorResults[0]?.error).toMatchObject({
-          statusCode: 400,
-          message: 'ValidationException: Extra inputs are not permitted',
-          streamStage: 'response-stream'
-        })
-      )
-    })
-
     it.each(['', 'Provider unavailable'])(
       'retains partial text and correlated diagnostics for a chunk-only failure (%j)',
       async (errorText) => {

@@ -1,6 +1,5 @@
 import type { SerializedError } from '@renderer/types/error'
 import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
-import { deserializeProviderHttpError, getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { classifyErrorCategory, type ErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
 
 export type { ErrorCategory } from '@shared/utils/errorCategory'
@@ -178,7 +177,6 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   // resolution failure as `bad_request` ("请求错误… If you changed model settings, reset them").
   if (getLocalModelResolutionFailure(error)) return classify('model')
   const numStatus = getErrorHttpStatus(error)
-  const recovered = numStatus === undefined ? deserializeProviderHttpError(error.message) : undefined
 
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody : ''
   let dataText = ''
@@ -191,10 +189,8 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
 
   const category = classifyErrorCategory({
-    text: [recovered ? getSafeProviderErrorMessage(recovered) : error.message, responseBodyText, dataText]
-      .filter(Boolean)
-      .join('\n'),
-    status: numStatus ?? recovered?.statusCode,
+    text: [error.message ?? '', responseBodyText, dataText].filter(Boolean).join('\n'),
+    status: numStatus,
     finishReason: String(errorBag.finishReason ?? '')
   })
   if (

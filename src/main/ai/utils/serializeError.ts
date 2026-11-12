@@ -1,10 +1,6 @@
 import { APICallError, JSONParseError, RetryError, TypeValidationError } from 'ai'
 
-import {
-  deserializeProviderHttpError,
-  getSafeProviderErrorMessage,
-  serializeNestedProviderError
-} from '@shared/ai/providerError'
+import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
@@ -39,7 +35,6 @@ function toSerializable(value: unknown): Serializable {
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
 export function serializeError(error: unknown): SerializedError {
-  error = deserializeProviderHttpError(error) ?? error
   if (APICallError.isInstance(error) || JSONParseError.isInstance(error) || TypeValidationError.isInstance(error)) {
     return serializeNestedProviderError(error) as SerializedError
   }
@@ -116,12 +111,4 @@ export function serializeError(error: unknown): SerializedError {
     message: safeMessage || (typeof error === 'object' && error !== null ? null : String(error)),
     stack: null
   }
-}
-
-export function serializeStreamError(errorText: string): SerializedError {
-  const providerError = deserializeProviderHttpError(errorText)
-  const error = providerError
-    ? serializeError(providerError)
-    : { name: 'StreamError', message: getSafeProviderErrorMessage({ message: errorText }), stack: null }
-  return { ...error, streamStage: 'response-stream' }
 }

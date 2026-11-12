@@ -4,39 +4,6 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
-  it('recovers the Bedrock validation failure flattened by the Pi runtime', () => {
-    const detail = 'ValidationException: tools.0.custom.eager_input_streaming: Extra inputs are not permitted'
-    const upstream = JSON.stringify({ error: { type: 'unknown_error', message: detail }, code: 400 })
-    const body = JSON.stringify({
-      error: { type: '<nil>', message: `${upstream} (request id: example-id)` },
-      apiKey: 'private-key'
-    })
-
-    const message = `400 ${body}`
-    for (const failure of [new Error(message), message]) {
-      const serialized = serializeError(failure)
-      expect(serialized).toMatchObject({ statusCode: 400, message: detail, stack: null })
-      expect(JSON.stringify(serialized)).not.toContain('private-key')
-    }
-  })
-
-  it('leaves an HTTP-like prefix on a local error without a provider envelope', () => {
-    const message = '400 {"items":0}'
-    const serialized = serializeError(new Error(message))
-
-    expect(serialized.message).toBe(message)
-    expect(serialized).not.toHaveProperty('statusCode')
-  })
-
-  it('recovers the status from a flattened terminal retry attempt', () => {
-    const terminal = new Error('429 {"error":{"message":"Too many requests"}}')
-    const serialized = serializeError(
-      new RetryError({ message: 'Failed after retries', reason: 'maxRetriesExceeded', errors: [terminal] })
-    )
-
-    expect(serialized.lastError).toMatchObject({ statusCode: 429, message: 'Too many requests' })
-  })
-
   describe('unknown thrown values', () => {
     it('serializes only the safe message from a structured provider event', () => {
       const result = serializeError({

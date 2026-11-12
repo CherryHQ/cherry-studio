@@ -9,7 +9,7 @@ import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
-import { serializeError, serializeStreamError } from '@main/ai/utils/serializeError'
+import { serializeError } from '@main/ai/utils/serializeError'
 import {
   BaseService,
   DependsOn,
@@ -28,6 +28,7 @@ import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
+import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -261,6 +262,15 @@ function toActiveExecution(exec: StreamExecution): ActiveExecution {
     attemptId: exec.attemptId,
     anchorMessageId: exec.anchorMessageId,
     ...(exec.seedFromEmpty ? { seedFromEmpty: true } : {})
+  }
+}
+
+function errorFromStreamChunk(errorText: string): SerializedError {
+  return {
+    name: 'StreamError',
+    message: getSafeProviderErrorMessage({ message: errorText }),
+    stack: null,
+    streamStage: 'response-stream'
   }
 }
 
@@ -2284,7 +2294,7 @@ export class AiStreamManager extends BaseService {
       }
       const serialized =
         result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow) && !fromThrow.i18nKey
-          ? serializeStreamError(result.streamErrorText)
+          ? errorFromStreamChunk(result.streamErrorText)
           : fromThrow
       if (!abortShaped) serialized.streamStage = 'response-stream'
       await this.onExecutionError(topicId, modelId, serialized, exec, result.threw.error)
@@ -2307,7 +2317,7 @@ export class AiStreamManager extends BaseService {
         origin: 'error-chunk',
         cause: chatErrorContext({ name: 'StreamError', message: result.streamErrorText })
       })
-      await this.onExecutionError(topicId, modelId, serializeStreamError(result.streamErrorText), exec)
+      await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
     } else if (result.accumulationError !== undefined) {
       const error = serializeError(result.accumulationError.error)
       error.executionFailure = toExecutionFailure(error, modelId, 'host')

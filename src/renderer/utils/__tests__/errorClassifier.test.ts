@@ -53,15 +53,6 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
-  it('classifies a previously saved provider rejection even when its status was flattened', () => {
-    const error = makeError({
-      message: '400 {"error":{"message":"ValidationException: Extra inputs are not permitted"}}',
-      streamStage: 'response-stream'
-    })
-
-    expect(classifyError(error).category).toBe('bad_request')
-  })
-
   it.each([
     'Response: content-type json, empty body, 0 bytes, request-id absent, server nginx.',
     'Response: content-type json, body is JSON but not a Message, 107 bytes, request-id absent.'
