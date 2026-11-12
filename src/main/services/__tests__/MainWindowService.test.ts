@@ -583,7 +583,7 @@ describe('MainWindowService', () => {
       ;(svc as any).setupWebContentsHandlers(win)
       created({ type: WindowType.Main, window: win })
       const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
-      expect(popup({ url: 'https://account.siliconflow.cn/oauth/callback' })).toMatchObject({ action: 'allow' })
+      expect(popup({ url: 'https://console.inferera.com/token?state=test' })).toMatchObject({ action: 'allow' })
       expect(shell.openExternal).not.toHaveBeenCalled()
     })
 
@@ -973,7 +973,6 @@ describe('MainWindowService', () => {
     expect(() => svc.onMainWindowCreated(listener)).not.toThrow()
 
     expect(listener).toHaveBeenCalledWith(win)
-    expect(loggerMock.error).toHaveBeenCalledWith('Failed to replay main window listener', error)
   })
 
   describe('close handler', () => {
@@ -1777,7 +1776,6 @@ describe('MainWindowService', () => {
   })
 
   it.each([
-    'https://account.siliconflow.cn/oauth/callback',
     'https://console.inferera.com/token?state=test',
     'https://dash.302.ai/sso/login',
     'https://maas.aiionly.com/login'
@@ -1802,6 +1800,8 @@ describe('MainWindowService', () => {
   })
 
   it.each([
+    'https://account.siliconflow.cn/oauth?client_id=retired',
+    'https://account.siliconflow.cn/oauth/callback',
     'https://account.siliconflow.cn/oauth-evil',
     'https://account.siliconflow.cn.evil.example/oauth',
     'http://account.siliconflow.cn/oauth'

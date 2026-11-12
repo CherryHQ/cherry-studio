@@ -494,7 +494,6 @@ export class ClaudeOwner {
     const projection =
       commandInput?.projection ?? (agentId ? this.projection(task?.sessionId ?? this.activeSession, agentId) : root)
     if (!agentId && 'parent_tool_use_id' in message && message.parent_tool_use_id) {
-      root.publish([{ type: 'gap', reason: 'mapping-reset' }])
       return
     }
     const events: ObservationPayload[] = []
@@ -545,12 +544,13 @@ export class ClaudeOwner {
           }
         })
     }
-    if (!agentId && message.type === 'system' && message.subtype === 'compact_boundary') {
+    const compactedContext =
+      !agentId && message.type === 'system' && message.subtype === 'compact_boundary'
+        ? { status: 'unknown' as const, error: runtimeError('contextUsage', 'compacted') }
+        : undefined
+    if (compactedContext) {
       this.contextEpoch++
-      events.push({
-        type: 'context.changed',
-        result: { status: 'unknown', error: runtimeError('contextUsage', 'compacted') }
-      })
+      events.push({ type: 'context.changed', result: compactedContext })
     }
     if (message.type === 'assistant') {
       events.push(...projection.remove(message.supersedes ?? []))
@@ -573,6 +573,7 @@ export class ClaudeOwner {
           break
         case 'compact_boundary':
           events.push({ type: 'gap', reason: 'mapping-reset' })
+          if (compactedContext) events.push({ ...projection.feed.snapshot, contextUsage: compactedContext })
           break
         case 'permission_denied':
           events.push(...projection.deny(message.tool_use_id))
@@ -808,7 +809,8 @@ export class ClaudeOwner {
       await Promise.race([
         Promise.all([this.pump, this.exit]),
         new Promise<void>((resolve) => {
-          timeout = setTimeout(resolve, 5000)
+          // SDK 0.3.311 escalates after 2s + 5s; allow exit delivery and source drain afterward.
+          timeout = setTimeout(resolve, 10_000)
         })
       ])
       clearTimeout(timeout)

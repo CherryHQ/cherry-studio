@@ -240,7 +240,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
-      <ScrollArea viewportProps={{ className: 'px-6 py-2' }} className="min-h-0">
+      <ScrollArea contentProps={{ className: 'px-6 py-2' }} className="min-h-0">
         {result ? (
           <UploadResultContent
             result={result}
