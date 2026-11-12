@@ -121,6 +121,7 @@ export const FileProcessorSelector = ({
       data-testid="file-processor-selector-content">
       {({ availableListHeight }) => (
         <ScrollArea
+          contentProps={{ className: 'px-1 py-1' }}
           viewportProps={{
             id: listboxId,
             ref: listRef,
@@ -128,7 +129,7 @@ export const FileProcessorSelector = ({
             'aria-label': ariaLabel,
             'aria-activedescendant': activeOptionId,
             tabIndex: 0,
-            className: 'px-1 py-1 outline-none'
+            className: 'outline-none'
           }}
           className="min-h-0 flex-1"
           style={{ height: availableListHeight ?? listHeight }}>

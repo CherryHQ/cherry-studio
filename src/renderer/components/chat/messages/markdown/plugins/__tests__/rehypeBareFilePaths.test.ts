@@ -283,3 +283,36 @@ describe('rehypeBareFilePaths', () => {
     expect((tree.children[0] as Element).children).toEqual([{ type: 'text', value: '/Users/lee/raw.txt' }])
   })
 })
+
+describe('rehypeBareFilePaths className handling', () => {
+  const elementWithClassName = (className: unknown): Element =>
+    ({
+      type: 'element',
+      tagName: 'div',
+      properties: { className },
+      children: [{ type: 'text', value: '/Users/lee/math.txt' }]
+    }) as unknown as Element
+
+  const markerCount = (className: unknown): number =>
+    collectMarkers(transform({ type: 'root', children: [elementWithClassName(className)] }, 'posix')).length
+
+  it('skips an array-valued className containing katex', () => {
+    expect(markerCount(['katex', 'other'])).toBe(0)
+  })
+
+  it('skips a string-valued className containing katex', () => {
+    expect(markerCount('katex katex-display')).toBe(0)
+  })
+
+  it('linkifies text under an ordinary className', () => {
+    expect(markerCount(['plain'])).toBe(1)
+  })
+
+  it('linkifies text when className is missing', () => {
+    expect(markerCount(undefined)).toBe(1)
+  })
+
+  it('treats a numeric className as ordinary content', () => {
+    expect(markerCount(5)).toBe(1)
+  })
+})

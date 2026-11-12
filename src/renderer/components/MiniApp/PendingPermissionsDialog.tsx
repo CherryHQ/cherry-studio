@@ -13,14 +13,15 @@ export const PendingPermissionsDialog: FC<{
   name: string
   leaves: readonly string[]
   busy: boolean
+  open?: boolean
   onGrant: () => void
   onSnooze: () => void
   onCancel: () => void
-}> = ({ name, leaves, busy, onGrant, onSnooze, onCancel }) => {
+}> = ({ name, leaves, busy, open = true, onGrant, onSnooze, onCancel }) => {
   const { t } = useTranslation()
   return (
     <Dialog
-      open
+      open={open}
       onOpenChange={(open) => {
         if (!open) onCancel()
       }}>

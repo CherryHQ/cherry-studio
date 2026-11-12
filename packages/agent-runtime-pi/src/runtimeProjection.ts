@@ -8,6 +8,7 @@ import {
 
 import { ENTRY_KINDS, type SubagentResults } from '@cherrystudio/agent-behavior'
 import {
+  projectNestedTool,
   runtimeId,
   ThreadFeed,
   RuntimeMessageStream,
@@ -330,6 +331,17 @@ export class PiProjection {
     } else this.feed.publish({ type: 'message.upsert', message, replaces })
   }
 
+  private nested(parentCallId: string, part: RuntimeMessage['parts'][number]): void {
+    if (part.type !== 'dynamic-tool') return
+    const id = this.calls.get(parentCallId)
+    const message = (this.snapshotMessages ?? this.feed.snapshot.messages).find((item) => item.id === id)
+    if (!message) return
+    this.calls.set(part.toolCallId, message.id)
+    const parts = message.parts.filter((item) => item.type !== 'dynamic-tool' || item.toolCallId !== part.toolCallId)
+    parts.push(part)
+    this.publish({ ...message, parts })
+  }
+
   private result(callId: string, output: unknown, isError: boolean, preliminary = false): void {
     const id = this.calls.get(callId)
     const message = (this.snapshotMessages ?? this.feed.snapshot.messages).find((message) => message.id === id)
@@ -364,7 +376,19 @@ export class PiProjection {
   private write(message: PiMessage, id: string, completeness: 'partial' | 'complete'): void {
     if (!('content' in message)) return
     if (message.role === 'toolResult') {
-      this.result(message.toolCallId, { content: message.content, details: message.details }, message.isError)
+      for (const record of message.nestedCalls?.calls ?? []) {
+        this.nested(message.toolCallId, projectNestedTool(record))
+      }
+      this.result(
+        message.toolCallId,
+        {
+          content: message.content,
+          details: message.details,
+          structuredContent: message.structuredContent,
+          nestedCalls: message.nestedCalls
+        },
+        message.isError
+      )
       return
     }
     if (
@@ -559,6 +583,34 @@ export class PiProjection {
         this.readers.delete(id)
       }
     }
+    if (event.type === 'tool_execution_start' && 'parentToolCallId' in event && event.parentToolCallId) {
+      this.nested(event.parentToolCallId, {
+        type: 'dynamic-tool',
+        toolName: event.toolName,
+        toolCallId: event.toolCallId,
+        state: 'input-available',
+        input: event.args,
+        callProviderMetadata: { pi: { parentToolCallId: event.parentToolCallId, nested: true } }
+      })
+    }
+    if (event.type === 'tool_execution_end' && 'parentToolCallId' in event && event.parentToolCallId)
+      this.nested(
+        event.parentToolCallId,
+        projectNestedTool({
+          id: event.toolCallId,
+          name: event.toolName,
+          parentToolCallId: event.parentToolCallId,
+          arguments: event.args,
+          result: event.result,
+          status: event.isError ? 'error' : 'ok',
+          error: event.isError
+            ? event.result.content
+                ?.filter((part: { type: string }) => part.type === 'text')
+                .map((part: { text: string }) => part.text)
+                .join('\n')
+            : undefined
+        })
+      )
     if (event.type === 'tool_execution_update') this.result(event.toolCallId, event.partialResult, false, true)
     if (event.type === 'agent_start' || event.type === 'agent_settled') {
       this.settled = event.type === 'agent_settled'

@@ -11,7 +11,7 @@ import { expect, it, vi } from 'vitest'
 import type { Key, ToolDefinition } from '@cherrystudio/agent-behavior'
 import { runtimeId } from '@cherrystudio/agent-runtime'
 
-import { compactionSummarizer, conversationExtension, meterRequests } from '../src/behavior/extension'
+import { conversationExtension, meterRequests } from '../src/behavior/extension'
 import { PI_RUN_LIMIT_MESSAGE } from '../src/behavior/runBudget'
 import { endingOf, noteMessage } from '../src/behavior/runs'
 import { newConversation, type Adapter, type RunState } from '../src/behavior/state'
@@ -174,9 +174,12 @@ it('keeps a compaction allowance refusal as the terminal run limit', async () =>
   conv.active = freshRun()
   conv.active.requests = 20
   const adapter = { installation: {} } as unknown as Adapter
-  await expect(compactionSummarizer(adapter, conv)({ reason: 'threshold' } as never)).rejects.toThrow(
-    PI_RUN_LIMIT_MESSAGE
-  )
+  const provider = respondingModel(() => assistantReply('must not be requested'))
+  const session = { isCompacting: true, agent: { streamFunction: provider.model } } as unknown as AgentSession
+  meterRequests(adapter, conv, session)
+  const result = await (await session.agent.streamFunction(MODEL, normalizeContext({ messages: [] }))).result()
+  expect(result.errorMessage).toContain(PI_RUN_LIMIT_MESSAGE)
+  expect(provider.calls).toHaveLength(0)
   expect(endingOf(conv.active, false).answer).toMatchObject({ outcome: 'limit_reached', error: PI_RUN_LIMIT_MESSAGE })
 })
 
@@ -202,20 +205,17 @@ it('resets a native follow-up before its automatic compaction is metered', async
           return { text: 'echo', isError: false }
         })
       )
-      ports.lifecycle.register({
-        onOpen: async () => {},
-        onClose: async () => {},
-        onCompacted: async () => {},
-        onCompacting: async () => {
-          summaries++
-          return { summary: 'summary' }
-        }
-      })
     },
-    [],
+    [
+      (pi) => {
+        pi.on('session_before_compact', () => {
+          summaries++
+        })
+      }
+    ],
     (request, open) =>
       open(request, {
-        compaction: { enabled: true, reserveTokens: 16384, keepRecentTokens: 1, summarize: request.summarize }
+        compaction: { enabled: true, reserveTokens: 16384, keepRecentTokens: 1 }
       })
   )
   const t = await pi.harness.createThread()
@@ -230,6 +230,7 @@ it('resets a native follow-up before its automatic compaction is metered', async
   pi.harness.script(t, [
     ...Array.from({ length: 19 }, () => ({ text: '', toolCalls: [call], usage: usage(1) })),
     { text: 'first done', usage: usage(32000) },
+    { text: '## Goal\nContinue the follow-up task', usage: usage(1) },
     { text: '', toolCalls: [call], usage: usage(1) },
     { text: 'next done', usage: usage(1) }
   ])
@@ -244,7 +245,7 @@ it('resets a native follow-up before its automatic compaction is metered', async
   await pi.harness.settle()
   expect(calls).toBe(20)
   expect(summaries).toBe(1)
-  expect(pi.requests(t)).toHaveLength(22)
+  expect(pi.requests(t)).toHaveLength(23)
   expect((await read(pi, t)).live.runEnd?.outcome).toBe('completed')
 })
 

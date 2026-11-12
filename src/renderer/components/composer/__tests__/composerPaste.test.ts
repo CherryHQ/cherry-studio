@@ -372,8 +372,4 @@ describe('composer paste handling', () => {
       files: []
     })
   })
-
-  it('delegates text longer than the long-text threshold to the file handler', () => {
-    expect(getComposerPlainTextPasteOverride('a'.repeat(1501), {})).toBeNull()
-  })
 })

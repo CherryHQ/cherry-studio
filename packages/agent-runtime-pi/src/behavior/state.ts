@@ -7,6 +7,7 @@ import type {
   ConversationFacts,
   GateHandlers,
   GatePorts,
+  GoalOwner,
   JobHandler,
   JobKind,
   JobSpec,
@@ -23,8 +24,8 @@ import type {
 } from '@cherrystudio/agent-behavior'
 import type { InputId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
-import type { CompactionSummarizer } from '../compaction'
 import type { AgentRuntimeSession } from '../session'
+import { restoredRunUsage } from './history'
 
 /** The parent run whose tool call owns the child's first run; the ownership ends with that child run. */
 export type Owner = { readonly thread: ThreadId; readonly run: number }
@@ -103,9 +104,7 @@ export type Conversation = {
   hostPrompts: number
   /** `onCompacted` of the latest compaction and the drain after it. */
   compacted: Promise<void>
-  /** The adapter's summarizer declined the latest compaction: `onCompacting` declined or the meter refused it. */
-  declined: boolean
-  summarize?: CompactionSummarizer
+  summary?: { readonly owner: GoalOwner; readonly key: string; readonly run?: number; requests: number }
 }
 export type JobRecord = {
   readonly key: Key
@@ -146,6 +145,7 @@ export function newConversation(
   owner: Owner | undefined,
   reopened: boolean
 ): Conversation {
+  const runUsage = reopened ? restoredRunUsage(manager.getBranch(), thread) : []
   return {
     thread,
     manager,
@@ -156,15 +156,14 @@ export function newConversation(
     inbox: [],
     held: [],
     steered: new Set(),
-    runs: 0,
+    runs: runUsage.length,
     ends: new Map(),
-    runUsage: [],
+    runUsage,
     waiters: [],
     hostCompacts: 0,
     hostPrompts: 0,
     callIds: new Map(),
-    compacted: Promise.resolve(),
-    declined: false
+    compacted: Promise.resolve()
   }
 }
 

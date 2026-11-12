@@ -18,9 +18,8 @@ import {
   type ThreadId
 } from '@cherrystudio/agent-runtime'
 
-import type { CompactionSummarizer } from '../compaction'
 import type { AgentRuntimeSession } from '../session'
-import { compactionSummarizer, conversationExtension, meterRequests } from './extension'
+import { conversationExtension, meterRequests } from './extension'
 import { historyOf } from './history'
 import { commit, modelContext, readFacts } from './ledger'
 import {
@@ -53,12 +52,6 @@ export type BehaviorSessionRequest = {
   /** The adapter's extension; the session must install it. */
   readonly extension: ExtensionFactory
   /**
-   * The session's compaction summarizer: pass it as `compaction.summarize`, so every compaction asks `onCompacting`
-   * (H12) and a decline's reason becomes the `compaction-end` error. A compaction that does not go through it is
-   * cancelled and reported to `onError`.
-   */
-  readonly summarize: CompactionSummarizer
-  /**
    * For a child: give it the model `origin.modelKey` names. The adapter's extension already leaves out the package's
    * `'parent-only'` tools; host-owned tools follow the host's own child configuration.
    */
@@ -71,9 +64,7 @@ export interface PiBehaviorOptions {
   /** Builds the native session of a conversation the adapter opens (`createAgentRuntimeSession`, Pi's retry off). */
   readonly openSession: (request: BehaviorSessionRequest) => Promise<AgentRuntimeSession>
   /**
-   * Errors no caller awaits: a job that threw, a run that failed to start, an automatic compaction's `onCompacting` or
-   * `onCompacted`, what a handler Pi calls threw, a quiet input that failed to write, a run the adapter did not start,
-   * a compaction cancelled because it bypassed `BehaviorSessionRequest.summarize`.
+   * Errors no caller awaits: a job, run, lifecycle handler, native callback, or quiet input that fails.
    */
   readonly onError?: (error: unknown) => void
   readonly onResults?: (thread: ThreadId, result: OperationResult<SubagentResults>) => void
@@ -100,7 +91,7 @@ export interface PiBehavior {
     options?: Parameters<AgentRuntimeSession['prompt']>[1],
     signal?: AbortSignal
   ): Promise<void>
-  /** Compacts now; resolves once `onCompacted` has run, or once `onCompacting` declined and nothing was compacted. */
+  /** Compacts now; resolves once `onCompacted` has run. */
   compact(thread: ThreadId, instructions?: string): Promise<void>
   /** Resolves once no run is active and no job is live; inputs a failed run left do not count. */
   settled(): Promise<void>
@@ -399,11 +390,9 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   async function openNative(conv: Conversation): Promise<void> {
     const child =
       conv.lineage.kind === 'subagent' ? { parent: conv.lineage.parent, origin: conv.lineage.origin } : undefined
-    conv.summarize = compactionSummarizer(adapter, conv)
     const native = await options.openSession({
       sessionManager: conv.manager,
       extension: conversationExtension(adapter, conv),
-      summarize: conv.summarize,
       ...(child && { child })
     })
     if (closing) {
@@ -416,6 +405,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     native.session.subscribe((event) => {
       if (event.type !== 'compaction_end') return
       const compacted = event.result !== undefined
+      conv.summary = undefined
       const awaited = conv.hostCompacts > 0
       // Outside Pi's dispatch, with Pi idle again: onCompacted's quiet inputs need an idle conversation.
       conv.compacted = track(
@@ -551,15 +541,9 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       const conv = conversation(thread)
       if (!conv.native) throw new Error(`Conversation ${thread} has no session`)
       conv.hostCompacts += 1
-      conv.declined = false
       // In flight until `onCompacted` has returned too (H5).
       try {
-        try {
-          await conv.native.compact(instructions)
-        } catch (error) {
-          // A decline compacts nothing and is no failure of the call; its reason is the `compaction-end` error.
-          if (!conv.declined) throw error
-        }
+        await conv.native.compact(instructions)
         await conv.compacted
       } finally {
         conv.hostCompacts -= 1
