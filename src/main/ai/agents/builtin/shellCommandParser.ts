@@ -180,7 +180,7 @@ function readParenthesized(
       powershell &&
       char === '<' &&
       text[index + 1] === '#' &&
-      (index === contentStart || /[\s;(){}\[\]'"]/.test(text[index - 1]))
+      (index === contentStart || /[\s;(){}[\]'"]/.test(text[index - 1]))
     ) {
       const end = text.indexOf('#>', index + 2)
       index = end === -1 ? text.length : end + 2
@@ -260,7 +260,7 @@ function readWord(
   let index = start
   while (index < text.length) {
     const char = text[index]
-    if (powershell && index > start && char === '<' && text[index + 1] === '#' && /[)'\"\]}]/.test(text[index - 1]))
+    if (powershell && index > start && char === '<' && text[index + 1] === '#' && /[)'"\]}]/.test(text[index - 1]))
       break
     if (
       WHITESPACE.has(char) ||
@@ -326,7 +326,7 @@ function tokenize(text: string, powershell: boolean): Token[] {
     }
     if (
       powershell &&
-      (atWordStart || /[)'\"\]}]/.test(text[index - 1] ?? '')) &&
+      (atWordStart || /[)'"\]}]/.test(text[index - 1] ?? '')) &&
       char === '<' &&
       text[index + 1] === '#'
     ) {
