@@ -24,6 +24,7 @@ import { and, asc, eq, gte, inArray, isNotNull, like, lt, ne, or } from 'drizzle
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { assistantTable } from '@data/db/schemas/assistant'
 import { followupQueueFileRefTable } from '@data/db/schemas/fileRelations'
 import {
   type FollowupQueueRow,
@@ -39,6 +40,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateFollowupQueueDto } from '@shared/data/api/schemas/followupQueues'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import {
+  FOLLOWUP_NO_ASSISTANT,
   FOLLOWUP_QUEUE_LIMIT,
   FOLLOWUP_QUEUE_RECEIPT_RETENTION_MS,
   FOLLOWUP_QUEUE_SCOPE_DIMENSION,
@@ -72,9 +74,18 @@ function throwIfScopeConversationGoneTx(tx: Pick<DbType, 'select'>, scopeKey: st
     if (!session) throw DataApiErrorFactory.notFound('AgentSession', sessionId)
     return
   }
-  const topicId = scopeKey.split(':')[0]
+  const [topicId, assistantId] = scopeKey.split(':')
   const [topic] = tx.select({ id: topicTable.id }).from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
   if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
+  if (assistantId && assistantId !== FOLLOWUP_NO_ASSISTANT) {
+    const assistant = tx
+      .select({ id: assistantTable.id })
+      .from(assistantTable)
+      .where(eq(assistantTable.id, assistantId))
+      .limit(1)
+      .get()
+    if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+  }
 }
 
 function rowToItem(row: FollowupQueueRow): FollowupQueueItem {
