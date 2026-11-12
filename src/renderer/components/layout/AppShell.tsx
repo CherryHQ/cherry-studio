@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
+import { isMarkdownFilePreview, useOpenFilePreviewTab } from '@renderer/components/FilePreview'
 import { useCommandHandler, useCommandRuntime } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
@@ -12,6 +13,7 @@ import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 
 import Sidebar from '../app/Sidebar'
@@ -35,6 +37,31 @@ export const AppShell = () => (
 
 const AppShellContent = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
+  const openFilePreviewTab = useOpenFilePreviewTab()
+
+  useEffect(() => {
+    const handleWindowDragOver = (event: DragEvent): void => {
+      if (!event.defaultPrevented && event.dataTransfer?.types.includes('Files')) event.preventDefault()
+    }
+    const handleWindowDrop = (event: DragEvent): void => {
+      const transfer = event.dataTransfer
+      if (event.defaultPrevented || !transfer || transfer.files.length !== 1) return
+      if (
+        Array.from(transfer.items ?? []).some((item) => item.kind === 'file' && item.webkitGetAsEntry?.()?.isDirectory)
+      )
+        return
+      const path = AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(transfer.files[0]))
+      if (!path.success || !isMarkdownFilePreview(path.data)) return
+      event.preventDefault()
+      openFilePreviewTab(path.data)
+    }
+    window.addEventListener('dragover', handleWindowDragOver)
+    window.addEventListener('drop', handleWindowDrop)
+    return () => {
+      window.removeEventListener('dragover', handleWindowDragOver)
+      window.removeEventListener('drop', handleWindowDrop)
+    }
+  }, [openFilePreviewTab])
   const tabsApi = useTabs()
   const {
     tabs,
@@ -109,8 +136,12 @@ const AppShellContent = () => {
 
   const handleCloseActiveTab = useCallback(() => {
     if (!activeTabId) return
+    if (isMac && tabs.length === 1) {
+      void ipcApi.request('window.close')
+      return
+    }
     handleCloseTab(activeTabId)
-  }, [activeTabId, handleCloseTab])
+  }, [activeTabId, handleCloseTab, tabs.length])
 
   const commandRuntime = useCommandRuntime()
   const tabCommandHints = useNumberShortcutHints(TAB_NUMBER_COMMANDS)

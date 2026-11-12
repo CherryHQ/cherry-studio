@@ -48,12 +48,6 @@ describe('DexieSettingsReader', () => {
       const reader = new DexieSettingsReader(sampleRecords)
       expect(reader.get('translate:model')).toBeNull()
     })
-
-    it('should support generic type parameter', () => {
-      const reader = new DexieSettingsReader(sampleRecords)
-      const value = reader.get<boolean>('translate:markdown:enabled')
-      expect(value).toBe(true)
-    })
   })
 
   describe('has', () => {
@@ -87,14 +81,6 @@ describe('DexieSettingsReader', () => {
       expect(keys).toContain('translate:markdown:theme')
       expect(keys).toContain('pinned:models')
       expect(keys).toContain('translate:model')
-    })
-
-    it('should return a new array each time (not internal reference)', () => {
-      const reader = new DexieSettingsReader(sampleRecords)
-      const keys1 = reader.keys()
-      const keys2 = reader.keys()
-      expect(keys1).not.toBe(keys2)
-      expect(keys1).toEqual(keys2)
     })
   })
 

@@ -444,6 +444,10 @@ a reference-only result: Agent Session messages are editable and deletable, Sess
 cascades their messages, and FTS/UI/export read row-local data. A source reference would therefore
 make historical results mutable or missing and require a second cross-Session hydration path.
 
+These product storage operations do not grant UI permissions: in Agent/Work, assistant replies
+offer no Delete action. User-message deletion retains its existing guards, including the native
+input binding lock. Deleting a product record does not rewind native history.
+
 Only safe deliverables are copied: terminal text and managed file references. Reasoning, tool
 calls/results, approval state, hidden prompts, and unmanaged local paths are not result content.
 
@@ -726,6 +730,12 @@ The settings builder explicitly passes `permissionMode: 'default'` when the Agen
 has no configured mode, preserving manual approval independently of SDK defaults.
 An explicitly configured mode, including `auto`, takes precedence.
 
+On Linux, the final subprocess environment must contain a non-empty
+`DBUS_SESSION_BUS_ADDRESS`. If it does not, environment construction returns
+actionable setup guidance before the SDK query is created, so no Claude Code
+child is launched. This check does not probe whether a non-empty bus address
+is reachable.
+
 Starting a query (warm or cold) registers the agent's MCP servers and lists
 their tools. That listing is **cache-only** — it never connects to an upstream
 MCP server — so a dead or slow server cannot block startup. See
@@ -786,7 +796,9 @@ renderer.
 
 `reconcile()` carries live agent edits onto the warm connection: a
 `permission-mode` change awaits the SDK `setPermissionMode` before mutating
-the snapshot (short-circuiting an unchanged mode), and a `tool-policy`
+the snapshot (short-circuiting an unchanged mode). It applies during an active
+turn too: the SDK keeps the turn running and governs its next tool call by the
+new mode. A `tool-policy`
 change refreshes the snapshot's disabled set in place. Concurrent push/pull
 reconciles are serialized per connection. A rejected update is failed closed
 by the host (the connection is torn down) rather than left running under the
@@ -854,6 +866,16 @@ Allowed in v1:
   execution environments behind the user's back; an absent one falls back to
   Cherry's own Git Bash discovery.
 
+On Windows, Pi and Pi Durable also expose the native `powershell` tool. Pi searches
+for `pwsh.exe` before Windows PowerShell; Durable tries `pwsh`, then `powershell`
+when the executable cannot start. PowerShell runs independently of Bash discovery.
+The edit dialog shows its enable/disable control only on Windows. Both shell tools
+share Cherry's binary execution environment, approval gate, global-install approval
+policy, direct-mise mutation block, and user-data SQLite guard. Detected global installs
+require approval outside Full Access and cannot run without a responder outside that
+mode. Only Bash commands use RTK rewriting. A failed command is not retried under a
+different shell.
+
 Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 
 - User-global pi resources under the standalone pi home (`~/.pi/agent`) other
@@ -901,7 +923,7 @@ contract above.
 
 Warm Pi reconciles serialize push and pull calls per connection so a slower
 older snapshot cannot overwrite a newer policy result. `permission_mode` is
-live policy and stays frozen for an active turn. `disabledTools` has two jobs:
+live policy and applies at once, including to the active turn's next tool call. `disabledTools` has two jobs:
 the live gate applies newly disabled tools immediately, while the spawn-time
 `excludeTools` list controls which tools the model can see. It therefore remains
 a rebuild-signature fact; adding or removing a disabled tool returns `rebuild`
@@ -986,8 +1008,7 @@ its archive cannot open as an independent writable root. Public projection code 
 
 ### Pi Durable behavior host
 
-`PiDurableRuntimeConnection` installs the same `agent-behavior` rules and host ports
-through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
+`PiDurableRuntimeDriver` owns one native backend per store and connections borrow root accesses. `DurableBackend` installs the same `agent-behavior` rules and routes host ports by the native conversation ownership tree through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
 question cards and tool rendering. Native SQLite owns execution history and task state;
 the existing backend/context tables bind it to product sessions. Strict identity checks
 prevent a missing store from silently becoming a fresh conversation.
@@ -1005,14 +1026,13 @@ from idle activity or an empty product-input map.
 Native submission and assistant metadata carry the consuming run's stable identity.
 Ordinary steer may start a later run after normal completion; it has no run-only constraint.
 Background continuation keeps the child identity. Independent continuation of a completed
-foreground child is rejected because native tool ownership is immutable. Desktop native
-fork/edit checkpoints and `vcc_recall` are not exposed. See the
+foreground child is rejected because native tool ownership is immutable. Successful committed boundaries support ownerless same-storage desktop forks; each root retains its own model options, approvals, extensions and environment. Before shared recovery resumes unfinished roots, their stored request selections and Main projection consumers are restored. Final release closes the backend once and drains observations before product writers stop. Edit and resend retains sibling-message branches, preparing an ownerless native fork at the predecessor or a fresh context for the first input. File rewind and `vcc_recall` remain unavailable. See the
 [driver README](../../../../src/main/ai/runtime/piDurable/README.md) for storage and recovery boundaries.
 
 ### Pi code mode
 
 Pi 1.0 supplies the native `codemode`, `tool_search`, and MCP extensions. Cherry
-injects only its managed Bash definition and mounts the session's complete MCP
+injects its managed Bash definition, adds PowerShell on Windows, and mounts the session's complete MCP
 server set through an in-memory transport. Pi owns discovery, tool definitions,
 structured results, cancellation, and MCP connection teardown. Disk-discovered
 Pi MCP configuration stays disabled; Cherry remains the configuration owner.
@@ -1021,10 +1041,11 @@ Pi MCP configuration stays disabled; Cherry remains the configuration owner.
 access. Scripts call `tools.<identifier>(args)` and discover deferred MCP tools
 through `searchTools`, `describeTool`, `describeNamespace`, or `ALL_TOOLS`.
 Native file and shell tools remain available both directly and from scripts.
-Every nested call emits its own tool events and passes Cherry's `tool_call`
-approval extension, including disabled-tool, SQLite, global-install, and
-permission-mode policies. The script itself needs no separate approval because
-all outward effects pass through those tool calls.
+Every nested call emits its own tool events and passes Cherry's approval gate,
+including disabled-tool, SQLite, global-install approval, direct-mise mutation, and
+permission-mode policies. Global-install decisions use the root session's effective
+permission mode, including for child sessions. The script itself needs no separate
+approval because all outward effects pass through those tool calls.
 
 Scripts have no default time limit. An explicit `timeout_ms` includes time spent
 waiting for tool approval and cancels pending calls when it expires. Native MCP

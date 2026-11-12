@@ -22,7 +22,8 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
@@ -75,6 +76,11 @@ const McpServersList: FC = () => {
   const protocolInstallQueueRef = useRef<ProtocolMcpInstallRequest[]>([])
   const pendingAutoEnableServerIdRef = useRef<string | null>(null)
   const protocolInstallRequest = protocolInstallQueue[0]
+  const [displayedProtocolRequestId, setDisplayedProtocolRequestId] = useState<string | null>(null)
+  const displayedProtocolRequest = protocolInstallQueue.find(
+    (request) => request.requestId === displayedProtocolRequestId
+  )
+  const protocolDialog = useExitPresence(displayedProtocolRequest ?? null)
 
   const [searchText, setSearchText] = useState('')
   // Keep typing responsive: the list re-filters on the deferred value.
@@ -115,23 +121,27 @@ const McpServersList: FC = () => {
     [navigate]
   )
 
+  useEffect(() => {
+    if (protocolDialog.isPresent) return
+    setDisplayedProtocolRequestId(protocolInstallRequest?.requestId ?? null)
+    if (protocolInstallRequest || !pendingAutoEnableServerIdRef.current) return
+    const serverId = pendingAutoEnableServerIdRef.current
+    pendingAutoEnableServerIdRef.current = null
+    openProtocolServer(serverId)
+  }, [openProtocolServer, protocolDialog.isPresent, protocolInstallRequest])
+
   const handleProtocolInstallClose = useCallback(async () => {
-    if (!protocolInstallRequest) return
+    if (!displayedProtocolRequest) return
 
     try {
-      await ipcApi.request('mcp.protocol_install.cancel', { requestId: protocolInstallRequest.requestId })
+      await ipcApi.request('mcp.protocol_install.cancel', { requestId: displayedProtocolRequest.requestId })
     } catch (error) {
       logger.error('Failed to cancel MCP protocol install request', error as Error)
       return
     }
 
-    const remainingRequests = removeProtocolInstallRequest(protocolInstallRequest.requestId)
-    if (remainingRequests.length > 0 || !pendingAutoEnableServerIdRef.current) return
-
-    const serverId = pendingAutoEnableServerIdRef.current
-    pendingAutoEnableServerIdRef.current = null
-    openProtocolServer(serverId)
-  }, [openProtocolServer, protocolInstallRequest, removeProtocolInstallRequest])
+    removeProtocolInstallRequest(displayedProtocolRequest.requestId)
+  }, [displayedProtocolRequest, removeProtocolInstallRequest])
 
   const filteredMcpServers = useMemo(() => {
     const keywords = deferredSearchText.toLowerCase().split(/\s+/).filter(Boolean)
@@ -204,12 +214,12 @@ const McpServersList: FC = () => {
   )
 
   const handleProtocolInstall = useCallback(async () => {
-    if (!protocolInstallRequest) return
+    if (!displayedProtocolRequest) return
 
     let createdServers: McpServer[]
     try {
       createdServers = await ipcApi.request('mcp.protocol_install.install', {
-        requestId: protocolInstallRequest.requestId
+        requestId: displayedProtocolRequest.requestId
       })
     } catch (error) {
       logger.error('Failed to install MCP servers from protocol', error as Error)
@@ -223,16 +233,10 @@ const McpServersList: FC = () => {
     void refetch().catch((error) =>
       logger.error('Failed to refresh MCP servers after protocol install', error as Error)
     )
-    const remainingRequests = removeProtocolInstallRequest(protocolInstallRequest.requestId)
+    pendingAutoEnableServerIdRef.current = lastCreatedServer.id
+    removeProtocolInstallRequest(displayedProtocolRequest.requestId)
     toast.success(t('settings.mcp.addSuccess'))
-    if (remainingRequests.length > 0) {
-      pendingAutoEnableServerIdRef.current = lastCreatedServer.id
-      return
-    }
-
-    pendingAutoEnableServerIdRef.current = null
-    openProtocolServer(lastCreatedServer.id)
-  }, [openProtocolServer, protocolInstallRequest, refetch, removeProtocolInstallRequest, t])
+  }, [displayedProtocolRequest, refetch, removeProtocolInstallRequest, t])
 
   const handleManualAdd = useCallback(() => {
     setIsAddMenuOpen(false)
@@ -266,16 +270,47 @@ const McpServersList: FC = () => {
   }, [exporting, mcpServers, t])
 
   return (
-    <>
-      <SettingsContentBody
-        className="min-h-0 flex-1 overflow-hidden pt-4"
-        innerClassName="flex min-h-0 flex-1 flex-col">
-        <div className="flex min-w-0 shrink-0 items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <SettingTitle className="m-0">{t('settings.mcp.allServers')}</SettingTitle>
-            <div className="flex shrink-0 items-center gap-1">
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-4 pb-6">
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
+        <div className="mb-1 flex min-w-0 shrink-0 items-center justify-between gap-4 border-b border-border-subtle pb-3">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <SettingTitle className="shrink-0">{t('settings.mcp.shortTitle')}</SettingTitle>
+              <Popover open={isFilterMenuOpen} onOpenChange={setIsFilterMenuOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t('settings.mcp.filter.label')}
+                    className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-accent">
+                    <Filter
+                      size={14}
+                      color={filter === 'all' ? 'var(--muted-foreground)' : undefined}
+                      className={filter === 'all' ? undefined : 'text-primary'}
+                    />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" side="bottom" className="w-auto min-w-36 p-1">
+                  <MenuList className="gap-1">
+                    {FILTER_OPTIONS.map((option) => (
+                      <MenuItem
+                        key={option.value}
+                        label={option.label ?? t(option.labelKey!)}
+                        className="h-8 rounded-lg px-2.5 text-sm"
+                        icon={
+                          <Check className={filter === option.value ? 'size-3.5 opacity-100' : 'size-3.5 opacity-0'} />
+                        }
+                        onClick={() => {
+                          setFilter(option.value)
+                          setIsFilterMenuOpen(false)
+                        }}
+                      />
+                    ))}
+                  </MenuList>
+                </PopoverContent>
+              </Popover>
               <CollapsibleSearchBar
                 onSearch={setSearchText}
+                value={searchText}
                 placeholder={t('settings.mcp.search.placeholder')}
                 tooltip={t('settings.mcp.search.tooltip')}
                 maxWidth={220}
@@ -284,7 +319,8 @@ const McpServersList: FC = () => {
               />
             </div>
           </div>
-          <div className="shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
+            <EnvironmentDependencies mini />
             <DropdownMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <Button variant="default" size="sm" className="shrink-0">
@@ -312,39 +348,6 @@ const McpServersList: FC = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </div>
-        <div className="mt-3 flex min-h-9 shrink-0 items-center justify-end gap-3 border-b border-border-subtle">
-          <EnvironmentDependencies mini />
-          <Popover open={isFilterMenuOpen} onOpenChange={setIsFilterMenuOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                aria-label={t('settings.mcp.filter.label')}
-                className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-accent">
-                <Filter
-                  size={14}
-                  color={filter === 'all' ? 'var(--muted-foreground)' : undefined}
-                  className={filter === 'all' ? undefined : 'text-primary'}
-                />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" side="bottom" className="w-auto min-w-36 p-1">
-              <MenuList className="gap-1">
-                {FILTER_OPTIONS.map((option) => (
-                  <MenuItem
-                    key={option.value}
-                    label={option.label ?? t(option.labelKey!)}
-                    className="h-8 rounded-lg px-2.5 text-sm"
-                    icon={<Check className={filter === option.value ? 'size-3.5 opacity-100' : 'size-3.5 opacity-0'} />}
-                    onClick={() => {
-                      setFilter(option.value)
-                      setIsFilterMenuOpen(false)
-                    }}
-                  />
-                ))}
-              </MenuList>
-            </PopoverContent>
-          </Popover>
         </div>
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -383,7 +386,7 @@ const McpServersList: FC = () => {
             </div>
           </div>
         </div>
-      </SettingsContentBody>
+      </div>
 
       <QuickCreateMcpServerDialog
         open={isQuickCreateOpen}
@@ -400,15 +403,16 @@ const McpServersList: FC = () => {
         initialImportMethod={modalType}
       />
 
-      {protocolInstallRequest && (
+      {protocolDialog.value && (
         <McpProtocolInstallDialog
-          key={protocolInstallRequest.requestId}
-          servers={protocolInstallRequest.servers}
+          key={protocolDialog.value.requestId}
+          open={displayedProtocolRequest !== undefined}
+          servers={protocolDialog.value.servers}
           onClose={handleProtocolInstallClose}
           onInstall={handleProtocolInstall}
         />
       )}
-    </>
+    </div>
   )
 }
 

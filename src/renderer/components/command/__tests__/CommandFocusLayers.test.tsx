@@ -22,6 +22,7 @@ import type { CommandId } from '@shared/utils/command'
 
 import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
 import { CommandFocusScope } from '../CommandFocusScope'
+import { CommandPopupMenu } from '../CommandMenus'
 import { CommandProvider } from '../CommandProvider'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
@@ -100,6 +101,26 @@ function pressShortcut(target: HTMLElement, init: KeyboardEventInit = {}) {
 describe('command keyboard layers with real UI primitives', () => {
   beforeEach(() => MockUsePreferenceUtils.resetMocks())
   afterEach(cleanup)
+
+  it('opens and dismisses a command menu inside a focus scope without recursive updates', async () => {
+    const user = userEvent.setup()
+    render(
+      <Providers>
+        <Surface name="list">
+          <CommandPopupMenu
+            location="topic.context"
+            extraItems={[{ type: 'item', id: 'custom', label: 'List action', onSelect: () => {} }]}>
+            <button type="button">Open command menu</button>
+          </CommandPopupMenu>
+        </Surface>
+      </Providers>
+    )
+    await user.click(screen.getByRole('button', { name: 'Open command menu' }))
+    expect(await screen.findByRole('menuitem', { name: 'List action' })).toBeVisible()
+    await user.keyboard('{Escape}')
+    expect(pressShortcut(screen.getByRole('button', { name: 'Focus list' }))).toBe(true)
+    expect(screen.getByLabelText('list actions')).toHaveTextContent('1')
+  })
 
   it('isolates nested dialog scopes, preserves allowed root commands and restores each owner on close', async () => {
     const user = userEvent.setup()

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-11-subscription-public-gateway.md
+2026-11-11-subscription-public-gateway.md: d9786a9f904ea80dc11697d5bf3483c6080960a9
+2026-11-11-subscription-public-gateway.zh.md: 3bf53b4ff2b9031285ef0a14e474922cdeffcd6d

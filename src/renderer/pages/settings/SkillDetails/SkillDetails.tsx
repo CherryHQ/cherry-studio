@@ -242,7 +242,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label={t('common.more')}>
+              <Button variant="ghost" size="icon-sm" aria-label={t('common.more')} className="text-muted-foreground">
                 <MoreHorizontal size={16} />
               </Button>
             </DropdownMenuTrigger>

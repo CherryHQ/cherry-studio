@@ -1,3 +1,4 @@
+import { parse, stringify } from 'smol-toml'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
@@ -10,7 +11,6 @@ import type { CliConfigFileDraft, CliConfigTarget } from '../index'
 import {
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
-  formatCliConfigDraftFile,
   readCliConfigDraft,
   updateCliConfigDraftConfig
 } from '../index'
@@ -88,30 +88,6 @@ async function buildCodexDraft(configBlob: Record<string, unknown> = {}): Promis
   return readCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::gpt-5', configBlob })
 }
 
-describe('formatCliConfigDraftFile', () => {
-  it('pretty-prints JSON drafts (2-space indent, trailing newline)', () => {
-    const file: CliConfigFileDraft = {
-      target: 'claude-settings',
-      label: '',
-      path: '',
-      language: 'json',
-      content: '{"b":2,"a":1}'
-    }
-    expect(formatCliConfigDraftFile(file).content).toBe('{\n  "b": 2,\n  "a": 1\n}\n')
-  })
-
-  it('leaves non-JSON (toml/dotenv) drafts untouched', () => {
-    const file: CliConfigFileDraft = {
-      target: 'kimi-config',
-      label: '',
-      path: '',
-      language: 'toml',
-      content: 'default_model="x"'
-    }
-    expect(formatCliConfigDraftFile(file)).toBe(file)
-  })
-})
-
 describe('updateCliConfigDraftConfig', () => {
   it('applies a new config blob while preserving the connection', async () => {
     const files = await buildCodexDraft()
@@ -132,6 +108,24 @@ describe('updateCliConfigDraftConfig', () => {
     })
     // baseUrl / apiKey / model are untouched by a config-only edit.
     expect(extractConnectionFromCliConfigDraft(CodeCli.OPENAI_CODEX, updated)).toEqual(before)
+  })
+
+  it('preserves Codex token limits and connection during a config-only update', async () => {
+    const files = await buildCodexDraft()
+    const configFile = files.find((file) => file.target === 'codex-config')!
+    const config = parse(configFile.content)
+    config.model_context_window = 900000
+    config.model_auto_compact_token_limit = 900000
+    configFile.content = stringify(config)
+    const updated = updateCliConfigDraftConfig(CodeCli.OPENAI_CODEX, files, { reasoningEffort: 'high' })
+    const result = parse(updated.find((file) => file.target === 'codex-config')!.content) as Record<string, any>
+    expect(result.model_context_window).toBe(900000)
+    expect(result.model_auto_compact_token_limit).toBe(900000)
+    expect(result.model_reasoning_effort).toBe('high')
+    expect(result.model).toBe('gpt-5')
+    expect(result.model_provider).toBe('cherry-DeepSeek')
+    expect(result.model_providers['cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
+    expect(JSON.parse(updated.find((file) => file.target === 'codex-auth')!.content).OPENAI_API_KEY).toBe('sk-secret')
   })
 
   it('clears a managed flag when it is dropped from the blob', async () => {
@@ -193,11 +187,6 @@ describe('updateCliConfigDraftConfig', () => {
 
     const disabled = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, updated, {})
     expect(JSON.parse(disabled[0].content).compaction).toEqual({ prune: false, reserved: 10000 })
-  })
-
-  it('returns the files unchanged when there is no managed connection', () => {
-    const files: CliConfigFileDraft[] = [{ target: 'codex-config', label: '', path: '', language: 'toml', content: '' }]
-    expect(updateCliConfigDraftConfig('unknown-tool', files, { goalMode: true })).toBe(files)
   })
 
   // Parity across every file-based CLI (the previous cases only covered Codex): a config-only

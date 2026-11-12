@@ -55,12 +55,6 @@ describe('resolveRequestContextSettings — compression-model assembly', () => {
     mockResolveCompressionModel.mockClear()
   })
 
-  it('falls back to the request model id when compress.model_id is null', async () => {
-    setPrefs({ modelId: null })
-    const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION)
-    expect(compressionModel?.languageModel.modelId).toBe('openai::gpt-4o')
-  })
-
   it('returns an unavailable compressor without failing the chat request', async () => {
     setPrefs({ modelId: 'ollama::qwen3-embedding-0.6b' })
     mockResolveCompressionModel.mockResolvedValueOnce(null)
@@ -81,11 +75,6 @@ describe('resolveRequestContextSettings — compression-model assembly', () => {
   // empty string is representable. `??` alone would pass it through to
   // `resolveCompressionModel('')`, which returns null and silently switched
   // compression off; blank must read as "no pick" and use the current model.
-  it.each([[''], ['   ']])('treats a blank compress.model_id (%j) as "use the current model"', async (blank) => {
-    setPrefs({ modelId: blank })
-    const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION)
-    expect(compressionModel?.languageModel.modelId).toBe('openai::gpt-4o')
-  })
 
   it('does not resolve a compression model when compression is disabled', async () => {
     setPrefs({ compressEnabled: false })

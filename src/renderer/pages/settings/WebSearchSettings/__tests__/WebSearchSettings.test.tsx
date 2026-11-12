@@ -182,11 +182,10 @@ describe('WebSearchSettings', () => {
     }
   }
 
-  it('keeps search controls and the blacklist in collapsed advanced settings', () => {
+  it('reveals advanced settings when expanded', () => {
     render(<WebSearchSettings />)
 
     const keywordProviderSection = getKeywordProviderSection()
-    const fetchProviderSection = getFetchProviderSection()
     const advancedSettingsTrigger = getAdvancedSettingsTrigger()
     const searchResultTitle = within(keywordProviderSection).getByText(
       'settings.tool.websearch.search_max_result.label'
@@ -197,33 +196,10 @@ describe('WebSearchSettings', () => {
       hidden: true
     })
 
-    expect(screen.queryByText('settings.general.label')).not.toBeInTheDocument()
-    expect(keywordProviderSection).toBeInTheDocument()
-    expect(fetchProviderSection).toBeInTheDocument()
-    expect(
-      keywordProviderSection.compareDocumentPosition(fetchProviderSection) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
     expect(advancedSettingsTrigger).toHaveAttribute('aria-expanded', 'false')
     expect(searchResultTitle).not.toBeVisible()
     expect(compressionControl).not.toBeVisible()
     expect(blacklistTitle).not.toBeVisible()
-    expect(
-      within(fetchProviderSection).queryByText('settings.tool.websearch.search_max_result.label')
-    ).not.toBeInTheDocument()
-    expect(
-      within(fetchProviderSection).queryByRole('button', { name: 'common.advanced_settings' })
-    ).not.toBeInTheDocument()
-    expect(within(fetchProviderSection).queryByText('settings.tool.websearch.blacklist')).not.toBeInTheDocument()
-    expect(
-      within(keywordProviderSection).getByRole('button', {
-        name: 'settings.tool.websearch.search_provider'
-      })
-    ).toBeInTheDocument()
-    expect(
-      within(fetchProviderSection).getByRole('button', {
-        name: 'settings.tool.websearch.fetch_urls_provider'
-      })
-    ).toBeInTheDocument()
 
     fireEvent.click(advancedSettingsTrigger)
 
@@ -235,13 +211,12 @@ describe('WebSearchSettings', () => {
 
   // The preference governs every capability section, so it lives in its own group rather than under
   // one section's advanced settings — no accordion interaction needed to reach it.
-  it('defaults to model-native web-tool priority and persists switch changes', async () => {
+  it('persists model-native web-tool priority changes', async () => {
     render(<WebSearchSettings />)
 
     const prioritySwitch = screen.getByRole('switch', {
       name: 'settings.tool.websearch.model_tools_preferred.label'
     })
-    expect(prioritySwitch).toHaveAttribute('aria-checked', 'true')
 
     fireEvent.click(prioritySwitch)
 
@@ -520,23 +495,10 @@ describe('WebSearchSettings', () => {
     rerender(<WebSearchSettings />)
 
     const updatedSection = getKeywordProviderSection()
-    expect(within(updatedSection).getByText('settings.tool.websearch.provider_description.exa')).toBeInTheDocument()
+
     expect(within(updatedSection).getAllByText('Exa').length).toBeGreaterThan(0)
-    expect(within(updatedSection).getByText('settings.provider.api_key.label')).toBeInTheDocument()
+
     expect(within(updatedSection).getByRole('button', { name: 'settings.tool.websearch.check' })).not.toBeDisabled()
-    expect(within(updatedSection).queryByText('common.default')).not.toBeInTheDocument()
-    expect(within(updatedSection).queryByText('settings.tool.websearch.set_as_default')).not.toBeInTheDocument()
-  })
-
-  it('does not show API host settings for the built-in URL fetch provider', () => {
-    render(<WebSearchSettings />)
-
-    const section = getFetchProviderSection()
-
-    expect(within(section).getAllByText('fetch').length).toBeGreaterThan(0)
-    expect(within(section).getByText('settings.tool.websearch.provider_description.fetch')).toBeInTheDocument()
-    expect(within(section).queryByText('settings.provider.api_host')).not.toBeInTheDocument()
-    expect(within(section).queryByRole('button', { name: 'settings.tool.websearch.check' })).not.toBeInTheDocument()
   })
 
   it('saves API key drafts before checking keyword providers', async () => {

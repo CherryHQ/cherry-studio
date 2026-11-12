@@ -73,6 +73,7 @@ import { FilePreviewNavigationProvider, hasRenderedFilePreview } from '@renderer
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentChildProjection } from '@renderer/hooks/agent/useAgentChildProjection'
+import { useAgentDesktopControls } from '@renderer/hooks/agent/useAgentDesktopControls'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
@@ -433,7 +434,7 @@ function AgentRightPaneActionsProvider({
     }
   }, [artifactOpenRequestRef, sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
-  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen(FILES_PANE_ID)
+  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && conversationState === 'ready'
   const canPreviewInputFileInRightPane = conversationState === 'ready'
   const {
     clearReturnTarget,
@@ -481,7 +482,9 @@ function AgentRightPaneActionsProvider({
       void openFileTarget(targetPath, {
         openArtifactFile: () => {
           if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(selection)
+          requestFileSelection(selection, () => {
+            panelActions.requestOpen(FILES_PANE_ID, { userInitiated: true })
+          })
         },
         openPath: async (path) => {
           if (artifactOpenRequestRef.current !== requestId) return
@@ -1511,19 +1514,14 @@ function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
 
 export function AgentTaskProgressCapsule() {
   const { t } = useTranslation()
-  const runtime = useAgentRightPaneRuntime()
   const status = useAgentRightPaneStatus()
 
-  if (status.totalTaskCount === 0 || status.completedTaskCount === status.totalTaskCount) return null
-
-  const hasActiveAssistantRun = runtime.messages.some(
-    (message) => message.role === 'assistant' && message.metadata?.status === 'pending'
-  )
+  if (!status.isTaskPlanActive || status.totalTaskCount === 0 || status.completedTaskCount === status.totalTaskCount) {
+    return null
+  }
   const explicitActiveTaskIndex = status.tasks.findIndex((task) => task.status === 'in_progress')
   const inferredActiveTaskIndex =
-    hasActiveAssistantRun && explicitActiveTaskIndex < 0
-      ? status.tasks.findIndex((task) => task.status === 'pending')
-      : -1
+    explicitActiveTaskIndex < 0 ? status.tasks.findIndex((task) => task.status === 'pending') : -1
   const currentTaskIndex =
     explicitActiveTaskIndex >= 0
       ? explicitActiveTaskIndex
@@ -1597,20 +1595,51 @@ export function AgentTaskProgressCapsule() {
   )
 }
 
+type DesktopControls = ReturnType<typeof useAgentDesktopControls>
+const DesktopControlsContext = createContext<{
+  rows: NonNullable<DesktopControls['controls']>
+  failed: boolean
+  pending: DesktopControls['pending']
+  stopApp: DesktopControls['stopApp']
+} | null>(null)
+
 function AgentDetailsScope({ children, present }: { children: ReactNode; present: boolean }) {
   const meta = useAgentRightPaneMeta()
   const panel = useRightPanelState()
+  const desktopControls = useAgentDesktopControls()
+  const ownerKey = meta.sessionId && meta.agentId ? `agent:${meta.sessionId}:${meta.agentId}` : undefined
+  const rows =
+    desktopControls.controls?.filter(
+      (row) =>
+        ownerKey &&
+        row.ownerId === ownerKey &&
+        typeof row.appId === 'string' &&
+        row.appId.length > 0 &&
+        ['opening', 'active', 'stopping', 'stopped', 'unconfirmed'].includes(row.status)
+    ) ?? []
+  const { t } = useTranslation()
+  useEffect(() => {
+    if (desktopControls.failed) toast.error(t('agent.right_pane.info.desktop_control.load_failed'))
+  }, [desktopControls.failed, t])
   return (
-    <AgentSessionDetailsProvider
-      sessionId={meta.sessionId}
-      available={present && meta.conversationState === 'ready' && !!meta.sessionId && !panel.presentationMaximized}>
-      <AgentRunTaskStopsProvider>
-        {present && meta.conversationState === 'ready' && meta.sessionId && meta.workspacePath && (
-          <AgentWorkspaceOpenShortcut workspacePath={meta.workspacePath} />
-        )}
-        {children}
-      </AgentRunTaskStopsProvider>
-    </AgentSessionDetailsProvider>
+    <DesktopControlsContext
+      value={{
+        rows,
+        failed: desktopControls.failed,
+        pending: desktopControls.pending,
+        stopApp: desktopControls.stopApp
+      }}>
+      <AgentSessionDetailsProvider
+        sessionId={meta.sessionId}
+        available={present && meta.conversationState === 'ready' && !!meta.sessionId && !panel.presentationMaximized}>
+        <AgentRunTaskStopsProvider>
+          {present && meta.conversationState === 'ready' && meta.sessionId && meta.workspacePath && (
+            <AgentWorkspaceOpenShortcut workspacePath={meta.workspacePath} />
+          )}
+          {children}
+        </AgentRunTaskStopsProvider>
+      </AgentSessionDetailsProvider>
+    </DesktopControlsContext>
   )
 }
 
@@ -1621,9 +1650,13 @@ function AgentDetailsContent() {
   const status = useAgentRightPaneStatus()
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
+  const desktopControls = use(DesktopControlsContext)
   return (
     <div key={meta.sessionId}>
       <AgentSessionDetailsSections
+        desktopControls={desktopControls?.rows}
+        pendingDesktopControls={desktopControls?.pending}
+        stopDesktopControl={desktopControls?.stopApp}
         contextUsage={
           <AgentContextUsageSummary
             usage={usage}
