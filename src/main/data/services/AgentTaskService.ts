@@ -791,7 +791,7 @@ export class AgentTaskService {
       ? 'cancelled'
       : job.status === 'pending' || job.status === 'delayed'
         ? 'running'
-        : job.status === 'completed' && (output?.kind === 'skipped' || output?.skipped === true)
+        : job.status === 'completed' && isPlainRecord(output) && (output.kind === 'skipped' || output.skipped === true)
           ? 'skipped'
           : job.status
 
