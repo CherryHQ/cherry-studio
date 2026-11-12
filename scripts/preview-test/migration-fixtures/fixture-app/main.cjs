@@ -44,8 +44,6 @@ async function main() {
     };
     localStorage.setItem('persist:cherry-studio', JSON.stringify({
       assistants: JSON.stringify(assistants),
-      settings: JSON.stringify({ language: 'en-US', autoUpdate: false }),
-      llm: JSON.stringify({ providers: [] }),
       _persist: JSON.stringify({ version: 207, rehydrated: true })
     }));
     const db = await new Promise((resolve, reject) => {

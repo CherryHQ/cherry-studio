@@ -109,7 +109,7 @@ if (!$Preview) {
     $env:LOCALAPPDATA = Join-Path $env:USERPROFILE 'AppData/Local'
     $env:TEMP = Join-Path $shortFixture 'temp'
     $env:TMP = $env:TEMP
-    $wrapper = Start-Process -FilePath $stage -WorkingDirectory $shortFixture -PassThru -WindowStyle Hidden
+    $wrapper = Start-Process -FilePath $stage -WorkingDirectory $shortFixture -PassThru -WindowStyle Hidden -ArgumentList '--remote-debugging-port=49239','--remote-debugging-address=127.0.0.1'
     Wait-Version '1.9.12' | Set-Content ./1.9.12-history.txt
     $closeButton = $null
     $deadline = [DateTime]::UtcNow.AddSeconds(60)
@@ -123,6 +123,7 @@ if (!$Preview) {
       Start-Sleep -Milliseconds 500
     } while ([DateTime]::UtcNow -lt $deadline)
     if (!$closeButton -or !$wrapper.WaitForExit(45000) -or $wrapper.ExitCode -ne 0) {
+      node ./legacy-window-debug.cjs
       throw 'The 1.9.12 Close control was not invoked successfully'
     }
     $closeButton | Set-Content ./prerequisite-exit.json
