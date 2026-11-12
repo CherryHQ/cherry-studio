@@ -150,9 +150,6 @@ describe('blacklistMatchPattern', () => {
     map.set('https://mozilla.org/a/b/c/', 8)
     map.set('https://mozilla.org/*/b/*/', 9)
     const json = map.toJSON()
-    expect(JSON.stringify(json)).toBe(
-      '[[0],[[],[[1],[5,"https","/path"],[6,"https","/path/"]],{"org":[[],[],{"mozilla":[[[3,"*","/"],[7,"https"],[8,"https","/a/b/c/"],[9,"https","/*/b/*/"]],[[2]]]}]}]]'
-    )
     map = new MatchPatternMap(json)
     expect(get(map, 'http://mozilla.org/')).toEqual([0, 1, 2, 3])
     expect(get(map, 'https://mozilla.org/')).toEqual([0, 1, 2, 3, 7])

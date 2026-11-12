@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/process/2026-11-11-shadcn-lint.md
+2026-11-11-shadcn-lint.md: 769932db8b8938896060825cf4db06af215b9a89
+2026-11-11-shadcn-lint.zh.md: 07bae5877c2b1047caef4e889d7532bff5400fa8

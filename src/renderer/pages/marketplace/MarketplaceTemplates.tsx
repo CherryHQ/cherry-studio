@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Dialog, HorizontalScrollContainer } from '@cherrystudio/ui'
 import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { toast } from '@renderer/services/toast'
 import type { MarketplaceTemplate } from '@renderer/types/marketplace'
 import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
@@ -50,6 +51,7 @@ export function MarketplaceTemplates({
   const { createAgent, isCreatingAgent } = useAgentMutations()
   const [selected, setSelected] = useState<MarketplaceTemplate | null>(null)
   const [creating, setCreating] = useState<MarketplaceTemplate | null>(null)
+  const createDialog = useExitPresence(creating)
   useLayoutEffect(
     () => () => {
       setSelected(null)
@@ -194,16 +196,16 @@ export function MarketplaceTemplates({
           ) : null}
         </MarketplaceDetailContent>
       </Dialog>
-      {creating ? (
+      {createDialog.value ? (
         <ResourceCreateWizard
           kind="agent"
-          open={active}
+          open={active && creating !== null}
           isSubmitting={isCreatingAgent}
           initialValues={{
-            name: creating.name,
-            description: creating.description,
-            avatar: creating.avatar,
-            prompt: creating.prompt
+            name: createDialog.value.name,
+            description: createDialog.value.description,
+            avatar: createDialog.value.avatar,
+            prompt: createDialog.value.prompt
           }}
           onOpenChange={(open) => {
             if (!open && !isCreatingAgent) {
