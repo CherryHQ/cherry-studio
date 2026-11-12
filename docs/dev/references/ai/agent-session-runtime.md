@@ -870,9 +870,11 @@ On Windows, Pi and Pi Durable also expose the native `powershell` tool. Pi searc
 for `pwsh.exe` before Windows PowerShell; Durable tries `pwsh`, then `powershell`
 when the executable cannot start. PowerShell runs independently of Bash discovery.
 The edit dialog shows its enable/disable control only on Windows. Both shell tools
-share Cherry's binary execution environment, approval gate, global-install restriction
-and user-data SQLite guard; only Bash commands use RTK rewriting. A failed command
-is not retried under a different shell.
+share Cherry's binary execution environment, approval gate, global-install approval
+policy, direct-mise mutation block, and user-data SQLite guard. Detected global installs
+require approval outside Full Access and cannot run without a responder outside that
+mode. Only Bash commands use RTK rewriting. A failed command is not retried under a
+different shell.
 
 Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 
@@ -1039,10 +1041,11 @@ Pi MCP configuration stays disabled; Cherry remains the configuration owner.
 access. Scripts call `tools.<identifier>(args)` and discover deferred MCP tools
 through `searchTools`, `describeTool`, `describeNamespace`, or `ALL_TOOLS`.
 Native file and shell tools remain available both directly and from scripts.
-Every nested call emits its own tool events and passes Cherry's `tool_call`
-approval extension, including disabled-tool, SQLite, global-install, and
-permission-mode policies. The script itself needs no separate approval because
-all outward effects pass through those tool calls.
+Every nested call emits its own tool events and passes Cherry's approval gate,
+including disabled-tool, SQLite, global-install approval, direct-mise mutation, and
+permission-mode policies. Global-install decisions use the root session's effective
+permission mode, including for child sessions. The script itself needs no separate
+approval because all outward effects pass through those tool calls.
 
 Scripts have no default time limit. An explicit `timeout_ms` includes time spent
 waiting for tool approval and cancels pending calls when it expires. Native MCP

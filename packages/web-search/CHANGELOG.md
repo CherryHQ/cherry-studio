@@ -1,5 +1,11 @@
 # @cherrystudio/web-search
 
+## Unreleased
+
+### Patch Changes
+
+- Change the package license from AGPL-3.0-only to MIT and update the README license statement.
+
 ## 0.7.0
 
 ### Minor Changes
