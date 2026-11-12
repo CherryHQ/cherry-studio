@@ -38,6 +38,24 @@ describe('classifyErrorCategory HTTP 400', () => {
     expect(classifyErrorCategory({ status: 400, text })).toBe(category)
   })
 
+  it.each([
+    'Invalid context window parameter',
+    'The maximum context length parameter is invalid',
+    'Input is too long for field name'
+  ])('does not classify a context configuration error as overflow: %s', (text) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe('bad_request')
+  })
+
+  it.each([
+    'model_context_window_exceeded',
+    "This model's maximum context length is 1048576 tokens",
+    "This model's maximum context length is 1,048,576 tokens",
+    'The context window was exceeded',
+    "The input is longer than the model's context length"
+  ])('recognizes explicit context overflow: %s', (text) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe('context_length')
+  })
+
   // An upstream that rejects the REQUEST body ("Failed to parse request body" — #22164)
   // must not be reported as a bad AI response: that sends users off switching models for
   // a request-side failure, and hides the provider-settings recovery action.
