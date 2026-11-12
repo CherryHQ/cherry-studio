@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/dev/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-12-tool-call-intent.md
-2026-11-12-tool-call-intent.md: 1544f5e298f42a49e100623e0545e5cff7a6d8a2
-2026-11-12-tool-call-intent.zh.md: bfae427b938c85d66385ae75515f89d758912ff1
