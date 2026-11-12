@@ -1587,6 +1587,7 @@
   "error.ocr_detail_failed": "Procesatorul OCR configurat a eșuat: {{reason}} Verificați sau schimbați procesatorul OCR în Setări → Procesarea fișierelor.",
   "error.originalError": "Eroare originală",
   "error.originalMessage": "Mesaj original",
+  "error.output_token_limit_reached": "Răspunsul a atins limita de tokenuri de ieșire înainte de a se încheia. Raționamentul este inclus în această limită. Măriți limita de ieșire a modelului sau reduceți efortul de raționament, apoi reîncercați.",
   "error.parameter": "Parametru",
   "error.prompt": "Prompt",
   "error.provider": "Furnizor",
