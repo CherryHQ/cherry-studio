@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-12-website-upload-naming-auto-link-crawling.md
+2026-11-12-website-upload-naming-auto-link-crawling.md: 6d296ff6fd4befebb947ae8be902fd08fb9b9887
+2026-11-12-website-upload-naming-auto-link-crawling.zh.md: 53d0e340b568b0a4ca4ac5edb689943edce152fd
