@@ -675,3 +675,30 @@ describe('PowerShell comment delimiters in nested and mid-token programs', () =>
     expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
   })
 })
+
+describe('PowerShell simple variable assignment command RHS', () => {
+  it.each([
+    `pwsh -Command '$x = del victim.txt'`,
+    `powershell -Command '$result = erase victim.txt'`,
+    `pwsh -Command '$global:result = rd victimdir'`,
+    `pwsh -Command '$script:result = del victim.txt'`,
+    `pwsh -Command '$a = $b = del victim.txt'`,
+    `pwsh -Command '$x = <# note #> del victim.txt'`,
+    `pwsh -Command '$x = Write-Output ok | del victim.txt'`
+  ])('denies an executed RHS command: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    `pwsh -Command '$x = "del"'`,
+    `pwsh -Command "$x = 'del victim.txt'"`,
+    `pwsh -Command '$x = Write-Output del victim.txt'`,
+    `pwsh -Command '$a = $b = "del"'`,
+    `pwsh -Command '$x = <# del victim.txt #> Write-Output ok'`,
+    `pwsh -Command '$x = 1'`,
+    `pwsh -Command 'Write-Output $x = del victim.txt'`,
+    `echo '$x = del victim.txt'`
+  ])('does not execute a literal or output argument: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+})

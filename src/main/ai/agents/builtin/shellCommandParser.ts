@@ -412,11 +412,18 @@ function cmdConditionEnd(words: readonly string[], start: number, rawWords?: rea
  */
 export function resolveCommand(
   words: readonly string[],
-  rawWords?: readonly string[]
+  rawWords?: readonly string[],
+  powershell = false
 ): { command: string; args: string[]; rawArgs?: string[] } | undefined {
   let index = 0
   while (index < words.length) {
     const word = words[index]
+    if (powershell && /^\$[A-Za-z_][\w:]*$/.test(rawWords?.[index] ?? word) && words[index + 1] === '=') {
+      index += 2
+      const rhs = rawWords?.[index] ?? words[index]
+      if (rhs?.startsWith("'") || rhs?.startsWith('"')) return undefined
+      continue
+    }
     if (ASSIGNMENT.test(word)) {
       index++
       continue
@@ -479,7 +486,7 @@ function parseCommands(text: string, powershell: boolean): ShellPipeline[] {
   let redirection: string | undefined
 
   const flushCommand = () => {
-    const resolved = words.length > 0 ? resolveCommand(words, rawWords) : undefined
+    const resolved = words.length > 0 ? resolveCommand(words, rawWords, powershell) : undefined
     // `x=$(rm -f a)` and a bare `> "$(rm -f a)"` run their substitution without ever resolving a
     // command word, so retained substitutions outlive the words they were collected with.
     if (resolved) commands.push({ ...resolved, substitutions })
