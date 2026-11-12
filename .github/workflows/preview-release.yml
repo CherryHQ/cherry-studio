@@ -29,7 +29,7 @@ jobs:
           github-token: ${{ github.token }}
           run-id: 43243027559
           path: ${{ runner.temp }}/cs-preview
-      - name: Verify the accessibility locator for the real 1.9.12 Close control
+      - name: Verify the real 1.9.12 Close control after startup
         if: inputs.preview_artifact_id == ''
         shell: pwsh
         run: ./scripts/preview-test/run.ps1

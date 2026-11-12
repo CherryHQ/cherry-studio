@@ -19,7 +19,7 @@ public static class PrerequisiteClose {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left; public int Top; public int Right; public int Bottom; }
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr window, out Rect bounds);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr dc, uint flags);
-    [DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
     [DllImport("user32.dll")] static extern IntPtr ChildWindowFromPointEx(IntPtr window, Point point, uint flags);
     [DllImport("user32.dll")] static extern int MapWindowPoints(IntPtr from, IntPtr to, ref Point point, uint count);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
@@ -50,16 +50,28 @@ $bounds = New-Object PrerequisiteClose+Rect
 if (![PrerequisiteClose]::GetClientRect($hwnd, [ref]$bounds)) { throw 'Missing legacy window bounds' }
 $bitmap = New-Object Drawing.Bitmap $bounds.Right, $bounds.Bottom
 $graphics = [Drawing.Graphics]::FromImage($bitmap)
+$ready = $false
 try {
   $dc = $graphics.GetHdc()
   try { $captured = [PrerequisiteClose]::PrintWindow($hwnd, $dc, 3) } finally { $graphics.ReleaseHdc($dc) }
   if ($captured) {
     $bitmap.Save((Join-Path $PSScriptRoot 'prerequisite-window-before-close.png'), [Drawing.Imaging.ImageFormat]::Png)
+    $scale = [PrerequisiteClose]::GetDpiForWindow($hwnd) / 96.0
+    $background = $bitmap.GetPixel($bounds.Right - [int](6 * $scale), [int](15 * $scale))
+    for ($y = [int](8 * $scale); $y -lt [int](29 * $scale) -and !$ready; $y++) {
+      for ($x = $bounds.Right - [int](34 * $scale); $x -lt $bounds.Right - [int](11 * $scale); $x++) {
+        $pixel = $bitmap.GetPixel($x, $y)
+        $contrast = [Math]::Abs([int]$pixel.R - [int]$background.R) +
+          [Math]::Abs([int]$pixel.G - [int]$background.G) + [Math]::Abs([int]$pixel.B - [int]$background.B)
+        if ($contrast -gt 90) { $ready = $true; break }
+      }
+    }
   }
 } finally {
   $graphics.Dispose()
   $bitmap.Dispose()
 }
+if (!$ready) { return }
 $point = [PrerequisiteClose]::Click($hwnd, $ProcessId)
 @{ pid = $ProcessId; title = $process.MainWindowTitle; position = 'top-right'; x = $point.X; y = $point.Y } |
   ConvertTo-Json -Compress
