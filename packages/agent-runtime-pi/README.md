@@ -31,13 +31,12 @@ identities. Other hidden custom markers remain hidden; filtering them must not e
 `PiSessionOptions` requires `behavior: { host, configureChild }`, which installs
 [`agent-behavior`](../agent-behavior/README.md) through its internal Pi harness. Each root and its children
 share one behavior instance. `host` implements the existing `HostPorts`: application facts and
-services such as approval UI, model selection, settings, output storage and summarization.
+services such as approval UI, model selection, settings and output storage.
 The adapter owns native execution; behavior owns the product rules. Tests use `createScriptedHost`.
 
 `configureChild({ thread, modelKey })` supplies only the native model and optional model runtime
 once per child context. The selected model must match `modelKey` (`provider/id`). Unspecified
-model bindings and extension factories inherit from the root; `onEvent` receives root events only. The adapter installs the behavior extension and
-summarizer on every child, filters parent-only tools, and disables native retries and cache warming
+model bindings and extension factories inherit from the root; `onEvent` receives root events only. The adapter installs the behavior extension on every child, filters parent-only tools, and disables native retries and cache warming
 as required by the behavior adapter's request accounting.
 
 - Root `input.submit` preserves native commands, input hooks, busy policies and input correlation.
@@ -51,8 +50,7 @@ as required by the behavior adapter's request accounting.
   stops its parent turn; a finished child does not stop later work. A continued child's run is
   background work and has no cancellation ownership from its completed foreground run.
 - `pi.permissionModeChanged()` notifies behavior after the host changes permission settings;
-  `pi.compact(instructions)` uses its summary acceptance and compaction lifecycle. A declined
-  summary returns `rejected` with code `declined`; no native summary fallback runs.
+  `pi.compact(instructions)` invokes native compaction and its lifecycle. A failed summary rejects the operation.
   Interrupt and shutdown cancel native compaction even when no behavior run is active.
 - Subagent relations are projected onto the parent; each live child can be opened, observed and
   released independently. Releasing a handle stops its observations. Shutdown closes the shared
@@ -67,7 +65,7 @@ to settle before requesting its shutdown can deadlock.
 
 Host extensions must not install duplicate behavior tools or start native runs themselves.
 The desktop connection supplies its host through `src/main/ai/runtime/pi/piBehaviorHost.ts`; its production
-approval, question, model, summary, verifier and output ports use existing Cherry services.
+approval, question, model, verifier and output ports use existing Cherry services.
 
 Reopening a root restores its child graph from saved run/origin entries and identity-checked files,
 without resuming work. Missing or ambiguous child files are not replaced. A loader cannot reopen a
@@ -197,14 +195,14 @@ for host persistence; billing retains its native response identity independently
 
 ## Compaction and shared tools
 
-`compaction: { reserveTokens, keepRecentTokens, enabled? }` controls native thresholds. The behavior
-lifecycle supplies the summarizer through the host's summary port. A failed or empty summary cancels
-compaction without a native-model fallback. `pi.compact()` remains available when automatic compaction
-is disabled. The internal native builder also tests Pi's default summarizer; it is not a host API.
+`compaction: { reserveTokens, keepRecentTokens, enabled? }` controls native thresholds. Pi generates the
+summary itself; each native model request is metered and its reported usage is attributed to the captured goal
+and child run. Empty or failed summaries cancel compaction. `pi.compact()` also works when automatic compaction
+is disabled.
 
 [`agent-behavior`](../agent-behavior/README.md) owns AskUserQuestion, Todo, goals, output offload,
 recall and subagent policy. There are no separate Pi extensions to install for these features.
-The host supplies approval/question UI, output storage, model selection and summarization through
+The host supplies approval/question UI, output storage and model selection through
 `HostPorts`. Contract tests use the same adapter with `createScriptedHost`; there is no separate
 Node product entry point.
 
@@ -222,23 +220,10 @@ The internal `createPiBehavior({ install, openSession, onError? })` implements t
 sessions and passes the package's contract (`tests/behaviorContract.test.ts`). It holds no rules: what to write, start
 or stop comes from the handlers `install` registers and the steps they decide. The runtime uses this harness for every root and child.
 
-- `install(ports)` runs once, before any conversation opens. `onError` receives what no caller awaits: a job that
-  threw, a run that failed to start, the `onCompacting` or `onCompacted` of an automatic compaction, what a handler Pi
-  calls threw (`omit`, `before`, `after`, `onClose`), a `cherry.rollback` entry that failed to write, a run the adapter
-  did not start, and a compaction cancelled because it bypassed `summarize`.
-- `openConversation(sessionManager)` opens a conversation and runs `onOpen` before it resolves; `reopened` is whether
-  the manager already held entries (a stored session), so open a new conversation on an empty manager.
-- `openSession({ sessionManager, extension, summarize, child? })` is supplied by the runtime for every session the adapter
-  opens: build the session with `createAgentRuntimeSession` on `sessionManager`, install `extension`, pass `summarize`
-  as `compaction.summarize` (every compaction, manual or automatic, then asks `onCompacting`, and a decline's reason
-  becomes the `compaction-end` error; never the host's own summarizer, which the package calls through `onCompacting`;
-  the builder exposes the configured callback as `compactionSummarizer` for identity validation, independent of extension ordering; a session built without it, or with another summarizer, fails closed: each compaction is cancelled, `compact()`
-  rejects and `onError` hears why, since Pi would otherwise compact without asking `onCompacting`),
-  keep Pi's retry off, and for a child (`child: { parent, origin }`) give it the model `child.origin.modelKey` names and
-  keep Pi's cache warming off (`cacheWarming: 'off'`): warming requests bypass `agent.streamFunction`, so the request
-  meter would not count them.
-  The adapter registers the package's tools itself, in a child minus the `'parent-only'` ones; host-owned tools follow
-  the host's own child configuration.
+- `install(ports)` runs once before any conversation opens. `onError` receives errors no caller awaits.
+- `openConversation(sessionManager)` opens a conversation and runs `onOpen` before it resolves.
+- `openSession({ sessionManager, extension, child? })` builds the session, installs the extension, leaves native
+  compaction enabled, disables native retries and cache warming, and selects the child's configured model.
 - `withCall(thread, use, { inputId?, signal? }?)` binds the outbound ports to one host call; they expire when `use`
   settles. The optional input ID follows that thread's custom message, including one sent by a job created in the
   call; the signal withdraws its waiting steer. `submitUser` (a person's text), `prompt`, `compact`, `settled` and
@@ -258,7 +243,7 @@ or stop comes from the handlers `install` registers and the steps they decide. T
   to `onError`; one that begins while an adapter run is about to start is taken for that run, unnoticed.
 - `compact(thread)` first aborts a run in progress (Pi's `compact()` begins with `abort()` and waits for the run to
   settle), but not the foreground children that run owns: stop the run with `turns.stop` first when it may be waiting
-  on one. It resolves once `onCompacted` has run, or, compacting nothing, once `onCompacting` declined.
+  on one. It resolves once `onCompacted` has run, and rejects when native compaction fails.
 
 | Port | On coding-agent |
 | --- | --- |
@@ -272,8 +257,8 @@ or stop comes from the handlers `install` registers and the steps they decide. T
 | H8 `Tools` | `pi.registerTool`, `model-only`, in every session the adapter opens; a child session gets only the tools whose `availability` is `'all'`. |
 | H9 `ToolGate` | `tool_call` and `tool_result`. `before` gets the call with the run's abort signal (the handler context's `signal`), which aborts when the call's turn stops; `after` gets the call `before` saw, `nested` included, with the arguments the call ran with. The call key is `<sessionId>:<toolCallId>`. `GateFacts.plan` is the latest `plan` record on the branch; `goalRound` and `callWindow` come from the run's starting input and its calls so far (nested calls left out), kept in memory per run. A blocked call's result reads `Tool call blocked: <reason>`, as on Durable, and projects back as an error result with that text. |
 | H10 `ContextFilter` | The `context` event, before every model request; see the note on omitted markers. |
-| H11 `RequestMeter` | Wraps `agent.streamFunction` and counts the requests of the adapter's run, with lineage `'child'` for a spawned session and `'root'` otherwise; a refused request fails the run with the refusal text, and the run's answer is `limit_reached`. A compaction during a run (Pi's automatic one) is one of its requests: the adapter's summarizer asks the meter first and counts it, and a refusal cancels the compaction, with the refusal text as its `compaction-end` error, without asking `onCompacting`. |
-| H12 `Lifecycle` | `onOpen` once the session is built (after Pi's `session_start`), for the conversations the host opens and not for spawned children. `onCompacting` before every compaction, through the summarizer the session got as `compaction.summarize` (Pi's `session_before_compact`), under the key `<sessionId>:<id of the entry the compaction follows>`: the request captures the full branch before awaiting the summary, and any returned accounting record is appended once by its key and included in the active child's run usage; a summary becomes the compaction's, and a decline cancels it, its reason becoming the `compaction-end` error. `onCompacted` once Pi has finished a compaction that produced a summary (`compaction_end`), also in the middle of a run; `onClose` at `session_shutdown`. |
+| H11 `RequestMeter` | Wraps each native model request, including every summary request, and enforces the initiating run limit. |
+| H12 `Lifecycle` | Calls `onOpen` for opened sessions, `onCompacted` after successful native compaction, and `onClose` at shutdown. |
 
 ### Declared differences
 
@@ -303,7 +288,7 @@ Implementation notes (not differences):
   alike.
 - An automatic compaction calls `onCompacted` in the middle of a run: its handler cannot add a quiet input there (the
   conversation is not idle), and `hostCallInFlight` may still be true when it starts. A host `compact()` rejects when
-  `onCompacting` or `onCompacted` throws; an automatic compaction's error goes to `onError`.
+  native compaction or `onCompacted` fails; an automatic compaction error is observed through its native event.
 - Pi puts what `omit` (`context`), `after` (`tool_result`) and `onClose` (`session_shutdown`) throw on its extension
   error channel and carries on, and makes what `before` (`tool_call`) throws the call's error result; the adapter also
   hands each to `onError`. A failing `omit` still sends the request unfiltered, a failing `before`'s result does not
@@ -338,3 +323,12 @@ pnpm test:agent-runtime-pi packages/agent-runtime-pi/tests/behaviorContract.test
 - Shutdown writes no snapshots for the runs it cuts off, so a reopened parent cannot tell a closed
   app from a crash.
 - Messages queued for a running subagent before it is stopped are dropped with it.
+
+## Nested tool evidence
+
+Nested calls project onto their owning assistant message using native IDs and parent
+edges. Native session records retain executed arguments, terminal state and bounded
+results independently of the outer script outcome. Archive projection reads those
+records without executing tools. Missing legacy or over-budget payloads remain
+explicitly absent; complete successful built-in artifact declarations can render
+through the same tool mapping as direct calls.

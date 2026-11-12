@@ -121,7 +121,8 @@ export interface StreamListener {
   onMessage?(message: CherryUIMessage, sourceModelId?: UniqueModelId, sourceKind?: AiStreamSource['kind']): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
-  onError(result: StreamErrorResult): void | Promise<void>
+  /** The original exception is available only to in-process prompt listeners. */
+  onError(result: StreamErrorResult, originalError?: unknown): void | Promise<void>
   /** Returning `false` removes the listener immediately. */
   isAlive(): boolean
 }

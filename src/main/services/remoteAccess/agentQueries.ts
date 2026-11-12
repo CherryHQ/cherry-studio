@@ -19,6 +19,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { toExecutionFailure, toWireExecutionFailure } from '@shared/ai/executionFailure'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -369,17 +370,20 @@ export function listWorkspaces(agentId: string, cursor?: string, limit?: number)
   }
 }
 
-export function listSessions(query: { agentId?: string; workspaceId?: string; cursor?: string; limit?: number }): {
+export function listSessions(query: AgentParams<'agent.sessions.list'>): {
   items: AgentSessionEntity[]
   nextCursor: string | null
 } {
+  const options = {
+    agentId: query.agentId,
+    workspaceId: query.workspaceId,
+    cursor: query.cursor,
+    limit: query.limit ?? DEFAULT_PAGE
+  }
   const page = notFound(() =>
-    agentSessionService.listByCursor({
-      agentId: query.agentId,
-      workspaceId: query.workspaceId,
-      cursor: query.cursor,
-      limit: query.limit ?? DEFAULT_PAGE
-    })
+    query.taskId
+      ? agentTaskService.listTaskSessions(query.taskId, options)
+      : agentSessionService.listByCursor({ ...options, scope: 'all-conversations' })
   )
   return {
     items: page.items,
