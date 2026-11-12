@@ -1587,6 +1587,7 @@
   "error.ocr_detail_failed": "配置的 OCR 处理器执行失败：{{reason}} 请在“设置 → 文件处理”中检查或更换 OCR 处理器。",
   "error.originalError": "原错误",
   "error.originalMessage": "原消息",
+  "error.output_token_limit_reached": "响应达到输出 token 上限，未能完成。推理内容也计入该上限。请提高模型的输出上限或降低推理强度后重试。",
   "error.parameter": "参数",
   "error.prompt": "提示词",
   "error.provider": "提供商",

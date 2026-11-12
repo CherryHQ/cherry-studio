@@ -1587,6 +1587,7 @@
   "error.ocr_detail_failed": "Der konfigurierte OCR-Prozessor ist fehlgeschlagen: {{reason}} Prüfen oder wechseln Sie den OCR-Prozessor unter Einstellungen → Dateiverarbeitung.",
   "error.originalError": "Ursprünglicher Fehler",
   "error.originalMessage": "Ursprüngliche Nachricht",
+  "error.output_token_limit_reached": "Die Antwort hat vor dem Abschluss ihr Ausgabe-Token-Limit erreicht. Auch Denkschritte zählen zu diesem Limit. Erhöhen Sie das Ausgabelimit des Modells oder verringern Sie den Denkaufwand und versuchen Sie es erneut.",
   "error.parameter": "Parameter",
   "error.prompt": "Prompt",
   "error.provider": "Anbieter",

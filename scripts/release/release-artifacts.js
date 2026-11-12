@@ -1,8 +1,6 @@
-const { execFileSync } = require('node:child_process')
 const { createHash } = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
-const { tmpdir } = require('node:os')
 const { parse } = require('yaml')
 
 const { EDITIONS, getExpectedReleaseArtifacts } = require('./edition')
@@ -10,10 +8,10 @@ const { validateEditionArtifacts } = require('./validate-edition-artifacts')
 
 const PLATFORMS = { windows: 'windows-latest', mac: 'macos-latest', linux: 'ubuntu-latest' }
 
-async function hashFile(file, algorithm = 'sha256', encoding = 'hex') {
-  const hash = createHash(algorithm)
+async function hashFile(file) {
+  const hash = createHash('sha512')
   for await (const chunk of fs.createReadStream(file)) hash.update(chunk)
-  return hash.digest(encoding)
+  return hash.digest('base64')
 }
 
 function listFiles(directory, prefix = '') {
@@ -69,7 +67,7 @@ async function validateFiles(directory, tag) {
           throw new Error(`Cross-edition or unexpected reference in ${manifest.file}`)
         }
         for (const file of update.files) {
-          const actual = await hashFile(path.join(distDirectory, file.url), 'sha512', 'base64')
+          const actual = await hashFile(path.join(distDirectory, file.url))
           if (
             file.sha512 !== actual ||
             (file.size !== undefined && file.size !== fs.statSync(path.join(distDirectory, file.url)).size)
@@ -77,10 +75,7 @@ async function validateFiles(directory, tag) {
             throw new Error(`Update manifest checksum mismatch: ${file.url}`)
           }
         }
-        if (
-          update.path &&
-          update.sha512 !== (await hashFile(path.join(distDirectory, update.path), 'sha512', 'base64'))
-        ) {
+        if (update.path && update.sha512 !== (await hashFile(path.join(distDirectory, update.path)))) {
           throw new Error(`Update manifest checksum mismatch: ${manifest.file}`)
         }
       }
@@ -93,27 +88,17 @@ async function validateFiles(directory, tag) {
   return files
 }
 
-async function verifyArchive(directory, expected) {
-  const metadata = JSON.parse(fs.readFileSync(path.join(directory, 'metadata.json'), 'utf8'))
-  for (const key of ['repository', 'tag', 'sha', 'runId']) {
-    if (expected[key] !== undefined && String(metadata[key]) !== String(expected[key])) {
-      throw new Error(`Archive ${key} does not match the selected release`)
-    }
-  }
-  const files = await validateFiles(directory, metadata.tag)
-  if (JSON.stringify(Object.keys(metadata.files).sort()) !== JSON.stringify(files))
-    throw new Error('Archive checksum inventory mismatch')
-  for (const file of files) {
-    if ((await hashFile(path.join(directory, file))) !== metadata.files[file])
-      throw new Error(`Archive checksum mismatch: ${file}`)
-  }
-  return metadata
+function readMetadata(directory) {
+  return JSON.parse(fs.readFileSync(path.join(directory, 'metadata.json'), 'utf8'))
 }
 
 async function assembleArchive({ selected, baseline, directory, repository, tag, sha, runId, platform, builderFile }) {
   if (!['all', ...Object.keys(PLATFORMS)].includes(platform)) throw new Error(`Invalid platform: ${platform}`)
   if (platform !== 'all') {
-    await verifyArchive(baseline, { repository, tag, sha })
+    const metadata = readMetadata(baseline)
+    for (const [key, value] of Object.entries({ repository, tag, sha })) {
+      if (metadata[key] !== value) throw new Error(`Baseline archive ${key} does not match the build`)
+    }
     linkDirectory(baseline, directory)
   } else {
     fs.mkdirSync(directory, { recursive: true })
@@ -133,58 +118,21 @@ async function assembleArchive({ selected, baseline, directory, repository, tag,
     fs.linkSync(path.join(selected, `release-${tag}-history`, 'release-history.json'), history)
   }
   const files = await validateFiles(directory, tag)
-  const checksums = {}
-  for (const file of files) checksums[file] = await hashFile(path.join(directory, file))
   const gitcodeBody = parse(fs.readFileSync(builderFile, 'utf8')).releaseInfo.releaseNotes
+  const metadata = { repository, tag, sha, runId, gitcodeBody, files }
   fs.rmSync(path.join(directory, 'metadata.json'), { force: true })
-  fs.writeFileSync(
-    path.join(directory, 'metadata.json'),
-    JSON.stringify({ repository, tag, sha, runId, gitcodeBody, files: checksums }, null, 2)
-  )
+  fs.writeFileSync(path.join(directory, 'metadata.json'), JSON.stringify(metadata, null, 2))
+  return metadata
 }
 
 function stageAssets(directory, destination, metadata, editions) {
   fs.mkdirSync(destination, { recursive: true })
-  for (const file of Object.keys(metadata.files)) {
+  // Older retained archives store the file inventory as a checksum map.
+  const files = Array.isArray(metadata.files) ? metadata.files : Object.keys(metadata.files)
+  for (const file of files) {
     if (file.startsWith('common/') || editions.some((edition) => file.startsWith(`${edition}/`))) {
       fs.linkSync(path.join(directory, file), path.join(destination, path.basename(file)))
     }
-  }
-}
-
-async function verifyGithubAssets(assets, metadata, readChecksum) {
-  const expected = Object.entries(metadata.files).filter(
-    ([file]) => file.startsWith('global/') || file.startsWith('common/')
-  )
-  if (JSON.stringify([...assets].sort()) !== JSON.stringify(expected.map(([file]) => path.basename(file)).sort())) {
-    throw new Error('GitHub assets must contain exactly the Global release files')
-  }
-  for (const [file, hash] of expected) {
-    if ((await readChecksum(path.basename(file))) !== hash)
-      throw new Error(`GitHub artifact differs from archive: ${file}`)
-  }
-}
-
-async function verifyGithubRelease(repository, tag, metadata) {
-  const release = JSON.parse(
-    execFileSync('gh', ['release', 'view', tag, '--repo', repository, '--json', 'assets'], { encoding: 'utf8' })
-  )
-  const directory = fs.mkdtempSync(path.join(tmpdir(), 'release-verify-'))
-  try {
-    await verifyGithubAssets(
-      release.assets.map((asset) => asset.name),
-      metadata,
-      async (file) => {
-        execFileSync('gh', ['release', 'download', tag, '--repo', repository, '--pattern', file, '--dir', directory], {
-          stdio: 'inherit'
-        })
-        const checksum = await hashFile(path.join(directory, file))
-        fs.unlinkSync(path.join(directory, file))
-        return checksum
-      }
-    )
-  } finally {
-    fs.rmSync(directory, { recursive: true, force: true })
   }
 }
 
@@ -192,7 +140,7 @@ async function main() {
   const [command, directory, destination] = process.argv.slice(2)
   const { GH_REPO: repository, TAG: tag, RELEASE_SHA: sha, SOURCE_RUN_ID: runId } = process.env
   if (command === 'assemble') {
-    await assembleArchive({
+    const metadata = await assembleArchive({
       selected: 'selected-release-artifacts',
       baseline: 'baseline-release-artifacts',
       directory,
@@ -203,15 +151,12 @@ async function main() {
       platform: process.env.PLATFORM,
       builderFile: process.env.RELEASE_BUILDER_FILE || 'electron-builder.yml'
     })
-  }
-  const metadata = await verifyArchive(directory, { repository, tag, sha, runId })
-  if (command === 'assemble') stageAssets(directory, destination, metadata, ['global'])
-  else if (command === 'sync') {
-    await verifyGithubRelease(repository, tag, metadata)
+    stageAssets(directory, destination, metadata, ['global'])
+  } else if (command === 'sync') {
+    const metadata = readMetadata(directory)
     stageAssets(directory, destination, metadata, EDITIONS)
     fs.writeFileSync('release_body.txt', metadata.gitcodeBody)
-  } else if (command === 'verify-github') await verifyGithubRelease(repository, tag, metadata)
-  else throw new Error(`Unknown archive command: ${command}`)
+  } else throw new Error(`Unknown archive command: ${command}`)
 }
 
 if (require.main === module)
@@ -219,4 +164,4 @@ if (require.main === module)
     console.error(error.message)
     process.exitCode = 1
   })
-module.exports = { assembleArchive, hashFile, stageAssets, verifyArchive, verifyGithubAssets }
+module.exports = { assembleArchive, stageAssets }

@@ -1587,6 +1587,7 @@
   "error.ocr_detail_failed": "Il processore OCR configurato ha riscontrato un errore: {{reason}} Controlla o cambia il processore OCR in Impostazioni → Elaborazione file.",
   "error.originalError": "Errore originale",
   "error.originalMessage": "Messaggio originale",
+  "error.output_token_limit_reached": "La risposta ha raggiunto il limite di token di output prima di terminare. Anche il ragionamento rientra in questo limite. Aumenta il limite di output del modello o riduci lo sforzo di ragionamento, quindi riprova.",
   "error.parameter": "Parametro",
   "error.prompt": "Prompt",
   "error.provider": "Fornitore",

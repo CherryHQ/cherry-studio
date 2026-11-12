@@ -33,7 +33,8 @@ describe('classifyErrorCategory HTTP 400', () => {
   it.each([
     ['insufficient balance', 'quota'],
     ['content_filter triggered', 'content'],
-    ['prompt is too long', 'context_length']
+    ['prompt is too long', 'context_length'],
+    ['Input exceeds the context limit (1048568 tokens)', 'context_length']
   ] as const)('preserves the specific diagnosis for %s', (text, category) => {
     expect(classifyErrorCategory({ status: 400, text })).toBe(category)
   })
