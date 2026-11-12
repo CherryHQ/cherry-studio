@@ -17,6 +17,7 @@ export interface RuntimeForkResult {
   resumeToken: string
   checkpoints: RuntimeForkCheckpoint[]
   publish: Array<{ source: string; target: string }>
+  validatePublication?(signal: AbortSignal): Promise<void>
 }
 
 export class AgentSessionForkError extends Error {

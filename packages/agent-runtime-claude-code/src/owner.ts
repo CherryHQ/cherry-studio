@@ -26,7 +26,7 @@ import {
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
 
-import { readArchive } from './archive'
+import { compactRestorePoint, readArchive } from './archive'
 import { normalizeContextUsage } from './contextUsage'
 import { claudeThread, isCommandLifecycle, isUuid, rejected, runtimeError } from './identity'
 import { ClaudeProjection } from './projection'
@@ -665,6 +665,30 @@ export class ClaudeOwner {
             error: outcome === 'failed' ? runtimeError('submit', 'native-result-error') : undefined
           })
         }
+      }
+    }
+    const boundary = projection.control.pendingCompactBoundary
+    if (
+      !agentId &&
+      message.type === 'result' &&
+      boundary &&
+      message.session_id === this.activeSession &&
+      boundary.sessionId === this.activeSession &&
+      message.subtype === 'success' &&
+      !message.is_error &&
+      message.api_error_status == null &&
+      message.terminal_reason !== 'api_error' &&
+      message.terminal_reason !== 'aborted_streaming' &&
+      message.terminal_reason !== 'aborted_tools' &&
+      !projection.control.sawAbortedMessage
+    ) {
+      try {
+        const archive = await readArchive(this.runtime.configDir, this.config.cwd, this.activeSession)
+        const point = archive && compactRestorePoint(archive, boundary)
+        if (point && projection.control.pendingCompactBoundary === boundary)
+          projection.control.setCompactRestorePoint(point)
+      } catch (error) {
+        this.report(error)
       }
     }
     projection.publish(

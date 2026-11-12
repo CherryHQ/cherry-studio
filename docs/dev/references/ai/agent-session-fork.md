@@ -72,6 +72,10 @@ session under that reserved identity. Startup resumes only a verified native
 history token from the captured branch; an allocated identity alone is not proof
 that native history exists. Other edits publish their verified native fork before
 startup, and switching the UI selection does not change the captured branch.
+A successful compact-only turn captures the last kept native chain entry, the
+compact summary, as a restore checkpoint so the first following human input can
+be edited. Ambiguous native evidence refuses capture and retains the previous
+behavior. A follow-up admitted during the archive read can drop the capture.
 
 The additive schema migration supplies parent/selection and binding fields.
 `AgentSessionMessageTreeSeeder` converts old flat archives into one selected
@@ -129,7 +133,8 @@ coordinates runtime and filesystem operations in addition to SQLite writes.
    that context's independent resume reference, remapped checkpoints, and artifacts.
    Every context is prepared before any native artifact is published.
 5. The coordinator clones visible messages with new IDs, remaps their anchors,
-   strips execution state and statistics, and publishes the native artifacts.
+   strips execution state and statistics, and publishes the native artifacts. It
+   then invokes each `RuntimeForkResult.validatePublication` callback, when present.
 6. `DbService.withWriteTx` rechecks the source prefix, captured context bindings,
    backend locators, Agent, and workspace, then creates the child, messages and
    per-segment context bindings atomically. Later source appends are allowed;
@@ -156,7 +161,7 @@ including parents outside the page, and applies the shared fork-domain rules. Or
 `AgentSessionMessageService.listSessionMessages()` reads neither compute these actions nor
 accept runtime callbacks. Raw anchors stay in Main.
 Fork requires a successful native-backed assistant boundary; editing requires either
-the first input or such a boundary immediately before the input. The renderer
+the first input or a successful native-backed checkpoint immediately before it. The renderer
 uses these decisions without receiving the private anchor. Missing edit parents and
 delivery inputs are ineligible. Listing opens no native
 files or runtime connections. A file removed after listing still causes an explicit
@@ -176,12 +181,23 @@ compression settings to Agent forks.
 | Adapter | Native boundary | Fork implementation |
 |---|---|---|
 | Pi | Runtime session ID and leaf ID | Stages the newest matching native file, then branches with `SessionManager` and maps checkpoints to the child session ID |
-| Claude Code | Runtime session ID, main assistant UUID, and config directory | Its private worker calls the SDK fork API and maps assistant UUIDs into the child's transcript |
+| Claude Code | Runtime session ID, native message UUID, and config directory | Its private worker calls the SDK fork API and maps UUIDs into the child's transcript |
 
 Claude creates its own worker and pass them to `runForkWorker`. The
 shared helper returns an opaque result and waits for termination on success,
 failure, cancellation, or timeout before the coordinator can clean up files.
-Adapters validate the returned native result before publication.
+Adapters validate the returned native result before publication. Claude checks
+reference closure through the child UUID mapping for `preservedSegment.headUuid`,
+`anchorUuid`, and `tailUuid`, and `preservedMessages.anchorUuid`, `uuids[]`, and
+`allUuids[]`. Opaque metadata is not interpreted: whole-value metadata comparison
+and recursive source-UUID scanning are no longer used. Unknown future metadata
+references outside this whitelist are not checked. SDK 0.3.311's custom-store
+fork writes child output through `SessionStore.append` instead of creating a local
+session file, so the custom append sink is retained.
+
+A compact boundary is not a restore point: capture names the summary instead.
+A boundary anchor is refused as `unsupported_checkpoint` because an SDK cut at
+the boundary omits its linked summary and loses compacted context.
 
 ## Publication and failure cleanup
 
@@ -198,6 +214,10 @@ unpublished operations clean up only resources whose ownership can be establishe
 For an in-session edit, a retained native context binding also proves publication.
 An adopted workspace is retained; unreadable manifests or changed file identities
 remain available for later investigation rather than authorizing deletion.
+After publishing all artifacts, Claude's publication validator strictly parses the
+native file and reads it back through the SDK, checking message count and required
+boundary positions. A publication or validation failure rolls back all published
+artifacts owned by the operation.
 
 Successful forks currently retain their staging resources and manifests, including
 Pi lineage snapshots. These are not discarded as temporary files on success.

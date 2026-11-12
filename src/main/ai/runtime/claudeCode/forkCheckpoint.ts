@@ -20,5 +20,9 @@ export function parseClaudeForkCheckpoint(value: unknown): ClaudeForkCheckpoint 
 export const ClaudeForkResultSchema = z.strictObject({
   resumeToken: z.string().min(1),
   checkpoints: z.array(ClaudeForkCheckpointSchema),
-  publish: z.array(z.strictObject({ source: z.string().min(1), target: z.string().min(1) }))
+  expectation: z.strictObject({
+    messageCount: z.number().int().positive(),
+    boundaries: z.array(z.strictObject({ uuid: z.uuid(), index: z.number().int().nonnegative() }))
+  }),
+  publish: z.array(z.strictObject({ source: z.string().min(1), target: z.string().min(1) })).length(1)
 })

@@ -33,6 +33,8 @@ let boundary: ReturnType<typeof messages.saveMessage>
 let oldNative: SessionManager
 let currentNative: SessionManager
 let beforeFork: (input: RuntimeForkInput) => void | Promise<void>
+let validateGroup: ((index: number) => Promise<void>) | undefined
+let groupIndex: number
 const previous = runtimeDriverRegistry.getAgentSessionDriver('pi')
 
 beforeEach(async () => {
@@ -40,6 +42,8 @@ beforeEach(async () => {
   sessions = path.join(directory, 'sessions')
   await mkdir(sessions)
   beforeFork = () => {}
+  validateGroup = undefined
+  groupIndex = 0
   const original = application.getPath.bind(application)
   vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
     if (key === 'feature.agents.pi.sessions') return path.join(sessions, filename ?? '')
@@ -67,7 +71,10 @@ beforeEach(async () => {
     },
     async fork(input) {
       await beforeFork(input)
-      return forkPiSession(input)
+      const result = await forkPiSession(input)
+      const index = groupIndex++
+      if (validateGroup) result.validatePublication = () => validateGroup!(index)
+      return result
     }
   })
   oldNative = SessionManager.create(directory, sessions)
@@ -264,6 +271,27 @@ it.each(['preparation', 'bindings changed', 'publication'] as const)(
     expect(await readForkResources()).toEqual([])
   }
 )
+
+it('rolls back every published group when a later validator fails', async () => {
+  const files = await readdir(sessions)
+  const validated: number[] = []
+  validateGroup = async (index) => {
+    validated.push(index)
+    expect((await readdir(sessions)).length).toBeGreaterThan(files.length)
+    if (index === 1) throw new Error('later validation failed')
+  }
+  await expect(new AgentSessionForkOperations().fork(sessionId, boundary.id)).rejects.toThrow('later validation failed')
+  expect(validated).toEqual([0, 1])
+  expect(await readdir(sessions)).toEqual(files)
+  expect(await readForkResources()).toEqual([])
+  expect(
+    dbh.db
+      .select()
+      .from(agentSessionTable)
+      .all()
+      .map((row) => row.id)
+  ).toEqual([sessionId])
+})
 
 it('edits an earlier copied segment after the original native files have been removed', async () => {
   const child = await new AgentSessionForkOperations().fork(sessionId, boundary.id)

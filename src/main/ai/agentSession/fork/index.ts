@@ -1,2 +1,2 @@
 export { AgentSessionForkOperations } from './AgentSessionForkOperations'
-export { getEditFailure, resolveForkBoundary } from './historyActions'
+export { getEditFailure, resolveForkBoundary, resolveRestoreBoundary } from './historyActions'

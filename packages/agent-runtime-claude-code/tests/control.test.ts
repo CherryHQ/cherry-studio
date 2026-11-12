@@ -77,6 +77,36 @@ function fixture() {
   return { events, state, accept, result }
 }
 
+it('uses a compact restore point only in its successful active turn', () => {
+  const f = fixture()
+  f.state.beginTurn()
+  f.accept({
+    type: 'system',
+    subtype: 'compact_boundary',
+    uuid: 'boundary',
+    compact_metadata: { trigger: 'manual', pre_tokens: 1 }
+  })
+  f.state.setCompactRestorePoint({ sessionId: 'other', messageUuid: 'wrong' })
+  f.state.setCompactRestorePoint({ sessionId: 'native', messageUuid: 'summary' })
+  f.accept(f.result())
+  expect(f.events).toContainEqual(expect.objectContaining({ type: 'result', messageUuid: 'summary' }))
+  f.state.beginTurn()
+  f.accept(f.result())
+  expect(f.events.filter((event) => event.type === 'result').at(-1)).toMatchObject({ messageUuid: undefined })
+})
+
+it('does not emit a captured point on a failed compact result', () => {
+  const f = fixture()
+  f.state.beginTurn()
+  f.accept({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'manual', pre_tokens: 1 } })
+  f.state.setCompactRestorePoint({ sessionId: 'native', messageUuid: 'summary' })
+  f.accept(f.result({ is_error: true }))
+  expect(f.events.filter((event) => event.type === 'result').at(-1)).toMatchObject({
+    messageUuid: undefined,
+    failure: expect.anything()
+  })
+})
+
 describe('Claude native lifecycle', () => {
   // A replayed notification result must not finish the newly submitted user input.
   it('settles a task-notification result only when it belongs to an autonomous wake', () => {

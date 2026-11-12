@@ -20,6 +20,11 @@ import { expect, it, vi } from 'vitest'
 
 import { AsyncEventQueue } from '@shared/utils/async/AsyncEventQueue'
 
+import {
+  compactRestorePoint,
+  type NativeArchive
+} from '../../../../../../packages/agent-runtime-claude-code/src/archive'
+
 // Native startup, resume, history reads, and shutdown share the complete-test budget.
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -668,8 +673,16 @@ it('compacts through native commands without deleting the retained conversation'
     const compact = await probe.request()
     compact.reply.block({ type: 'text', text: '<summary>Summary: original decision retained.</summary>' })
     compact.reply.finish()
-    await probe.event((event) => event.type === 'system' && event.subtype === 'compact_boundary')
+    const boundary = await probe.event((event) => event.type === 'system' && event.subtype === 'compact_boundary')
+    await probe.event((event) => event.type === 'result' && event.session_id === result.session_id && event !== result)
     const after = await probe.history(result.session_id)
+    const boundaryIndex = after.entries.findIndex((entry) => entry.uuid === boundary.uuid)
+    expect(boundaryIndex).toBeGreaterThanOrEqual(0)
+    expect(after.entries[boundaryIndex + 1]).toMatchObject({
+      type: 'user',
+      isCompactSummary: true,
+      parentUuid: boundary.uuid
+    })
     expect(JSON.stringify(after.root)).toContain('Summary: original decision retained.')
     for (const message of before.root) {
       expect(after.entries).toContainEqual(expect.objectContaining({ uuid: message.uuid }))
@@ -684,6 +697,15 @@ it('compacts through native commands without deleting the retained conversation'
       is_error: false,
       result: 'Post-compaction answer'
     })
+    const continued = await probe.history(result.session_id)
+    if (!boundary.uuid) throw new Error('Compact boundary has no UUID')
+    const restored = compactRestorePoint(
+      { messages: [], children: [], entries: [{ entries: continued.entries }] } as unknown as NativeArchive,
+      { sessionId: result.session_id, messageUuid: boundary.uuid }
+    )
+    expect(restored?.messageUuid).toBe(after.entries[boundaryIndex + 1].uuid)
+    expect(continued.entries[boundaryIndex + 2]).toMatchObject({ type: 'user', parentUuid: restored?.messageUuid })
+    expect(JSON.stringify(continued.entries.slice(boundaryIndex + 2))).toContain('Continue after compact')
   } finally {
     await probe.close()
   }

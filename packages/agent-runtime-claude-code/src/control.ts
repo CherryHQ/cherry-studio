@@ -124,6 +124,9 @@ export class ClaudeControlState {
   private reasoningTokens?: number
   private readonly taskTools = new Map<string, string>()
   private messageUuid?: string
+  private compactBoundary?: { sessionId: string; messageUuid: string }
+  private compactBoundaryCount = 0
+  private compactRestorePoint?: string
 
   constructor(private readonly emit: (event: ClaudeControl) => void) {}
 
@@ -146,7 +149,18 @@ export class ClaudeControlState {
     this.autonomousTurn = false
     this.reasoningTokens = undefined
     this.messageUuid = undefined
+    this.compactBoundary = undefined
+    this.compactBoundaryCount = 0
+    this.compactRestorePoint = undefined
     this.notificationRuns.clear()
+  }
+
+  get pendingCompactBoundary() {
+    return this.isTurnActive && this.compactBoundaryCount === 1 ? this.compactBoundary : undefined
+  }
+
+  setCompactRestorePoint(point: { sessionId: string; messageUuid: string }): void {
+    if (this.pendingCompactBoundary?.sessionId === point.sessionId) this.compactRestorePoint = point.messageUuid
   }
 
   accept(message: SDKMessage): void {
@@ -171,7 +185,7 @@ export class ClaudeControlState {
       this.emit({
         type: 'result',
         sessionId: message.session_id,
-        messageUuid: this.messageUuid,
+        messageUuid: !resultFailure(message) ? (this.compactRestorePoint ?? this.messageUuid) : this.messageUuid,
         terminal: this.isTurnActive,
         usage: message.usage,
         reasoningTokens: this.reasoningTokens,
@@ -403,6 +417,11 @@ export class ClaudeControlState {
   }
 
   private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage): void {
+    if (this.isTurnActive) {
+      this.compactBoundaryCount++
+      if (message.compact_metadata.trigger === 'manual')
+        this.compactBoundary = { sessionId: message.session_id, messageUuid: message.uuid }
+    }
     this.emit({
       type: 'compaction-complete',
       anchor: { ...message.compact_metadata, completedAt: new Date().toISOString() }

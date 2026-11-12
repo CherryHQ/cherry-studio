@@ -1,11 +1,11 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { isDeepStrictEqual } from 'node:util'
 import { parentPort, workerData } from 'node:worker_threads'
 
 import type { SessionKey, SessionStore, SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
 
 import type { ClaudeForkCheckpoint } from './forkCheckpoint'
+import { validateForkClosure } from './forkValidation.ts'
 
 export interface ClaudeForkWorkerInput {
   entries: SessionStoreEntry[]
@@ -59,37 +59,28 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
   if (!outputKey.projectKey || path.basename(outputKey.projectKey) !== outputKey.projectKey) {
     throw new Error('history_corrupt')
   }
-  const mapping = new Map<string, string>()
-  for (const entry of output) {
-    const from = entry.forkedFrom as { sessionId?: string; messageUuid?: string } | undefined
-    if (from?.sessionId === checkpoint.runtimeSessionId && from.messageUuid && entry.uuid) {
-      if (mapping.has(from.messageUuid)) throw new Error('history_corrupt')
-      mapping.set(from.messageUuid, entry.uuid)
-    }
-  }
-  // Verify the opaque compaction records survive SDK processing. Fail closed rather than
-  // silently resume with a different context if an SDK version drops required metadata.
-  for (const source of input.entries) {
-    if (!source.compactMetadata || !source.uuid) continue
-    const mapped = output.find((entry) => entry.uuid === mapping.get(source.uuid!))
-    if (!mapped || !isDeepStrictEqual(mapped.compactMetadata, normalizeCompactionMetadata(source, mapping))) {
-      throw new Error('unsupported_checkpoint')
-    }
-    // Some SDK releases copy preserved-segment UUIDs verbatim. Do not publish dangling
-    // compaction references, and do not allocate a second set of UUIDs to repair them.
-    if (containsSourceUuid(mapped.compactMetadata, sourceIds)) throw new Error('unsupported_checkpoint')
-  }
+  const mapping = validateForkClosure(input.entries, output, checkpoint.runtimeSessionId)
   const replacements = input.entries
     .filter((entry) => entry.type === 'content-replacement')
     .flatMap((entry) => (Array.isArray(entry.replacements) ? entry.replacements : []))
-  const copiedReplacements = output
-    .filter((entry) => entry.type === 'content-replacement')
-    .flatMap((entry) => (Array.isArray(entry.replacements) ? entry.replacements : []))
-  if (
-    JSON.stringify(replacements) !== JSON.stringify(copiedReplacements) ||
-    containsSourceUuid(copiedReplacements, sourceIds)
-  )
+  let messages: Awaited<ReturnType<typeof sdk.getSessionMessages>>
+  try {
+    messages = await sdk.getSessionMessages(checkpoint.runtimeSessionId, {
+      dir: input.targetCwd,
+      includeSystemMessages: true,
+      sessionStore: { load: async () => structuredClone(input.entries), append: async () => {} }
+    })
+  } catch {
     throw new Error('unsupported_checkpoint')
+  }
+  if (!messages.length) throw new Error('unsupported_checkpoint')
+  const boundaries = messages.flatMap((message, index) => {
+    const record = input.entries.find((entry) => entry.uuid === message.uuid)
+    if (record?.type !== 'system' || record.subtype !== 'compact_boundary') return []
+    const uuid = mapping.get(message.uuid)
+    if (!uuid) throw new Error('history_corrupt')
+    return [{ uuid, index }]
+  })
   // The public SDK moves replacement records to the tail. An earlier inherited prefix
   // must not silently lose replacements that already existed at its checkpoint.
   for (const [index, value] of input.checkpoints.entries()) {
@@ -115,6 +106,7 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
   const file = path.join(input.artifactDirectory, result.sessionId + '.jsonl')
   await writeFile(file, bytes, { flag: 'wx', mode: 0o600 })
   return {
+    expectation: { messageCount: messages.length, boundaries },
     resumeToken: result.sessionId,
     checkpoints,
     publish: [
@@ -124,30 +116,6 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
       }
     ]
   }
-}
-
-function normalizeCompactionMetadata(source: SessionStoreEntry, mapping: ReadonlyMap<string, string>): unknown {
-  function remap(value: unknown, isRoot = false): unknown {
-    if (typeof value === 'string') return mapping.get(value) ?? value
-    if (Array.isArray(value)) return value.map((item) => remap(item))
-    if (value && typeof value === 'object') {
-      return Object.fromEntries(
-        Object.entries(value)
-          .filter(([key]) => !(isRoot && source.type === 'system' && key === 'runningTurnSends'))
-          .map(([key, item]) => [mapping.get(key) ?? key, remap(item)])
-      )
-    }
-    return value
-  }
-  return remap(source.compactMetadata, true)
-}
-
-function containsSourceUuid(value: unknown, sourceIds: ReadonlySet<string>): boolean {
-  if (typeof value === 'string') return sourceIds.has(value)
-  if (Array.isArray(value)) return value.some((item) => containsSourceUuid(item, sourceIds))
-  if (value && typeof value === 'object')
-    return Object.entries(value).some(([key, item]) => sourceIds.has(key) || containsSourceUuid(item, sourceIds))
-  return false
 }
 
 void run(workerData as ClaudeForkWorkerInput).then(
