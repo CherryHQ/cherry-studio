@@ -276,6 +276,13 @@ export const REGRESSION_CASES = [
     capabilities: ['desktopAutomation']
   },
   {
+    id: 'MP-153',
+    title: 'Global install requires tool approval (deny, allow)',
+    tasks: ['agents'],
+    phase: 'agentRuntimes',
+    capabilities: ['desktopAutomation']
+  },
+  {
     id: 'MP-52',
     title: 'Sync Agent file edits with the side preview',
     tasks: ['agents'],
@@ -302,6 +309,13 @@ export const REGRESSION_CASES = [
     tasks: ['agents'],
     phase: 'agentRuntimes',
     capabilities: ['desktopAutomation']
+  },
+  {
+    id: 'MP-152',
+    title: 'Agent step panel ends a turn without a stale running task',
+    tasks: ['agents', 'agent-basic-task'],
+    phase: 'agentRuntimes',
+    capabilities: []
   },
   {
     id: 'MP-58',
