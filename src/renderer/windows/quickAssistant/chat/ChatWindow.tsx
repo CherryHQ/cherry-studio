@@ -17,6 +17,7 @@ interface Props {
 const ChatWindow: FC<Props> = ({ route, assistant, isOutputted, messages, partsByMessageId }) => {
   return (
     <div className="bubble mb-auto flex min-h-0 max-h-full w-full flex-col bg-transparent! [-webkit-app-region:no-drag]">
+      <div className="drag h-1.5 w-full shrink-0" aria-hidden="true" />
       <Messages
         assistant={assistant}
         route={route}
