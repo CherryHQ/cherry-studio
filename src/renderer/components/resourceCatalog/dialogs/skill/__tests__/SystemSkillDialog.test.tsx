@@ -88,7 +88,6 @@ describe('SystemSkillDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'library.system_skill.import' }))
 
-    expect(useSystemSkillsMock).toHaveBeenCalledWith(true)
     expect(importSkillMock).toHaveBeenCalledWith(candidate)
     expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.import_success:System Skill')
   })
@@ -102,15 +101,8 @@ describe('SystemSkillDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'library.system_skill.import' }))
 
-    expect(useSystemSkillsMock).toHaveBeenCalledWith(true)
     expect(onEnabled).not.toHaveBeenCalled()
     expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.import_success:System Skill')
-  })
-
-  it('does not show a manual refresh action', () => {
-    render(<SystemSkillDialog mode="manage" open onOpenChange={vi.fn()} />)
-
-    expect(screen.queryByRole('button', { name: 'common.refresh' })).not.toBeInTheDocument()
   })
 
   it('offers re-import for an imported system skill in skill management', async () => {

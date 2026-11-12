@@ -1,0 +1,334 @@
+diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
+index feb37cc..a4e9e16 100644
+--- a/dist/api/google-generative-ai.js
++++ b/dist/api/google-generative-ai.js
+@@ -31,18 +31,15 @@ export const stream = (model, context, options) => {
+             },
+             stopReason: "pending",
+             timestamp: Date.now(),
+         };
+         try {
+-            if (options?.fetch && options.fetch !== globalThis.fetch) {
+-                throw new Error("Custom fetch is not supported by the Google Generative AI adapter");
+-            }
+             const apiKey = options?.apiKey;
+             if (!apiKey) {
+                 throw new Error(`No API key for provider: ${model.provider}`);
+             }
+-            const client = createClient(model, apiKey, options?.headers, options?.identity);
++            const client = createClient(model, apiKey, options?.headers, options?.identity, options?.fetch);
+             let params = buildParams(model, normalizedContext, options);
+             const nextParams = await options?.onPayload?.(params, model);
+             if (nextParams !== undefined) {
+                 params = nextParams;
+             }
+@@ -259,12 +256,15 @@ export const streamSimple = (model, context, options) => {
+             enabled: true,
+             budgetTokens: getGoogleBudget(model, resolvedLevel, options.thinkingBudgets),
+         },
+     });
+ };
+-function createClient(model, apiKey, optionsHeaders, identity) {
++function createClient(model, apiKey, optionsHeaders, identity, fetch) {
+     const httpOptions = {};
++    if (fetch) {
++        httpOptions.fetch = fetch;
++    }
+     if (model.baseUrl) {
+         httpOptions.baseUrl = model.baseUrl;
+         httpOptions.apiVersion = ""; // baseUrl already includes version path, don't append
+     }
+     const headers = providerHeadersToRecord(getIdentityHeaders(model, identity), model.headers, optionsHeaders);
+diff --git a/dist/api/openai-codex-responses.d.ts b/dist/api/openai-codex-responses.d.ts
+index 704476d..3f755ff 100644
+--- a/dist/api/openai-codex-responses.d.ts
++++ b/dist/api/openai-codex-responses.d.ts
+@@ -1,9 +1,9 @@
+ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
+ import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
+ export interface OpenAICodexResponsesOptions extends StreamOptions {
+-    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
++    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+     reasoningSummary?: "auto" | "concise" | "detailed" | "off" | "on" | null;
+     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
+     textVerbosity?: "low" | "medium" | "high";
+     toolChoice?: "auto" | "none" | "required";
+ }
+diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
+index 41267bd..f29497b 100644
+--- a/dist/api/openai-responses.d.ts
++++ b/dist/api/openai-responses.d.ts
+@@ -1,9 +1,9 @@
+ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
+ import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
+ export interface OpenAIResponsesOptions extends StreamOptions {
+-    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
++    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+     reasoningSummary?: "auto" | "detailed" | "concise" | null;
+     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
+     toolChoice?: ResponseCreateParamsStreaming["tool_choice"];
+ }
+ /**
+diff --git a/dist/models.js b/dist/models.js
+index c61de87..2a953e5 100644
+--- a/dist/models.js
++++ b/dist/models.js
+@@ -696,19 +696,19 @@ export function calculateCost(model, usage) {
+     usage.cost.cacheWrite = (rates.cacheWrite * shortWrite + rates.input * 2 * longWrite) / 1000000;
+     usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
+     usage.cost.totalFromProvider = false;
+     return usage.cost;
+ }
+-const EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
++const EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export function getSupportedThinkingLevels(model) {
+     if (!model.reasoning)
+         return ["off"];
+     return EXTENDED_THINKING_LEVELS.filter((level) => {
+         const mapped = model.thinkingLevelMap?.[level];
+         if (mapped === null)
+             return false;
+-        if (level === "xhigh" || level === "max")
++        if (level === "xhigh" || level === "max" || level === "ultra")
+             return mapped !== undefined;
+         return true;
+     });
+ }
+ export function clampThinkingLevel(model, level) {
+diff --git a/dist/providers/model-schema.d.ts b/dist/providers/model-schema.d.ts
+index f4015ca..f1f8dde 100644
+--- a/dist/providers/model-schema.d.ts
++++ b/dist/providers/model-schema.d.ts
+@@ -1,23 +1,24 @@
+ import { type Static } from "@earendil-works/pi-schema";
+-export declare const THINKING_LEVELS: readonly ["minimal", "low", "medium", "high", "xhigh", "max"];
+-export declare const MODEL_THINKING_LEVELS: readonly ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
++export declare const THINKING_LEVELS: readonly ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
++export declare const MODEL_THINKING_LEVELS: readonly ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export declare const MODEL_INPUT_MODALITIES: readonly ["text", "image"];
+ export declare const CACHE_RETENTIONS: readonly ["none", "short", "long"];
+ export declare const MODEL_PROMPT_CACHE_RETENTIONS: readonly ["short", "long"];
+-export declare const ThinkingLevelSchema: import("@earendil-works/pi-schema").Schema<"high" | "low" | "max" | "medium" | "minimal" | "xhigh">;
+-export declare const ModelThinkingLevelSchema: import("@earendil-works/pi-schema").Schema<"high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh">;
++export declare const ThinkingLevelSchema: import("@earendil-works/pi-schema").Schema<"high" | "low" | "max" | "medium" | "minimal" | "xhigh" | "ultra">;
++export declare const ModelThinkingLevelSchema: import("@earendil-works/pi-schema").Schema<"high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh" | "ultra">;
+ export declare const ModelInputModalitySchema: import("@earendil-works/pi-schema").Schema<"image" | "text">;
+ export declare const CacheRetentionSchema: import("@earendil-works/pi-schema").Schema<"long" | "none" | "short">;
+ export declare const ThinkingLevelMapSchema: import("@earendil-works/pi-schema").Schema<{
+     off?: string | null | undefined;
+     minimal?: string | null | undefined;
+     low?: string | null | undefined;
+     medium?: string | null | undefined;
+     high?: string | null | undefined;
+     xhigh?: string | null | undefined;
+     max?: string | null | undefined;
++    ultra?: string | null | undefined;
+ }>;
+ export declare const ModelPromptCacheSchema: import("@earendil-works/pi-schema").Schema<{
+     short?: number | undefined;
+     long?: number | undefined;
+ }>;
+diff --git a/dist/providers/model-schema.js b/dist/providers/model-schema.js
+index 2aaea67..1d152b8 100644
+--- a/dist/providers/model-schema.js
++++ b/dist/providers/model-schema.js
+@@ -1,8 +1,8 @@
+ import { arr, int, nul, num, oneOf, opt, str, union, } from "@earendil-works/pi-schema";
+ import { openObject as object } from "./schema-builders.js";
+-export const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"];
++export const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export const MODEL_THINKING_LEVELS = ["off", ...THINKING_LEVELS];
+ export const MODEL_INPUT_MODALITIES = ["text", "image"];
+ export const CACHE_RETENTIONS = ["none", "short", "long"];
+ export const MODEL_PROMPT_CACHE_RETENTIONS = ["short", "long"];
+ export const ThinkingLevelSchema = oneOf(THINKING_LEVELS);
+@@ -16,10 +16,11 @@ export const ThinkingLevelMapSchema = object({
+     low: opt(ThinkingLevelMapValueSchema),
+     medium: opt(ThinkingLevelMapValueSchema),
+     high: opt(ThinkingLevelMapValueSchema),
+     xhigh: opt(ThinkingLevelMapValueSchema),
+     max: opt(ThinkingLevelMapValueSchema),
++    ultra: opt(ThinkingLevelMapValueSchema),
+ }, {
+     description: "Provider value sent for each thinking level. null marks a level unsupported. Levels the model does not map use the provider's default value through high; xhigh and max are unsupported.",
+ });
+ const PromptCacheLifetimeSchema = num({ exclusiveMinimum: 0 });
+ export const ModelPromptCacheSchema = object({ short: opt(PromptCacheLifetimeSchema), long: opt(PromptCacheLifetimeSchema) }, {
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index b410a7b..685a297 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -355,11 +355,22 @@ export interface DeferredHandle {
+  * prompt sections, and `toolsAdded`/`toolsRemoved` change the tool set. Replaying
+  * every system message in order yields the current prompt and tools. Providers that
+  * accept system messages mid-conversation send each one in place; other providers
+  * rebuild the leading system message from the replayed state.
+  */
++export interface ContextSource {
++    kind: string;
++    source?: string;
++    resources?: { id: string; name: string; source?: string; characters: number }[];
++}
++export interface SystemContextSources {
++    sections: Record<string, ContextSource>;
++    tools: Record<string, ContextSource>;
++}
+ export interface SystemMessage {
++    /** Display provenance only; never rendered into the provider prompt. */
++    contextSources?: SystemContextSources;
+     role: "system";
+     /** Instruction text. On the leading message this is the base prompt; later, additional instructions. */
+     content: string | TextContent[];
+     /**
+      * Named, ordered prompt sections rendered verbatim after `content`. The leading message
+@@ -435,10 +446,12 @@ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails>
+     role: "toolResult";
+     toolCallId: string;
+     toolName: string;
+     content: (TextContent | ImageContent)[];
+     details?: JsonRepresentation<TDetails>;
++    /** Structured tool output retained for session replay and tool consumers. */
++    structuredContent?: JsonValue;
+     /** Usage from the tool execution itself, if available. Not part of main LLM context accounting. */
+     usage?: Usage;
+     /** Calls this tool made to other tools. Kept for the session record; not sent to the model. */
+     nestedCalls?: NestedToolCalls;
+     isError: boolean;
+diff --git a/package/dist/utils/context-usage.d.ts b/dist/utils/context-usage.d.ts
+new file mode 100644
+index 0000000..c2422f3
+--- /dev/null
++++ b/dist/utils/context-usage.d.ts
+@@ -0,0 +1,10 @@
++import type { ContextSource, SystemMessage, Tool } from "../types.ts";
++export interface ContextPart {
++    id: string;
++    kind: string;
++    tokens: number;
++    state?: "loaded" | "deferred";
++    source?: string;
++    resources?: ContextSource["resources"];
++}
++export declare function measureSystemContext(system: SystemMessage | undefined, deferred?: readonly (Tool & { contextSource?: ContextSource })[], estimate?: (promptCharacters: number, toolCharacters: number) => number, separator?: string): ContextPart[];
+diff --git a/package/dist/utils/context-usage.js b/dist/utils/context-usage.js
+new file mode 100644
+index 0000000..a37f8e8
+--- /dev/null
++++ b/dist/utils/context-usage.js
+@@ -0,0 +1,35 @@
++import { contentText } from "./text.js";
++import { estimateSystemCharacters } from "./estimate.js";
++export function measureSystemContext(system, deferred = [], estimate = estimateSystemCharacters, separator = "\n\n") {
++    const parts = [];
++    let promptCharacters = 0;
++    let measured = 0;
++    const addText = (id, value, source) => {
++        if (!value) return;
++        promptCharacters += (promptCharacters ? separator.length : 0) + value.length;
++        const next = estimate(promptCharacters, 0);
++        parts.push({ id, kind: source?.kind ?? "system-prompt", tokens: next - measured,
++            resources: source?.resources ?? [{ id, name: id, characters: value.length, source: source?.source }] });
++        measured = next;
++    };
++    if (system) {
++        addText("prompt", contentText(system.content));
++        for (const [key, value] of Object.entries(system.sections ?? {}))
++            addText(key, value, system.contextSources?.sections[key]);
++    }
++    for (const [state, tools] of [["loaded", system?.toolsAdded ?? []], ["deferred", deferred]]) {
++        let tokens = state === "loaded" ? measured : 0;
++        let schemaCharacters = 0;
++        for (const tool of tools) {
++            const declaration = { name: tool.name, description: tool.description, parameters: tool.parameters,
++                ...(tool.constrainedSampling === undefined ? {} : { constrainedSampling: tool.constrainedSampling }) };
++            schemaCharacters += JSON.stringify(declaration).length + (schemaCharacters ? 1 : 2);
++            const next = estimate(state === "loaded" ? promptCharacters : 0, schemaCharacters);
++            const source = state === "loaded" ? system?.contextSources?.tools[tool.name] : tool.contextSource;
++            parts.push({ id: tool.name, kind: source?.kind ?? "system-tools", tokens: next - tokens,
++                state, source: source?.source });
++            tokens = next;
++        }
++    }
++    return parts;
++}
+diff --git a/dist/utils/estimate.d.ts b/dist/utils/estimate.d.ts
+index 6dcca6e..0b56a9f 100644
+--- a/dist/utils/estimate.d.ts
++++ b/dist/utils/estimate.d.ts
+@@ -12,6 +12,7 @@ export interface ContextUsageEstimate {
+ export declare function calculateContextTokens(usage: Usage): number;
+ export declare function estimateTextTokens(text: string): number;
+ export declare function estimateTextAndImageContentTokens(content: string | Array<TextContent | ImageContent>): number;
+ export declare function estimateMessageTokens(message: Message): number;
+ export declare function estimateContextTokens(context: TranscriptContext | readonly Message[]): ContextUsageEstimate;
+-//# sourceMappingURL=estimate.d.ts.map
+\ No newline at end of file
++//# sourceMappingURL=estimate.d.ts.map
++export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
+diff --git a/dist/utils/estimate.js b/dist/utils/estimate.js
+index 45be26d..cfaf2b0 100644
+--- a/dist/utils/estimate.js
++++ b/dist/utils/estimate.js
+@@ -18,21 +18,23 @@ function estimateTextAndImageContentChars(content) {
+     let chars = 0;
+     for (const block of content)
+         chars += block.type === "text" ? block.text.length : ESTIMATED_IMAGE_CHARS;
+     return chars;
+ }
++export function estimateSystemCharacters(promptCharacters, toolCharacters) {
++    return Math.ceil(promptCharacters / CHARS_PER_TOKEN) + Math.ceil(toolCharacters / CHARS_PER_TOKEN);
++}
+ export function estimateTextTokens(text) {
+     return Math.ceil(text.length / CHARS_PER_TOKEN);
+ }
+ export function estimateTextAndImageContentTokens(content) {
+     return Math.ceil(estimateTextAndImageContentChars(content) / CHARS_PER_TOKEN);
+ }
+ export function estimateMessageTokens(message) {
+     let chars = 0;
+     if (message.role === "system") {
+-        return (estimateTextTokens(getSystemMessageText(message)) +
+-            estimateToolsTokens(message.toolsAdded) +
++        return (estimateSystemCharacters(getSystemMessageText(message).length, message.toolsAdded?.length ? safeJsonStringify(message.toolsAdded).length : 0) +
+             estimateToolsTokens(message.toolsRemoved));
+     }
+     if (message.role === "user")
+         return estimateTextAndImageContentTokens(message.content);
+     if (message.role === "toolResult")
+diff --git a/dist/utils/transcript.js b/dist/utils/transcript.js
+index ac638f4..b4d16a8 100644
+--- a/dist/utils/transcript.js
++++ b/dist/utils/transcript.js
+@@ -56,15 +56,20 @@ export function getCurrentTools(messages) {
+  * patched by name, and tools are resolved with {@link getCurrentTools}.
+  */
+ export function getCurrentSystemMessage(messages) {
+     const content = [];
+     const sections = new Map();
++    let contextSources;
+     let timestamp;
+     for (const message of messages) {
+         if (!isSystemMessage(message))
+             continue;
+         timestamp ??= message.timestamp;
++        if (message.contextSources) contextSources = structuredClone(message.contextSources);
++        else if (contextSources) {
++            for (const name of Object.keys(message.sections ?? {})) delete contextSources.sections[name];
++        }
+         const text = contentText(message.content);
+         if (text.length > 0)
+             content.push(text);
+         for (const [name, value] of Object.entries(message.sections ?? {})) {
+             if (value === null)
+@@ -77,10 +82,11 @@ export function getCurrentSystemMessage(messages) {
+     if (timestamp === undefined && tools.length === 0)
+         return undefined;
+     return {
+         role: "system",
+         content: content.join("\n\n"),
++        ...(contextSources ? { contextSources } : {}),
+         ...(sections.size > 0 ? { sections: Object.fromEntries(sections) } : {}),
+         ...(tools.length > 0 ? { toolsAdded: tools } : {}),
+         timestamp: timestamp ?? 0,
+     };
+ }
