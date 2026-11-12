@@ -10,14 +10,15 @@ import {
   type FauxResponseStep
 } from '@earendil-works/pi-ai'
 import { defineTool, ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
-import { obj, str } from '@earendil-works/pi-schema'
+import { arr, obj, str } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
 import {
   runtimeId,
   type ObservationPayload,
   type OperationResult,
-  type ThreadHandle
+  type ThreadHandle,
+  type RuntimeMessage
 } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime, type AgentRuntimeEvent, type PiRuntimeOptions } from '../src'
@@ -1067,3 +1068,70 @@ it.each([false, true])('retains recursive failures and cancellation (cancel=%s)'
     state: 'output-error'
   })
 })
+it.each([false, true])(
+  'retains native nested-call evidence in live and reopened projections (outer failure=%s)',
+  async (fails) => {
+    const { runtime, options, faux } = await setup()
+    const manager = SessionManager.create(options.cwd, options.cwd)
+    const declaration = { artifacts: [{ path: '/workspace/report.html' }] }
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall('script', {}, { id: 'script' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage('done')
+    ])
+    const tools = [
+      defineTool({
+        name: 'declare',
+        label: 'Declare',
+        description: 'Declare a file',
+        parameters: obj({ artifacts: arr(obj({ path: str() })) }),
+        execute: async () => ({ content: [{ type: 'text' as const, text: 'recorded' }], details: undefined })
+      }),
+      defineTool({
+        name: 'script',
+        label: 'Script',
+        description: 'Call a declaration',
+        parameters: obj({}),
+        execute: async (_id, _args, _signal, _update, context) => {
+          await context.executeTool('declare', declaration)
+          if (fails) throw new Error('Failure after declaration')
+          return { content: [{ type: 'text' as const, text: 'script finished' }], details: undefined }
+        }
+      })
+    ]
+    const handle = confirmed(await runtime.create({ ...options, tools, sessionManager: manager }))
+    const events = await observe(handle)
+    await handle.input.submit(input('declare a file'))
+    await handle.pi.settled()
+    const partOf = (messages: readonly RuntimeMessage[]) =>
+      messages
+        .flatMap((message) => message.parts)
+        .find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'script')!
+    const resultOf = (part: ReturnType<typeof partOf>) => {
+      if (part.type !== 'dynamic-tool') throw new Error('Missing script call')
+      return part.state === 'output-available'
+        ? part.output
+        : part.state === 'output-error'
+          ? part.resultProviderMetadata?.pi?.result
+          : undefined
+    }
+    const live = partOf(events.flatMap((event) => (event.type === 'message.upsert' ? [event.message] : [])).reverse())
+    expect(resultOf(live)).toMatchObject({
+      nestedCalls: { complete: true, calls: [{ name: 'declare', status: 'ok', arguments: declaration }] }
+    })
+    const saved = partOf(handle.pi.archive().messages)
+    expect(resultOf(saved)).toEqual(resultOf(live))
+    await runtime.shutdown()
+    const reopenedRuntime = confirmed(await createPiRuntime({ backendId: runtimeId('reopened') }))
+    onTestFinished(async () => {
+      await reopenedRuntime.shutdown()
+    })
+    const reopened = confirmed(
+      await reopenedRuntime.create({
+        ...options,
+        tools,
+        sessionManager: SessionManager.open(manager.getSessionFile()!)
+      })
+    )
+    expect(resultOf(partOf(reopened.pi.archive().messages))).toEqual(resultOf(saved))
+  }
+)

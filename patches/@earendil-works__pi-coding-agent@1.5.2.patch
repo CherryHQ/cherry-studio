@@ -1,5 +1,5 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..c68d57018d1f10fdc7e9ca3947ae2528c63ca2fb 100644
+index f99ebc8a1deba3af9612248b424c5363527c82ff..8ebcb42db2e29e26c08377e9de316fa8c873c704 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -13,11 +13,11 @@
@@ -128,7 +128,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..c68d57018d1f10fdc7e9ca3947ae2528
      private _appendCustomMessage;
      /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..6e146a11f8f9c5fa35e188bcdfd837bf8dd13ab7 100644
+index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c76a8f4f31 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -40,7 +40,7 @@ import { exportSessionToJsonl } from "./session-export.js";
@@ -587,7 +587,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..6e146a11f8f9c5fa35e188bcdfd837bf
      /**
       * Set model directly.
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
-index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..4c3fc171ade2532df362601a8fe67d8d951775bf 100644
+index 748b06fd49cfd635773dfd423de7d7c138c3071b..4c3fc171ade2532df362601a8fe67d8d951775bf 100644
 --- a/dist/core/compaction/compaction.d.ts
 +++ b/dist/core/compaction/compaction.d.ts
 @@ -143,3 +143,4 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
@@ -596,12 +596,10 @@ index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..4c3fc171ade2532df362601a8fe67d8d
  //# sourceMappingURL=compaction.d.ts.map
 +export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index 9b1a409..2076c72 100644
+index e1ce6ec1975da431fbd5d1be13df40b829bee1aa..5d7c4aea8565028007ff9d7aa0993dd8a9e88b70 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
-@@ -196,10 +196,13 @@ function estimateTextAndImageContentChars(content) {
- }
- /**
+@@ -198,6 +198,9 @@ function estimateTextAndImageContentChars(content) {
   * Estimate token count for a message using chars/4 heuristic.
   * This is conservative (overestimates tokens).
   */
@@ -611,11 +609,7 @@ index 9b1a409..2076c72 100644
  export function estimateTokens(message) {
      let chars = 0;
      switch (message.role) {
-         case "system": {
-             const system = message;
-@@ -210,11 +213,11 @@ export function estimateTokens(message) {
-                         chars += section.length;
-                 }
+@@ -212,7 +215,7 @@ export function estimateTokens(message) {
              }
              if (system.toolsAdded)
                  chars += JSON.stringify(system.toolsAdded).length;
@@ -624,15 +618,35 @@ index 9b1a409..2076c72 100644
          }
          case "user": {
              chars = estimateTextAndImageContentChars(message.content);
-             return Math.ceil(chars / 4);
-         }
+@@ -538,6 +541,9 @@ _reserveTokens, apiKey, headers, signal, customInstructions, previousSummary, th
+         throw new Error("Summarization attempted to call a tool");
+     }
+     const textContent = contentText(response.content);
++    if (!textContent.trim()) {
++        throw new Error("Summarization produced no text");
++    }
+     return { text: textContent, usage: response.usage };
+ }
+ function isProjectedTurnStart(entry) {
+@@ -741,8 +747,12 @@ async function generateTurnPrefixSummary(messages, model, apiKey, headers, env,
+     if (response.content.some((block) => block.type === "toolCall")) {
+         throw new Error("Turn prefix summarization attempted to call a tool");
+     }
++    const text = contentText(response.content);
++    if (!text.trim()) {
++        throw new Error("Turn prefix summarization produced no text");
++    }
+     return {
+-        text: contentText(response.content),
++        text,
+         usage: response.usage,
+     };
+ }
 diff --git a/dist/core/extensions/types.d.ts b/dist/core/extensions/types.d.ts
-index f527dee..fe2a671 100644
+index d312d9f2310af6151a1801b9754484bfea49f111..0a2a7f8fb0c4aa2d94b13918eca4c6cb8ea87884 100644
 --- a/dist/core/extensions/types.d.ts
 +++ b/dist/core/extensions/types.d.ts
-@@ -348,10 +348,11 @@ export interface ExtensionCommandContext extends ExtensionContext {
-  */
- export interface ReplacedSessionContext extends ExtensionCommandContext {
+@@ -350,6 +350,7 @@ export interface ReplacedSessionContext extends ExtensionCommandContext {
      sendMessage<T = unknown>(message: Pick<CustomMessage<T>, "customType" | "content" | "display" | "details">, options?: {
          triggerTurn?: boolean;
          deliverAs?: "steer" | "followUp" | "nextTurn";
@@ -640,11 +654,7 @@ index f527dee..fe2a671 100644
      }): Promise<void>;
      sendUserMessage(content: string | (TextContent | ImageContent)[], options?: {
          deliverAs?: "steer" | "followUp";
-         expandPromptTemplates?: boolean;
-     }): Promise<void>;
-@@ -497,10 +498,11 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
-     /**
-      * How the model reaches the tool. Default: `"direct"`. See {@link ToolExposure}.
+@@ -499,6 +500,7 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
       */
      exposure?: ToolExposure;
      /** Group the tool belongs to, for example its MCP server. */
@@ -652,11 +662,7 @@ index f527dee..fe2a671 100644
      namespace?: ToolNamespace;
      /**
       * For tools that reach other tools (such as `codemode`, which calls them, and `tool_search`, which
-      * loads them): which tools a call with `input` may reach. `"all"`, or the words of the input that
-      * may name them, where a word refers to a tool or namespace whose name it contains, so words may
-@@ -1297,14 +1299,15 @@ export interface ExtensionAPI {
-     registerMarkdownTransformer(transformer: MarkdownTransformer, options?: MarkdownTransformerOptions): void;
-     /** Register a custom renderer for CustomEntry. Custom entries do not participate in LLM context. */
+@@ -1299,10 +1301,11 @@ export interface ExtensionAPI {
      registerEntryRenderer<T = unknown>(customType: string, renderer: EntryRenderer<T>): void;
      /** Choose how tool calls are drawn. Resolvers run in extension load order. */
      registerToolRenderer(resolver: ToolRendererResolver): void;
@@ -669,11 +675,7 @@ index f527dee..fe2a671 100644
      }): void;
      /**
       * Send a user message to the agent. Always triggers a turn.
-      * When the agent is streaming, use deliverAs to specify how to queue the message.
-      * Set expandPromptTemplates to dispatch extension commands and expand skill commands and prompt templates.
-@@ -1607,10 +1610,11 @@ export interface ExtensionShortcut {
- }
- type HandlerFn = (...args: unknown[]) => Promise<unknown>;
+@@ -1609,6 +1612,7 @@ type HandlerFn = (...args: unknown[]) => Promise<unknown>;
  export type SendMessageHandler = <T = unknown>(message: Pick<CustomMessage<T>, "customType" | "content" | "display" | "details">, options?: {
      triggerTurn?: boolean;
      deliverAs?: "steer" | "followUp" | "nextTurn";
@@ -681,11 +683,7 @@ index f527dee..fe2a671 100644
  }) => void;
  export type SendUserMessageHandler = (content: string | (TextContent | ImageContent)[], options?: {
      deliverAs?: "steer" | "followUp";
-     expandPromptTemplates?: boolean;
- }) => void;
-@@ -1619,10 +1623,11 @@ export type SetSessionNameHandler = (name: string) => void;
- export type GetSessionNameHandler = () => string | undefined;
- export type GetActiveToolsHandler = () => string[];
+@@ -1621,6 +1625,7 @@ export type GetActiveToolsHandler = () => string[];
  /** Tool info with name, description, parameter schema, prompt guidelines, and source metadata. */
  export type ToolInfo = Pick<ToolDefinition, "name" | "description" | "parameters" | "promptGuidelines" | "reachesTools"> & {
      exposure: ToolExposure;
@@ -693,10 +691,8 @@ index f527dee..fe2a671 100644
      namespace?: ToolNamespace;
      annotations?: ToolAnnotations;
      sourceInfo: SourceInfo;
- };
- export type GetAllToolsHandler = () => ToolInfo[];
 diff --git a/dist/core/nested-tool-calls.d.ts b/dist/core/nested-tool-calls.d.ts
-index 1d3adb1b412c5ecc81e2f9f68368cdfbc3234ab3..63256394f6eb7eeaef0e8d26b207589353952b9b 100644
+index 4795a91b4bc64d92c81f39c65189f4f0879f64b6..6edfd2519e8b692d8827fd0c57b78e72cf092d4c 100644
 --- a/dist/core/nested-tool-calls.d.ts
 +++ b/dist/core/nested-tool-calls.d.ts
 @@ -39,8 +39,8 @@ export declare class NestedCallRecorder {
@@ -719,7 +715,7 @@ index 1d3adb1b412c5ecc81e2f9f68368cdfbc3234ab3..63256394f6eb7eeaef0e8d26b2075893
      isError: boolean;
      durationMs?: number;
 diff --git a/dist/core/nested-tool-calls.js b/dist/core/nested-tool-calls.js
-index be4a571d0f5ab07f482d8d634f937e0448787c1d..bebc35c9f152115ef3d431b8d0f4d7066f2d5725 100644
+index 7b1b18c340cb0ef0242024a4a6fe5cde40fb2bdd..9ee07223113a3bff53a280b9d397b368358a7332 100644
 --- a/dist/core/nested-tool-calls.js
 +++ b/dist/core/nested-tool-calls.js
 @@ -1,3 +1,4 @@
@@ -806,12 +802,10 @@ index be4a571d0f5ab07f482d8d634f937e0448787c1d..bebc35c9f152115ef3d431b8d0f4d706
              isError: outcome.isError,
              ...(outcome.durationMs === undefined ? {} : { durationMs: outcome.durationMs }),
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index c042aaf..a95cd52 100644
+index 4b1262925b07ceff7c59c25e8a5a66d9c47226ad..521423dcb047c572c87bad250737edc1d90ded84 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
-@@ -258,10 +258,12 @@ export declare class SessionManager {
-      * closing pi without chatting leaves no file behind. Starting at the user message (not the
-      * first assistant reply) keeps the prompt on disk if the first turn never completes (#10000).
+@@ -260,6 +260,8 @@ export declare class SessionManager {
       */
      private _hasConversation;
      _persist(entry: SessionEntry): void;
@@ -820,11 +814,7 @@ index c042aaf..a95cd52 100644
      private _appendEntry;
      /** Append a message as child of current leaf, then advance leaf. Returns entry id.
       * Does not allow writing CompactionSummaryMessage and BranchSummaryMessage directly.
-      * Reason: we want these to be top-level entries in the session, not message session entries,
-      * so it is easier to find them.
-@@ -380,10 +382,12 @@ export declare class SessionManager {
-      * Open a specific session file.
-      * @param path Path to session file
+@@ -382,6 +384,8 @@ export declare class SessionManager {
       * @param sessionDir Optional session directory for /new or /branch. If omitted, derives from file's parent.
       * @param cwdOverride Optional cwd override instead of the session header cwd.
       */
@@ -833,13 +823,11 @@ index c042aaf..a95cd52 100644
      static open(path: string, sessionDir?: string, cwdOverride?: string): SessionManager;
      /**
       * Continue the most recent session, or create new if none.
-      * @param cwd Working directory
-      * @param sessionDir Optional session directory. If omitted, uses default (~/.pi/agent/sessions/<encoded-cwd>/).
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index 7ee0501..dd8b1b3 100644
+index 6f8d14e5127442096eed27ceefd46585913320be..02a1c5d134ef538f3893155467f2a1a6c1dee9e6 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
-@@ -1,8 +1,8 @@
+@@ -1,6 +1,6 @@
  import { getCurrentSystemMessage, uuidv7, } from "@earendil-works/pi-ai";
  import { randomUUID } from "crypto";
 -import { appendFileSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
@@ -847,11 +835,7 @@ index 7ee0501..dd8b1b3 100644
  import { readdir, stat } from "fs/promises";
  import { basename, join, resolve } from "path";
  import { createInterface } from "readline";
- import { StringDecoder } from "string_decoder";
- import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../config.js";
-@@ -796,25 +796,31 @@ export class SessionManager {
-         if (!this.persist || !this.sessionFile)
-             return;
+@@ -798,21 +798,27 @@ export class SessionManager {
          if (!this.flushed) {
              if (!this._hasConversation())
                  return;
@@ -889,11 +873,7 @@ index 7ee0501..dd8b1b3 100644
      _appendEntry(entry) {
          const previousLeafId = this.leafId;
          this.fileEntries.push(entry);
-         this.byId.set(entry.id, entry);
-         this.leafId = entry.id;
-@@ -1333,10 +1339,27 @@ export class SessionManager {
-      * Open a specific session file.
-      * @param path Path to session file
+@@ -1335,6 +1341,23 @@ export class SessionManager {
       * @param sessionDir Optional session directory for /new or /branch. If omitted, derives from file's parent.
       * @param cwdOverride Optional cwd override instead of the session header cwd.
       */
@@ -917,10 +897,8 @@ index 7ee0501..dd8b1b3 100644
      static open(path, sessionDir, cwdOverride) {
          const resolvedPath = resolvePath(path);
          let header = null;
-         let preloadedFileEntries;
-         if (cwdOverride === undefined && existsSync(resolvedPath)) {
 diff --git a/dist/core/skills.d.ts b/dist/core/skills.d.ts
-index 4d13be8f001f2376baa6a9dfc5476406a1cd86ca..91226214c574010ce9ade51bbfe72626477e0e88 100644
+index f5eb06714370e2bc3578c180ca97d4f5ac61dfaa..91226214c574010ce9ade51bbfe72626477e0e88 100644
 --- a/dist/core/skills.d.ts
 +++ b/dist/core/skills.d.ts
 @@ -61,3 +61,4 @@ export interface LoadSkillsOptions {
@@ -929,7 +907,7 @@ index 4d13be8f001f2376baa6a9dfc5476406a1cd86ca..91226214c574010ce9ade51bbfe72626
  //# sourceMappingURL=skills.d.ts.map
 +export declare function skillPromptResources(skills: Skill[]): { id: string; name: string; source: string; characters: number }[];
 diff --git a/dist/core/skills.js b/dist/core/skills.js
-index b1600f5ba0484df4309db9ca0345e1e888469537..291b349e8d59be937b8c06766a84697c3ac4ea3f 100644
+index d574810607557873fb1f27c7cfa4308b1312e571..291b349e8d59be937b8c06766a84697c3ac4ea3f 100644
 --- a/dist/core/skills.js
 +++ b/dist/core/skills.js
 @@ -292,11 +292,7 @@ export function formatSkillsForPrompt(skills, fileReadTool = "read") {
@@ -959,10 +937,10 @@ index b1600f5ba0484df4309db9ca0345e1e888469537..291b349e8d59be937b8c06766a84697c
 +        name: skill.name, source: skill.filePath, characters: formatSkillEntry(skill).length }));
 +}
 diff --git a/dist/core/system-prompt.d.ts b/dist/core/system-prompt.d.ts
-index 4af8618..fff58eb 100644
+index f14a60e7a454860b6def374cea0d62268da7f43f..386ea11326b6a950e764a6e36848da8e30b61ab3 100644
 --- a/dist/core/system-prompt.d.ts
 +++ b/dist/core/system-prompt.d.ts
-@@ -1,8 +1,9 @@
+@@ -1,6 +1,7 @@
  /**
   * System prompt construction and project context loading
   */
@@ -970,11 +948,7 @@ index 4af8618..fff58eb 100644
  import { type Skill } from "./skills.ts";
  export interface BuildSystemPromptOptions {
      /** Custom system prompt (replaces the default prefix). */
-     customPrompt?: string;
-     /** Exact full prompt replacement set by a before_agent_start handler. */
-@@ -22,10 +23,11 @@ export interface BuildSystemPromptOptions {
-     promptGuidelines?: string[];
-     /** Text appended from user configuration before project context, skills, and cwd. */
+@@ -24,6 +25,7 @@ export interface BuildSystemPromptOptions {
      appendSystemPrompt?: string;
      /** Additional XML-wrapped prompt sections keyed by tag name. */
      sections?: Record<string, string>;
@@ -982,10 +956,8 @@ index 4af8618..fff58eb 100644
      /** Working directory. */
      cwd: string;
      /** Pre-loaded context files. */
-     contextFiles?: Array<{
-         path: string;
 diff --git a/dist/core/system-prompt.js b/dist/core/system-prompt.js
-index 94c320ec7175265d067891d044d5b37407bdbbb4..123042ef063d0ebdfc0f3d1a0467276d531695aa 100644
+index 1d7099a342a6870c9b9592a5f37e234f5add7c2c..123042ef063d0ebdfc0f3d1a0467276d531695aa 100644
 --- a/dist/core/system-prompt.js
 +++ b/dist/core/system-prompt.js
 @@ -3,7 +3,7 @@
@@ -1036,12 +1008,10 @@ index 94c320ec7175265d067891d044d5b37407bdbbb4..123042ef063d0ebdfc0f3d1a0467276d
 +        tool.contextSource ?? { kind: "system-tools", source: tool.sourceInfo?.path }])) };
 +}
 diff --git a/dist/extensions/mcp/tools.js b/dist/extensions/mcp/tools.js
-index 67aa2b8..afd64e7 100644
+index 086bb779429e259e85828b7c5cb3f606a6809e01..ad6bc3453ce9a15ee8643871973efe7ddbf9ba3e 100644
 --- a/dist/extensions/mcp/tools.js
 +++ b/dist/extensions/mcp/tools.js
-@@ -196,10 +196,11 @@ export function createMcpToolDefinition(options) {
-         // An object schema, which is what TypeBox schemas are at runtime.
-         parameters: normalizeMcpInputSchema(tool.inputSchema),
+@@ -198,6 +198,7 @@ export function createMcpToolDefinition(options) {
          outputSchema: createMcpResultSchema(tool.outputSchema),
          exposure: toToolExposure(options.exposure),
          namespace: options.namespace,
@@ -1049,15 +1019,11 @@ index 67aa2b8..afd64e7 100644
          ...(annotations ? { annotations } : {}),
          ...createMcpToolRenderers(label),
          async execute(_toolCallId, params, signal, onUpdate) {
-             const client = await options.getClient();
-             const result = await client.callTool(tool.name, (params ?? {}), {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index bb8acdb..65ceb44 100644
+index 9501ec64605181b3940035ab354709a7e48d54d5..9e20739fa56b61901e724182c10c9d05785f8096 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -1,11 +1,11 @@
- export { type Args, parseArgs } from "./cli/args.ts";
- export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageDir, getReadmePath, VERSION, } from "./config.ts";
+@@ -3,7 +3,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
  export { AgentSession, type AgentSessionConfig, type AgentSessionEvent, type AgentSessionEventListener, type ModelCycleResult, type ParsedSkillBlock, type PromptOptions, parseSkillBlock, type SessionStats, } from "./core/agent-session.ts";
  export { readStoredCredential } from "./core/auth-storage.ts";
  export type { CacheWarmingDecision, CacheWarmingStatus } from "./core/cache-warmer.ts";
@@ -1066,11 +1032,7 @@ index bb8acdb..65ceb44 100644
  export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.ts";
  export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingHints, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownMessageType, MarkdownTransformContext, MarkdownTransformer, MarkdownTransformerOptions, MarkdownTransformerRegistration, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.ts";
- export type { ReadonlyFooterDataProvider } from "./core/footer-data-provider.ts";
- export type { RegisteredMcpServer } from "./core/mcp-servers.ts";
-@@ -18,11 +18,11 @@ export { DefaultPackageManager } from "./core/package-manager.ts";
- export type { ResourceCollision, ResourceDiagnostic, ResourceLoader } from "./core/resource-loader.ts";
- export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-loader.ts";
+@@ -20,7 +20,7 @@ export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-
  export { AgentSessionRuntime, type AgentSessionRuntimeDiagnostic, type AgentSessionServices, type CreateAgentSessionFromServicesOptions, type CreateAgentSessionOptions, type CreateAgentSessionResult, type CreateAgentSessionRuntimeFactory, type CreateAgentSessionRuntimeResult, type CreateAgentSessionServicesOptions, createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, createBashTool, createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, type PromptTemplate, } from "./core/sdk.ts";
  export { type BranchSummaryEntry, buildContextEntries, buildSessionContext, buildSessionProjection, type CompactionEntry, type ContextEditableContent, type ContextEditEntry, CURRENT_SESSION_VERSION, type CustomEntry, type CustomMessageEntry, type FileEntry, getLatestCompactionEntry, type ModelChangeEntry, migrateSessionEntries, type NewSessionOptions, type ProjectedSessionEntry, parseSessionEntries, type SessionContext, type SessionEntry, type SessionEntryBase, type SessionHeader, type SessionInfo, type SessionInfoEntry, SessionManager, type SessionMessageEntry, type SessionProjection, type SessionTreeNode, sessionEntryToContextMessages, type ThinkingLevelChangeEntry, } from "./core/session-manager.ts";
  export { type CacheWarmingMode, type CompactionModelOverride, type CompactionSettings, type DefaultProjectTrust, type FullscreenExitOutput, type ImageSettings, type PackageSource, type QuietStartup, type RetrySettings, SettingsManager, type SettingsManagerCreateOptions, type TuiMode, } from "./core/settings-manager.ts";
@@ -1079,15 +1041,11 @@ index bb8acdb..65ceb44 100644
  export { createSyntheticSourceInfo } from "./core/source-info.ts";
  export { type EditDiffResult, generateDiffString, generateUnifiedPatch } from "./core/tools/edit-diff.ts";
  export { type BashOperations, type BashSpawnContext, type BashSpawnHook, type BashToolDetails, type BashToolInput, type BashToolOptions, createBashToolDefinition, createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLocalBashOperations, createLocalPowerShellOperations, createLsToolDefinition, createPowerShellToolDefinition, createReadToolDefinition, createWriteToolDefinition, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type EditOperations, type EditToolDetails, type EditToolInput, type EditToolOptions, type FindOperations, type FindToolDetails, type FindToolInput, type FindToolOptions, formatSize, type GrepOperations, type GrepToolDetails, type GrepToolInput, type GrepToolOptions, type LsOperations, type LsToolDetails, type LsToolInput, type LsToolOptions, type PowerShellOperations, type PowerShellSpawnContext, type PowerShellSpawnHook, type PowerShellToolDetails, type PowerShellToolInput, type PowerShellToolOptions, type ReadOperations, type ReadToolDetails, type ReadToolInput, type ReadToolOptions, type ToolsOptions, type TruncationOptions, type TruncationResult, truncateHead, truncateLine, truncateTail, type WriteOperations, type WriteToolInput, type WriteToolOptions, withFileMutationQueue, } from "./core/tools/index.ts";
- export { formatReadLineRange } from "./core/tools/render-utils.ts";
- export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTrustStore, type ProjectTrustStoreEntry, type ProjectTrustUpdate, } from "./core/trust-manager.ts";
 diff --git a/dist/index.js b/dist/index.js
-index ab5cfcc..4db4024 100644
+index 64863bb82c791fd025cb037052c3ff95da4dac7c..05e7c326b4027c4243ad47c1bbe0c615d2fa423e 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -3,11 +3,11 @@ export { parseArgs } from "./cli/args.js";
- // Config paths
- export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageDir, getReadmePath, VERSION, } from "./config.js";
+@@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
  export { AgentSession, parseSkillBlock, } from "./core/agent-session.js";
  export { readStoredCredential } from "./core/auth-storage.js";
  // Compaction
@@ -1096,11 +1054,7 @@ index ab5cfcc..4db4024 100644
  export { createEventBus } from "./core/event-bus.js";
  export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.js";
  export { convertToLlm } from "./core/messages.js";
- export { ModelRegistry } from "./core/model-registry.js";
- export { resolveCliModel, resolveModelScopeWithDiagnostics, } from "./core/model-resolver.js";
-@@ -21,11 +21,11 @@ createAgentSession, createAgentSessionFromServices, createAgentSessionRuntime, c
- // Tool factories (for custom cwd)
- createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool, createPowerShellTool, createReadOnlyTools, createReadTool, createWriteTool, } from "./core/sdk.js";
+@@ -23,7 +23,7 @@ createCodingTools, createEditTool, createFindTool, createGrepTool, createLsTool,
  export { buildContextEntries, buildSessionContext, buildSessionProjection, CURRENT_SESSION_VERSION, getLatestCompactionEntry, migrateSessionEntries, parseSessionEntries, SessionManager, sessionEntryToContextMessages, } from "./core/session-manager.js";
  export { SettingsManager, } from "./core/settings-manager.js";
  // Skills
@@ -1109,8 +1063,6 @@ index ab5cfcc..4db4024 100644
  export { createSyntheticSourceInfo } from "./core/source-info.js";
  export { generateDiffString, generateUnifiedPatch } from "./core/tools/edit-diff.js";
  // Tools
- export { createBashToolDefinition, createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLocalBashOperations, createLocalPowerShellOperations, createLsToolDefinition, createPowerShellToolDefinition, createReadToolDefinition, createWriteToolDefinition, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead, truncateLine, truncateTail, withFileMutationQueue, } from "./core/tools/index.js";
- export { formatReadLineRange } from "./core/tools/render-utils.js";
 diff --git a/examples/extensions/custom-provider-anthropic/package-lock.json b/examples/extensions/custom-provider-anthropic/package-lock.json
 deleted file mode 100644
 index 5546fd2f2b682858931503b065db44293f6ae97e..0000000000000000000000000000000000000000

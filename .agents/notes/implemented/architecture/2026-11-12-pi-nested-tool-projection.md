@@ -26,7 +26,7 @@ Main applies the existing tool-name/MCP-origin mapping to these parts. Existing 
 
 Old records remain readable. Render only evidence actually available: mark omitted payloads or incomplete legacy records explicitly, and never replay a tool to fill history. No data backfill is promised for information the old runtime never saved.
 
-The user explicitly requested implementation in the existing Spec PR without waiting for separate approval. PR #24317 is merged; #24318 remains open and its artifact-only synthesis is superseded by these generic parts.
+The user explicitly requested implementation in the existing Spec PR without waiting for separate approval. PR #24317 and #24318 are merged. Generic parts own new nested calls; the existing artifact-only projection remains a fallback for legacy records, deduplicated by native call ID.
 
 ## Alternatives considered
 
