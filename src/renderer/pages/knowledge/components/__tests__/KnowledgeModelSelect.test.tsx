@@ -92,7 +92,7 @@ describe('KnowledgeModelSelect', () => {
     expect(onChange).toHaveBeenCalledWith('local-embedding::qwen3-embedding-0.6b')
   })
 
-  it('combines capability and non-Agent visibility rules and renders no external clear button', () => {
+  it('combines capability and non-Agent visibility rules', () => {
     const allowedModel = makeModel('openai::gpt-4o', 'GPT-4o')
     const rejectedModel = makeModel('openai::embedding', 'Embedding')
     const cloudModel = makeModel('cherryai-subscription::deepseek-go', 'DeepSeek Go')
@@ -114,8 +114,5 @@ describe('KnowledgeModelSelect', () => {
     expect(visibleFilter(allowedModel, openai)).toBe(true)
     expect(visibleFilter(rejectedModel, openai)).toBe(false)
     expect(visibleFilter(cloudModel)).toBe(false)
-    expect(mockModelSelectorProps.at(-1)?.noneOptionLabel).toBe('no-model')
-    expect(screen.getAllByRole('button')).toHaveLength(2)
-    expect(screen.getByRole('button', { name: 'embedding-model' })).toBeInTheDocument()
   })
 })

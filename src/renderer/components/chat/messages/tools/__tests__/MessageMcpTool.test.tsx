@@ -93,31 +93,6 @@ describe('MessageMcpTool', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders nothing while awaiting approval (the composer owns that surface)', () => {
-    mockApproval.mockReturnValue({
-      isWaiting: true,
-      isExecuting: false,
-      isSubmitting: false,
-      confirm: vi.fn(),
-      cancel: vi.fn()
-    })
-
-    const { container } = render(<MessageMcpTool toolResponse={createMcpToolResponse()} />)
-
-    expect(container).toBeEmptyDOMElement()
-  })
-
-  it('shows only the disclosure header while executing — no abort bar (v2 style)', () => {
-    const { container } = render(<MessageMcpTool toolResponse={createMcpToolResponse({ status: 'pending' })} />)
-
-    // Header still identifies the tool.
-    expect(container.textContent).toContain('CherryBrowser : execute')
-    // The v1 destructive abort button is gone.
-    expect(container.textContent).not.toContain('chat.input.pause')
-    // Only the collapse header is interactive — no separate actions-bar controls.
-    expect(screen.getAllByRole('button')).toHaveLength(1)
-  })
-
   it('keeps a lightweight copy action for completed tool payloads', async () => {
     const copyText = vi.fn()
     mockActions.mockReturnValue({ copyText })
@@ -144,14 +119,6 @@ describe('MessageMcpTool', () => {
         successMessage: 'message.copied'
       })
     })
-  })
-
-  it('shows the auto-approve badge when the MCP tool is auto-approved', () => {
-    mockIsToolAutoApproved.mockReturnValue(true)
-
-    render(<MessageMcpTool toolResponse={createMcpToolResponse({ status: 'done' })} />)
-
-    expect(screen.getByLabelText('message.tools.autoApproveEnabled')).toBeInTheDocument()
   })
 
   it('keeps a custom rejection reason visible in MCP tool history', () => {

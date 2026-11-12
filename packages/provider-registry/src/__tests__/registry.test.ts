@@ -22,6 +22,29 @@ const catalog = (): RegistryCatalog => ({
 })
 
 describe('portable registry', () => {
+  it('ships Rapid-MLX as a keyless local provider with all three chat protocols', () => {
+    const provider = createRegistry(bundledCatalog).findProvider('rapid-mlx')
+
+    expect(provider).toMatchObject({
+      name: 'Rapid-MLX',
+      availableInEditions: ['global', 'cn'],
+      authOptional: true,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'http://localhost:8000',
+          reasoningFormat: { type: 'openai-chat' }
+        },
+        'openai-responses': { adapterFamily: 'open-responses', baseUrl: 'http://localhost:8000' },
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'http://localhost:8000' }
+      },
+      metadata: {
+        website: { docs: 'https://github.com/raullenchai/Rapid-MLX', official: 'https://rapidmlx.com' }
+      }
+    })
+  })
+
   it('preserves parameter size across namespaced and registry-tag IDs', () => {
     const registry = createRegistry(catalog())
 

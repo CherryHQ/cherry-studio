@@ -94,6 +94,51 @@ describe('AgentSessionMessageService', () => {
     vi.restoreAllMocks()
   })
 
+  it('pins a snapshot avatar across message updates and releases it when the file is deleted', () => {
+    dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: FILE_ENTRY_ID,
+        name: 'avatar',
+        ext: 'webp',
+        size: 3,
+        origin: 'internal',
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: 1
+      })
+      .run()
+    const message = {
+      id: ASSISTANT_MESSAGE_ID,
+      role: 'assistant' as const,
+      status: 'success' as const,
+      data: { parts: [] },
+      messageSnapshot: {
+        id: 'agent',
+        name: 'Agent',
+        emoji: '🤖',
+        avatarFileId: FILE_ENTRY_ID,
+        model: { id: 'm', name: 'M', provider: 'p' }
+      }
+    }
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionMessageFileRefTable)
+        .where(eq(agentSessionMessageFileRefTable.sourceId, ASSISTANT_MESSAGE_ID))
+        .all()
+    ).toEqual([expect.objectContaining({ fileEntryId: FILE_ENTRY_ID, role: 'author_avatar' })])
+    dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, FILE_ENTRY_ID)).run()
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionMessageFileRefTable)
+        .where(eq(agentSessionMessageFileRefTable.sourceId, ASSISTANT_MESSAGE_ID))
+        .all()
+    ).toEqual([])
+  })
+
   it('reports message existence per session', async () => {
     await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)

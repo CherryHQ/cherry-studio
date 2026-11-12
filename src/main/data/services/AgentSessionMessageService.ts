@@ -262,6 +262,11 @@ function replaceAgentSessionMessageFileRefsTx(
 ): void {
   tx.delete(agentSessionMessageFileRefTable).where(eq(agentSessionMessageFileRefTable.sourceId, messageId)).run()
 
+  const snapshot = tx
+    .select({ snapshot: sessionMessagesTable.messageSnapshot })
+    .from(sessionMessagesTable)
+    .where(eq(sessionMessagesTable.id, messageId))
+    .get()?.snapshot
   const ids = [
     ...new Set(
       (data.parts ?? [])
@@ -270,6 +275,8 @@ function replaceAgentSessionMessageFileRefsTx(
         .filter((id): id is string => Boolean(id))
     )
   ]
+  const attachmentIds = new Set(ids)
+  if (snapshot?.avatarFileId && !ids.includes(snapshot.avatarFileId)) ids.push(snapshot.avatarFileId)
   if (ids.length === 0) return
 
   const existingIds = new Set<string>()
@@ -285,18 +292,19 @@ function replaceAgentSessionMessageFileRefsTx(
   const now = Date.now()
   const rows = ids
     .filter((fileEntryId) => existingIds.has(fileEntryId))
-    .map((fileEntryId) => ({
-      fileEntryId,
-      sourceId: messageId,
-      role: 'attachment' as const,
-      createdAt: now,
-      updatedAt: now
-    }))
+    .flatMap((fileEntryId) => [
+      ...(attachmentIds.has(fileEntryId)
+        ? [{ fileEntryId, sourceId: messageId, role: 'attachment' as const, createdAt: now, updatedAt: now }]
+        : []),
+      ...(fileEntryId === snapshot?.avatarFileId
+        ? [{ fileEntryId, sourceId: messageId, role: 'author_avatar' as const, createdAt: now, updatedAt: now }]
+        : [])
+    ])
 
-  if (rows.length !== ids.length) {
+  if (existingIds.size !== ids.length) {
     logger.warn('Dropped agent-session message file refs without matching file_entry', {
       messageId,
-      dropped: ids.length - rows.length,
+      dropped: ids.length - existingIds.size,
       total: ids.length
     })
   }
