@@ -11,6 +11,7 @@ import type {
   TopicExportMenuOptions,
   TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
+import { useTopicMenuActions } from '@renderer/components/chat/actions/useTopicMenuActions'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   CONVERSATION_ROW_STATUS_TITLE_CLASS,
@@ -27,7 +28,6 @@ import {
   subscribeChatDraftCache
 } from '@renderer/components/composer/variants/chat/chatDraftCache'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import type { Topic } from '@renderer/types/topic'
 import type { TopicDisplayMode } from '@renderer/utils/chat/topicsHelpers'

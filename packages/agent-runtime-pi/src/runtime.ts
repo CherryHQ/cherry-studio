@@ -165,7 +165,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       },
       onError: report,
       onResults: (thread, result) => owned.find((entry) => entry.ref.id === thread)?.projection.results(result),
-      openSession: async ({ sessionManager, extension, summarize, child }) => {
+      openSession: async ({ sessionManager, extension, child }) => {
         const parent = child && owned.find((entry) => entry.ref.id === child.parent)
         const nativeCallId =
           parent &&
@@ -191,7 +191,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             model,
             sessionManager,
             settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-            compaction: { ...settings, ...config.compaction, ...configured?.compaction, summarize },
+            compaction: { ...settings, ...config.compaction, ...configured?.compaction },
             extensionFactories: [...(config.extensionFactories ?? []), extension],
             onEvent: (event) => {
               try {

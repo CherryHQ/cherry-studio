@@ -4,6 +4,7 @@ import {
   getTaskActiveText,
   getTaskId,
   getTaskTitle,
+  isDeletedTaskStatus,
   isTaskRecord,
   normalizeTaskStatus
 } from '@renderer/components/chat/messages/tools/agent'
@@ -106,6 +107,7 @@ export interface AgentRightPaneStatus {
   tasks: AgentStatusTask[]
   completedTaskCount: number
   totalTaskCount: number
+  isTaskPlanActive: boolean
   runTasks: AgentRunTask[]
   artifacts: AgentArtifactFile[]
 }
@@ -574,13 +576,16 @@ interface TaskPlanProjectionState {
   tasks: Map<string, AgentStatusTask>
   /** Undefined until a TaskCreate is observed, preserving TaskList-only history. */
   currentPlanTaskIds?: Set<string>
+  planMessageId?: string
+  listSnapshotMessageId?: string
 }
 
 function applyTaskToolPart(
   state: TaskPlanProjectionState,
   part: CherryMessagePart,
   fallbackId: string,
-  toolName: string | undefined
+  toolName: string | undefined,
+  messageId: string
 ): boolean {
   const taskMap = state.tasks
   const input = getToolPartInput(part)
@@ -589,11 +594,21 @@ function applyTaskToolPart(
   if (toolName === AgentToolsType.TaskCreate) {
     const currentPlanCompleted =
       taskMap.size > 0 && Array.from(taskMap.values()).every((task) => task.status === 'completed')
-    if (currentPlanCompleted) {
+    const currentPlanFromEarlierMessage =
+      state.currentPlanTaskIds !== undefined && state.planMessageId !== undefined && state.planMessageId !== messageId
+    const listOnlyFromEarlierMessage =
+      state.currentPlanTaskIds === undefined &&
+      taskMap.size > 0 &&
+      state.listSnapshotMessageId !== undefined &&
+      state.listSnapshotMessageId !== messageId
+    if (currentPlanCompleted || currentPlanFromEarlierMessage || listOnlyFromEarlierMessage) {
       taskMap.clear()
       state.currentPlanTaskIds = new Set()
+      state.planMessageId = messageId
+      state.listSnapshotMessageId = undefined
     } else if (taskMap.size === 0 && !state.currentPlanTaskIds) {
       state.currentPlanTaskIds = new Set()
+      state.planMessageId = messageId
     }
 
     const inputRecord = isTaskRecord(input) ? input : {}
@@ -613,6 +628,15 @@ function applyTaskToolPart(
   if (toolName === AgentToolsType.TaskUpdate) {
     const inputRecord = isTaskRecord(input) ? input : {}
     const id = getTaskId(inputRecord) ?? (isTaskRecord(output) ? getTaskId(output) : undefined) ?? fallbackId
+    const taskStatus = inputRecord.status ?? (isTaskRecord(output) ? output.status : undefined)
+    if (isDeletedTaskStatus(taskStatus)) {
+      if (getToolPartState(part) !== 'output-available') return true
+      const deleted = (isRecord(output) && output.success === true) || output === `Updated task #${id} deleted`
+      if (!deleted) return true
+      taskMap.delete(id)
+      state.currentPlanTaskIds?.delete(id)
+      return true
+    }
     const existing = taskMap.get(id)
     const status = normalizeTaskStatus(inputRecord.status)
     taskMap.set(id, {
@@ -625,18 +649,46 @@ function applyTaskToolPart(
   }
 
   if (toolName === AgentToolsType.TaskList) {
-    const tasks = isTaskRecord(output) && Array.isArray(output.tasks) ? output.tasks : []
-    for (const task of tasks) {
+    const partState = getToolPartState(part)
+    if (partState !== 'output-available') return false
+
+    let rows: unknown[]
+    if (isTaskRecord(output) && Array.isArray(output.tasks)) {
+      rows = output.tasks
+    } else if (typeof output === 'string' && /^no tasks found\b/i.test(output.trim())) {
+      rows = []
+    } else {
+      return false
+    }
+
+    if (state.currentPlanTaskIds === undefined && state.listSnapshotMessageId === undefined) {
+      state.listSnapshotMessageId = messageId
+    }
+    const snapshotTaskIds = new Set<string>()
+    for (const task of rows) {
       if (!isTaskRecord(task)) continue
       const id = getTaskId(task)
+      if (!id) continue
+      snapshotTaskIds.add(id)
+      if (isDeletedTaskStatus(task.status)) {
+        taskMap.delete(id)
+        state.currentPlanTaskIds?.delete(id)
+        continue
+      }
       const title = getTaskTitle(task, id)
-      if (!id || !title) continue
+      if (!title) continue
       if (state.currentPlanTaskIds && !state.currentPlanTaskIds.has(id)) continue
       taskMap.set(id, {
         id,
         title,
         status: normalizeTaskStatus(task.status) ?? 'pending'
       })
+    }
+    for (const id of taskMap.keys()) {
+      if (!snapshotTaskIds.has(id)) {
+        taskMap.delete(id)
+        state.currentPlanTaskIds?.delete(id)
+      }
     }
     return true
   }
@@ -743,6 +795,7 @@ export function buildAgentRightPaneStatus(
   const taskPlanState: TaskPlanProjectionState = { tasks: new Map() }
   const taskMap = taskPlanState.tasks
   let todoSnapshotTasks: AgentStatusTask[] | undefined
+  let taskPlanMessageId: string | undefined
   const runTaskMap = new Map<string, AgentRunTask>()
   const runTaskOriginMessageIds = new Map<string, string>()
   const artifactByPath = new Map<string, AgentArtifactFile>()
@@ -761,9 +814,15 @@ export function buildAgentRightPaneStatus(
       // and the most recent writer owns it: a later ledger write invalidates an earlier snapshot.
       // Both writers are main-agent-only: spawned-run parts are parented under their Task call.
       if (!hasPartParentToolCallId(part)) {
-        if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName)) todoSnapshotTasks = undefined
+        if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName, message.id)) {
+          todoSnapshotTasks = undefined
+          taskPlanMessageId = message.id
+        }
         const todoSnapshot = getTodoSnapshot(part)
-        if (todoSnapshot !== undefined) todoSnapshotTasks = todoSnapshot
+        if (todoSnapshot !== undefined) {
+          todoSnapshotTasks = todoSnapshot
+          taskPlanMessageId = message.id
+        }
       }
 
       if (isReportArtifactsTool(toolName)) {
@@ -812,13 +871,19 @@ export function buildAgentRightPaneStatus(
     taskMap.delete(id)
   }
 
-  const tasks = todoSnapshotTasks ?? Array.from(taskMap.values())
+  const isTaskPlanActive =
+    taskPlanMessageId !== undefined && (!liveness || liveness.activeMessageIds.has(taskPlanMessageId))
+  const tasks = (todoSnapshotTasks ?? Array.from(taskMap.values())).map(
+    (task): AgentStatusTask =>
+      !isTaskPlanActive && task.status === 'in_progress' ? { ...task, status: 'pending', activeText: undefined } : task
+  )
   const completedTaskCount = tasks.filter((task) => task.status === 'completed').length
 
   return {
     tasks,
     completedTaskCount,
     totalTaskCount: tasks.length,
+    isTaskPlanActive,
     runTasks: Array.from(runTaskMap.values()),
     artifacts: Array.from(artifactByPath.values())
   }

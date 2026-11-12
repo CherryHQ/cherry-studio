@@ -11,6 +11,7 @@ import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
 import { closeSettings } from '../helpers/settings'
 import { agentFilePreview } from '../scenarios/agentFilePreview'
+import { agentGlobalInstallApproval } from '../scenarios/agentGlobalInstallApproval'
 async function ensureAgentModel(
   app: Parameters<typeof ensureCustomChatProvider>[0],
   page: Parameters<typeof ensureCustomChatProvider>[1]
@@ -26,6 +27,7 @@ import { agentPreviewPanel } from '../scenarios/agentPreviewPanel'
 import { agentRuntimeMessages } from '../scenarios/agentRuntimeMessages'
 import { agentSessionList } from '../scenarios/agentSessionList'
 import { agentStatusPanel } from '../scenarios/agentStatusPanel'
+import { agentTaskPlanProjection } from '../scenarios/agentTaskPlanProjection'
 import { scheduledTasks } from '../scenarios/scheduledTasks'
 import { workspaceLifecycle } from '../scenarios/workspaceLifecycle'
 
@@ -101,6 +103,11 @@ test(...caseDefinition('MP-51'), async ({ app, mainWindow }, testInfo) => {
   await agentPermissionDecisions(app, mainWindow, testInfo)
 })
 
+test(...caseDefinition('MP-153'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(10 * 60_000)
+  await agentGlobalInstallApproval(app, mainWindow, testInfo)
+})
+
 test(...caseDefinition('MP-52'), async ({ app, mainWindow: page }, testInfo) => {
   test.setTimeout(5 * 60_000)
   await agentFilePreview(app, page, testInfo)
@@ -119,6 +126,11 @@ test(...caseDefinition('MP-54'), async ({ app, mainWindow: page }, testInfo) => 
 test(...caseDefinition('MP-55'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(7 * 60_000)
   await agentStatusPanel(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-152'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(5 * 60_000)
+  await agentTaskPlanProjection(app, mainWindow, testInfo)
 })
 
 test(...caseDefinition('MP-58'), async ({ app, mainWindow }, testInfo) => {
