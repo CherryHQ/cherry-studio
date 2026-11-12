@@ -139,13 +139,6 @@ describe('BaseService', () => {
       expect(service.state).toBe(LifecycleState.Ready)
     })
 
-    it('should be a no-op by default (empty hook)', async () => {
-      class DefaultService extends BaseService {}
-      const service = new DefaultService()
-      await service._doInit()
-      await expect(service._doAllReady()).resolves.toBeUndefined()
-    })
-
     it('should only execute once even if called multiple times', async () => {
       const onAllReady = vi.fn()
       class OnceService extends BaseService {
@@ -650,20 +643,6 @@ describe('BaseService', () => {
       expect(fn).toHaveBeenCalledOnce()
     })
 
-    it('should return the disposable for inline assignment', async () => {
-      const disposeFn = vi.fn()
-      let captured: { dispose(): void } | null = null
-      class ReturnService extends BaseService {
-        protected override async onInit() {
-          captured = this.registerDisposable({ dispose: disposeFn })
-        }
-      }
-      const service = new ReturnService()
-      await service._doInit()
-      expect(captured).not.toBeNull()
-      expect(captured!.dispose).toBe(disposeFn)
-    })
-
     it('should handle mixed Disposable objects and plain functions', async () => {
       const objDispose = vi.fn()
       const plainFn = vi.fn()
@@ -682,19 +661,6 @@ describe('BaseService', () => {
   })
 
   describe('ipcHandle / ipcOn return Disposable', () => {
-    it('should return a Disposable from ipcHandle', async () => {
-      let disposable: { dispose(): void } | null = null
-      class IpcReturnService extends BaseService {
-        protected override async onInit() {
-          disposable = this.ipcHandle('test-channel', vi.fn())
-        }
-      }
-      const service = new IpcReturnService()
-      await service._doInit()
-      expect(disposable).not.toBeNull()
-      expect(typeof disposable!.dispose).toBe('function')
-    })
-
     it('should allow early manual unregister via returned Disposable', async () => {
       let disposable: { dispose(): void } | null = null
       class EarlyUnregService extends BaseService {

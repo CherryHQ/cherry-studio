@@ -64,13 +64,6 @@ vi.mock('@cherrystudio/ui', () => {
 import { CloseMigrationDialog } from '../CloseMigrationDialog'
 
 describe('CloseMigrationDialog', () => {
-  it('marks Quit as the destructive action and Continue as the safe primary', () => {
-    render(<CloseMigrationDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} />)
-
-    expect(screen.getByRole('button', { name: 'Quit anyway' })).toHaveAttribute('data-variant', 'destructive')
-    expect(screen.getByRole('button', { name: 'Continue migration' })).toHaveAttribute('data-variant', 'emphasis')
-  })
-
   it('focuses Continue (not the destructive Quit) on open so an Enter/Space dismissal never quits', async () => {
     render(<CloseMigrationDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} />)
 

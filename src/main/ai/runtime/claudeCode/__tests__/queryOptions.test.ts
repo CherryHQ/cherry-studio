@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-
-const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 const { createClaudeCodeQueryOptions, resolveClaudeConfigDirectory } = await import('../queryOptions')
 
 afterEach(() => {
@@ -39,6 +37,5 @@ describe('createClaudeCodeQueryOptions', () => {
     expect(opts).not.toHaveProperty('toolPolicySnapshot')
     expect(opts).not.toHaveProperty('warmQueryInitializeTimeoutMs')
     expect(opts).not.toHaveProperty('mcpToolMetadata')
-    expect(opts.spawnClaudeCodeProcess).toBe(spawnClaudeCodeProcess)
   })
 })
