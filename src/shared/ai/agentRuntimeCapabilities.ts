@@ -1,4 +1,5 @@
-import { claudeUserFacingTools } from '@shared/ai/claudecode/toolRegistry'
+import { buildBuiltinMcpToolName } from '@shared/ai/builtinMcpToolName'
+import { CLAUDE_TOOL_DEFS, claudeUserFacingTools } from '@shared/ai/claudecode/toolRegistry'
 import { PI_BUILTIN_TOOLS, PI_TOOL_RECALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
@@ -10,6 +11,44 @@ import type { Provider } from '@shared/data/types/provider'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
 import type { SlashCommand } from './slashCommands'
+
+export interface AgentBuiltinToolCatalogRow {
+  id: string
+  labelKey: string
+  descriptionKey: string
+  labelFallback?: string
+  descriptionFallback?: string
+  category: string
+  requiresKnowledgeScope?: true
+  requiresPaintingModel?: true
+}
+
+const publicMcpNames = new Set(
+  CLAUDE_TOOL_DEFS.filter((def) => def.exposure === 'user' && def.mcpServer !== undefined).map((def) => def.name)
+)
+const claudeCatalog = claudeUserFacingTools().map((tool) => ({
+  id: tool.name,
+  labelKey: `agent.tools.builtin.${tool.key}.label`,
+  descriptionKey: `agent.tools.builtin.${tool.key}.description`,
+  labelFallback: tool.label,
+  descriptionFallback: tool.description,
+  category: tool.category,
+  requiresKnowledgeScope: tool.requiresKnowledgeScope,
+  requiresPaintingModel: tool.requiresPaintingModel,
+  mcpServer: tool.mcpServer
+}))
+
+function publicMcpTools(runtime: AgentType): AgentBuiltinToolCatalogRow[] {
+  return claudeCatalog
+    .filter((tool) => publicMcpNames.has(tool.id) && tool.mcpServer !== undefined)
+    .map((tool) => ({
+      ...tool,
+      id: buildBuiltinMcpToolName(runtime, {
+        serverName: tool.mcpServer!,
+        toolName: tool.id.slice(`mcp__${tool.mcpServer}__`.length)
+      })
+    }))
+}
 
 export interface AgentRuntimeCapabilities {
   /** i18n key for runtime selector option. */
@@ -35,14 +74,7 @@ export interface AgentRuntimeCapabilities {
   /** providerMetadata.cherry.transport tag stamped by the runtime's stream adapter. */
   transport: string
   /** Edit-dialog catalog rows. */
-  builtinTools: (platform?: string) => readonly {
-    id: string
-    labelKey: string
-    descriptionKey: string
-    labelFallback?: string
-    descriptionFallback?: string
-    category: string
-  }[]
+  builtinTools: (platform?: string) => readonly AgentBuiltinToolCatalogRow[]
 }
 
 const ALL_PERMISSION_MODES = [
@@ -91,15 +123,17 @@ const PI_CAPABILITIES = {
     isPiCompatibleModel(provider, model) &&
     !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
   transport: 'pi-agent',
-  builtinTools: (platform?: string) =>
-    PI_BUILTIN_TOOLS.filter(
+  builtinTools: (platform?: string) => [
+    ...PI_BUILTIN_TOOLS.filter(
       (tool) => platform === undefined || !('platform' in tool) || tool.platform === platform
     ).map((tool) => ({
       id: tool.name,
       labelKey: `agent.tools.builtin.${tool.name}.label`,
       descriptionKey: `agent.tools.builtin.${tool.name}.description`,
       category: tool.category
-    }))
+    })),
+    ...publicMcpTools('pi')
+  ]
 } as const satisfies AgentRuntimeCapabilities
 
 export const AGENT_RUNTIME_CAPABILITIES = {
@@ -119,15 +153,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     // the same routability rule as the gateway model catalog.
     isModelCompatible: (_provider, model) => isGatewayRoutableModel(model),
     transport: 'claude-agent',
-    builtinTools: () =>
-      claudeUserFacingTools().map((tool) => ({
-        id: tool.name,
-        labelKey: `agent.tools.builtin.${tool.key}.label`,
-        descriptionKey: `agent.tools.builtin.${tool.key}.description`,
-        labelFallback: tool.label,
-        descriptionFallback: tool.description,
-        category: tool.category
-      }))
+    builtinTools: () => claudeCatalog
   },
   pi: PI_CAPABILITIES,
   'pi-durable': {

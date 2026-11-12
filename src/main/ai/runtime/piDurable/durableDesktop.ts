@@ -21,6 +21,7 @@ import { buildAgentRuntimePrompt } from '../agentPrompt'
 import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
 import { buildCitationsGuidance } from '../citationsGuidance'
 import { capturePiConnectionSnapshot } from '../pi/piConnectionSignature'
+import { expandPiMcpDisabledTools } from '../pi/piDisabledTools'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
@@ -49,7 +50,10 @@ export async function prepareDurableDesktop(
   const cwd = session.workspace.path
   await prepareAgentSessionWorkspaceDirectory(session)
   let permissionMode = agent.configuration?.permission_mode ?? 'default'
-  let disabled = new Set((agent.disabledTools ?? []).map(normalizePiDisabledToolId))
+  let disabled = expandPiMcpDisabledTools(
+    new Set((agent.disabledTools ?? []).map(normalizePiDisabledToolId)),
+    'pi-durable'
+  )
   const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
   const mountedServers = resolveMountedMcpServers(agent, {
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
@@ -231,7 +235,10 @@ export async function prepareDurableDesktop(
         // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.
         const permissionChanged = mode !== permissionMode
         permissionMode = mode
-        const names = (current.agent.disabledTools ?? []).map(normalizePiDisabledToolId)
+        const names = expandPiMcpDisabledTools(
+          new Set((current.agent.disabledTools ?? []).map(normalizePiDisabledToolId)),
+          'pi-durable'
+        )
         disabled = active ? new Set([...disabled, ...names]) : new Set(names)
         return { signature: current.signature, permissionChanged }
       },
