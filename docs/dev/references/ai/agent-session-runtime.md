@@ -98,6 +98,17 @@ to the root product session. Ordinary scheduled tasks retain their conversation
 behavior. The type is internal
 to Main and is not a renderer-controlled visibility flag.
 
+`AgentSessionService.listByCursor` also requires an internal `ordinary` or
+`all-conversations` scope. Desktop DataApi chooses ordinary discovery; remote
+session lists include scheduled-task conversations so their saved results remain
+reachable. Both scopes retain background exclusion and pin ordering. Public request
+schemas do not expose this internal choice.
+
+Remote session discovery also accepts an optional `taskId`. The task owner checks
+visibility and Agent ownership before querying the existing session-to-task relation.
+Pinned and unpinned pages use the same filter; retained conversations remain discoverable
+after their execution records are cleaned up. Desktop DataApi request fields are unchanged.
+
 Conversation lists (including pins), latest-session selection, discovery search,
 and empty-session reuse only consider conversation sessions. The public
 session-by-id and message routes (reads, mutations, and workspace changes) apply
@@ -150,7 +161,7 @@ Runtime adapters own only native mechanics:
 |---|---|
 | `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps into its preset/custom prompt, Pi uses system/append overrides. |
 | Common append text and block order | Claude uses the preset's `append`; Pi uses `appendSystemPromptOverride`. |
-| Workspace instruction authority | Claude uses native `CLAUDE.md` / `AGENTS.md` loading with `claude-md-and-agents-md`; sealed sessions disable both through `settingSources: []`. Pi permits native context files. Semantic precedence stays common. |
+| Workspace instruction authority | Claude uses native `CLAUDE.md` / `AGENTS.md` loading with `claude-md-and-agents-md`; sealed sessions disable both through `settingSources: []`. Pi and Pi Durable load Pi's native context files. Semantic precedence stays common. |
 | Enabled managed skill content | Claude injects plugin/config representation; Pi uses `additionalSkillPaths`. |
 | Current workspace guarantee | Each driver supplies cwd/workspace context through its native base or the common custom-base compensation block. |
 | Coding/runtime handbook and native tool snippets | Owned by each runtime's native base, never copied into the common materializer. |
@@ -931,12 +942,10 @@ after any applicable live tightening has landed.
 
 ### Pi conversation compaction
 
-The desktop Pi connection installs `agent-behavior` through the Runtime adapter.
-The shared context handlers request a summary from `piBehaviorHost.ts`, which makes
-one native model request through Cherry's gateway without starting another agent
-loop. Automatic compaction and `/compact` use this same path; text following
-`/compact` becomes summary instructions, never another user turn. An empty or
-failed summary cancels compaction without a second native fallback.
+The desktop Pi connection installs `agent-behavior` through the Runtime adapter. Pi generates its own
+summaries through Cherry's gateway for automatic compaction and `/compact`; text after `/compact` becomes
+summary instructions, never another user turn. Each summary request is metered and its usage is attributed to
+the originating goal and child run. Empty or failed summaries cancel compaction.
 
 Pi retains its native JSONL history and writes the compaction boundary. Product
 messages remain a display projection. The shared `vcc_recall` tool searches the
@@ -947,7 +956,7 @@ disabled. Disabling recall does not disable compaction.
 The previous pi-vcc dependency, patch, ESM bundle and configuration override are
 removed. There is no `/pi-vcc` command or separate compaction toggle. Tests in
 `PiRuntimeConnection.test.ts` cover instruction forwarding and product input
-boundaries, while the package behavior tests cover declined summaries and
+boundaries, while the package behavior tests cover summary failures and
 reopening native compaction history. Electron acceptance is checked separately.
 
 ### Pi behavior host
@@ -1012,6 +1021,8 @@ its archive cannot open as an independent writable root. Public projection code 
 question cards and tool rendering. Native SQLite owns execution history and task state;
 the existing backend/context tables bind it to product sessions. Strict identity checks
 prevent a missing store from silently becoming a fresh conversation.
+Pi Durable renders the Pi SDK's global and workspace-ancestor context files before each
+model request, so changes and removals replace the previously shown project instructions.
 
 Children use the same independent projection/archive and `ai.projection.*` transport.
 Background occupancy retains the native owner. Attributed background-result facts keep the owning
@@ -1046,6 +1057,16 @@ including disabled-tool, SQLite, global-install approval, direct-mise mutation, 
 permission-mode policies. Global-install decisions use the root session's effective
 permission mode, including for child sessions. The script itself needs no separate
 approval because all outward effects pass through those tool calls.
+
+Pi and Pi Durable project nested calls as ordinary tool parts with native call and
+parent identities. Native session storage retains the executed arguments, terminal
+status and bounded result, so shell/file cards and successful built-in artifact
+declarations survive conversation reopen without re-executing tools. A later script
+failure does not erase an earlier successful child. Retention is limited to 256 calls,
+8 KiB of arguments per call (32 KiB total) and 64 KiB of result JSON per call (1 MiB
+total); over-budget fields are omitted whole with byte counts and omission metadata.
+Legacy sessions cannot recover results that were never recorded. These presentation
+records do not change the model-facing codemode output or native approval checks.
 
 Scripts have no default time limit. An explicit `timeout_ms` includes time spent
 waiting for tool approval and cancels pending calls when it expires. Native MCP
@@ -1153,7 +1174,8 @@ For other connections, when the idle timer expires, the runtime closes the entry
 - prewarms Claude Code when a latest resume token is known.
 
 Service stop and destroy close all runtime entries. User Stop additionally invokes an
-optional connection `interrupt()` before closing. Durable shutdown preserves ordinary
+optional connection `interrupt()` before closing, including when the visible stream has
+already finished but background work remains. Durable shutdown preserves ordinary
 unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's
 `onOpen` before native resume, disarming goals and stopping interrupted background children.
 Repeated `closeSession()` calls join the in-flight close. A closing session rejects new
@@ -1162,6 +1184,12 @@ input and replacement turns until the old reply releases ownership. Teardown joi
 connection's fact consumer alive through native observation drain, waits for the captured
 stream persistence loops, then flushes each owned projection. Only after that flush does it
 clear the entry. No projection write may follow the final flush.
+
+Claude Stop requests native interruption before retiring the connection. If the interrupt
+receipt is missing after three seconds or reports failure, it falls back to closing the
+same owner. Shutdown allows ten seconds for the SDK's graceful-exit and kill escalation,
+but succeeds only after confirmed process exit and observation drainage. A successful
+interrupt alone does not release the owner: native queued inputs can remain after it.
 
 Failed native close or final persistence retains the owner and blocks archive/backup safety.
 A later close retries retained data without another send. Late successful native teardown

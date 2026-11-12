@@ -50,26 +50,6 @@ describe('scripted host', () => {
     expect(await host.approvals.outcomes(thread, [])).toEqual([])
   })
 
-  // Catches a summarizer that hangs instead of failing, which would hide D33's "failure cancels the compaction" path.
-  it('rejects a summary request when none is queued', async () => {
-    const host = createScriptedHost({ settings })
-    await expect(
-      host.summarizer.summarize({ reason: 'manual', thread, messages: [] }, new AbortController().signal)
-    ).rejects.toThrow()
-  })
-
-  // Catches a summarizer that always rejects or serves summaries out of order, which would make every compaction fail.
-  it('serves queued summaries first in, first out', async () => {
-    const host = createScriptedHost({ settings })
-    host.giveSummary('first')
-    host.giveSummary('second')
-    const signal = new AbortController().signal
-    const request = { reason: 'threshold', thread, messages: [] } as const
-    expect(await host.summarizer.summarize(request, signal)).toBe('first')
-    expect(await host.summarizer.summarize(request, signal)).toBe('second')
-    expect(host.asked.summaries).toBe(2)
-  })
-
   // Catches an aborted ask that stays queued and swallows the next answer meant for a live ask.
   it('gives a later answer to a live ask, not to an aborted one', async () => {
     const host = createScriptedHost({ settings })
