@@ -1446,7 +1446,7 @@ export class AiStreamManager extends BaseService {
       if (isAgentSessionTopic(topicId)) {
         const runtimeClosing = application
           .get('AgentSessionRuntimeService')
-          .closeSession(extractAgentSessionId(topicId))
+          .closeSession(extractAgentSessionId(topicId), true)
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
@@ -1720,7 +1720,8 @@ export class AiStreamManager extends BaseService {
     topicId: string,
     modelId: UniqueModelId,
     error: SerializedError,
-    expectedExecution?: StreamExecution
+    expectedExecution?: StreamExecution,
+    originalError?: unknown
   ): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
@@ -1764,7 +1765,7 @@ export class AiStreamManager extends BaseService {
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
-      await this.dispatchToListeners(stream, exec, result)
+      await this.dispatchToListeners(stream, exec, result, originalError)
       this.emitUnsuccessfulExecution(stream, exec, result)
 
       // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
@@ -2201,7 +2202,7 @@ export class AiStreamManager extends BaseService {
     exec.loopPromise = launchLoop()
       .catch((err) => {
         // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
-        return this.onExecutionError(topicId, modelId, serializeError(err), exec)
+        return this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
       })
       .finally(() => activity.dispose())
 
@@ -2281,7 +2282,7 @@ export class AiStreamManager extends BaseService {
       if (!signal.aborted) {
         logger.error('streamText failed before stream start', { topicId, modelId, err: chatErrorContext(err) })
       }
-      await this.onExecutionError(topicId, modelId, serializeError(err), exec)
+      await this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
       return
     }
 
@@ -2353,7 +2354,7 @@ export class AiStreamManager extends BaseService {
           ? errorFromStreamChunk(result.streamErrorText)
           : fromThrow
       if (!abortShaped) serialized.streamStage = 'response-stream'
-      await this.onExecutionError(topicId, modelId, serialized, exec)
+      await this.onExecutionError(topicId, modelId, serialized, exec, result.threw.error)
       return
     }
 
@@ -2476,7 +2477,8 @@ export class AiStreamManager extends BaseService {
   private async dispatchToListeners(
     stream: ActiveStream,
     exec: StreamExecution,
-    result: StreamDoneResult | StreamPausedResult | StreamErrorResult
+    result: StreamDoneResult | StreamPausedResult | StreamErrorResult,
+    originalError?: unknown
   ): Promise<void> {
     const dead: string[] = []
     const listeners = [...stream.listeners]
@@ -2506,7 +2508,7 @@ export class AiStreamManager extends BaseService {
             ? listener.onDone(result)
             : result.status === 'paused'
               ? listener.onPaused(result)
-              : listener.onError(result)
+              : listener.onError(result, stream.lifecycle === promptStreamLifecycle ? originalError : undefined)
         exec.finalMessage = result.finalMessage
         await dispatch
       } catch (err) {

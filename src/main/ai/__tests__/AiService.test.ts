@@ -4,6 +4,7 @@ import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { modelMessageSchema } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
@@ -64,6 +65,7 @@ const mockIsRegistryProvider = vi.fn()
 const mockListModelsFromProvider = vi.fn()
 const mockInstallBuiltinSkills = vi.fn()
 const mockReconcileSkills = vi.fn()
+const mockSyncExternalExports = vi.fn()
 const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
 const mockRecordRequest = vi.fn()
@@ -95,7 +97,8 @@ vi.mock('@main/utils/builtinSkills', () => ({
 
 vi.mock('../skills/SkillService', () => ({
   skillService: {
-    reconcileSkills: (...args: unknown[]) => mockReconcileSkills(...args)
+    reconcileSkills: (...args: unknown[]) => mockReconcileSkills(...args),
+    syncExternalExports: (...args: unknown[]) => mockSyncExternalExports(...args)
   }
 }))
 
@@ -1160,9 +1163,34 @@ describe('AiService.onInit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockApplicationGet.mockImplementation((name: string) =>
-      name === 'JobManager' ? { registerHandler: vi.fn() } : undefined
+      name === 'JobManager'
+        ? { registerHandler: vi.fn() }
+        : name === 'PreferenceService'
+          ? defaultServiceInstances.PreferenceService
+          : undefined
     )
+    mockSyncExternalExports.mockResolvedValue(undefined)
     mockReconcileSkills.mockResolvedValue(undefined)
+  })
+
+  it('subscribes to export preference changes and catches sync failures', async () => {
+    MockMainPreferenceServiceUtils.resetMocks()
+    mockInstallBuiltinSkills.mockResolvedValue(undefined)
+    mockSyncExternalExports.mockRejectedValueOnce(new Error('sync failed'))
+    const service = createService()
+    await service._doInit()
+    expect(defaultServiceInstances.PreferenceService.subscribeChange).toHaveBeenCalledWith(
+      'agent.skills.external_export.enabled',
+      expect.any(Function)
+    )
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', false)
+    await vi.waitFor(() => expect(mockSyncExternalExports).toHaveBeenCalledOnce())
+    await vi.waitFor(() =>
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Failed to sync external skill exports after preference change',
+        { error: expect.any(Error) }
+      )
+    )
   })
 
   it('logs and continues to reconcile when installBuiltinSkills rejects', async () => {
