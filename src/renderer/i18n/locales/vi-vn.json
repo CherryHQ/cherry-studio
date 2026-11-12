@@ -1587,6 +1587,7 @@
   "error.ocr_detail_failed": "Bộ xử lý OCR đã cấu hình gặp lỗi: {{reason}} Hãy kiểm tra hoặc đổi bộ xử lý OCR trong Cài đặt → Xử lý tệp.",
   "error.originalError": "Lỗi Gốc",
   "error.originalMessage": "Tin nhắn gốc",
+  "error.output_token_limit_reached": "Phản hồi đã đạt giới hạn token đầu ra trước khi hoàn tất. Nội dung suy luận cũng được tính vào giới hạn này. Hãy tăng giới hạn đầu ra của mô hình hoặc giảm mức độ suy luận, rồi thử lại.",
   "error.parameter": "Tham số",
   "error.prompt": "Lời nhắc",
   "error.provider": "Nhà cung cấp",

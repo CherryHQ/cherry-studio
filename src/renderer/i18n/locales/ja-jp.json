@@ -1587,6 +1587,7 @@
   "error.ocr_detail_failed": "設定された OCR プロセッサーが失敗しました：{{reason}} 「設定 → ファイル処理」で OCR プロセッサーを確認または変更してください。",
   "error.originalError": "元のエラー",
   "error.originalMessage": "元のメッセージ",
+  "error.output_token_limit_reached": "応答が完了する前に出力トークンの上限に達しました。推論もこの上限に含まれます。モデルの出力上限を増やすか、推論の強度を下げて再試行してください。",
   "error.parameter": "パラメータ",
   "error.prompt": "プロンプトを表示する",
   "error.provider": "プロバイダー",
