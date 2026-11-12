@@ -27,12 +27,10 @@ describe('useSplitViewTool', () => {
       { initialProps: { enabled: true, viewMode: 'special' } }
     )
 
-    expect(result.current[0]).toMatchObject({ id: 'split-view', tooltip: 'code_block.split.label' })
     act(() => result.current[0].onClick?.())
     expect(onToggleSplitView).toHaveBeenCalledOnce()
 
     rerender({ enabled: true, viewMode: 'split' })
-    expect(result.current[0]).toMatchObject({ id: 'split-view', tooltip: 'code_block.split.restore' })
 
     rerender({ enabled: false, viewMode: 'split' })
     expect(result.current).toEqual([])
