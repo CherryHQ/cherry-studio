@@ -70,6 +70,8 @@
   "appMenu.zoomOut": "Thu nhỏ",
   "backup.restore.failed": "Khôi phục thất bại",
   "backup.restore.retry": "Không thể khôi phục bản sao lưu. Dữ liệu trước đó của bạn đã được giữ lại. Vui lòng thử khôi phục lại.",
+  "browser.tabbar.invalid_address": "Nhập địa chỉ web hoặc từ khóa tìm kiếm hợp lệ",
+  "browser.tabbar.load_failed": "Không thể tải trang này",
   "chat.conversation.new": "Cuộc trò chuyện mới",
   "common.agent_compaction_unchanged": "Không có bản tóm tắt nào được lưu; cuộc trò chuyện không thay đổi.",
   "common.channel_available_commands": "Các lệnh có sẵn:",
