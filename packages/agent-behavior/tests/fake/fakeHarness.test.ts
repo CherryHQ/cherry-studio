@@ -24,7 +24,7 @@ import {
 import type { JobKind, TxOp } from '../../src/core/decisions'
 import { createFakeHarness } from '../../src/fake/fakeHarness'
 import { createScriptedHost } from '../../src/fake/scriptedHost'
-import type { BoundPorts, CompactionRequest, LifecycleHandlers, ToolDefinition } from '../../src/ports/harness'
+import type { BoundPorts, LifecycleHandlers, ToolDefinition } from '../../src/ports/harness'
 
 const pendingAfter = <T>(promise: Promise<T>) =>
   Promise.race([
@@ -36,7 +36,6 @@ const pendingAfter = <T>(promise: Promise<T>) =>
   ])
 const onReopen = (open: (thread: ThreadId, ports: BoundPorts) => Promise<void>): LifecycleHandlers => ({
   onOpen: (thread, { reopened }, ports) => (reopened ? open(thread, ports) : Promise.resolve()),
-  onCompacting: async () => ({ summary: 'summary' }),
   onCompacted: async () => {},
   onClose: async () => {}
 })
@@ -362,38 +361,12 @@ describe('fake harness', () => {
     expect(fake.persistentLog()).toEqual(before)
   })
 
-  // Catches a compaction that crosses a restart: the dead epoch's onCompacting answered after it, and the compaction
-  // still landed and ran the new epoch's onCompacted.
-  it('drops a compaction whose onCompacting answers after a restart', async () => {
-    const summary = latch()
-    const asked = latch()
-    const compacted: number[] = []
-    let installs = 0
-    const fake = createFakeHarness({
-      install: (p) => {
-        const epoch = ++installs
-        p.lifecycle.register({
-          onOpen: async () => {},
-          onCompacting: async () => {
-            asked.release()
-            await summary.promise
-            return { summary: 'late' }
-          },
-          onCompacted: async () => {
-            compacted.push(epoch)
-          },
-          onClose: async () => {}
-        })
-      }
-    })
+  it('leaves history unchanged when the native summary fails', async () => {
+    const fake = createFakeHarness({ install: (p) => p.lifecycle.register(onReopen(async () => {})) })
     const t = await fake.createThread()
-    const compacting = fake.compact(t)
-    await asked.promise
-    await fake.restart()
-    summary.release()
-    await compacting
+    fake.scriptSummary(t, { error: 'summary failed' })
+    await fake.compact(t)
     expect((await read(fake, t)).history.filter((entry) => entry.kind === 'compaction')).toEqual([])
-    expect(compacted).toEqual([])
   })
 
   // Catches compaction requests escaping a child's request cap (PR-2a ruling G5): a compaction during a run is one of
@@ -412,6 +385,7 @@ describe('fake harness', () => {
     fake.script(t, [callTool('hold', { id: 'h' }), reply('done')])
     await fake.sendUser(t, 'go')
     await hold.started('h')
+    fake.scriptSummary(t, reply('summary'))
     await fake.compact(t)
     hold.release('h')
     await fake.settle()
@@ -421,20 +395,14 @@ describe('fake harness', () => {
   // Catches a compaction that drops the summary it was accepted with: the model, the verifier and the next summary
   // would see nothing of what it compacted, and neither would a fork taken after it (H1, H12).
   it('keeps the accepted summary in the model context in place of what it compacted', async () => {
-    const asked: CompactionRequest[] = []
-    const fake = createFakeHarness({
-      install: (p) =>
-        p.lifecycle.register({
-          ...onReopen(async () => {}),
-          onCompacting: async (_thread, request) => (asked.push(request), { summary: 'what happened so far' })
-        })
-    })
+    const fake = createFakeHarness({ install: (p) => p.lifecycle.register(onReopen(async () => {})) })
     const context = (thread: ThreadId) => fake.withCall(thread, (p) => p.ledger.modelContext(thread))
     const summary = { kind: 'compaction', text: 'what happened so far' }
     const t = await fake.createThread()
     fake.script(t, [reply('first'), reply('second')])
     await fake.sendUser(t, 'before')
     await fake.settle()
+    fake.scriptSummary(t, reply('what happened so far'))
     await fake.compact(t)
     expect(await context(t)).toEqual([summary])
     const at = (await read(fake, t)).history.at(-1)!.id
@@ -447,7 +415,6 @@ describe('fake harness', () => {
     expect(await context(t)).toEqual([summary])
     await fake.sendUser(t, 'after')
     await fake.settle()
-    await fake.compact(t)
-    expect(asked[1].messages).toEqual([summary, { kind: 'user', text: 'after' }, { kind: 'assistant', text: 'second' }])
+    expect(await context(t)).toEqual([summary, { kind: 'user', text: 'after' }, { kind: 'assistant', text: 'second' }])
   })
 })

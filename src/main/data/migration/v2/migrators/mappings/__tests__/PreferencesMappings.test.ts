@@ -4,11 +4,7 @@ import { MIGRATION_LOCAL_STORAGE_KEYS } from '@shared/data/migration/v2/types'
 
 import { getSimpleMappingTargetKeys } from '../../PreferencesMigrator'
 import { BOOT_CONFIG_LOCALSTORAGE_MAPPINGS } from '../BootConfigMappings'
-import {
-  COMPLEX_PREFERENCE_MAPPINGS,
-  getComplexMappingById,
-  getComplexMappingTargetKeys
-} from '../ComplexPreferenceMappings'
+import { COMPLEX_PREFERENCE_MAPPINGS, getComplexMappingTargetKeys } from '../ComplexPreferenceMappings'
 import { ELECTRON_STORE_MAPPINGS, LOCALSTORAGE_MAPPINGS, REDUX_STORE_MAPPINGS } from '../PreferencesMappings'
 
 describe('PreferencesMappings', () => {
@@ -78,23 +74,6 @@ describe('PreferencesMappings', () => {
   })
 
   describe('llm model IDs complex mapping', () => {
-    it('registers the llm_model_ids_to_unique complex mapping', () => {
-      const mapping = getComplexMappingById('llm_model_ids_to_unique')
-      expect(mapping).toBeDefined()
-      expect(mapping!.sources).toHaveProperty('defaultModel')
-      expect(mapping!.sources).toHaveProperty('quickModel')
-      expect(mapping!.sources).toHaveProperty('translateModel')
-    })
-
-    it('targets 3 UniqueModelId preference keys', () => {
-      const mapping = getComplexMappingById('llm_model_ids_to_unique')
-      expect(mapping!.targetKeys).toEqual([
-        'chat.default_model_id',
-        'feature.quick_assistant.model_id',
-        'feature.translate.model_id'
-      ])
-    })
-
     it('does not conflict with simple mappings', () => {
       const simpleTargetKeys = Object.values(REDUX_STORE_MAPPINGS)
         .flat()

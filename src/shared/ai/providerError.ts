@@ -236,7 +236,13 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
     const diagnostic = apiResponseDiagnostic(value, depth)
     const message = diagnostic ?? safeMessage
     const category = classifyErrorCategory({
-      text: [safeMessage, providerErrorCodes(value.responseBody), providerErrorCodes(value.data)].join('\n'),
+      text: [
+        payloadText(value.responseBody),
+        payloadText(value.data),
+        providerPayloadText(value.message),
+        providerErrorCodes(value.responseBody),
+        providerErrorCodes(value.data)
+      ].join('\n'),
       status: value.statusCode
     })
     return {

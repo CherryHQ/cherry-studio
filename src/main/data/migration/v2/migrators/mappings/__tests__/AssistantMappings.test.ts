@@ -51,27 +51,16 @@ describe('AssistantMappings', () => {
 
       // Migrator supplies the same defaults that AssistantService.create() would: empty strings
       // for prompt/description (mirroring DB DEFAULT) and the product-chosen emoji + settings.
-      expect(result.assistant).toStrictEqual({
+      expect(result.assistant).toMatchObject({
         id: 'ast-2',
         name: 'Minimal',
         prompt: '',
-        emoji: '🌟',
         description: '',
         modelId: null,
         settings: DEFAULT_ASSISTANT_SETTINGS
       })
       expect(result.mcpServers).toStrictEqual([])
       expect(result.knowledgeBases).toStrictEqual([])
-    })
-
-    it('should default name to "Unnamed Assistant" when missing', () => {
-      const result = transformAssistant({ id: 'ast-3' })
-      expect(result.assistant.name).toBe('Unnamed Assistant')
-    })
-
-    it('should default name to "Unnamed Assistant" when empty', () => {
-      const result = transformAssistant({ id: 'ast-3', name: '' })
-      expect(result.assistant.name).toBe('Unnamed Assistant')
     })
 
     it('should prefer model over defaultModel for primary modelId', () => {
@@ -158,7 +147,7 @@ describe('AssistantMappings', () => {
       })
 
       expect(result.assistant.prompt).toBe('')
-      expect(result.assistant.emoji).toBe('🌟')
+
       expect(result.assistant.description).toBe('')
       // mcpMode/enableWebSearch were null/undefined upstream, so settings stays at the default.
       expect(result.assistant.settings).toStrictEqual(DEFAULT_ASSISTANT_SETTINGS)

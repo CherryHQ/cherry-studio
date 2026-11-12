@@ -178,7 +178,7 @@ const MessageActionMenuPopover = ({
     () =>
       actionsToCommandMenuExtraItems(actions, (action) => {
         void onAction(action)
-      }),
+      }).map((item) => (item.type === 'item' && item.id === 'edit' ? { ...item, executeImmediately: true } : item)),
     [actions, onAction]
   )
 

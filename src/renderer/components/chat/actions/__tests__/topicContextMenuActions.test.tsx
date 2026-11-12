@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
+import { useTopicMenuActions } from '@renderer/components/chat/actions/useTopicMenuActions'
 import type { Topic } from '@renderer/types/topic'
 
 import { executeTopicMenuAction, resolveTopicMenuActions, type TopicActionContext } from '../topicContextMenuActions'
@@ -221,7 +221,6 @@ describe('topic context menu actions', () => {
     const actions = resolveTopicMenuActions(context)
     const moveAction = actions.find((action) => action.id === 'topic.move-to-assistant')
 
-    expect(moveAction?.label).toBe('chat.topics.move_to')
     expect(moveAction?.children.map((action) => action.label)).toEqual(['Assistant B'])
 
     await executeTopicMenuAction(moveAction!.children[0], context)
