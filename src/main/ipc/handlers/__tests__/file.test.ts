@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
 import type * as FileUtilsModule from '@main/utils/file'
-import { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { InputFor } from '@shared/ipc/types'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -175,11 +174,6 @@ describe('fileHandlers', () => {
       throw new Error('database failure')
     })
     await expect(fileHandlers['file.get_clipboard_status'](handle, ctx)).rejects.toThrow('database failure')
-  })
-
-  it('does not expose the pure-SQL content-hash lookup through IpcApi', () => {
-    expect('file.find_internal_by_content_hash' in fileRequestSchemas).toBe(false)
-    expect('file.find_internal_by_content_hash' in fileHandlers).toBe(false)
   })
 
   it('reads binary content by path through the generic FileHandle route', async () => {

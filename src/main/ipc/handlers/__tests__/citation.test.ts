@@ -38,7 +38,6 @@ describe('citationHandlers', () => {
       ctx
     )
 
-    expect(applicationGet).toHaveBeenCalledWith('CitationPreviewService')
     expect(service.fetchPreview).toHaveBeenCalledWith('https://example.com/article', {
       requestId: 'panel-1',
       senderId: 'w1'

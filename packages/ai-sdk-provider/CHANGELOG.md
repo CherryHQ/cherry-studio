@@ -1,5 +1,17 @@
 # @cherrystudio/ai-sdk-provider
 
+## Unreleased
+
+### Patch Changes
+
+- Include a package-local MIT license file.
+
+## 0.1.11
+
+### Patch Changes
+
+- [#23678](https://github.com/CherryHQ/cherry-studio/pull/23678) [`b027c45`](https://github.com/CherryHQ/cherry-studio/commit/b027c45369c18d6775b907ea8100c3868a652e73) Thanks [@ousugo](https://github.com/ousugo)! - Require the AI SDK 6-compatible OpenAI adapter with GPT Image 2.6 complexity and animated GIF generation options.
+
 ## 0.1.10
 
 ### Patch Changes

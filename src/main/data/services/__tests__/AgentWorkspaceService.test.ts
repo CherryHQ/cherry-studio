@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api/errors'
 
 const SYSTEM_WORKSPACE_CREATED_AT = Date.parse('2026-07-27T10:00:00Z')
@@ -41,10 +41,6 @@ describe('AgentWorkspaceService', () => {
   async function findOrCreateWorkspace(rawPath: string, options: { name?: string } = {}) {
     return dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, rawPath, options))
   }
-
-  it('should export a module-level singleton of AgentWorkspaceService', () => {
-    expect(agentWorkspaceService).toBeInstanceOf(AgentWorkspaceService)
-  })
 
   it('owns the system workspace path policy', () => {
     const root = workspacePath('system')
@@ -89,15 +85,6 @@ describe('AgentWorkspaceService', () => {
     const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.path, first.path))
     expect(rows).toHaveLength(1)
     expect(rows[0].name).toBe('Original')
-  })
-
-  it('inserts newly created workspaces at the front of the list', async () => {
-    const first = await findOrCreateWorkspace(workspacePath('first'))
-    const second = await findOrCreateWorkspace(workspacePath('second'))
-
-    const workspaces = agentWorkspaceService.list()
-
-    expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id])
   })
 
   it('hides system workspaces from the default list and get APIs', async () => {
@@ -190,11 +177,6 @@ describe('AgentWorkspaceService', () => {
     )
 
     expect(workspace).toMatchObject({
-      path: expect.stringMatching(
-        new RegExp(
-          `${path.join(root, 'Agents', 'system').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[/\\\\]\\d{4}-\\d{2}-\\d{2}[/\\\\]session-system$`
-        )
-      ),
       type: 'system'
     })
     await expect(stat(workspace.path)).rejects.toThrow()

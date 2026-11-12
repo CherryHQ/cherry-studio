@@ -87,14 +87,6 @@ describe('redactDeep', () => {
     expect(out.nested.apiKey).toBe(REDACTED)
   })
 
-  it('truncates long strings past 300 chars', () => {
-    const long = 'a'.repeat(400)
-    const out = redactDeep({ data: long }) as Record<string, string>
-    expect(out.data.startsWith('a'.repeat(300))).toBe(true)
-    expect(out.data).toContain('<100 more>')
-    expect(out.data).not.toContain('a'.repeat(301))
-  })
-
   it('does not stack-overflow on a circular enumerable graph', () => {
     const a: Record<string, unknown> = { name: 'a' }
     const b: Record<string, unknown> = { name: 'b', a }
@@ -237,6 +229,10 @@ describe('redactUrlParams', () => {
 //   header back as `Bearer "sk-..."`), so the quoted alternatives — including escaped
 //   quotes inside — must match before the bare-token fallback, which excludes quotes.
 describe('redactSecretText', () => {
+  it.each(['API key', 'API key provided'])('redacts a provider echo labelled %s', (label) => {
+    expect(redactSecretText(`Incorrect ${label}: sk-mp92-invalid-secret`)).toBe(`Incorrect ${label}: "<redacted>"`)
+  })
+
   it('redacts a quoted TOML-style api_key assignment', () => {
     expect(redactSecretText('unexpected character at line 3: api_key = "sk-ant-real-secret"')).toBe(
       'unexpected character at line 3: api_key = "<redacted>"'

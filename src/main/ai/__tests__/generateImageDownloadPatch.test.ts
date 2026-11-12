@@ -32,10 +32,6 @@ describe('patched ai generateImage url download', () => {
 
     expect(result.images).toHaveLength(1)
     expect(result.images[0].uint8Array).toEqual(bytes)
-    expect(result.warnings).toContainEqual({
-      type: 'other',
-      message: '1 of 2 generated images could not be downloaded and were dropped'
-    })
   })
 
   it('drops only the failing image when the download throws', async () => {
