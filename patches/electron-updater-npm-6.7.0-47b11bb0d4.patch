@@ -135,7 +135,7 @@ index 0000000000000000000000000000000000000000..be7a785968bef3f14515441efdfdf578
 +        try {
 +            child = spawn(path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
 +                ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")],
-+                { detached: true, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
++                { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
 +            timer = setTimeout(() => { child.kill(); fail(new Error("Portable installer preparation timed out")); }, 120000);
 +            child.once("error", fail);
 +            child.once("exit", code => fail(new Error(`Portable installer exited before handoff (${code})`)));
