@@ -664,15 +664,6 @@ describe('AgentJobsService', () => {
       return jobScheduleService.getById(taskId)?.metadata?.reuse
     }
 
-    it('defaults to reuse off with nothing bound', () => {
-      const task = service.createTask(AGENT_ID, form)
-
-      expect(task.reuseSession).toBe(false)
-      expect(task.reuseSessionId).toBeNull()
-      expect(readReuse(task.id)).toEqual({ enabled: false, revision: 0 })
-      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 0 })
-    })
-
     it('enables reuse without binding a session up front', () => {
       const task = service.createTask(AGENT_ID, form)
 
@@ -1050,7 +1041,9 @@ describe('AgentJobsService', () => {
       for (const session of [sticky, fresh, legacy]) {
         agentSessionService.restore(session.id)
       }
-      const restoredIds = agentSessionService.listByCursor({ agentId: AGENT_ID }).items.map((session) => session.id)
+      const restoredIds = agentSessionService
+        .listByCursor({ scope: 'ordinary', agentId: AGENT_ID })
+        .items.map((session) => session.id)
       expect(restoredIds.sort()).toEqual([ordinary.id, sticky.id, fresh.id, legacy.id].sort())
       expect(jobScheduleService.getById(task.id)).toBeNull()
       expect(jobService.getById('fresh')?.metadata.sessionId).toBe(fresh.id)

@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.5.0
+
+### Minor Changes
+
+- [#23363](https://github.com/CherryHQ/cherry-studio/pull/23363) [`c53a5e0`](https://github.com/CherryHQ/cherry-studio/commit/c53a5e02941bc2f35d3270dc73a33b13da82df15) Thanks [@raullenchai](https://github.com/raullenchai)! - Add Rapid-MLX as a keyless local provider, with its provider icon.
+
 ## 0.4.0
 
 ### Minor Changes

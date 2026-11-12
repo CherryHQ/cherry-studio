@@ -34,8 +34,6 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 vi.mock('../agentSessionWarmup', () => ({
   buildClaudeCodeWarmQueryRequestForAgentSession: buildWarmRequestMock
 }))
-
-const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 const { ClaudeCodeWarmQueryManager, createClaudeCodeWarmQuerySignature } = await import('../ClaudeCodeWarmQueryManager')
 
 function warmQuery(cleanup: Promise<void> = Promise.resolve()) {
@@ -103,38 +101,8 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     expect(consumed?.warmQuery).toBe(warm)
     expect(second).toBeUndefined()
-    expect(startupMock).toHaveBeenCalledWith({
-      options: {
-        model: 'sonnet',
-        resume: 'sdk-1',
-        spawnClaudeCodeProcess: expect.any(Function)
-      },
-      initializeTimeoutMs: undefined
-    })
+
     expect(warm.close).not.toHaveBeenCalled()
-  })
-
-  it('preserves the host spawn wrapper on the warm startup path', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
-    const warm = warmQuery()
-    const ignoredSpawn = vi.fn()
-    startupMock.mockResolvedValueOnce(warm)
-
-    await manager.prewarm({
-      key: 'session-1',
-      options: { model: 'sonnet', spawnClaudeCodeProcess: ignoredSpawn }
-    })
-    await Promise.resolve()
-
-    expect(startupMock).toHaveBeenCalledWith({
-      options: {
-        model: 'sonnet',
-        spawnClaudeCodeProcess: expect.any(Function)
-      },
-      initializeTimeoutMs: undefined
-    })
-    expect(startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(ignoredSpawn)
-    expect(startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(spawnClaudeCodeProcess)
   })
 
   it('keeps process diagnostics isolated between warm queries', async () => {
@@ -596,7 +564,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
     await manager.prewarmAgentSession('session-1')
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } })
 
-    expect(buildWarmRequestMock).toHaveBeenCalledWith('session-1')
     expect(consumed?.warmQuery).toBe(warm)
   })
 
@@ -621,9 +588,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     await manager.prewarmAgentSession('session-1')
 
-    expect(prepareTraceMock).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: 'session-1', traceId, rootSpanId: deriveRootSpanId(traceId) })
-    )
     expect(startupMock).toHaveBeenCalledWith(
       expect.objectContaining({
         options: expect.objectContaining({

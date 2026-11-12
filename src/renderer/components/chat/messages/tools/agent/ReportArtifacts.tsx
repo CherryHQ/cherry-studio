@@ -31,6 +31,11 @@ interface ReportArtifactsViewModel {
 }
 
 export function isReportArtifactsToolResponse(toolResponse: ReportArtifactsToolResponse): boolean {
+  if (
+    toolResponse.tool.type === 'mcp' &&
+    (!('serverName' in toolResponse.tool) || toolResponse.tool.serverName !== 'cherry-tools')
+  )
+    return false
   const toolName = toolResponse.tool.name
   return toolName === REPORT_ARTIFACTS_TOOL_NAME || toolName.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
 }
@@ -42,7 +47,7 @@ export function getReportArtifactsViewModel(
   let summary: string | undefined
 
   for (const toolResponse of toolResponses) {
-    if (!isReportArtifactsToolResponse(toolResponse)) continue
+    if (!isReportArtifactsToolResponse(toolResponse) || toolResponse.status !== 'done') continue
 
     const parsed = reportArtifactsInputSchema.safeParse(toolResponse.arguments)
     if (!parsed.success) continue

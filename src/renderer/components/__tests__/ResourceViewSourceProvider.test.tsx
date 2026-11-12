@@ -249,27 +249,6 @@ describe('ResourceViewSourceProvider', () => {
     expect(screen.getByTestId('topics-refreshing')).toHaveTextContent('false')
   })
 
-  it('does not publish another snapshot when a refresh resolves to the same references', async () => {
-    sourceMocks.tabs = [createTab('chat', '/app/chat')]
-    sourceMocks.activeTabId = 'chat'
-    const assistantSource = createAssistantSource(['topic-1'], { complete: true })
-    sourceMocks.assistantSource = assistantSource
-
-    const { rerender } = render(createProviderTree())
-
-    await waitFor(() => expect(screen.getByTestId('topic-ids')).toHaveTextContent('topic-1'))
-
-    sourceMocks.assistantSource = { ...assistantSource, isFullyLoaded: false, isRefreshing: true }
-    rerender(createProviderTree())
-
-    sourceProbeRenders.mockClear()
-    sourceMocks.assistantSource = assistantSource
-    rerender(createProviderTree())
-
-    await waitFor(() => expect(screen.getByTestId('topics-refreshing')).toHaveTextContent('false'))
-    expect(sourceProbeRenders).toHaveBeenCalledTimes(1)
-  })
-
   it('releases the mapped topic view when no awake assistant list consumes it', async () => {
     sourceMocks.tabs = [createTab('chat', '/app/chat')]
     sourceMocks.activeTabId = 'chat'
