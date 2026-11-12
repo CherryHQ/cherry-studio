@@ -98,7 +98,7 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
         <DialogHeader className="flex-row items-center gap-2 border-b border-border-subtle px-5 py-4 pr-12">
           <DialogTitle>{t('settings.about.feedback.history.title')}</DialogTitle>
         </DialogHeader>
-        <ScrollArea viewportProps={{ className: 'px-5 py-4' }} className="min-h-0">
+        <ScrollArea contentProps={{ className: 'px-5 py-4' }} className="min-h-0">
           <div className="space-y-3">
             {error ? <Alert type="error" showIcon message={t('settings.about.feedback.history.load_failed')} /> : null}
             {refreshError ? (

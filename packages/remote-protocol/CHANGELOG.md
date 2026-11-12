@@ -1,5 +1,11 @@
 # @cherrystudio/remote-protocol
 
+## Unreleased
+
+### Patch Changes
+
+- Declare the MIT license and include a package-local license file.
+
 ## 0.7.0
 
 ### Minor Changes

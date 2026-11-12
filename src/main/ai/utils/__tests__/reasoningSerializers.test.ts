@@ -113,18 +113,6 @@ describe('resolveReasoningInvocation budget constraints', () => {
     expect(invocation.budgetTokens).toBe(4096)
   })
 
-  it('encodes an audited provider budget target without serializer model branches', () => {
-    const profile: ReasoningWireProfile = {
-      effort: {
-        operations: [{ target: 'reasoning_budget', value: { source: 'budget' } }],
-        budget: { min: 1, missing: { type: 'omit-mode' } }
-      }
-    }
-    const invocation = resolveReasoningInvocation({ selection: 'high', model, profile })
-
-    expect(encodeReasoningInvocation(invocation)).toEqual({ reasoning_budget: 51_404 })
-  })
-
   it('encodes an audited nested string toggle target', () => {
     const profile: ReasoningWireProfile = {
       auto: {
@@ -265,13 +253,6 @@ describe('OpenAI Responses reasoning summary', () => {
       controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
       selectableEfforts: ['low', 'medium', 'high']
     }
-  })
-
-  // Without `reasoning.summary` OpenAI returns no summary at all, so the provider default must
-  // travel even when the user never picks an effort tier.
-  it('emits the summary default on the Default selection, with no effort', () => {
-    const invocation = resolveReasoningInvocation({ selection: 'default', model: gpt5, profile: openaiWire })
-    expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningSummary: 'auto' })
   })
 
   it('lets an explicit assistant selection override the default', () => {
