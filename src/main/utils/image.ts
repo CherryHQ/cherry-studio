@@ -87,6 +87,20 @@ export async function clampImageForModel(
 }
 
 /**
+ * Bound native OCR input with its tolerant decoder contract. Small images remain
+ * untouched for the native decoder; oversized images must resize successfully
+ * before they can be forwarded. Model-bound callers keep the strict path above.
+ */
+export async function clampImageForOcr(bytes: Uint8Array, maxEdge: number): Promise<Uint8Array | null> {
+  const sharp = (await import('sharp')).default
+  const image = sharp(bytes, { failOn: 'none' })
+  const { width, height } = await image.metadata()
+  if (!width || !height) throw new Error('could not read image dimensions')
+  if (width <= maxEdge && height <= maxEdge) return null
+  return image.resize(maxEdge, maxEdge, { fit: 'inside', withoutEnlargement: true }).toBuffer()
+}
+
+/**
  * Crop a region out of PNG bytes, in the source image's own pixel space.
  * Used to hand the OCR engine just the selected region instead of a full display.
  * Rejects a region reaching past the image rather than silently shrinking it, so a

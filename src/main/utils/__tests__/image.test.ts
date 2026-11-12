@@ -89,6 +89,15 @@ describe('clampImageForModel', () => {
     await expect(clampImageForModel(truncated)).rejects.toThrow('could not decode image')
   })
 
+  it('still rejects oversized truncated PNGs on the model path', async () => {
+    const valid = await sharp({ create: { width: 10001, height: 10, channels: 3, background: 'red' } })
+      .png()
+      .toBuffer()
+    await expect(clampImageForModel(valid.subarray(0, Math.floor(valid.length / 2)))).rejects.toThrow(
+      'could not decode image'
+    )
+  })
+
   it('throws on undecodable input', async () => {
     await expect(clampImageForModel(new Uint8Array([1, 2, 3]))).rejects.toThrow()
   })

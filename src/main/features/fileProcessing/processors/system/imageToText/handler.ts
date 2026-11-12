@@ -4,7 +4,7 @@ import type * as SystemOcrModule from '@napi-rs/system-ocr'
 
 import { loggerService } from '@logger'
 import { isLinux, isWin } from '@main/core/platform'
-import { clampImageForModel, transcodeToPng } from '@main/utils/image'
+import { clampImageForOcr, transcodeToPng } from '@main/utils/image'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FILE_TYPE, type FileInfo } from '@shared/types/file'
 
@@ -54,15 +54,7 @@ export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to
         let image: string | Uint8Array = context.file.path
         if (isWin) {
           const bytes = await fs.readFile(context.file.path, { signal: executionContext.signal })
-          let clamped: Uint8Array | null = null
-          try {
-            clamped = await clampImageForModel(bytes, SYSTEM_OCR_MAX_IMAGE_EDGE)
-          } catch (error) {
-            executionContext.signal.throwIfAborted()
-            // OCR can accept screenshots rejected by the stricter model-input decoder.
-            // Keep its existing native-decoder path when best-effort resizing fails.
-            logger.warn('Could not resize system OCR image; trying original bytes', error as Error)
-          }
+          const clamped = await clampImageForOcr(bytes, SYSTEM_OCR_MAX_IMAGE_EDGE)
           image = await transcodeToPng(clamped ?? bytes)
         }
 
