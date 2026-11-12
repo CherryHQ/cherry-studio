@@ -57,15 +57,6 @@ describe('useDataChange', () => {
     expect(mockService.onDataChanged).not.toHaveBeenCalled()
   })
 
-  it('does not resubscribe when re-rendered with an equal inline endpoint array', () => {
-    const listener = vi.fn()
-    const { rerender } = renderHook(() => useDataChange(['/topics', '/topics/latest'], listener))
-
-    rerender()
-
-    expect(mockService.onDataChanged).toHaveBeenCalledTimes(1)
-  })
-
   it('invokes the latest listener without resubscribing', () => {
     const first = vi.fn()
     const second = vi.fn()

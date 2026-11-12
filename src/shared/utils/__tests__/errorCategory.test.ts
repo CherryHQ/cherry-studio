@@ -2,6 +2,29 @@ import { describe, expect, it } from 'vitest'
 
 import { classifyErrorCategory, isProxyErrorMessage } from '../errorCategory'
 
+describe('classifyErrorCategory unusable API responses', () => {
+  const text =
+    'API Error: API returned an empty or malformed response (HTTP 200) — check for a proxy or gateway intercepting the request'
+
+  it.each([undefined, 200])('identifies an invalid response with status %s', (status) => {
+    expect(classifyErrorCategory({ text, status })).toBe('parse')
+  })
+
+  it.each([
+    [401, 'auth'],
+    [429, 'rate_limit'],
+    [502, 'server']
+  ] as const)('preserves structured status %s over the response wording', (status, category) => {
+    expect(classifyErrorCategory({ text, status })).toBe(category)
+  })
+
+  it('does not infer a response failure from an invalid request', () => {
+    expect(classifyErrorCategory({ text: 'API received an empty or malformed request', status: 400 })).toBe(
+      'bad_request'
+    )
+  })
+})
+
 describe('classifyErrorCategory HTTP 400', () => {
   it('identifies a provider request failure without guessing its cause', () => {
     expect(classifyErrorCategory({ status: 400, text: 'API Error: 400 Provider returned error' })).toBe('bad_request')
@@ -10,9 +33,28 @@ describe('classifyErrorCategory HTTP 400', () => {
   it.each([
     ['insufficient balance', 'quota'],
     ['content_filter triggered', 'content'],
-    ['prompt is too long', 'context_length']
+    ['prompt is too long', 'context_length'],
+    ['Input exceeds the context limit (1048568 tokens)', 'context_length']
   ] as const)('preserves the specific diagnosis for %s', (text, category) => {
     expect(classifyErrorCategory({ status: 400, text })).toBe(category)
+  })
+
+  it.each([
+    'Invalid context window parameter',
+    'The maximum context length parameter is invalid',
+    'Input is too long for field name'
+  ])('does not classify a context configuration error as overflow: %s', (text) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe('bad_request')
+  })
+
+  it.each([
+    'model_context_window_exceeded',
+    "This model's maximum context length is 1048576 tokens",
+    "This model's maximum context length is 1,048,576 tokens",
+    'The context window was exceeded',
+    "The input is longer than the model's context length"
+  ])('recognizes explicit context overflow: %s', (text) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe('context_length')
   })
 
   // An upstream that rejects the REQUEST body ("Failed to parse request body" — #22164)
@@ -77,6 +119,82 @@ describe('classifyErrorCategory model deprecation', () => {
         text: 'This model has been deprecated, please upgrade'
       })
     ).toBe('content')
+  })
+})
+
+describe('classifyErrorCategory content-filter rejection wording', () => {
+  const report = 'This request was blocked by our content filtering policy. Please revise your message.'
+
+  it.each([
+    report,
+    'AI_APICallError: This request was blocked by our content filtering policy. Please revise your message. (request id: 202610131228436002837148268d9d6lvrPR1di',
+    'This request was blocked by the content filtering policy.',
+    'This request was blocked by content filtering.',
+    'This request was blocked by our content filter.',
+    'This request was blocked by the content filter policy.',
+    'This request was blocked by content filter.',
+    'THIS REQUEST WAS BLOCKED BY OUR CONTENT FILTERING POLICY. PLEASE REVISE YOUR MESSAGE.',
+    'AI_APICallError: This request was blocked by our content filtering policy. Please revise your message.\n(request id: 202610131228436002837148268d9d6lvrPR1di'
+  ])('diagnoses a rejected request: %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('content')
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('content')
+  })
+
+  it.each([
+    ['content filtering service timeout', 'network'],
+    ['MCP server content filter failed to initialize', 'mcp'],
+    ['OCR content filtering engine not initialized', 'ocr'],
+    ['Failed to parse content filtering configuration', 'parse'],
+    ['MCP server blocked by our policy: executable is outside allowed workspace', 'mcp'],
+    ['content moderation service timeout', 'network']
+  ] as const)('preserves the diagnosis for %s', (text, category) => {
+    expect(classifyErrorCategory({ text })).toBe(category)
+    expect(classifyErrorCategory({ text, status: 400 })).toBe(category)
+  })
+
+  it.each([
+    'Unknown parameter: content filtering',
+    'Parameter flagged by schema validator',
+    'Invalid input: temperature must be positive',
+    'This request was unblocked by our content filtering policy.',
+    'This request was blocked by our content filterable rule.',
+    'This request was blocked by a content filter.',
+    'This request was blocked due to content filtering.',
+    'This request was blocked\nby our content filtering policy.'
+  ])('does not infer content rejection from %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('unknown')
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('bad_request')
+  })
+
+  it.each(['content_filter triggered', 'safety', 'blocked by safety'])(
+    'preserves the existing content signal %s',
+    (text) => {
+      expect(classifyErrorCategory({ text })).toBe('content')
+      expect(classifyErrorCategory({ text, status: 400 })).toBe('content')
+    }
+  )
+
+  it.each(['content-filter', 'content_filter', 'SAFETY', 'RECITATION'])(
+    'preserves structured finish reason %s even over HTTP 503',
+    (finishReason) => {
+      expect(classifyErrorCategory({ finishReason })).toBe('content')
+      expect(classifyErrorCategory({ finishReason, status: 503 })).toBe('content')
+    }
+  )
+
+  it.each([
+    [403, '', 'permission'],
+    [503, '', 'server'],
+    [400, 'unauthorized ', 'auth'],
+    [400, 'unsupported_country ', 'region'],
+    [400, 'model_not_found ', 'model'],
+    [400, 'insufficient balance ', 'quota'],
+    [400, 'rate_limit ', 'rate_limit'],
+    [400, 'context_length_exceeded ', 'context_length'],
+    [400, 'payload too large ', 'payload'],
+    [400, 'unauthorized client ', 'permission']
+  ] as const)('preserves HTTP %i and %s precedence', (status, prefix, category) => {
+    expect(classifyErrorCategory({ text: prefix + report, status })).toBe(category)
   })
 })
 
@@ -208,6 +326,8 @@ describe('classifyErrorCategory client refusals', () => {
 // Protocol failures need the existing parse diagnosis without swallowing request or transport failures.
 describe('classifyErrorCategory provider response protocol', () => {
   const phrases = [
+    'Failed to process successful response',
+    'Invalid JSON response',
     'Invalid input: expected object, received undefined',
     'Type validation failed:',
     "Expected 'function.name' to be a string.",
@@ -235,6 +355,10 @@ describe('classifyErrorCategory provider response protocol', () => {
   it('keeps a request-body parse failure out of the parse diagnosis', () => {
     expect(classifyErrorCategory({ text: 'Failed to parse request body' })).toBe('unknown')
     expect(classifyErrorCategory({ status: 400, text: 'Failed to parse request body' })).toBe('bad_request')
+  })
+
+  it('does not infer a protocol failure from a successful status alone', () => {
+    expect(classifyErrorCategory({ status: 200, text: 'Something happened' })).toBe('unknown')
   })
 
   it.each([
@@ -350,5 +474,18 @@ describe('classifyErrorCategory embedded runtime connection codes (#22210)', () 
     'Some totally unrelated failure'
   ])('leaves prose without a runtime code unclassified: %s', (text) => {
     expect(classifyErrorCategory({ text })).toBe('unknown')
+  })
+})
+
+describe('classifyErrorCategory invalid inline image', () => {
+  const text =
+    'Too many requests, please wait a moment (image/jpeg inlineData is not valid base64: string argument should contain only ASCII characters)'
+
+  it('reports a non-ASCII inline image payload as a request error, not rate limiting', () => {
+    expect(classifyErrorCategory({ text })).toBe('bad_request')
+  })
+
+  it('keeps rate_limit for a real HTTP 429', () => {
+    expect(classifyErrorCategory({ text, status: 429 })).toBe('rate_limit')
   })
 })
