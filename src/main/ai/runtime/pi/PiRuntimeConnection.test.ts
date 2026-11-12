@@ -5,10 +5,13 @@ import { pathToFileURL } from 'node:url'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
 import { obj } from '@earendil-works/pi-schema'
+import { McpServer } from '@modelcontextprotocol/server'
+import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
@@ -22,6 +25,7 @@ import { agentSessionMessageService as messages } from '@data/services/AgentSess
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
+import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
@@ -53,6 +57,8 @@ const mocks = vi.hoisted(() => ({
   binding: vi.fn(),
   prompt: vi.fn(),
   interaction: vi.fn<() => ToolGuardInteractionState>(),
+  servers: vi.fn<() => Record<string, AgentMcpServer>>(() => ({})),
+  realMcp: false,
   delegated: vi.fn()
 }))
 vi.mock('@application', async () => {
@@ -77,24 +83,31 @@ vi.mock('./gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks.bin
 vi.mock('@main/ai/runtime/agentPrompt', () => ({ buildAgentRuntimePrompt: mocks.prompt }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
-  buildAgentMcpServers: () => ({})
+  buildAgentMcpServers: () => mocks.servers()
 }))
-vi.mock('./piMcpExtension', async (original) => ({
-  ...(await original<typeof PiMcpExtension>()),
-  createPiMcpExtension: () => (pi: { registerTool: (tool: unknown) => void }) => {
-    for (const name of ['session_create', 'session_send'])
-      pi.registerTool({
-        name: buildPiMcpToolName('cherry-tools', name),
-        label: name,
-        description: name,
-        parameters: obj({}),
-        execute: async () => {
-          mocks.delegated()
-          return { content: [{ type: 'text', text: 'delegated' }] }
-        }
-      })
+vi.mock('./piMcpExtension', async (original) => {
+  const real = await original<typeof PiMcpExtension>()
+  const realPiMcpExtension = real.createPiMcpExtension
+  return {
+    ...real,
+    createPiMcpExtension: (...args: Parameters<typeof PiMcpExtension.createPiMcpExtension>) =>
+      mocks.realMcp
+        ? realPiMcpExtension(...args)
+        : (pi: { registerTool: (tool: unknown) => void }) => {
+            for (const name of ['session_create', 'session_send'])
+              pi.registerTool({
+                name: buildPiMcpToolName('cherry-tools', name),
+                label: name,
+                description: name,
+                parameters: obj({}),
+                execute: async () => {
+                  mocks.delegated()
+                  return { content: [{ type: 'text', text: 'delegated' }] }
+                }
+              })
+          }
   }
-}))
+})
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathFromEnvironment: () => undefined }))
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
@@ -107,6 +120,9 @@ describe('desktop Pi root connection', () => {
   const connections: PiRuntimeConnection[] = []
 
   beforeEach(() => {
+    mocks.servers.mockReset()
+    mocks.servers.mockReturnValue({})
+    mocks.realMcp = false
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     mocks.delegated.mockClear()
     directory = tempDir('desktop-pi')
@@ -1294,6 +1310,59 @@ describe('desktop Pi root connection', () => {
     const saved = messages.getSessionMessage(input.sessionId, user.id)
     expect(saved).not.toHaveProperty('inputContextId')
     expect(saved).not.toHaveProperty('nativeInputId')
+  })
+
+  it('blocks knowledge dependencies while allowing another linked MCP tool', async () => {
+    const calls: string[] = []
+    const saved = ['mcp__cherry_tools__kb_search']
+    agentService.updateAgent(input.agentId, { disabledTools: saved })
+    snapshot.agent.disabledTools = [...saved]
+    mocks.realMcp = true
+    mocks.servers.mockReturnValue({
+      'cherry-tools': {
+        name: 'cherry-tools',
+        async connect(transport) {
+          const server = new McpServer({ name: 'fixture', version: '1' })
+          for (const name of ['kb_search', 'kb_list', 'kb_read', 'kb_manage']) {
+            server.registerTool(name, { description: name, inputSchema: z.object({}) }, async () => {
+              calls.push(name)
+              return { content: [{ type: 'text', text: name }] }
+            })
+          }
+          return serveStdio(() => server, { transport })
+        }
+      }
+    })
+    setScript([
+      assistantReply(
+        [
+          {
+            type: 'toolCall',
+            id: 'script',
+            name: 'codemode',
+            arguments: {
+              code: `const found = await searchTools("kb_", { namespace: "mcp__cherry_tools" }); const names = found.map(x => x.name); if (!names.includes("mcp__cherry_tools__kb_manage") || ["kb_search", "kb_list", "kb_read"].some(name => names.includes("mcp__cherry_tools__" + name))) throw new Error("incorrect discovery: " + JSON.stringify(names)); for (const name of ["kb_search", "kb_list", "kb_read", "kb_manage"]) { try { await tools["mcp__cherry_tools__" + name]({}) } catch (e) { text(String(e)) } }`
+            }
+          }
+        ],
+        'toolUse'
+      ),
+      assistantReply('done')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('test knowledge') })
+    await done(events)
+    expect(calls).toEqual(['kb_manage'])
+    expect(agentService.getAgent(input.agentId)?.disabledTools).toEqual(saved)
+    const guard = connection as unknown as { isToolDisabled(name: string): boolean }
+    expect(guard.isToolDisabled('mcp__cherry_tools__kb_read')).toBe(true)
+    expect(guard.isToolDisabled('mcp__cherry_tools__kb_manage')).toBe(false)
+    snapshot.agent.disabledTools = []
+    await connection.reconcile({ modelId: input.modelId })
+    expect(guard.isToolDisabled('mcp__cherry_tools__kb_read')).toBe(false)
+    snapshot.agent.disabledTools = [...saved]
+    await connection.reconcile({ modelId: input.modelId })
+    expect(guard.isToolDisabled('mcp__cherry_tools__kb_list')).toBe(true)
   })
 
   it('blocks disabled native tools before they can modify the workspace', async () => {

@@ -5,12 +5,15 @@ import { join } from 'node:path'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { createAssistantMessageEventStream, type AssistantMessage, type Usage } from '@earendil-works/pi-ai'
 import { AgentDoc, configure, createSession, type ConversationId } from '@earendil-works/pi-durable'
+import { McpServer } from '@modelcontextprotocol/server'
+import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
@@ -31,6 +34,7 @@ import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
+import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -51,6 +55,7 @@ import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
+import { prepareDurableDesktop } from './durableDesktop'
 import type { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
 import { PiDurableRuntimeDriver } from './PiDurableRuntimeDriver'
 
@@ -61,6 +66,7 @@ const mocks = vi.hoisted(() => ({
   binding: vi.fn(),
   prompt: vi.fn(),
   interaction: vi.fn<() => ToolGuardInteractionState>(),
+  servers: vi.fn<() => Record<string, AgentMcpServer>>(() => ({})),
   delegated: vi.fn(),
   prime: vi.fn()
 }))
@@ -86,7 +92,7 @@ vi.mock('../pi/gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks
 vi.mock('@main/ai/runtime/agentPrompt', () => ({ buildAgentRuntimePrompt: mocks.prompt }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
-  buildAgentMcpServers: () => ({})
+  buildAgentMcpServers: () => mocks.servers()
 }))
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: vi.fn(async (): Promise<Record<string, string>> => ({})),
@@ -106,6 +112,8 @@ describe('desktop Pi Durable connection', () => {
   beforeEach(async () => {
     driver = new PiDurableRuntimeDriver()
     vi.mocked(getShellEnv).mockReset()
+    mocks.servers.mockReset()
+    mocks.servers.mockReturnValue({})
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     mocks.delegated.mockClear()
     mocks.prime.mockReset()
@@ -843,6 +851,74 @@ describe('desktop Pi Durable connection', () => {
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
+  it('blocks knowledge dependencies while allowing another linked MCP tool', async () => {
+    const calls: string[] = []
+    const saved = ['mcp__cherry_tools__kb_search']
+    agentService.updateAgent(input.agentId, { disabledTools: saved })
+    snapshot.agent.disabledTools = [...saved]
+    mocks.servers.mockReturnValue({
+      'cherry-tools': {
+        name: 'cherry-tools',
+        async connect(transport) {
+          const server = new McpServer({ name: 'fixture', version: '1' })
+          for (const name of ['kb_search', 'kb_list', 'kb_read', 'kb_manage']) {
+            server.registerTool(name, { description: name, inputSchema: z.object({}) }, async () => {
+              calls.push(name)
+              return { content: [{ type: 'text', text: name }] }
+            })
+          }
+          return serveStdio(() => server, { transport })
+        }
+      }
+    })
+    const desktop = await prepareDurableDesktop(input, () => {})
+    try {
+      const registered = desktop.mcp.extension.tools?.map((tool) => tool.name) ?? []
+      const removed = desktop.agentConfig.tools?.remove?.map((tool) => tool.name) ?? []
+      for (const name of ['kb_search', 'kb_list', 'kb_read']) {
+        expect(registered).toContain(`mcp__cherry_tools__${name}`)
+        expect(removed).toContain(`mcp__cherry_tools__${name}`)
+      }
+      expect(registered).toContain('mcp__cherry_tools__kb_manage')
+      expect(removed).not.toContain('mcp__cherry_tools__kb_manage')
+      for (const name of ['kb_search', 'kb_list', 'kb_read']) {
+        expect(desktop.approval.isDisabled(`mcp__cherry_tools__${name}`)).toBe(true)
+      }
+      expect(desktop.approval.isDisabled('mcp__cherry_tools__kb_manage')).toBe(false)
+      snapshot.agent.disabledTools = []
+      await desktop.reconcile(input, true)
+      expect(desktop.approval.isDisabled('mcp__cherry_tools__kb_read')).toBe(true)
+      await desktop.reconcile(input, false)
+      expect(desktop.approval.isDisabled('mcp__cherry_tools__kb_read')).toBe(false)
+      snapshot.agent.disabledTools = [...saved]
+      await desktop.reconcile(input, true)
+      expect(desktop.approval.isDisabled('mcp__cherry_tools__kb_list')).toBe(true)
+    } finally {
+      await desktop.close()
+    }
+    setScript([
+      assistantReply(
+        [
+          {
+            type: 'toolCall',
+            id: 'script',
+            name: 'codemode',
+            arguments: {
+              code: `for (const name of ["kb_search", "kb_list", "kb_read", "kb_manage"]) { try { await tools["mcp__cherry_tools__" + name]({}) } catch (e) { text(String(e)) } }`
+            }
+          }
+        ],
+        'toolUse'
+      ),
+      assistantReply('done')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('test knowledge') })
+    await done(events)
+    expect(calls, JSON.stringify(projected(events))).toEqual(['kb_manage'])
+    expect(agentService.getAgent(input.agentId)?.disabledTools).toEqual(saved)
+  })
+
   it.each([false, true])('limits PowerShell exposure to Windows and honors disabledTools (%s)', async (disabled) => {
     snapshot.agent.disabledTools = disabled ? ['PowerShell'] : []
     const { connection, events } = await connect()

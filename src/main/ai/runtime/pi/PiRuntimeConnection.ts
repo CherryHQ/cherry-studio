@@ -76,6 +76,7 @@ import {
   type PiConnectionSnapshot,
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
+import { expandPiMcpDisabledTools } from './piDisabledTools'
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 import { loadPiSdk } from './piSdk'
@@ -975,7 +976,7 @@ function normalizeDisabledTools(
   }
   assertLegacyDisabledToolsResolved(unresolved)
   // Sanitizing raw aliases can accidentally block another tool whose name collides.
-  return disabled
+  return expandPiMcpDisabledTools(disabled, 'pi')
 }
 
 function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {

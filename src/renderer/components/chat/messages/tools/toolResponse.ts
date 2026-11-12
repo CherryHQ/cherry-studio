@@ -7,6 +7,7 @@ import type { BaseTool, McpTool } from '@renderer/types/tool'
 import { extractOutputMetadata, isToolType, type ToolMetadata, type ToolType } from '@renderer/utils/message/toolOutput'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -22,9 +23,7 @@ const CHERRY_AGENT_TRANSPORTS = new Set<string>([
   ...Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport),
   'dsh-agent'
 ])
-const PI_RUNTIME_BUILTIN_TOOL_NAMES = new Set<string>(
-  AGENT_RUNTIME_CAPABILITIES.pi.builtinTools().map((tool) => tool.id)
-)
+const PI_RUNTIME_BUILTIN_TOOL_NAMES = new Set<string>(PI_BUILTIN_TOOLS.map((tool) => tool.name))
 const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
 const CHERRY_RUNTIME_TOOL_RENDER_NAMES = new Map<string, AgentToolsType>([

@@ -5,6 +5,7 @@ vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () =>
   }
 })
 
+import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -699,11 +700,14 @@ beforeEach(() => {
     if (path.startsWith('/models/')) {
       const id = path.slice('/models/'.length)
       return {
-        data: {
-          ...MODEL,
-          id,
-          name: id === MODEL.id ? MODEL.name : 'Old Model'
-        },
+        data:
+          id && id !== 'provider::deleted'
+            ? {
+                ...MODEL,
+                id,
+                name: id === MODEL.id ? MODEL.name : 'Old Model'
+              }
+            : undefined,
         isLoading: false
       }
     }
@@ -785,6 +789,7 @@ beforeEach(() => {
   })
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   fetchGenerateMock.mockResolvedValue('Generated prompt')
+  mockPreferenceState.delete('feature.paintings.default_model_id')
   knowledgeBasesState.current = [
     {
       id: 'kb-1',
@@ -2166,6 +2171,52 @@ describe('edit dialogs', () => {
     )
   })
 
+  it.each([
+    ['pi', PI_AGENT, 'mcp__cherry_tools__generate_image'],
+    ['claude', AGENT, 'mcp__cherry-tools__generate_image']
+  ] as const)('persists and restores the %s image choice', async (_runtime, agent, imageId) => {
+    mockPreferenceState.set('feature.paintings.default_model_id', MODEL.id)
+    const user = userEvent.setup()
+    const resource = { ...agent, disabledTools: ['unrelated-restriction'] }
+    const view = render(<AgentEditDialog open resource={resource} onOpenChange={vi.fn()} />)
+    selectTab('Built-in tools')
+    await user.click(screen.getByRole('switch', { name: 'Generate Image' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ disabledTools: ['unrelated-restriction', imageId] })
+      })
+    )
+    view.unmount()
+    updateAgentMock.mockClear()
+    render(
+      <AgentEditDialog
+        open
+        resource={{ ...resource, disabledTools: ['unrelated-restriction', imageId] }}
+        onOpenChange={vi.fn()}
+      />
+    )
+    selectTab('Built-in tools')
+    const toggle = screen.getByRole('switch', { name: 'Generate Image' })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    await user.click(toggle)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ disabledTools: ['unrelated-restriction'] })
+      })
+    )
+  })
+
+  it('shows an unavailable painting tool without saving an opt-out', async () => {
+    mockPreferenceState.set('feature.paintings.default_model_id', 'provider::deleted')
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+    selectTab('Built-in tools')
+    const toggle = screen.getByRole('switch', { name: 'Generate Image' })
+    expect(toggle).toBeDisabled()
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    await userEvent.setup().click(toggle)
+    expect(updateAgentMock).not.toHaveBeenCalled()
+  })
+
   it('removes deleted knowledge bases from an open agent form', async () => {
     const boundAgent = { ...AGENT, knowledgeBaseIds: ['kb-1'] }
     const { rerender } = render(<AgentEditDialog open resource={boundAgent} onOpenChange={vi.fn()} />)
@@ -2176,8 +2227,34 @@ describe('edit dialogs', () => {
     knowledgeBasesState.current = []
     rerender(<AgentEditDialog open resource={{ ...boundAgent, knowledgeBaseIds: [] }} onOpenChange={vi.fn()} />)
 
-    await waitFor(() => expect(screen.queryByText('Knowledge Search')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Knowledge Search' })).toBeDisabled())
+    expect(screen.getByRole('switch', { name: 'Knowledge Search' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getAllByText('Inactive').length).toBeGreaterThan(0)
     expect(updateAgentMock).not.toHaveBeenCalled()
+  })
+
+  it('restores the saved knowledge choice after unbinding and rebinding', async () => {
+    const user = userEvent.setup()
+    const resource = { ...PI_AGENT, knowledgeBaseIds: ['kb-1'], disabledTools: ['mcp__cherry_tools__kb_search'] }
+    render(<AgentEditDialog open resource={resource} onOpenChange={vi.fn()} initialTab="tools.knowledge" />)
+    selectTab('Built-in tools')
+    expect(screen.getByRole('switch', { name: 'Knowledge Search' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('switch', { name: 'Knowledge Search' })).toBeEnabled()
+    selectTab('Knowledge')
+    await user.click(screen.getByRole('button', { name: 'Remove knowledge base' }))
+    selectTab('Built-in tools')
+    expect(screen.getByRole('switch', { name: 'Knowledge Search' })).toBeDisabled()
+    selectTab('Knowledge')
+    await user.click(screen.getByRole('button', { name: 'Add knowledge base' }))
+    await user.click(screen.getByText('Knowledge One'))
+    selectTab('Built-in tools')
+    const toggle = screen.getByRole('switch', { name: 'Knowledge Search' })
+    expect(toggle).toBeEnabled()
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    await user.click(toggle)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({ body: expect.objectContaining({ disabledTools: [] }) })
+    )
   })
 
   it('preserves a knowledge-base re-selection made while its removal is saving', async () => {

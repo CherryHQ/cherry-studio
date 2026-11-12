@@ -55,11 +55,7 @@ import {
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
-import {
-  CLAUDE_KNOWLEDGE_TOOL_NAMES,
-  CLAUDE_TOOL_CATEGORIES,
-  type ClaudeToolCategory
-} from '@shared/ai/claudecode/toolRegistry'
+import { CLAUDE_TOOL_CATEGORIES, type ClaudeToolCategory } from '@shared/ai/claudecode/toolRegistry'
 import { COMPUTER_USE_TOOL_GROUP } from '@shared/ai/computerUseTools'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
@@ -1159,20 +1155,17 @@ function AgentToolsFields({
   const canManageSkills = Boolean(agent.id)
   const [browserEnabled] = usePreference('app.browser.agent_control.enabled')
   const [computerUseEnabled] = usePreference('app.computer_use.agent_control.enabled')
+  const [paintingModelId] = usePreference('feature.paintings.default_model_id')
+  const { model: paintingModel } = useModelById(paintingModelId as UniqueModelId | null)
 
   // Built-in catalog: registry user-facing tools grouped into category sections.
   // The toggle is a real enable/disable that writes the opt-out `disabledTools` set
   // (empty = all enabled); approval is governed solely by the permission-mode cards.
-  // The kb_* tools are only injected once a knowledge base is bound (runtime gating),
-  // so hide their toggles here when the agent has none — they would otherwise read as
-  // "on" while doing nothing.
   const hasKnowledgeScope = knowledgeBaseIds.length > 0
   const legacyRestrictions = disabledTools.filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX))
   const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
   const builtinSections = useMemo(() => {
-    const tools = caps
-      .builtinTools(platform)
-      .filter((tool) => !caps.knowledgeBases || hasKnowledgeScope || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
+    const tools = caps.builtinTools(platform)
     return CLAUDE_TOOL_CATEGORIES.map((category) => ({
       category,
       label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
@@ -1182,12 +1175,26 @@ function AgentToolsFields({
           id: tool.id,
           name: t(tool.labelKey, tool.labelFallback ?? tool.id),
           description: t(tool.descriptionKey, tool.descriptionFallback ?? ''),
+          pickable:
+            (!tool.requiresKnowledgeScope || hasKnowledgeScope) &&
+            (!tool.requiresPaintingModel || Boolean(paintingModel)),
+          inactiveBadge:
+            (tool.requiresKnowledgeScope && !hasKnowledgeScope) || (tool.requiresPaintingModel && !paintingModel)
+              ? t('library.config.tools.inactive_badge')
+              : undefined,
+          disabledReason:
+            tool.requiresPaintingModel && !paintingModel ? t('chat.input.generate_image_no_model') : undefined,
           icon: <Wrench size={13} strokeWidth={1.5} className="text-muted-foreground" />
         }))
     })).filter((section) => section.items.length > 0)
-  }, [caps, t, hasKnowledgeScope])
+  }, [caps, t, hasKnowledgeScope, paintingModel])
   const enabledToolIds = useMemo<ReadonlySet<string>>(
-    () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
+    () =>
+      new Set(
+        builtinSections
+          .flatMap((s) => s.items.filter((i) => i.pickable !== false).map((i) => i.id))
+          .filter((id) => !disabledSet.has(id))
+      ),
     [builtinSections, disabledSet]
   )
   const setToolEnabled = (name: string, enabled: boolean) =>

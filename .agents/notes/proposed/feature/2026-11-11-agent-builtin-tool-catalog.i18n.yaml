@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-11-agent-builtin-tool-catalog.md
+2026-11-11-agent-builtin-tool-catalog.md: d049589e83ee05c4621fcdeb6405becab2dc0e69
+2026-11-11-agent-builtin-tool-catalog.zh.md: 50ca109cd9c781fd4ab5e532347cbff798538a5b
