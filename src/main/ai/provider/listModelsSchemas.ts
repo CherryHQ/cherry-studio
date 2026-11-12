@@ -225,6 +225,24 @@ export const NewApiModelsResponseSchema = z.object({
   object: z.string().optional()
 })
 
+// === TokenLab ===
+
+export const TokenLabModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      owned_by: z.string().optional(),
+      tokenlab: z
+        .looseObject({
+          category: z.string().optional(),
+          max_input_tokens: z.number().nullable().optional(),
+          max_output_tokens: z.number().nullable().optional()
+        })
+        .optional()
+    })
+  )
+})
+
 // === TokenDance ===
 
 export const TokenDanceModelsResponseSchema = z.object({
