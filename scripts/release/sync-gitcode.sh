@@ -29,7 +29,7 @@ jq -n --arg tag "$TAG" --arg name "$RELEASE_NAME" --arg status "$RELEASE_STATUS"
    if $status == "" then . else .release_status = $status end' > "$TEMP_DIR/payload.json"
 
 if [ "${DRY_RUN:-false}" = "true" ]; then
-  echo "Dry run: no GitCode release writes, uploads or notifications."
+  echo "Dry run: no COS or GitCode uploads, release writes or notifications."
   cat "$TEMP_DIR/payload.json"
   find release-assets -maxdepth 1 -type f -print | sort
   exit 0
@@ -52,6 +52,9 @@ case "$STATUS" in
   404) METHOD=POST; URL="$RELEASE_URL" ;;
   *) echo "Cannot query GitCode release (HTTP $STATUS)" >&2; exit 1 ;;
 esac
+
+python "$(dirname "$0")/upload-release-cos.py"
+
 curl --fail-with-body -sS --connect-timeout 30 --max-time 60 -X "$METHOD" \
   -H "Authorization: Bearer $GITCODE_TOKEN" -H 'Content-Type: application/json; charset=utf-8' \
   --data-binary "@$TEMP_DIR/payload.json" "$URL" > "$TEMP_DIR/release.json"
