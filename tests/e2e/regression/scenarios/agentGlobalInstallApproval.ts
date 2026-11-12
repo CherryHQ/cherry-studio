@@ -17,7 +17,7 @@ export async function agentGlobalInstallApproval(app: RegressionApp, page: Page,
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
-  await testInfo.attach('MP-152 model source', {
+  await testInfo.attach('MP-153 model source', {
     body: 'Real configured provider; real Pi and Claude Agent runtimes and a real shell, no mocked permission decisions. No package is installed: npm install -g --help only displays help.',
     contentType: 'text/plain'
   })
@@ -66,7 +66,7 @@ export async function agentGlobalInstallApproval(app: RegressionApp, page: Page,
     }
     try {
       await send()
-      await screenshot(`MP-152 ${runtime} install awaiting denial`)
+      await screenshot(`MP-153 ${runtime} install awaiting denial`)
       await view.getByRole('button', { name: /^Deny/ }).click()
       await expect(preview).toBeHidden()
       await expect(pause).toBeHidden({ timeout: 120_000 })
@@ -75,7 +75,7 @@ export async function agentGlobalInstallApproval(app: RegressionApp, page: Page,
         .soft(view.getByText('Denied', { exact: true }), 'The denied tool card must preserve the rejection decision')
         .toBeVisible({ timeout: 1_000 })
       expect(existsSync(sentinel), 'Denied command must leave no sentinel after the turn finishes').toBe(false)
-      await screenshot(`MP-152 ${runtime} install denied and absent`)
+      await screenshot(`MP-153 ${runtime} install denied and absent`)
 
       await send()
       await view.getByRole('button', { name: /^Allow/ }).click()
@@ -83,7 +83,7 @@ export async function agentGlobalInstallApproval(app: RegressionApp, page: Page,
       await expect.poll(() => existsSync(sentinel), { timeout: 120_000 }).toBe(true)
       expect(await readFile(sentinel, 'utf8')).toBe(content)
       await expect(pause).toBeHidden({ timeout: 120_000 })
-      await screenshot(`MP-152 ${runtime} install allowed and executed`)
+      await screenshot(`MP-153 ${runtime} install allowed and executed`)
     } finally {
       if (await pause.isVisible().catch(() => false)) await pause.click()
       await rm(sentinel, { force: true })

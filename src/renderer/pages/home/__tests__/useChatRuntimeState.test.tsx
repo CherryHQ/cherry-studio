@@ -125,7 +125,7 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useToolApprovalBridge', () => ({
+vi.mock('../hooks/useToolApprovalBridge', () => ({
   useToolApprovalBridge: () => vi.fn()
 }))
 
