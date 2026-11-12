@@ -1633,6 +1633,7 @@
   "error.unexpected": "Ein Fehler ist aufgetreten",
   "error.unhandled_rejection": "Ein unerwarteter Fehler hat die Anwendung unterbrochen.",
   "error.unknown": "Unbekannter Fehler",
+  "error.update_banner.available": "Neue Version {{version}} ist verfügbar und behebt diesen Fehler möglicherweise.",
   "error.update_banner.downloading": "Neue Version {{version}} wird heruntergeladen",
   "error.update_banner.failed": "Updates konnten nicht geprüft werden. Die neueste Version kannst du von der offiziellen Website herunterladen.",
   "error.update_banner.open_releases": "Download-Seite öffnen",

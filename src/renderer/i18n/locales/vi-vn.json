@@ -1633,6 +1633,7 @@
   "error.unexpected": "Đã xảy ra lỗi",
   "error.unhandled_rejection": "Một lỗi không mong muốn đã làm gián đoạn ứng dụng.",
   "error.unknown": "Lỗi không xác định",
+  "error.update_banner.available": "Đã có phiên bản mới {{version}}, có thể đã khắc phục lỗi này.",
   "error.update_banner.downloading": "Đang tải phiên bản mới {{version}}",
   "error.update_banner.failed": "Không thể kiểm tra bản cập nhật. Bạn có thể tải phiên bản mới nhất từ trang web chính thức.",
   "error.update_banner.open_releases": "Mở trang tải xuống",

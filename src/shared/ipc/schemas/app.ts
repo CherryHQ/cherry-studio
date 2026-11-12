@@ -94,6 +94,15 @@ export const appRequestSchemas = {
   'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.present_check': defineRoute({ input: z.void(), output: z.void() }),
+  /** Check-only feed query; never starts a download. */
+  'app.updater.query_availability': defineRoute({
+    input: z.void(),
+    output: z.discriminatedUnion('status', [
+      z.object({ status: z.literal('unsupported') }),
+      z.object({ status: z.literal('current'), currentVersion: z.string() }),
+      z.object({ status: z.literal('available'), currentVersion: z.string(), version: z.string() })
+    ])
+  }),
   'app.surface.receiver': defineRoute({
     input: z.object({ kind: z.enum(['error', 'update']), ready: z.boolean() }),
     output: z.void()

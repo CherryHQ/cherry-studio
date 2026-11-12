@@ -98,6 +98,7 @@ const chatSubject = { kind: 'chat' as const, providerId: 'deepseek', modelId: 'd
 
 const mocks = vi.hoisted(() => ({
   agentState: undefined as unknown,
+  appUpdateState: undefined as Record<string, unknown> | undefined,
   cacheReady: true,
   diagnoseError: vi.fn(),
   doctorState: { status: 'idle' } as DoctorState,
@@ -188,6 +189,8 @@ const translations: Record<string, string> = {
   'error.update_banner.failed':
     "Couldn't check for updates. You can download the latest version from the official website.",
   'error.update_banner.open_releases': 'Open download page',
+  'error.update_banner.available': 'New version {{version}} is available and may fix this error.',
+  'notification.center.update_now': 'Update now',
   'settings.about.updateError': 'Update error',
   'settings.about.updateNotAvailable': 'You are using the latest version',
   'settings.about.updateNotPublished': 'No published update is available yet. Please try again later.',
@@ -235,7 +238,8 @@ vi.mock('@renderer/hooks/useAppUpdateState', () => ({
       available: false,
       ignore: false,
       manualCheck: false,
-      lastErrorKey: null
+      lastErrorKey: null,
+      ...mocks.appUpdateState
     },
     updateAppUpdateState: vi.fn()
   })
@@ -400,7 +404,7 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(screen.queryByRole('region', { name: 'Diagnostic result' })).not.toBeInTheDocument()
     expect(screen.getByText('error.diagnostics.context_unavailable')).toBeVisible()
     expect(screen.getByRole('button', { name: 'View Details' })).toBeEnabled()
-    expect(mocks.request).not.toHaveBeenCalled()
+    expect(mocks.request.mock.calls.filter(([route]) => String(route).startsWith('diagnostics.'))).toHaveLength(0)
   })
 
   beforeEach(() => {
@@ -1363,5 +1367,80 @@ describe('ErrorDetailContent update check', () => {
         'A newer version may already fix this error.'
       )
     )
+  })
+})
+
+describe('ErrorDetailContent automatic update check', () => {
+  const UPDATE_AVAILABLE = 'New version 2.1.0 is available and may fix this error.'
+  const updateRouteCalls = (route: string) => mocks.request.mock.calls.filter(([name]) => name === route)
+  const answerQuery = (query: () => Promise<unknown>) => {
+    mocks.request.mockImplementation((route: string) =>
+      route === 'app.updater.query_availability' ? query() : Promise.resolve({})
+    )
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.appUpdateState = undefined
+    // A channel switch drops the reused availability result, so every test asks the feed again.
+    appUpdateCheckService.resumeSharedUpdateSession(appUpdateCheckService.invalidateSharedUpdateCheck())
+    let meta = document.querySelector('meta[name="logger-window-source"]')
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.setAttribute('name', 'logger-window-source')
+      document.head.appendChild(meta)
+    }
+    meta.setAttribute('content', 'mainWindow')
+  })
+
+  afterEach(() => {
+    appUpdateCheckService.endManualUpdateCheck()
+    appUpdateCheckService.setUpdateNotice(null)
+    cleanup()
+  })
+
+  it('offers a newer version when the dialog opens but downloads only after the user agrees', async () => {
+    answerQuery(() => Promise.resolve({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' }))
+    const user = userEvent.setup()
+    renderErrorDetailContent({ error: providerError })
+
+    expect(await screen.findByText(UPDATE_AVAILABLE)).toBeVisible()
+    expect(updateRouteCalls('app.updater.check_for_update')).toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Update now' }))
+    await waitFor(() => expect(updateRouteCalls('app.updater.check_for_update')).toHaveLength(1))
+  })
+
+  it.each([
+    ['the app is current', () => Promise.resolve({ status: 'current', currentVersion: '2.1.0' })],
+    ['this build cannot self-update', () => Promise.resolve({ status: 'unsupported' })],
+    ['the feed cannot be reached', () => Promise.reject(new Error('offline'))]
+  ])('stays quiet when %s', async (_, query) => {
+    answerQuery(query)
+    renderErrorDetailContent({ error: providerError })
+
+    await waitFor(() => expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(1))
+    await act(async () => {})
+    expect(screen.queryByRole('button', { name: 'Update now' })).not.toBeInTheDocument()
+    expect(screen.queryByText(UPDATE_CHECK_FAILED)).not.toBeInTheDocument()
+  })
+
+  it('does not query the feed while an update is already downloading', () => {
+    mocks.appUpdateState = { downloading: true }
+    answerQuery(() => Promise.resolve({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' }))
+    renderErrorDetailContent({ error: providerError })
+
+    expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(0)
+  })
+
+  it('offers to install an update that already downloaded in the background', async () => {
+    mocks.appUpdateState = { downloaded: true, available: true, info: { version: '2.1.0' } }
+    const user = userEvent.setup()
+    renderErrorDetailContent({ error: providerError })
+
+    expect(screen.getByText(UPDATE_AVAILABLE)).toBeVisible()
+    expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(0)
+    await user.click(screen.getByRole('button', { name: 'Update now' }))
+    expect(updateRouteCalls('app.updater.check_for_update')).toHaveLength(0)
   })
 })

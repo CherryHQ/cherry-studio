@@ -1633,6 +1633,7 @@
   "error.unexpected": "發生錯誤",
   "error.unhandled_rejection": "應用程式被未預期的錯誤中斷。",
   "error.unknown": "未知錯誤",
+  "error.update_banner.available": "發現新版本 {{version}}，可能已修正此問題。",
   "error.update_banner.downloading": "正在下載新版本 {{version}}",
   "error.update_banner.failed": "檢查更新失敗，可以到官網下載最新版本。",
   "error.update_banner.open_releases": "開啟官網下載頁",

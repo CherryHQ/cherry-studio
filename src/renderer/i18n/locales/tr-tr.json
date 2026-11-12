@@ -1633,6 +1633,7 @@
   "error.unexpected": "Bir hata oluştu",
   "error.unhandled_rejection": "Beklenmeyen bir hata uygulamayı kesti.",
   "error.unknown": "Bilinmeyen hata",
+  "error.update_banner.available": "Yeni {{version}} sürümü mevcut ve bu hatayı düzeltebilir.",
   "error.update_banner.downloading": "Yeni sürüm {{version}} indiriliyor",
   "error.update_banner.failed": "Güncellemeler denetlenemedi. En son sürümü resmi web sitesinden indirebilirsiniz.",
   "error.update_banner.open_releases": "İndirme sayfasını aç",

@@ -1633,6 +1633,7 @@
   "error.unexpected": "Произошла ошибка",
   "error.unhandled_rejection": "Неожиданная ошибка прервала работу приложения.",
   "error.unknown": "Неизвестная ошибка",
+  "error.update_banner.available": "Доступна новая версия {{version}}, в которой эта ошибка может быть исправлена.",
   "error.update_banner.downloading": "Загрузка новой версии {{version}}",
   "error.update_banner.failed": "Не удалось проверить обновления. Последнюю версию можно скачать на официальном сайте.",
   "error.update_banner.open_releases": "Открыть страницу загрузки",

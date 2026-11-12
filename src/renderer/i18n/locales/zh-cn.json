@@ -1633,6 +1633,7 @@
   "error.unexpected": "出现错误",
   "error.unhandled_rejection": "应用程序被意外错误中断。",
   "error.unknown": "未知错误",
+  "error.update_banner.available": "发现新版本 {{version}}，可能已修复此问题。",
   "error.update_banner.downloading": "正在下载新版本 {{version}}",
   "error.update_banner.failed": "检查更新失败，可以到官网下载最新版本。",
   "error.update_banner.open_releases": "打开官网下载页",
