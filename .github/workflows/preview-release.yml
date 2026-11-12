@@ -1,242 +1,77 @@
-name: Preview Release
-run-name: Preview Release ${{ inputs.platform }} from ${{ inputs.branch }}
+name: Signed Windows x64 Preview
+run-name: Sign PR 23998 Windows x64 preview (8cd3f60)
 
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: "Repository branch to build"
-        required: true
-        default: "main"
-      platform:
-        description: "Build platform"
-        required: true
-        default: "all"
-        type: choice
-        options:
-          - all
-          - windows
-          - mac
-          - linux
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
-  resolve:
-    name: Resolve preview branch
-    if: github.repository == 'CherryHQ/cherry-studio'
-    runs-on: ubuntu-latest
-    outputs:
-      asset_sha: ${{ steps.source.outputs.asset_sha }}
-      source_sha: ${{ steps.source.outputs.source_sha }}
+  sign:
+    name: Sign the verified PR 23998 portable artifact
+    if: >-
+      github.repository == 'CherryHQ/cherry-studio' &&
+      github.ref == 'refs/heads/codex/pr-23998-signed-preview' &&
+      github.actor == 'DeJeune'
+    runs-on: [self-hosted, windows-signing]
+    timeout-minutes: 15
     steps:
-      - name: Resolve source branch
-        id: source
-        shell: bash
+      - name: Download the pinned unsigned preview
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: 43068679639
+          artifact-ids: 13878546617
+          path: ${{ runner.temp }}/pr-23998-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Sign the x64 portable executable
+        shell: powershell
         env:
-          BRANCH: ${{ inputs.branch }}
+          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
+          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
+          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
+          ARTIFACT_DIR: ${{ runner.temp }}/pr-23998-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          git check-ref-format --branch "$BRANCH"
+          $unsigned = Join-Path $env:ARTIFACT_DIR 'Cherry-Studio-2.2.0-preview-8cd3f60-win-x64-portable.exe'
+          $expected = '2af3201ac6d1e29aca5ff4231d3b1df94f9116ceccdd89289d5b108f2cf8b4ba'
+          if ((Get-Item -LiteralPath $unsigned).Length -ne 306718744 -or
+              (Get-FileHash -LiteralPath $unsigned -Algorithm SHA256).Hash -ne $expected) {
+            throw 'Unexpected input artifact size or SHA-256'
+          }
+          if ((Get-AuthenticodeSignature -LiteralPath $unsigned).Status -ne 'NotSigned') {
+            throw 'Expected the original unsigned portable preview'
+          }
+          if (!$env:CHERRY_CERT_PATH -or !$env:CHERRY_CERT_KEY -or !$env:CHERRY_CERT_CSP) {
+            throw 'Missing Windows signing configuration'
+          }
 
-          REMOTE_REF="$(git ls-remote --refs "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$BRANCH")"
-          if [ -z "$REMOTE_REF" ]; then
-            echo "Branch $BRANCH does not exist in $GITHUB_REPOSITORY" >&2
-            exit 1
-          fi
-
-          SOURCE_SHA="${REMOTE_REF%%[[:space:]]*}"
-          echo "asset_sha=${SOURCE_SHA:0:7}" >> "$GITHUB_OUTPUT"
-          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
-          echo "Resolved $BRANCH to $SOURCE_SHA"
-
-  build:
-    name: Build preview ${{ matrix.edition }} (${{ matrix.os }})
-    needs: resolve
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        edition: [global, cn]
-        os: ${{ fromJSON(
-          inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
-          inputs.platform == 'linux' && '["ubuntu-latest"]' ||
-          inputs.platform == 'windows' && '["windows-latest"]' ||
-          inputs.platform == 'mac' && '["macos-latest"]' ||
-          '["macos-latest", "windows-latest", "ubuntu-latest"]'
-          ) }}
-
-    steps:
-      - name: Check out preview commit
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-          ref: ${{ needs.resolve.outputs.source_sha }}
-
-      - name: Install Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: ".node-version"
-
-      - name: macos-latest dependencies fix
-        if: matrix.os == 'macos-latest'
-        run: brew install python-setuptools
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v5
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-
-      - name: Cache pnpm dependencies
-        uses: actions/cache@v6
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Set preview version
-        shell: bash
-        run: |
-          BASE_VERSION="$(node -p "require('./package.json').version.split('-')[0]")"
-          PREVIEW_VERSION="$BASE_VERSION-preview-${{ needs.resolve.outputs.asset_sha }}"
-          npm version "$PREVIEW_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
-          echo "Building preview version $PREVIEW_VERSION from ${{ needs.resolve.outputs.source_sha }}"
-
-      - name: Enable Linux ARM64 addon builds
-        if: matrix.os == 'ubuntu-latest'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-      - name: Build Linux
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }} --publish never
-        env:
-          NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
-          SENTRY_SOURCE_MAP_UPLOAD: "true"
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-
-      - name: Build Mac
-        if: matrix.os == 'macos-latest'
-        run: |
-          sudo -H pip install setuptools
-          pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }} --publish never
-        env:
-          CSC_FOR_PULL_REQUEST: true
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
-          SENTRY_SOURCE_MAP_UPLOAD: "true"
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
-          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
-          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
-          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
-
-      - name: Build Windows
-        if: matrix.os == 'windows-latest'
-        run: pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }} --publish never
-        env:
-          ELECTRON_BUILDER_7Z_FILTER: BCJ
-          NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
-          SENTRY_SOURCE_MAP_UPLOAD: "true"
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-
-      - name: Validate edition preview artifacts
-        run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
-
-      - name: Upload preview x64 installer
-        uses: actions/upload-artifact@v7
-        with:
-          path: |
-            dist/*-x64-setup.exe
-            dist/*-x64.dmg
-            dist/*-x64.AppImage
-          archive: false
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Upload preview arm64 installer
-        uses: actions/upload-artifact@v7
-        with:
-          path: |
-            dist/*-arm64-setup.exe
-            dist/*-arm64.dmg
-            dist/*-arm64.AppImage
-          archive: false
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Upload preview Windows x64 portable
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v7
-        with:
-          path: dist/*-win-x64-portable.exe
-          archive: false
-          if-no-files-found: error
-          retention-days: 3
-
-  summary:
-    name: Preview downloads
-    needs: [resolve, build]
-    if: always() && needs.resolve.result == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-    steps:
-      - name: Summarize preview artifacts
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
-              ...context.repo,
-              run_id: context.runId,
-              per_page: 100
-            });
-            const platforms = { win: 'Windows', mac: 'macOS', linux: 'Linux' };
-            const rows = [];
-            for (const artifact of artifacts.sort((a, b) => a.name.localeCompare(b.name))) {
-              const match = /^Cherry-Studio(-CN)?-(\d+\.\d+\.\d+-preview-[0-9a-f]{7})-(win|mac|linux)-(x64|arm64)(?:-setup\.exe|\.dmg|\.AppImage)$/.exec(artifact.name);
-              if (artifact.expired || !match) continue;
-              const [, cn, version, platform, arch] = match;
-              const size = `${(artifact.size_in_bytes / 1024 / 1024).toFixed(1)} MiB`;
-              const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts/${artifact.id}`;
-              rows.push(`| ${platforms[platform]} | ${cn ? 'CN' : 'Global'} | ${arch} | ${version} | ${size} | [Download](${url}) |`);
+          $signed = Join-Path $env:ARTIFACT_DIR 'Cherry-Studio-2.2.0-preview-8cd3f60-signed-win-x64-portable.exe'
+          $timestampServers = @('http://timestamp.digicert.com', 'http://timestamp.sectigo.com')
+          $verified = $false
+          foreach ($timestamp in $timestampServers) {
+            Copy-Item -LiteralPath $unsigned -Destination $signed -Force
+            & signtool.exe sign /tr $timestamp /td sha256 /fd sha256 /f $env:CHERRY_CERT_PATH /csp $env:CHERRY_CERT_CSP /k $env:CHERRY_CERT_KEY $signed
+            if ($LASTEXITCODE -ne 0) { continue }
+            & signtool.exe verify /pa /tw $signed
+            if ($LASTEXITCODE -eq 0) {
+              $verified = $true
+              break
             }
-            const lines = [
-              '## Preview downloads',
-              '',
-              'Installers are available for 3 days. Sign in to GitHub to download the original file without an extra ZIP archive.',
-              '',
-              'Only available uploads are listed; check the build jobs for failures.',
-              ''
-            ];
-            if (rows.length) {
-              lines.push('| Platform | Edition | Architecture | Version | Size | Download |',
-                '| --- | --- | --- | --- | --- | --- |', ...rows);
-            } else {
-              lines.push('No preview installers are available. Check the build jobs for details.');
-            }
-            await core.summary.addRaw(lines.join('\n') + '\n').write();
+          }
+          if (!$verified) { throw 'Could not sign and verify the portable preview' }
+          $signature = Get-AuthenticodeSignature -LiteralPath $signed
+          if ($signature.Status -ne 'Valid' -or !$signature.TimeStamperCertificate) {
+            throw 'The signed executable lacks a valid timestamped Authenticode signature'
+          }
+          Write-Output "Authenticode publisher $($signature.SignerCertificate.GetNameInfo('SimpleName', $false))"
+          Get-FileHash -LiteralPath $signed -Algorithm SHA256
+
+      - name: Upload the signed portable preview
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          path: ${{ runner.temp }}/pr-23998-${{ github.run_id }}-${{ github.run_attempt }}/Cherry-Studio-2.2.0-preview-8cd3f60-signed-win-x64-portable.exe
+          archive: false
+          if-no-files-found: error
+          retention-days: 3
