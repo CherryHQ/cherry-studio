@@ -2,6 +2,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { dropDowngradeCompatibilityTriggers } from '@test-helpers/db/internal/downgradeTriggers'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
@@ -72,6 +73,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('adds mirror_enabled when upgrading a populated pre-export database', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0030_skill_mirror_export'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     sqlite
       .prepare(`INSERT INTO agent_global_skill
       (id, name, folder_name, source, content_hash, is_enabled, created_at, updated_at)
@@ -91,7 +93,8 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('adds diagnostic history to a populated database and retains it after reopening', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0037_agent_avatar'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const now = Date.now()
     sqlite
       .prepare(
@@ -121,6 +124,7 @@ describe('applyMigrations over a populated database', () => {
   it('preserves legacy paired devices and creates durable receipts with device cascade', () => {
     sqlite.pragma('foreign_keys = ON')
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0025_remote-access'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const insertDevice = sqlite.prepare(`INSERT INTO api_gateway_paired_device
       (id, name, platform, token_hash, created_at, updated_at)
       VALUES (?, ?, 'ios', ?, 1000, 2000)`)
@@ -204,6 +208,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('classifies only proven heartbeat sessions while preserving conversation data', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0024_lying_shatterstar'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const now = Date.now()
     sqlite
       .prepare(`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
@@ -266,6 +271,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO mcp_server (id, name, type, command, install_source, is_active, created_at, updated_at)
@@ -290,6 +296,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('carries mini_app rows through the kind rebuild and calls every pre-existing one a site', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO mini_app (app_id, name, url, order_key, created_at, updated_at)
@@ -318,6 +325,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('widens the ai_usage_record source_type check to accept mini-app without dropping records', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const now = Date.now()
     // A REALISTIC row, because the table carries four composite identity checks: an
     // `invocation` needs a provider and model, a non-null `source_type` needs a
@@ -362,6 +370,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('moves provider dialect overrides to their endpoints before dropping api_features', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0012_sink_endpoint_dialect'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO user_provider
@@ -425,6 +434,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('quarantines legacy channel sessions without changing conversation history', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0011_rare_vertigo'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const now = Date.now()
     sqlite
       .prepare(
@@ -494,6 +504,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('preserves every file_entry row and its references across the cleanup_policy recreate', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0004_fresh_roland_deschain'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     seedBaselineRows()
 
     applyMigrations(db, resolveMigrationsPath())
@@ -532,6 +543,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('keeps the recreated table enforcing its constraints on new writes', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0004_fresh_roland_deschain'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     seedBaselineRows()
     applyMigrations(db, resolveMigrationsPath())
 
@@ -563,6 +575,7 @@ describe('applyMigrations over a populated database', () => {
     // migration created a referenced file after the fixed journal timestamp used by the first
     // implementation of this backfill.
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0003_slow_proudstar'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const oldFixedCutoff = 1785514531244
     const fileCreatedAt = oldFixedCutoff + 60_000
     const migrationCompletedAt = fileCreatedAt + 60_000
@@ -1021,6 +1034,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('enables existing skills globally without changing per-agent preferences', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0008_abnormal_may_parker'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const now = Date.now()
     sqlite
       .prepare(
@@ -1055,6 +1069,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('preserves populated prompts when adding visibility and bindings', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0015_chief_morgan_stark'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     sqlite
       .prepare(
         `INSERT INTO prompt (id, title, content, order_key, created_at, updated_at)
@@ -1117,6 +1132,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('moves legacy sticky session pointers into the constrained relation', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0005_slow_obadiah_stane'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const now = Date.now()
     sqlite
       .prepare(
@@ -1204,6 +1220,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('backfills cancel_requested_at from updated_at only for cancel-requested job rows', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0020_wooden_fat_cobra'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO job
@@ -1235,6 +1252,7 @@ describe('applyMigrations over a populated database', () => {
     // forward past it once a later migration exists, and the NOT NULL
     // last_activity_at recreate would reject the seed rows below.
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0007_flimsy_mentor'))
+    dropDowngradeCompatibilityTriggers(sqlite)
 
     sqlite
       .prepare(
@@ -1348,6 +1366,7 @@ describe('applyMigrations over a populated database', () => {
   })
   it('preserves pre-avatar chat data and refs while adding avatar ownership and the author role', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0036_assistant_avatar'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     const emoji = '👩🏽‍💻'
     sqlite
       .prepare(
@@ -1464,7 +1483,8 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
   })
   it('migrates populated agent avatar ownership and message references', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0037_agent_avatar'))
+    dropDowngradeCompatibilityTriggers(sqlite)
     sqlite.exec(`INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at) VALUES ('agent', 'claude-code', 'Agent', '', 'a0', 1, 1);
       INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at) VALUES ('ws', 'Workspace', '/tmp/ws', 'user', 'a0', 1, 1);
       INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, last_activity_at, created_at, updated_at) VALUES ('session', 'agent', 'Session', 'ws', 'a0', 1, 1, 1);

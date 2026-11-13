@@ -127,6 +127,8 @@ The task exposes `reuseSessionId`, run records expose `TaskRunLogEntity.sessionI
 
 Store the one-to-many ownership once in `agent_session.taskId`, referencing `job_schedule.id`. `isTaskReuseTarget` selects at most one owned session per task, enforced by a partial unique index; a CHECK rejects reuse targets without an owner. Clearing reuse preserves task ownership and ordinary-topic exclusion. Agent task deletion clears the reuse marker through `AgentTaskService` before deleting the schedule in the same transaction. The generic `JobScheduleService` has no session dependency. Restoring a conversation clears both fields. Two task foreign keys were rejected because they duplicate the owner identity and can disagree; a separate join table is unnecessary for one-to-many ownership.
 
+The nullable legacy `task_schedule_id` column is a 2.1.10 downgrade compatibility projection, not an ownership source or foreign key. Database triggers keep it equal to `taskId` only for the selected reuse target, otherwise NULL; a `BEFORE DELETE` safeguard on `job_schedule` clears reuse before the canonical FK clears ownership for the frozen older writer. Deleting a schedule through the generic service now succeeds for an owned session: the safeguard clears the reuse marker first and the canonical foreign key then clears ownership. Before returning to 2.1.10, users must open a build carrying this fix once and let startup complete; if already affected, reopen that build first. Direct 2.2.0 → unchanged 2.1.10 is not repaired. Retirement of the projection is a future decision. Any future rebuild of `agent_session` or `job_schedule` must account for the cross-table delete trigger. Database compatibility tests do not establish full application compatibility or successful Agent answers.
+
 The unshipped migration `0035_agent_session_task_ownership` converts the previous unique binding into ownership plus the reuse marker and backfills other owned sessions from surviving job metadata/output. Its table rebuild must preserve messages, child sessions, and timestamps. Historical runs whose logs and binding are already gone cannot be attributed by this migration.
 
 Resolve the right pane in this order:
@@ -243,6 +245,8 @@ If repeated group scans cause noticeable stalls, address them within the owning 
 | Group only the currently fetched 50 tasks | Produces incomplete groups, incorrect totals, and missing tasks on later pages |
 | Classify using `enabled` alone | Mislabels completed schedules as paused and loses the missed reason and its action restrictions |
 | Keep a separate Missed group | A narrow archival edge case adds a fourth category; Paused can retain its reason and actions |
+| Refuse the rollback with a diagnosis only | Leaves the user with no usable version; #23649 already reports this state, while this proposal keeps a fixed-build-first path back to 2.1.10 |
+| Rebuild the older schema / write a generic backward-migration engine | Rewrites shipped migrations and cannot be verified against every past release; the required compatibility projection is one nullable column |
 
 ## Acceptance criteria
 
@@ -257,10 +261,14 @@ If repeated group scans cause noticeable stalls, address them within the owning 
 - AC9 — The independent task module provides completed/missed lookup, execution-history selection, and applicable management actions before the Settings entry is removed; old URLs for every task state redirect with selection preserved, the Agents entry remains usable, and leaving the page does not stop scheduling or active execution. (verification: renderer + Electron; owner: feature implementer)
 - AC10 — Light, dark, keyboard, and small-window use remain functional; group and log requests respect their budgets, with no added polling or per-row N+1 work and measured large-data scan costs. (verification: renderer + Electron + performance measurement; owner: feature implementer)
 - AC11 — Groups collapse independently without losing conversation selection; the task header replaces Agent controls only on this page. The row menu exposes only derived-state-appropriate Continue/Pause, Run now, Edit, and red Delete actions; missed rows within Paused never offer Continue; opening it does not execute commands, editing retains existing values, and deletion requires confirmation with retry on failure. (verification: renderer + Electron; owner: feature implementer)
+- AC12 — After this build has opened a populated data directory and completed startup, 2.1.10 opens that same directory, displays its existing session list, and completes an Agent turn with a successful answer in an existing session. (verification: versioned Electron builds + successful Agent answer; owner: feature implementer)
+- AC13 — The persisted `task_schedule_id` equals `task_id` for the selected reuse target and is NULL for every other session after bind, reassignment, release, trash, restore, and schedule deletion, with `recursive_triggers` both OFF and ON. (verification: database compatibility + service tests; owner: data implementer)
+- AC14 — A populated 2.2.0 database migrates forward through 0038 with ordinary sessions and non-reuse task history projected to NULL and the reuse target projected to its task ID; canonical ownership, message payloads, timestamps, and attachment reference rows remain unchanged, foreign-key checks are empty, and integrity checks return `ok`. (verification: populated production-migration compatibility tests; owner: data implementer)
 
 Implementation verification covers `AgentTaskService`, agents handlers, the entry seeder, the form, route adapters, association races, and affected existing consumers.
 Database tests use `setupTestDatabase()`. Run targeted tests with explicit file paths, plus desktop checks for more than 50 tasks in each visible group, including mixed ordinary paused and missed tasks and more than 50 history records, two views, and multiple windows.
 This documentation change runs the docs gates only; none of the product criteria above is claimed as passed.
+Implementation verification also covers `src/main/data/db/__tests__/agentSessionDowngradeCompatibility.test.ts`; the fixed-build-first prerequisite is a release note, not a code path.
 
 ## Risks
 
@@ -268,3 +276,4 @@ This documentation change runs the docs gates only; none of the product criteria
 - Scan cost: three filtered groups may repeat the existing task scan, and log totals require counting. Measure those costs instead of describing limited log hydration as constant-cost database work.
 - End-state migration: removing Settings before completed/missed lookup, history, and applicable actions work in the independent module would hide existing capabilities. Verify all three groups, all four derived states, and legacy links together; do not close an open conversation when its task changes state.
 - Scheduled execution and user input may share a reused session. Preserve existing concurrency, busy-state, and approval rules; the new page must not bypass them or make pause appear to cancel active work.
+- Compatibility projection: this is a temporary contract with two representations of the reuse binding. A future rebuild of `agent_session` or `job_schedule` must handle the projection and the cross-table delete trigger throughout the rebuild; replaying startup SQL afterward alone is insufficient.

@@ -266,6 +266,13 @@
       "when": 1794385698412,
       "tag": "0037_agent_avatar",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1794548559247,
+      "tag": "0038_cold_vengeance",
+      "breakpoints": true
     }
   ],
   "version": "7"

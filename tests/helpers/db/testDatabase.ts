@@ -12,6 +12,7 @@ import { registerKnowledgeFunctions } from '@data/db/knowledgeFunctions'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { DbType, ISeeder } from '@data/db/types'
 
+import { dropDowngradeCompatibilityTriggers } from './internal/downgradeTriggers'
 import { copyMigrationPrefix, resolveMigrationsPath } from './internal/migrationsPath'
 import { truncateAll } from './internal/truncate'
 
@@ -96,6 +97,7 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
       ? copyMigrationPrefix(join(tempDir, 'migrations'), options.beforeMigration)
       : resolveMigrationsPath()
     applyMigrations(db, migrations)
+    if (options.beforeMigration) dropDowngradeCompatibilityTriggers(sqlite)
 
     if (options.seeders?.length) {
       new SeedRunner(db).runAll(options.seeders)

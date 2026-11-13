@@ -1413,13 +1413,28 @@ describe('AgentSessionService', () => {
     expect(agentTaskService.getTaskById(agentTask.id)?.reuseSessionId).toBeNull()
   })
 
-  it('sets the internal relation null when its task schedule is deleted', async () => {
-    const task = createTaskSchedule()
+  it('detaches sessions on generic and agent-task deletion while rollback preserves them', async () => {
+    let task = createTaskSchedule()
     const session = await createSession('Task deletion FK')
     bindTaskSession(session.id, task.id)
 
-    expect(() => jobScheduleService.delete(task.id)).toThrow()
+    expect(() =>
+      dbh.db.transaction(() => {
+        jobScheduleService.delete(task.id)
+        throw new Error('rollback generic task deletion')
+      })
+    ).toThrow('rollback generic task deletion')
+    expect(jobScheduleService.getById(task.id)?.id).toBe(task.id)
     expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
+
+    expect(() => jobScheduleService.delete(task.id)).not.toThrow()
+    expect(jobScheduleService.getById(task.id)).toBeNull()
+    expect(agentSessionService.getById(session.id)).toMatchObject({ id: session.id })
+    const detachedSession = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()
+    expect(detachedSession).toMatchObject({ id: session.id, taskId: null, isTaskReuseTarget: false })
+
+    task = createTaskSchedule()
+    bindTaskSession(session.id, task.id)
     expect(() =>
       dbh.db.transaction((tx) => {
         agentTaskService.deleteScheduleTx(tx, task.id)

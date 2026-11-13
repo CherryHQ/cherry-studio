@@ -127,6 +127,8 @@ Status: proposed
 
 一对多归属只存于 `agent_session.taskId`，外键指向 `job_schedule.id`。`isTaskReuseTarget` 从所属会话中选择每个任务至多一个复用目标，由部分唯一索引保证；CHECK 拒绝没有所属任务的复用目标。清除复用标记保留任务归属，仍不进入普通话题列表。删除 Agent 任务时，通过 `AgentTaskService` 在同一事务中先清除复用标记，再删除计划。通用的 `JobScheduleService` 不依赖会话业务。恢复对话时清除这两个字段。不采用两个任务外键，因为它们重复存储归属标识且可能不一致；一对多归属也不需要单独的关联表。
 
+可空的旧列 `task_schedule_id` 是面向 2.1.10 降级的兼容投影，不是归属来源，也不是外键。数据库触发器仅为选中的复用目标将其保持为 `taskId`，其他会话为 NULL；`job_schedule` 上的 `BEFORE DELETE` 保护会先清除复用标记，再由规范外键清除归属，以支持冻结的旧版写入逻辑。通过通用服务删除仍被会话归属的计划现在会成功：保护触发器先清除复用标记，随后由规范外键清除归属。返回 2.1.10 前，用户必须先打开包含此修复的构建一次并等待启动完成；若已受影响，应先重新打开该构建。直接从 2.2.0 安装未修改的 2.1.10 不会得到修复。何时移除此投影留待未来决定。今后重建 `agent_session` 或 `job_schedule` 时，必须处理这个跨表删除触发器。数据库兼容性测试不能证明完整应用兼容性或 Agent 能成功回答。
+
 尚未发布的迁移 `0035_agent_session_task_ownership` 将旧的唯一绑定转换为归属和复用标记，并从保留的 job metadata/output 回填其他会话的归属。重建表必须保留消息、子会话和时间戳。历史执行的日志和绑定都已不存在时，此迁移无法识别其归属。
 
 按以下顺序解析右侧内容：
@@ -243,6 +245,8 @@ Status: proposed
 | 仅对当前取回的 50 条任务分组 | 分组和总数不完整，后续页的任务会遗漏 |
 | 仅按 `enabled` 分类 | 会把已完成的计划误标为暂停，丢失错过原因及其操作限制 |
 | 保留独立的已错过分类 | 针对归档边界场景增加第四个分类；已暂停可保留其原因和操作 |
+| 仅诊断并拒绝回退 | 用户仍没有可用版本；#23649 已报告此状态，而本方案保留先打开修复构建再返回 2.1.10 的路径 |
+| 重建旧版结构 / 编写通用向后迁移引擎 | 会改写已发布的迁移，且无法针对每个历史版本验证；所需的兼容投影只有一个可空列 |
 
 ## Acceptance criteria
 
@@ -258,10 +262,14 @@ Status: proposed
 - AC10 — 浅色、深色、键盘和小窗口操作正常；分组与日志请求遵守预算，不增加轮询或逐行 N+1 工作，并测量大数据量下的扫描成本。 (verification: renderer + Electron + performance measurement; owner: feature implementer)
 
 - AC11 — 各组独立折叠且保留对话选择；任务顶栏仅在本页替代智能体控件。行菜单仅展示适用于当前派生状态的继续/暂停、立即执行、编辑和红色删除；已暂停中的已错过任务不提供继续；打开菜单不执行命令，编辑保留原值，删除需确认且失败后可重试。 (verification: renderer + Electron; owner: feature implementer)
+- AC12 — 此构建打开已有数据的数据目录并完成启动后，2.1.10 能打开同一目录、显示其中已有的会话列表，并在已有会话中完成一次 Agent 轮次且成功回答。 (verification: versioned Electron builds + successful Agent answer; owner: feature implementer)
+- AC13 — 在绑定、重新分配、释放、移入回收站、恢复和删除计划后，持久化的 `task_schedule_id` 对选中的复用目标等于 `task_id`，对其他所有会话均为 NULL；`recursive_triggers` 为 OFF 和 ON 时均成立。 (verification: database compatibility + service tests; owner: data implementer)
+- AC14 — 已有数据的 2.2.0 数据库向前迁移至 0038 后，普通会话和非复用任务历史的投影为 NULL，复用目标的投影为其任务 ID；规范归属、消息载荷、时间戳和附件引用行保持不变，外键检查结果为空，完整性检查返回 `ok`。 (verification: populated production-migration compatibility tests; owner: data implementer)
 
 实现验证覆盖 `AgentTaskService`、agents handler、入口 seeder、表单、路由适配、关联解析竞态及受影响的现有调用方。
 数据库测试使用 `setupTestDatabase()`。按明确文件路径运行定向测试，并验证三个可见分类各超过 50 个任务，其中包含普通暂停与已错过任务的混合结果，以及超过 50 条历史记录、两个视图和多个窗口的桌面行为。
 本次文档改动只运行文档检查，不声称上述任何产品验收项已经通过。
+实现验证还覆盖 `src/main/data/db/__tests__/agentSessionDowngradeCompatibility.test.ts`；必须先打开修复构建这一前提应写入发布说明，而不是实现为代码路径。
 
 ## Risks
 
@@ -269,3 +277,4 @@ Status: proposed
 - 扫描成本：三个筛选组可能重复现有任务扫描，日志总数也需要计数。测量实际成本，不能把限制日志加载行数描述成数据库工作为固定成本。
 - 结束状态迁移：独立模块尚未提供已完成和已错过任务的查询、历史及适用操作时就移除设置页，会使既有能力不可见。三个分类、四种派生状态与旧链接必须一起验收；任务改变状态时，不关闭已打开的对话。
 - 定时执行与用户输入可能复用同一会话。保留现有并发、忙碌状态和审批规则；新页面不能绕过这些规则，也不能让暂停看起来会取消正在执行的工作。
+- 兼容投影：这是复用绑定具有两种表示的临时契约。今后重建 `agent_session` 或 `job_schedule` 时，必须在整个重建过程中处理投影和跨表删除触发器；仅在之后重放启动 SQL 并不足够。
