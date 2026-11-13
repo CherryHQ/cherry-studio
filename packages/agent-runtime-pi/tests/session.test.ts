@@ -2,10 +2,11 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 import { defineTool } from '@earendil-works/pi-coding-agent'
-import { obj } from '@earendil-works/pi-schema'
+import { obj, str } from '@earendil-works/pi-schema'
 import { describe, expect, it } from 'vitest'
 
-import { assistantReply, createTestSession, lastAssistant, scriptedModel, tempDir } from './sessionSupport'
+import type { AgentRuntimeModel } from '../src/session'
+import { assistantReply, createTestSession, lastAssistant, MODEL, scriptedModel, tempDir } from './sessionSupport'
 
 const noopTool = (name: string) =>
   defineTool({
@@ -96,6 +97,63 @@ describe('createAgentRuntimeSession', () => {
     await session.prompt('hi')
 
     expect(requests[0].tools?.map((tool) => tool.name).sort()).toEqual(['extension_tool', 'host_tool', 'read'])
+  })
+
+  async function callWithIntent(model?: AgentRuntimeModel) {
+    const executed: unknown[] = []
+    const gated: unknown[] = []
+    const strictTool = defineTool({
+      name: 'host_tool',
+      label: 'host_tool',
+      description: 'Strict about its arguments',
+      parameters: obj({ path: str() }),
+      async execute(_id, params) {
+        executed.push(params)
+        return { content: [{ type: 'text', text: 'done' }], details: undefined }
+      }
+    })
+    const call = { path: 'a.ts', intent: 'find where the key is loaded' }
+    const { model: stream, calls: requests } = scriptedModel([
+      assistantReply([{ type: 'toolCall', id: 'call-1', name: 'host_tool', arguments: call }], 'toolUse'),
+      assistantReply([{ type: 'text', text: 'ok' }])
+    ])
+    const { session } = await createTestSession({
+      stream,
+      model,
+      builtinTools: ['read'],
+      tools: [strictTool],
+      extensionFactories: [
+        (pi) => {
+          pi.registerTool(noopTool('extension_tool'))
+          pi.on('tool_call', (event) => void gated.push(structuredClone(event.input)))
+        }
+      ]
+    })
+    await session.prompt('hi')
+    return { executed, gated, requests }
+  }
+
+  it('offers a DeepSeek model an intent on every tool, and runs the call without it', async () => {
+    const { executed, gated, requests } = await callWithIntent({ ...MODEL, id: 'deepseek-v4.1-flash' })
+
+    for (const tool of requests[0].tools ?? []) {
+      expect(tool.parameters).toMatchObject({ properties: { intent: { type: 'string' } } })
+    }
+    expect(requests[0].systemPrompt).toContain('`intent`')
+    expect(executed).toEqual([{ path: 'a.ts' }])
+    expect(gated).toEqual([{ path: 'a.ts' }])
+    expect(JSON.stringify(requests[1].messages)).toContain('find where the key is loaded')
+  })
+
+  it('offers other models no intent, yet still runs a call that carries one', async () => {
+    const { executed, gated, requests } = await callWithIntent()
+
+    for (const tool of requests[0].tools ?? []) {
+      expect(tool.parameters).not.toHaveProperty('properties.intent')
+    }
+    expect(requests[0].systemPrompt).not.toContain('`intent`')
+    expect(executed).toEqual([{ path: 'a.ts' }])
+    expect(gated).toEqual([{ path: 'a.ts' }])
   })
 
   it('keeps concurrent sessions of the same model on their own providers', async () => {

@@ -1126,30 +1126,15 @@ describe('release workflow gates', () => {
     expect(publish.run).toBe('pnpm changeset publish --tag snapshot --no-git-tag')
   })
 
-  it('builds and stages both editions for every selected release platform', () => {
+  it('hands both editions directly from the build matrix to COS', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
-    const releaseJob = workflow.jobs.release
-    const validationStep = releaseJob.steps.find(
-      (step: { name?: string }) => step.name === 'Validate edition release artifacts'
-    )
-    const channelStep = releaseJob.steps.find(
-      (step: { name?: string }) => step.name === 'Resolve update manifest channel'
-    )
-    const stagingSteps = releaseJob.steps.filter((step: { name?: string }) => step.name?.startsWith('Stage '))
-    const historyStep = releaseJob.steps.find((step: { name?: string }) => step.name === 'Stage stable release history')
-
-    expect(releaseJob.strategy.matrix.edition).toEqual(['global', 'cn'])
-    expect(validationStep.run).toContain('validate-edition-artifacts.js "${{ matrix.edition }}"')
-    expect(channelStep.run).toContain('getReleaseChannel')
-    expect(stagingSteps).toHaveLength(4)
-    for (const step of stagingSteps.slice(0, 3)) {
-      expect(step.with.name).toContain('${{ matrix.edition }}')
-      expect(step.with.path).toContain('dist/${{ steps.release-channel.outputs.channel }}*.yml')
+    const build = workflow.jobs.release
+    expect(build.strategy.matrix.edition).toEqual(['global', 'cn'])
+    const upload = build.steps.find((step: { name?: string }) => step.name === 'Upload release files directly to COS')
+    expect(upload.run).toContain('release-cos.py upload')
+    for (const job of Object.values(workflow.jobs) as { steps: { uses?: string }[] }[]) {
+      expect(job.steps.some((step) => /^actions\/(upload|download)-artifact@/.test(step.uses ?? ''))).toBe(false)
     }
-    expect(stagingSteps[0].with.path).toContain('dist/*.blockmap')
-    expect(stagingSteps[1].with.path).toContain('dist/*.blockmap')
-    expect(historyStep.if).toContain("matrix.edition == 'global'")
-    expect(historyStep.with.path).toBe('resources/cherry-studio/release-history.json')
   })
 
   it('accepts the release-notes publication script as valid shell syntax', () => {

@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.5.2
+
+### Patch Changes
+
+- [#23402](https://github.com/CherryHQ/cherry-studio/pull/23402) [`5ed9f0c`](https://github.com/CherryHQ/cherry-studio/commit/5ed9f0c7068eae541ac9897ce7c75a2b446a3578) Thanks [@copilot-swe-agent](https://github.com/apps/copilot-swe-agent)! - Route Claude Opus 5.5 Bedrock requests through the adaptive reasoning wire contract.
+
 ## 0.5.1
 
 ### Patch Changes
