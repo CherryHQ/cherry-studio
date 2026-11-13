@@ -510,7 +510,13 @@ describe('local history atomic import', () => {
     )
   })
   it('sends imported history before a new prompt through the actual Pi gateway', async () => {
-    await source()
+    const file = await source()
+    const records = (await readFile(file, 'utf8')).split('\n').map((line) => JSON.parse(line))
+    records[1].message.content = [
+      { type: 'text', text: 'Message 1' },
+      { type: 'tool_use', id: 'past-call', name: 'historical_probe', input: {} }
+    ]
+    await writeFile(file, records.map((record) => JSON.stringify(record)).join('\n'))
     const p = await preview()
     const [created] = await service.commit('window', p.previewId, [p.items[0].ref])
     const directory = path.join(root, 'feature.agents.pi.sessions')
@@ -529,7 +535,13 @@ describe('local history atomic import', () => {
     const input = JSON.stringify(requests[0].messages)
     expect(input.indexOf('Message 0')).toBeLessThan(input.indexOf('Message 1'))
     expect(input.indexOf('Message 1')).toBeLessThan(input.indexOf('Continue this task'))
-    expect(Object.keys(requests[0].tools)).toEqual([])
+    expect(input).toContain('historical_probe')
+    expect(requests[0].tools).not.toHaveProperty('historical_probe')
+    expect(
+      requests[0].messages.every(
+        (message) => typeof message.content === 'string' || message.content.every((part) => part.type === 'text')
+      )
+    ).toBe(true)
     expect(created.initialization).toBe('ready')
   })
   it('stops after a committed session when cancellation arrives', async () => {
