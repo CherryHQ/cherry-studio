@@ -8,7 +8,17 @@ import { runInNewContext } from 'node:vm'
 import type { JSONReport, JSONReportSuite } from '@playwright/test/reporter'
 import { parse } from 'yaml'
 
-import { getCase, missingCapabilities, PHASE_IDS, selectCases, supportsPlatform, TASK_SELECTIONS } from '../cases'
+import {
+  caseGrep,
+  getCase,
+  missingCapabilities,
+  parseTaskSelection,
+  PHASE_IDS,
+  resolveWorkflowTasks,
+  selectCases,
+  supportsPlatform,
+  TASK_SELECTIONS
+} from '../cases'
 
 describe('regression execution plan', () => {
   it('prepares the isolated runtime before native fixtures can start any Electron instance', () => {
@@ -46,12 +56,11 @@ describe('regression execution plan', () => {
     }
   )
 
-  it('offers every supported task in the workflow dropdown with full regression as the default', () => {
+  it('accepts comma-separated tasks while preserving full regression as the default', () => {
     const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
     const task = workflow.on.workflow_dispatch.inputs.task
-    expect(task.type).toBe('choice')
+    expect(task.type).toBe('string')
     expect(task.default).toBe('all')
-    expect(task.options).toEqual(TASK_SELECTIONS)
   })
 
   it('caches only tool downloads and still installs and checks every tool on a cache hit', () => {
@@ -155,8 +164,9 @@ describe('regression execution plan', () => {
     const step = workflow.jobs.test.steps.find(
       (step: { name: string }) => step.name === 'Prepare Everything MCP package'
     )
-    for (const task of ['all', 'mcp-skills', 'everything-mcp', 'notes']) {
-      expect(runInNewContext(step.if, { needs: { resolve: { outputs: { task } } } })).toBe(task !== 'notes')
+    for (const task of ['all', 'mcp-skills', 'everything-mcp', 'notes', 'notes,mcp-skills']) {
+      const outputs = resolveWorkflowTasks({ task })
+      expect(runInNewContext(step.if, { needs: { resolve: { outputs } } })).toBe(task !== 'notes')
     }
   })
 
@@ -193,46 +203,51 @@ describe('regression execution plan', () => {
   })
 })
 
-it.each(['all', 'notes', 'notes-smoke', 'knowledge', 'code-tools', 'native-recovery'] as const)(
-  'discovers the selected %s cases through Playwright without matching another task prefix',
-  (task) => {
-    const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-enumeration-'))
-    try {
-      const cli = createRequire(import.meta.url).resolve('@playwright/test/cli')
-      const args = [cli, 'test', '--config', 'playwright.regression.config.ts', '--list', '--reporter=json']
-      if (task !== 'all') args.push('--grep', `@${task}(?:\\s|$)`)
-      const report = JSON.parse(
-        execFileSync(process.execPath, args, {
-          encoding: 'utf8',
-          timeout: 20_000,
-          env: { ...process.env, CHERRY_TEST_RUN_DIR: directory }
-        })
-      ) as JSONReport
-      const collect = (suites: JSONReportSuite[]): Array<{ id: string | undefined; tasks: string[]; phase: string }> =>
-        suites.flatMap((suite) => [
-          ...suite.specs.flatMap((spec) =>
-            spec.tests.map((test) => ({
-              id: test.annotations.find(({ type }) => type === 'regression-case')?.description,
-              tasks: spec.tags,
-              phase: basename(spec.file, '.test.ts')
-            }))
-          ),
-          ...collect(suite.suites ?? [])
-        ])
-      expect(report.errors).toEqual([])
-      const discovered = collect(report.suites)
-      const selected = selectCases(task).map(({ id, tasks, phase }) => ({ id, tasks, phase }))
-      expect(discovered).toHaveLength(selected.length)
-      for (const phase of PHASE_IDS) {
-        expect(discovered.filter((test) => test.phase === phase)).toEqual(
-          selected.filter((test) => test.phase === phase)
-        )
-      }
-    } finally {
-      rmSync(directory, { recursive: true, force: true })
+it.each([
+  'all',
+  'notes',
+  'notes-smoke',
+  'knowledge',
+  'code-tools',
+  'native-recovery',
+  'notes-smoke,startup-smoke,notes-smoke'
+] as const)('discovers the selected %s cases through Playwright without matching another task prefix', (task) => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-enumeration-'))
+  try {
+    const cli = createRequire(import.meta.url).resolve('@playwright/test/cli')
+    const args = [cli, 'test', '--config', 'playwright.regression.config.ts', '--list', '--reporter=json']
+    const selection = parseTaskSelection(task)
+    const grep = caseGrep(selection)
+    if (grep) args.push('--grep', grep)
+    const report = JSON.parse(
+      execFileSync(process.execPath, args, {
+        encoding: 'utf8',
+        timeout: 20_000,
+        env: { ...process.env, CHERRY_TEST_RUN_DIR: directory }
+      })
+    ) as JSONReport
+    const collect = (suites: JSONReportSuite[]): Array<{ id: string | undefined; tasks: string[]; phase: string }> =>
+      suites.flatMap((suite) => [
+        ...suite.specs.flatMap((spec) =>
+          spec.tests.map((test) => ({
+            id: test.annotations.find(({ type }) => type === 'regression-case')?.description,
+            tasks: spec.tags,
+            phase: basename(spec.file, '.test.ts')
+          }))
+        ),
+        ...collect(suite.suites ?? [])
+      ])
+    expect(report.errors).toEqual([])
+    const discovered = collect(report.suites)
+    const selected = selectCases(selection).map(({ id, tasks, phase }) => ({ id, tasks, phase }))
+    expect(discovered).toHaveLength(selected.length)
+    for (const phase of PHASE_IDS) {
+      expect(discovered.filter((test) => test.phase === phase)).toEqual(selected.filter((test) => test.phase === phase))
     }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
   }
-)
+})
 
 it('keeps failed phase steps visible while allowing later phases to run', () => {
   const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))

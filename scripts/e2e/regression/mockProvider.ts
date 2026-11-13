@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import type { TaskSelection } from './cases'
+import { parseTaskSelection, type TaskSelection } from './cases'
 import type { RunPaths } from './paths'
 import { findListeningPid, isAlive, processCommand, terminateExactProcess, waitForExit } from './process'
 import { readRun, updateRunMetadata, writeRun } from './state'
@@ -39,7 +39,8 @@ export interface MockRecord {
 }
 
 export function assertMockTask(task: TaskSelection): void {
-  if (!supportedTasks.includes(task)) throw new Error(`Task ${task} requires provider_mode=real`)
+  const tasks = typeof task === 'string' ? [task] : task
+  if (tasks.some((task) => !supportedTasks.includes(task))) throw new Error(`Task ${task} requires provider_mode=real`)
 }
 
 export function readMockRecord(paths: RunPaths): MockRecord {
@@ -72,7 +73,7 @@ export async function verifyMockProvider(paths: RunPaths): Promise<MockRecord> {
 export async function startMockProvider(paths: RunPaths): Promise<MockRecord> {
   const run = readRun(paths.runState)
   if (run.metadata.providerMode !== 'mock') throw new Error('mock-start requires an initialized mock run')
-  assertMockTask(run.metadata.task)
+  assertMockTask(parseTaskSelection(run.metadata.task))
   if (existsSync(join(paths.root, 'mock.json'))) {
     const previous = readMockRecord(paths)
     if (isAlive(previous.pid)) {

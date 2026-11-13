@@ -42,7 +42,7 @@ Process-group shutdown retains each verified member's PID, command and start tim
 the runner exits. A reused PID or an unknown orphan cannot inherit that proof.
 After a normal development-app exit, cleanup allows its process group to finish naturally before
 rechecking ownership. A surviving unknown process still blocks termination.
-The explicit profile/restart operation prepares Windows connections by closing non-main windows before CDP attaches; simply locating a window does not perform this preparation. Both branch and installer launches enable the main-process inspector for this explicit compatibility step.
+Before each new CDP connection, including scenario reconnections, the controller prepares Windows targets by closing non-main windows. Both branch and installer launches enable the main-process inspector for this compatibility step.
 Pre-main restart dialogs can use that verified inspector owner before CDP is ready; command and
 runner ancestry checks still apply. Electron termination continues to require CDP ownership.
 Windows native dialogs can expose their controls as UIA panes. The adapters match
@@ -117,11 +117,14 @@ For branch runs selecting `all`, the workflow closes the regression instance and
 for the standalone smoke suite with isolated per-test profiles and no retries. Each platform's
 smoke HTML/JSON report is bundled separately and its counts appear in the aggregate summary.
 A failed smoke run fails both platform and aggregate jobs; release-installer runs use the regression suite.
+For a narrower branch run, set `settings_search_smoke=true` to add only
+`tests/e2e/smoke/settingsSearchKeepOpen.test.ts` after the selected regression cases.
 
 The workflow keeps one separately timed step per phase (21 today). Failed steps remain failed;
 explicit `!cancelled()` guards allow later phases to collect results. The GitHub reporter runs after
 credential redaction and annotates failed cases before the final report is available. Each phase calls
 `run-phase`; the controller intersects it with the selected task and returns immediately for unselected phases.
+The owned application remains available between phases; the workflow stops it after all phases, before standalone smoke and final cleanup.
 `cases.ts` is the execution manifest. Each case declares `tasks`: the first entry is
 its module task, followed by any focused tasks. Module names follow the case library's
 modules, using English kebab-case without execution-order prefixes. For example,
@@ -131,10 +134,12 @@ only the create-and-save scenario. `knowledge` includes the library scenarios an
 and match `tests/e2e/regression/phases/<phaseId>.test.ts`. Their first occurrence in
 the manifest determines execution order; workflow steps must follow that order.
 
-The workflow task dropdown lists `all`, module tasks, then focused tasks. When adding a
-task, update the workflow options too; the manifest tests enforce that the lists stay
-in sync. Reports retain the selected task ID. Existing reports keep their recorded
-task names and outcomes.
+The workflow's string `task` input accepts comma-separated module or focused task IDs,
+such as `chat-core,browser,settings`. Whitespace and duplicate IDs are normalized;
+overlapping cases execute once in manifest order. Unknown or empty entries and mixing
+`all` with other IDs fail before desktop runners are allocated. `all` remains the full
+regression default. Reports retain the normalized comma-separated selection; existing
+reports keep their recorded task names and outcomes.
 `native-settings` selects native notification verification. The complete Settings phase allows 40 minutes on hosted runners.
 `native-recovery` groups notifications and backup-restore relaunch in one prepared
 runner per platform, preserving their normal manifest and phase order.

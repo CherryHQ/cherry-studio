@@ -721,7 +721,7 @@ export type RegressionCase = (typeof REGRESSION_CASES)[number]
 export type CaseId = RegressionCase['id']
 export type TaskId = RegressionCase['tasks'][number]
 export type PhaseId = RegressionCase['phase']
-export type TaskSelection = 'all' | TaskId
+export type TaskSelection = 'all' | TaskId | readonly TaskId[]
 
 export const TASK_IDS = [
   ...new Set([
@@ -732,6 +732,37 @@ export const TASK_IDS = [
 export const TASK_SELECTIONS = ['all', ...TASK_IDS] as const
 export const PHASE_IDS = [...new Set(REGRESSION_CASES.map(({ phase }) => phase))]
 
+export function parseTaskSelection(value: string): TaskSelection {
+  if (value.trim() === 'all') return 'all'
+  const tasks = [...new Set(value.split(',').map((task) => task.trim()))]
+  if (tasks.some((task) => !TASK_IDS.includes(task as TaskId))) {
+    throw new Error(`Invalid regression task selection: ${value}`)
+  }
+  return tasks.length === 1 ? (tasks[0] as TaskId) : (tasks as TaskId[])
+}
+
+export function serializeTaskSelection(selection: TaskSelection): string {
+  return typeof selection === 'string' ? selection : selection.join(',')
+}
+
+export function resolveWorkflowTasks(inputs: Record<string, unknown>) {
+  const selection = parseTaskSelection(String(inputs.task ?? 'all'))
+  const task = serializeTaskSelection(selection)
+  return {
+    task,
+    prepare_mcp: selectCases(selection).some(({ id }) => id === 'MCP-01') ? 'true' : 'false',
+    smoke: task === 'all' ? 'all' : inputs.settings_search_smoke === true ? 'settings-search' : 'none'
+  }
+}
+
+export function caseGrep(selection: TaskSelection): string | undefined {
+  return selection === 'all'
+    ? undefined
+    : `\\[(?:${selectCases(selection)
+        .map(({ id }) => id)
+        .join('|')})\\]`
+}
+
 export function getCase(id: string): RegressionCase {
   const testCase = REGRESSION_CASES.find((candidate) => candidate.id === id)
   if (!testCase) throw new Error(`Unknown regression case: ${id}`)
@@ -741,7 +772,11 @@ export function getCase(id: string): RegressionCase {
 export function selectCases(task: TaskSelection, phase?: PhaseId): RegressionCase[] {
   return REGRESSION_CASES.filter(
     (testCase) =>
-      (task === 'all' || testCase.tasks.some((candidate) => candidate === task)) && (!phase || testCase.phase === phase)
+      (task === 'all' ||
+        testCase.tasks.some((candidate) =>
+          typeof task === 'string' ? candidate === task : task.includes(candidate)
+        )) &&
+      (!phase || testCase.phase === phase)
   )
 }
 

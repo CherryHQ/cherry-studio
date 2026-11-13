@@ -18,9 +18,13 @@ macOS can use different applications for HTTPS and local HTML files. Pinning the
 
 Cold Vite dependency optimization reloaded hosted renderers during cases. Phase steps masked failures with `continue-on-error`, so their successful conclusions did not establish passing cases. A Windows restore dialog appeared before CDP, and a new console process could precede its native handle. macOS accessibility snapshots could also briefly lose the correspondence between AX and CG windows.
 
+Single-task dispatch required separate runs for related repairs. Per-phase application teardown also closed the shared instance before the next selected phase could reuse it.
+
 ## Decision
 
 Every new CDP connection runs the existing owned Windows target preparation, including reconnections inside a scenario. Main-window focus selection skips windows without a valid URL. Annotation guest input converts CSS coordinates through the guest zoom factor before dispatch and awaits each native event; MP-123 runs at 110% and restores its prior application zoom.
+
+Accept comma-separated manifest task IDs through one string input, normalize duplicates, and execute their case union in manifest order. Validate before allocating desktop runners, including mock-provider support. Preserve the string report field and the `all` default. Keep the shared application alive between phases and stop it at the existing workflow boundary. A narrow branch run may add only the settings-search standalone smoke file.
 
 - Send Unicode PowerShell save scripts through standard input and verify the owned dialog and address-bar focus before typing.
 - Find the visible Windows notification panel through its native shell window handle before querying its UIA tree. Hide metadata-query consoles.
@@ -65,6 +69,8 @@ Every new CDP connection runs the existing owned Windows target preparation, inc
 
 ## Alternatives considered
 
+- Per-module boolean inputs consume workflow input slots as the manifest grows; a validated string reuses the existing task IDs.
+
 - Larger timeouts alone do not fix wrong-window input, oversized command lines or ownership races.
 - Accepting a keypress or a notification history entry would not prove visible notification activation.
 - Resetting developer permissions or terminating applications by name would cross the run's ownership boundary.
@@ -75,6 +81,8 @@ Every new CDP connection runs the existing owned Windows target preparation, inc
 Adapters remain platform specific and fail when native state cannot be confirmed. Notification scenarios still require a real system notification click to return to the completed topic. Local execution does not run the hosted permission observer.
 
 ## Verification
+
+- Regression — 99 focused selection, phase, reporter, state, report and mock-provider checks passed, with two existing platform-specific skips. Real Playwright enumeration confirms the combined case union; the smoke shell selects only the settings-search file. The shared-resource test failed with per-phase teardown and passed after moving cleanup back to the workflow boundary. Hosted desktop execution remains separate.
 
 - Regression — 37 focused debug-bridge and connection/window-recovery checks pass, including an uninitialized window before the main window and repeated Windows reconnections without restarting the application. A real Electron annotation probe reproduces an empty second note at 110% before coordinate conversion and reopens both saved notes afterward. Native Windows acceptance still requires hosted execution.
 

@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, write
 import { join, resolve } from 'node:path'
 
 import { probeCapabilities } from './capabilities'
-import { PHASE_IDS, TASK_SELECTIONS } from './cases'
+import { parseTaskSelection, PHASE_IDS, resolveWorkflowTasks, selectCases, serializeTaskSelection } from './cases'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
 import { cleanupExternalResources } from './externalResources'
 import { createFixtures } from './fixtureFiles'
@@ -83,11 +83,18 @@ async function resolveRefCommand(): Promise<void> {
   outputLine('sha', resolvedRef.sha)
 }
 
+function selectTasksCommand(): void {
+  const inputs = JSON.parse(argument('inputs-json') ?? '{}')
+  const resolved = resolveWorkflowTasks(inputs)
+  if (inputs.provider_mode === 'mock') assertMockTask(parseTaskSelection(resolved.task))
+  for (const [name, value] of Object.entries(resolved)) outputLine(name, value)
+}
+
 async function initializeCommand(): Promise<void> {
   const paths = runDirectory()
   const mode = oneOf(argument('mode') ?? '', RUN_MODES, 'mode')
   const platform = oneOf(argument('platform') ?? '', PLATFORMS, 'platform')
-  const task = oneOf(argument('task', false) ?? 'all', TASK_SELECTIONS, 'task')
+  const task = parseTaskSelection(argument('task', false) ?? 'all')
   const providerMode = oneOf(argument('provider-mode', false) ?? 'real', ['real', 'mock'] as const, 'provider mode')
   if (providerMode === 'mock') assertMockTask(task)
   const ref = argument('ref') ?? ''
@@ -101,7 +108,7 @@ async function initializeCommand(): Promise<void> {
     platform,
     ref,
     runner,
-    task,
+    task: serializeTaskSelection(task),
     providerMode
   })
   await createFixtures(paths)
@@ -110,13 +117,13 @@ async function initializeCommand(): Promise<void> {
 }
 
 async function preflightCommand(): Promise<void> {
-  const task = oneOf(argument('task', false) ?? 'all', TASK_SELECTIONS, 'task')
+  const task = parseTaskSelection(argument('task', false) ?? 'all')
   const directory = argument('run-dir', false)
   if (directory && readRun(getRunPaths(directory).runState).metadata.providerMode === 'mock') {
     assertMockTask(task)
     await verifyMockProvider(getRunPaths(directory))
   }
-  if (task === 'chat-stream-failure' || task === 'translation-settings') return
+  if (selectCases(task).every(({ id }) => id === 'C-03' || id === 'MP-86')) return
   loadTestConfig()
   const redacted = createRedactor(getSensitiveConfigValues())
   process.stdout.write(`${JSON.stringify(redacted({ configured: REQUIRED_CONFIG }), null, 2)}\n`)
@@ -235,6 +242,9 @@ async function main(): Promise<void> {
       break
     case 'mock-stop':
       await stopMockProvider(runDirectory())
+      break
+    case 'select-tasks':
+      selectTasksCommand()
       break
     case 'resolve-ref':
       await resolveRefCommand()
