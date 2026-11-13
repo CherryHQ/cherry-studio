@@ -38,11 +38,7 @@ import {
   useMessageRenderConfig
 } from './MessageListProvider'
 import { CHAT_CAPTURE_BACKDROP_VARIABLE, defaultMessageRenderConfig, type MessageListItem } from './types'
-import {
-  getLatestAssistantGroupKey,
-  getMessageGroupKey,
-  withHistoricalProcessGroups
-} from './utils/messageGroupKey'
+import { getLatestAssistantGroupKey, getMessageGroupKey, withHistoricalProcessGroups } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'

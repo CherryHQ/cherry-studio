@@ -1185,7 +1185,11 @@ export class AgentSessionService {
 
       const rows = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
         tx
-          .select({ session: sessionsTable, importMetadata: importedMetadataSql(sessionsTable.id), workspace: agentWorkspaceTable })
+          .select({
+            session: sessionsTable,
+            importMetadata: importedMetadataSql(sessionsTable.id),
+            workspace: agentWorkspaceTable
+          })
           .from(sessionsTable)
           .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
           .where(
@@ -1369,7 +1373,11 @@ export class AgentSessionService {
 
     const rows = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
       tx
-        .select({ session: sessionsTable, importMetadata: importedMetadataSql(sessionsTable.id), workspace: agentWorkspaceTable })
+        .select({
+          session: sessionsTable,
+          importMetadata: importedMetadataSql(sessionsTable.id),
+          workspace: agentWorkspaceTable
+        })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .where(

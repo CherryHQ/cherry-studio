@@ -7,7 +7,7 @@ import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { setupTestDatabase } from '@test-helpers/db'
 import { createTestSession, scriptedModel, textParts, finish, gatewayModel } from '@test-helpers/piGateway'
 import Database from 'better-sqlite3'
-import { eq } from 'drizzle-orm'
+import { eq, ne } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -154,7 +154,11 @@ describe('local history atomic import', () => {
       prepared.previewId,
       prepared.items.map((item) => item.ref)
     )
-    const stored = dbh.db.select().from(agentSessionMessageTable).all()[0]
+    const stored = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(ne(agentSessionMessageTable.role, 'root'))
+      .all()[0]
     const data = {
       parts: [
         {
@@ -185,8 +189,10 @@ describe('local history atomic import', () => {
     ).toEqual(data)
   })
   function counts() {
-    return [agentSessionTable, agentSessionMessageTable, agentWorkspaceTable, appStateTable].map(
-      (table) => dbh.db.select().from(table).all().length
+    return [agentSessionTable, agentSessionMessageTable, agentWorkspaceTable, appStateTable].map((table) =>
+      table === agentSessionMessageTable
+        ? dbh.db.select().from(agentSessionMessageTable).where(ne(agentSessionMessageTable.role, 'root')).all().length
+        : dbh.db.select().from(table).all().length
     )
   }
   it('keeps preview read-only and imports historical times into the selected existing agent', async () => {
@@ -511,7 +517,7 @@ describe('local history atomic import', () => {
     const manager = SessionManager.open(path.join(directory, (await readdir(directory))[0]), directory)
     const { model } = scriptedModel([[...textParts('response', 'Continued'), finish('stop')]])
     const { upstream: port, requests } = gatewayModel(model)
-    const { session } = await createTestSession({
+    const session = await createTestSession({
       port,
       sessionManager: manager,
       builtinTools: [],

@@ -24,7 +24,7 @@ export function withHistoricalProcessGroups(
       (part.state === 'output-available' || part.state === 'output-error')
     if (
       message.role !== 'assistant' ||
-      message.parentId ||
+      (message.parentId && !message.isImportedHistory) ||
       (message.status !== 'success' &&
         !(message.isImportedHistory && (message.status === 'paused' || message.status === 'error'))) ||
       !parts.some((part) => isHistoricalTool(part) || (message.isImportedHistory && part.type === 'reasoning'))

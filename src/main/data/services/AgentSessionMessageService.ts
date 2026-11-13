@@ -1,7 +1,22 @@
 import { createHash } from 'node:crypto'
 
 import { isDataUIPart, isToolUIPart } from 'ai'
-import { and, asc, desc, eq, getTableColumns, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  or,
+  type SQL,
+  sql
+} from 'drizzle-orm'
 import { chunk } from 'es-toolkit'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -69,6 +84,7 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { agentSessionContextService, type RootProjectionCheckpoint } from './AgentSessionContextService'
 import { AgentSessionEditError } from './AgentSessionEditError'
 import { RuntimeForkAnchorSchema, type RuntimeForkCheckpoint } from './agentSessionForkContract'
+import { sessionMessageOrdering } from './agentSessionMessageOrder'
 import {
   advanceAgentSessionHeadTx,
   agentSessionDescendantIds,
@@ -80,7 +96,6 @@ import {
   readAgentSessionPath,
   validateAgentSessionParent
 } from './agentSessionMessageTree'
-import { sessionMessageOrdering } from './agentSessionMessageOrder'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { presentClaudeHistory, presentImportedTools } from './importedHistoryText'
 import {
@@ -1010,14 +1025,15 @@ export class AgentSessionMessageService {
     this.assertActiveSession(database, sessionId)
 
     const limit = Math.min(options.limit ?? AGENT_SESSION_MESSAGES_DEFAULT_LIMIT, AGENT_SESSION_MESSAGES_MAX_LIMIT)
-    const ordering = keysetOrdering(sessionMessagesTable.createdAt, sessionMessagesTable.id, {
-      major: 'desc',
-      tie: 'desc'
-    })
-    const cursor = decodeListCursor(options.cursor, asNumericKey, 'agent-session-message')
+    const ordering = sessionMessageOrdering(database, sessionId, 'desc')
+    const cursor = ordering.fromCursor(options.cursor)
     const [anchor] = options.messageId
       ? database
-          .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
+          .select({
+            id: sessionMessagesTable.id,
+            createdAt: sessionMessagesTable.createdAt,
+            provenance: messageProvenanceSql()
+          })
           .from(sessionMessagesTable)
           .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, options.messageId)))
           .limit(1)
@@ -1667,13 +1683,7 @@ export class AgentSessionMessageService {
       .where(and(eq(sessionTable.id, sessionId), isNull(sessionTable.deletedAt), isNull(agentTable.deletedAt)))
       .get()
     if (!session || session.agent.type !== 'pi') throw new Error('target_changed')
-    const messages = db
-      .select({ row: sessionMessagesTable, provenance: messageProvenanceSql() })
-      .from(sessionMessagesTable)
-      .where(eq(sessionMessagesTable.sessionId, sessionId))
-      .orderBy(...sessionMessageOrdering(db, sessionId).orderBy)
-      .all()
-      .map(({ row, provenance }) => ({ ...row, provenance }))
+    const messages = readAgentSessionPath(db, sessionId)
     return { ...session, messages }
   }
 
@@ -1698,11 +1708,14 @@ export class AgentSessionMessageService {
     rows: readonly (Omit<InsertSessionMessageRow, 'sessionId'> & { provenance: MessageProvenance })[]
   ): void {
     if (this.hasSessionMessages(sessionId)) throw new Error('session_not_empty')
+    let parentId = ensureAgentSessionRootTx(tx, sessionId)
     for (const { provenance, ...row } of rows) {
       tx.insert(sessionMessagesTable)
-        .values({ ...row, sessionId })
+        .values({ ...row, sessionId, parentId })
         .run()
       setMessageProvenanceTx(tx, sessionId, row.id!, provenance)
+      advanceAgentSessionHeadTx(tx, sessionId, parentId, row.id!)
+      parentId = row.id!
     }
   }
 

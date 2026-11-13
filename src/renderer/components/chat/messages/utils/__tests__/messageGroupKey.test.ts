@@ -53,8 +53,8 @@ describe('messageGroupKey', () => {
   })
   it('groups imported reasoning and terminal tool records but stops at assistant text', () => {
     const messages = [
-      { ...historical('reasoning'), isImportedHistory: true },
-      { ...historical('call'), isImportedHistory: true },
+      { ...historical('reasoning'), isImportedHistory: true, parentId: 'root' },
+      { ...historical('call'), isImportedHistory: true, parentId: 'reasoning' },
       { ...historical('error'), isImportedHistory: true, status: 'error' as const },
       { ...historical('paused'), isImportedHistory: true, status: 'paused' as const },
       { ...historical('text'), isImportedHistory: true },

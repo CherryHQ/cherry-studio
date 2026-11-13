@@ -1,4 +1,4 @@
-import { and, eq, gte, lt, sql, type SQL } from 'drizzle-orm'
+import { and, eq, gte, lt, ne, sql, type SQL } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -118,7 +118,7 @@ export function refreshImportedHistoryMessageCountTx(tx: DbOrTx, sessionId: stri
     state.initialization.messageCount = tx
       .select({ count: sql<number>`count(*)` })
       .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, sessionId))
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), ne(agentSessionMessageTable.role, 'root')))
       .get()!.count
     tx.update(appStateTable).set({ value: state }).where(eq(appStateTable.key, row.key)).run()
   }

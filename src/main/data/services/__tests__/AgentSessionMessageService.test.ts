@@ -246,12 +246,7 @@ describe('AgentSessionMessageService', () => {
     application
       .get('DbService')
       .withWriteTx((tx) =>
-        agentSessionMessageService.replaceEditTailTx(
-          tx,
-          SESSION_ID,
-          { messageId: 'wb-user', version: edit.version },
-          []
-        )
+        agentSessionMessageService.replaceEditBranchTx(tx, SESSION_ID, { messageId: 'wb-user', version: edit.version })
       )
     expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items).toEqual([])
     expect(
@@ -289,16 +284,12 @@ describe('AgentSessionMessageService', () => {
     })
     const snapshot = agentSessionMessageService.readEditSnapshotTx(dbh.db, SESSION_ID, 'tail-8')
     const prepare = vi.spyOn(dbh.sqlite, 'prepare')
-    application
-      .get('DbService')
-      .withWriteTx((tx) =>
-        agentSessionMessageService.replaceEditTailTx(
-          tx,
-          SESSION_ID,
-          { messageId: 'tail-8', version: snapshot.version },
-          snapshot.prefix
-        )
-      )
+    application.get('DbService').withWriteTx((tx) =>
+      agentSessionMessageService.replaceEditBranchTx(tx, SESSION_ID, {
+        messageId: 'tail-8',
+        version: snapshot.version
+      })
+    )
     const countQueries = prepare.mock.calls.filter(([query]) =>
       /select count\(\*\).*agent_session_message/i.test(query)
     )

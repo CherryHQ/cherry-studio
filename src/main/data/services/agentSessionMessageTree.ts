@@ -1,9 +1,11 @@
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, getTableColumns, inArray, sql } from 'drizzle-orm'
 
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+
+import { messageProvenanceSql } from './importedSessionHistory'
 
 export function ensureAgentSessionRootTx(db: DbOrTx, sessionId: string): string {
   const root = db
@@ -58,7 +60,7 @@ export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: strin
   const selected = head ?? getAgentSessionHead(db, sessionId)
   if (!selected) return []
   const rows = db
-    .select()
+    .select({ ...getTableColumns(messages), provenance: messageProvenanceSql() })
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, selected))))
     .all()

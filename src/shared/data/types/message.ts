@@ -18,8 +18,8 @@ import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
-import { FileEntryIdSchema } from './file'
 import type { MessageProvenance } from './conversationImport'
+import { FileEntryIdSchema } from './file'
 import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
 
