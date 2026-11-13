@@ -5,6 +5,7 @@ import {
   type ReactElement,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
@@ -150,9 +151,6 @@ const PinnedTabButton = ({
     </Tooltip>
   )
 }
-
-const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE =
-  'max(0px, calc(env(titlebar-area-x, 0px) - max(0.375rem, var(--sidebar-width, 0px)) + 2px))'
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -614,6 +612,40 @@ export const AppShellTabBar = ({
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
   const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
+  const [macWindowControls, setMacWindowControls] = useState<{
+    width: number
+    height: number
+    scale: number
+  } | null>(null)
+  useLayoutEffect(() => {
+    if (!isMac) return
+    const overlay = (
+      navigator as Navigator & {
+        windowControlsOverlay?: EventTarget & { visible: boolean; getTitlebarAreaRect(): DOMRect }
+      }
+    ).windowControlsOverlay
+    if (!overlay) return
+    const update = () => {
+      const { x, width, height } = overlay.getTitlebarAreaRect()
+      if (!overlay.visible || height <= 0 || Math.abs(x + width - window.innerWidth) > 1) return
+      const scale = window.devicePixelRatio
+      // Native resize shifts x and rounds width; reserve changes only with titlebar height or scale.
+      setMacWindowControls((current) =>
+        current?.height === height && current.scale === scale
+          ? current
+          : { width: window.innerWidth - width, height, scale }
+      )
+    }
+    update()
+    overlay.addEventListener('geometrychange', update)
+    window.addEventListener('resize', update)
+    return () => {
+      overlay.removeEventListener('geometrychange', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [])
+  const leadingWindowControlsWidth =
+    isMac && macWindowControls ? `${macWindowControls.width}px` : 'env(titlebar-area-x, 0px)'
   // Chrome-style close-in-place: a pointer-initiated close freezes every normal
   // tab at the closed tab's width, so the next tab's X lands under the cursor for
   // repeated closing. Tabs re-flex once the mouse leaves the strip.
@@ -907,8 +939,8 @@ export const AppShellTabBar = ({
           paddingLeft:
             (isMac || hasLeadingWindowControls) && !isFullscreen
               ? isFocusedTab
-                ? 'calc(env(titlebar-area-x, 0px) + 2px)'
-                : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
+                ? `calc(${leadingWindowControlsWidth} + 2px)`
+                : `max(0px, calc(${leadingWindowControlsWidth} - max(0.375rem, var(--sidebar-width, 0px)) + 2px))`
               : undefined
         }}
         className={cn(

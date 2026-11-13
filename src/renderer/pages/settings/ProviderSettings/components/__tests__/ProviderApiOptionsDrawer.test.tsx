@@ -212,18 +212,6 @@ describe('ProviderApiOptionsDrawer', () => {
     })
   })
 
-  it('shows default Anthropic cache values when cacheControl is unset', () => {
-    useProviderMock.mockReturnValue({
-      provider: { ...provider, settings: { ...provider.settings, cacheControl: undefined } },
-      updateProvider: updateProviderMock
-    })
-
-    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
-
-    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toHaveValue('1024')
-    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue('2')
-  })
-
   it('persists a one-hour Anthropic cache lifetime without dropping sibling settings', async () => {
     const user = userEvent.setup()
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)

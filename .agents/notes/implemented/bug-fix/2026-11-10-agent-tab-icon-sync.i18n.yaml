@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-10-agent-tab-icon-sync.md
+2026-11-10-agent-tab-icon-sync.md: b947d9805815f16dfab98b8f884547c5823f4553
+2026-11-10-agent-tab-icon-sync.zh.md: c5ba4e53622fe8e5407dcd4e934c23cc6286b6a0

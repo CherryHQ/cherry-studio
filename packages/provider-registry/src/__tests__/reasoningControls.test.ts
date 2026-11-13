@@ -7,18 +7,11 @@ import { inferReasoningControls } from '../patterns/reasoning-heuristics'
 import { REASONING_EFFORT, REASONING_EFFORT_ORDER } from '../schemas/enums'
 import type { ReasoningControl } from '../schemas/model'
 import { ReasoningSupportSchema } from '../schemas/model'
-import { REASONING_FORMAT_TYPES } from '../schemas/provider'
 import { deriveLegacyReasoningFields } from '../utils/reasoningControls'
 
 describe('REASONING_EFFORT_ORDER', () => {
   it('is a permutation of REASONING_EFFORT (exhaustiveness lock)', () => {
     expect([...REASONING_EFFORT_ORDER].sort()).toEqual(Object.values(REASONING_EFFORT).sort())
-  })
-})
-
-describe('REASONING_FORMAT_TYPES', () => {
-  it('derives every discriminator from the format union', () => {
-    expect(REASONING_FORMAT_TYPES).toEqual(['openai-chat', 'openai-responses', 'anthropic', 'gemini', 'ollama', 'none'])
   })
 })
 

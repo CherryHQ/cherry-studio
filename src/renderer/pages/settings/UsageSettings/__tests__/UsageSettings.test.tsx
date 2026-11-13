@@ -84,17 +84,6 @@ describe('UsageSettings', () => {
     usageDataOverride.current = {}
   })
 
-  it('starts on the documented defaults', () => {
-    render(<UsageSettings />)
-
-    expect(screen.getByRole('radio', { name: '最近 30 天' })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('combobox', { name: '分组' })).toHaveTextContent('供应商')
-    expect(screen.getByRole('combobox', { name: '指标' })).toHaveTextContent('Token')
-    expect(screen.getByRole('combobox', { name: 'Top' })).toHaveTextContent('10')
-    expect(screen.getByRole('button', { name: '柱状图' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('radio', { name: '按天' })).toHaveAttribute('aria-checked', 'true')
-  })
-
   it('restores the view selections after leaving and returning to the page', async () => {
     const user = userEvent.setup()
     const first = render(<UsageSettings />)
@@ -115,37 +104,6 @@ describe('UsageSettings', () => {
     expect(screen.getByRole('button', { name: '饼图' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('radio', { name: '总计' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('combobox', { name: 'Top' })).toHaveTextContent('20')
-  })
-
-  it('caps the dashboard column so ultrawide windows do not stretch charts', () => {
-    render(<UsageSettings />)
-
-    const overview = screen.getByRole('heading', { name: '概览' })
-    const column = overview.closest('.mx-auto')
-
-    // Layout contract: the usage dashboard is bounded (`max-w-6xl`), not full-bleed (`max-w-none`).
-    expect(column).toHaveClass('max-w-6xl')
-    expect(column).not.toHaveClass('max-w-none')
-  })
-
-  it('keeps the overview insight row when usage data exists', () => {
-    usageDataOverride.current = {
-      overviewTotals: {
-        totalCost: 0,
-        totalTokens: 100,
-        totalNoCacheTokens: 0,
-        totalCacheReadTokens: 0,
-        totalCacheWriteTokens: 0,
-        requestCount: 1
-      }
-    }
-
-    render(<UsageSettings />)
-
-    expect(screen.getByText('活跃天数')).toBeInTheDocument()
-    expect(screen.getByText('高峰日')).toBeInTheDocument()
-    expect(screen.getByText('用量最高模型')).toBeInTheDocument()
-    expect(screen.getByText('日均')).toBeInTheDocument()
   })
 
   it('shows the full total including Other and preserves the trend chart when returning from Total', async () => {

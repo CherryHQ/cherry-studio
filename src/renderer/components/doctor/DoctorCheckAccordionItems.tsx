@@ -241,22 +241,29 @@ function DoctorCheckEvidence({
                   />
                 ))}
               </dl>
-              {sensitiveEvidence.length > 0 && !isEvidenceRevealed ? (
+              {sensitiveEvidence.length > 0 ? (
                 <Dialog
                   open={isConfirming}
                   onOpenChange={(open) => {
                     if (!open && isConfirming) controller.cancelConfirmation()
                   }}>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="link"
-                      className="mt-2 h-auto px-0 py-0 text-xs"
-                      disabled={controller.isInteracting}
-                      onClick={() => controller.requestEvidence(row.id)}>
-                      {t('settings.doctor.actions.show_details')}
-                    </Button>
-                  </DialogTrigger>
+                  {!isEvidenceRevealed ? (
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="link"
+                        className="mt-2 h-auto px-0 py-0 text-xs"
+                        disabled={controller.isInteracting}
+                        onClick={() => controller.requestEvidence(row.id)}>
+                        {t('settings.doctor.actions.show_details')}
+                      </Button>
+                    </DialogTrigger>
+                  ) : null}
                   <DialogContent
+                    onCloseAutoFocus={(event) => {
+                      if (!isEvidenceRevealed) return
+                      event.preventDefault()
+                      sensitiveEvidenceRef.current?.focus()
+                    }}
                     aria-describedby={undefined}
                     closeOnOverlayClick={false}
                     showCloseButton={false}
@@ -431,7 +438,7 @@ function ConfirmationPanel({
 
   return (
     <div ref={focusRef} tabIndex={-1} className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto]">
-      <ScrollArea viewportProps={{ className: 'px-6 py-4' }} className="min-h-0">
+      <ScrollArea contentProps={{ className: 'px-6 py-4' }} className="min-h-0">
         <Alert type="warning" showIcon message={title} description={description} />
       </ScrollArea>
       <DialogFooter className="border-t border-border px-6 py-4">

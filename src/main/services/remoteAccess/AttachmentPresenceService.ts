@@ -16,7 +16,7 @@ type Selection = {
 
 @Injectable('AttachmentPresenceService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['FileIntakeService', 'IpcApiService'])
+@DependsOn(['FileIntakeService'])
 export class AttachmentPresenceService extends BaseService {
   private readonly rows = new Map<string, Selection>()
   private readonly generations = new Map<string, number>()

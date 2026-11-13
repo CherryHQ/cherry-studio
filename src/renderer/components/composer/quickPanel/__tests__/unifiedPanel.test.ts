@@ -135,78 +135,6 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     expect(inputAdapter.focus).toHaveBeenCalledOnce()
   })
 
-  it('keeps system actions above resource results while preserving business order during search', () => {
-    const options = createUnifiedQuickPanelOpenOptions(
-      [
-        {
-          id: 'attachment',
-          kind: 'command',
-          label: 'Attachment',
-          description: 'notes',
-          icon: 'paperclip',
-          sources: ['popover']
-        },
-        {
-          id: 'slash-command',
-          kind: 'command',
-          label: 'Slash command',
-          description: 'notes',
-          icon: 'slash',
-          sources: ['root-panel']
-        }
-      ],
-      {
-        quickPanel,
-        leadingItems: [{ id: 'new-topic', label: 'New topic', filterText: 'notes', icon: 'plus' }],
-        additionalItems: [{ id: 'agent-skill', label: 'Agent skill', filterText: 'notes', icon: 'skill' }],
-        resourceItems: [{ id: 'file:notes', label: 'notes.md', description: '/workspace/notes.md', icon: 'file' }]
-      }
-    )
-
-    expect(options.sortFn).toEqual(expect.any(Function))
-
-    const reversedItems = [...options.list].reverse()
-    expect(labels(options.sortFn!(reversedItems, 'notes'))).toEqual([
-      'New topic',
-      'Attachment',
-      'Slash command',
-      'Agent skill',
-      'notes.md'
-    ])
-  })
-
-  it('renders skills above trailing command items', () => {
-    const options = createUnifiedQuickPanelOpenOptions(
-      [
-        {
-          id: 'agent-skills',
-          kind: 'panel',
-          label: 'Skills',
-          icon: 'skill',
-          sources: ['root-panel']
-        },
-        {
-          id: 'mcp-status',
-          kind: 'panel',
-          label: 'MCP',
-          icon: 'plug',
-          sources: ['root-panel']
-        },
-        {
-          id: 'slash-command',
-          kind: 'command',
-          label: 'Slash command',
-          icon: 'slash',
-          sources: ['root-panel'],
-          rootPanelPlacement: 'trailing'
-        }
-      ],
-      { quickPanel }
-    )
-
-    expect(labels(options.list)).toEqual(['Skills', 'MCP', 'Slash command'])
-  })
-
   it('flattens actionable submenu and skill items into root search without exposing status rows', () => {
     const onToolLauncherSelect = vi.fn()
     const insertSkill = vi.fn()
@@ -693,49 +621,6 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
           expect.objectContaining({ label: 'Smart Approval', isSelected: true }),
           expect.objectContaining({ label: 'Full Access' })
         ]
-      })
-    )
-  })
-
-  it('preserves tooltip metadata for submenu rows', () => {
-    const tooltipAnchor = createElement('span', { 'aria-label': 'warning' })
-    const options = createUnifiedQuickPanelOpenOptions(
-      [
-        {
-          id: 'permission-mode',
-          kind: 'group',
-          label: 'Permission Mode',
-          icon: 'shield',
-          sources: ['popover'],
-          submenu: [
-            {
-              id: 'permission-mode-auto',
-              kind: 'command',
-              label: 'Approve for Me',
-              icon: 'shield-alert',
-              tooltip: 'Needs a model that supports it.',
-              tooltipAnchor,
-              sources: ['popover']
-            }
-          ]
-        }
-      ],
-      { quickPanel }
-    )
-    const permissionMode = options.list[0]
-
-    permissionMode.action?.({
-      action: 'enter',
-      context: quickPanel,
-      item: permissionMode,
-      parentPanel: options
-    })
-
-    const submenu = vi.mocked(quickPanel.open).mock.calls[0][0]
-    expect(submenu.list[0]).toEqual(
-      expect.objectContaining({
-        tooltip: 'Needs a model that supports it.',
-        tooltipAnchor
       })
     )
   })

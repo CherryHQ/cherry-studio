@@ -87,7 +87,13 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     // The assistant owns the model — snapshot it (model nested) onto the assistant reply.
     const assistant = assistantId ? assistantDataService.getById(assistantId) : undefined
     const messageSnapshot = assistant
-      ? { id: assistant.id, name: assistant.name, emoji: assistant.emoji, model: modelSnap }
+      ? {
+          id: assistant.id,
+          name: assistant.name,
+          emoji: assistant.emoji,
+          ...(assistant.avatarFileId ? { avatarFileId: assistant.avatarFileId } : {}),
+          model: modelSnap
+        }
       : undefined
 
     // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.
@@ -137,6 +143,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
     }
 
+    temporaryChatService.retainAvatar(req.topicId, messageSnapshot?.avatarFileId)
     return {
       topicId: req.topicId,
       models: [{ modelId: model.id, request: streamRequest }],

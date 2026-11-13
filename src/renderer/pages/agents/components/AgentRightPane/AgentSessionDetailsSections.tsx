@@ -8,6 +8,7 @@ import {
   FolderOpen,
   ListChecks,
   Loader2,
+  Monitor,
   Package,
   Terminal,
   Workflow
@@ -18,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CommandShortcut } from '@renderer/components/command'
+import { ComputerUseAppIcon } from '@renderer/components/ComputerUseAppIcon'
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
@@ -26,6 +28,7 @@ import { cn } from '@renderer/utils/style'
 import type { AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentDetailsSectionConfig } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
+import type { ComputerUseControl } from '@shared/ipc/schemas/computerUse'
 
 import { AgentDetailsCustomize } from './AgentDetailsCustomize'
 import type {
@@ -128,7 +131,7 @@ function RunTaskList({
                 className="line-clamp-2 text-xs leading-5 wrap-break-word text-foreground">
                 {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
               </div>
-              <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              <div className="mt-0.5 truncate text-xs text-muted-foreground">
                 {[task.subagentType ?? task.workflowName ?? task.taskType, formatRunTaskUsage(task.usage)]
                   .filter(Boolean)
                   .join(' · ')}
@@ -178,16 +181,16 @@ function WorkflowRunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sess
                 {task.workflowName ?? task.title}
               </div>
               {task.summary && task.summary !== task.workflowName && task.summary !== task.title ? (
-                <div className="mt-0.5 line-clamp-2 text-[11px] leading-4 wrap-break-word text-muted-foreground">
+                <div className="mt-0.5 line-clamp-2 text-xs leading-4 wrap-break-word text-muted-foreground">
                   {task.summary}
                 </div>
               ) : null}
               {activity && activity !== task.title && activity !== task.summary ? (
-                <div className="mt-0.5 line-clamp-2 text-[11px] leading-4 wrap-break-word text-muted-foreground">
+                <div className="mt-0.5 line-clamp-2 text-xs leading-4 wrap-break-word text-muted-foreground">
                   {activity}
                 </div>
               ) : null}
-              {metadata ? <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{metadata}</div> : null}
+              {metadata ? <div className="mt-0.5 truncate text-xs text-muted-foreground">{metadata}</div> : null}
             </div>
             {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
           </div>
@@ -267,9 +270,15 @@ export function AgentSessionDetailsSections({
   workspaceType,
   onOpenFlow,
   onOpenArtifact,
-  contextUsage
+  contextUsage,
+  desktopControls = [],
+  pendingDesktopControls,
+  stopDesktopControl
 }: {
   contextUsage?: ReactNode
+  desktopControls?: ComputerUseControl[]
+  pendingDesktopControls?: ReadonlySet<string>
+  stopDesktopControl?: (control: ComputerUseControl) => Promise<void>
   status: AgentRightPaneStatus
   sessionId?: string
   workspacePath?: string
@@ -304,6 +313,7 @@ export function AgentSessionDetailsSections({
   }
   const labels: Record<string, { label: string; icon: ReactNode }> = {
     workspace: { label: t('code.adv.permission_modes.workspace'), icon: <FolderOpen className="size-4" /> },
+    desktop_control: { label: t('agent.right_pane.info.desktop_control.title'), icon: <Monitor className="size-4" /> },
     plan: { label: t('agent.right_pane.info.plan'), icon: <ListChecks className="size-4" /> },
     subagents: { label: t('agent.right_pane.info.subagents'), icon: <Bot className="size-4" /> },
     workflows: { label: t('agent.right_pane.info.workflows'), icon: <Workflow className="size-4" /> },
@@ -314,12 +324,15 @@ export function AgentSessionDetailsSections({
   }
   const content: Record<string, ReactNode> = {
     workspace: workspaceLabel && (
-      <div className="flex min-w-0 items-center gap-2 px-4 py-3">
-        <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
+      <div className="flex min-w-0 items-center gap-2 px-3 py-2">
+        <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
         <Tooltip asChild content={workspacePath || workspaceLabel}>
           <span
             tabIndex={0}
-            className="min-w-0 flex-1 truncate rounded-sm text-sm font-medium text-foreground focus-visible:bg-accent focus-visible:outline-none">
+            className={cn(
+              'min-w-0 flex-1 truncate rounded-sm text-xs font-medium focus-visible:bg-accent focus-visible:outline-none',
+              workspaceType === 'system' || !workspacePath ? 'text-muted-foreground' : 'text-foreground'
+            )}>
             {workspaceLabel}
           </span>
         </Tooltip>
@@ -327,7 +340,7 @@ export function AgentSessionDetailsSections({
           <OpenTargetButton
             targetPath={workspacePath}
             pathKind="directory"
-            className="shrink-0 border-0"
+            className="h-7 shrink-0 border-0"
             menuAction="select"
             primaryShortcut={<CommandShortcut command="agent.workspace.open" />}
             menuContentProps={{ className: 'w-70 max-w-[calc(100vw_-_24px)]', alignOffset: -16 }}
@@ -335,6 +348,54 @@ export function AgentSessionDetailsSections({
         )}
       </div>
     ),
+    desktop_control: desktopControls.some((row) => row.appId) ? (
+      <DetailsSection
+        id="desktop_control"
+        title={t('agent.right_pane.info.desktop_control.title')}
+        icon={<Monitor className="size-4" />}
+        summary={desktopControls.filter((row) => row.appId).length}>
+        {desktopControls
+          .filter((row) => row.appId)
+          .map((row) => {
+            const labels = {
+              opening: t('agent.right_pane.info.desktop_control.opening'),
+              active: t('agent.right_pane.info.desktop_control.active'),
+              stopping: t('agent.right_pane.info.desktop_control.stopping'),
+              stopped: t('agent.right_pane.info.desktop_control.stopped'),
+              unconfirmed: t('agent.right_pane.info.desktop_control.unconfirmed')
+            }
+            const name = row.appName ?? row.appId
+            const stopLabel = t('agent.right_pane.info.desktop_control.stop')
+            return (
+              <div
+                key={JSON.stringify([row.ownerId, row.appId])}
+                className="flex min-w-0 items-center gap-2 px-1 py-2 text-xs">
+                <ComputerUseAppIcon app={{ name: name ?? row.label, identity: row.appIdentity }} />
+                <span title={name} className="min-w-0 flex-1 truncate">
+                  {name}
+                </span>
+                <span className="text-muted-foreground">{labels[row.status]}</span>
+                {(row.status === 'opening' || row.status === 'active') && (
+                  <Tooltip content={stopLabel}>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={stopLabel}
+                      disabled={pendingDesktopControls?.has(JSON.stringify([row.ownerId, row.appId]))}
+                      onClick={() =>
+                        void stopDesktopControl?.(row).catch(() =>
+                          toast.error(t('agent.right_pane.info.desktop_control.stop_failed'))
+                        )
+                      }>
+                      <CircleStop size={14} />
+                    </Button>
+                  </Tooltip>
+                )}
+              </div>
+            )
+          })}
+      </DetailsSection>
+    ) : null,
     plan: status.tasks.length > 0 && (
       <DetailsSection
         id="plan"
@@ -415,12 +476,12 @@ export function AgentSessionDetailsSections({
         </ul>
       </DetailsSection>
     ),
-    context: contextUsage && <div className="border-t border-border-subtle p-3">{contextUsage}</div>
+    context: contextUsage && <div className="border-t border-border-subtle py-2">{contextUsage}</div>
   }
   return (
     <>
-      <div className="flex items-center justify-between gap-2 px-4 pt-2">
-        <span className="text-xs text-muted-foreground">{t('agent.right_pane.tabs.details')}</span>
+      <div className="flex items-center justify-between gap-2 ps-3 pe-2 py-1">
+        <span className="text-xs font-medium text-muted-foreground">{t('agent.right_pane.tabs.details')}</span>
         <AgentDetailsCustomize
           items={sections.map((section) => ({ ...section, ...labels[section.id] }))}
           onChange={saveSections}
@@ -461,15 +522,15 @@ function DetailsSection({
 }) {
   return (
     <AccordionItem value={id} className="mx-3 border-border-subtle last:border-0">
-      <AccordionTrigger className="gap-2 py-3 text-xs font-normal">
+      <AccordionTrigger className="gap-2 py-2.5 text-xs font-medium">
         <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-2 text-muted-foreground [&>svg]:shrink-0">
+          <span className="flex min-w-0 items-center gap-2 text-muted-foreground [&>svg]:size-3.5 [&>svg]:shrink-0 [&>svg]:stroke-[1.5]">
             {icon}
             <span className="shrink-0">{title}</span>
-            <span className="ml-auto text-right text-[11px] tabular-nums">{summary}</span>
+            <span className="ms-auto text-right text-xs font-normal tabular-nums">{summary}</span>
           </span>
           {subtitle && (
-            <span title={subtitle} className="mt-1 block truncate pl-6 text-muted-foreground">
+            <span title={subtitle} className="mt-1 block truncate ps-5.5 text-muted-foreground">
               {subtitle}
             </span>
           )}

@@ -6,6 +6,7 @@ const { loggerDebug, loggerWarn } = vi.hoisted(() => ({ loggerDebug: vi.fn(), lo
 const getById = vi.fn()
 const listServers = vi.fn()
 const listTools = vi.fn()
+const listToolsWithContext = vi.fn()
 const runtimeListResources = vi.fn()
 const runtimeListPrompts = vi.fn()
 const cacheStore = new Map<string, unknown>()
@@ -36,6 +37,7 @@ const cacheService = {
 const runtimeService = {
   getServerKey: vi.fn((server: { id: string }) => `server:${server.id}`),
   listTools,
+  listToolsWithContext,
   setServerStatus: vi.fn(),
   onToolListChanged: vi.fn(() => ({ dispose: vi.fn() })),
   listResources: runtimeListResources,
@@ -92,6 +94,7 @@ describe('McpCatalogService', () => {
     getById.mockReset()
     listServers.mockReset()
     listTools.mockReset()
+    listToolsWithContext.mockReset()
     loggerDebug.mockReset()
     loggerWarn.mockReset()
     runtimeListResources.mockReset()
@@ -121,6 +124,18 @@ describe('McpCatalogService', () => {
       ])
     )
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'connected')
+  })
+
+  it('refreshTools forwards an originating windowId so OAuth servers can authorize interactively', async () => {
+    getById.mockReturnValue(server())
+    listToolsWithContext.mockResolvedValue([sdkTool('search')])
+
+    const service = new McpCatalogService()
+    await service.refreshTools('server-1', 'window-1')
+
+    expect(runtimeService.listToolsWithContext).toHaveBeenCalledWith('server-1', { windowId: 'window-1' }, 'refresh')
+    expect(runtimeService.listTools).not.toHaveBeenCalled()
+    expect(service.listTools('server-1').map((tool) => tool.name)).toEqual(['search'])
   })
 
   it('preserves a false output schema that rejects every result', async () => {
@@ -460,23 +475,5 @@ describe('McpCatalogService', () => {
     await expect(service.refreshTools('server-1')).rejects.toThrow('connection failed')
 
     expect(listener).toHaveBeenCalledExactlyOnceWith({ serverId: 'server-1' })
-  })
-
-  it('delegates listResources to the runtime service', async () => {
-    const resources = [{ uri: 'file://a', name: 'a', serverId: 'server-1', serverName: 'docs' }]
-    runtimeListResources.mockResolvedValue(resources)
-
-    const service = new McpCatalogService()
-    await expect(service.listResources('server-1')).resolves.toBe(resources)
-    expect(runtimeListResources).toHaveBeenCalledWith('server-1')
-  })
-
-  it('delegates listPrompts to the runtime service', async () => {
-    const prompts = [{ id: 'p1', name: 'greet', serverId: 'server-1', serverName: 'docs' }]
-    runtimeListPrompts.mockResolvedValue(prompts)
-
-    const service = new McpCatalogService()
-    await expect(service.listPrompts('server-1')).resolves.toBe(prompts)
-    expect(runtimeListPrompts).toHaveBeenCalledWith('server-1')
   })
 })

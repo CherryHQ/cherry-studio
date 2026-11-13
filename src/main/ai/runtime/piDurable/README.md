@@ -13,12 +13,23 @@ request options and usage callbacks even when their Cherry Provider is the same.
 
 `durableDesktop.ts` installs native coding tools, codemode and tool search, Cherry's
 prompt and selected skills. `durableMcp.ts` connects Cherry-selected MCP servers through
-linked transports. Deferred MCP tools remain discoverable through native codemode;
-nested calls pass the shared approval gate. Replay safety follows the server's explicit
+linked transports. Ordinary MCP tools start deferred; `tool_search` can find and load them
+for direct model calls. Scripts can discover and call them through native codemode before
+and after loading. `automation` stays offered upfront, and nested calls still pass the shared approval gate. Replay safety follows the server's explicit
 read-only annotation; other MCP operations use native unsafe replay semantics.
 
 Approvals, questions, model selection, summaries and large output storage use existing
 host services. Host calls resolve the native ownership tree to a product root. Model options and trace, usage, approvals, questions and attendance stay root-scoped. Each root selects its own named extensions, MCP transports, skills and execution environment. Host resources remain backend-owned while retained work can still use them. Each root stores its non-secret request selection in a native conversation document. Before shared recovery starts, roots with unfinished tasks acquire their Main connection and projection consumer; sibling opening cannot silently resume them with default parameters or without a transcript writer. No additional interaction table or AI SDK model port is introduced.
+
+## Telemetry
+
+The backend supplies Pi's native `HarnessOptions.telemetry`. Durable owns submission and task-phase
+spans, including tool identity, outcomes, committed-entry events and replay links. Cherry bridges
+them to its existing developer-mode OTel provider and viewer. Native persisted carriers freeze the
+initiating session and parent across recovery; roots without carriers remain untraced until a new
+traced submission. Gateway SDK calls inherit the native phase parent through internal usage capture.
+Pi model spans are suppressed because the SDK already records the request and usage; HTTP tracing
+retains wire bodies and the gateway remains the sole billing writer.
 
 ## Storage and projection
 

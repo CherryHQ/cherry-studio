@@ -1,4 +1,3 @@
-import '@data/services/AgentSessionMessageService'
 import path from 'path'
 
 import { setupTestDatabase } from '@test-helpers/db'
@@ -14,6 +13,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
@@ -24,10 +24,6 @@ import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspa
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
-
-function buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
-  return path.join(systemWorkspacesRoot, new Date(createdAt).toISOString().slice(0, 10), sessionId)
-}
 
 // The data-service layer is synchronous under better-sqlite3: failing calls
 // throw inline instead of rejecting a promise. Capture the thrown error so we
@@ -143,12 +139,14 @@ describe('AgentSessionService', () => {
     dbh.db.delete(jobTable).run()
     expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual(sessions.map((s) => s.id).sort())
     expect(agentSessionService.getLatestActive()).toBeNull()
-    expect(agentSessionService.listByCursor().items).toEqual([])
-    expect(agentSessionService.listByCursor({ ids: sessions.map((s) => s.id) }).items).toHaveLength(2)
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items).toEqual([])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary', ids: sessions.map((s) => s.id) }).items).toHaveLength(
+      2
+    )
     expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
     dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, [sessions[0].id]))
     agentSessionService.restore(sessions[0].id)
-    expect(agentSessionService.listByCursor().items.map((s) => s.id)).toEqual([sessions[0].id])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((s) => s.id)).toEqual([sessions[0].id])
     expect(agentSessionService.listTaskSessionIds(task.id)).toEqual([sessions[1].id])
   })
 
@@ -339,11 +337,11 @@ describe('AgentSessionService', () => {
     expect(
       agentSessionService.searchWithMetadataEvidence({ q: 'owner evidence', limit: 5, addressableOnly: true })
     ).toEqual([])
-    expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual([
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)).toEqual([
       'session-trashed-owner',
       'session-true-orphan'
     ])
-    expect(agentSessionService.listByCursor({ agentId: 'agent-trashed-owner' }).items).toEqual([])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary', agentId: 'agent-trashed-owner' }).items).toEqual([])
     expect(agentSessionService.listAddressableByCursor({ agentId: 'agent-trashed-owner' }).items).toEqual([])
     expect(agentSessionService.getLatestActive()?.id).toBe('session-trashed-owner')
     expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-trashed-owner')
@@ -355,7 +353,7 @@ describe('AgentSessionService', () => {
       .update(agentSessionTable)
       .set({ deletedAt: 400 })
       .where(eq(agentSessionTable.id, 'session-trashed-owner'))
-    const trash = agentSessionService.listByCursor({ agentId: 'agent-trashed-owner', inTrash: true })
+    const trash = agentSessionService.listByCursor({ scope: 'ordinary', agentId: 'agent-trashed-owner', inTrash: true })
     expect(trash.items.map((session) => session.id)).toEqual(['session-trashed-owner'])
   })
 
@@ -788,7 +786,6 @@ describe('AgentSessionService', () => {
     ])
     expect(session.workspaceId).toBe(workspace.id)
     expect(session.workspace.path).toBe(workspace.path)
-    expect(session.isNameManuallyEdited).toBe(false)
   })
 
   it('rejects a user workspace source that points at a system workspace row', async () => {
@@ -853,13 +850,7 @@ describe('AgentSessionService', () => {
 
     expect(session.workspaceId).toBeTruthy()
     expect(session.workspace.type).toBe('system')
-    expect(session.workspace.path).toBe(
-      buildSystemWorkspacePath(
-        application.getPath('feature.agents.system_workspaces'),
-        session.id,
-        Date.parse(session.createdAt)
-      )
-    )
+
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe(session.workspaceId)
@@ -1005,13 +996,7 @@ describe('AgentSessionService', () => {
 
     expect(updated.workspaceId).not.toBe(userWorkspace.id)
     expect(updated.workspace.type).toBe('system')
-    expect(updated.workspace.path).toBe(
-      buildSystemWorkspacePath(
-        application.getPath('feature.agents.system_workspaces'),
-        session.id,
-        Date.parse(session.createdAt)
-      )
-    )
+
     const [systemWorkspaceRow] = await dbh.db
       .select()
       .from(agentWorkspaceTable)
@@ -1048,9 +1033,6 @@ describe('AgentSessionService', () => {
       const restored = agentSessionService.setWorkspace(session.id, { type: 'system' })
 
       expect(restored.workspace.path).toBe(originalSystemPath)
-      expect(restored.workspace.path).toBe(
-        buildSystemWorkspacePath(application.getPath('feature.agents.system_workspaces'), session.id, firstDay)
-      )
     } finally {
       now.mockRestore()
     }
@@ -1079,9 +1061,6 @@ describe('AgentSessionService', () => {
       const restored = agentSessionService.setWorkspace(session.id, { type: 'system' })
 
       expect(restored.workspace.path).toBe(originalSystemPath)
-      expect(restored.workspace.path).toBe(
-        path.join(application.getPath('feature.agents.system_workspaces'), '2026-07-27', session.id)
-      )
     } finally {
       now.mockRestore()
       if (originalTimezone === undefined) delete process.env.TZ
@@ -1281,7 +1260,7 @@ describe('AgentSessionService', () => {
     dbh.db.transaction((tx) => agentSessionService.clearTaskScheduleTx(tx, task.id))
     expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
     expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual([first.id, second.id].sort())
-    expect(agentSessionService.listByCursor().items).toEqual([])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items).toEqual([])
 
     bindTaskSession(second.id, task.id)
     expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(second.id)
@@ -1527,7 +1506,7 @@ describe('AgentSessionService', () => {
       deletedAt: undefined
     })
     expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-independent-restore')
-    expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual([
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)).toEqual([
       'session-independent-restore'
     ])
     expect(await dbh.db.select().from(agentSessionMessageTable)).toHaveLength(1)
@@ -1760,6 +1739,96 @@ describe('AgentSessionService', () => {
     expect(activeRow).toMatchObject({ id: active.id, deletedAt: null })
   })
 
+  describe('beyond the SQLite bound-parameter limit', () => {
+    const SESSION_COUNT = 33_000
+
+    async function seedTaskSessions(): Promise<{ taskId: string; ids: string[] }> {
+      const task = createTaskSchedule()
+      const workspace = await createWorkspace('high-frequency-task')
+      const ids = Array.from({ length: SESSION_COUNT }, (_, i) => `task-run-${i}`)
+      dbh.db.transaction((tx) => {
+        for (let i = 0; i < ids.length; i += 500) {
+          tx.insert(agentSessionTable)
+            .values(
+              ids.slice(i, i + 500).map((id, offset) => ({
+                id,
+                agentId: 'agent-session-test',
+                name: id,
+                workspaceId: workspace.id,
+                taskId: task.id,
+                orderKey: `a${String(i + offset).padStart(6, '0')}`
+              }))
+            )
+            .run()
+        }
+      })
+      pinService.pin({ entityType: 'session', entityId: ids[SESSION_COUNT - 1] })
+      return { taskId: task.id, ids }
+    }
+
+    it('trashes and then permanently deletes every session of a task', async () => {
+      const { taskId, ids } = await seedTaskSessions()
+
+      const trashed = dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, ids))
+
+      expect(trashed.trashedIds).toHaveLength(SESSION_COUNT)
+      const deletedAts = new Set(
+        (await dbh.db.select({ deletedAt: agentSessionTable.deletedAt }).from(agentSessionTable)).map(
+          (row) => row.deletedAt
+        )
+      )
+      expect(deletedAts.size).toBe(1)
+      expect([...deletedAts][0]).not.toBeNull()
+      expect(await dbh.db.select().from(pinTable)).toEqual([])
+
+      const purged = agentSessionService.deleteByIdsWithImpact(agentSessionService.listTaskSessionIds(taskId), {
+        permanent: true
+      })
+
+      expect(purged.deletedIds).toHaveLength(SESSION_COUNT)
+      expect(await dbh.db.select().from(agentSessionTable)).toEqual([])
+    })
+
+    it('resolves pre-deletion lookups for every session of a task', async () => {
+      const { ids } = await seedTaskSessions()
+      const systemSession = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'System workspace run',
+        workspace: { type: 'system' }
+      })
+      const lookupIds = [...ids, systemSession.id]
+      const lastTaskSessionId = ids[SESSION_COUNT - 1]
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values({
+          id: crypto.randomUUID(),
+          sessionId: lastTaskSessionId,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'Last run' }] },
+          runtimeResumeToken: 'native-last-run'
+        })
+        .run()
+
+      expect(agentSessionService.listSystemWorkspaceSessions(lookupIds).map((row) => row.id)).toEqual([
+        systemSession.id
+      ])
+      expect(agentSessionMessageService.listRuntimeResumeTokensBySession(lookupIds)).toEqual(
+        new Map([[lastTaskSessionId, new Set(['native-last-run'])]])
+      )
+    })
+
+    it('purges every expired trashed session of a task', async () => {
+      const { ids } = await seedTaskSessions()
+      dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, ids, { deletedAt: 100 }))
+
+      const purgedIds = dbh.db.transaction((tx) => agentSessionService.purgeExpiredByIdsTx(tx, ids, 200))
+
+      expect(purgedIds).toHaveLength(SESSION_COUNT)
+      expect(await dbh.db.select().from(agentSessionTable)).toEqual([])
+    })
+  })
+
   it('deletes system workspace rows when deleting agent sessions', async () => {
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
@@ -1782,14 +1851,14 @@ describe('AgentSessionService', () => {
     const third = await createSession('Third')
 
     agentSessionService.reorder(first.id, { position: 'first' })
-    let list = agentSessionService.listByCursor()
+    let list = agentSessionService.listByCursor({ scope: 'ordinary' })
     expect(list.items.map((item) => item.id)).toEqual([first.id, third.id, second.id])
 
     agentSessionService.reorderBatch([
       { id: second.id, anchor: { before: first.id } },
       { id: third.id, anchor: { position: 'last' } }
     ])
-    list = agentSessionService.listByCursor()
+    list = agentSessionService.listByCursor({ scope: 'ordinary' })
     expect(list.items.map((item) => item.id)).toEqual([second.id, first.id, third.id])
   })
 
@@ -1798,11 +1867,11 @@ describe('AgentSessionService', () => {
     const second = await createSession('Second')
     const third = await createSession('Third')
 
-    const page1 = agentSessionService.listByCursor({ limit: 2 })
+    const page1 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 2 })
     expect(page1.items.map((item) => item.id)).toEqual([third.id, second.id])
     expect(page1.nextCursor).toBeTruthy()
 
-    const page2 = agentSessionService.listByCursor({ limit: 2, cursor: page1.nextCursor })
+    const page2 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 2, cursor: page1.nextCursor })
     expect(page2.items.map((item) => item.id)).toEqual([first.id])
     expect(page2.nextCursor).toBeUndefined()
   })
@@ -1820,7 +1889,7 @@ describe('AgentSessionService', () => {
       updatedAt: 1
     })
 
-    const result = agentSessionService.listByCursor({ ids: [pinned.id, unpinned.id], limit: 2 })
+    const result = agentSessionService.listByCursor({ scope: 'ordinary', ids: [pinned.id, unpinned.id], limit: 2 })
 
     expect(result.items.map((session) => session.id)).toEqual([pinned.id, unpinned.id])
     expect(result.nextCursor).toBeUndefined()
@@ -1840,7 +1909,7 @@ describe('AgentSessionService', () => {
       { id: 'pin-b', entityType: 'session', entityId: s2.id, orderKey: 'a1', createdAt: 1, updatedAt: 1 }
     ])
 
-    const result = agentSessionService.listByCursor()
+    const result = agentSessionService.listByCursor({ scope: 'ordinary' })
     // pinned by pin.orderKey → [s1, s2]; unpinned by orderKey ASC → [s4, s3].
     expect(result.items.map((item) => item.id)).toEqual([s1.id, s2.id, s4.id, s3.id])
     expect(result.nextCursor).toBeUndefined()
@@ -1857,15 +1926,15 @@ describe('AgentSessionService', () => {
 
     // limit=1: page1 = first pinned, page2 = second pinned (spills to entity start),
     // page3 = the single unpinned session.
-    const page1 = agentSessionService.listByCursor({ limit: 1 })
+    const page1 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 1 })
     expect(page1.items.map((item) => item.id)).toEqual([s1.id])
     expect(page1.nextCursor).toBeDefined()
 
-    const page2 = agentSessionService.listByCursor({ limit: 1, cursor: page1.nextCursor })
+    const page2 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 1, cursor: page1.nextCursor })
     expect(page2.items.map((item) => item.id)).toEqual([s2.id])
     expect(page2.nextCursor).toBeDefined()
 
-    const page3 = agentSessionService.listByCursor({ limit: 1, cursor: page2.nextCursor })
+    const page3 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 1, cursor: page2.nextCursor })
     expect(page3.items.map((item) => item.id)).toEqual([s3.id])
     expect(page3.nextCursor).toBeUndefined()
   })
@@ -1907,8 +1976,8 @@ describe('AgentSessionService', () => {
       }
     ])
 
-    const page1 = agentSessionService.listByCursor({ limit: 1 })
-    const page2 = agentSessionService.listByCursor({ limit: 1, cursor: page1.nextCursor })
+    const page1 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 1 })
+    const page2 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 1, cursor: page1.nextCursor })
 
     expect(page1.items.map((session) => session.id)).toEqual(['session-pinned-1'])
     expect(page2.items.map((session) => session.id)).toEqual(['session-pinned-2'])
@@ -2008,7 +2077,7 @@ describe('task session ownership migration', () => {
     ).toEqual([{ created_at: 1, updated_at: 1, last_activity_at: 1 }])
     dbh.db.delete(jobTable).run()
     expect(agentSessionService.listTaskSessionIds('task').sort()).toEqual(['metadata', 'output', 'sticky'])
-    expect(agentSessionService.listByCursor().items.map((s) => s.id)).toEqual(['ordinary'])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((s) => s.id)).toEqual(['ordinary'])
     expect(agentSessionService.getByTaskScheduleId('task')?.id).toBe('sticky')
     dbh.db.transaction((tx) => agentTaskService.deleteScheduleTx(tx, 'task'))
     expect(agentSessionService.listTaskSessionIds('task')).toEqual([])

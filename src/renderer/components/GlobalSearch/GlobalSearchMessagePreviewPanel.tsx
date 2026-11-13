@@ -434,7 +434,8 @@ export function GlobalSearchMessagePreviewPanel({
             rangeExtractor={extractPreviewRange}
             scrollElementRef={scrollContainerRef}
             onScroll={handleScroll}
-            className="min-h-0 flex-1 overflow-y-auto px-6 pt-5 pb-20"
+            className="min-h-0 flex-1 overflow-y-auto"
+            contentProps={{ className: 'px-6 pt-5 pb-20' }}
             header={
               <>
                 {error && (

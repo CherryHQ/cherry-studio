@@ -21,6 +21,8 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'ui.theme': 'light',
   'ui.font_size': 14,
 
+  'agent.skills.external_export.enabled': false,
+
   // AI preferences
   'ai.default_model': 'gpt-4',
   'ai.temperature': 0.7,
@@ -37,6 +39,8 @@ export const mockPreferenceDefaults: Record<string, any> = {
   // App preferences
   'app.user.name': 'MockUser',
   'app.language': 'zh-CN',
+  'app.browser.start_page.mode': getDefaultValue('app.browser.start_page.mode'),
+  'app.browser.start_page.custom_url': getDefaultValue('app.browser.start_page.custom_url'),
 
   // Mirrors the generated schema defaults — without them the hook returns
   // null and UI gated on the master switch renders its disabled state.

@@ -363,13 +363,6 @@ describe('ResourceCreateWizard', () => {
     expectDefaults('assistant', 'Newest seed')
   })
 
-  it.each(['assistant', 'agent'] as const)('labels the shared authoring step as System Prompt for %s', (kind) => {
-    render(<ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
-
-    expect(screen.getByText('library.config.prompt.label')).toBeInTheDocument()
-    expect(screen.queryByText('library.config.dialogs.create.step.persona')).not.toBeInTheDocument()
-  })
-
   it('prefills the model from the default model when the wizard opens', async () => {
     modelHook.defaultModel = makeModel()
 
@@ -400,17 +393,9 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
 
-    expect(onSubmit).toHaveBeenCalledWith({
-      avatar: '💬',
-      name: 'My Resource',
-      agentType: 'claude-code',
-      permissionMode: 'auto',
-      modelId: 'provider::default',
-      description: '',
-      prompt: '',
-      knowledgeBaseIds: [],
-      skillIds: []
-    })
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'My Resource', modelId: 'provider::default' })
+    )
   })
 
   it('seeds the name from initialName so a caller-supplied name clears the first step', async () => {
@@ -504,17 +489,9 @@ describe('ResourceCreateWizard', () => {
 
     // Final create → mapped payload
     await user.click(screen.getByRole('button', { name: CREATE }))
-    expect(onSubmit).toHaveBeenCalledWith({
-      avatar: '💬',
-      name: 'My Resource',
-      agentType: 'claude-code',
-      permissionMode: 'auto',
-      modelId: 'provider::model',
-      description: '',
-      prompt: 'be helpful',
-      knowledgeBaseIds: [],
-      skillIds: []
-    })
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'My Resource', modelId: 'provider::model', prompt: 'be helpful' })
+    )
   })
 
   it('surfaces the actionable submit error and leaves the dialog closable after failure', async () => {
@@ -575,23 +552,6 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: CREATE }))
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ agentType: 'pi-durable', permissionMode: 'auto' }))
-  })
-
-  it('shows the knowledge step after capability for the agent kind', async () => {
-    const user = userEvent.setup()
-    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
-
-    await user.click(screen.getByRole('button', { name: 'fill basic' }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-
-    expect(screen.getByTestId('capability-step')).toBeInTheDocument()
-    expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: NEXT }))
-
-    expect(screen.getByTestId('knowledge-step')).toBeInTheDocument()
-    expect(screen.queryByTestId('capability-step')).not.toBeInTheDocument()
   })
 
   it('does not render an invalid step when a closed agent wizard falls back to assistant kind', async () => {

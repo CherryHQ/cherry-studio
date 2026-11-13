@@ -19,6 +19,7 @@ it('redacts step titles and failures before JSON, HTML and blob reporters serial
       config,
       `export default { testDir: ${JSON.stringify(directory)}, reporter: [
         [${JSON.stringify(resolve('scripts/e2e/regression/RedactionReporter.ts'))}],
+        ['github'],
         ['blob', { outputFile: ${JSON.stringify(blob)} }],
         ['html', { outputFolder: ${JSON.stringify(html)}, open: 'never' }],
         ['json', { outputFile: ${JSON.stringify(json)} }]
@@ -38,6 +39,8 @@ it('redacts step titles and failures before JSON, HTML and blob reporters serial
       env: { ...process.env, CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: secret }
     })
     expect(result.status, result.stdout + result.stderr).toBe(1)
+    expect(result.stdout).toContain('::error')
+    expect(result.stdout + result.stderr).not.toContain(secret)
     const report = JSON.parse(readFileSync(json, 'utf8'))
     expect(report.stats.unexpected).toBe(1)
     expect(readFileSync(json, 'utf8')).not.toContain(secret)

@@ -10,11 +10,24 @@ import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import {
+  inspectOwnedNotificationHistory,
+  prepareOwnedMacNotifications,
+  prepareOwnedWindowsNotifications
+} from '../../../../scripts/e2e/regression/debugBridge'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { findMacNotification } from '../../../../scripts/e2e/regression/systemAutomation'
+import {
+  allowMacNotificationPermission,
+  findMacNotification,
+  findWindowsNotification,
+  setMacNotificationCenterOpen,
+  setWindowsNotificationCenterOpen
+} from '../../../../scripts/e2e/regression/systemAutomation'
+import { cleanupWindowsNotificationShortcut } from '../../../../scripts/e2e/regression/windowsNotificationShortcut'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
+import { inspectStartup } from '../helpers/startupInspection'
 import type { RegressionApp } from '../RegressionApp'
 
 // A failure after the case hides the application must not leave it hidden for the cases that follow.
@@ -39,7 +52,10 @@ function restoreAppVisibility(pid: number): void {
 }
 
 export async function notificationSettings(app: RegressionApp, initialPage: Page, testInfo: TestInfo): Promise<void> {
-  expect(process.platform, 'Native notification automation requires macOS').toBe('darwin')
+  const findNotification = (text: string, click = false) =>
+    app.record.platform === 'macos'
+      ? findMacNotification(app.paths, text, click)
+      : findWindowsNotification(app.paths, text, click)
   let page = initialPage
   const keys = [
     'app.notification.assistant.enabled',
@@ -74,6 +90,7 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
   const topicName = app.resourceName(`Notification ${Date.now()}`)
   const assistantName = app.resourceName('Notification assistant')
   let assistantId: string | undefined
+  let nativeCenterWasOpen: boolean | undefined
   try {
     await page.evaluate(() => window.api.preference.set('topic.naming.enabled', false))
     await openSettingsSection(page, 'Notifications')
@@ -86,6 +103,12 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
     await expect.poll(readPreferences).toEqual(changed)
     await screenshot('MP-110 notification switches enabled and changed')
     page = await app.restart()
+    if (app.record.platform === 'macos' && app.record.mode === 'branch') {
+      await prepareOwnedMacNotifications(app.record)
+      await allowMacNotificationPermission(app.paths)
+    }
+    if (app.record.platform === 'windows' && app.record.mode === 'branch')
+      await prepareOwnedWindowsNotifications(app.record, app.paths)
     await openSettingsSection(page, 'Notifications')
     for (const [index, row] of rows.entries()) {
       await expect(page.locator(`#setting-notifications-${row}`).getByRole('switch')).toBeChecked({
@@ -161,6 +184,11 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
     await page.reload()
     await selectSidebarApp(page, 'Chat')
     const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const topics = chat.locator('[data-ui~="chat.topic-list"]:visible').first()
+    const showSidebar = chat.getByRole('button', { name: 'Show Sidebar', exact: true })
+    await expect(topics.or(showSidebar).first()).toBeVisible({ timeout: 20_000 })
+    if (!(await topics.isVisible())) await showSidebar.click()
+    await expect(topics).toBeVisible({ timeout: 20_000 })
     const assistantRow = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await expect(assistantRow).toBeVisible()
     await assistantRow.hover()
@@ -189,16 +217,31 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
       )
       // The mock holds the real HTTP response until the app is demonstrably in the background.
       await openSettingsSection(page, 'Notifications')
-      execFileSync(
-        'osascript',
-        [
-          '-e',
-          `tell application "System Events" to set visible of (first application process whose unix id is ${app.record.electronPid}) to false`
-        ],
-        { timeout: 10_000 }
-      )
+      if (app.record.platform === 'windows') {
+        expect(await page.evaluate(() => window.api.ipcApi.request('window.minimize'))).toMatchObject({ ok: true })
+      } else {
+        execFileSync(
+          'osascript',
+          [
+            '-e',
+            `tell application "System Events" to set visible of (first application process whose unix id is ${app.record.electronPid}) to false`
+          ],
+          { timeout: 10_000 }
+        )
+      }
       await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
-      expect(findMacNotification(app.paths, answer)).toBe(false)
+      if (app.record.platform === 'macos') {
+        const previous = setMacNotificationCenterOpen(app.paths, true)
+        nativeCenterWasOpen ??= previous
+      } else {
+        const previous = setWindowsNotificationCenterOpen(app.paths, true)
+        nativeCenterWasOpen ??= previous
+      }
+      expect(findNotification(answer)).toBe(false)
+      if (app.record.platform === 'windows') {
+        setWindowsNotificationCenterOpen(app.paths, false)
+        await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
+      }
       await new Promise((resolve) => setTimeout(resolve, 1500))
       request.complete(answer)
       await expect
@@ -223,9 +266,21 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
           )
         )
         .toBe(true)
+      if (app.record.platform === 'windows') setWindowsNotificationCenterOpen(app.paths, true)
       if (enabled) {
-        await expect.poll(() => findMacNotification(app.paths, answer), { timeout: 15_000 }).toBe(true)
-        expect(findMacNotification(app.paths, answer, true)).toBe(true)
+        try {
+          await expect.poll(() => findNotification(answer), { timeout: 15_000 }).toBe(true)
+        } catch (error) {
+          const history = await inspectOwnedNotificationHistory(app.record, answer).catch((failure) => ({
+            error: String(failure)
+          }))
+          await testInfo.attach('Owned native notification delivery diagnostic', {
+            body: JSON.stringify(history),
+            contentType: 'application/json'
+          })
+          throw error
+        }
+        expect(findNotification(answer, true)).toBe(true)
         await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true)
         await expect(chat).toBeVisible()
         await expect(chat.getByText(answer, { exact: true })).toBeVisible()
@@ -235,19 +290,20 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
         // Observe a bounded delivery window after confirmed completion, rather than checking too early.
         const deadline = Date.now() + 8000
         while (Date.now() < deadline) {
-          expect(findMacNotification(app.paths, answer), 'Disabled conversation notifications must never appear').toBe(
-            false
-          )
+          expect(findNotification(answer), 'Disabled conversation notifications must never appear').toBe(false)
           await new Promise((resolve) => setTimeout(resolve, 500))
         }
-        execFileSync(
-          'osascript',
-          [
-            '-e',
-            `tell application "System Events" to set frontmost of (first application process whose unix id is ${app.record.electronPid}) to true`
-          ],
-          { timeout: 10_000 }
-        )
+        if (app.record.platform === 'windows') await inspectStartup(app, 'show')
+        else {
+          execFileSync(
+            'osascript',
+            [
+              '-e',
+              `tell application "System Events" to set frontmost of (first application process whose unix id is ${app.record.electronPid}) to true`
+            ],
+            { timeout: 10_000 }
+          )
+        }
         await selectSidebarApp(page, 'Chat')
         await topicRow.click()
         await expect(chat.getByText(answer, { exact: true })).toBeVisible()
@@ -259,27 +315,53 @@ export async function notificationSettings(app: RegressionApp, initialPage: Page
       }
     }
   } finally {
-    await server.close()
-    restoreAppVisibility(app.record.electronPid)
-    await page.evaluate(
-      async ({ keys, original, namingEnabled, assistantId, providerId }) => {
-        for (const [index, key] of keys.entries()) await window.api.preference.set(key, original[index])
-        await window.api.preference.set('topic.naming.enabled', namingEnabled)
-        if (assistantId) {
-          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
-            assistantId,
-            deleteTopics: true
-          })) as IpcResult<{ deleted: boolean }>
-          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
-            throw new Error('cleanup left the case assistant in the trash')
-        }
-        await window.api.dataApi.request({
-          id: 'notification-cleanup',
-          method: 'DELETE',
-          path: `/providers/${providerId}`
-        })
-      },
-      { keys, original, namingEnabled, assistantId, providerId }
-    )
+    const cleanupErrors: string[] = []
+    await server.close().catch((error) => cleanupErrors.push(String(error)))
+    try {
+      cleanupWindowsNotificationShortcut(app.paths)
+    } catch (error) {
+      cleanupErrors.push(String(error))
+    }
+    if (app.record.platform === 'macos') {
+      try {
+        setMacNotificationCenterOpen(app.paths, nativeCenterWasOpen ?? false)
+      } catch (error) {
+        cleanupErrors.push(String(error))
+      }
+    } else if (nativeCenterWasOpen !== undefined) {
+      try {
+        setWindowsNotificationCenterOpen(app.paths, nativeCenterWasOpen)
+      } catch (error) {
+        cleanupErrors.push(String(error))
+      }
+    }
+    if (app.record.platform === 'windows')
+      await inspectStartup(app, 'show').catch((error) => cleanupErrors.push(String(error)))
+    else restoreAppVisibility(app.record.electronPid)
+    await page
+      .evaluate(
+        async ({ keys, original, namingEnabled, assistantId, providerId }) => {
+          for (const [index, key] of keys.entries()) await window.api.preference.set(key, original[index])
+          await window.api.preference.set('topic.naming.enabled', namingEnabled)
+          if (assistantId) {
+            const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+              assistantId,
+              deleteTopics: true
+            })) as IpcResult<{ deleted: boolean }>
+            if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+              throw new Error('cleanup left the case assistant in the trash')
+          }
+          await window.api.dataApi.request({
+            id: 'notification-cleanup',
+            method: 'DELETE',
+            path: `/providers/${providerId}`
+          })
+        },
+        { keys, original, namingEnabled, assistantId, providerId }
+      )
+      .catch((error) => cleanupErrors.push(String(error)))
+    expect
+      .soft(cleanupErrors, 'Notification cleanup must restore the app without masking the original failure')
+      .toEqual([])
   }
 }

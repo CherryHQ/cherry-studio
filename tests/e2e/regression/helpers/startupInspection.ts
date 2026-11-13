@@ -7,10 +7,18 @@ export interface StartupState {
   openAtLogin: boolean
   visible: boolean
   dockVisible: boolean
-  trays: { destroyed: boolean; bounds: { width: number; height: number } }[]
+  windows: { id: number; visible: boolean; minimized: boolean; route: string | null }[]
+  trays: {
+    destroyed: boolean
+    bounds: { x: number; y: number; width: number; height: number }
+    screenPoint: { x: number; y: number } | null
+  }[]
 }
 
-export async function inspectStartup(app: RegressionApp, action?: 'show' | 'quit'): Promise<StartupState> {
+export async function inspectStartup(
+  app: RegressionApp,
+  action?: 'show' | 'quit' | 'tray-menu'
+): Promise<StartupState> {
   const record = app.record
   const inspectorPort = Number(process.env.V8_INSPECTOR_PORT ?? MAIN_INSPECTOR_PORT)
   assertOwnedProcess(record, record.electronPid, 'electron')
@@ -47,18 +55,24 @@ export async function inspectStartup(app: RegressionApp, action?: 'show' | 'quit
       socket.send(JSON.stringify({ id: requestId, method, params }))
     })
   try {
-    const prototype = await request('Runtime.evaluate', {
-      expression: "process.mainModule.require('electron').Tray.prototype"
-    })
-    const objects = await request('Runtime.queryObjects', { prototypeObjectId: prototype.result.objectId })
-    const trays = await request('Runtime.callFunctionOn', {
-      objectId: objects.objects.objectId,
-      // Heap queries include JavaScript prototypes without a native Tray receiver.
-      functionDeclaration: `function () { return this.flatMap(tray => {
-        try { return [{ destroyed: tray.isDestroyed(),
-          bounds: tray.isDestroyed() ? { width: 0, height: 0 } : tray.getBounds() }] }
-        catch { return [] }
-      }) }`,
+    const trays = await request('Runtime.evaluate', {
+      expression: `(() => {
+          const application = Object.values(process.mainModule.require('node:module')._cache)
+            .map(module => module.exports?.application).find(candidate => candidate?.getPath)
+          const service = application.get('TrayService')
+          const tray = service.tray
+          if (${JSON.stringify(action)} === 'tray-menu') {
+            if (!tray || tray.isDestroyed() || !service.contextMenu) throw new Error('Owned tray menu is unavailable')
+            tray.popUpContextMenu(service.contextMenu)
+          }
+          if (!tray) return []
+          const destroyed = tray.isDestroyed()
+          const bounds = destroyed ? { x: 0, y: 0, width: 0, height: 0 } : tray.getBounds()
+          const point = { x: Math.round(bounds.x + bounds.width / 2), y: Math.round(bounds.y + bounds.height / 2) }
+          const screenPoint = destroyed ? null : process.platform === 'win32'
+            ? process.mainModule.require('electron').screen.dipToScreenPoint(point) : point
+          return [{ destroyed, bounds, screenPoint }]
+      })()`,
       returnByValue: true
     })
     const state = await request('Runtime.evaluate', {
@@ -66,8 +80,16 @@ export async function inspectStartup(app: RegressionApp, action?: 'show' | 'quit
         const { app, BrowserWindow } = process.mainModule.require('electron')
         const main = BrowserWindow.getAllWindows().find(w => w.webContents.getURL().includes('/windows/main/index.html'))
         if (${JSON.stringify(action)} === 'show') app.emit('activate')
+        const windowsBase = main ? new URL('../', main.webContents.getURL()) : null
+        const windows = BrowserWindow.getAllWindows().map(window => {
+          const url = new URL(window.webContents.getURL() || 'about:blank')
+          const relativePath = windowsBase && url.href.startsWith(windowsBase.href)
+            ? url.pathname.slice(windowsBase.pathname.length) : ''
+          const route = /^(?:[A-Za-z]+[/])+index[.]html$/.test(relativePath) ? '/windows/' + relativePath : null
+          return { id: window.id, visible: window.isVisible(), minimized: window.isMinimized(), route }
+        })
         const state = { openAtLogin: app.getLoginItemSettings().openAtLogin,
-          visible: main?.isVisible() ?? false, dockVisible: app.dock?.isVisible() ?? false }
+          visible: main?.isVisible() ?? false, dockVisible: app.dock?.isVisible() ?? false, windows }
         if (${JSON.stringify(action)} === 'quit') setTimeout(() => app.quit(), 100)
         return state
       })()`,

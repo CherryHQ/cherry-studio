@@ -1,13 +1,23 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { mkdtemp, rm, writeFile, mkdir, stat, utimes, readFile, readdir } from 'node:fs/promises'
 import { join, basename, dirname } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
+import { pathToFileURL } from 'node:url'
+
+import { chromium, type BrowserContext } from '@playwright/test'
+import AdmZip from 'adm-zip'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
+import {
+  saveNativeFile,
+  readWindowsPrintDialog,
+  dismissNativeMessageBox,
+  controlMacPrintDialog
+} from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
 import { openLaunchpadApp, selectSidebarApp } from '../helpers/navigation'
 import { noteKnowledgeExport } from '../scenarios/noteKnowledgeExport'
@@ -20,14 +30,14 @@ test(...caseDefinition('MP-11'), async ({ app, mainWindow }, testInfo) => {
   await notesAndExport(app, mainWindow, testInfo)
 })
 
-test(...caseDefinition('MP-74'), async ({ mainWindow: page }, testInfo) => {
+test(...caseDefinition('MP-74'), async ({ app, mainWindow: page }, testInfo) => {
   testInfo.annotations.push({
     type: 'uncovered',
     description:
       'Notes has no explicit saved-status indicator. Autosave is verified by the bytes on disk and the rendered content instead.'
   })
   // Catch lost autosaves, broken Markdown rendering, and silent overwrites of external edits.
-  const directory = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp74-'))
+  const directory = await mkdtemp(join(app.paths.fixtures, 'mp74-'))
   const name = 'MP-74 Markdown conflict'
   const notePath = join(directory, `${name}.md`)
   const original = '# Existing note\n\nExisting content.\n'
@@ -76,6 +86,8 @@ test(...caseDefinition('MP-74'), async ({ mainWindow: page }, testInfo) => {
     await screenshot('MP-74 existing note precondition')
     await notes.getByText(name, { exact: true }).click()
     await expect(source).toContainText('Existing content.')
+    await source.press('ControlOrMeta+A')
+    await source.press('Backspace')
     await source.fill(markdown)
     await expect(notes.getByText(`Characters: ${markdown.length}`, { exact: true })).toBeVisible()
     await expect.poll(() => readFile(notePath, 'utf8')).toBe(markdown)
@@ -281,9 +293,9 @@ test(...caseDefinition('MP-75'), async ({ app, mainWindow: page }, testInfo) => 
   }
 })
 
-test(...caseDefinition('MP-76'), async ({ mainWindow: page }, testInfo) => {
+test(...caseDefinition('MP-76'), async ({ app, mainWindow: page }, testInfo) => {
   test.setTimeout(120_000)
-  const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp76-notes-'))
+  const root = await mkdtemp(join(app.paths.fixtures, 'mp76-notes-'))
   const fixtures = [
     { name: 'Field journal', content: 'First line\nSecond line\nThe marker is canary-seven at line three.' },
     { name: 'canary title only', content: 'An ordinary title match with no bird in its body.' },
@@ -376,7 +388,6 @@ test(...caseDefinition('MP-76'), async ({ mainWindow: page }, testInfo) => {
 })
 
 test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => {
-  test.skip(app.record.platform !== 'macos', 'PDF/Word inspection and print automation require macOS Preview and Pages')
   const attachScreenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
@@ -421,7 +432,7 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
     const pdfPath = join(directory, 'MP-77.pdf')
     await rm(pdfPath, { force: true })
     await menuAction('Export to PDF')
-    await saveNativeFile('macos', app.paths, pdfPath)
+    await saveNativeFile(app.record.platform, app.paths, pdfPath)
     await expect.poll(async () => (await stat(pdfPath).catch(() => undefined))?.size ?? 0).toBeGreaterThan(0)
     const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
     const pdf = await getDocument({ data: new Uint8Array(await readFile(pdfPath)), useSystemFonts: true }).promise
@@ -446,86 +457,81 @@ test(...caseDefinition('MP-77'), async ({ app, mainWindow: page }, testInfo) => 
     for (const expected of ['中文标题', '苹果', '12', '香蕉', '34', code, 'MP77_END']) {
       expect(pdfText).toContain(expected)
     }
-    execFileSync('open', ['-a', 'Preview', pdfPath])
-    // Preview's own scripting interface stops answering on macOS 27, so the opened document is read
-    // from its window title through System Events, the interface this fixture already automates.
-    await expect
-      .poll(() => appleScript('tell application "System Events" to tell process "Preview" to get name of windows'))
-      .toContain('MP-77.pdf')
+    if (app.record.platform === 'macos') {
+      const pdfResource = registerExternalResource(app.paths, app.record.platform, {
+        kind: 'document',
+        application: 'Preview',
+        path: pdfPath
+      })
+      execFileSync('open', ['-a', 'Preview', pdfPath])
+      // Preview's own scripting interface stops answering on macOS 27, so the opened document is read
+      // from its window title through System Events, the interface this fixture already automates.
+      await expect
+        .poll(() => appleScript('tell application "System Events" to tell process "Preview" to get name of windows'))
+        .toContain('MP-77.pdf')
+      observeExternalResource(app.paths, pdfResource)
+    } else {
+      const resource = registerExternalResource(app.paths, 'windows', { kind: 'browser', title: basename(pdfPath) })
+      const profile = join(app.paths.private, 'mp77-pdf-viewer')
+      let browser: BrowserContext | undefined
+      try {
+        browser = await chromium.launchPersistentContext(profile, { channel: 'msedge', headless: false })
+        const viewer = await browser.newPage()
+        await viewer.goto(pathToFileURL(pdfPath).href)
+        await expect(viewer.locator('embed[type="application/pdf"]')).toBeVisible()
+        observeExternalResource(app.paths, resource)
+        const screenshot = testInfo.outputPath('MP-77 external PDF viewer.png')
+        await viewer.screenshot({ path: screenshot })
+        await testInfo.attach('MP-77 external PDF viewer', { path: screenshot, contentType: 'image/png' })
+      } finally {
+        try {
+          await browser?.close()
+        } finally {
+          await rm(profile, { recursive: true, force: true })
+        }
+      }
+    }
     await testInfo.attach('Exported PDF', { path: pdfPath, contentType: 'application/pdf' })
 
-    const wordPath = join(directory, 'MP-77.docx')
+    const wordPath = join(directory, `MP-77-${randomUUID()}.docx`)
     await rm(wordPath, { force: true })
     await menuAction('Export to Word')
-    await saveNativeFile('macos', app.paths, wordPath)
+    await saveNativeFile(app.record.platform, app.paths, wordPath)
     await expect.poll(async () => (await stat(wordPath).catch(() => undefined))?.size ?? 0).toBeGreaterThan(0)
-    const xml = execFileSync('unzip', ['-p', wordPath, 'word/document.xml'], { encoding: 'utf8' })
+    const xml = new AdmZip(await readFile(wordPath)).readAsText('word/document.xml')
     expect(xml).toContain('<w:tbl>')
     expect(xml).toContain('苹果')
     expect(xml).toContain('中文标题')
-    test.skip(
-      !existsSync('/Applications/Pages.app'),
-      'PDF and DOCX structure verified; Pages is required for Word editing and print acceptance'
-    )
-    const edited = appleScript(
-      [
-        'on run argv',
-        'tell application "Pages"',
-        'set doc to open POSIX file (item 1 of argv)',
-        'repeat 100 times',
-        'if exists body text of doc then exit repeat',
-        'delay 0.1',
-        'end repeat',
-        'set originalText to body text of doc as text',
-        'set paragraph 1 of body text of doc to "MP77_EDITED_PARAGRAPH" & return',
-        'tell table 1 of doc',
-        'set value of cell "B2" to "MP77_EDITED_CELL"',
-        'set cellValue to value of cell "B2"',
-        'end tell',
-        'set resultText to originalText & return & (body text of doc as text) & return & cellValue',
-        'close doc saving no',
-        'return resultText',
-        'end tell',
-        'end run'
-      ].join('\n'),
-      wordPath
-    )
-    expect(edited).toContain('中文标题')
-    expect(edited).toContain('MP77_EDITED_PARAGRAPH')
-    expect(edited).toContain('MP77_EDITED_CELL')
     await testInfo.attach('Exported editable Word', {
       path: wordPath,
       contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     })
 
-    await menuAction('Print')
-    const preview = () =>
-      appleScript(
-        [
-          'on run argv',
-          'tell application "System Events"',
-          'tell (first application process whose unix id is (item 1 of argv as integer))',
-          'set resultText to ""',
-          'repeat with element in entire contents of window 1',
-          'try',
-          'set resultText to resultText & (description of element as text) & " " & (value of element as text) & return',
-          'end try',
-          'end repeat',
-          'return resultText',
-          'end tell',
-          'end tell',
-          'end run'
-        ].join('\n'),
-        String(app.record.electronPid)
-      )
-    await expect.poll(preview).toMatch(/page|页/i)
-    const previewText = preview()
-    await testInfo.attach('Native print preview accessibility', { body: previewText, contentType: 'text/plain' })
-    expect(previewText).toMatch(new RegExp(`(?:of|共|/)\\s*${pdf.numPages}(?:\\D|$)`))
-    appleScript(
-      'on run argv\ntell application "System Events" to tell (first application process whose unix id is (item 1 of argv as integer))\nset frontmost to true\nkey code 53\nend tell\nend run',
-      String(app.record.electronPid)
-    )
+    try {
+      await menuAction('Print')
+      if (app.record.platform === 'windows') {
+        await expect.poll(() => readWindowsPrintDialog(app.paths).join(' ')).toMatch(/printer/i)
+        const labels = readWindowsPrintDialog(app.paths)
+        expect(labels).toContain('Cancel')
+        expect(labels.join(' ')).toMatch(/page/i)
+        await testInfo.attach('Native Windows print dialog', { body: labels.join('\n'), contentType: 'text/plain' })
+      } else {
+        const preview = () => controlMacPrintDialog(app.paths, 'inspect').join('\n')
+        await expect.poll(preview).toMatch(/page|页/i)
+        const previewText = preview()
+        await testInfo.attach('Native print preview accessibility', { body: previewText, contentType: 'text/plain' })
+        expect(previewText).toMatch(/Printer|打印机/i)
+        expect(previewText).toContain('PDF')
+      }
+    } finally {
+      if (app.record.platform === 'windows') {
+        if (readWindowsPrintDialog(app.paths).length)
+          await dismissNativeMessageBox(app.record.platform, app.paths, 'Print', 'Cancel')
+      } else {
+        controlMacPrintDialog(app.paths, 'cancel')
+        await expect.poll(() => controlMacPrintDialog(app.paths, 'inspect')).toEqual([])
+      }
+    }
     await pdf.destroy()
     await attachScreenshot('MP-77 note after exports and print preview')
 

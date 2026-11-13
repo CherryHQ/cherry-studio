@@ -2,9 +2,10 @@ import { FileText, Plus } from 'lucide-react'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, HorizontalScrollContainer } from '@cherrystudio/ui'
+import { Button, Dialog } from '@cherrystudio/ui'
 import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { toast } from '@renderer/services/toast'
 import type { MarketplaceTemplate } from '@renderer/types/marketplace'
 import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
@@ -12,6 +13,7 @@ import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
 import {
   MarketplaceCard,
   MarketplaceCardAction,
+  MarketplaceCategoryFilter,
   MarketplaceDetailBody,
   MarketplaceDetailFooter,
   MarketplaceDetailHeader,
@@ -50,6 +52,7 @@ export function MarketplaceTemplates({
   const { createAgent, isCreatingAgent } = useAgentMutations()
   const [selected, setSelected] = useState<MarketplaceTemplate | null>(null)
   const [creating, setCreating] = useState<MarketplaceTemplate | null>(null)
+  const createDialog = useExitPresence(creating)
   useLayoutEffect(
     () => () => {
       setSelected(null)
@@ -77,25 +80,13 @@ export function MarketplaceTemplates({
   }
   return (
     <div className={preview ? '' : 'flex h-full min-h-0 flex-col'}>
-      {!preview && categories ? (
-        <div className="mb-3 shrink-0 pr-4" aria-label={t('marketplace.categories')}>
-          <HorizontalScrollContainer
-            gap="4px"
-            scrollLeftLabel={t('settings.models.filter.scroll_left')}
-            scrollRightLabel={t('settings.models.filter.scroll_right')}>
-            {['', ...categories].map((group) => (
-              <Button
-                key={group}
-                variant="ghost"
-                size="sm"
-                className={'shrink-0 rounded-full ' + (category === group ? 'bg-accent' : '')}
-                aria-pressed={category === group}
-                onClick={() => onCategoryChange?.(group)}>
-                {group ? categoryLabel(group) : t('common.all')}
-              </Button>
-            ))}
-          </HorizontalScrollContainer>
-        </div>
+      {!preview && categories && onCategoryChange ? (
+        <MarketplaceCategoryFilter
+          categories={categories}
+          category={category ?? ''}
+          onCategoryChange={onCategoryChange}
+          categoryLabel={categoryLabel}
+        />
       ) : null}
       <MarketplaceLoadState loading={loading} error={error} empty={!filtered.length} retry={retry} />
       <MarketplaceGrid
@@ -128,7 +119,7 @@ export function MarketplaceTemplates({
             }>
             {item.groups.length ? (
               <div className="mt-1 flex min-w-0 items-center gap-2">
-                <span className="truncate text-xs font-normal text-foreground-tertiary">
+                <span className="text-foreground-tertiary truncate text-xs font-normal">
                   {item.groups.map(categoryLabel).join(' · ')}
                 </span>
               </div>
@@ -167,17 +158,17 @@ export function MarketplaceTemplates({
                   />
                 ) : null}
                 {selected.description ? (
-                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
+                  <p className="text-muted-foreground text-sm leading-6 break-words whitespace-pre-wrap">
                     {selected.description}
                   </p>
                 ) : null}
                 {selected.prompt ? (
                   <section className="space-y-2">
                     <h3 className="flex items-center gap-2 text-xs font-medium">
-                      <FileText className="size-3.5 text-foreground-tertiary" />
+                      <FileText className="text-foreground-tertiary size-3.5" />
                       {t('marketplace.instructions')}
                     </h3>
-                    <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
+                    <p className="text-muted-foreground text-sm leading-6 break-words whitespace-pre-wrap">
                       {selected.prompt}
                     </p>
                   </section>
@@ -194,16 +185,16 @@ export function MarketplaceTemplates({
           ) : null}
         </MarketplaceDetailContent>
       </Dialog>
-      {creating ? (
+      {createDialog.value ? (
         <ResourceCreateWizard
           kind="agent"
-          open={active}
+          open={active && creating !== null}
           isSubmitting={isCreatingAgent}
           initialValues={{
-            name: creating.name,
-            description: creating.description,
-            avatar: creating.avatar,
-            prompt: creating.prompt
+            name: createDialog.value.name,
+            description: createDialog.value.description,
+            avatar: createDialog.value.avatar,
+            prompt: createDialog.value.prompt
           }}
           onOpenChange={(open) => {
             if (!open && !isCreatingAgent) {

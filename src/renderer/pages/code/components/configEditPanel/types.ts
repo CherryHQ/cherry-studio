@@ -26,6 +26,7 @@ export interface ConfigEditPanelSubmitValues {
 }
 
 export interface ConfigEditPanelProps {
+  open?: boolean
   onClose: () => void
   cliTool: CodeCli
   provider: Provider

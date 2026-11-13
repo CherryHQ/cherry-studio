@@ -799,6 +799,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (turn && correlation && !responseId) this.bindUsage(entry, correlation, turn)
     return {
       agentSessionId: sessionId,
+      traceContext: this.sessionTraceContext(entry, turn?.modelId),
       ...(turn ? { assistantMessageId: turn.assistantMessageId } : {}),
       source:
         sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot ?? entry.messageSnapshot) ??
@@ -808,10 +809,14 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private bindUsage(entry: AgentSessionRuntimeEntry, responseId: string, turn: AgentSessionTurn): void {
-    ;(entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(responseId, turn.assistantMessageId, () => {
-      const reply = getAgentSessionRuntimeReply(entry.runtimeState, turn)
+    const { assistantMessageId } = turn
+    // Owners live as long as the session (Pi never idle-closes); a collected turn is no longer a reply.
+    const turnRef = new WeakRef(turn)
+    ;(entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(responseId, assistantMessageId, () => {
+      const current = turnRef.deref()
+      const reply = current && getAgentSessionRuntimeReply(entry.runtimeState, current)
       return (
-        entry.persistedMessageIds?.has(turn.assistantMessageId) === true ||
+        entry.persistedMessageIds?.has(assistantMessageId) === true ||
         (reply !== undefined && reply.delivery.kind !== 'reserved' && reply.delivery.kind !== 'failed')
       )
     })
@@ -1120,12 +1125,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const fastMode = opts.fastMode === true
 
     const turn = this.currentTurn(entry)
-    // Open normal turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
-    // hook): the steer is folded into the current turn — no new turn, no queue entry. If the turn
-    // ends before it's injected, the connection emits `steer-undelivered` and we queue it below.
-    // The gate compares the live turn's frozen model/reasoning/Fast/knowledge config with the incoming
-    // message: a changed effective connection scope must queue as the NEXT turn instead of being
-    // folded into a query already running with different tools.
+    // Submit steer natively into the open turn; `steer-undelivered` queues it if delivery fails.
+    // A changed model/reasoning/service-tier/Fast/knowledge scope must queue as the next turn.
     const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
     const canRedirectOnCurrentConfig =
       turn?.modelId === entry.modelId &&
@@ -1692,6 +1693,8 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       return { ok: false, reason: 'rejected' }
     }
+
+    if (pending.presentation === 'application') return { ok: false, reason: 'rejected' }
 
     if (pending.presentation === 'message') {
       if (!anchorId) {
@@ -2762,10 +2765,36 @@ export class AgentSessionRuntimeService extends BaseService {
       if (value !== undefined) merged[field] = value
     }
     cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
-    for (const projection of entry.rootProjections?.values() ?? []) {
+    const projections = [...(entry.rootProjections?.values() ?? [])]
+    let retired: RootMessageProjection | undefined
+    if (
+      typeof merged.toolUseId === 'string' &&
+      (merged.status === 'completed' || merged.status === 'stopped' || merged.status === 'error')
+    ) {
+      const owners = projections.flatMap((projection) => {
+        const messageId = projection.toolCallMessageId(merged.toolUseId as string)
+        return messageId ? [{ projection, messageId }] : []
+      })
+      if (new Set(owners.map((owner) => owner.messageId)).size === 1) {
+        const owner = owners[0]
+        if (owner.projection.retireToolApproval(merged.toolUseId)) retired = owner.projection
+        application.get('AiStreamManager').retireToolApproval(entry.topicId, merged.toolUseId, {
+          anchorMessageId: owner.messageId
+        })
+      } else {
+        logger.warn('Cannot uniquely assign terminal task approval', {
+          sessionId: entry.sessionId,
+          toolCallId: merged.toolUseId,
+          messageIds: owners.map((owner) => owner.messageId)
+        })
+      }
+    }
+    for (const projection of projections) {
       const update = projection.taskEvent(merged as unknown as AgentTaskEventPartData)
-      if (!update) continue
-      this.publishRootMessage(entry, projection, update.messageId, update.parts)
+      const messageId =
+        update?.messageId ??
+        (projection === retired ? projection.toolCallMessageId(merged.toolUseId as string) : undefined)
+      if (messageId) this.publishRootMessage(entry, projection, messageId, projection.parts(messageId)!)
     }
     if (isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) {
       this.deliverRuntimeChunk(entry, {
@@ -2778,6 +2807,22 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
     if (request.presentation === 'stream') {
+      const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+      const contextId = this.currentConnection(entry)?.contextId
+      if (turn) {
+        const projection = turn.projection ?? (contextId ? this.rootProjection(entry, contextId) : undefined)
+        if (projection) {
+          turn.projection = projection
+          projection.control(turn.assistantMessageId, {
+            type: 'tool-input-available',
+            toolCallId: request.toolCallId,
+            toolName: request.toolName,
+            input: request.input,
+            providerExecuted: true,
+            dynamic: true
+          })
+        }
+      }
       const chunk: UIMessageChunk = {
         type: 'tool-approval-request',
         approvalId: request.approvalId,

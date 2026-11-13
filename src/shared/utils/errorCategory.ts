@@ -1,3 +1,5 @@
+import { isContextOverflowMessage } from '@cherrystudio/ai-core/contextOverflow'
+
 // Single source of error-text recognition. Main classifies subprocess stderr, the renderer
 // classifies provider responses; both must agree on precedence (region before 403, quota
 // before 429, feature timeouts before generic network).
@@ -215,14 +217,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   }
 
   // Context length exceeded
-  if (
-    msg.includes('context_length_exceeded') ||
-    msg.includes('too many tokens') ||
-    msg.includes('maximum context length') ||
-    msg.includes('context window') ||
-    msg.includes('prompt is too long') ||
-    msg.includes('input is too long')
-  ) {
+  if (isContextOverflowMessage(msg)) {
     return 'context_length'
   }
 
@@ -381,6 +376,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   if (
     msg.includes('unexpected token') ||
     msg.includes('failed to process successful response') ||
+    msg.includes('api returned an empty or malformed response') ||
     msg.includes('invalid response') ||
     msg.includes('parse error') ||
     (!requestParseFailure && msg.includes('failed to parse')) ||

@@ -27,8 +27,8 @@ Supported endpoints:
 - `GET /v1/models`: exposes `mock-chat` for provider discovery.
 - `POST /v1/chat/completions`: JSON completion or SSE according to `stream`.
 
-This fixture implements text chat only. It does not implement Responses,
-Anthropic Messages, legacy `/completions`, tool calls, or token accounting.
+This fixture implements text chat and model-requested function calls. It does not implement Responses,
+Anthropic Messages, legacy `/completions`, or token accounting.
 Unknown endpoints return 404 and malformed requests return 400.
 
 `nextRequest()` returns a separate controller for each request, in arrival order.
@@ -42,6 +42,7 @@ controllers. No response content is generated automatically.
 | --- | --- |
 | `sendText(text)` | Sends one SSE text delta; requires `stream: true` |
 | `complete(text?)` | Sends optional final text and finishes normally; SSE includes a stop chunk and `[DONE]` |
+| `completeToolCall({ id, name, arguments })` | Completes with a function call and `tool_calls` finish reason; the application must execute the real tool |
 | `fail(message)` | Sends an SSE provider error and `[DONE]`, or HTTP 500 for non-streaming requests |
 | `disconnect()` | Destroys the socket without a finish chunk or `[DONE]` |
 | `closed` | Resolves on response closure, including client cancellation; does not identify who closed it |

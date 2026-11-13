@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog, DialogContent } from '@cherrystudio/ui'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -61,9 +62,8 @@ const describeFileMetadata = (file: { origin_name?: string; name?: string }) => 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
   const { selectedBaseId, pendingAddSource, pendingAddFiles, pendingAddDirectoryPaths } = useKnowledgePage()
-  // The dialog mounts fresh per open (the section conditionally renders it), so the requested
-  // source is fixed for this lifetime — derive it instead of mirroring it into state.
-  const activeSource = pendingAddSource ?? DEFAULT_SOURCE_TYPE
+  const source = useExitPresence(open ? (pendingAddSource ?? DEFAULT_SOURCE_TYPE) : null)
+  const activeSource = source.value ?? DEFAULT_SOURCE_TYPE
   const directPick = isDirectPickSource(activeSource)
 
   const [noteMode, setNoteMode] = useState<NoteSourceMode>('import')
@@ -73,6 +73,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   const [submitErrorMessage, setSubmitErrorMessage] = useState('')
   const [isResolvingSubmit, setIsResolvingSubmit] = useState(false)
   const [pendingConflict, setPendingConflict] = useState<PendingConflictState | null>(null)
+  const conflict = useExitPresence(open ? pendingConflict : null)
   const [pendingResolution, setPendingResolution] = useState<ConflictResolution | null>(null)
   const { submit: submitKnowledgeItems, isSubmitting: isSubmittingItems } = useAddKnowledgeItems(selectedBaseId)
 
@@ -259,6 +260,20 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   // on mount, then submit. A ref guards against the effect running twice (StrictMode / re-renders).
   const directPickStartedRef = useRef(false)
   useEffect(() => {
+    if (!open) {
+      directPickStartedRef.current = false
+      return
+    }
+    setNoteMode('import')
+    setSelectedNotes([])
+    setNoteDraft({ title: '', content: '' })
+    setUrlValue('')
+    setSubmitErrorMessage('')
+    setPendingConflict(null)
+    setPendingResolution(null)
+  }, [open])
+
+  useEffect(() => {
     if (!open || !directPick || directPickStartedRef.current) {
       return
     }
@@ -382,8 +397,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         </Dialog>
       )}
       <KnowledgeAddConflictDialog
-        open={pendingConflict !== null}
-        conflicts={pendingConflict?.conflicts ?? []}
+        open={open && pendingConflict !== null}
+        conflicts={conflict.value?.conflicts ?? []}
         pendingResolution={pendingResolution}
         onResolve={handleConflictResolve}
         onCancel={handleConflictCancel}

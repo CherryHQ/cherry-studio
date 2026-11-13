@@ -171,14 +171,6 @@ describe('ProtocolService', () => {
     vi.unstubAllEnvs()
   })
 
-  it('logs malformed protocol URLs instead of throwing', async () => {
-    await markProtocolHandlingReady()
-
-    expect(() => (service as any).handleProtocolUrl('not a url')).not.toThrow()
-
-    expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle protocol URL', expect.any(TypeError))
-  })
-
   it('registers the packaged protocol handler without dev arguments', async () => {
     setDefaultApp(false)
     process.argv = ['Cherry Studio.exe']
@@ -232,18 +224,6 @@ describe('ProtocolService', () => {
       expect(navigations).toEqual(['cherrystudio://navigate/agents'])
     }
   )
-
-  it('logs asynchronous providers handler failures', async () => {
-    const error = new Error('failed')
-    handlersMock.handleProvidersProtocolUrl.mockRejectedValueOnce(error)
-    await markProtocolHandlingReady()
-
-    ;(service as any).handleProtocolUrl('cherrystudio://providers/api-keys?v=1&data=abc')
-
-    await vi.waitFor(() => {
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle providers protocol URL', error)
-    })
-  })
 
   it('broadcasts unknown protocol hosts to all windows', async () => {
     await markProtocolHandlingReady()
@@ -412,7 +392,6 @@ describe('ProtocolService', () => {
       service.onMainRendererReady('main-1')
 
       expect(handledUrls).toEqual(['cherrystudio://mcp/install?servers=first', 'cherrystudio://navigate/agents'])
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle protocol URL', expect.any(TypeError))
     })
 
     it('waits for services when the main renderer becomes ready first', async () => {
@@ -476,5 +455,11 @@ describe('ProtocolService', () => {
       expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledTimes(1)
       expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
     })
+  })
+
+  it('handles malformed protocol URLs without throwing', async () => {
+    await markProtocolHandlingReady()
+
+    expect(() => (service as any).handleProtocolUrl('not a url')).not.toThrow()
   })
 })

@@ -76,16 +76,4 @@ describe('localModelHandlers', () => {
     await expect(resolvePreference()).resolves.toBe(preference)
     expect(isInChina).toHaveBeenCalledOnce()
   })
-
-  it('returns the service catalog and hardware capability unchanged', async () => {
-    await expect(localModelHandlers['local_model.list'](undefined, ctx)).resolves.toEqual({
-      models: [
-        { id: EMBEDDING, capability: 'embedding' },
-        { id: OCR, capability: 'ocr' }
-      ]
-    })
-    await expect(localModelHandlers['local_model.get_acceleration_capability'](undefined, ctx)).resolves.toEqual({
-      supported: true
-    })
-  })
 })

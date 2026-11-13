@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { _electron as electron } from '@playwright/test'
 
-import { expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
 import {
   failureEvidence,
   findRow,
@@ -32,7 +32,7 @@ const test = base.extend<{ stickyProfile: { profile: string; notesPath: string }
     process.env.CS_DEV_PROFILE_ROOT = profile
     try {
       const binaryDirectory = join(profile, '.cherrystudio', 'bin')
-      const ripgrepDestination = join(binaryDirectory, 'rg')
+      const ripgrepDestination = join(binaryDirectory, process.platform === 'win32' ? 'rg.exe' : 'rg')
       try {
         accessSync(ripgrepSource, constants.R_OK | constants.X_OK)
         mkdirSync(binaryDirectory, { recursive: true })
@@ -66,7 +66,7 @@ const test = base.extend<{ stickyProfile: { profile: string; notesPath: string }
     try {
       await use(app)
     } finally {
-      await app.close()
+      await closeElectronApp(app)
     }
   },
   mainWindow: async ({ electronApp }, use, info) => {
@@ -78,8 +78,6 @@ const test = base.extend<{ stickyProfile: { profile: string; notesPath: string }
     }
   }
 })
-
-test.skip(!ripgrepSource, 'dev builds do not ship the managed ripgrep binary; set E2E_RIPGREP_BIN=<path to rg>')
 
 // #22368: actual Notes folders must occupy ancestor slots and yield to later siblings/roots.
 test('Notes FileTree sticky folders hand off across parent child sibling and root', async ({

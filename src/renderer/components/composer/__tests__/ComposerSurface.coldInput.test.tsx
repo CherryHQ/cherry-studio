@@ -82,13 +82,14 @@ afterEach(() => {
   }
 })
 
-function Harness() {
-  const [text, setText] = useState('')
+function Harness({ initialText = '', markdownLivePreview }: { initialText?: string; markdownLivePreview?: boolean }) {
+  const [text, setText] = useState(initialText)
   return (
     <>
       <input aria-label="Other input" />
       <output aria-label="Stored draft">{text}</output>
       <ComposerSurface
+        markdownLivePreview={markdownLivePreview}
         text={text}
         onTextChange={setText}
         tokens={tokens}
@@ -184,4 +185,21 @@ it('preserves another input focus when an untouched fallback loads the real edit
   expect(otherInput).toHaveValue('Other draft')
   expect(container.querySelector('[data-ui~="part:composer-input"] [contenteditable="true"]')?.textContent).toBe('')
   expect(screen.getByLabelText('Stored draft')).toBeEmptyDOMElement()
+})
+
+it('applies a Markdown preview toggle to an editor that is already mounted', async () => {
+  const view = render(<Harness initialText="**bold**" />)
+  runtime.resolve()
+  await act(() => vi.dynamicImportSettled())
+  const editor = () => view.container.querySelector('[data-ui~="part:composer-input"] [contenteditable="true"]')
+  await waitFor(() => expect(editor()?.textContent).toBe('**bold**'))
+  expect(editor()?.querySelector('.composer-md-strong')).toBeNull()
+
+  view.rerender(<Harness initialText="**bold**" markdownLivePreview />)
+  await waitFor(() => expect(editor()?.querySelector('.composer-md-strong')).not.toBeNull())
+
+  view.rerender(<Harness initialText="**bold**" markdownLivePreview={false} />)
+  await waitFor(() => expect(editor()?.querySelector('.composer-md-strong')).toBeNull())
+  expect(editor()?.textContent).toBe('**bold**')
+  expect(screen.getByLabelText('Stored draft').textContent).toBe('**bold**')
 })

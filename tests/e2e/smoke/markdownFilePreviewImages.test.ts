@@ -1,24 +1,10 @@
 import { copyFile, mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { pathToFileURL } from 'node:url'
-
-import { _electron as electron } from '@playwright/test'
+import { fileURLToPath } from 'node:url'
 
 import type { OutputFor } from '../../../src/shared/ipc/types'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { expect, test } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
-
-const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: testInfo.outputPath('profile') },
-      timeout: 60000
-    })
-    await use(electronApp)
-    await electronApp.close()
-  }
-})
 
 const DIAGRAM_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAEAAAAAwCAIAAAAuKetIAAAAWklEQVR4nO3PsQkAIAxE0eziGtYu5LrWzuEMCQgpHlz9uRdjn9Tumqn97gcAAAAAAAAAAAAAQBnQ7VC2DwAAAAAAAAAAAABQB3Q7lO0DAAAAAAAAAAAAAJT7D27qHQBtvuXpAAAAAElFTkSuQmCC'
@@ -37,7 +23,7 @@ test('file manager paints document-relative Markdown images', async ({ mainWindo
     '# Issue 21981 local images\n\n![](images/diagram.png)\n\n![](./icon.svg)\n\n![reference][x]\n\n[x]: images/diagram.png\n\n![missing](./images/missing.png)'
   )
 
-  const shell = uiLocator(mainWindow, 'app.shell')
+  const shell = uiLocator(mainWindow, 'app.content')
   const languageSelect = mainWindow.locator('[data-onboarding-language-select]')
   await expect(shell.or(languageSelect).first()).toBeVisible()
   if (await languageSelect.isVisible()) {
@@ -79,14 +65,19 @@ test('file manager paints document-relative Markdown images', async ({ mainWindo
   await expect(preview.getByRole('heading', { name: 'Issue 21981 local images' })).toBeVisible()
   const images = preview.locator('img')
   await expect(images).toHaveCount(3)
-  const expectedSources = [
-    pathToFileURL(join(physicalDirectory, 'images/diagram.png')).href,
-    pathToFileURL(join(physicalDirectory, 'icon.svg')).href,
-    pathToFileURL(join(physicalDirectory, 'images/diagram.png')).href
+  const expectedPaths = [
+    join(physicalDirectory, 'images/diagram.png'),
+    join(physicalDirectory, 'icon.svg'),
+    join(physicalDirectory, 'images/diagram.png')
   ]
-  for (const [index, src] of expectedSources.entries()) {
+  for (const [index, path] of expectedPaths.entries()) {
     const image = images.nth(index)
-    await expect(image).toHaveAttribute('src', src)
+    await expect
+      .poll(async () => {
+        const src = await image.getAttribute('src')
+        return src ? fileURLToPath(src) : null
+      })
+      .toBe(path)
     await expect
       .poll(() => image.evaluate((node) => node instanceof HTMLImageElement && node.naturalWidth > 0))
       .toBe(true)

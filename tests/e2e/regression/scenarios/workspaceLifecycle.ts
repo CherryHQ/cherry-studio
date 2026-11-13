@@ -80,7 +80,7 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
 
     await view.getByRole('button', { name: 'Display mode', exact: true }).click()
     await page.getByRole('button', { name: 'Work directory', exact: true }).click()
-    const group = view.getByRole('button', { name: originalName, exact: true }).first()
+    const group = view.getByRole('listbox').getByRole('button', { name: originalName, exact: true })
     await expect(group).toBeVisible()
     await group.click({ button: 'right' })
     await page.getByRole('menuitem', { name: 'Rename work directory', exact: true }).click()

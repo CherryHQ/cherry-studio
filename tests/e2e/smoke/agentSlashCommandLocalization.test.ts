@@ -3,9 +3,6 @@
 // A pi agent avoids republishing over the fixture: only Claude Code implements getSupportedCommands()
 // (src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts:580).
 import { randomUUID } from 'node:crypto'
-import { rm } from 'node:fs/promises'
-
-import { _electron as electron } from '@playwright/test'
 
 import enUs from '../../../src/renderer/i18n/locales/en-us.json'
 import zhCn from '../../../src/renderer/i18n/locales/zh-cn.json'
@@ -14,28 +11,8 @@ import { AgentSessionEntitySchema } from '../../../src/shared/data/api/schemas/a
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { selectSidebarApp } from '../regression/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { expect, test } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
-
-const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const profileRoot = testInfo.outputPath('profile')
-    const app = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profileRoot },
-      timeout: 60_000
-    })
-    try {
-      await use(app)
-    } finally {
-      try {
-        await app.close()
-      } finally {
-        await rm(profileRoot, { recursive: true, force: true, maxRetries: 3 })
-      }
-    }
-  }
-})
 
 test('localizes builtins in an open slash-command panel and preserves custom descriptions', async ({
   mainWindow: page

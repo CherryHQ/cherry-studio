@@ -147,8 +147,54 @@ export async function mcpPromptsAndResources(app: RegressionApp, page: Page, tes
     const composer = page.locator('[data-ui~="chat.composer"]')
     const editor = composer.locator('[contenteditable="true"]').first()
     const openCatalog = async (name: string) => {
-      await composer.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
-      await page.getByText(name, { exact: true }).last().click()
+      const target = page.getByText(name, { exact: true })
+      try {
+        await composer.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
+        await target.last().click()
+      } catch (error) {
+        await Promise.allSettled([
+          Promise.all([
+            page.evaluate(() => {
+              const describe = (element: Element) => ({
+                visible: element.checkVisibility({ visibilityProperty: true }),
+                inert: Boolean(element.closest('[inert]')),
+                ariaHidden: element.getAttribute('aria-hidden'),
+                bounds: element.getBoundingClientRect().toJSON(),
+                scrollTop: element.scrollTop,
+                scrollHeight: element.scrollHeight,
+                clientHeight: element.clientHeight
+              })
+              const panels = [...document.querySelectorAll('[data-testid="quick-panel"]')]
+              const focus = document.activeElement
+              return {
+                composers: [...document.querySelectorAll('[data-ui~="chat.composer"]')].map(describe),
+                panels: panels.map((panel) => ({
+                  ...describe(panel),
+                  lists: [...panel.querySelectorAll('[data-testid="quick-panel-list-region"]')].map(describe),
+                  scrollers: [...panel.querySelectorAll('.dynamic-virtual-list')].map(describe)
+                })),
+                focus: {
+                  tag: focus?.tagName ?? null,
+                  role: focus?.getAttribute('role')?.slice(0, 100) ?? null,
+                  testId: focus?.getAttribute('data-testid')?.slice(0, 100) ?? null,
+                  inPanel: panels.some((panel) => panel.contains(focus))
+                }
+              }
+            }),
+            target.evaluateAll((elements) => ({
+              count: elements.length,
+              visible: elements.map((element) => element.checkVisibility({ visibilityProperty: true }))
+            }))
+          ]).then(([surface, targetState]) =>
+            testInfo.attach(`MP-36 ${name} selection failure state`, {
+              body: JSON.stringify({ ...surface, target: targetState }),
+              contentType: 'application/json'
+            })
+          ),
+          screenshot(`MP-36 ${name} selection failure`)
+        ])
+        throw error
+      }
     }
     const readMessages = async () => {
       const result = await page.evaluate(

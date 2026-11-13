@@ -137,6 +137,34 @@ describe('useCherryCloudSubscriptionReminder', () => {
       }
     ])
   })
+  it('leaves a China-edition activation to the notification center while its stream is live', async () => {
+    const edition = (globalThis as { __APP_EDITION__?: string }).__APP_EDITION__
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    const fallback = request.getMockImplementation()!
+    request.mockImplementation(async (route, input) =>
+      route === 'cherry_cloud.notifications.active.get' ? { ok: true, data: true } : fallback(route, input)
+    )
+    try {
+      renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
+      await waitFor(() =>
+        expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(true)
+      )
+      await act(async () => Promise.resolve())
+      plans = paid('Plus')
+      act(() => {
+        const next = receipt('notification')
+        listeners.forEach((listener) => listener(next))
+      })
+      await waitFor(() =>
+        expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.notifications.active.get')).toBe(true)
+      )
+      await act(async () => Promise.resolve())
+      expect(toast.success).not.toHaveBeenCalled()
+      expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.analytics.track')).toBe(true)
+    } finally {
+      vi.stubGlobal('__APP_EDITION__', edition)
+    }
+  })
   it('keeps a paid login and same-account relogin quiet', async () => {
     plans = paid('Plus')
     renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })

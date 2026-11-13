@@ -45,6 +45,15 @@ Callers (chat, agent session, translate, prompt-only) shape their own
 `sdkConfig.providerSettings.fetch` when HTTP tracing or custom-parameter body
 passthrough is required.
 
+For `contextOwner: 'caller'`, the caller supplies the prompt, tools, and history.
+The pipeline uses `request.system` and `callOverrides.tools` without Cherry's
+system assembly, registry selection, deferred-tool exposition, or web-tool
+routing. It does not move system messages into Responses `instructions` or set
+`systemMessageMode: 'remove'`. Feature collection and AI SDK middleware still
+run, as does `Agent.stream()`'s `messageRules` normalization. Caller requests
+omit loop stop conditions and AI tool repair; their execution uses single-step
+`streamText` / `generateText` instead of `ToolLoopAgent`.
+
 ## RequestFeature
 
 The composition unit is `RequestFeature`

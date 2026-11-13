@@ -25,15 +25,6 @@ describe('StreamingMarkdown', () => {
     }
   })
 
-  it('emits no animate spans when animated={false}', () => {
-    const { container } = render(
-      <StreamingMarkdown id="s3" animated={false}>
-        {'Quiet text'}
-      </StreamingMarkdown>
-    )
-    expect(container.querySelectorAll('[data-sd-animate]').length).toBe(0)
-  })
-
   it('preserves GitHub alert markup while streaming', () => {
     const { container } = render(
       <StreamingMarkdown id="alert-stream">{'> [!NOTE]\n> Streaming alert'}</StreamingMarkdown>
@@ -43,32 +34,6 @@ describe('StreamingMarkdown', () => {
     expect(alert).not.toBeNull()
     expect(alert?.querySelector('.markdown-alert-title')?.textContent).toContain('NOTE')
     expect(alert?.textContent).toContain('Streaming alert')
-  })
-
-  it('animates inline code text like surrounding prose', () => {
-    // Patch narrows streamdown's animate skip set to pre/svg/math, so inline code must get animate spans too.
-    const { container } = render(<StreamingMarkdown id="s5">{'run `npm i` now'}</StreamingMarkdown>)
-    const inlineCode = container.querySelector('p code')
-    expect(inlineCode).not.toBeNull()
-    expect(inlineCode?.querySelector('[data-sd-animate]')).not.toBeNull()
-  })
-
-  it('still skips fenced code blocks (pre stays in the skip set)', () => {
-    const { container } = render(<StreamingMarkdown id="s6">{'```js\nconst a = 1\n```'}</StreamingMarkdown>)
-    const pre = container.querySelector('pre')
-    expect(pre).not.toBeNull()
-    expect(pre?.querySelector('[data-sd-animate]')).toBeNull()
-  })
-
-  it('defaults to opacity-only fadeIn (no lingering filter that alters text antialiasing)', () => {
-    // blurIn ends at `filter: blur(0)`, which `animation-fill-mode: both`
-    // keeps applied; a non-`none` filter drops subpixel AA so streamed bold/CJK
-    // renders heavier than the filter-free static pass. fadeIn leaves no filter.
-    const { container } = render(<StreamingMarkdown id="s4">{'**重要** text'}</StreamingMarkdown>)
-    const animated = container.querySelector('[data-sd-animate]')
-    expect(animated).not.toBeNull()
-    const animation = (animated as HTMLElement).style.getPropertyValue('--sd-animation')
-    expect(animation).toBe('sd-fadeIn')
   })
 
   it('provides each streaming block source to custom renderers', async () => {

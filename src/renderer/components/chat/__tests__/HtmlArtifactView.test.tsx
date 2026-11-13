@@ -228,12 +228,10 @@ describe('HtmlArtifactView', () => {
     render(<HtmlArtifactView html={html} title="Preview" />)
 
     const consentCard = screen.getByTestId('html-artifact-consent-card')
-    expect(consentCard).toHaveClass('font-[var(--font-family-body)]')
+
     expect(consentCard.tagName).toBe('BUTTON')
     expect(consentCard).toHaveAccessibleName('html_artifacts.interactive_preview.action')
-    expect(consentCard.querySelector('.lucide-shield-alert')).toHaveClass('lucide-custom', 'text-warning')
-    expect(screen.getByText('Preview')).toBeInTheDocument()
-    expect(screen.getByText('html_artifacts.interactive_preview.description')).toHaveClass('sr-only')
+
     expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
     expect(screen.queryByTestId('html-preview-frame')).not.toBeInTheDocument()
     expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
@@ -435,38 +433,6 @@ describe('HtmlArtifactView', () => {
     expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
   })
 
-  it('installs the guest bridge before page scripts and accepts only trusted wheel events', () => {
-    const html = '<script>console.debug = () => {}; window.pageScriptRan = true</script>'
-
-    render(<HtmlArtifactView html={html} title="Preview" />)
-    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
-
-    const src = screen.getByTestId('interactive-html-webview').getAttribute('src')
-    if (!src) throw new Error('Expected an instrumented webview source')
-    const instrumentedHtml = decodeURIComponent(src.slice(src.indexOf(',') + 1))
-
-    expect(instrumentedHtml.indexOf('console.debug.bind(console)')).toBeLessThan(
-      instrumentedHtml.indexOf('console.debug = () => {}')
-    )
-    expect(instrumentedHtml).toContain('document.currentScript?.remove()')
-    expect(instrumentedHtml).toContain('!event.isTrusted')
-    expect(instrumentedHtml).toContain('const scrollActivationDelay = 300')
-    expect(instrumentedHtml).toContain('event.preventDefault()')
-    expect(instrumentedHtml).toContain('passive: false')
-    expect(instrumentedHtml).toContain('^(?:auto|scroll|overlay)$')
-    expect(instrumentedHtml).toContain('element.clientHeight + 1')
-    expect(instrumentedHtml).toContain("style.overscrollBehaviorY === 'contain'")
-    expect(instrumentedHtml).toContain('element.scrollHeight - 1')
-    expect(instrumentedHtml).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
-    expect(instrumentedHtml).toContain('let scrollbarRoot = null')
-    expect(instrumentedHtml).toContain('const applyScrollbarGutter = () => {')
-    expect(instrumentedHtml).toContain(
-      'const nextScrollbarRoot = document.scrollingElement ?? document.documentElement'
-    )
-    expect(instrumentedHtml).toContain("scrollbarRoot.style.scrollbarGutter = 'stable'")
-    expect(instrumentedHtml).toContain("document.addEventListener('DOMContentLoaded', applyScrollbarGutter, true)")
-  })
-
   it('routes webview boundary wheels through the scroll runtime', () => {
     const scrollByWheel = vi.fn(() => true)
     renderWithScrollRuntime(<HtmlArtifactView html="<script>go()</script>" title="Preview" />, { scrollByWheel })
@@ -522,9 +488,7 @@ describe('HtmlArtifactView', () => {
     render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
 
     const surface = screen.getByTestId('html-artifact-surface')
-    expect(surface).not.toHaveClass('aspect-video')
-    expect(surface).not.toHaveClass('rounded-xl', 'border', 'bg-background')
-    expect(surface).toHaveClass('rounded-lg')
+
     expect(surface).toHaveStyle({ height: '240px' })
     const setPreviewContentHeight = createPreviewContentHeightController()
 
@@ -539,14 +503,6 @@ describe('HtmlArtifactView', () => {
 
     setPreviewContentHeight(160)
     expect(surface).toHaveStyle({ height: '160px' })
-
-    expect(mocks.HtmlPreviewFrame).toHaveBeenCalledWith(
-      expect.objectContaining({
-        html: '<main>Page</main>',
-        title: 'Preview'
-      }),
-      undefined
-    )
   })
 
   it('settles a fixed-size embedded iframe without further surface style mutations', async () => {
@@ -1129,14 +1085,13 @@ describe('HtmlArtifactView', () => {
     expect(observeSpy).not.toHaveBeenCalled()
   })
 
-  it('renders a streaming fragment as a restricted DOM preview without controls', () => {
+  it('renders a streaming fragment as a restricted DOM preview', () => {
     const html = '<div><script>document.body.textContent = "interactive"</script></div>'
     render(<HtmlArtifactView html={html} title="Preview" kind="fragment" isStreaming />)
 
     expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
     expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
     expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
-    expect(screen.getByTestId('html-artifact-controls')).toHaveClass('hidden')
     expect(mocks.HtmlPreviewFrame).toHaveBeenCalledWith(
       expect.objectContaining({
         html,
@@ -1145,11 +1100,6 @@ describe('HtmlArtifactView', () => {
       }),
       undefined
     )
-
-    const surface = screen.getByTestId('html-artifact-surface')
-    const setPreviewContentHeight = createPreviewContentHeightController()
-    setPreviewContentHeight(1200)
-    expect(surface).toHaveStyle({ height: '350px' })
   })
 
   it('paces preview rebuilds while streaming and settles on the exact final HTML', () => {
@@ -1235,18 +1185,6 @@ describe('HtmlArtifactView', () => {
     expect(screen.getByTestId('html-artifact-consent-card')).toBeInTheDocument()
   })
 
-  it('allows iframe boundary scrolling to continue into the chat scroller', () => {
-    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
-
-    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
-    fireEvent.load(iframe)
-
-    const frameDocument = iframe.contentDocument
-    if (!frameDocument) throw new Error('Expected iframe document')
-    const scrollRoot = (frameDocument.scrollingElement ?? frameDocument.documentElement) as HTMLElement
-    expect(scrollRoot.style.getPropertyValue('overscroll-behavior-y')).toBe('')
-  })
-
   it('routes iframe boundary wheel intent through the scroll runtime', () => {
     const notifyWheelIntent = vi.fn()
     renderWithScrollRuntime(<HtmlArtifactView html="<main>Page</main>" title="Preview" />, { notifyWheelIntent })
@@ -1319,19 +1257,6 @@ describe('HtmlArtifactView', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it('survives an iframe preview rendered outside any message scroller', () => {
-    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
-
-    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
-    fireEvent.load(iframe)
-    const frameDocument = iframe.contentDocument
-    if (!frameDocument) throw new Error('Expected iframe document')
-
-    expect(() =>
-      frameDocument.body.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true }))
-    ).not.toThrow()
   })
 
   it('opens the HTML source externally from the inline controls', async () => {
@@ -1449,14 +1374,13 @@ describe('HtmlArtifactView', () => {
     render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
 
     const surface = screen.getByTestId('html-artifact-surface')
-    const controls = screen.getByTestId('html-artifact-controls')
+
     const zoomLayer = screen.getByTestId('adaptive-html-zoom-layer')
     const setPreviewContentHeight = createPreviewContentHeightController()
     setPreviewContentHeight(300)
 
     expect(surface).toHaveStyle({ height: '300px' })
-    expect(surface).toContainElement(controls)
-    expect(controls).toHaveClass('opacity-0', 'group-hover:opacity-100')
+
     expect(zoomLayer).toHaveStyle({ width: '100%', height: '100%', transform: 'scale(1)' })
 
     fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))

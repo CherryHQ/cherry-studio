@@ -305,7 +305,7 @@ const HeaderNavbar = ({
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
             <BaseNavbarIcon
-              className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
+              className="[&_svg]:size-4.5"
               aria-label={t('navbar.hide_sidebar')}
               aria-pressed={showWorkspace}
               onClick={handleToggleShowWorkspace}>
@@ -316,7 +316,7 @@ const HeaderNavbar = ({
         {!showWorkspace && (
           <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
             <BaseNavbarIcon
-              className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
+              className="[&_svg]:size-4.5"
               aria-label={t('navbar.show_sidebar')}
               aria-pressed={showWorkspace}
               onClick={handleToggleShowWorkspace}>
@@ -384,7 +384,7 @@ const HeaderNavbar = ({
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
           <Tooltip title={t('common.more')} delay={800}>
             <PopoverTrigger asChild>
-              <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground" aria-label={t('common.more')}>
+              <BaseNavbarIcon className="[&_svg]:size-4.5" aria-label={t('common.more')}>
                 <MoreHorizontal size={18} />
               </BaseNavbarIcon>
             </PopoverTrigger>
