@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto'
-import { lstat, open, readdir, realpath } from 'node:fs/promises'
+import { lstat, readdir, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
-import Database from 'better-sqlite3'
+import type Database from 'better-sqlite3'
 import * as z from 'zod'
 
 import { formatClaudeTool } from '@data/services/importedHistoryText'
 import type { MessageData } from '@shared/data/types/message'
 
-import { readJsonl } from './files'
+import { openReadonlyDatabase, readJsonl } from './files'
 import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession } from './types'
 
 const requiredColumns = [
@@ -62,29 +62,8 @@ const metadata = new Set(['session-meta', 'ai-title', 'file-history-snapshot'])
 const bodyTypes = new Set(['message', 'reasoning', 'function_call', 'function_call_result'])
 
 async function openIndex(file: string) {
-  const info = await lstat(file)
-  if (!info.isFile() || info.isSymbolicLink()) throw new Error('source_changed')
-  const handle = await open(file, 'r')
-  const header = Buffer.alloc(20)
+  const db = await openReadonlyDatabase(file)
   try {
-    await handle.read(header, 0, header.length, 0)
-  } finally {
-    await handle.close()
-  }
-  if (header[18] === 2) {
-    for (const suffix of ['-wal', '-shm']) {
-      try {
-        const sidecar = await lstat(file + suffix)
-        if (!sidecar.isFile() || sidecar.isSymbolicLink()) throw new Error('unsupported_readonly_wal')
-      } catch {
-        throw new Error('unsupported_readonly_wal')
-      }
-    }
-  }
-  const db = new Database(file, { readonly: true, fileMustExist: true, timeout: 1000 })
-  try {
-    db.pragma('query_only = ON')
-    db.pragma('trusted_schema = OFF')
     const columns = new Set(
       (db.prepare('PRAGMA table_info(sessions)').all() as { name: string }[]).map((row) => row.name)
     )
