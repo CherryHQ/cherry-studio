@@ -68,6 +68,16 @@ const ImportMenuOptions: FC = () => {
             {t('history_import.start')}
           </Button>
         </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-data-import-local-opencode" className="scroll-mt-6 py-4">
+          <SettingRowTitle className="gap-4">
+            <CliIcon id={CodeCli.OPEN_CODE} />
+            {t('history_import.source.opencode')}
+          </SettingRowTitle>
+          <Button variant="outline" onClick={() => void LocalHistoryImportPopup.show({ source: 'opencode' })}>
+            {t('history_import.start')}
+          </Button>
+        </SettingRow>
       </SettingGroup>
     </>
   )

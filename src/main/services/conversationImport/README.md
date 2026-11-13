@@ -15,7 +15,7 @@
 
 首版只支持 Pi 目标。保留原时间；未来时间在预览及提交前拒绝。前三个来源仍拒绝时间倒退。
 WorkBuddy 通过 app_state 中的 provenance.sourceOrder 保存因果顺序，不新增表、列或数据迁移。导入历史构成固定前缀，续聊按现有规则接在后面。分页、定位、分支和 Pi 初始化使用同一顺序；日期筛选仍用原时间。分支保留消息来源信息，不继承会话级去重身份。
-来源文件不写入。每个会话单独使用同步事务。复制清除会话级导入身份，备份恢复保留身份。
+来源文件不写入。SQLite 通过 files.ts 中的共用入口只读打开。WAL 模式要求现有 WAL/SHM 边文件，否则返回 unsupported_readonly_wal，避免扫描或预览创建来源文件。每个会话单独使用同步事务。复制清除会话级导入身份，备份恢复保留身份。
 
 测试位于 `__tests__/`。数据库用例使用生产迁移和真实 Pi 历史；模型输入用本地网关夹具捕获。
 产品方案见 [本地历史导入方案](../../../../.agents/notes/proposed/feature/2026-11-02-local-agent-history-import.md)。
@@ -33,3 +33,4 @@ WorkBuddy 通过 app_state 中的 provenance.sourceOrder 保存因果顺序，�
 `codex.ts` 读取 legacy 完整 rollout，以及无继承依赖、ordinal 从 0 连续递增的 paginated rollout。按 `session_meta.id` 区分线程，只用索引补名称。事件镜像不重复写入。分页继承、序号缺口、多物理副本、回滚、压缩与加密正文在校验时拒绝。加密推理无法迁移，计入降级并保留可见正文。结构依据为 openai/codex 的 dbaead0106de82bd129a4f6f503d173ad5109f68；夹具覆盖 0.114.0 和 0.154.0-alpha.6.2 布局；另只读核对了用户提供的 0.164.0-alpha.11.1 结构。不承诺全部 0.x 发布版。
 
 Codex Guardian 过滤只识别已核对的 0.164.0-alpha.11.1 布局，依据 session_meta.payload.source.subagent.other=guardian，不依据标题。先按来源 ID 汇总全部物理副本；存在副本冲突、缺失分页或损坏记录时保留校验。普通子代理及同名用户会话保留。
+`opencode.ts` 在只读 SQLite 事务中读取同一快照。识别旧版 session/message/part，以及新版 session_v2/session_message，后者可带 session_part。按 seq 或旧版 time_created、id 排序。版本夹具为 1.2.0 和 2.2.5；新版结构依据 anomalyco/opencode 的 1bf08ae46a91f7793c756e4ee521e37b6b554064。旧版结构依据该提交的 v1-migration 源类型。夹具为合成数据，不能替代真实安装版验证。回退、继承 fork、压缩和未知表结构均明确拒绝。数据库指纹覆盖被选会话的逻辑快照，包含 WAL 已提交行，不要求复制数据库。
