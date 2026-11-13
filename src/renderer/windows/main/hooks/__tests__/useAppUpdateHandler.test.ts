@@ -173,6 +173,29 @@ describe('useAppUpdateHandler', () => {
     })
   })
 
+  it('does not reopen install confirmation for a later background download after a manual one', async () => {
+    setWindowSource('mainWindow')
+    mocks.ipcRequest.mockImplementation(async (route: string) =>
+      route === 'app.get_info' ? { isPortable: false } : undefined
+    )
+    renderHook(() => useAppUpdateHandler())
+    await appUpdateCheckService.runAppUpdateCheck(
+      { checking: false, downloading: false, downloaded: false, info: null, manualCheck: false },
+      vi.fn()
+    )
+    emit('app.updater.available', releaseInfo)
+    emit('app.updater.downloaded', releaseInfo)
+    await waitFor(() => expect(mocks.updateDialogShow).toHaveBeenCalledTimes(1))
+
+    emit('app.updater.available', { ...releaseInfo, version: '2.2.0' })
+    emit('app.updater.downloaded', { ...releaseInfo, version: '2.2.0' })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+
+    expect(mocks.updateDialogShow).toHaveBeenCalledTimes(1)
+  })
+
   it('never reports a withheld feed as up to date and leaves the official-download notice', () => {
     mocks.appUpdateState.manualCheck = true
     renderHook(() => useAppUpdateHandler())
