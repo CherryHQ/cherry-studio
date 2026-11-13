@@ -25,27 +25,35 @@ const CHERRY_PICKER_STYLE = {
   '--epr-bg-color': 'var(--popover)',
   '--epr-picker-border-color': 'transparent',
   '--epr-picker-border-radius': 'var(--radius-lg)',
-  '--epr-highlight-color': 'var(--primary)',
+  '--epr-horizontal-padding': '12px',
+  '--epr-highlight-color': 'var(--foreground)',
   '--epr-hover-bg-color': 'var(--accent)',
   '--epr-hover-bg-color-reduced-opacity': 'var(--accent)',
   '--epr-focus-bg-color': 'var(--accent)',
   '--epr-text-color': 'var(--popover-foreground)',
+  '--epr-emoji-size': '24px',
+  '--epr-emoji-padding': '6px',
   '--epr-category-label-bg-color': 'var(--popover)',
-  '--epr-category-label-text-color': 'var(--popover-foreground)',
-  '--epr-category-label-height': '32px',
-  '--epr-category-icon-active-color': 'var(--primary)',
-  '--epr-search-input-bg-color': 'var(--background)',
-  '--epr-search-input-bg-color-active': 'var(--background)',
+  '--epr-category-label-text-color': 'var(--muted-foreground)',
+  '--epr-category-label-height': '28px',
+  '--epr-category-navigation-button-size': '28px',
+  '--epr-category-icon-active-color': 'var(--foreground)',
+  '--epr-search-input-bg-color': 'var(--muted)',
+  '--epr-search-input-bg-color-active': 'var(--muted)',
   '--epr-search-input-height': '32px',
+  '--epr-search-input-border-radius': 'var(--radius-md)',
   '--epr-search-input-text-color': 'var(--foreground)',
-  '--epr-search-input-placeholder-color': 'var(--foreground-tertiary)',
-  '--epr-search-border-color': 'var(--input)',
-  '--epr-search-border-color-active': 'var(--primary)',
-  '--epr-header-padding': 'var(--epr-horizontal-padding) var(--epr-horizontal-padding) 2px',
+  '--epr-search-input-placeholder-color': 'var(--muted-foreground)',
+  '--epr-search-border-color': 'transparent',
+  '--epr-search-border-color-active': 'transparent',
+  '--epr-header-padding': '12px 12px 4px',
   '--epr-emoji-hover-color': 'var(--accent)',
   '--epr-emoji-variation-indicator-color': 'var(--border)',
   '--epr-emoji-variation-indicator-color-hover': 'var(--foreground)'
 } as CSSProperties
+
+// The 🇹🇼 flag is never offered, on top of the emoji this platform cannot render.
+const ALWAYS_HIDDEN_EMOJI_IDS = ['1f1f9-1f1fc']
 
 const CATEGORY_ORDER = [
   Categories.SUGGESTED,
@@ -71,7 +79,7 @@ const CATEGORY_LABEL_KEYS: Record<(typeof CATEGORY_ORDER)[number], string> = {
   [Categories.FLAGS]: 'emoji_picker.categories.flags'
 }
 
-const CATEGORY_ICON_CLASS = 'size-4.5'
+const CATEGORY_ICON_CLASS = 'size-4'
 
 const CATEGORY_ICONS: Record<(typeof CATEGORY_ORDER)[number], ReactNode> = {
   [Categories.SUGGESTED]: <Clock3 className={CATEGORY_ICON_CLASS} />,
@@ -90,7 +98,7 @@ const EmojiPickerContent: FC<EmojiPickerProps> = ({ onEmojiClick }) => {
   const locale = i18n.language as LanguageVarious
   const [emojiData, setEmojiData] = useState<EmojiData | undefined>()
   const [emojiVersion, setEmojiVersion] = useState<string | undefined>()
-  const [hiddenEmojis, setHiddenEmojis] = useState<string[]>([])
+  const [hiddenEmojis, setHiddenEmojis] = useState<string[]>(ALWAYS_HIDDEN_EMOJI_IDS)
   const { recent, pushRecent } = useRecentEmojis()
 
   useEffect(() => {
@@ -127,12 +135,12 @@ const EmojiPickerContent: FC<EmojiPickerProps> = ({ onEmojiClick }) => {
     let cancelled = false
 
     if (!emojiData) {
-      setHiddenEmojis([])
+      setHiddenEmojis(ALWAYS_HIDDEN_EMOJI_IDS)
       return
     }
 
     void detectUnsupportedZwjEmojiIds(emojiData).then((emojiIds) => {
-      if (!cancelled) setHiddenEmojis(emojiIds)
+      if (!cancelled) setHiddenEmojis([...ALWAYS_HIDDEN_EMOJI_IDS, ...emojiIds])
     })
 
     return () => {

@@ -2205,6 +2205,7 @@
   "library.config.dialogs.create.auto.submit": "自動建立",
   "library.config.dialogs.create.avatar_aria": "選擇頭像",
   "library.config.dialogs.create.avatar_name_label": "頭像和名稱",
+  "library.config.dialogs.create.avatar_random": "隨機頭像",
   "library.config.dialogs.create.back": "上一步",
   "library.config.dialogs.create.capability.builtin_badge": "預設啟用",
   "library.config.dialogs.create.capability.no_skills": "未安裝技能",
