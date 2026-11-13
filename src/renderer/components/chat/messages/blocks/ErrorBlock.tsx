@@ -144,7 +144,7 @@ const MessageErrorInfo: React.FC<{
   const summaryFault = [
     message.id,
     partId,
-    message.updatedAt ?? '',
+    message.persistedAt ?? '',
     error?.name ?? '',
     errorMessage ?? '',
     i18n.language

@@ -1,7 +1,11 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
+import type { Message as SharedMessage } from '@shared/data/types/message'
+
 import type { MessageListItem } from '../../types'
+import { toMessageListItem } from '../../utils/messageListItem'
 
 const mocks = vi.hoisted(() => ({
   translateErrorByAI: vi.fn(),
@@ -99,7 +103,7 @@ describe('useMessageErrorActions', () => {
       role: 'assistant',
       topicId: 'agent-session:session-1',
       createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-02T03:04:05.000Z',
+      persistedAt: '2026-01-02T03:04:05.000Z',
       status: 'error'
     } satisfies MessageListItem
     const error = {
@@ -234,6 +238,44 @@ describe('useMessageErrorActions', () => {
         errorContext: expect.objectContaining({ providerId: 'custom', modelId: 'org::model' })
       })
     )
+  })
+
+  it('gives an identical failure after an in-place retry its own occurrence', async () => {
+    const error = { message: 'provider unavailable', name: 'ProviderError', stack: '', statusCode: 503 }
+    const persistedFailure = (updatedAt: string) =>
+      toMessageListItem(
+        sharedMessageToUIMessage({
+          id: 'message-retry',
+          topicId: 'topic-1',
+          parentId: 'user-1',
+          role: 'assistant',
+          data: { parts: [{ type: 'data-error', data: error }] },
+          searchableText: '',
+          status: 'error',
+          siblingsGroupId: 0,
+          modelId: 'openai::gpt-4o',
+          messageSnapshot: null,
+          stats: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt
+        } satisfies SharedMessage),
+        { topicId: 'topic-1' }
+      )
+    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
+    const open = async (message: MessageListItem) => {
+      await result.current.openErrorDetail?.({ message, partId: 'message-retry-part-0', error })
+      return mocks.showErrorDetailPopup.mock.calls.at(-1)?.[0] as {
+        errorContext: { id: string; occurredAt: string }
+      }
+    }
+
+    const first = await open(persistedFailure('2026-01-01T00:01:00.000Z'))
+    const reopened = await open(persistedFailure('2026-01-01T00:01:00.000Z'))
+    const retried = await open(persistedFailure('2026-01-01T00:02:00.000Z'))
+
+    expect(reopened.errorContext.id).toBe(first.errorContext.id)
+    expect(retried.errorContext.id).not.toBe(first.errorContext.id)
+    expect(retried.errorContext.occurredAt).toBe('2026-01-01T00:02:00.000Z')
   })
 
   it('drops the oldest message fault once the snapshot map is full', async () => {
