@@ -1,0 +1,252 @@
+name: Release target
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+      edition:
+        required: true
+        type: string
+      source-sha:
+        required: true
+        type: string
+      control-sha:
+        required: true
+        type: string
+      tag:
+        required: true
+        type: string
+      draft-id:
+        required: true
+        type: string
+      clean:
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_SHA: ${{ inputs.source-sha }}
+  RELEASE_BRANCH: release/${{ inputs.tag }}
+
+jobs:
+  package:
+    name: Package target
+    runs-on: ${{ fromJSON(inputs.target).platform == 'windows' && fromJSON('["self-hosted", "windows-signing"]') || fromJSON(inputs.target).os }}
+    permissions:
+      contents: read
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          ref: ${{ inputs.source-sha }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: ".node-version"
+
+      - name: macos-latest dependencies fix
+        if: fromJSON(inputs.target).platform == 'mac'
+        run: |
+          brew install python-setuptools
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        if: fromJSON(inputs.target).platform != 'windows'
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        id: dependencies
+        if: fromJSON(inputs.target).platform != 'windows'
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-
+
+      - name: "Dependency cache: ${{ fromJSON(inputs.target).platform == 'windows' && 'persistent-local' || steps.dependencies.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}"
+        shell: bash
+        run: ":"
+
+      - name: Clean signing runner dependencies
+        if: fromJSON(inputs.target).platform == 'windows' && inputs.clean
+        shell: bash
+        run: rm -rf node_modules
+
+      - name: Clean build output
+        shell: bash
+        run: |
+          node -e 'for (const directory of ["dist", "out"]) require("node:fs").rmSync(directory, { recursive: true, force: true })'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache verified Linux SQLite artifacts
+        if: fromJSON(inputs.target).platform == 'linux'
+        uses: actions/cache@v6
+        with:
+          path: scripts/linux-native/prebuilt
+          key: linux-sqlite-${{ fromJSON(inputs.target).arch }}-${{ hashFiles('pnpm-lock.yaml', 'scripts/linux-native/compat.js', 'scripts/linux-native/download.js', 'scripts/linux-native/release.json', 'patches/**') }}
+
+      - name: Download JS bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: release-js-${{ inputs.edition }}
+      - name: Verify JS bundle
+        run: node scripts/release/js-bundle.js verify ${{ inputs.edition }}
+
+      - name: Enable Linux ARM64 addon builds
+        if: fromJSON(inputs.target).platform == 'linux' && fromJSON(inputs.target).arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build Linux
+        if: fromJSON(inputs.target).platform == 'linux'
+        run: |
+          sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
+          pnpm exec electron-builder --linux --${{ fromJSON(inputs.target).arch }} --publish never ${{ inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Build Mac
+        if: fromJSON(inputs.target).platform == 'mac'
+        run: |
+          sudo -H pip install setuptools
+          pnpm exec electron-builder --mac --${{ fromJSON(inputs.target).arch }} --publish never ${{ inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+        env:
+          CSC_FOR_PULL_REQUEST: true
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Build Windows
+        if: fromJSON(inputs.target).platform == 'windows'
+        run: |
+          pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+        env:
+          ELECTRON_BUILDER_7Z_FILTER: BCJ
+          WIN_SIGN: true
+          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
+          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
+          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Check out trusted release upload scripts
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.control-sha }}
+          path: release-tools
+          sparse-checkout: scripts/release
+
+      - name: Set up Python
+        if: fromJSON(inputs.target).platform != 'windows'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up isolated Python on Windows
+        if: fromJSON(inputs.target).platform == 'windows'
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.11.16"
+          python-version: "3.12"
+          activate-environment: true
+          no-project: true
+          venv-path: ${{ runner.temp }}/release-cos-venv
+          enable-cache: false
+        env:
+          UV_MANAGED_PYTHON: "1"
+
+      - name: Install Tencent COS SDK
+        if: fromJSON(inputs.target).platform != 'windows'
+        run: python -m pip install cos-python-sdk-v5==1.9.44
+
+      - name: Install Tencent COS SDK on Windows
+        if: fromJSON(inputs.target).platform == 'windows'
+        run: uv pip install cos-python-sdk-v5==1.9.44
+
+      - name: Select and validate release files
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          export NODE_PATH="$(node -p "require('node:path').resolve('node_modules')")"
+          node release-tools/scripts/release/select-release-upload.js "${{ inputs.edition }}" "${{ fromJSON(inputs.target).platform }}" "${{ fromJSON(inputs.target).arch }}"
+
+      - name: Upload release files directly to COS
+        env:
+          TAG: ${{ inputs.tag }}
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+        run: python release-tools/scripts/release/release-cos.py upload "${{ inputs.edition }}" "${{ fromJSON(inputs.target).platform }}" "${{ fromJSON(inputs.target).arch }}"
+
+      - name: Save pnpm dependencies
+        if: inputs.edition == 'global' && fromJSON(inputs.target).platform == 'mac' && fromJSON(inputs.target).arch == 'x64' && steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
+
+  upload-draft:
+    name: Upload draft target
+    needs: package
+    if: inputs.edition == 'global'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release-state
+      cancel-in-progress: false
+      queue: max
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+      COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+      COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+      REPO: ${{ github.repository }}
+      RELEASE_ID: ${{ inputs.draft-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.control-sha }}
+          sparse-checkout: scripts/release
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install cos-python-sdk-v5==1.9.44
+      - name: Revalidate draft ownership
+        shell: bash
+        run: |
+          python scripts/release/release-cos.py check-build
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" --jq '.object.sha')"
+          RELEASE_JSON="$(gh api "repos/$REPO/releases/$RELEASE_ID")"
+          WORKFLOW_SHA="$RELEASE_SHA"
+          export BRANCH_SHA RELEASE_JSON WORKFLOW_SHA
+          node scripts/release/validate-release-state.js draft-upload
+      - name: Download validated target packages
+        run: python scripts/release/release-cos.py download-target "${{ fromJSON(inputs.target).platform }}" "${{ fromJSON(inputs.target).arch }}"
+      - name: Upload packages to draft
+        run: gh release upload "$TAG" github-release-artifacts/* --repo "$REPO" --clobber

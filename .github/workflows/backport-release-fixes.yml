@@ -80,6 +80,7 @@ jobs:
     concurrency:
       group: release-state
       cancel-in-progress: false
+      queue: max
     steps:
       - name: Check out trusted workflow scripts
         uses: actions/checkout@v7
