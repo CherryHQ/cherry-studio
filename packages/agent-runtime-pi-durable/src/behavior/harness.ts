@@ -29,6 +29,10 @@ import {
 import {
   callKeyOf,
   encodeEntry,
+  goalForRequest,
+  TOOL_INTENT_GUIDE,
+  createToolIntent,
+  offersToolIntent,
   type BoundPorts,
   type HarnessPorts,
   type JobHandler,
@@ -44,7 +48,7 @@ import {
 } from '@cherrystudio/agent-behavior'
 import { type JsonValue, type InputId, type ThreadId } from '@cherrystudio/agent-runtime'
 
-import { conversationId, pages, readFacts, threadId, runIds, taskRun } from './history'
+import { conversationId, nativeSummaryUsage, pages, readFacts, threadId, runIds, taskRun } from './history'
 
 export interface PiDurableBehaviorOptions {
   readonly onError?: (error: unknown) => void
@@ -82,7 +86,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     history: 'latest',
     fork: 'initial',
     checkpointWhen: () => false,
-    initial: () => ({ run: 0, count: 0 })
+    initial: (): { run: number; count: number; counts?: Record<string, number> } => ({ run: 0, count: 0 })
   })
   const hostMemo = defineDoc({
     kind: 'cherry.host-memo',
@@ -94,20 +98,21 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     initial: (): { values: Record<string, NativeJson> } => ({ values: {} })
   })
   const providers = new Map<string, ThreadId>()
-  async function consumeRequest(thread: ThreadId) {
+  async function consumeRequest(thread: ThreadId, ownerRun?: number) {
     return harness.commit(async (tx) => {
       const id = conversationId(thread)
       const record = await tx.conversation(id)
       const live = await tx.doc(LiveDoc, id)
       const count = await tx.doc(meterDoc, id)
-      const run = live.run?.id ?? live.run?.taskId ?? 0
-      if (count.run !== run) {
-        count.run = run
-        count.count = 0
-      }
-      const allowance = meter?.allow(thread, count.count, record?.owner ? 'child' : 'root') ?? { ok: true as const }
+      const run = ownerRun ?? live.run?.id ?? live.run?.taskId ?? 0
+      count.counts ??= count.run ? { [String(count.run)]: count.count } : {}
+      const counts = count.counts
+      const requests = counts[String(run)] ?? 0
+      const allowance = meter?.allow(thread, requests, record?.owner ? 'child' : 'root') ?? { ok: true as const }
       if (!allowance.ok) return allowance
-      if (run) count.count += 1
+      if (run) counts[String(run)] = requests + 1
+      count.run = run
+      count.count = run ? requests + 1 : 0
       return allowance
     }, context)
   }
@@ -706,9 +711,18 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       }
     }
   })
+  const intent = createToolIntent()
   const extension: Extension = defineExtension({
     name: 'cherry.behavior',
     tasks: [jobTask, backgroundOwner],
+    // A DeepSeek agent's tools offer `intent`; every call drops it before the tool's own repair, validation, hooks and run.
+    wrapTools: (tool, model) => intent(tool, offersToolIntent(model?.modelId)),
+    sections: [
+      {
+        key: 'tool_intent',
+        render: ({ agent }) => (offersToolIntent(agent.model?.modelId) ? TOOL_INTENT_GUIDE : undefined)
+      }
+    ],
     tools: tools.map((tool) =>
       defineTool({
         name: tool.name,
@@ -824,29 +838,44 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       }),
       hook(CompactionTask, {
         async beforeCompact(request, api, callContext) {
-          if (!lifecycle) return
-          const allowance = await consumeRequest(threadId(api.conversationId))
-          if (!allowance.ok) return { decline: true }
-          const result = await lifecycle.onCompacting(
-            threadId(api.conversationId),
-            {
-              key: String(api.taskId),
-              history: (await read(threadId(api.conversationId))).history,
-              reason: request.reason,
-              messages: JSON.parse(JSON.stringify(request.messages)),
-              instructions: request.instructions,
-              signal: callContext.abortSignal ?? new AbortController().signal
-            },
-            gatePorts(api, callContext)
+          if (request.ownerAt === undefined) return { decline: true }
+          const facts = await harness.commit(
+            (tx) => readFacts(tx, api.conversationId, abandoned, request.ownerAt),
+            callContext
           )
-          return 'summary' in result
-            ? {
-                summary: result.summary,
-                ...(result.accounting && {
-                  metadata: nativeValue(encodeEntry(result.accounting.record, result.accounting.key))
-                })
-              }
-            : { decline: true }
+          await api.memo('cherry.native-summary-owner', nativeValue(goalForRequest(facts.history)), callContext)
+        },
+        async beforeSummary(request, api) {
+          const allowance = await consumeRequest(threadId(api.conversationId), request.runId ?? 0)
+          if (!allowance.ok) return { block: allowance.text }
+        },
+        async afterSummary(response, tx) {
+          const owner = response.memos['cherry.native-summary-owner']
+          if (!owner || typeof owner !== 'object' || Array.isArray(owner))
+            throw new Error('Native compaction has no captured goal owner')
+          const goalId = owner.goalId
+          const goalRoundId = owner.goalRoundId
+          if (
+            (goalId !== null && typeof goalId !== 'string') ||
+            (goalRoundId !== undefined && typeof goalRoundId !== 'string')
+          )
+            throw new Error('Native compaction has an invalid goal owner')
+          const value = response.message.usage
+          const task = await tx.task(response.taskId)
+          if (!task) throw new Error('Native compaction task is missing')
+          const doc = await tx.doc(nativeSummaryUsage, task.conversationId)
+          doc.records[`${response.taskId}:${response.attempt}`] ??= {
+            owner: { goalId, ...(goalRoundId === undefined ? {} : { goalRoundId }) },
+            usage: {
+              input: value.input,
+              output: value.output,
+              cacheRead: value.cacheRead,
+              cacheWrite: value.cacheWrite,
+              totalTokens: value.totalTokens,
+              costUsd: value.cost.total
+            },
+            ...(response.runId === undefined ? {} : { runId: response.runId })
+          }
         }
       })
     ]

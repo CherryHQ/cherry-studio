@@ -613,6 +613,7 @@ describe('useAgentMessageListProviderValue', () => {
     render(<Probe />)
 
     expect(value?.state.renderConfig.keepIntermediateAssistantText).toBe(true)
+    expect(value?.state.renderConfig.expandToolSteps).toBe(true)
   })
 
   it('keeps the Agent render configuration stable across streamed deltas and refreshes changed preferences', () => {
@@ -649,6 +650,7 @@ describe('useAgentMessageListProviderValue', () => {
       expect(result.current.state.renderConfig).not.toBe(initial)
       expect(result.current.state.renderConfig.fontSize).toBe(18)
       expect(result.current.state.renderConfig.keepIntermediateAssistantText).toBe(true)
+      expect(result.current.state.renderConfig.expandToolSteps).toBe(true)
     } finally {
       renderConfiguration.renderConfig = previous
     }
