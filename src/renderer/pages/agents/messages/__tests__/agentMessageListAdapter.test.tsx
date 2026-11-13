@@ -1,6 +1,8 @@
-import { act, render, renderHook } from '@testing-library/react'
+import { act, render, renderHook, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import MessageHeader from '@renderer/components/chat/messages/frame/MessageHeader'
+import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import type {
   MessageListItem,
   MessageListProviderValue,
@@ -204,6 +206,55 @@ describe('useAgentMessageListProviderValue', () => {
       modifiedAt: 0,
       mime: 'application/octet-stream'
     })
+  })
+
+  it('keeps historical avatars current until their agent is deleted', () => {
+    const messages: CherryUIMessage[] = [
+      {
+        id: 'historical-reply',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Historical reply' }],
+        metadata: {
+          createdAt: '2026-01-01T00:00:00.000Z',
+          status: 'success',
+          messageSnapshot: {
+            id: 'agent-1',
+            name: 'Original name',
+            emoji: '🎓',
+            model: { id: 'model-1', name: 'Model', provider: 'provider-1' }
+          }
+        }
+      }
+    ]
+    const Probe = ({ avatar }: { avatar?: string }) => {
+      const value = useAgentMessageListProviderValue({
+        topic: {
+          id: 'agent-session:avatar',
+          assistantId: 'agent-1',
+          name: 'History',
+          messages: []
+        } as unknown as Topic,
+        messages,
+        partsByMessageId: {},
+        assistantProfile: avatar ? { id: 'agent-1', name: 'Current name', avatar } : undefined,
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return (
+        <MessageListProvider value={value}>
+          <MessageHeader message={value.state.messages[0]} />
+        </MessageListProvider>
+      )
+    }
+    const { rerender } = render(<Probe avatar="🐱" />)
+    expect(screen.getAllByText('🐱')[0]).toBeVisible()
+    expect(screen.getByText('Original name')).toBeVisible()
+    rerender(<Probe avatar="🐶" />)
+    expect(screen.getAllByText('🐶')[0]).toBeVisible()
+    expect(screen.queryByText('🐱')).not.toBeInTheDocument()
+    rerender(<Probe />)
+    expect(screen.getAllByText('🎓')[0]).toBeVisible()
+    expect(screen.queryByText('🐶')).not.toBeInTheDocument()
   })
 
   it('delivers sent attachment activation to the current pane callback after rerender', async () => {
