@@ -2210,6 +2210,7 @@
   "library.config.dialogs.create.auto.submit": "Vytvořit automaticky",
   "library.config.dialogs.create.avatar_aria": "Vyberte avatar",
   "library.config.dialogs.create.avatar_name_label": "Avatar a název",
+  "library.config.dialogs.create.avatar_random": "Náhodný avatar",
   "library.config.dialogs.create.back": "Zpět",
   "library.config.dialogs.create.capability.builtin_badge": "Ve výchozím nastavení povoleno",
   "library.config.dialogs.create.capability.no_skills": "Nejsou nainstalovány žádné dovednosti",

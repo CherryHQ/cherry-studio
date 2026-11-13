@@ -2210,6 +2210,7 @@
   "library.config.dialogs.create.auto.submit": "Tự động tạo",
   "library.config.dialogs.create.avatar_aria": "Chọn hình đại diện",
   "library.config.dialogs.create.avatar_name_label": "Ảnh đại diện và tên",
+  "library.config.dialogs.create.avatar_random": "Ảnh đại diện ngẫu nhiên",
   "library.config.dialogs.create.back": "Quay lại",
   "library.config.dialogs.create.capability.builtin_badge": "Được bật theo mặc định",
   "library.config.dialogs.create.capability.no_skills": "Chưa cài đặt kỹ năng nào",
