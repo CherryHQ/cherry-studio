@@ -8,6 +8,7 @@ import { CherryAssistantInstructionsUpgradeSeeder } from './seeders/CherryAssist
 import { CherryAssistantSeeder } from './seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from './seeders/cherrySupportSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
+import { ExternalSkillExportUpgradeSeeder } from './seeders/ExternalSkillExportUpgradeSeeder'
 import { KnowledgeBaseOrderSeeder } from './seeders/knowledgeBaseOrderSeeder'
 import { LegacyFileCleanupPolicySeeder } from './seeders/legacyFileCleanupPolicySeeder'
 import { LocalModelSeeder } from './seeders/LocalModelSeeder'
@@ -34,6 +35,7 @@ import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceU
  * No changes to DbService needed.
  */
 export const seeders: ISeeder[] = [
+  new ExternalSkillExportUpgradeSeeder(),
   new RetiredAgentRuntimeSeeder(),
   new AgentSessionContextSeeder(),
   new AgentSessionMessageTreeSeeder(),

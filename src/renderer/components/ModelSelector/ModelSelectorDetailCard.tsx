@@ -154,9 +154,7 @@ export function ModelSelectorDetailCardContent({
   return (
     <div className="max-h-[min(420px,70vh,var(--radix-hover-card-content-available-height,70vh))] overflow-auto p-3">
       <div className="min-w-0 space-y-1">
-        <div className="truncate text-sm font-medium text-foreground" title={name}>
-          {name}
-        </div>
+        <div className="break-words text-sm font-medium text-foreground">{name}</div>
         {hasDescription ? <div className="text-muted-foreground text-xs">{description}</div> : null}
       </div>
 

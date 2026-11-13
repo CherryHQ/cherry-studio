@@ -61,7 +61,7 @@ function getReleaseDownloadGroups({ edition, platform, productName, version }) {
   })
 }
 
-function getExpectedReleaseArtifacts({ edition, platform, productName, version }) {
+function getAllReleaseArtifacts({ edition, platform, productName, version }) {
   const downloadGroups = getReleaseDownloadGroups({ edition, platform, productName, version })
   const channel = getReleaseChannel(version, edition)
   const fileName = (architecture, label) =>
@@ -114,6 +114,21 @@ function getExpectedReleaseArtifacts({ edition, platform, productName, version }
   }
 
   throw new Error(`Unsupported release platform: ${platform}`)
+}
+
+function getExpectedReleaseArtifacts({ architecture, ...options }) {
+  const expected = getAllReleaseArtifacts(options)
+  if (architecture === undefined) return expected
+  if (!RELEASE_ARCHITECTURES.includes(architecture))
+    throw new Error(`Unsupported release architecture: ${architecture}`)
+  const group = getReleaseDownloadGroups(options).find((entry) => entry.architecture === architecture)
+  const files = new Set(group.artifacts.flatMap(({ fileName }) => [fileName, `${fileName}.blockmap`]))
+  return {
+    files: expected.files.filter((file) => files.has(file)),
+    manifests: expected.manifests
+      .map((manifest) => ({ ...manifest, urls: manifest.urls.filter((url) => files.has(url)) }))
+      .filter((manifest) => manifest.urls.length > 0)
+  }
 }
 
 module.exports = {
