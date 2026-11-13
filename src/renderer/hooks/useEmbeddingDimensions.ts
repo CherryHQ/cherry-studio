@@ -2,10 +2,9 @@ import { useCallback, useState } from 'react'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { normalizeKnowledgeError } from '@renderer/utils/knowledgeError'
 import { LOCAL_EMBEDDING_DIMENSIONS, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
-
-import { normalizeKnowledgeError } from '../utils/error'
 
 const logger = loggerService.withContext('useEmbeddingDimensions')
 

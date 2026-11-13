@@ -1,9 +1,8 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button, DialogClose } from '@cherrystudio/ui'
+import { KnowledgeDialogFooter } from '@renderer/components/knowledge/KnowledgeDialogLayout'
 import type { KnowledgeItemType } from '@shared/data/types/knowledge'
-
-import { KnowledgeDialogFooter } from '../KnowledgeDialogLayout'
 
 interface AddKnowledgeItemDialogFooterProps {
   activeSource: KnowledgeItemType

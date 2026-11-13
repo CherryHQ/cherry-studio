@@ -1,6 +1,6 @@
 import type { ComponentProps, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 
-import type { KnowledgePageBaseGroupSection } from '@renderer/pages/knowledge/utils/group'
+import type { KnowledgePageBaseGroupSection } from '@renderer/utils/knowledgeGroup'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { ReorderKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
