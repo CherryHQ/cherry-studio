@@ -1,4 +1,5 @@
-import { mkdtemp, mkdir, writeFile, rm, readdir, readFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, rm, readdir, readFile, realpath } from 'node:fs/promises'
+import type * as fsPromises from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -24,6 +25,11 @@ import * as piSdk from '@main/ai/runtime/pi/piSdk'
 import { BaseService } from '@main/core/lifecycle'
 
 import { ConversationImportService } from '../ConversationImportService'
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const fs = await importOriginal<typeof fsPromises>()
+  return { ...fs, realpath: vi.fn(fs.realpath) }
+})
 
 describe('local history atomic import', () => {
   const dbh = setupTestDatabase()
@@ -217,6 +223,84 @@ describe('local history atomic import', () => {
     await ensureImportedSessionHistory(result.sessionId!)
     expect(SessionManager.open(file, directory).getEntries()).toHaveLength(3)
     expect(state.status).toBe('ready')
+  })
+  it('blocks continuation after crash recovery clears the imported resume token', async () => {
+    await source()
+    const p = await preview()
+    const [created] = await service.commit('window', p.previewId, [p.items[0].ref])
+    const sessionId = created.sessionId!
+    const message = agentSessionMessageService.saveMessage({
+      sessionId,
+      runtimeResumeToken: getImportedHistoryState(sessionId)!.nativeSessionId,
+      message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    agentSessionMessageService.resolveCrashOrphanedMessages([{ id: message.id, data: message.data }], [sessionId])
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBeNull()
+    await expect(ensureImportedSessionHistory(sessionId)).rejects.toThrow('history_unrecoverable')
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBeNull()
+    const messages = agentSessionMessageService.listSessionMessages(sessionId).items
+    expect(messages).toHaveLength(3)
+    application.get('DbService').withWriteTx((tx) => {
+      for (const { id } of messages) agentSessionMessageService.deleteSessionMessageTx(tx, sessionId, id)
+    })
+    await expect(ensureImportedSessionHistory(sessionId)).resolves.toBeUndefined()
+  })
+  it.each(['malformed', 'truncated', 'replaced'] as const)('rejects a %s imported native prefix', async (damage) => {
+    await source()
+    const p = await preview()
+    const [created] = await service.commit('window', p.previewId, [p.items[0].ref])
+    const directory = path.join(root, 'feature.agents.pi.sessions')
+    const file = path.join(directory, (await readdir(directory))[0])
+    const lines = (await readFile(file, 'utf8')).trimEnd().split('\n')
+    if (damage === 'malformed') lines[lines.length - 1] = '{"type":"message",'
+    else if (damage === 'truncated') lines.pop()
+    else lines[lines.length - 1] = lines.at(-1)!.replace('Message 1', 'Incomplete replacement')
+    const damaged = lines.join('\n') + '\n'
+    await writeFile(file, damaged)
+    await expect(ensureImportedSessionHistory(created.sessionId!)).rejects.toThrow('history_corrupt')
+    expect(await readFile(file, 'utf8')).toBe(damaged)
+    expect(agentSessionMessageService.listSessionMessages(created.sessionId!).items).toHaveLength(2)
+  })
+  it('accepts native continuation after the complete imported prefix', async () => {
+    await source()
+    const p = await preview()
+    const [created] = await service.commit('window', p.previewId, [p.items[0].ref])
+    const directory = path.join(root, 'feature.agents.pi.sessions')
+    const file = path.join(directory, (await readdir(directory))[0])
+    const manager = SessionManager.open(file, directory)
+    manager.appendMessage({ role: 'user', content: 'Continue the task', timestamp: Date.now() })
+    agentSessionMessageService.saveMessage({
+      sessionId: created.sessionId!,
+      runtimeResumeToken: manager.getSessionId(),
+      message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Continue the task' }] } }
+    })
+    await ensureImportedSessionHistory(created.sessionId!)
+    expect(SessionManager.open(file, directory).buildSessionContext().messages).toHaveLength(3)
+  })
+  it.each(['cancel', 'rescan'])('invalidates a discovery awaiting its root on %s', async (action) => {
+    await source()
+    const delayed = Promise.withResolvers<string>()
+    vi.mocked(realpath).mockImplementationOnce(() => delayed.promise)
+    const sourceRoot = path.join(root, 'source')
+    const pending = service.discover('window', 'claude-code', sourceRoot)
+    const rejected = expect(pending).rejects.toThrow()
+    const next = action === 'rescan' ? await service.discover('window', 'claude-code', sourceRoot) : undefined
+    if (!next) service.cancel('window')
+    delayed.resolve(sourceRoot)
+    await rejected
+    if (next) {
+      const current = await service.preview(
+        'window',
+        next.scanId,
+        'pi',
+        next.candidates.map(({ ref }) => ({ ref }))
+      )
+      expect(current.items[0].messageCount).toBe(2)
+    } else {
+      await expect(service.preview('window', 'cancelled', 'pi', [{ ref: 'cancelled' }])).rejects.toThrow(
+        'preview_expired'
+      )
+    }
   })
   it('deduplicates across selected agents and preserves the original owner', async () => {
     await source()

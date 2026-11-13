@@ -1,10 +1,11 @@
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 
 import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { completeImportedHistoryTx, getImportedHistoryState } from '@data/services/importedSessionHistory'
-import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { readForkPrefix, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 
 import { appendHistoricalMessage } from './historicalMessage'
 import { loadPiSdk } from './piSdk'
@@ -23,32 +24,18 @@ export function ensureImportedSessionHistory(sessionId: string): Promise<void> {
 async function initialize(sessionId: string): Promise<void> {
   const state = getImportedHistoryState(sessionId)
   if (!state) return
-  if (
-    state.status === 'ready' &&
-    agentSessionMessageService.getLastRuntimeResumeToken(sessionId) !== state.nativeSessionId
-  )
-    return
+  if (state.status === 'ready') {
+    const token = agentSessionMessageService.getLastRuntimeResumeToken(sessionId)
+    if (!token && state.messageCount > 0) throw new Error('history_unrecoverable')
+    if (token !== state.nativeSessionId) return
+  }
   const history = agentSessionMessageService.readImportedHistory(sessionId)
   const sessions = application.getPath('feature.agents.pi.sessions')
   const file = path.join(sessions, '1970-01-01T00-00-00-000Z_' + state.nativeSessionId + '.jsonl')
   const sdk = await loadPiSdk()
-  try {
-    await stat(file)
-    const existing = sdk.SessionManager.open(file, sessions, history.workspace.path)
-    if (
-      existing.getSessionId() !== state.nativeSessionId ||
-      (history.messages.length > 0 && !existing.getEntries().length)
-    )
-      throw new Error('history_corrupt')
-    if (state.status === 'ready') return
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-  }
-  if (history.messages.length !== state.messageCount || history.messages.some((row) => !row.provenance))
-    throw new Error('history_unrecoverable')
   const manager = sdk.SessionManager.inMemory(history.workspace.path, { id: state.nativeSessionId })
   const anchors = new Map<string, RuntimeForkAnchor>()
-  for (const row of history.messages) {
+  for (const row of history.messages.filter((message) => message.provenance)) {
     const text = (row.data.parts ?? [])
       .flatMap((part) => {
         if (part.type === 'text') return [part.text]
@@ -64,6 +51,39 @@ async function initialize(sessionId: string): Promise<void> {
         excludedMessageIds: []
       })
   }
+  try {
+    const source = await readForkPrefix(file, (await stat(file)).size)
+    const entries = source
+      .toString('utf8')
+      .trimEnd()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    const existing = sdk.SessionManager.inMemory(history.workspace.path, undefined, entries)
+    const expected = manager.getEntries()
+    const prefix = existing.getEntries().slice(0, expected.length)
+    if (
+      existing.getSessionId() !== state.nativeSessionId ||
+      prefix.length !== expected.length ||
+      new Set(prefix.map(({ id }) => id)).size !== prefix.length ||
+      expected.some((entry, index) => {
+        const actual = prefix[index]
+        return (
+          actual.parentId !== (index ? prefix[index - 1].id : null) ||
+          !isDeepStrictEqual(
+            { ...entry, id: actual.id, parentId: actual.parentId, timestamp: actual.timestamp },
+            actual
+          )
+        )
+      })
+    )
+      throw new Error('history_corrupt')
+    if (state.status === 'ready') return
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new Error('history_corrupt')
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  if (history.messages.length !== state.messageCount || history.messages.some((row) => !row.provenance))
+    throw new Error('history_unrecoverable')
   await mkdir(sessions, { recursive: true })
   const temporary = file + '.tmp'
   try {

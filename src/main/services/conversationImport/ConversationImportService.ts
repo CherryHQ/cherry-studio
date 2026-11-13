@@ -65,7 +65,7 @@ export class ConversationImportService extends BaseService {
   async discover(owner: string, source: HistorySource, requestedRoot?: string) {
     if (source !== 'claude-code') throw new Error('unsupported_source')
     this.cancel(owner)
-    const root = await realpath(requestedRoot ?? application.getPath('external.claude.projects'))
+    let root = requestedRoot ?? application.getPath('external.claude.projects')
     const scan: Scan = {
       id: randomUUID(),
       root,
@@ -81,10 +81,14 @@ export class ConversationImportService extends BaseService {
     const filtered: ImportFilterCounts = { codex_guardian_review: 0, claude_no_user_task: 0 }
     let scanned = 0
     try {
+      root = await realpath(root)
+      scan.abort.signal.throwIfAborted()
+      scan.root = root
       for await (const reference of scan.adapter.discover(root, scan.abort.signal)) {
         const file = reference.path
         if (++scanned > 10_000) throw new Error('scan_limit')
         const canonical = await realpath(file)
+        scan.abort.signal.throwIfAborted()
         if (!within(root, canonical)) throw new Error('source_changed')
         if (reference.filteredReason) {
           filtered[reference.filteredReason]++
@@ -94,6 +98,7 @@ export class ConversationImportService extends BaseService {
         scan.refs.set(ref, { ...reference, path: canonical })
         candidates.push({ ref, title: reference.title ?? path.basename(file, '.jsonl'), sourcePath: canonical })
       }
+      scan.abort.signal.throwIfAborted()
       return { scanId: scan.id, root, candidates, filtered }
     } catch (error) {
       if (this.scans.get(owner) === scan) this.cancel(owner)
