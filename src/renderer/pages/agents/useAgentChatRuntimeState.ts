@@ -626,6 +626,7 @@ export function useAgentChatRuntimeState({
   )
   const planExecution = useMemo(() => ({ modelFilter, isModelDisabled }), [isModelDisabled, modelFilter])
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
+    topicId: sessionTopicId,
     partsByMessageId,
     persistedPartsByMessageId,
     streamingLayers,

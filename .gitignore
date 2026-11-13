@@ -1,4 +1,5 @@
 # Logs
+release-bundle.json
 logs
 *.log
 *.log.*
