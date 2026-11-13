@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-13-multi-instance-codex-oauth-providers.md
+2026-11-13-multi-instance-codex-oauth-providers.md: b3449746e6b5bf7818845e60e9f9c51b54685584
+2026-11-13-multi-instance-codex-oauth-providers.zh.md: ce0e0e382b4f9855b3f5bec59b0505674936b819

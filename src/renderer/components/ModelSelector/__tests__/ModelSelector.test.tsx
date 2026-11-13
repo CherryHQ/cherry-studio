@@ -280,6 +280,55 @@ describe('ModelSelector', () => {
     vi.restoreAllMocks()
   })
 
+  it('renders account identities in provider groups and pinned rows', () => {
+    const providers = [
+      { ...provider, id: 'first', name: 'Shared', presetProviderId: 'openai-codex' },
+      { ...provider, id: 'second', name: 'Shared', presetProviderId: 'openai-codex' },
+      { ...provider, id: 'third', name: 'Bare', presetProviderId: 'openai-codex' },
+      { ...provider, id: 'other', name: 'Other', presetProviderId: 'openai' }
+    ]
+    mockUseQuery.mockImplementation(
+      (path, options) =>
+        ({
+          data:
+            path === '/providers/:providerId/auth-config'
+              ? {
+                  accountId:
+                    (options as { params?: { providerId?: string } } | undefined)?.params?.providerId === 'first'
+                      ? 'account-a'
+                      : (options as { params?: { providerId?: string } } | undefined)?.params?.providerId === 'second'
+                        ? 'account-b'
+                        : null
+                }
+              : []
+        }) as never
+    )
+    const rows = providers.slice(0, 2).map((p) =>
+      makeModelItem(`${p.id}::model`, {
+        provider: p,
+        groupKind: 'pinned',
+        isPinned: true,
+        showIdentifier: true,
+        modelIdentifier: 'model'
+      })
+    )
+    const groups: FlatListItem[] = providers.map((p) => ({
+      key: p.id,
+      type: 'group',
+      groupKind: 'provider',
+      provider: p,
+      canNavigateToSettings: true
+    }))
+    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems: [...groups, ...rows], modelItems: rows }))
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+    expect(screen.getByText('Shared · account-a')).toBeInTheDocument()
+    expect(screen.getByText('Shared · account-b')).toBeInTheDocument()
+    expect(screen.getByText('Bare')).toBeInTheDocument()
+    expect(screen.getByText('Other')).toBeInTheDocument()
+    expect(screen.getByTitle('Shared · account-a · model')).toHaveTextContent('| Shared · account-a · model')
+    expect(screen.getByTitle('Shared · account-b · model')).toHaveTextContent('| Shared · account-b · model')
+  })
+
   it('activates action rows without changing selection or showing pin/checkbox controls', async () => {
     const onAction = vi.fn()
     const onSelect = vi.fn()

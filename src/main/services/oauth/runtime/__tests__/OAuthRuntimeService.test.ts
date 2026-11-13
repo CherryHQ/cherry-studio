@@ -29,6 +29,7 @@ const h = vi.hoisted(() => {
       close: vi.fn()
     },
     providerServiceMock: {
+      getByProviderId: vi.fn(() => ({ presetProviderId: 'openai-codex' })),
       getAuthConfig: vi.fn((id: string) => providerStore.get(id)?.authConfig ?? null),
       update: vi.fn((id: string, patch: Record<string, unknown>) => {
         providerStore.set(id, { ...providerStore.get(id), ...patch })
@@ -57,6 +58,14 @@ vi.mock('../LoopbackCallbackTransport', () => ({
 }))
 vi.mock('../providerDefinitions', () => ({
   oauthProviderDefinitions: {
+    'openai-codex': {
+      providerId: 'openai-codex',
+      clientId: 'codex-client',
+      clearDisablesProvider: true,
+      transport: { hosts: ['127.0.0.1'], port: 0, path: '/cb', redirectUri: 'http://127.0.0.1/cb' },
+      createClient: (context?: { signal?: AbortSignal }) => h.createClientMock(context),
+      extractAccountId: () => null
+    },
     codex: {
       providerId: 'codex',
       clientId: 'codex-client',
@@ -75,9 +84,12 @@ vi.mock('../providerDefinitions', () => ({
   }
 }))
 
+import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
+
 import { OAuthServiceError, OAuthSignInCancelledError, OAuthTransientError } from '../../errors'
 import { OAuthRuntimeService } from '../OAuthRuntimeService'
 import { OAuthHttpError } from '../PkceOAuthClient'
+import { oauthProviderDefinitions } from '../providerDefinitions'
 
 class TestOAuthRuntimeService extends OAuthRuntimeService {
   initializeForTest(): void {
@@ -112,6 +124,66 @@ describe('OAuthRuntimeService', () => {
     vi.mocked(shell.openExternal).mockReset().mockResolvedValue()
     service = new TestOAuthRuntimeService()
     service.initializeForTest()
+  })
+
+  it('keeps refresh outcomes separate for instances sharing a refresh token', async () => {
+    seedOAuth('instance-a', { accessToken: 'old-a', refreshToken: 'shared', expiresAt: PAST() })
+    seedOAuth('instance-b', { accessToken: 'old-b', refreshToken: 'shared', expiresAt: PAST() })
+    h.providerStore.get('instance-a')!.isEnabled = true
+    h.providerStore.get('instance-b')!.isEnabled = true
+    let release!: () => void
+    const pending = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    h.refreshMock
+      .mockImplementationOnce(async () => {
+        await pending
+        return { access_token: 'fresh-a', refresh_token: 'new-a', expires_in: 3600 }
+      })
+      .mockRejectedValueOnce(new OAuthHttpError('bad', 400, 'invalid_grant'))
+    const a = service.getValidAccessToken('instance-a')
+    const b = service.getValidAccessToken('instance-b')
+    await expect(b).resolves.toBeNull()
+    release()
+    await expect(a).resolves.toMatchObject({ accessToken: 'fresh-a' })
+    expect(h.providerStore.get('instance-a')).toMatchObject({
+      isEnabled: true,
+      authConfig: { accessToken: 'fresh-a', refreshToken: 'new-a' }
+    })
+    expect(h.providerStore.get('instance-b')).toEqual({ isEnabled: false, authConfig: { type: 'api-key' } })
+  })
+
+  it('does not overwrite a newer instance login with a stale refresh', async () => {
+    seedOAuth('instance-a', { accessToken: 'a', refreshToken: 'a-refresh', expiresAt: FUTURE() })
+    seedOAuth('instance-b', { accessToken: 'old-b', refreshToken: 'old-refresh', expiresAt: PAST() })
+    h.refreshMock.mockImplementation(async () => {
+      seedOAuth('instance-b', { accessToken: 'new-b', refreshToken: 'new-refresh', expiresAt: FUTURE() })
+      return { access_token: 'stale-b', refresh_token: 'stale-refresh', expires_in: 3600 }
+    })
+    expect(await service.getValidAccessToken('instance-b')).toBeNull()
+    expect(h.providerStore.get('instance-b')?.authConfig).toMatchObject({
+      accessToken: 'new-b',
+      refreshToken: 'new-refresh'
+    })
+    expect(h.providerStore.get('instance-a')?.authConfig).toMatchObject({ accessToken: 'a', refreshToken: 'a-refresh' })
+  })
+
+  // The codex-preset fallback must not hand out a registry miss: without a codex
+  // definition the caller gets the clean OAuth error, not a later TypeError.
+  it('rejects codex-preset instances with a clean OAuth error when the registry lacks the codex definition', async () => {
+    const definitions = oauthProviderDefinitions as Record<string, unknown>
+    const codexDefinition = definitions[OPENAI_CODEX_PROVIDER_ID]
+    delete definitions[OPENAI_CODEX_PROVIDER_ID]
+    try {
+      await expect(service.getAccount('instance-x')).rejects.toThrow(
+        'No OAuth provider registered for provider: instance-x'
+      )
+      await expect(service.hasToken('instance-x')).rejects.toThrow(
+        'No OAuth provider registered for provider: instance-x'
+      )
+    } finally {
+      definitions[OPENAI_CODEX_PROVIDER_ID] = codexDefinition
+    }
   })
 
   it('does not open the browser until the callback port is listening', async () => {
