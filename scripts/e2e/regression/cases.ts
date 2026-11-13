@@ -304,6 +304,13 @@ export const REGRESSION_CASES = [
     capabilities: []
   },
   {
+    id: 'MP-161',
+    title: 'Archive and restore all Agent sessions',
+    tasks: ['agents'],
+    phase: 'agentRuntimes',
+    capabilities: []
+  },
+  {
     id: 'MP-55',
     title: 'Side status panel (tasks, tools, context)',
     tasks: ['agents'],
@@ -582,6 +589,13 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-147',
     title: 'Expand long user messages by default',
+    tasks: ['settings'],
+    phase: 'settings',
+    capabilities: []
+  },
+  {
+    id: 'MP-172',
+    title: 'Open notifications, mark them read, and navigate to their target',
     tasks: ['settings'],
     phase: 'settings',
     capabilities: []
