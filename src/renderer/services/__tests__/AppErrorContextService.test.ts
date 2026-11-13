@@ -98,6 +98,21 @@ describe('app error presentation', () => {
     expect(JSON.stringify(diagnosticErrorFromUnknown(cause))).not.toContain('draw a cat')
   })
 
+  it('keeps the original technical fault when a wrapper error carries it as its cause', () => {
+    const parserError = new Error('Invalid PDF structure')
+    const wrapper = new Error('Failed to load preview', { cause: parserError })
+    wrapper.name = 'PreviewError'
+
+    expect(diagnosticErrorFromUnknown(wrapper)).toMatchObject({
+      name: 'Error',
+      message: 'Invalid PDF structure',
+      stack: parserError.stack
+    })
+    expect(diagnosticErrorFromUnknown(new Error('Failed to load preview'))).toMatchObject({
+      message: 'Failed to load preview'
+    })
+  })
+
   it('puts the original status and response on the snapshot, not the localized title', () => {
     const cause = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, 'Generation failed', {
       message: 'quota exceeded',
