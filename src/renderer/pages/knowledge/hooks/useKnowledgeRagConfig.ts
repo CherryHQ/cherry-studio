@@ -6,11 +6,11 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useAvailableFileProcessors } from '@renderer/hooks/useAvailableFileProcessors'
 import { getFileProcessorLabelKey } from '@renderer/i18n/label'
+import { normalizeKnowledgeError } from '@renderer/utils/knowledgeError'
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeRagConfigFormValues } from '../types'
-import { normalizeKnowledgeError } from '../utils/error'
 import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues } from '../utils/rag'
 
 const logger = loggerService.withContext('useKnowledgeRagConfig')

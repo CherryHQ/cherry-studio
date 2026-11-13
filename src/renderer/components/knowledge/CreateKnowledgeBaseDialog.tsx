@@ -16,12 +16,12 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
-import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
+import { useEmbeddingDimensions } from '@renderer/hooks/useEmbeddingDimensions'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/utils/knowledgeGroup'
 import type { Group } from '@shared/data/types/group'
 import type { CreateKnowledgeBaseDto, KnowledgeBase } from '@shared/data/types/knowledge'
 
-import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
 import {
   KnowledgeDialogBody,
   KnowledgeDialogField,
