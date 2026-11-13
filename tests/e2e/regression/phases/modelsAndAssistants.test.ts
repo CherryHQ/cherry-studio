@@ -17,6 +17,7 @@ import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
 import { clearChatMessages } from '../scenarios/clearChatMessages'
 import { errorRecovery } from '../scenarios/errorRecovery'
+import { prepareScenario } from '../setup'
 
 test(...caseDefinition('M-02'), async ({ app, mainWindow }) => {
   let page = mainWindow
@@ -47,7 +48,7 @@ test(...caseDefinition('M-02'), async ({ app, mainWindow }) => {
     )
     expect(topic.status).toBe(201)
     await page.reload()
-    await selectSidebarApp(page, 'Chat')
+    await prepareScenario(page)
     const row = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await row.hover()
     await row.getByRole('button', { name: 'New Chat', exact: true }).press('Enter')
