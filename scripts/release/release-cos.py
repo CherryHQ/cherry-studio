@@ -116,8 +116,13 @@ def main():
         raise ValueError("Invalid release tag or run ID")
     base = f"releases-sync/{tag}"
     prefix = f"{base}/{run_id}"
+    domain = (
+        f"{BUCKET}.cos.ap-shanghai.myqcloud.com"
+        if command == "upload" and args[1:] == ["windows"]
+        else f"{BUCKET}.cos.accelerate.myqcloud.com"
+    )
     client = CosS3Client(CosConfig(
-        Region="ap-shanghai", Domain=f"{BUCKET}.cos.accelerate.myqcloud.com",
+        Region="ap-shanghai", Domain=domain,
         SecretId=os.environ["COS_SECRET_ID"], SecretKey=os.environ["COS_SECRET_KEY"],
     ))
     if command == "upload":
