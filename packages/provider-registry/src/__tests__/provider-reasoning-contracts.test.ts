@@ -80,6 +80,15 @@ describe('provider reasoning contracts', () => {
   // `reasoningConfig.*` namespace, so it isn't the shared anthropic dialect.
   // The first-party anthropic pin is gone — Opus 4.5 now reaches the same wire
   // through `wireDialect: 'budget'` (locked in reasoning-dialect.test.ts).
+  it('uses adaptive effort for Claude Opus 5.5 on aws-bedrock', () => {
+    const model = override('aws-bedrock', 'claude-opus-5-5')
+    expect(model.apiModelId).toBe('global.anthropic.claude-opus-5-5')
+    const contract = model.reasoningContracts?.['anthropic-messages']
+    expect(contract?.wire?.effort?.operations).toEqual([
+      { target: 'reasoningConfig.type', value: { source: 'literal', value: 'adaptive' } },
+      { target: 'reasoningConfig.maxReasoningEffort', value: { source: 'effort' } }
+    ])
+  })
 
   // No provider hand-pins a Gemini dialect any more — it comes from the model's
   // declared `wireDialect`, so a new google-generate-content gateway cannot get
