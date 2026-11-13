@@ -63,11 +63,6 @@ describe('computeScrollAnchor', () => {
 })
 
 describe('resolveRestoreTarget', () => {
-  it('follows the newest message (end-aligned, bottom offset) when nothing is saved', () => {
-    expect(resolveRestoreTarget(null, () => 5, 9, 24)).toEqual({ index: 9, align: 'end', offset: 24 })
-    expect(resolveRestoreTarget(undefined, () => 5, 9, 24)).toEqual({ index: 9, align: 'end', offset: 24 })
-  })
-
   it('follows the newest message when the saved message no longer exists', () => {
     expect(resolveRestoreTarget({ key: 'gone', offset: 40 }, () => -1, 9, 24)).toEqual({
       index: 9,
@@ -153,6 +148,17 @@ describe('useScrollPositionMemory', () => {
     vi.unstubAllGlobals()
   })
 
+  it('keeps explicit navigation when it takes ownership before the initial restore frame', () => {
+    let ownsInitialRestore = true
+    renderHook(() => useScrollPositionMemory(buildInputs({ shouldRestore: () => ownsInitialRestore })))
+    scroller.scrollTop = 250
+    ownsInitialRestore = false
+    flushRaf()
+    expect(scroller.scrollTop).toBe(250)
+    expect(handle.scrollToIndex).not.toHaveBeenCalled()
+    expect(enterFollowingAfterRestore).not.toHaveBeenCalled()
+  })
+
   it('restores a saved anchor via scrollToIndex on mount', () => {
     cacheService.set('chat.scroll_anchor.t1', { key: 'g2', offset: 80 })
 
@@ -163,16 +169,6 @@ describe('useScrollPositionMemory', () => {
     expect(enterReadingForRestore).toHaveBeenCalledTimes(1)
     expect(settleReadingRestore).toHaveBeenCalledTimes(1)
     expect(enterFollowingAfterRestore).not.toHaveBeenCalled()
-  })
-
-  it('follows the newest message via scrollToIndex(end) when nothing is saved', () => {
-    renderHook(() => useScrollPositionMemory(buildInputs()))
-    flushRaf()
-
-    // last index (itemCount - 1), end-aligned, offset by the bottom padding.
-    expect(handle.scrollToIndex).toHaveBeenCalledWith(2, { align: 'end', offset: 24 })
-    expect(enterFollowingAfterRestore).toHaveBeenCalledTimes(1)
-    expect(scroller.scrollTop).toBe(0) // not touched directly while the handle exists
   })
 
   it('falls back to scrollTop when no virtua handle is available', () => {

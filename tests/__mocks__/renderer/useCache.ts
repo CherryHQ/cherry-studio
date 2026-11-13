@@ -274,6 +274,15 @@ export const mockUsePersistCache = vi.fn(
 )
 
 /**
+ * Returns the current mock persist value, as rendered by mockUsePersistCache, or the schema default.
+ */
+export const mockUsePersistCacheReader = vi.fn(
+  <K extends RendererPersistCacheKey>(key: K): (() => RendererPersistCacheSchema[K]) =>
+    () =>
+      (mockPersistCache.get(key) ?? DefaultRendererPersistCache[key]) as RendererPersistCacheSchema[K]
+)
+
+/**
  * Export all mocks as a unified module
  */
 export const MockUseCache = {
@@ -281,7 +290,8 @@ export const MockUseCache = {
   useSharedCache: mockUseSharedCache,
   useSharedCacheValue: mockUseSharedCacheValue,
   useSharedCacheSelector: mockUseSharedCacheSelector,
-  usePersistCache: mockUsePersistCache
+  usePersistCache: mockUsePersistCache,
+  usePersistCacheReader: mockUsePersistCacheReader
 }
 
 /**
@@ -297,6 +307,7 @@ export const MockUseCacheUtils = {
     mockUseSharedCacheValue.mockClear()
     mockUseSharedCacheSelector.mockClear()
     mockUsePersistCache.mockClear()
+    mockUsePersistCacheReader.mockClear()
 
     // Reset caches to defaults (shared stays physically empty — see the
     // initialization note at the top of this file)

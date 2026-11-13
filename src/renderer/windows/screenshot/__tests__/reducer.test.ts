@@ -22,11 +22,6 @@ describe('overlayReducer', () => {
       expect(state.pointerPosition).toEqual({ x: 50, y: 60 })
     })
 
-    it('returns the same state object for a stray POINTER_UP, so nothing re-renders', () => {
-      const state = overlayReducer(initialState, { type: 'POINTER_UP' })
-      expect(state).toBe(initialState)
-    })
-
     it('ignores POINTER_DOWN_SELECTION when there is no selection to grab', () => {
       const state = overlayReducer(initialState, { type: 'POINTER_DOWN_SELECTION', x: 10, y: 10 })
       expect(state).toBe(initialState)

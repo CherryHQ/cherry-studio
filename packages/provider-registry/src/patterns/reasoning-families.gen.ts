@@ -13,6 +13,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^qwen3(?:-vl)?-.*thinking', toggle: false },
   { pattern: '^qwen3[.-]8-max-preview', toggle: false },
   { pattern: '^qwen3[.-]8-flash$', effort: ['low', 'medium', 'xhigh'], budget: { min: 0, max: 262144 }, toggle: true },
+  { pattern: '^qwen3[.-]8-flash-next$', effort: ['low', 'medium', 'xhigh'] },
   { pattern: '^qwq|^qvq', toggle: false },
   { pattern: '^qwen', toggle: true, template: true },
   { pattern: 'qwen3-235b-a22b-thinking-2507$', budget: { min: 0, max: 81920 }, template: true },
@@ -206,6 +207,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^mercury-2' },
   // meituan
   { pattern: '^longcat-2[.-]0$', toggle: true },
+  { pattern: '^longcat-2[.-]5$', toggle: true },
   // meta
   { pattern: '^muse-spark-open(?:-|$)', effort: ['low', 'medium', 'high', 'xhigh'], toggle: false },
   { pattern: '^muse-spark' },

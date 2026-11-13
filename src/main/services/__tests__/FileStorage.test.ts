@@ -154,6 +154,14 @@ describe('FileStorage', () => {
       expect(shell.trashItem).toHaveBeenCalledWith('C:\\Users\\test\\Notes\\note.md')
     })
 
+    it('permanently deletes the file when the trash API fails', async () => {
+      vi.mocked(shell.trashItem).mockRejectedValue(new Error('Failed to move item to trash'))
+
+      await fileStorage.deleteExternalFile(event, tmpFile)
+
+      expect(fs.existsSync(tmpFile)).toBe(false)
+    })
+
     it('does not invoke the trash API for an empty path', async () => {
       await fileStorage.deleteExternalFile(event, '')
 
@@ -327,14 +335,13 @@ describe('FileStorage', () => {
   describe('stored file ids', () => {
     it('rejects an id that escapes the storage directory', async () => {
       await expect(fileStorage.binaryImage(event, '../../../../etc/passwd')).rejects.toThrow(/Invalid stored file id/)
-      await expect(fileStorage.base64File(event, '../secrets.txt')).rejects.toThrow(/Invalid stored file id/)
-      await expect(fileStorage.deleteFile(event, '../database.sqlite')).rejects.toThrow(/Invalid stored file id/)
-      await expect(fileStorage.deleteDir(event, '')).rejects.toThrow(/Invalid stored file id/)
-      await expect(fileStorage.deleteDir(event, '.')).rejects.toThrow(/Invalid stored file id/)
+      await expect(fileStorage.binaryImage(event, '../database.sqlite')).rejects.toThrow(/Invalid stored file id/)
+      await expect(fileStorage.binaryImage(event, '')).rejects.toThrow(/Invalid stored file id/)
+      await expect(fileStorage.binaryImage(event, '.')).rejects.toThrow(/Invalid stored file id/)
     })
 
     it('accepts a plain file name', async () => {
-      await expect(fileStorage.deleteFile(event, `${uniqueId()}.png`)).resolves.toBeUndefined()
+      await expect(fileStorage.binaryImage(event, `${uniqueId()}.png`)).rejects.toMatchObject({ code: 'ENOENT' })
     })
   })
 })

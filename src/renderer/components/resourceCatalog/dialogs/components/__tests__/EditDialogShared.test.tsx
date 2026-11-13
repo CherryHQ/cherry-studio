@@ -159,34 +159,6 @@ describe('EditDialogShared', () => {
     expect(screen.getByRole('button', { name: 'Open Knowledge to create one' })).toBeInTheDocument()
   })
 
-  it('opts the knowledge list into revalidation when the source window regains focus', () => {
-    function Harness() {
-      const form = useForm<ResourceCreateWizardFormValues>({
-        defaultValues: {
-          avatar: '💬',
-          name: '',
-          description: '',
-          agentType: 'claude-code',
-          permissionMode: 'default',
-          modelId: null,
-          prompt: '',
-          knowledgeBaseIds: [],
-          skillIds: []
-        }
-      })
-
-      return (
-        <Form {...form}>
-          <KnowledgeStep form={form} portalContainer={null} />
-        </Form>
-      )
-    }
-
-    render(<Harness />)
-
-    expect(mockUseKnowledgeBases).toHaveBeenCalledWith({ revalidateOnFocus: true })
-  })
-
   it('closes and disables the knowledge picker when submission starts', async () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [{ id: 'knowledge-1', name: 'Knowledge one', itemCount: 1 }],

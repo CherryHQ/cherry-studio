@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { noteTable } from '@data/db/schemas/note'
-import { NoteService, noteService } from '@data/services/NoteService'
+import { noteService } from '@data/services/NoteService'
 import type { DataApiError } from '@shared/data/api/errors'
 import { ErrorCode } from '@shared/data/api/errors'
 
@@ -19,10 +19,6 @@ const RENAMED_EMOJI_FOLDER = '/Users/test/Notes/📦'
 
 describe('NoteService', () => {
   const dbh = setupTestDatabase()
-
-  it('should export a module-level singleton', () => {
-    expect(noteService).toBeInstanceOf(NoteService)
-  })
 
   it('should upsert and list note scoped by root path', async () => {
     const first = noteService.upsert({

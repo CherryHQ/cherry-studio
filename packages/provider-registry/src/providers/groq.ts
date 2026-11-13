@@ -31,7 +31,7 @@ export default defineProvider({
     }
   },
   modelsDevProvider: 'groq',
-  overrides: ['gpt-oss-120b', 'gpt-oss-20b', 'llama-3-3-70b-versatile'].map((modelId) => ({
+  modelTemplates: ['gpt-oss-120b', 'gpt-oss-20b', 'llama-3-3-70b-versatile'].map((modelId) => ({
     modelId,
     requestControls: { serviceTier: { options: ['standard', 'auto', 'fast', 'flex'] } }
   }))

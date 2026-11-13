@@ -12,11 +12,6 @@ import {
   InfoTooltip,
   InputNumber,
   SegmentedControl,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
@@ -37,8 +32,6 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
-import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
-import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -48,7 +41,6 @@ import { cn } from '@renderer/utils/style'
 import type { MenuPresentationMode, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
-import { defaultLanguage } from '@shared/utils/languages'
 
 import ThemeColorPicker from './components/ThemeColorPicker'
 
@@ -121,7 +113,6 @@ const AppearanceSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
 
-  const [language, setLanguage] = usePreference('app.language')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
   const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
@@ -138,13 +129,6 @@ const AppearanceSettings: FC = () => {
   const [currentZoom, setCurrentZoom] = useState(1.0)
   const [fontList, setFontList] = useState<string[]>([])
   const isDefaultZoom = Math.abs(currentZoom - DEFAULT_ZOOM_FACTOR) < 0.001
-
-  const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
-  const displayLanguage = isAppLanguage(language)
-    ? language
-    : isAppLanguage(resolvedLanguage)
-      ? resolvedLanguage
-      : defaultLanguage
 
   const themeOptions: ThemePreviewOption[] = [
     { value: ThemeMode.light, label: t('settings.theme.light'), icon: Sun },
@@ -184,13 +168,6 @@ const AppearanceSettings: FC = () => {
       window.removeEventListener('resize', handleResize)
     }
   }, [])
-
-  const onSelectLanguage = (value: string) => {
-    if (!isAppLanguage(value)) return
-
-    void i18n.changeLanguage(value)
-    void setLanguage(value)
-  }
 
   const handleWindowStyleChange = useCallback(
     (checked: boolean) => {
@@ -354,43 +331,17 @@ const AppearanceSettings: FC = () => {
       </SettingGroup>
 
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.general.common.sections.display_language')}</SettingTitle>
+        <SettingTitle>{t('settings.general.common.sections.display')}</SettingTitle>
         <SettingDivider />
-        <SettingRow id="setting-appearance-display-language" className="scroll-mt-6">
-          <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <SelectorRow>
-            <Select value={displayLanguage} onValueChange={onSelectLanguage}>
-              <SelectTrigger
-                size="sm"
-                className="w-full text-sm"
-                aria-label={appLanguageOptions.find((lang) => lang.value === displayLanguage)?.label}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="text-sm">
-                {appLanguageOptions.map((lang) => (
-                  <SelectItem className="text-sm" key={lang.value} value={lang.value}>
-                    <Flex className="items-center gap-2">
-                      <span role="img" aria-label={lang.flag}>
-                        {lang.flag}
-                      </span>
-                      {lang.label}
-                    </Flex>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SelectorRow>
-        </SettingRow>
         {isLinux && (
           <>
-            <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.use_system_title_bar.title')}</SettingRowTitle>
               <Switch checked={useSystemTitleBar} onCheckedChange={handleUseSystemTitleBarChange} />
             </SettingRow>
+            <SettingDivider />
           </>
         )}
-        <SettingDivider />
         <SettingRow id="setting-appearance-zoom" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <ZoomButtonGroup>
@@ -400,7 +351,8 @@ const AppearanceSettings: FC = () => {
                   onClick={() => handleZoomFactor(0, true)}
                   variant="ghost"
                   size="icon"
-                  aria-label={t('preview.reset')}>
+                  aria-label={t('preview.reset')}
+                  className="text-muted-foreground">
                   <ResetIcon size="14" />
                 </Button>
               </Tooltip>
@@ -410,7 +362,8 @@ const AppearanceSettings: FC = () => {
                 onClick={() => handleZoomFactor(-0.1)}
                 variant="ghost"
                 size="icon"
-                aria-label={t('preview.zoom_out')}>
+                aria-label={t('preview.zoom_out')}
+                className="text-muted-foreground">
                 <Minus size="14" />
               </Button>
             </Tooltip>
@@ -420,7 +373,8 @@ const AppearanceSettings: FC = () => {
                 onClick={() => handleZoomFactor(0.1)}
                 variant="ghost"
                 size="icon"
-                aria-label={t('preview.zoom_in')}>
+                aria-label={t('preview.zoom_in')}
+                className="text-muted-foreground">
                 <Plus size="14" />
               </Button>
             </Tooltip>
@@ -476,7 +430,11 @@ const AppearanceSettings: FC = () => {
           <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
           <SelectorRow className="gap-2">
             {userTheme.userFontFamily && (
-              <Button onClick={() => handleUserFontChange('')} variant="ghost" size="icon">
+              <Button
+                onClick={() => handleUserFontChange('')}
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground">
                 <ResetIcon size="14" />
               </Button>
             )}
@@ -501,7 +459,11 @@ const AppearanceSettings: FC = () => {
           <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
           <SelectorRow className="gap-2">
             {userTheme.userCodeFontFamily && (
-              <Button onClick={() => handleUserCodeFontChange('')} variant="ghost" size="icon">
+              <Button
+                onClick={() => handleUserCodeFontChange('')}
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground">
                 <ResetIcon size="14" />
               </Button>
             )}

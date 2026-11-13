@@ -13,6 +13,8 @@ import { sanitizeSnapshotUrl } from './snapshot/serializeSnapshot'
 const ref = z.string().min(1)
 const schemas = {
   getTab: z.object({}).strict(),
+  listTabs: z.object({}).strict(),
+  newTab: z.object({ url: z.string().min(1) }).strict(),
   getAXState: z.object({ scope: ref.optional(), maxChars: z.number().int().min(256).max(40_000).optional() }).strict(),
   getScreenshot: z
     .object({ ref: ref.optional(), fullPage: z.boolean().optional(), cursor: z.string().optional() })
@@ -73,6 +75,9 @@ export async function executeBrowserOperation(
 ): Promise<BrowserAutomationResult> {
   if (!Object.hasOwn(schemas, name)) throw new BrowserSessionError('not_allowed')
   schemas[name as keyof typeof schemas].parse(args)
+  if (name === 'listTabs') return { value: { tabs: await controller.listTabs() } }
+  if (name === 'newTab')
+    return { value: await controller.open(schemas.newTab.parse(args).url, 10_000, false, true, true, signal) }
   const target = await controller.getSession(false, tabId)
   const options = {
     deadline: Date.now() + 30_000,
@@ -88,7 +93,7 @@ export async function executeBrowserOperation(
       }
     }
   if (name === 'goto') {
-    const result = await controller.open(schemas.goto.parse(args).url, 10_000, false, false, true, signal)
+    const result = await controller.open(schemas.goto.parse(args).url, 10_000, false, false, true, signal, target.tabId)
     return {
       observation: result.tabId !== target.tabId,
       value: {
@@ -97,7 +102,7 @@ export async function executeBrowserOperation(
           ? {
               handleInvalidated: true,
               message:
-                'Navigation completed in a replacement guest. Call browser.getTab() before continuing; the previous tab handle is no longer valid.'
+                'Navigation completed in a replacement guest. Call browser.getTab({ tabId: result.tabId }) before continuing; the previous tab handle is no longer valid.'
             }
           : {})
       }
@@ -161,8 +166,7 @@ export async function executeBrowserOperation(
     }
     if (name === 'getConsoleMessages') {
       const input = schemas.getConsoleMessages.parse(args)
-      await session.send('Runtime.enable', undefined, options)
-      return { value: { ...metadata(), ...session.consoleMessages(input.level, input.clear) } }
+      return { value: { ...metadata(), ...(await session.readConsoleMessages(input.level, input.clear, options)) } }
     }
     if (name === 'getNetworkRequests') {
       await session.send('Network.enable', undefined, options)

@@ -122,7 +122,7 @@ HTML artifact 弹窗在代码、预览和分屏布局之间保留独立的本地
 
 阶段表示实现层次，不允许启用不兼容的半迁移状态。相关试点通过前保持当前生产行为。不因导入计数就删除 Highlights、TanStack、CodeViewerSelectionManager 或共享 Worker 任务：保留每个仍有合法调用方的部分。本地实现依据上文记录的用户批准进行；该批准不包含分支/PR 发布。
 
-测试必须捕获明确回归：共享语法产生相同可见 token 颜色，跨词法边界追加仍正确，过期结果不能替换当前文本，外部回传不重置撤销，外部替换不能恢复旧草稿，复制/保存保留完整显示内容。遵循 [前端测试规则](../../../../docs/references/testing/frontend-testing.md)；UI CodeEditor、renderer CodeViewer/CodeBlockView/主题、service/Worker 和已有受影响调用方均使用显式测试文件过滤。本地定向验证与更广泛 CI 分开报告。
+测试必须捕获明确回归：共享语法产生相同可见 token 颜色，跨词法边界追加仍正确，过期结果不能替换当前文本，外部回传不重置撤销，外部替换不能恢复旧草稿，复制/保存保留完整显示内容。遵循 [前端测试规则](../../../../docs/dev/references/testing/frontend-testing.md)；UI CodeEditor、renderer CodeViewer/CodeBlockView/主题、service/Worker 和已有受影响调用方均使用显式测试文件过滤。本地定向验证与更广泛 CI 分开报告。
 
 真实 Electron 验证覆盖流式到完成、首次加载编辑器与失败回退、多语言编辑/补全/折叠、选区/复制、模式/主题/换行切换与撤销、消息保存后重开、截图及特殊预览。在 macOS 和 Windows 验证原生中文输入法；插入 Unicode 不等于 IME 证据。使用已有实例跟踪和按需场景流程，不另写启动器。
 

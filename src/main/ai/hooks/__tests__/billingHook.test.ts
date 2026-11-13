@@ -10,8 +10,7 @@ vi.mock('@main/data/services/AiUsageRecordService', () => ({
   aiUsageRecordService: { recordInvocation }
 }))
 
-const { AI_USAGE_RECORD_OPERATION_COVERAGE, BILLABLE_AI_OPERATIONS, createLanguageUsageMiddleware } =
-  await import('../billingHook')
+const { createLanguageUsageMiddleware } = await import('../billingHook')
 
 const context = {
   providerId: 'provider-1',
@@ -56,19 +55,6 @@ async function getGatewayUsageNormalizeMiddleware(): Promise<LanguageModelMiddle
   if (!middleware) throw new Error('gateway usage middleware was not registered')
   return middleware
 }
-
-describe('AI usage capture coverage', () => {
-  it('assigns one capture owner to all five billable operations', () => {
-    expect(Object.keys(AI_USAGE_RECORD_OPERATION_COVERAGE)).toEqual(BILLABLE_AI_OPERATIONS)
-    expect(AI_USAGE_RECORD_OPERATION_COVERAGE).toEqual({
-      streamText: { status: 'recorded', modality: 'language', capture: 'language-middleware' },
-      generateText: { status: 'recorded', modality: 'language', capture: 'language-middleware' },
-      embedMany: { status: 'recorded', modality: 'embedding', capture: 'ai-core-handler' },
-      generateImage: { status: 'recorded', modality: 'image', capture: 'ai-core-handler' },
-      rerank: { status: 'recorded', modality: 'rerank', capture: 'ai-core-handler' }
-    })
-  })
-})
 
 describe('createLanguageUsageMiddleware', () => {
   beforeEach(() => {

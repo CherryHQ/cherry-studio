@@ -12,7 +12,7 @@ Status: implemented
 
 ## 决策
 
-`tab.close` 一律通过与标签栏相同的 `closeTab` 路径关闭当前标签页。因此把标签栏关空时会产生启动台回退标签，与 X 按钮一致。关闭主窗口只保留窗口关闭快捷键（`app.window.close`，`CommandOrControl+Shift+W`）和标题栏关闭按钮。
+本说明记录的决策是：`tab.close` 一律通过与标签栏相同的 `closeTab` 路径关闭当前标签页。因此把标签栏关空时会产生启动台回退标签，与 X 按钮一致。
 
 分离出的子窗口仍把 `tab.close` 映射为 `window.close`：它只承载一个标签页、不绘制标签栏，也没有可回退的启动台空态。
 
@@ -23,9 +23,9 @@ Status: implemented
 
 ## 影响
 
-只剩一个标签页时，`CommandOrControl+W` 不再关闭主窗口，而是停留在启动台。关闭窗口仍有专属快捷键与标题栏按钮，关闭到托盘的行为不变。本次改动有意回退 #21144，后续维护者若要恢复关窗口特判，必须同时移除启动台回退。
+当时，只剩一个标签页时按 `CommandOrControl+W` 会停留在启动台，而不关闭主窗口；关闭窗口仍有专属快捷键与标题栏按钮，关闭到托盘的行为不变。macOS 快捷键行为现由[后续决策](2026-10-31-cmd-w-last-tab-closes-main-window.md)取代；标签栏的 X 按钮仍使用启动台回退。
 
 ## 验证
 
-- Regression — `src/renderer/components/layout/__tests__/AppShell.test.tsx`：在最后一个标签页上触发 `tab.close` 会走 `closeTab`，且不会请求 `window.close`；标签栏路径保持同样的路由。
+- 历史回归 — `src/renderer/components/layout/__tests__/AppShell.test.tsx`：最后一个标签页上触发 `tab.close` 曾会走 `closeTab`，且不会请求 `window.close`；后续决策记录了当前验证。
 - Regression — `src/renderer/components/layout/__tests__/TabsProvider.test.tsx`：关闭唯一标签页仍会打开 `/app/launchpad`（回退逻辑的既有覆盖）。

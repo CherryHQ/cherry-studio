@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 
 import type { RunPaths } from './paths'
@@ -79,6 +80,18 @@ function probeScreenCapture(platform: Platform, paths: RunPaths): CapabilityResu
   }
 }
 
+function probeLanInterface(): CapabilityResult {
+  const address = Object.values(networkInterfaces())
+    .flat()
+    .find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address
+  return {
+    available: address !== undefined,
+    detail: address
+      ? `Non-loopback IPv4 address available for local routing checks: ${address}`
+      : 'No non-loopback IPv4 interface for proxy bypass routing checks'
+  }
+}
+
 export function probeCapabilities(platform: Platform, paths: RunPaths): Record<string, CapabilityResult> {
   const desktopAutomation = probeDesktopAutomation(platform)
   const screenCapture = probeScreenCapture(platform, paths)
@@ -102,6 +115,7 @@ export function probeCapabilities(platform: Platform, paths: RunPaths): Record<s
         : desktopAutomation.detail
     },
     directCdp,
+    lanInterface: probeLanInterface(),
     npx: probeNpx(platform),
     screenCapture,
     systemFilePicker: {

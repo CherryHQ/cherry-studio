@@ -26,6 +26,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   // solely by the permission mode (the per-tool allow-list was removed).
   const currentMode = agent?.configuration?.permission_mode ?? 'default'
   const permissionModeCards = useMemo(() => getPermissionModeCards(agent?.type), [agent?.type])
+  const planCard = permissionModeCards.find((card) => card.mode === 'plan')
   const [fullAccessPending, setFullAccessPending] = useState(false)
 
   // Returns false when there is no agent yet so the confirm dialog stays open.
@@ -62,29 +63,31 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const launcherTooltip = tooltipTitle ? `${launcherLabel} · ${tooltipTitle}` : launcherLabel
   const modeSubmenu = useMemo(
     () =>
-      permissionModeCards.map((card, index) => ({
-        id: `permission-mode-${card.mode}`,
-        kind: 'command' as const,
-        sources: ['popover'] as const,
-        order: 80 + index / 100,
-        // The quick panel row stays single-line; the full warning remains available on demand.
-        label: <PermissionModeOptionLabel card={card} t={t} withDescription={false} />,
-        // label/description are React nodes, which yield no searchable text — provide it explicitly.
-        searchAliases: getQuickPanelSearchAliases(t, card.titleKey, [
-          t(card.titleKey, card.titleFallback),
-          t(card.descriptionKey, card.descriptionFallback)
-        ]),
-        description: (
-          <span className={card.dangerous ? 'text-destructive' : undefined}>
-            {t(card.descriptionKey, card.descriptionFallback)}
-          </span>
-        ),
-        tooltip: card.warningKey ? t(card.warningKey, card.warningFallback ?? '') : undefined,
-        tooltipAnchor: card.warningKey ? <PermissionModeWarning card={card} showTooltip={false} t={t} /> : undefined,
-        icon: <PermissionModeIcon mode={card.mode} />,
-        active: card.mode === currentMode,
-        action: () => handleSelectMode(card.mode)
-      })),
+      permissionModeCards
+        .filter((card) => card.mode !== 'plan')
+        .map((card, index) => ({
+          id: `permission-mode-${card.mode}`,
+          kind: 'command' as const,
+          sources: ['popover'] as const,
+          order: 80 + index / 100,
+          // The quick panel row stays single-line; the full warning remains available on demand.
+          label: <PermissionModeOptionLabel card={card} t={t} withDescription={false} />,
+          // label/description are React nodes, which yield no searchable text — provide it explicitly.
+          searchAliases: getQuickPanelSearchAliases(t, card.titleKey, [
+            t(card.titleKey, card.titleFallback),
+            t(card.descriptionKey, card.descriptionFallback)
+          ]),
+          description: (
+            <span className={card.dangerous ? 'text-destructive' : undefined}>
+              {t(card.descriptionKey, card.descriptionFallback)}
+            </span>
+          ),
+          tooltip: card.warningKey ? t(card.warningKey, card.warningFallback ?? '') : undefined,
+          tooltipAnchor: card.warningKey ? <PermissionModeWarning card={card} showTooltip={false} t={t} /> : undefined,
+          icon: <PermissionModeIcon mode={card.mode} />,
+          active: card.mode === currentMode,
+          action: () => handleSelectMode(card.mode)
+        })),
     [currentMode, handleSelectMode, permissionModeCards, t]
   )
 
@@ -99,9 +102,25 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
         icon: <PermissionModeIcon mode={currentMode} />,
         submenu: modeSubmenu
-      }
+      },
+      ...(planCard
+        ? [
+            {
+              id: 'plan-mode',
+              kind: 'command' as const,
+              sources: ['popover', 'root-panel'] as const,
+              order: 79,
+              label: t(planCard.titleKey, planCard.titleFallback),
+              description: t(planCard.descriptionKey, planCard.descriptionFallback),
+              shortcut: 'Shift+Tab',
+              icon: <PermissionModeIcon mode="plan" />,
+              active: currentMode === 'plan',
+              action: () => handleSelectMode(currentMode === 'plan' ? 'default' : 'plan')
+            }
+          ]
+        : [])
     ])
-  }, [currentMode, launcher, launcherLabel, launcherTooltip, modeSubmenu, t, tooltipTitle])
+  }, [currentMode, handleSelectMode, launcher, launcherLabel, launcherTooltip, modeSubmenu, planCard, t, tooltipTitle])
 
   return {
     currentMode,

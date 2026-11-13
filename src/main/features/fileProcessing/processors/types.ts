@@ -62,6 +62,12 @@ export interface PersistableRemoteState {
   stage?: string
   /** Public endpoint URL. */
   apiHost?: string
+  /** Doc2X parse model selected when the task was started. */
+  modelVersion?: string
+  /** Doc2X v3 export setting selected when the task was started. */
+  formulaLevel?: 0 | 1 | 2
+  /** Doc2X v3 cross-page table merging setting selected when the task was started. */
+  mergeCrossPageForms?: boolean
 }
 
 export type FileProcessingRemotePollResult<

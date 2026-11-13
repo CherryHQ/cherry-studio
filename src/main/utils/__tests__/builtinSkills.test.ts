@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,7 +34,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 }))
 
 // Matches the stub in tests/main.setup.ts → mockApplicationFactory().getPath
-const resourceSkillsPath = '/mock/feature.agents.skills.builtin'
+const resourceSkillsPath = path.resolve('/mock/feature.agents.skills.builtin')
 beforeEach(() => {
   vi.clearAllMocks()
   mockSyncBuiltinSkill.mockResolvedValue(false)
@@ -44,22 +45,13 @@ afterEach(() => {
 })
 
 describe('installBuiltinSkills', () => {
-  it('should return early when resources/skills does not exist', async () => {
-    vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'))
-
-    await installBuiltinSkills()
-
-    expect(fs.access).toHaveBeenCalledWith(resourceSkillsPath)
-    expect(fs.readdir).not.toHaveBeenCalled()
-  })
-
   it('delegates builtin publication to SkillService with the resource path and app version', async () => {
     vi.mocked(fs.access).mockResolvedValueOnce(undefined)
     vi.mocked(fs.readdir).mockResolvedValueOnce([{ name: 'my-skill', isDirectory: () => true }] as any)
 
     await installBuiltinSkills()
 
-    expect(mockSyncBuiltinSkill).toHaveBeenCalledWith('my-skill', `${resourceSkillsPath}/my-skill`, '2.0.0')
+    expect(mockSyncBuiltinSkill).toHaveBeenCalledWith('my-skill', path.join(resourceSkillsPath, 'my-skill'), '2.0.0')
   })
 
   it('should skip entries with path traversal in name', async () => {

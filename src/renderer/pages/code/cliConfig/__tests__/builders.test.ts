@@ -1,12 +1,62 @@
+import { parse, stringify } from 'smol-toml'
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildCodexConfig,
   buildHermesEnvConfig,
   buildOpenCodeConfig,
   buildPiModelsConfig,
   buildPiSettingsConfig,
   buildQwenConfig
 } from '../builders'
+
+describe('buildCodexConfig token limits', () => {
+  const resolved = { baseUrl: 'https://example.test/v1', providerName: 'Example', model: 'large-model' }
+
+  it.each([1000000, 10000000, Number.MAX_SAFE_INTEGER])('writes metadata capacity %s losslessly', (capacity) => {
+    const existing = {
+      model_context_window: 800000,
+      model_auto_compact_token_limit: 900000,
+      user_key: 'keep',
+      model_providers: { user: { base_url: 'https://user.test' } }
+    }
+    const result = buildCodexConfig(existing, resolved, { contextWindow: capacity })
+    expect(parse(stringify(result)).model_context_window).toBe(capacity)
+    expect(result.model_auto_compact_token_limit).toBe(900000)
+    expect(result.user_key).toBe('keep')
+    expect(result.model_providers.user.base_url).toBe('https://user.test')
+    expect(existing.model_context_window).toBe(800000)
+  })
+
+  it.each([undefined, null, 0, -1, 1.5, '1000000', true, NaN, Infinity, -Infinity, Number.MAX_SAFE_INTEGER + 1])(
+    'falls back for invalid metadata %s',
+    (capacity) => {
+      const result = buildCodexConfig(
+        { model_context_window: 800000, model_auto_compact_token_limit: 900000 },
+        resolved,
+        { contextWindow: capacity }
+      )
+      expect(result.model_context_window).toBe(800000)
+      expect(result.model_auto_compact_token_limit).toBe(900000)
+      const fresh = buildCodexConfig({}, resolved, { contextWindow: capacity })
+      expect(fresh).not.toHaveProperty('model_context_window')
+      expect(fresh).not.toHaveProperty('model_auto_compact_token_limit')
+    }
+  )
+
+  it.each([0, -1, 1.5, '900000', true, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])(
+    'omits invalid existing limits %s independently',
+    (value) => {
+      const result = buildCodexConfig(
+        { model_context_window: value, model_auto_compact_token_limit: value },
+        resolved,
+        {}
+      )
+      expect(result).not.toHaveProperty('model_context_window')
+      expect(result).not.toHaveProperty('model_auto_compact_token_limit')
+    }
+  )
+})
 
 describe('buildOpenCodeConfig', () => {
   it('adds string provider headers', () => {

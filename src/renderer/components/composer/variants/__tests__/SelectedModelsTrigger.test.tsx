@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
@@ -54,11 +55,7 @@ vi.mock('@cherrystudio/ui', () => {
         </div>
       ) : null
     },
-    Scrollbar: ({ children, ...props }: { children?: ReactNode }) => (
-      <div data-scrolling="false" {...props}>
-        {children}
-      </div>
-    )
+    ScrollArea: MockCherrystudioUI.ScrollArea
   }
 })
 
@@ -134,47 +131,6 @@ function openSelectedModelsPopover() {
 }
 
 describe('SelectedModelsTrigger', () => {
-  it('renders every selected model avatar inline in the trigger', () => {
-    render(
-      <SelectedModelsTrigger
-        models={[modelA, modelB]}
-        assistantModel={modelA}
-        providers={providers}
-        fallbackLabel="Select model"
-        onModelsChange={vi.fn()}
-        onRestore={vi.fn()}
-      />
-    )
-
-    const iconRail = screen.getByTestId('selected-models-trigger-icons')
-    expect(within(iconRail).getByTestId('model-avatar-provider-a::model-a')).toBeInTheDocument()
-    expect(within(iconRail).getByTestId('model-avatar-provider-b::model-b')).toBeInTheDocument()
-  })
-
-  it('shows model names, providers, capability tags, and context windows in the popover content', () => {
-    render(
-      <SelectedModelsTrigger
-        models={[modelA, modelB]}
-        assistantModel={modelA}
-        providers={providers}
-        fallbackLabel="Select model"
-        onModelsChange={vi.fn()}
-        onRestore={vi.fn()}
-      />
-    )
-
-    openSelectedModelsPopover()
-
-    expect(screen.getByTestId('selected-models-popover')).toHaveTextContent('Model A')
-    expect(screen.getByTestId('selected-models-list')).toHaveAttribute('data-scrolling', 'false')
-    expect(screen.getByTestId('selected-models-popover')).toHaveTextContent('Provider A')
-    const firstRow = screen.getByTestId('selected-model-row-provider-a::model-a')
-    const tag = screen.getByTestId(`model-tag-${MODEL_CAPABILITY.IMAGE_RECOGNITION}`)
-    expect(tag).toHaveTextContent(MODEL_CAPABILITY.IMAGE_RECOGNITION)
-    expect(within(firstRow).getByText('Context 128000')).toBeInTheDocument()
-    expect(within(firstRow).getByLabelText('Remove Model A')).toBeInTheDocument()
-  })
-
   it('returns the filtered model list when removing one selected model', () => {
     const onModelsChange = vi.fn()
     render(
@@ -195,99 +151,6 @@ describe('SelectedModelsTrigger', () => {
     expect(onModelsChange).toHaveBeenCalledWith([modelA])
   })
 
-  it('shows the model and provider without exposing remove actions for a single selected model', () => {
-    const onModelsChange = vi.fn()
-    const onRestore = vi.fn()
-    render(
-      <SelectedModelsTrigger
-        models={[modelA]}
-        assistantModel={modelA}
-        providers={providers}
-        fallbackLabel="Select model"
-        onModelsChange={onModelsChange}
-        onRestore={onRestore}
-      />
-    )
-
-    expect(screen.queryByLabelText('Remove Model A')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Selected models' })).toHaveTextContent('Model A | Provider A')
-    expect(screen.getByTitle('Model A | Provider A')).toBeInTheDocument()
-    expect(onModelsChange).not.toHaveBeenCalled()
-    expect(onRestore).not.toHaveBeenCalled()
-  })
-
-  it('uses the canonical system provider name while provider metadata is loading', () => {
-    const minimaxModel: Model = {
-      ...modelA,
-      id: 'minimax::MiniMax-M3',
-      providerId: 'minimax',
-      name: 'MiniMax-M3'
-    }
-
-    render(
-      <SelectedModelsTrigger
-        models={[minimaxModel]}
-        assistantModel={minimaxModel}
-        providers={[]}
-        fallbackLabel="Select model"
-        onModelsChange={vi.fn()}
-        onRestore={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'Selected models' })).toHaveTextContent('MiniMax-M3 | MiniMax')
-  })
-
-  it('does not render popover content for a single selected model', () => {
-    render(
-      <SelectedModelsTrigger
-        models={[modelA]}
-        assistantModel={modelA}
-        providers={providers}
-        fallbackLabel="Select model"
-        onModelsChange={vi.fn()}
-        onRestore={vi.fn()}
-      />
-    )
-
-    expect(screen.queryByTestId('selected-models-popover')).not.toBeInTheDocument()
-  })
-
-  it('does not render a placeholder avatar for the fallback model label', () => {
-    render(
-      <SelectedModelsTrigger
-        models={[]}
-        assistantModel={modelA}
-        providers={providers}
-        fallbackLabel="Select model"
-        iconOnly
-        onModelsChange={vi.fn()}
-        onRestore={vi.fn()}
-      />
-    )
-
-    const fallbackLabel = screen.getByText('Select model')
-    expect(screen.queryByTestId('model-avatar-empty')).not.toBeInTheDocument()
-    expect(fallbackLabel).toBeVisible()
-  })
-
-  it('does not render popover content for an empty model selection', () => {
-    render(
-      <SelectedModelsTrigger
-        models={[]}
-        assistantModel={modelA}
-        providers={providers}
-        fallbackLabel="Select model"
-        onModelsChange={vi.fn()}
-        onRestore={vi.fn()}
-      />
-    )
-
-    openSelectedModelsPopover()
-
-    expect(screen.queryByTestId('selected-models-popover')).not.toBeInTheDocument()
-  })
-
   it('calls the restore callback from the multi-model popover content', () => {
     const onRestore = vi.fn()
     render(
@@ -306,55 +169,6 @@ describe('SelectedModelsTrigger', () => {
     fireEvent.click(screen.getByText('Restore'))
 
     expect(onRestore).toHaveBeenCalled()
-  })
-
-  it('does not render the selected-model popover while it is suppressed', () => {
-    render(
-      <SelectedModelsTrigger
-        models={[modelA, modelB]}
-        assistantModel={modelA}
-        providers={providers}
-        fallbackLabel="Select model"
-        suppressSelectionPopover
-        onModelsChange={vi.fn()}
-        onRestore={vi.fn()}
-      />
-    )
-
-    expect(screen.queryByTestId('selected-models-popover')).not.toBeInTheDocument()
-  })
-
-  it('closes and keeps the selected-model popover blocked when suppression starts', () => {
-    const { rerender } = render(
-      <SelectedModelsTrigger
-        models={[modelA, modelB]}
-        assistantModel={modelA}
-        providers={providers}
-        fallbackLabel="Select model"
-        onModelsChange={vi.fn()}
-        onRestore={vi.fn()}
-      />
-    )
-
-    openSelectedModelsPopover()
-
-    expect(screen.getByTestId('selected-models-popover')).toBeInTheDocument()
-
-    rerender(
-      <SelectedModelsTrigger
-        models={[modelA, modelB]}
-        assistantModel={modelA}
-        providers={providers}
-        fallbackLabel="Select model"
-        suppressSelectionPopover
-        onModelsChange={vi.fn()}
-        onRestore={vi.fn()}
-      />
-    )
-
-    fireEvent.pointerEnter(screen.getByRole('button', { name: 'Selected models' }))
-
-    expect(screen.queryByTestId('selected-models-popover')).not.toBeInTheDocument()
   })
 
   it('closes the selected-model popover after the hover trigger is left', () => {

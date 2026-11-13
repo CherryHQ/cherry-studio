@@ -1,3 +1,4 @@
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { screen } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -5,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { WindowType } from '@main/core/window/types'
+import type { SelectionAction } from '@shared/types/selection'
 
 const { getApplicationIdMock } = vi.hoisted(() => ({
   getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio')
@@ -81,20 +83,6 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
     expect(handler).toBeDefined()
     return handler!
   }
-
-  it('defers activation past the boot critical path when the feature is enabled', async () => {
-    prefGet.mockReturnValue(true)
-    const activate = wireActivation()
-
-    svc.onAllReady()
-
-    // Must NOT activate synchronously — the native addon load + window creation
-    // would otherwise stall the concurrent main-window paint.
-    expect(activate).not.toHaveBeenCalled()
-
-    await flushImmediate()
-    expect(activate).toHaveBeenCalledTimes(1)
-  })
 
   it('skips activation entirely when the feature is disabled', async () => {
     prefGet.mockReturnValue(false)
@@ -196,21 +184,116 @@ describe('SelectionService.onInit — SelectionAction pool suspension', () => {
     vi.restoreAllMocks()
   })
 
-  it('suspends the SelectionAction pool when the feature is disabled at boot', async () => {
+  it('suspends both selection window pools when the feature is disabled at boot', async () => {
     // Without the onInit suspend, the eager warmup would pre-create a standby renderer.
     prefGet.mockReturnValue(false)
 
     await svc._doInit()
 
     expect(suspendPool).toHaveBeenCalledWith(WindowType.SelectionAction)
+    expect(suspendPool).toHaveBeenCalledWith(WindowType.SelectionAgent)
+  })
+})
+
+describe('SelectionService toolbar sizing contract', () => {
+  let svc: InstanceType<typeof SelectionService>
+  let prefGet: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    svc = new SelectionService()
+    prefGet = vi.spyOn(application.get('PreferenceService') as { get: (key: string) => unknown }, 'get')
+    Object.assign(screen, {
+      getDisplayNearestPoint: vi.fn(() => ({
+        workArea: { x: 0, y: 0, width: 1280, height: 800 }
+      }))
+    })
   })
 
-  it('leaves the pool warmup untouched when the feature is enabled at boot', async () => {
-    prefGet.mockImplementation((key) => key === 'feature.selection.enabled')
+  afterEach(async () => {
+    await svc._doDestroy()
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
 
+  const createToolbarHarness = async (widthCss: number, preferenceZoom: number, actualZoom: number) => {
+    prefGet.mockImplementation((key) => (key === 'app.zoom_factor' ? preferenceZoom : false))
     await svc._doInit()
+    const toolbarWindow = {
+      isDestroyed: vi.fn(() => false),
+      webContents: {
+        isDestroyed: vi.fn(() => false),
+        getZoomFactor: vi.fn(() => actualZoom)
+      },
+      setBounds: vi.fn(),
+      setPosition: vi.fn(),
+      setFocusable: vi.fn(),
+      setVisibleOnAllWorkspaces: vi.fn(),
+      showInactive: vi.fn()
+    }
+    const access = svc as unknown as {
+      toolbarWindow: typeof toolbarWindow
+      showToolbarAtPosition: (point: { x: number; y: number }, orientation: 'bottomMiddle', programName: string) => void
+    }
+    access.toolbarWindow = toolbarWindow
+    svc.determineToolbarSize(widthCss, 43)
+    const show = () => access.showToolbarAtPosition({ x: 1278, y: 300 }, 'bottomMiddle', 'com.kangfenmao.CherryStudio')
 
-    expect(suspendPool).not.toHaveBeenCalled()
+    return { toolbarWindow, show }
+  }
+
+  it('fits actual zoom 1.5 when the preference is 1', async () => {
+    const { toolbarWindow, show } = await createToolbarHarness(350, 1, 1.5)
+
+    show()
+
+    expect(toolbarWindow.setBounds).toHaveBeenLastCalledWith({ x: 755, y: 300, width: 525, height: 65 })
+    expect(toolbarWindow.setPosition).toHaveBeenLastCalledWith(755, 300, false)
+  })
+
+  it('rounds fractional dimensions up and keeps the right edge within the work area', async () => {
+    const { toolbarWindow, show } = await createToolbarHarness(351, 1.1, 1.1)
+
+    show()
+
+    expect.soft(toolbarWindow.setBounds).toHaveBeenLastCalledWith({ x: 893, y: 300, width: 387, height: 48 })
+    const bounds = toolbarWindow.setBounds.mock.lastCall![0]
+    expect(bounds.x + bounds.width).toBe(1280)
+    expect(toolbarWindow.setPosition).toHaveBeenLastCalledWith(893, 300, false)
+  })
+
+  it('fits actual zoom 1 when the preference is 1.5', async () => {
+    const { toolbarWindow, show } = await createToolbarHarness(350, 1.5, 1)
+
+    show()
+
+    expect(toolbarWindow.setBounds).toHaveBeenLastCalledWith({ x: 930, y: 300, width: 350, height: 43 })
+    expect(toolbarWindow.setPosition).toHaveBeenLastCalledWith(930, 300, false)
+  })
+
+  it('reads the new actual zoom on the next show without another size report', async () => {
+    const { toolbarWindow, show } = await createToolbarHarness(350, 1, 1)
+
+    show()
+    expect(toolbarWindow.setBounds).toHaveBeenLastCalledWith({ x: 930, y: 300, width: 350, height: 43 })
+
+    toolbarWindow.webContents.getZoomFactor.mockReturnValue(1.5)
+    show()
+
+    expect(toolbarWindow.setBounds).toHaveBeenLastCalledWith({ x: 755, y: 300, width: 525, height: 65 })
+    expect(toolbarWindow.setPosition).toHaveBeenLastCalledWith(755, 300, false)
+  })
+
+  it('anchors an exact-fit toolbar at the work-area left edge', async () => {
+    const { toolbarWindow, show } = await createToolbarHarness(1280, 1, 1)
+
+    show()
+
+    expect(toolbarWindow.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 300, width: 1280, height: 43 })
+    const bounds = toolbarWindow.setBounds.mock.lastCall![0]
+    expect(bounds.x + bounds.width).toBe(1280)
+    expect(toolbarWindow.setPosition).toHaveBeenLastCalledWith(0, 300, false)
   })
 })
 
@@ -273,6 +356,46 @@ describe('SelectionService macOS toolbar', () => {
       skipTransformProcessType: true
     })
     expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()
+  })
+})
+
+describe('SelectionService.processAction — agent routing', () => {
+  const openAgentWindow = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    MockApplicationUtils.setService('SelectionAgentWindowService', { open: openAgentWindow })
+  })
+
+  afterEach(() => {
+    MockApplicationUtils.resetServices()
+    BaseService.resetInstances()
+  })
+
+  it.each<SelectionAction>([
+    { id: 'ask-agent', name: 'Ask Agent', enabled: true, isBuiltIn: true },
+    { id: 'user-1', name: 'Research', enabled: true, isBuiltIn: false, runner: 'agent' }
+  ])('opens $id in the agent window instead of the action window', (action) => {
+    new SelectionService().processAction(action, true)
+
+    expect(openAgentWindow).toHaveBeenCalledWith(action, { anchor: null, isFullScreen: true })
+    expect(application.get('WindowManager').open).not.toHaveBeenCalled()
+  })
+
+  it('keeps assistant-bound custom actions in the action window', () => {
+    const action: SelectionAction = {
+      id: 'user-2',
+      name: 'Polish',
+      enabled: true,
+      isBuiltIn: false,
+      runner: 'assistant'
+    }
+
+    new SelectionService().processAction(action)
+
+    expect(openAgentWindow).not.toHaveBeenCalled()
+    expect(application.get('WindowManager').open).toHaveBeenCalledWith(WindowType.SelectionAction, expect.anything())
   })
 })
 

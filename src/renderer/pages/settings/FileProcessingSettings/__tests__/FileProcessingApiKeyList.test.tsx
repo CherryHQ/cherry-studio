@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
@@ -15,15 +16,12 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
 vi.mock('@renderer/components/icons/EditIcon', () => ({
   default: ({ size }: { size?: number }) => <span data-size={size}>edit</span>
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   Button: ({ asChild, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) => {
     if (asChild) {
       return <>{children}</>

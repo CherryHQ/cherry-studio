@@ -19,10 +19,8 @@ vi.mock('../sidebarShortcuts', () => ({
   useSidebarShortcutRegistry: () => ({ resolve: vi.fn() })
 }))
 vi.mock('../../UserAccountPanel', () => ({ UserAccountPanel: () => null }))
-vi.mock('../../layout/HelpMenu', () => ({ HelpMenu: () => null }))
 vi.mock('../../layout/ShellTabBarActions', () => ({
-  AppUpdateButton: () => null,
-  SidebarSettingsButton: () => null
+  AppUpdateButton: () => null
 }))
 
 beforeEach(() => {

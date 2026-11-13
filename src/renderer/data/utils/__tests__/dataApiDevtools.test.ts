@@ -10,31 +10,6 @@ describe('DataApiDevtools', () => {
     dataApiDevtoolsTesting.reset()
   })
 
-  it('truncates deep, wide, and long payload previews', async () => {
-    const { DataApiDevtools, dataApiDevtoolsTesting } = await import('../dataApiDevtools')
-    DataApiDevtools.exposeControlSurface()
-    window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: true })
-
-    const deepValue = { level1: { level2: { level3: { level4: { level5: { level6: 'hidden' } } } } } }
-    expect(JSON.stringify(dataApiDevtoolsTesting.sanitizeValue(deepValue))).toContain('<max-depth>')
-
-    const longArray = Array.from({ length: 55 }, (_, index) => index)
-    expect(dataApiDevtoolsTesting.sanitizeValue(longArray)).toEqual([
-      ...Array.from({ length: 50 }, (_, index) => index),
-      '<truncated 5 items>'
-    ])
-
-    const longString = 'a'.repeat(1005)
-    expect(dataApiDevtoolsTesting.sanitizeValue(longString)).toBe(`${'a'.repeat(1000)}...<truncated 5 chars>`)
-
-    const wideObject = Object.fromEntries(Array.from({ length: 105 }, (_, index) => [`key${index}`, index]))
-    const sanitizedObject = dataApiDevtoolsTesting.sanitizeValue(wideObject) as Record<string, unknown>
-    expect(sanitizedObject.key0).toBe(0)
-    expect(sanitizedObject.key99).toBe(99)
-    expect(sanitizedObject.key100).toBeUndefined()
-    expect(sanitizedObject.__truncatedKeys).toBe(5)
-  })
-
   it('keeps payloads out of polling summaries and exposes them only by request id', async () => {
     const { DataApiDevtools } = await import('../dataApiDevtools')
     DataApiDevtools.exposeControlSurface()

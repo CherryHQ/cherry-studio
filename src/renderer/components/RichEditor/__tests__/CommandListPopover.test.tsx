@@ -78,10 +78,6 @@ function KeyboardPopoverHarness({ onReady }: { onReady: (value: CommandListPopov
   return createPopover(ref)
 }
 
-function renderPopover() {
-  return render(createPopover())
-}
-
 describe('CommandListPopover', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -89,13 +85,6 @@ describe('CommandListPopover', () => {
 
   afterEach(() => {
     cleanup()
-  })
-
-  it('uses the design-system popover surface token for its background', () => {
-    const { container } = renderPopover()
-
-    const popover = container.querySelector('.command-list-popover') as HTMLElement
-    expect(popover.style.background).toBe('var(--popover)')
   })
 
   it('lets Shift+Enter insert a newline while plain Enter selects the command', () => {

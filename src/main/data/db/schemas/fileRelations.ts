@@ -2,6 +2,8 @@ import { type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import {
+  agentAvatarRef,
+  assistantAvatarRef,
   agentSessionMessageRoles,
   agentSessionMessageSourceType,
   chatMessageRoles,
@@ -19,7 +21,9 @@ import {
 } from '@shared/data/types/file'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { agentTable } from './agent'
 import { agentSessionMessageTable } from './agentSessionMessage'
+import { assistantTable } from './assistant'
 import { fileEntryTable } from './file'
 import { jobTable } from './job'
 import { messageTable } from './message'
@@ -231,8 +235,42 @@ export const miniAppLogoFileRefTable = sqliteTable(
   },
   (t) => [index('malfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('malfr_source_id_idx').on(t.sourceId)]
 )
-/** The roleless single-file (logo) slot source types. */
-export type SingleFileRefSourceType = typeof providerLogoRef.sourceType | typeof miniAppLogoRef.sourceType
+export const assistantAvatarFileRefTable = sqliteTable(
+  'assistant_avatar_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => assistantTable.id, { onDelete: 'cascade' }),
+    ...createUpdateTimestamps
+  },
+  (t) => [index('aafr_entry_id_idx').on(t.fileEntryId), uniqueIndex('aafr_source_id_idx').on(t.sourceId)]
+)
+
+export const agentAvatarFileRefTable = sqliteTable(
+  'agent_avatar_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => agentTable.id, { onDelete: 'cascade' }),
+    ...createUpdateTimestamps
+  },
+  (t) => [index('agafr_entry_id_idx').on(t.fileEntryId), uniqueIndex('agafr_source_id_idx').on(t.sourceId)]
+)
+
+/** The roleless single-file slot source types. */
+export type SingleFileRefSourceType =
+  | typeof agentAvatarRef.sourceType
+  | typeof assistantAvatarRef.sourceType
+  | typeof providerLogoRef.sourceType
+  | typeof miniAppLogoRef.sourceType
 
 /**
  * Single-file slot tables by source type — the `sourceType → table` bridge for
@@ -241,9 +279,17 @@ export type SingleFileRefSourceType = typeof providerLogoRef.sourceType | typeof
  * is what keeps a service from reaching another owner's slot.
  */
 export const singleFileRefTablesBySourceType = {
+  [agentAvatarRef.sourceType]: agentAvatarFileRefTable,
+  [assistantAvatarRef.sourceType]: assistantAvatarFileRefTable,
   [providerLogoRef.sourceType]: providerLogoFileRefTable,
   [miniAppLogoRef.sourceType]: miniAppLogoFileRefTable
-} as const satisfies Record<SingleFileRefSourceType, typeof providerLogoFileRefTable | typeof miniAppLogoFileRefTable>
+} as const satisfies Record<
+  SingleFileRefSourceType,
+  | typeof agentAvatarFileRefTable
+  | typeof assistantAvatarFileRefTable
+  | typeof providerLogoFileRefTable
+  | typeof miniAppLogoFileRefTable
+>
 
 /**
  * Mini app sandbox files.
@@ -293,6 +339,8 @@ export const persistentFileRefTablesBySourceType = {
   | typeof paintingFileRefTable
   | typeof jobFileRefTable
   | typeof translateHistoryFileRefTable
+  | typeof agentAvatarFileRefTable
+  | typeof assistantAvatarFileRefTable
   | typeof providerLogoFileRefTable
   | typeof miniAppLogoFileRefTable
   | typeof miniAppFileRefTable

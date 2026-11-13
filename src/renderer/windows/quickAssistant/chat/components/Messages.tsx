@@ -1,7 +1,8 @@
 import { Loader2 } from 'lucide-react'
 import type { FC } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 
-import { Scrollbar } from '@cherrystudio/ui'
+import { ScrollArea } from '@cherrystudio/ui'
 import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
 import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
@@ -22,6 +23,26 @@ interface Props {
 const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByMessageId }) => {
   const { renderConfig } = useMessageListRenderConfig()
   const platformActions = useMessagePlatformActions()
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const followsLatest = useRef(true)
+  const scrollKey = assistant?.id ?? 'runtime-default'
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current
+    const content = contentRef.current
+    if (!viewport || !content) return
+
+    followsLatest.current = true
+    const followLatest = () => {
+      if (followsLatest.current) viewport.scrollTop = viewport.scrollHeight
+    }
+    followLatest()
+    const observer = new ResizeObserver(followLatest)
+    observer.observe(viewport)
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [scrollKey])
 
   return (
     <MessageContentProvider
@@ -29,15 +50,31 @@ const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByM
       partsByMessageId={partsByMessageId}
       renderConfig={renderConfig}
       actions={platformActions}>
-      <Scrollbar
-        id="messages"
-        key={assistant?.id ?? 'runtime-default'}
-        className="flex min-w-full flex-col-reverse items-center overflow-x-hidden bg-transparent! pb-5">
-        {!isOutputted && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
-        {[...messages].reverse().map((message, index) => (
-          <MessageItem key={message.id} message={message} index={index} total={messages.length} route={route} />
+      <ScrollArea
+        key={scrollKey}
+        type="hover"
+        className="w-full flex-1 bg-transparent!"
+        viewportProps={{
+          id: 'messages',
+          ref: viewportRef,
+          className: 'overflow-x-hidden [overflow-anchor:none]',
+          onScroll: ({ currentTarget }) => {
+            const { scrollHeight, scrollTop, clientHeight } = currentTarget
+            followsLatest.current = scrollHeight - scrollTop - clientHeight <= 2
+          }
+        }}
+        contentProps={{ ref: contentRef, className: 'flex min-h-full flex-col items-center justify-end pb-5' }}>
+        {messages.map((message, index) => (
+          <MessageItem
+            key={message.id}
+            message={message}
+            index={messages.length - index - 1}
+            total={messages.length}
+            route={route}
+          />
         ))}
-      </Scrollbar>
+        {!isOutputted && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+      </ScrollArea>
     </MessageContentProvider>
   )
 }

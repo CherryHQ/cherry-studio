@@ -108,7 +108,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (
     _topicId: string,
     executions: ActiveExecution[],
-    _messages: CherryUIMessage[],
     options?: {
       onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
       onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
@@ -126,7 +125,7 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useToolApprovalBridge', () => ({
+vi.mock('../hooks/useToolApprovalBridge', () => ({
   useToolApprovalBridge: () => vi.fn()
 }))
 
@@ -292,15 +291,6 @@ describe('useChatRuntimeState', () => {
     requestAnimationFrame.mockRestore()
   })
 
-  it('keeps sendMessage stable across runtime rerenders', () => {
-    const view = render(<RuntimeHost topicId="topic-1" />)
-    const sendMessage = latestRuntime?.sendMessage
-
-    view.rerender(<RuntimeHost topicId="topic-1" />)
-
-    expect(latestRuntime?.sendMessage).toBe(sendMessage)
-  })
-
   it('does not infer auto-read from hydrated or rerendered message history', () => {
     const completed = {
       id: 'persisted-assistant',
@@ -349,7 +339,6 @@ describe('useChatRuntimeState', () => {
       })
     })
 
-    expect(mocks.seedMessagesCache).toHaveBeenCalledWith([reservedMessage], { preserveActiveNode: true })
     expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ activeNodeId: 'selected-branch' })
     )

@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import type { FileProcessingTaskId } from '@main/features/fileProcessing'
 import { ACTIVE_JOB_STATUSES, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 import type { FileProcessingWaitManager } from '../../ingestion/FileProcessingWaitManager'
@@ -10,6 +11,13 @@ export async function cancelJobOrThrow(jobId: string, reason: string): Promise<v
   const result = await application.get('JobManager').cancel(jobId, reason)
   if (result.outcome === 'timed-out') {
     throw new Error(`Job cancel timed out: ${jobId}`)
+  }
+}
+
+export async function cancelFileProcessingTaskOrThrow(taskId: FileProcessingTaskId, reason: string): Promise<void> {
+  const outcome = await application.get('FileProcessingService').cancelTask(taskId, reason)
+  if (outcome === 'timed-out') {
+    throw new Error(`File processing task cancel timed out: ${taskId}`)
   }
 }
 
@@ -26,7 +34,7 @@ export interface CancelActiveKnowledgeJobsOptions {
    *  'proceed': cancel without checking outcome — base deletion must not get stuck on
    *  one slow-to-cancel job. */
   onCancelTimeout: 'throw' | 'proceed'
-  /** The file-processing jobs items are waiting on, cancelled along with the knowledge jobs. */
+  /** The file-processing tasks items are waiting on, cancelled along with the knowledge jobs. */
   fileProcessingWaits: FileProcessingWaitManager
 }
 
@@ -61,6 +69,10 @@ export async function cancelActiveKnowledgeJobs(
     onCancelTimeout === 'throw'
       ? (jobId) => cancelJobOrThrow(jobId, reason)
       : (jobId) => jobManager.cancel(jobId, reason)
+  const cancelTask: (taskId: FileProcessingTaskId) => Promise<unknown> =
+    onCancelTimeout === 'throw'
+      ? (taskId) => cancelFileProcessingTaskOrThrow(taskId, reason)
+      : (taskId) => application.get('FileProcessingService').cancelTask(taskId, reason)
 
   const collectAndCancel = async (activeJobs: JobSnapshot[]): Promise<void> => {
     const jobIds = activeJobs
@@ -71,8 +83,8 @@ export async function cancelActiveKnowledgeJobs(
   }
   // Read the waits only after the knowledge cancels settle: a copy job cancelled after its commit
   // still starts file processing before it returns.
-  const cancelFileProcessingJobs = async (): Promise<void> => {
-    await Promise.all(fileProcessingWaits.jobIds(baseId, subtreeItemIds).map(cancelOne))
+  const cancelFileProcessingTasks = async (): Promise<void> => {
+    await Promise.all(fileProcessingWaits.taskIds(baseId, subtreeItemIds).map(cancelTask))
   }
 
   if (subtreeItemIds) {
@@ -89,7 +101,7 @@ export async function cancelActiveKnowledgeJobs(
       type: [...KNOWLEDGE_JOB_TYPES]
     })
     await collectAndCancel(activeJobs)
-    await cancelFileProcessingJobs()
+    await cancelFileProcessingTasks()
     return
   }
 
@@ -109,7 +121,7 @@ export async function cancelActiveKnowledgeJobs(
       break
     }
   }
-  await cancelFileProcessingJobs()
+  await cancelFileProcessingTasks()
 }
 
 function jobTouchesSubtree(job: { type: string; input: unknown }, subtreeIds: Set<string>): boolean {

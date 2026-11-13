@@ -58,9 +58,11 @@ export function stripUnsupportedModelParams(params: SamplingParams, model: Model
       delete cleaned.topP
       delete cleaned.top_p
     }
-    if (gemini4) {
+    if (gemini4 || isClaudeFixedSamplingModel(model)) {
       delete cleaned.topK
       delete cleaned.top_k
+    }
+    if (gemini4) {
       delete cleaned.cachedContent
       delete cleaned.cached_content
     }

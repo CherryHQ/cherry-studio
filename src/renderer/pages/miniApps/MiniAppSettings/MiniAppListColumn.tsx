@@ -2,7 +2,7 @@ import { ArrowLeftToLine, ArrowRightToLine } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
+import { ScrollArea, Sortable, Tooltip } from '@cherrystudio/ui'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
@@ -42,7 +42,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
           {emptyText}
         </div>
       ) : (
-        <Scrollbar className="min-h-0 flex-1 overflow-x-hidden">
+        <ScrollArea viewportProps={{ className: 'overflow-x-hidden' }} className="min-h-0 flex-1">
           <Sortable
             items={apps}
             itemKey="appId"
@@ -85,7 +85,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
               )
             }}
           />
-        </Scrollbar>
+        </ScrollArea>
       )}
     </div>
   )

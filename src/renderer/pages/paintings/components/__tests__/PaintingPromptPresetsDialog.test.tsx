@@ -3,10 +3,11 @@ import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import type { ComponentProps, ReactNode } from 'react'
 import { SWRConfig, unstable_serialize } from 'swr'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as CherrystudioUI from '@cherrystudio/ui'
 import type { ReorderableListProps } from '@cherrystudio/ui'
+import { installDndDomStubs } from '@cherrystudio/ui/components/composites/sortable/__tests__/dnd-dom-stubs'
 import { dataApiService } from '@data/DataApiService'
 import { toast } from '@renderer/services/toast'
 import type { Prompt } from '@shared/data/types/prompt'
@@ -104,7 +105,9 @@ beforeEach(async () => {
 })
 
 describe('PaintingPromptPresetsDialog', () => {
-  it('connects sortable activator attributes and listeners to handles so real drags can start', async () => {
+  beforeAll(installDndDomStubs)
+
+  it('makes each handle the activator, leaving the row inert, so real drags can start', async () => {
     const actual = await vi.importActual<typeof CherrystudioUI>('@cherrystudio/ui')
     const list = vi.spyOn(CherrystudioUI, 'ReorderableList').mockImplementation(actual.ReorderableList)
     try {
@@ -117,9 +120,8 @@ describe('PaintingPromptPresetsDialog', () => {
       expect(rows).toHaveLength(3)
       for (const row of rows) {
         const handle = row.querySelector('[data-ui~="part:prompt-preset-drag"]')
-        expect(handle).toHaveAttribute('role', 'button')
-        expect(handle).toHaveAttribute('aria-roledescription', 'sortable')
-        expect(handle).toHaveAttribute('tabindex', '0')
+        await waitFor(() => expect(handle).toHaveAttribute('aria-roledescription', 'draggable'))
+        expect(handle).toHaveAttribute('aria-describedby')
         expect(row).not.toHaveAttribute('role')
         expect(row).not.toHaveAttribute('aria-roledescription')
         expect(row).not.toHaveAttribute('tabindex')
@@ -132,7 +134,7 @@ describe('PaintingPromptPresetsDialog', () => {
       await user.keyboard('[Space]')
       await waitFor(() => expect(handle).toHaveAttribute('aria-pressed', 'true'))
       await user.keyboard('{Escape}')
-      await waitFor(() => expect(handle).not.toHaveAttribute('aria-pressed'))
+      await waitFor(() => expect(handle).toHaveAttribute('aria-pressed', 'false'))
     } finally {
       list.mockRestore()
     }

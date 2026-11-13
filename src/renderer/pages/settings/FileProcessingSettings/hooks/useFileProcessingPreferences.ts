@@ -67,8 +67,8 @@ export function useFileProcessingPreferences() {
     async (
       processorId: FileProcessorId,
       feature: FileProcessorFeature,
-      field: 'apiHost' | 'modelId',
-      value: string
+      field: 'apiHost' | 'modelId' | 'formulaLevel' | 'mergeCrossPageForms',
+      value: string | number | boolean
     ) => {
       await updateProcessor(processorId, {
         capabilities: {

@@ -80,15 +80,15 @@ export class PowerService extends BaseService {
 
   constructor() {
     super()
-    this._onSuspend = this.registerDisposable(new Emitter<void>())
+    this._onSuspend = new Emitter<void>()
     this.onSuspend = this._onSuspend.event
-    this._onResume = this.registerDisposable(new Emitter<void>())
+    this._onResume = new Emitter<void>()
     this.onResume = this._onResume.event
-    this._onLockScreen = this.registerDisposable(new Emitter<void>())
+    this._onLockScreen = new Emitter<void>()
     this.onLockScreen = this._onLockScreen.event
-    this._onUnlockScreen = this.registerDisposable(new Emitter<void>())
+    this._onUnlockScreen = new Emitter<void>()
     this.onUnlockScreen = this._onUnlockScreen.event
-    this._onPowerSourceChange = this.registerDisposable(new Emitter<PowerSource>())
+    this._onPowerSourceChange = new Emitter<PowerSource>()
     this.onPowerSourceChange = this._onPowerSourceChange.event
   }
 
@@ -107,6 +107,14 @@ export class PowerService extends BaseService {
     }
     this.holds.clear()
     logger.info('PowerService stopped')
+  }
+
+  protected onDestroy(): void {
+    this._onSuspend.dispose()
+    this._onResume.dispose()
+    this._onLockScreen.dispose()
+    this._onUnlockScreen.dispose()
+    this._onPowerSourceChange.dispose()
   }
 
   // ==========================================================================

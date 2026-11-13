@@ -1,0 +1,158 @@
+import type { UIMessage } from 'ai'
+
+declare const identity: unique symbol
+export type RuntimeId<K extends string> = string & { readonly [identity]: K }
+export type BackendId = RuntimeId<'backend'>
+export type ThreadId = RuntimeId<'thread'>
+export type InputId = RuntimeId<'input'>
+export type ItemId = RuntimeId<'item'>
+export type SubagentId = RuntimeId<'subagent'>
+export type NativeInputId = RuntimeId<'native-input'>
+
+/** Restore an opaque ID at a validated storage or transport boundary. */
+export function runtimeId<K extends string>(value: string): RuntimeId<K> {
+  if (!value.trim()) throw new TypeError('Runtime IDs must not be empty')
+  return value as RuntimeId<K>
+}
+
+export interface Thread {
+  readonly backendId: BackendId
+  readonly id: ThreadId
+}
+export interface ItemRef {
+  readonly session: Thread
+  readonly id: ItemId
+}
+export interface NativeInputRef {
+  readonly session: Thread
+  readonly id: NativeInputId
+}
+export type BusyPolicy = 'reject' | 'steer' | 'follow-up'
+export interface InputDraft {
+  readonly inputId: InputId
+  readonly text: string
+  readonly whenBusy: BusyPolicy
+}
+export interface RuntimeError {
+  readonly operation: string
+  readonly code: string
+  readonly message: string
+}
+export type OperationResult<T> =
+  | { readonly status: 'confirmed'; readonly value: T }
+  | { readonly status: 'rejected' | 'unsupported' | 'unknown'; readonly error: RuntimeError }
+export type InputFact = 'accepted' | 'queued' | 'dispatch-started' | 'locally-handled' | 'placed'
+export type SubmitResult =
+  | {
+      readonly status: 'acknowledged'
+      readonly inputId: InputId
+      readonly nativeInput?: NativeInputRef
+      readonly facts: readonly InputFact[]
+    }
+  | { readonly status: 'rejected' | 'unsupported' | 'unknown'; readonly inputId: InputId; readonly error: RuntimeError }
+export type InputState = (
+  | { readonly inputId: InputId; readonly nativeInput?: NativeInputRef }
+  | { readonly inputId?: InputId; readonly nativeInput: NativeInputRef }
+) & {
+  readonly facts: readonly InputFact[]
+  readonly outcome?: 'completed' | 'failed' | 'aborted' | 'unanswered'
+  readonly error?: RuntimeError
+}
+export type InputLookup = { readonly found: false } | { readonly found: true; readonly input: InputState }
+export type JsonValue = null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue }
+export type Completeness = 'partial' | 'complete' | 'unknown'
+/** One native conversation message; tools and their results remain in its ordered parts. */
+export type RuntimeMessage = UIMessage<{
+  completeness: Completeness
+  inputId?: InputId
+}>
+export interface Subagent {
+  /** Stable within the parent's observed relationships, across child inputs and runs. */
+  readonly id: SubagentId
+  readonly parent: Thread
+  readonly child?: Thread
+  /** Evidenced creation call, scoped to parent; continuation does not replace it. */
+  readonly origin?: { readonly toolCallId: string; readonly description?: string }
+}
+export interface Activity {
+  readonly state: 'active' | 'idle' | 'unknown'
+}
+export type ContextCategoryKey =
+  | 'messages'
+  | 'system-prompt'
+  | 'system-tools'
+  | 'mcp-tools'
+  | 'mcp-instructions'
+  | 'memory-files'
+  | 'skills'
+  | 'agents'
+  | 'other'
+export interface ContextTokenCount {
+  readonly tokens: number
+  readonly precision: 'reported' | 'estimated'
+}
+export interface ContextCategory extends ContextTokenCount {
+  readonly id: string
+  readonly key: ContextCategoryKey
+  readonly label?: string
+  readonly occupancy: 'included' | 'deferred'
+}
+export interface ContextResource {
+  readonly id: string
+  readonly category: ContextCategoryKey
+  readonly name: string
+  readonly source?: string
+  readonly count?: ContextTokenCount
+  readonly state?: 'loaded' | 'deferred'
+}
+export interface ThreadContextUsage {
+  readonly model: string
+  readonly revision: string
+  readonly contextWindow: number
+  readonly used?: ContextTokenCount
+  readonly basis: 'current-context' | 'last-request'
+  readonly reserved?: ContextTokenCount
+  readonly free?: ContextTokenCount
+  readonly breakdown?: { readonly coverage: 'partial' | 'complete'; readonly categories: readonly ContextCategory[] }
+  readonly resources?: readonly ContextResource[]
+}
+export interface ThreadSnapshot {
+  readonly type: 'snapshot'
+  readonly contextUsage?: OperationResult<ThreadContextUsage>
+  readonly messages: readonly RuntimeMessage[]
+  readonly inputs: readonly InputState[]
+  readonly subagents?: readonly Subagent[]
+  readonly activity: Activity
+}
+export type ObservationPayload =
+  | ThreadSnapshot
+  | { readonly type: 'context.changed'; readonly result: OperationResult<ThreadContextUsage> }
+  | { readonly type: 'message.upsert'; readonly message: RuntimeMessage; readonly replaces?: readonly ItemRef[] }
+  | { readonly type: 'message.remove'; readonly ref: ItemRef }
+  | { readonly type: 'input.changed'; readonly input: InputState }
+  | { readonly type: 'activity.changed'; readonly activity: Activity }
+  | { readonly type: 'subagent.upsert'; readonly subagent: Subagent }
+  | { readonly type: 'diagnostic'; readonly error: RuntimeError }
+  | { readonly type: 'gap'; readonly reason: 'overflow' | 'disconnected' | 'mapping-reset' }
+  | { readonly type: 'closed'; readonly reason: 'stopped' | 'released' | 'shutdown' | 'source-lost' | 'consumer-error' }
+export type ObservationSink = (event: ObservationPayload) => void | Promise<void>
+export interface Observation {
+  /** Join callbacks through facts published before this call; rejects if delivery was discarded. */
+  drain(): Promise<void>
+  stop(): Promise<void>
+}
+export interface ThreadInput {
+  submit(input: InputDraft): Promise<SubmitResult>
+}
+export interface ThreadHandle {
+  readonly thread: Thread
+  contextUsage(): Promise<OperationResult<ThreadContextUsage>>
+  readonly input?: ThreadInput
+  observe(sink: ObservationSink): Promise<OperationResult<Observation>>
+  interrupt?: () => Promise<OperationResult<void>>
+  release(): Promise<void>
+}
+export interface AgentRuntime {
+  open(ref: Thread): Promise<OperationResult<ThreadHandle>>
+  shutdown(): Promise<OperationResult<void>>
+}

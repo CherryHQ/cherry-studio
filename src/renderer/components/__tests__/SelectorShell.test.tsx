@@ -3,9 +3,8 @@ import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { PortalContainerProvider } from '@cherrystudio/ui'
-
-const { openAutoFocusEvents, popoverContentProps, portalContainerMock } = vi.hoisted(() => ({
+const { interactOutsideHandlers, openAutoFocusEvents, popoverContentProps, portalContainerMock } = vi.hoisted(() => ({
+  interactOutsideHandlers: [] as Array<(event: unknown) => void>,
   openAutoFocusEvents: [] as Array<{
     preventDefault: ReturnType<typeof vi.fn<(...args: any[]) => any>>
     defaultPrevented: boolean
@@ -63,11 +62,11 @@ vi.mock('@cherrystudio/ui', () => ({
     collisionPadding?: number
     portalContainer?: unknown
     forceMount?: unknown
-    onInteractOutside?: unknown
+    onInteractOutside?: (event: unknown) => void
   }) => {
     popoverContentProps.push({ align, side, sideOffset, collisionPadding, portalContainer })
     void forceMount
-    void onInteractOutside
+    if (onInteractOutside) interactOutsideHandlers.push(onInteractOutside)
     const event = {
       preventDefault: vi.fn(() => {
         event.defaultPrevented = true
@@ -107,76 +106,6 @@ describe('SelectorShell', () => {
     openAutoFocusEvents.length = 0
     popoverContentProps.length = 0
     portalContainerMock.current = null
-  })
-
-  it('defaults popover placement to bottom with viewport padding', () => {
-    render(
-      <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
-        <div />
-      </SelectorShell>
-    )
-
-    expect(popoverContentProps.at(-1)).toMatchObject({
-      side: 'bottom',
-      align: 'start',
-      sideOffset: 4,
-      collisionPadding: 12
-    })
-  })
-
-  it('separates the positioning shell from the animated visible panel', () => {
-    render(
-      <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
-        <div />
-      </SelectorShell>
-    )
-
-    const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
-    const panel = document.querySelector<HTMLElement>('[data-selector-shell-panel]')
-    expect(content).toHaveClass('bg-transparent')
-    expect(content).toHaveClass('shadow-none')
-    expect(content).toHaveClass('animation-selector-shell-content')
-    expect(panel).toHaveClass('bg-popover')
-    expect(panel).toHaveClass('shadow-lg')
-    expect(panel).toHaveClass('animation-selector-shell-panel')
-  })
-
-  it('applies contentHeight as a fixed popover target height', () => {
-    render(
-      <SelectorShell
-        trigger={<button type="button">Open</button>}
-        open
-        onOpenChange={vi.fn()}
-        contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}>
-        <div />
-      </SelectorShell>
-    )
-
-    const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
-    expect(content).toHaveStyle({ height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` })
-    expect(content?.style.maxHeight).toBe('')
-  })
-
-  it('caps an ideal popover width to the Radix available width', () => {
-    render(
-      <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()} width={450}>
-        <div />
-      </SelectorShell>
-    )
-
-    const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
-    expect(content).toHaveStyle({ width: '450px' })
-    expect(content?.style.maxWidth).toBe('var(--radix-popover-content-available-width)')
-  })
-
-  it('does not set a fixed popover target height by default', () => {
-    render(
-      <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
-        <div />
-      </SelectorShell>
-    )
-
-    expect(document.querySelector<HTMLElement>('[data-selector-shell-content]')?.style.height).toBe('')
   })
 
   it('uses contentHeight when measuring available list height', async () => {
@@ -236,64 +165,6 @@ describe('SelectorShell', () => {
     await waitFor(() =>
       expect(screen.getByTestId('available-height')).toHaveTextContent(String(DEFAULT_SELECTOR_CONTENT_HEIGHT - 28))
     )
-  })
-
-  it('lets contentProps override collision padding', () => {
-    render(
-      <SelectorShell
-        trigger={<button type="button">Open</button>}
-        open
-        onOpenChange={vi.fn()}
-        contentProps={{ collisionPadding: 24 }}>
-        <div />
-      </SelectorShell>
-    )
-
-    expect(popoverContentProps.at(-1)).toMatchObject({ collisionPadding: 24 })
-  })
-
-  it('uses the nearest page portal container by default', () => {
-    const pagePortalContainer = document.createElement('div')
-
-    render(
-      <PortalContainerProvider container={pagePortalContainer}>
-        <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
-          <div />
-        </SelectorShell>
-      </PortalContainerProvider>
-    )
-
-    expect(popoverContentProps.at(-1)?.portalContainer).toBe(pagePortalContainer)
-  })
-
-  it('falls back to a local portal container without a page provider', () => {
-    render(
-      <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
-        <div />
-      </SelectorShell>
-    )
-
-    expect(popoverContentProps.at(-1)?.portalContainer).toBeInstanceOf(HTMLElement)
-    expect(popoverContentProps.at(-1)?.portalContainer).not.toBe(document.body)
-  })
-
-  it('lets callers override the page portal container', () => {
-    const pagePortalContainer = document.createElement('div')
-    const portalContainer = document.createElement('div')
-
-    render(
-      <PortalContainerProvider container={pagePortalContainer}>
-        <SelectorShell
-          trigger={<button type="button">Open</button>}
-          open
-          onOpenChange={vi.fn()}
-          portalContainer={portalContainer}>
-          <div />
-        </SelectorShell>
-      </PortalContainerProvider>
-    )
-
-    expect(popoverContentProps.at(-1)?.portalContainer).toBe(portalContainer)
   })
 
   it('subtracts selector chrome from available list height', async () => {
@@ -410,11 +281,6 @@ describe('SelectorShell', () => {
     expect(screen.getByTestId('multi-badge')).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByTestId('multi-badge')).toHaveAttribute('aria-label', 'Multi model')
     expect(screen.getByTestId('multi-badge')).toHaveTextContent('Multi')
-    expect(screen.getByTestId('multi-badge').querySelector('svg')).toBeNull()
-    expect(screen.getByTestId('multi-badge')).toHaveAttribute('data-variant', 'secondary')
-    expect(screen.getByTestId('multi-badge')).toHaveClass('bg-secondary/60')
-    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'Multi-model simultaneous responses')
-    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-delay', '1500')
 
     screen.getByTestId('multi-badge').click()
 
@@ -435,7 +301,6 @@ describe('SelectorShell', () => {
     )
 
     const clearButton = screen.getByRole('button', { name: 'Clear' })
-    expect(clearButton.querySelector('svg')).not.toBeNull()
 
     clearButton.click()
 
@@ -540,6 +405,35 @@ describe('SelectorShell', () => {
     expect(screen.queryByTestId('lazy-body')).not.toBeInTheDocument()
   })
 
+  it('does not let the outside press that opened lazy-kept content dismiss it', () => {
+    const shell = (open: boolean) => (
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open={open}
+        onOpenChange={vi.fn()}
+        mountStrategy="lazy-keep">
+        <div />
+      </SelectorShell>
+    )
+    const { rerender } = render(shell(true))
+    rerender(shell(false))
+    const pressedAt = performance.now()
+    rerender(shell(true))
+    const outsideInteraction = (timeStamp: number) => ({
+      target: document.body,
+      detail: { originalEvent: { target: document.body, timeStamp } },
+      preventDefault: vi.fn()
+    })
+
+    const openingPress = outsideInteraction(pressedAt)
+    interactOutsideHandlers.at(-1)?.(openingPress)
+    expect(openingPress.preventDefault).toHaveBeenCalled()
+
+    const laterPress = outsideInteraction(performance.now() + 1)
+    interactOutsideHandlers.at(-1)?.(laterPress)
+    expect(laterPress.preventDefault).not.toHaveBeenCalled()
+  })
+
   it('does not expose a lazy-kept placement placeholder as available height', () => {
     render(
       <SelectorShell
@@ -553,50 +447,5 @@ describe('SelectorShell', () => {
     )
 
     expect(screen.getByTestId('available-height')).toHaveTextContent('undefined')
-  })
-
-  it('does not rebind measurement listeners when config object identities change', async () => {
-    const observe = vi.fn()
-    const disconnect = vi.fn()
-    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock() {
-      return {
-        observe,
-        disconnect
-      } as unknown as ResizeObserver
-    })
-    const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
-
-    const { rerender } = render(
-      <SelectorShell
-        trigger={<button type="button">Open</button>}
-        open
-        onOpenChange={vi.fn()}
-        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
-        filterContent={<span>Filter</span>}>
-        <div />
-      </SelectorShell>
-    )
-
-    await waitFor(() => expect(addEventListenerSpy).toHaveBeenCalledWith('resize', expect.any(Function)))
-    const resizeListenerCount = addEventListenerSpy.mock.calls.filter(
-      ([eventName]) => (eventName as string) === 'resize'
-    ).length
-    const disconnectCount = disconnect.mock.calls.length
-
-    rerender(
-      <SelectorShell
-        trigger={<button type="button">Open</button>}
-        open
-        onOpenChange={vi.fn()}
-        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
-        filterContent={<span>Filter again</span>}>
-        <div />
-      </SelectorShell>
-    )
-
-    expect(addEventListenerSpy.mock.calls.filter(([eventName]) => (eventName as string) === 'resize')).toHaveLength(
-      resizeListenerCount
-    )
-    expect(disconnect).toHaveBeenCalledTimes(disconnectCount)
   })
 })

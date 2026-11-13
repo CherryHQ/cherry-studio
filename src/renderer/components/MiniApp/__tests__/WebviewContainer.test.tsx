@@ -280,10 +280,12 @@ describe('WebviewContainer', () => {
 })
 
 describe('WebviewContainer partitioning', () => {
-  it('keeps site mini apps on the shared partition with no preload', async () => {
-    const wv = await webviewIn(renderWebview({ appid: 'google', url: 'https://google.com', kind: 'site' }))
-    expect(wv.getAttribute('partition')).toBe('persist:webview')
-    expect(wv.getAttribute('preload')).toBeNull()
+  it('shares the persistent website partition across tabs with no preload', async () => {
+    const first = await webviewIn(renderWebview({ appid: 'google', url: 'https://google.com', kind: 'site' }))
+    const duplicate = await webviewIn(renderWebview({ appid: 'google', url: 'https://google.com', kind: 'site' }))
+    expect(first.getAttribute('partition')).toBe('persist:webview')
+    expect(duplicate.getAttribute('partition')).toBe(first.getAttribute('partition'))
+    expect(first.getAttribute('preload')).toBeNull()
   })
 
   it('gives each local app its own partition', async () => {

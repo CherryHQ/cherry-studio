@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  Alert,
   Button,
   Dialog,
   DialogContent,
@@ -28,12 +29,16 @@ import CopyButton from '@renderer/components/CopyButton'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { cn } from '@renderer/utils/style'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+import { SELECTION_ACTION_RUNNER, type SelectionActionRunner } from '@shared/data/preference/preferenceTypes'
+import type { CustomSelectionAction } from '@shared/types/selection'
+
+import { SelectionAgentPicker, SelectionWorkspacePicker } from './selectionAgentPickers'
 
 interface SelectionActionUserModalProps {
   isModalOpen: boolean
-  editingAction: SelectionActionItem | null
-  onOk: (data: SelectionActionItem) => void
+  editingAction: CustomSelectionAction | null
+  onOk: (data: CustomSelectionAction) => void
   onCancel: () => void
 }
 
@@ -49,8 +54,9 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
   const assistantOptions = userPredefinedAssistants
   const firstAssistantId = assistantOptions[0]?.id
 
-  const [formData, setFormData] = useState<Partial<SelectionActionItem>>({})
-  const [errors, setErrors] = useState<Partial<Record<keyof SelectionActionItem, string>>>({})
+  const [formData, setFormData] = useState<Partial<CustomSelectionAction>>({})
+  const [errors, setErrors] = useState<Partial<Record<keyof CustomSelectionAction, string>>>({})
+  const runner = formData.runner ?? SELECTION_ACTION_RUNNER.DEFAULT
 
   useEffect(() => {
     if (isModalOpen) {
@@ -60,7 +66,8 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
           name: '',
           prompt: '',
           icon: '',
-          assistantId: ''
+          assistantId: '',
+          runner: SELECTION_ACTION_RUNNER.DEFAULT
         }
       )
       setErrors({})
@@ -68,7 +75,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
   }, [isModalOpen, editingAction])
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof SelectionActionItem, string>> = {}
+    const newErrors: Partial<Record<keyof CustomSelectionAction, string>> = {}
 
     if (!formData.name?.trim()) {
       newErrors.name = t('selection.settings.user_modal.name.hint')
@@ -76,6 +83,10 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 
     if (formData.icon && !iconNames.includes(formData.icon as any)) {
       newErrors.icon = t('selection.settings.user_modal.icon.error')
+    }
+
+    if (runner === SELECTION_ACTION_RUNNER.AGENT && !formData.agentId) {
+      newErrors.agentId = t('selection.settings.user_modal.agent.hint')
     }
 
     setErrors(newErrors)
@@ -88,20 +99,23 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
     }
 
     // 构建完整的 ActionItem
-    const actionItem: SelectionActionItem = {
+    const actionItem: CustomSelectionAction = {
       id: editingAction?.id || `user-${Date.now()}`,
       name: formData.name || 'USER',
       enabled: editingAction?.enabled || false,
-      isBuiltIn: editingAction?.isBuiltIn || false,
+      isBuiltIn: false,
       icon: formData.icon,
       prompt: formData.prompt,
-      assistantId: formData.assistantId
+      runner,
+      assistantId: formData.assistantId,
+      agentId: formData.agentId,
+      agentWorkspace: formData.agentWorkspace
     }
 
     onOk(actionItem)
   }
 
-  const handleInputChange = (field: keyof SelectionActionItem, value: string) => {
+  const handleInputChange = (field: keyof CustomSelectionAction, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     // Clear error when user starts typing
     if (errors[field]) {
@@ -196,24 +210,31 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 </ModalSectionTitle>
               </div>
               <RadioGroup
-                value={formData.assistantId ? 'assistant' : 'default'}
-                onValueChange={(value) =>
-                  handleInputChange('assistantId', value === 'default' ? '' : (firstAssistantId ?? ''))
-                }
+                value={runner}
+                onValueChange={(value) => {
+                  setFormData((prev) => ({ ...prev, runner: value as SelectionActionRunner }))
+                  if (value === SELECTION_ACTION_RUNNER.ASSISTANT && !formData.assistantId) {
+                    handleInputChange('assistantId', firstAssistantId ?? '')
+                  }
+                }}
                 className="flex flex-row gap-4">
                 <label className="flex items-center gap-2 text-sm">
-                  <RadioGroupItem value="default" />
+                  <RadioGroupItem value={SELECTION_ACTION_RUNNER.DEFAULT} />
                   {t('selection.settings.user_modal.model.default')}
                 </label>
                 <label className="flex items-center gap-2 text-sm">
-                  <RadioGroupItem value="assistant" />
+                  <RadioGroupItem value={SELECTION_ACTION_RUNNER.ASSISTANT} />
                   {t('selection.settings.user_modal.model.assistant')}
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <RadioGroupItem value={SELECTION_ACTION_RUNNER.AGENT} />
+                  {t('selection.settings.user_modal.model.agent')}
                 </label>
               </RadioGroup>
             </div>
           </ModalSection>
 
-          {formData.assistantId && (
+          {runner === SELECTION_ACTION_RUNNER.ASSISTANT && (
             <ModalSection>
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.assistant.label')}</ModalSectionTitleLabel>
@@ -248,6 +269,33 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 </SelectContent>
               </Select>
             </ModalSection>
+          )}
+          {runner === SELECTION_ACTION_RUNNER.AGENT && (
+            <>
+              <ModalSection>
+                <ModalSectionTitle>
+                  <ModalSectionTitleLabel>{t('selection.settings.user_modal.agent.label')}</ModalSectionTitleLabel>
+                </ModalSectionTitle>
+                <SelectionAgentPicker
+                  value={formData.agentId || null}
+                  onChange={(agentId) => handleInputChange('agentId', agentId ?? '')}
+                  invalid={!!errors.agentId}
+                />
+                {errors.agentId && <ErrorText>{errors.agentId}</ErrorText>}
+              </ModalSection>
+              <ModalSection>
+                <ModalSectionTitle>
+                  <ModalSectionTitleLabel>{t('selection.settings.user_modal.workspace.label')}</ModalSectionTitleLabel>
+                </ModalSectionTitle>
+                <SelectionWorkspacePicker
+                  value={formData.agentWorkspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }}
+                  onChange={(agentWorkspace) => setFormData((prev) => ({ ...prev, agentWorkspace }))}
+                />
+              </ModalSection>
+              <ModalSection>
+                <Alert type="info" message={t('selection.settings.user_modal.agent.notice')} />
+              </ModalSection>
+            </>
           )}
           <ModalSection>
             <ModalSectionTitle>

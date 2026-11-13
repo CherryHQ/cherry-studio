@@ -36,6 +36,7 @@ interface Props {
   onFocusChange?: (focused: boolean) => void
   onDomReady?: (webview: WebviewTag) => void
   onDidStartLoading?: () => void
+  onDidStopLoading?: () => void
   onDidStartNavigation?: (event: DidStartNavigationEvent) => void
   onDidFinishLoad?: () => void
   onReadyToShow?: () => void
@@ -66,6 +67,7 @@ export function WebviewHost({
   onFocusChange,
   onDomReady,
   onDidStartLoading,
+  onDidStopLoading,
   onDidStartNavigation,
   onDidFinishLoad,
   onReadyToShow,
@@ -140,6 +142,7 @@ export function WebviewHost({
   })
   const handleStartNavigation = useEffectEvent((event: DidStartNavigationEvent) => onDidStartNavigation?.(event))
   const handleFinishLoad = useEffectEvent(() => onDidFinishLoad?.())
+  const handleStopLoading = useEffectEvent(() => onDidStopLoading?.())
   const handleReadyToShow = useEffectEvent(() => onReadyToShow?.())
   const handleFailLoad = useEffectEvent((event: DidFailLoadEvent) => onDidFailLoad?.(event))
   const handleTitleUpdated = useEffectEvent((event: PageTitleUpdatedEvent) => onPageTitleUpdated?.(event))
@@ -169,6 +172,7 @@ export function WebviewHost({
     webview.addEventListener('ipc-message', handleGuestKeydown)
     webview.addEventListener('dom-ready', domReady)
     webview.addEventListener('did-start-loading', handleStartLoading)
+    webview.addEventListener('did-stop-loading', handleStopLoading)
     webview.addEventListener('did-start-navigation', handleStartNavigation)
     webview.addEventListener('did-finish-load', handleFinishLoad)
     webview.addEventListener('ready-to-show', handleReadyToShow)
@@ -192,6 +196,7 @@ export function WebviewHost({
       webview.removeEventListener('ipc-message', handleGuestKeydown)
       webview.removeEventListener('dom-ready', domReady)
       webview.removeEventListener('did-start-loading', handleStartLoading)
+      webview.removeEventListener('did-stop-loading', handleStopLoading)
       webview.removeEventListener('did-start-navigation', handleStartNavigation)
       webview.removeEventListener('did-finish-load', handleFinishLoad)
       webview.removeEventListener('ready-to-show', handleReadyToShow)
@@ -202,7 +207,6 @@ export function WebviewHost({
       webview.removeEventListener('page-favicon-updated', handleFaviconUpdated)
       if (readyWebviewRef.current === webview) readyWebviewRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- This lint version does not recognize React 19.2 Effect Events.
   }, [webview])
 
   useEffect(() => {

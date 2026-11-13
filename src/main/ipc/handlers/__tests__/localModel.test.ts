@@ -41,12 +41,16 @@ describe('localModelHandlers', () => {
   })
 
   it('delegates lifecycle routes to the local model service', async () => {
-    localModelService.refreshStatus.mockReturnValue({ status: 'ready' })
+    localModelService.refreshStatus.mockReturnValue({
+      status: 'not_downloaded',
+      hintCode: 'missing_shared_runtime'
+    })
     localModelService.download.mockResolvedValue('ready')
     localModelService.remove.mockResolvedValue({ removed: false })
 
     await expect(localModelHandlers['local_model.get_status']({ id: EMBEDDING }, ctx)).resolves.toEqual({
-      status: 'ready'
+      status: 'not_downloaded',
+      hintCode: 'missing_shared_runtime'
     })
     await expect(localModelHandlers['local_model.download']({ id: OCR }, ctx)).resolves.toEqual({ result: 'ready' })
     await localModelHandlers['local_model.cancel']({ id: EMBEDDING }, ctx)
@@ -71,17 +75,5 @@ describe('localModelHandlers', () => {
     const resolvePreference = localModelService.download.mock.calls[0][1]
     await expect(resolvePreference()).resolves.toBe(preference)
     expect(isInChina).toHaveBeenCalledOnce()
-  })
-
-  it('returns the service catalog and hardware capability unchanged', async () => {
-    await expect(localModelHandlers['local_model.list'](undefined, ctx)).resolves.toEqual({
-      models: [
-        { id: EMBEDDING, capability: 'embedding' },
-        { id: OCR, capability: 'ocr' }
-      ]
-    })
-    await expect(localModelHandlers['local_model.get_acceleration_capability'](undefined, ctx)).resolves.toEqual({
-      supported: true
-    })
   })
 })

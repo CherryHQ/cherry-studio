@@ -90,7 +90,7 @@ export const parseRecord = (content: string, paths: PairPaths): PairRecord | und
 
 export const renderRecord = (paths: PairPaths, record: PairRecord): string =>
   [
-    '# Bilingual-pair consistency record (docs/i18n/README.md).',
+    '# Bilingual-pair consistency record (docs/dev/i18n/README.md).',
     '# After editing either side, update its counterpart and re-record with:',
     `#   pnpm docs:check-pairing --write ${paths.source}`,
     `${basename(paths.source)}: ${record.sourceHash}`,

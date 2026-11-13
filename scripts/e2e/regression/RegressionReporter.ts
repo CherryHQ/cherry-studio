@@ -8,7 +8,7 @@ import type {
   TestResult
 } from '@playwright/test/reporter'
 
-import { getCase, selectCases } from './cases'
+import { getCase, parseTaskSelection, selectCases } from './cases'
 import { REQUIRED_CONFIG } from './config'
 import { getRunPaths } from './paths'
 import { createRedactor } from './redaction'
@@ -39,17 +39,25 @@ export default class RegressionReporter implements Reporter {
     if (!this.started) {
       this.started = true
       for (const phase of this.phases) {
-        const expected = selectCases(run.metadata.task).filter((testCase) => testCase.phase === phase)
+        const expected = selectCases(parseTaskSelection(run.metadata.task)).filter(
+          (testCase) => testCase.phase === phase
+        )
         if (expected.length === 0 || expected.some(({ id }) => !this.ids.includes(id))) {
           this.errors.push(`Registered cases for phase ${phase} do not match the selected task`)
         }
         run = updatePhase(run, phase, 'running')
       }
     }
-    writeRun(this.paths.runState, beginCase(run, caseId(test)))
+    const id = caseId(test)
+    // Cases outside the run platform are recorded as not applicable at initialize time.
+    if (run.cases[id].status === 'not_applicable') return
+    writeRun(this.paths.runState, beginCase(run, id))
   }
 
   onTestEnd(test: TestCase, result: TestResult): void {
+    const id = caseId(test)
+    const run = readRun(this.paths.runState)
+    if (run.cases[id].status === 'not_applicable') return
     const artifacts = result.attachments.flatMap(({ path }) => (path ? [path] : []))
     const status = result.status === 'passed' ? 'passed' : result.status === 'skipped' ? 'blocked' : 'failed'
     const blocked = result.annotations.find(({ type }) => type === 'skip')?.description
@@ -59,8 +67,10 @@ export default class RegressionReporter implements Reporter {
         : result.status === 'skipped'
           ? `Prerequisites not met: ${blocked ?? 'See phase logs'}`
           : 'End-to-end test failed; see phase logs and the HTML report'
-    const run = completeE2eCase(readRun(this.paths.runState), caseId(test), status, this.redact(summary), artifacts)
-    writeRun(this.paths.runState, run)
+    const dataSources = result.annotations.flatMap(({ type, description }) =>
+      type === 'data-source' && description ? [this.redact(description)] : []
+    )
+    writeRun(this.paths.runState, completeE2eCase(run, id, status, this.redact(summary), artifacts, dataSources))
   }
 
   onError(error: TestError): void {

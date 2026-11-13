@@ -110,14 +110,19 @@
   ; Check architecture compatibility first
   Call checkArchitectureCompatibility
   ${If} $0 != "1"
+    StrCpy $4 "https://cherryai.com/"
+    ${If} $LANGUAGE == ${LANG_SIMPCHINESE}
+    ${OrIf} $LANGUAGE == ${LANG_TRADCHINESE}
+      StrCpy $4 "https://cherryai.com.cn/"
+    ${EndIf}
     MessageBox MB_ICONEXCLAMATION "\
       Architecture Mismatch$\r$\n$\r$\n\
       This installer is not compatible with your system architecture.$\r$\n\
       Your system: $1$\r$\n\
       App architecture: $3$\r$\n$\r$\n\
       Please download the correct version from:$\r$\n\
-      https://www.cherry-ai.com/"
-    ExecShell "open" "https://www.cherry-ai.com/"
+      $4"
+    ExecShell "open" "$4"
     Abort
   ${EndIf}
 

@@ -1,3 +1,4 @@
+import type { Provider } from '../src/providers/types'
 /**
  * Build-time canonicalization — the id-folding the catalog generator applies to every model id.
  * Shares the runtime resolver's `normalizeModelId` helpers but is INTENTIONALLY different in one way:
@@ -49,17 +50,22 @@ export const prefixHit = (id: string, p: string): boolean =>
   id === p || id.startsWith(`${p}-`) || (id.startsWith(p) && /\d/.test(id[p.length] ?? ''))
 
 /**
- * A provider override that doesn't spell `apiModelId` authors `modelId` as the id the provider
- * actually serves (`glm-5.2`, `doubao-seed-2-1-pro-260628`): split it into the canonical catalog key
- * plus the wire id. The runtime sends `apiModelId ?? modelId`, so without the split the canonical
- * spelling (`glm-5-2`) goes on the wire and 404s. A row that already spells `apiModelId` keeps its
- * authored key — canonicalizing those would merge rows the author kept distinct.
+ * Fills a provider offer's canonical catalog key from its exact `apiModelId`. An authored `modelId` is kept,
+ * so rows the author kept distinct never merge. The runtime sends `apiModelId ?? modelId`, so `apiModelId`
+ * is dropped when it equals the derived key.
  */
-export const splitOverrideWireId = <T extends { modelId?: string; apiModelId?: string }>(override: T): T => {
-  // `modelId` is required by the schema but the source type is Partial<>, so an authoring slip reaches
-  // here as undefined — pass it through and let schema validation report it, rather than crashing.
-  if (override.apiModelId || !override.modelId) return override
-  const canonical = canonOf(override.modelId)
-  if (!canonical || canonical === override.modelId) return override
-  return { ...override, modelId: canonical, apiModelId: override.modelId }
+export const deriveOverrideModelId = <T extends { modelId?: string; apiModelId: string }>({
+  modelId,
+  apiModelId,
+  ...rest
+}: T): Omit<T, 'modelId' | 'apiModelId'> & { modelId: string; apiModelId?: string } => {
+  if (modelId) return { ...rest, modelId, apiModelId }
+  const canonical = canonOf(apiModelId) || apiModelId
+  return canonical === apiModelId ? { ...rest, modelId: canonical } : { ...rest, modelId: canonical, apiModelId }
 }
+
+/** A provider's offers (with derived keys) and models.dev templates, each addressed by catalog `modelId`. */
+export const providerModelEntries = ({ overrides, modelTemplates }: Pick<Provider, 'overrides' | 'modelTemplates'>) => [
+  ...(overrides ?? []).map(deriveOverrideModelId),
+  ...(modelTemplates ?? [])
+]

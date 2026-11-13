@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-02-ollama-tool-call-arguments.md
+2026-11-02-ollama-tool-call-arguments.md: 82805236bd41f6a27d59017afe4af903a880f9e8
+2026-11-02-ollama-tool-call-arguments.zh.md: 15e3d9c60af2fe9c59fe9a1dedf018342fb5c043

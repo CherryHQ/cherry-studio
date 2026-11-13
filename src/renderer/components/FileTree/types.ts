@@ -55,6 +55,8 @@ export interface FileTreeProps {
 
   /** Optional trailing slot per row - e.g. ContextMenu trigger, action buttons, badges. */
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode
+  /** Optional block rendered below a row, outside its click target - e.g. search match lines. */
+  renderRowDetail?: (node: FileTreeNode) => React.ReactNode
   /** Optional command-system context menu items for the whole row (Cherry/Native presentation). */
   getMenuItems?: (node: FileTreeNode) => MaybePromise<readonly CommandContextMenuExtraItem[]>
 
@@ -69,6 +71,8 @@ export interface FileTreeProps {
 
   /** Override the virtualizer slot. Default uses DynamicVirtualList. */
   renderList?: (args: TreeListSlotArgs<FileTreeNode>) => React.ReactNode
+  /** Content spacing for the default virtual list. */
+  contentProps?: React.ComponentProps<'div'>
   /** When true, folder rows are treated as sticky headers by the default virtualizer. Default: true. */
   stickyFolders?: boolean
 
@@ -80,10 +84,9 @@ export interface FileTreeProps {
   onSearchKeywordChange?: (keyword: string) => void
   /** Placeholder for the search input. */
   searchPlaceholder?: string
-  /** Optional trailing toolbar rendered on the search row. */
-  searchToolbar?: React.ReactNode
   /** Accessible label for the search clear button. */
   searchClearLabel?: string
+  searchClassName?: string
 
   emptyState?: React.ReactNode
 }

@@ -118,7 +118,7 @@ export function knowledgeIndexIdempotencyKey(
 export function knowledgeFileProcessingCheckIdempotencyKey(
   baseId: KnowledgeBaseId,
   itemId: KnowledgeItemId,
-  fileProcessingJobId: string
+  fileProcessingTaskId: string
 ): string {
-  return `knowledge:${baseId}:${itemId}:fp-check:${fileProcessingJobId}`
+  return `knowledge:${baseId}:${itemId}:fp-check:${fileProcessingTaskId}`
 }

@@ -212,6 +212,10 @@ ${content}
 
   /** Load a complete, replaceable identity snapshot, including explicitly empty sections. */
   async buildMemoriesSection(agentDataPath: string): Promise<string> {
+    return (await this.buildMemoriesContext(agentDataPath)).text
+  }
+
+  async buildMemoriesContext(agentDataPath: string) {
     const memoryDir = path.join(agentDataPath, 'memory')
     const hasRealMemoryDirectory = await isRealDirectory(memoryDir)
 
@@ -233,11 +237,28 @@ ${content}
       `<facts>\n${factContent ?? ''}\n</facts>`
     ].join('\n\n')
 
-    return `<agent_identity>
+    const text = `<agent_identity>
 Current identity from ${agentDataPath}. This complete snapshot replaces all earlier snapshots of these files, including copies in conversation summaries. Empty sections withdraw previous file contents. Apply SOUL to your persona and USER/FACT to relevant context, within the Agent System Prompt and current user instructions.
 
 ${sections}
 </agent_identity>`
+    const resources = [
+      { path: soulPath, content: soulContent, tag: 'soul' },
+      { path: userPath, content: userContent, tag: 'user' },
+      { path: factPath, content: factContent, tag: 'facts' }
+    ].flatMap(({ path: filePath, content, tag }) =>
+      filePath && content !== undefined
+        ? [
+            {
+              id: filePath,
+              name: path.basename(filePath),
+              source: filePath,
+              characters: `<${tag}>\n${content}\n</${tag}>`.length
+            }
+          ]
+        : []
+    )
+    return { text, resources }
   }
 
   /**

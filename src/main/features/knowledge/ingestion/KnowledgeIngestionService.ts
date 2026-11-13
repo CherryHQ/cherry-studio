@@ -3,6 +3,7 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import type { FileProcessingTaskId } from '@main/features/fileProcessing'
 import { getFileExt } from '@main/utils/legacyFile'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { ACTIVE_JOB_STATUSES } from '@shared/data/api/schemas/jobs'
@@ -442,36 +443,24 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         await assertKnowledgeFileTargetAvailable(baseId, processedRelativePath)
       }
       const processedPath = getKnowledgeBaseFilePath(baseId, processedRelativePath)
-      const fileProcessingJob = await fileProcessing.startJob(
-        {
-          feature: 'document_to_markdown',
-          file: { kind: 'path', path: sourcePath },
-          output: { kind: 'path', path: processedPath },
-          context: { dataId: item.id },
-          processorId
-        },
-        {
-          parentId: parentJobId ?? undefined,
-          // Boot recovery fails an interrupted item, so a conversion resumed after a restart would
-          // only spend processor quota on a result nothing reads.
-          recovery: 'abandon'
-        }
-      )
-      this.fileProcessingWaits.add(baseId, itemId, fileProcessingJob.id)
-      fileProcessingJob.finished
+      const { task, done } = await fileProcessing.startTask({
+        feature: 'document_to_markdown',
+        file: { kind: 'path', path: sourcePath },
+        output: { kind: 'path', path: processedPath },
+        context: { dataId: item.id },
+        processorId
+      })
+      this.fileProcessingWaits.add(baseId, itemId, task.id)
+      done
         .then(() => {
           this.fileProcessingWaits.delete(itemId)
-          this.scheduleFileProcessingCheck(baseId, itemId, fileProcessingJob.id, {
-            // A direct add has no parent; the file-processing job then scopes the index idempotency key.
-            parentJobId: parentJobId ?? fileProcessingJob.id,
-            processedRelativePath
-          })
+          this.scheduleFileProcessingCheck(baseId, itemId, task.id, { parentJobId, processedRelativePath })
         })
         .catch((error: unknown) => {
           logger.error('Failed to schedule the file-processing result check', error as Error, {
             baseId,
             itemId,
-            fileProcessingJobId: fileProcessingJob.id
+            fileProcessingTaskId: task.id
           })
         })
       return
@@ -480,21 +469,21 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     await this.scheduleIndexing(baseId, itemId, parentJobId)
   }
 
-  /** Enqueue the job that reads a settled file-processing job's result and hands the item on. */
+  /** Enqueue the job that reads a settled file-processing task's result and hands the item on. */
   private scheduleFileProcessingCheck(
     baseId: KnowledgeBaseId,
     itemId: KnowledgeItemId,
-    fileProcessingJobId: string,
-    options: { parentJobId: string; processedRelativePath: string }
+    fileProcessingTaskId: FileProcessingTaskId,
+    options: { parentJobId: string | null; processedRelativePath: string }
   ): void {
     const { parentJobId, processedRelativePath } = options
     application.get('JobManager').enqueue(
       'knowledge.check-file-processing-result',
-      { baseId, itemId, fileProcessingJobId, processedRelativePath },
+      { baseId, itemId, fileProcessingTaskId, processedRelativePath },
       {
-        idempotencyKey: knowledgeFileProcessingCheckIdempotencyKey(baseId, itemId, fileProcessingJobId),
+        idempotencyKey: knowledgeFileProcessingCheckIdempotencyKey(baseId, itemId, fileProcessingTaskId),
         queue: knowledgeQueueName(baseId),
-        parentId: parentJobId
+        parentId: parentJobId ?? undefined
       }
     )
   }

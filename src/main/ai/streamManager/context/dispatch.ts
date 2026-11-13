@@ -1,7 +1,7 @@
 /**
  * Single dispatch path for stream requests: pick provider, prepare,
  * `manager.send`, shape the response. See
- * `docs/references/ai/stream-manager.md`.
+ * `docs/dev/references/ai/stream-manager.md`.
  */
 
 import { loggerService } from '@logger'

@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { type KeyboardEvent, memo, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
+import { Button, ScrollArea } from '@cherrystudio/ui'
 
 import { ProgressBar } from './ProgressBar'
 import { TRACE_ROW_GRID, TRACE_ROW_HEIGHT, type TraceNode } from './traceNode'
@@ -235,16 +235,19 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
         </div>
         <div className="flex h-8 min-w-0 items-center bg-background-subtle px-2 max-[520px]:px-1" />
       </div>
-      <div
-        ref={scrollerRef}
-        data-testid="trace-list-scroll"
-        role="tree"
-        aria-label={t('trace.label')}
-        aria-activedescendant={activeNodeId ? getTraceTreeItemId(activeNodeId) : undefined}
-        tabIndex={0}
-        className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
-        onKeyDown={handleTreeKeyDown}
-        onScroll={captureScrollState}>
+      <ScrollArea
+        type="auto"
+        className="min-h-0 min-w-0 flex-1"
+        viewportProps={{
+          ref: scrollerRef,
+          'data-testid': 'trace-list-scroll',
+          role: 'tree',
+          'aria-label': t('trace.label'),
+          'aria-activedescendant': activeNodeId ? getTraceTreeItemId(activeNodeId) : undefined,
+          tabIndex: 0,
+          onKeyDown: handleTreeKeyDown,
+          onScroll: captureScrollState
+        }}>
         <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
             const row = model.visibleRows[virtualRow.index]
@@ -274,7 +277,7 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
             )
           })}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   )
 }

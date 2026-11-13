@@ -122,6 +122,7 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Monotonic session id; a callback carrying an older one must not act. */
   private sessionGeneration = 0
+  private savingGeneration: number | null = null
   private hiddenSourceWindow: BrowserWindow | null = null
   private resultConsumer: {
     submit: (result: ScreenshotResultData & { text: string }) => Promise<void>
@@ -431,6 +432,11 @@ export class ScreenshotOverlayService extends BaseService {
     return this.activeOverlayWindowId === windowId
   }
 
+  /** Whether result bytes belong to the active overlay's current capture. */
+  public isActiveCapture(windowId: WindowId, mediaId: string): boolean {
+    return this.isActiveOverlay(windowId) && this.overlayMediaIds.get(windowId) === mediaId
+  }
+
   /**
    * The calling overlay took over the interaction; the previously active one is
    * told to drop its selection, so at most one selection exists across displays.
@@ -649,6 +655,8 @@ export class ScreenshotOverlayService extends BaseService {
    */
   public async save(result: ScreenshotResultData): Promise<void> {
     const generation = this.sessionGeneration
+    if (this.savingGeneration === generation) return
+    this.savingGeneration = generation
     try {
       const saveOptions: Electron.SaveDialogOptions = {
         // Local time, not an epoch: the name is what the user scans in a file list.
@@ -699,9 +707,10 @@ export class ScreenshotOverlayService extends BaseService {
         if (!hasVisibleWindows) app.hide()
       }
     } finally {
-      // On cancel (or a throwing dialog) the overlays are hidden yet still tracked, so
-      // the session would be stuck; after a successful save the list is empty, a no-op.
-      if (isMac) this.showAllOverlays()
+      if (this.savingGeneration === generation) this.savingGeneration = null
+      // Restore only the session that opened this dialog; an older completion must
+      // not reveal a newer session's overlays over its save panel.
+      if (isMac && generation === this.sessionGeneration) this.showAllOverlays()
     }
   }
 

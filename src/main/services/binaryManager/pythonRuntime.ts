@@ -9,8 +9,8 @@ import { valid as semverValid } from 'semver'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { regionService } from '@main/services/RegionService'
-import { isPathWithin } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
+import { isOutsidePath } from '@main/utils/file'
 
 import { sanitizedCommandError } from './commandError'
 
@@ -75,7 +75,7 @@ async function findInstalled(
   }
   if (!pythonPath) throw new Error(`uv python find returned no path for Python ${version}`)
   // Never adopt a system interpreter: only Cherry's own install dir counts.
-  if (!path.isAbsolute(pythonPath) || !isPathWithin(env.UV_PYTHON_INSTALL_DIR, pythonPath)) return null
+  if (!path.isAbsolute(pythonPath) || isOutsidePath(path.relative(env.UV_PYTHON_INSTALL_DIR, pythonPath))) return null
   try {
     await execFileAsync(pythonPath, ['--version'], {
       cwd: application.getPath('app.temp'),

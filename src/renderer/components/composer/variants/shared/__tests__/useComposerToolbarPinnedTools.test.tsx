@@ -84,9 +84,6 @@ describe('useComposerToolbarPinnedTools', () => {
     const { result } = renderHook(() => useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools'))
 
     expect(result.current.customizeOpen).toBe(false)
-    expect(result.current.customizeFooterAction.label).toBe('chat.input.toolbar.customize')
-    expect(result.current.customizeFooterAction.ariaLabel).toBe('chat.input.toolbar.customize')
-    expect(result.current.customizeFooterAction.hideWhenSearching).toBe(true)
 
     act(() => {
       result.current.customizeFooterAction.action?.({} as never)

@@ -1,7 +1,10 @@
 import { nanoid } from 'nanoid'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useRef } from 'react'
 
-import { useMermaid } from '@renderer/hooks/useMermaid'
+import { resolveMermaidTheme } from '@cherrystudio/ui/mermaid'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { mermaidRenderService } from '@renderer/services/MermaidRenderService'
+import { cn } from '@renderer/utils/style'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
@@ -10,118 +13,35 @@ import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
 /**
- * 预览 Mermaid 图表
- * - 使用 useDebouncedRender 改善体验
- * - 使用 shadow dom 渲染 SVG
+ * Previews a Mermaid diagram rendered by Merman in a Web Worker, themed from the design tokens around it.
+ * Rendering is debounced and the SVG lives in a shadow root so its styles stay scoped.
  */
 const MermaidPreview = ({
   children,
   enableToolbar = false,
+  className,
+  fit = 'width',
   ref
-}: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
-  const { mermaid, isLoading: isLoadingMermaid, error: mermaidError, forceRenderKey } = useMermaid()
+}: BasicPreviewProps & {
+  className?: string
+  /** `contain` fits the diagram inside a host with a fixed height, such as a file preview. */
+  fit?: 'width' | 'contain'
+  ref?: React.RefObject<BasicPreviewHandles | null>
+}) => {
+  const { theme } = useTheme()
   const diagramId = useRef<string>(`mermaid-${nanoid(6)}`).current
-  const [isVisible, setIsVisible] = useState(true)
 
-  /**
-   * 定义渲染函数，在临时容器中测量，在 shadow dom 中渲染。
-   * 如果这个方案有问题，可以回退到 innerHTML。
-   */
   const renderMermaid = useCallback(
     async (content: string, container: HTMLDivElement) => {
-      // 验证语法，提前抛出异常
-      await mermaid.parse(content)
-
-      // 获取容器宽度
-      const { width } = container.getBoundingClientRect()
-      if (width === 0) return
-
-      // 创建临时的 div 用于 mermaid 测量
-      const measureEl = document.createElement('div')
-      measureEl.style.position = 'absolute'
-      measureEl.style.left = '-9999px'
-      measureEl.style.top = '-9999px'
-      measureEl.style.width = `${width}px`
-      document.body.appendChild(measureEl)
-
-      try {
-        const { svg } = await mermaid.render(diagramId, content, measureEl)
-
-        // 避免不可见时产生 undefined 和 NaN
-        const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
-
-        // 有问题可以回退到 innerHTML
-        renderSvgInShadowHost(fixedSvg, container)
-        // container.innerHTML = fixedSvg
-      } finally {
-        document.body.removeChild(measureEl)
-      }
+      const svg = await mermaidRenderService.render(content, { theme: resolveMermaidTheme(container), diagramId })
+      renderSvgInShadowHost(svg, container, { fit })
     },
+    // Re-render on a theme switch: the diagram reads its colours from the tokens at render time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [diagramId, mermaid, forceRenderKey]
+    [diagramId, fit, theme]
   )
 
-  // 可见性检测函数
-  const shouldRender = useCallback(() => {
-    return !isLoadingMermaid && isVisible
-  }, [isLoadingMermaid, isVisible])
-
-  // 使用预览渲染器 hook
-  const {
-    containerRef,
-    error: renderError,
-    isLoading: isRendering
-  } = useDebouncedRender(children, renderMermaid, {
-    debounceDelay: 300,
-    shouldRender
-  })
-
-  /**
-   * 监听可见性变化，用于触发重新渲染。
-   * 这是为了解决 `MessageGroup` 组件的 `fold` 布局中被 `display: none` 隐藏的图标无法正确渲染的问题。
-   * 监听时向上遍历到第一个有 `fold` className 的父节点为止（也就是目前的 `MessageWrapper`）。
-   * FIXME: 将来 mermaid-js 修复此问题后可以移除这里的相关逻辑。
-   */
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    const checkVisibility = () => {
-      const element = containerRef.current
-      if (!element) return
-
-      const currentlyVisible = element.offsetParent !== null && element.offsetWidth > 0 && element.offsetHeight > 0
-      setIsVisible(currentlyVisible)
-    }
-
-    // 初始检查
-    checkVisibility()
-
-    const observer = new MutationObserver(() => {
-      checkVisibility()
-    })
-
-    let targetElement = containerRef.current.parentElement
-    while (targetElement) {
-      observer.observe(targetElement, {
-        attributes: true,
-        attributeFilter: ['class', 'style']
-      })
-
-      if (targetElement.className?.includes('fold')) {
-        break
-      }
-
-      targetElement = targetElement.parentElement
-    }
-
-    return () => {
-      observer.disconnect()
-    }
-  }, [containerRef])
-
-  // 合并加载状态和错误状态
-  const isLoading = isLoadingMermaid || isRendering
-  const error = mermaidError || renderError
+  const { containerRef, error, isLoading } = useDebouncedRender(children, renderMermaid, { debounceDelay: 300 })
 
   return (
     <ImagePreviewLayout
@@ -130,10 +50,11 @@ const MermaidPreview = ({
       enableToolbar={enableToolbar}
       ref={ref}
       imageRef={containerRef}
-      source="mermaid">
+      source="mermaid"
+      className={className}>
       <ShadowTransparentContainer
         ref={containerRef}
-        className="mermaid special-preview flex items-center justify-center"
+        className={cn('mermaid special-preview flex items-center justify-center', fit === 'contain' && 'h-full')}
       />
     </ImagePreviewLayout>
   )

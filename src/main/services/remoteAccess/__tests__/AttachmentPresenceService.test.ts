@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
@@ -31,6 +31,26 @@ describe('disposable attachment presentation', () => {
       writerEpoch: '0',
       expiresAt: '2099-01-01T00:00:00Z'
     })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+  it('wakes only to deliver coalesced changes and to expire a selection', async () => {
+    vi.useFakeTimers()
+    const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
+    broadcast.mockClear()
+    const service = new AttachmentPresenceService()
+    await service._doInit()
+    expect(vi.getTimerCount()).toBe(0)
+    service.present(owner, auth, service.connection(), input)
+    service.submitting(owner, input.selectionId, 'command')
+    await vi.advanceTimersByTimeAsync(100)
+    expect(broadcast.mock.calls).toEqual([['ai.agent.attachment_selections.changed', { sessionId: 'session' }]])
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000)
+    expect(broadcast).toHaveBeenCalledTimes(2)
+    expect(await service.list('session')).toEqual([])
+    expect(vi.getTimerCount()).toBe(0)
+    await service._doStop()
   })
   it('does not allow an old connection or selection snapshot to restore removed attachments', async () => {
     const service = new AttachmentPresenceService()

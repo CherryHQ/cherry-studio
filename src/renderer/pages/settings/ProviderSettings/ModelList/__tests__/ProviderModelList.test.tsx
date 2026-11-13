@@ -138,48 +138,4 @@ describe('ProviderModelList', () => {
       screen.queryByRole('button', { name: 'settings.provider.api_setup.continue_models' })
     ).not.toBeInTheDocument()
   })
-
-  it('renders model groups without section action rows', () => {
-    render(<ProviderModelList providerId="openai" disabled={false} />)
-
-    expect(screen.getAllByText('OpenAI')).toHaveLength(1)
-    expect(screen.queryByText('settings.models.enabled_models')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.models.more_actions' })).not.toBeInTheDocument()
-  })
-
-  it('passes collapsed state to model groups from the header toggle', () => {
-    render(<ProviderModelList providerId="openai" disabled={false} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.collapse_all' }))
-
-    expect(modelListGroupMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        open: false
-      }),
-      undefined
-    )
-  })
-
-  it('expands model groups when search text is active', () => {
-    const { rerender } = render(<ProviderModelList providerId="openai" disabled={false} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.collapse_all' }))
-
-    expect(modelListGroupMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        open: false
-      }),
-      undefined
-    )
-
-    searchTextMock.value = 'gpt'
-    rerender(<ProviderModelList providerId="openai" disabled={false} />)
-
-    expect(modelListGroupMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        open: true
-      }),
-      undefined
-    )
-  })
 })

@@ -1,10 +1,5 @@
 export { agentAdapter, useAgentMutations, useAgentMutationsById } from './agentAdapter'
-export {
-  assistantAdapter,
-  useAssistantMutations,
-  useAssistantMutationsById,
-  useImportAssistantMutation
-} from './assistantAdapter'
+export { assistantAdapter, useAssistantMutationsById, useImportAssistantMutation } from './assistantAdapter'
 export {
   promptAdapter,
   usePromptBindingMutations,

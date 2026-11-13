@@ -73,7 +73,7 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light' }) }))
 
 vi.mock('@renderer/components/CollapsibleSearchBar', () => ({ default: () => null }))
-vi.mock('@renderer/components/Scrollbar', () => ({ default: ({ children }: { children: ReactNode }) => children }))
+
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SettingDivider: () => <hr />,

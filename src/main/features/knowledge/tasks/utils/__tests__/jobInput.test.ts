@@ -25,7 +25,7 @@ describe('narrowKnowledgeJobInput', () => {
         input: {
           baseId: 'kb-1',
           itemId: 'file-1',
-          fileProcessingJobId: 'fp-job-1',
+          fileProcessingTaskId: 'fp-task-1',
           processedRelativePath: 'source.md'
         }
       })
@@ -34,7 +34,7 @@ describe('narrowKnowledgeJobInput', () => {
       input: {
         baseId: 'kb-1',
         itemId: 'file-1',
-        fileProcessingJobId: 'fp-job-1',
+        fileProcessingTaskId: 'fp-task-1',
         processedRelativePath: 'source.md'
       }
     })
@@ -65,7 +65,7 @@ describe('narrowKnowledgeJobInput', () => {
         input: {
           baseId: 'kb-1',
           itemId: 'file-1',
-          fileProcessingJobId: 'fp-job-1'
+          fileProcessingTaskId: 'fp-task-1'
         }
       })
     ).toBeNull()

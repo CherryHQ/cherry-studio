@@ -49,7 +49,7 @@ describe('Toast', () => {
     expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
   })
 
-  it('pauses existing and newly arriving notifications while expanded and resumes the remaining timeout', () => {
+  it('pauses a single notification and newly arriving notifications during interaction, then resumes the remaining timeout', () => {
     vi.useFakeTimers()
     render(<ToastViewport />)
     act(() => {
@@ -60,6 +60,10 @@ describe('Toast', () => {
     })
     const region = screen.getByRole('region', { name: 'notifications' })
     fireEvent.mouseEnter(region)
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+    expect(screen.getByText('First')).toBeInTheDocument()
     act(() => {
       toast.info({ title: 'Second', timeout: 1000 })
     })

@@ -241,6 +241,14 @@ const OpenRouterExtension = ProviderExtension.create({
   name: 'openrouter',
   supportsImageGeneration: true,
   create: async (settings) => (await import('@openrouter/ai-sdk-provider')).createOpenRouter(settings),
+  createRerankingModel: (modelId, settings) =>
+    createLazyOpenAICompatibleRerankingModel(modelId, {
+      name: 'openrouter',
+      baseURL: settings?.baseURL ?? settings?.baseUrl ?? 'https://openrouter.ai/api/v1',
+      apiKey: settings?.apiKey,
+      headers: settings?.headers,
+      fetch: settings?.fetch
+    }),
   toolFactories: {
     webSearch:
       (provider: OpenRouterProvider) =>

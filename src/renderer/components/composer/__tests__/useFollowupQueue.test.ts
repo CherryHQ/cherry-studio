@@ -436,3 +436,93 @@ describe('queued edit switching', () => {
     expect(result.current.items, 'scope reload must not reinsert old taken B').toEqual([])
   })
 })
+
+describe('editing a queued item from the composer', () => {
+  beforeEach(() => MockCacheUtils.resetMocks())
+
+  const seededQueue = (...items: ReturnType<typeof item>[]) => {
+    cacheService.setCasual('followup-queue.s1', items)
+    return renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', status: undefined, lastCompletedAt: null, onDrain: vi.fn() })
+    ).result
+  }
+  const composer = (text: string, overrides: Record<string, unknown> = {}) => ({
+    editingMessage: false,
+    getDraft: () => draft(text),
+    buildPayload: (current: { text: string }) => (current.text ? payload(current.text) : null),
+    hasFiles: false,
+    restore: vi.fn(),
+    ...overrides
+  })
+
+  it('swaps the composer draft back into its queue slot, keeping that item chat target', () => {
+    const chatTarget = { mode: 'reserved-branch' } as any
+    const a = { ...item('a', 'A'), payload: { ...payload('A'), chatTarget } }
+    const result = seededQueue(a, item('b', 'B'))
+
+    act(() => result.current.editItem('a', composer('')))
+    act(() => result.current.editItem('b', composer('A edited')))
+
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['a'])
+    expect(result.current.items[0].draft.text).toBe('A edited')
+    expect(result.current.items[0].payload).toEqual({ ...payload('A edited'), chatTarget })
+  })
+
+  it('puts the original item back when the composer draft was emptied', () => {
+    const a = item('a', 'A')
+    const result = seededQueue(a, item('b', 'B'))
+
+    act(() => result.current.editItem('a', composer('')))
+    act(() => result.current.editItem('b', composer('')))
+
+    expect(result.current.items).toEqual([a])
+  })
+
+  it('refuses the switch when a non-empty composer draft cannot become a payload', () => {
+    const result = seededQueue(item('a', 'A'), item('b', 'B'))
+    const refused = composer('unsendable', { buildPayload: () => null })
+
+    act(() => result.current.editItem('a', composer('')))
+    act(() => result.current.editItem('b', refused))
+
+    expect(refused.restore).not.toHaveBeenCalled()
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['b'])
+  })
+
+  it('refuses the switch when an attachment-only composer draft cannot become a payload', () => {
+    const result = seededQueue(item('a', 'A'), item('b', 'B'))
+    const refused = composer('', { hasFiles: true })
+
+    act(() => result.current.editItem('a', composer('')))
+    act(() => result.current.editItem('b', refused))
+
+    expect(refused.restore).not.toHaveBeenCalled()
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['b'])
+  })
+
+  it('consumes the item without swapping anything back while a message is being edited', () => {
+    const b = item('b', 'B')
+    const result = seededQueue(item('a', 'A'), b, item('c', 'C'))
+    const editingMessage = composer('message under edit', { editingMessage: true })
+
+    act(() => result.current.editItem('a', composer('')))
+    act(() => result.current.editItem('b', editingMessage))
+
+    expect(editingMessage.restore).toHaveBeenCalledWith(b)
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['c'])
+
+    act(() => result.current.editItem('c', composer('next draft')))
+
+    expect(result.current.items, 'the draft taken before the message edit must not come back').toEqual([])
+  })
+
+  it('ignores an item that is no longer queued while a message is being edited', () => {
+    const result = seededQueue(item('a', 'A'))
+    const editingMessage = composer('', { editingMessage: true })
+
+    act(() => result.current.editItem('missing', editingMessage))
+
+    expect(editingMessage.restore).not.toHaveBeenCalled()
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['a'])
+  })
+})

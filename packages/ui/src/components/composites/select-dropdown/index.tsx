@@ -4,6 +4,7 @@ import type { ReactNode, RefObject } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
+import { ScrollArea } from '@cherrystudio/ui/components/primitives/scroll-area'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 export interface SelectDropdownProps<T extends { id: string }> {
@@ -29,9 +30,6 @@ export interface SelectDropdownProps<T extends { id: string }> {
    */
   triggerClassName?: string
 }
-
-const scrollbarClass =
-  'overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75'
 
 function getWheelDeltaY(event: WheelEvent, el: HTMLElement) {
   if (event.deltaMode === 1) {
@@ -73,9 +71,9 @@ function ScrollContainer({
   useModalPopoverWheel(scrollerRef)
 
   return (
-    <div ref={scrollerRef} className={cn(scrollbarClass, className)} style={{ maxHeight }}>
+    <ScrollArea type="auto" style={{ maxHeight }} viewportProps={{ ref: scrollerRef }} contentProps={{ className }}>
       {children}
-    </div>
+    </ScrollArea>
   )
 }
 
@@ -102,7 +100,7 @@ function VirtualRows<T extends { id: string }>({
   })
 
   return (
-    <div ref={scrollerRef} className={scrollbarClass} style={{ maxHeight }}>
+    <ScrollArea type="auto" style={{ maxHeight }} viewportProps={{ ref: scrollerRef }}>
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((vItem) => {
           const item = items[vItem.index]
@@ -116,7 +114,7 @@ function VirtualRows<T extends { id: string }>({
           )
         })}
       </div>
-    </div>
+    </ScrollArea>
   )
 }
 

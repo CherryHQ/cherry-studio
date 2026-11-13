@@ -48,3 +48,87 @@ it('keeps classification and backport tracking tokens read-only for repository c
     expect(permissions.contents, name).toBe('read')
   }
 })
+
+const targetScript = path.resolve(import.meta.dirname, '../release/backport-target.sh')
+
+function resolveTarget(
+  branches: string[],
+  releases: { tag_name: string; draft: boolean }[],
+  command = 'latest_backport_target',
+  failReleaseRead = false
+) {
+  return spawnSync(
+    'bash',
+    [
+      '-e',
+      '-o',
+      'pipefail',
+      '-c',
+      `
+      gh() {
+        case "$*" in
+          *matching-refs*) printf '%s\\n' "$REFS" ;;
+          *releases*) [ "$FAIL_RELEASE_READ" = false ] && printf '%s\\n' "$RELEASES" ;;
+          *) return 1 ;;
+        esac
+      }
+      source "$TARGET_SCRIPT"
+      ${command}
+      `
+    ],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        TARGET_SCRIPT: targetScript,
+        REPO: 'CherryHQ/cherry-studio',
+        REFS: JSON.stringify([
+          branches.map((branch) => ({ ref: `refs/heads/release/${branch}`, object: { sha: branch } }))
+        ]),
+        RELEASES: JSON.stringify([releases]),
+        FAIL_RELEASE_READ: String(failReleaseRead),
+        RELEASE_BRANCH: 'release/v2.2.0',
+        RELEASE_HEAD: 'v2.2.0'
+      }
+    }
+  )
+}
+
+it.each([false, true])('targets the next branch regardless of draft state (%s)', (hasDraft) => {
+  const drafts = hasDraft ? [{ tag_name: 'v2.2.0', draft: true }] : []
+  const result = resolveTarget(
+    ['v2.1.10', 'v2.2.0', 'v2.2.0-rc.10'],
+    [{ tag_name: 'v2.1.10', draft: false }, ...drafts]
+  )
+  expect(result.status).toBe(0)
+  expect(result.stdout.trim()).toBe('release/v2.2.0\tv2.2.0')
+})
+
+it('orders prerelease numbers numerically and ignores invalid branches', () => {
+  const result = resolveTarget(['v2.2.0-rc.10', 'v2.2.0-rc.9', 'v99-experiment'], [])
+  expect(result.status).toBe(0)
+  expect(result.stdout.trim()).toBe('release/v2.2.0-rc.10\tv2.2.0-rc.10')
+})
+
+it('never falls back to an older branch after a version is published', () => {
+  const result = resolveTarget(['v2.1.10', 'v2.2.0'], [{ tag_name: 'v2.2.0', draft: false }])
+  expect(result.status).toBe(0)
+  expect(result.stdout).toBe('')
+})
+
+it('does not select an older branch when the published version has no branch', () => {
+  const result = resolveTarget(['v2.1.10'], [{ tag_name: 'v2.2.0', draft: false }])
+  expect(result.status).toBe(0)
+  expect(result.stdout).toBe('')
+})
+
+it('reports a release API failure instead of assuming the target is unpublished', () => {
+  expect(resolveTarget(['v2.2.0'], [], 'latest_backport_target', true).status).toBe(1)
+})
+
+it('rejects a stale selection before writing a backport', () => {
+  expect(resolveTarget(['v2.2.0'], [], 'revalidate_backport_target').status).toBe(0)
+  expect(resolveTarget(['v2.2.0', 'v2.3.0'], [], 'revalidate_backport_target').status).toBe(1)
+  expect(resolveTarget(['v2.2.0'], [], 'RELEASE_HEAD=old revalidate_backport_target').status).toBe(1)
+  expect(resolveTarget(['v2.2.0'], [{ tag_name: 'v2.2.0', draft: false }], 'revalidate_backport_target').status).toBe(1)
+})

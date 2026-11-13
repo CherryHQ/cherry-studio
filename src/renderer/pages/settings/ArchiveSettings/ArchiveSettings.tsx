@@ -29,7 +29,9 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { ARCHIVE_DOMAINS, type ArchiveDomain } from '@shared/data/api/schemas/archives'
 import { type FileEntryRefCount, REF_COUNTS_MAX_ENTRY_IDS } from '@shared/data/api/schemas/files'
+import type { FileRef } from '@shared/data/types/file'
 
 import AllArchiveSection from './AllArchiveSection'
 import {
@@ -56,6 +58,30 @@ const CATEGORIES: { id: ArchiveCategory; labelKey: string }[] = [
   { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings' },
   { id: 'files', labelKey: 'settings.data.trash.domain.files' }
 ]
+
+const DELETE_SCOPE_KEYS: Record<ArchiveDomain, string> = {
+  topics: 'settings.data.trash.permanent_delete.scope.topics',
+  sessions: 'settings.data.trash.permanent_delete.scope.sessions',
+  assistants: 'settings.data.trash.permanent_delete.scope.assistants',
+  agents: 'settings.data.trash.permanent_delete.scope.agents',
+  paintings: 'settings.data.trash.permanent_delete.scope.paintings',
+  files: 'settings.data.trash.permanent_delete.scope.files'
+}
+
+const DeleteScope: FC<{ domains: readonly ArchiveDomain[] }> = ({ domains }) => {
+  const { t } = useTranslation()
+  if (domains.length === 0) return null
+  return (
+    <ul className="list-disc space-y-1 pl-5 text-muted-foreground text-xs">
+      {domains.map((domain) => (
+        <li key={domain}>
+          <span className="font-medium text-foreground">{t(`settings.data.trash.domain.${domain}`)}</span>{' '}
+          {t(DELETE_SCOPE_KEYS[domain])}
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 const SECTION_BY_CATEGORY: Record<ArchiveCategory, FC<ArchiveDomainSectionProps>> = {
   all: AllArchiveSection,
@@ -86,7 +112,13 @@ const PURGE_INVALIDATE_PATHS = [
 type FileReferencePreview =
   | { status: 'idle' | 'loading' }
   | { status: 'error' }
-  | { status: 'ready'; referencedFiles: number; totalReferences: number }
+  | {
+      status: 'ready'
+      referencedFiles: number
+      totalReferences: number
+      refsByEntryId: Map<string, FileRef[]>
+      jobTypesById: Map<string, string | null>
+    }
 
 function getFileReferenceBlockedKey(fileCount: number, referenceCount: number) {
   if (fileCount === 1) {
@@ -151,8 +183,47 @@ const ArchiveSettings: FC = () => {
       }
       const counts = (await Promise.all(requests)).flat()
       if (referenceRequestToken.current !== token) return
+      const referencedIds = new Set(counts.filter(({ refCount }) => refCount > 0).map(({ entryId }) => entryId))
+      const referencedEntryIds = entryIds.filter((entryId) => referencedIds.has(entryId))
+      const refsByEntryId = new Map<string, FileRef[]>()
+      for (let index = 0; index < referencedEntryIds.length; index += 8) {
+        if (referenceRequestToken.current !== token) return
+        const wave = referencedEntryIds.slice(index, index + 8)
+        const results = await Promise.allSettled(
+          wave.map((entryId) => dataApiService.get(`/files/entries/${entryId}/refs`) as Promise<FileRef[]>)
+        )
+        if (referenceRequestToken.current !== token) return
+        for (const [offset, result] of results.entries()) {
+          if (result.status === 'rejected') throw result.reason
+          if (result.value.length === 0) throw new Error('Referenced file no longer has reference details')
+          refsByEntryId.set(wave[offset], result.value)
+        }
+      }
+      const jobIds = [
+        ...new Set(
+          [...refsByEntryId.values()]
+            .flat()
+            .filter((ref) => ref.sourceType === 'job')
+            .map((ref) => ref.sourceId)
+        )
+      ]
+      const jobTypesById = new Map<string, string | null>()
+      for (let index = 0; index < jobIds.length; index += 8) {
+        if (referenceRequestToken.current !== token) return
+        const wave = jobIds.slice(index, index + 8)
+        const results = await Promise.allSettled(
+          wave.map((jobId) => dataApiService.get(`/jobs/${jobId}`).then(({ type }) => type))
+        )
+        if (referenceRequestToken.current !== token) return
+        for (const [offset, result] of results.entries()) {
+          jobTypesById.set(wave[offset], result.status === 'fulfilled' ? result.value : null)
+        }
+      }
+      if (referenceRequestToken.current !== token) return
       setFileReferencePreview({
         status: 'ready',
+        refsByEntryId,
+        jobTypesById,
         referencedFiles: counts.filter(({ refCount }) => refCount > 0).length,
         totalReferences: counts.reduce((total, { refCount }) => total + refCount, 0)
       })
@@ -251,12 +322,44 @@ const ArchiveSettings: FC = () => {
         </div>
       )}
       {fileReferencePreview.status === 'ready' && fileReferencePreview.referencedFiles > 0 && (
-        <span className="text-error-subtle-foreground">
-          {t(getFileReferenceBlockedKey(fileReferencePreview.referencedFiles, fileReferencePreview.totalReferences), {
-            count: fileReferencePreview.referencedFiles,
-            records: fileReferencePreview.totalReferences
+        <div className="max-h-[50vh] space-y-3 overflow-y-auto break-words">
+          <p className="text-error-subtle-foreground">
+            {t(getFileReferenceBlockedKey(fileReferencePreview.referencedFiles, fileReferencePreview.totalReferences), {
+              count: fileReferencePreview.referencedFiles,
+              records: fileReferencePreview.totalReferences
+            })}
+          </p>
+          {pendingDelete.items.map((item) => {
+            const entryId = category === 'all' ? (item.id.startsWith('files:') ? item.id.slice(6) : undefined) : item.id
+            const refs = entryId ? fileReferencePreview.refsByEntryId.get(entryId) : undefined
+            if (!refs) return null
+            return (
+              <section key={item.id} aria-label={item.name} className="space-y-1">
+                <p className="font-medium">{item.name}</p>
+                <ul className="space-y-1 text-muted-foreground">
+                  {refs.map((ref) => {
+                    const type = fileReferencePreview.jobTypesById.get(ref.sourceId)
+                    const role = 'role' in ref ? ref.role : '—'
+                    const key =
+                      ref.sourceType !== 'job'
+                        ? 'settings.data.trash.file_refs.holder_other'
+                        : type == null
+                          ? 'settings.data.trash.file_refs.holder_job_unresolved'
+                          : type === 'image-generation.generate' && role === 'input'
+                            ? 'settings.data.trash.file_refs.holder_image_input'
+                            : type === 'image-generation.generate' && role === 'mask'
+                              ? 'settings.data.trash.file_refs.holder_image_mask'
+                              : 'settings.data.trash.file_refs.holder_job'
+                    return <li key={ref.id}>{t(key, { id: ref.sourceId, type, role, sourceType: ref.sourceType })}</li>
+                  })}
+                </ul>
+              </section>
+            )
           })}
-        </span>
+          {[...fileReferencePreview.jobTypesById.values()].includes('image-generation.generate') && (
+            <p className="text-muted-foreground">{t('settings.data.trash.file_refs.job_release')}</p>
+          )}
+        </div>
       )}
     </div>
   ) : undefined
@@ -268,7 +371,12 @@ const ArchiveSettings: FC = () => {
           <span>{t('settings.data.trash.title')}</span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label={t('common.more')} title={t('common.more')}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('common.more')}
+                title={t('common.more')}
+                className="text-muted-foreground">
                 <MoreHorizontal size={16} />
               </Button>
             </DropdownMenuTrigger>
@@ -344,10 +452,17 @@ const ArchiveSettings: FC = () => {
         title={
           pendingDelete && pendingDelete.items.length > 1
             ? t('settings.data.trash.permanent_delete.batch_confirm_title', { count: pendingDelete.items.length })
-            : t('settings.data.trash.permanent_delete.confirm_title')
+            : t('settings.data.trash.permanent_delete.confirm_title', {
+                name: pendingDelete?.items[0]?.name.trim() || t('common.unnamed')
+              })
         }
         description={t('settings.data.trash.permanent_delete.confirm_content')}
-        content={fileReferenceContent}
+        content={
+          <div className="space-y-3">
+            <DeleteScope domains={pendingDelete?.domains ?? []} />
+            {fileReferenceContent}
+          </div>
+        }
         confirmText={t('settings.data.trash.permanent_delete.label')}
         cancelText={t('common.cancel')}
         confirmLoading={isDeleting}
@@ -362,6 +477,7 @@ const ArchiveSettings: FC = () => {
         destructive
         title={t('settings.data.trash.empty_trash.confirm_title')}
         description={t('settings.data.trash.empty_trash.confirm_content')}
+        content={<DeleteScope domains={ARCHIVE_DOMAINS} />}
         confirmText={t('settings.data.trash.empty_trash.button')}
         cancelText={t('common.cancel')}
         confirmLoading={isEmptying}

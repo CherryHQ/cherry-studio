@@ -24,6 +24,7 @@ const logger = loggerService.withContext('WorkspaceDeleteConfirmDialog')
 
 interface WorkspaceDeleteConfirmDialogProps {
   workspace: AgentWorkspaceEntity
+  open?: boolean
   onDeleted: (workspaceId: string) => void | Promise<void>
   onClose: () => void
 }
@@ -75,7 +76,12 @@ function ImpactSection({ title, countLabel, emptyLabel, items, total, icon: Icon
   )
 }
 
-export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: WorkspaceDeleteConfirmDialogProps) {
+export function WorkspaceDeleteConfirmDialog({
+  workspace,
+  open = true,
+  onDeleted,
+  onClose
+}: WorkspaceDeleteConfirmDialogProps) {
   const { t } = useTranslation()
   const [isPending, setIsPending] = useState(false)
   const isPendingRef = useRef(false)
@@ -214,7 +220,7 @@ export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: 
 
   return (
     <Dialog
-      open
+      open={open}
       onOpenChange={(open) => {
         if (!open && !isPendingRef.current) onClose()
       }}>

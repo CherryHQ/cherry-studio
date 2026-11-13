@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { serializeError } from '../../../utils/serializeError'
 import {
+  canSalvageClaudeOutput,
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
   recordClaudeCodeProcessExit,
@@ -9,6 +10,14 @@ import {
 } from '../processExitDiagnostics'
 
 describe('Claude Code process exit diagnostics', () => {
+  it('keeps interrupted partial output without hiding unrelated failures', () => {
+    expect(canSalvageClaudeOutput(new Error('interrupted'), 0, true)).toBe(true)
+    expect(canSalvageClaudeOutput(new SyntaxError('Unterminated string in JSON'), 1024, false)).toBe(true)
+    expect(canSalvageClaudeOutput(new SyntaxError('Unexpected end of JSON input'), 12, false)).toBe(false)
+    expect(canSalvageClaudeOutput(new Error('Authentication failed'), 4096, false)).toBe(false)
+    expect(canSalvageClaudeOutput(new SyntaxError('Unexpected token'), 4096, false)).toBe(false)
+  })
+
   it.each([
     ['Authentication failed', 'auth'],
     ['model claude-sonnet-4 was not found', 'model'],

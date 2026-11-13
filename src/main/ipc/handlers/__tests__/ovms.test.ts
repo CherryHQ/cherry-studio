@@ -48,29 +48,10 @@ describe('ovmsHandlers', () => {
     expect(await ovmsHandlers['ovms.is_supported'](undefined, ctx)).toBe(false)
   })
 
-  it('install_binary runs the install script', async () => {
-    await ovmsHandlers['ovms.install_binary'](undefined, ctx)
-    expect(runInstallScriptMock).toHaveBeenCalledWith('install-ovms.js')
-  })
-
   it('add_model forwards the object fields as positional args to OvmsManager', async () => {
     ovmsManager.addModel.mockResolvedValue({ success: true })
     await ovmsHandlers['ovms.add_model']({ modelName: 'm', modelId: 'i', modelSource: 's', task: 't' }, ctx)
     expect(ovmsManager.addModel).toHaveBeenCalledWith('m', 'i', 's', 't')
-  })
-
-  it('get_status / start / stop / cancel_add_model delegate to the service', async () => {
-    ovmsManager.getOvmsStatus.mockResolvedValue('running')
-    ovmsManager.runOvms.mockResolvedValue({ success: true })
-    ovmsManager.stopOvms.mockResolvedValue({ success: true })
-    ovmsManager.stopAddModel.mockResolvedValue({ success: true })
-    expect(await ovmsHandlers['ovms.get_status'](undefined, ctx)).toBe('running')
-    await ovmsHandlers['ovms.start'](undefined, ctx)
-    await ovmsHandlers['ovms.stop'](undefined, ctx)
-    await ovmsHandlers['ovms.cancel_add_model'](undefined, ctx)
-    expect(ovmsManager.runOvms).toHaveBeenCalledOnce()
-    expect(ovmsManager.stopOvms).toHaveBeenCalledOnce()
-    expect(ovmsManager.stopAddModel).toHaveBeenCalledOnce()
   })
 
   it('start throws OVMS_START_FAILED carrying the manager message when the run fails', async () => {

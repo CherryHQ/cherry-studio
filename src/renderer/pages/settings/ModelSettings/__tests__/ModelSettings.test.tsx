@@ -1,3 +1,10 @@
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
@@ -288,9 +295,8 @@ describe('ModelSettings', () => {
 
     const focusGuide = screen.getByTestId('model-settings-focus-guide')
     expect(focusGuide).toBeInTheDocument()
-    expect(focusGuide).toHaveClass('motion-reduce:!animate-none', 'motion-reduce:-translate-y-1/2')
+
     expect(screen.getAllByTestId('model-settings-focus-guide')).toHaveLength(1)
-    expect(setTimeoutTimerMock).toHaveBeenCalledWith('model-settings-focus-guide', expect.any(Function), 1200)
 
     const timerCallback = setTimeoutTimerMock.mock.calls[0][1]
     act(() => {

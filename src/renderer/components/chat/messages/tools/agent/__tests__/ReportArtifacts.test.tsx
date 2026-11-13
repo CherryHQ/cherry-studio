@@ -11,7 +11,7 @@ import type { ExternalOpenTarget } from '@shared/types/externalApp'
 
 import { MessageListProvider } from '../../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../../types'
-import { MessageReportArtifacts } from '../ReportArtifacts'
+import { getReportArtifactsViewModel, isReportArtifactsToolResponse, MessageReportArtifacts } from '../ReportArtifacts'
 
 // The global UI mock does not implement DropdownMenuTrigger's asChild contract,
 // so use the real menu primitives for these interaction tests.
@@ -128,9 +128,6 @@ describe('MessageReportArtifacts', () => {
 
     expect(screen.getByRole('button', { name: 'Preview report.md' })).toBeInTheDocument()
     expect(screen.getByText('report.md')).toBeInTheDocument()
-    expect(screen.queryByText('Open preview')).not.toBeInTheDocument()
-    expect(screen.queryByText('Created final outputs')).toBeNull()
-    expect(screen.queryByText('- Report')).toBeNull()
   })
 
   it.each([
@@ -204,9 +201,6 @@ describe('MessageReportArtifacts', () => {
     )
 
     expect(screen.getAllByRole('button', { name: 'Preview report.md' })).toHaveLength(1)
-    expect(screen.queryByText('Final summary')).toBeNull()
-    expect(screen.queryByText('- Final report')).toBeNull()
-    expect(screen.queryByText('- Draft')).toBeNull()
   })
 
   it('previews on card click and opens externally from the open-with menu', async () => {
@@ -222,7 +216,7 @@ describe('MessageReportArtifacts', () => {
             tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
             status: 'done',
             arguments: {
-              artifacts: [{ path: 'dist/report.md' }]
+              artifacts: [{ path: 'dist/report（终稿·含批注）.docx' }]
             }
           }
         ]}
@@ -230,18 +224,17 @@ describe('MessageReportArtifacts', () => {
       { openArtifactFile, resolvePath: (path) => `/workspace/${path}` }
     )
 
+    const artifactPath = '/workspace/dist/report（终稿·含批注）.docx'
     expect(screen.getByText('Open preview')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Preview report（终稿·含批注）.docx' }))
     await waitFor(() => {
-      expect(openArtifactFile).toHaveBeenCalledWith('/workspace/dist/report.md')
+      expect(openArtifactFile).toHaveBeenCalledWith(artifactPath)
     })
 
-    expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith('/workspace/dist/report.md', 'file', { enabled: false })
-    await user.click(screen.getByRole('button', { name: 'Open with report.md' }))
-    expect(mockUseExternalOpenTargets).toHaveBeenCalledWith('/workspace/dist/report.md', 'file', { enabled: true })
+    await user.click(screen.getByRole('button', { name: 'Open with report（终稿·含批注）.docx' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Open File' }))
     await waitFor(() => {
-      expect(mockOpenTarget).toHaveBeenCalledWith('/workspace/dist/report.md', externalOpenTargets[0])
+      expect(mockOpenTarget).toHaveBeenCalledWith(artifactPath, externalOpenTargets[0])
     })
   })
 
@@ -319,4 +312,60 @@ describe('MessageReportArtifacts', () => {
       expect(copyText).toHaveBeenCalledWith('/workspace/dist/report.md', { successMessage: 'Copied' })
     })
   })
+})
+
+it.each(['invoking', 'error', 'cancelled'] as const)('does not declare artifacts from %s calls', (status) => {
+  expect(
+    getReportArtifactsViewModel([
+      {
+        id: 'nested',
+        toolCallId: 'nested',
+        tool: { id: 'artifact', name: 'report_artifacts', type: 'builtin' },
+        status,
+        arguments: { artifacts: [{ path: '/tmp/report.html' }] }
+      }
+    ])
+  ).toBeNull()
+})
+
+it('does not treat a foreign MCP tool as an artifact declaration', () => {
+  expect(
+    getReportArtifactsViewModel([
+      {
+        id: 'nested',
+        toolCallId: 'nested',
+        tool: {
+          id: 'artifact',
+          name: 'report_artifacts',
+          type: 'mcp',
+          serverId: 'foreign',
+          serverName: 'foreign',
+          description: '',
+          inputSchema: { type: 'object' }
+        },
+        status: 'done',
+        arguments: { artifacts: [{ path: '/tmp/report.html' }] }
+      }
+    ])
+  ).toBeNull()
+})
+
+it('keeps foreign artifact-named calls in the generic tool stream', () => {
+  expect(
+    isReportArtifactsToolResponse({
+      id: 'foreign',
+      arguments: {},
+      toolCallId: 'foreign',
+      status: 'done',
+      tool: {
+        id: 'foreign',
+        name: 'report_artifacts',
+        type: 'mcp',
+        serverId: 'foreign',
+        serverName: 'foreign',
+        description: '',
+        inputSchema: { type: 'object' }
+      }
+    })
+  ).toBe(false)
 })

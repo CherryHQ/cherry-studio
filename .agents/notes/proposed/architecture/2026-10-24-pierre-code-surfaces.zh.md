@@ -118,7 +118,7 @@ FileEditor 内直接使用 Pierre 公开的 File props、编辑事件和 Editor 
 
 ### 7. 验证计划
 
-遵循现有 [前端测试规则](../../../../docs/references/testing/frontend-testing.md)。renderer 测试验证 FileEditor 的外部更新/完成契约、owner/epoch、权限及持久化接入，不新增 UI 包测试层。浏览器/Electron 测试使用真实 Pierre 实现，不将它 mock 成 textarea。断言实际保存的文件/消息内容和用户可见恢复行为，不只断言回调被调用。
+遵循现有 [前端测试规则](../../../../docs/dev/references/testing/frontend-testing.md)。renderer 测试验证 FileEditor 的外部更新/完成契约、owner/epoch、权限及持久化接入，不新增 UI 包测试层。浏览器/Electron 测试使用真实 Pierre 实现，不将它 mock 成 textarea。断言实际保存的文件/消息内容和用户可见恢复行为，不只断言回调被调用。
 
 每层实施仅运行明确受影响的测试路径，按需包含现有 CodeStyleProvider、CodeViewer、CodeBlockView、FileEditSessionProvider/useFileEditSession、FileEditSessionManager、SkillFileBrowser、ArtifactPane、AgentFileDiffView、MarkdownFilePreview 和 Tiptap codeHighlight 调用方。只新增能捕获明确回归的测试。新增 FileEditor 测试沿用现有 renderer 组件测试布局；经评审的 `tests/e2e/ondemand/specs/file-editor.ts` 场景复用现有控制器。遵循 [按需场景约定](../../../../tests/e2e/ondemand/specs/README.md)，不另造 Electron 启动器，也不注入 UI 成功结果。
 

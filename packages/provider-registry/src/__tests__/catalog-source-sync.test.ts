@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { canonOf, prefixHit, splitOverrideWireId } from '../../scripts/canonicalize'
+import { canonOf, deriveOverrideModelId, prefixHit } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
 import { REASONING_FAMILY_RULES } from '../patterns/reasoning-families.gen'
 import {
@@ -55,7 +55,13 @@ const stable = (v: unknown): string =>
 
 // Mirror buildProviders: drop the generation-only fields, template `description` (always overrides any
 // source `description`). The result is the exact source-derived provider payload the generator emits.
-const GEN_ONLY_PROVIDER_FIELDS = ['modelsDevProvider', 'fetchModels', 'standaloneModelIds', 'overrides']
+const GEN_ONLY_PROVIDER_FIELDS = [
+  'modelsDevProvider',
+  'fetchModels',
+  'standaloneModelIds',
+  'overrides',
+  'modelTemplates'
+]
 const expectedProviderPayload = (p: Record<string, unknown>) => {
   const conn = { ...p }
   for (const k of GEN_ONLY_PROVIDER_FIELDS) delete conn[k]
@@ -147,47 +153,35 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     // (pricing/imageGeneration/disabled/… not regenerated) both fail.
     const rowByIdentity = new Map(overrides.map((o) => [overrideIdentity(o), o]))
     const problems: string[] = []
-    for (const p of PROVIDERS)
-      for (const raw of p.overrides ?? []) {
-        if (!raw.modelId) continue
-        // Generation splits an authored served-id into canonical key + apiModelId; mirror it here.
-        const ov = splitOverrideWireId(raw)
-        if (
-          p.modelsDevProvider &&
-          !ov.apiModelId &&
-          (ov.endpointTypes ||
-            ov.reasoningContracts ||
-            ov.requestControls ||
-            ov.parameterSupport ||
-            ov.name ||
-            ov.ownedBy ||
-            Object.hasOwn(ov, 'pricing'))
+    for (const p of PROVIDERS) {
+      for (const ov of p.modelTemplates ?? []) {
+        const rows = overrides.filter((row) => row.providerId === p.id && row.modelId === ov.modelId)
+        if (rows.length === 0) problems.push(`missing ${p.id}/${ov.modelId}/model-template`)
+        else if (
+          rows.some(
+            (row) =>
+              (Object.hasOwn(ov, 'endpointTypes') && stable(row.endpointTypes) !== stable(ov.endpointTypes)) ||
+              (Object.hasOwn(ov, 'pricing') && stable(row.pricing) !== stable(ov.pricing)) ||
+              (Object.hasOwn(ov, 'reasoningContracts') &&
+                stable(row.reasoningContracts) !== stable(ov.reasoningContracts)) ||
+              (Object.hasOwn(ov, 'requestControls') && stable(row.requestControls) !== stable(ov.requestControls)) ||
+              (Object.hasOwn(ov, 'parameterSupport') && stable(row.parameterSupport) !== stable(ov.parameterSupport)) ||
+              (Object.hasOwn(ov, 'name') && stable(row.name) !== stable(ov.name)) ||
+              (Object.hasOwn(ov, 'ownedBy') && stable(row.ownedBy) !== stable(ov.ownedBy))
+          )
         ) {
-          const rows = overrides.filter((row) => row.providerId === p.id && row.modelId === ov.modelId)
-          if (rows.length === 0) problems.push(`missing ${p.id}/${ov.modelId}/model-template`)
-          else if (
-            rows.some(
-              (row) =>
-                (Object.hasOwn(ov, 'endpointTypes') && stable(row.endpointTypes) !== stable(ov.endpointTypes)) ||
-                (Object.hasOwn(ov, 'pricing') && stable(row.pricing) !== stable(ov.pricing)) ||
-                (Object.hasOwn(ov, 'reasoningContracts') &&
-                  stable(row.reasoningContracts) !== stable(ov.reasoningContracts)) ||
-                (Object.hasOwn(ov, 'requestControls') && stable(row.requestControls) !== stable(ov.requestControls)) ||
-                (Object.hasOwn(ov, 'parameterSupport') &&
-                  stable(row.parameterSupport) !== stable(ov.parameterSupport)) ||
-                (Object.hasOwn(ov, 'name') && stable(row.name) !== stable(ov.name)) ||
-                (Object.hasOwn(ov, 'ownedBy') && stable(row.ownedBy) !== stable(ov.ownedBy))
-            )
-          ) {
-            problems.push(`stale ${p.id}/${ov.modelId}/model-template`)
-          }
-          continue
+          problems.push(`stale ${p.id}/${ov.modelId}/model-template`)
         }
+      }
+      for (const raw of p.overrides ?? []) {
+        // Generation derives the canonical key from the authored apiModelId; mirror it here.
+        const ov = deriveOverrideModelId(raw)
         const expected = { providerId: p.id, ...ov }
-        const row = rowByIdentity.get(overrideIdentity(expected as Parameters<typeof overrideIdentity>[0]))
+        const row = rowByIdentity.get(overrideIdentity(expected))
         if (!row) problems.push(`missing ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
         else if (stable(row) !== stable(expected)) problems.push(`stale ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
       }
+    }
     expect(problems).toEqual([])
   })
 

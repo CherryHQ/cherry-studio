@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip } from '@cherrystudio/ui'
@@ -22,6 +22,7 @@ import { getSelectionDescriptionLabelKey } from '@renderer/i18n/label'
 import { ipcApi } from '@renderer/ipc'
 import { openExternalWebsite } from '@renderer/services/website'
 import { isLinux, isMac, isWin } from '@renderer/utils/platform'
+import { parseSelectionActions } from '@renderer/utils/selectionAction'
 import { cn } from '@renderer/utils/style'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 
@@ -44,6 +45,7 @@ const SelectionAssistantSettings: FC = () => {
   const [filterMode, setFilterMode] = usePreference('feature.selection.filter_mode')
   const [filterList, setFilterList] = usePreference('feature.selection.filter_list')
   const [actionItems, setActionItems] = usePreference('feature.selection.action_items')
+  const actions = useMemo(() => parseSelectionActions(actionItems ?? []), [actionItems])
 
   const isSupportedOS = isWin || isMac || isLinux
 
@@ -131,7 +133,7 @@ const SelectionAssistantSettings: FC = () => {
         {!selectionEnabled && (
           <DemoContainer>
             <SelectionToolbarView
-              actionItems={actionItems?.filter((item) => item.enabled)}
+              actionItems={actions.filter((item) => item.enabled)}
               isCompact={isCompact}
               handleAction={() => {}}
               copyIconStatus="normal"
@@ -302,7 +304,7 @@ const SelectionAssistantSettings: FC = () => {
             </SettingRow>
           </SettingGroup>
 
-          <SelectionActionsList actionItems={actionItems} setActionItems={setActionItems} />
+          <SelectionActionsList actionItems={actions} setActionItems={setActionItems} />
 
           {/* Wayland sessions report no program name, so filter mode never applies there. */}
           {!isLinuxWaylandDisplay && (

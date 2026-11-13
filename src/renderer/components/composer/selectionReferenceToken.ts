@@ -1,5 +1,5 @@
 import { getPathBasename } from '@renderer/components/chat/panes/artifactPanePath'
-import type { DocumentAnchor, SelectionReference } from '@renderer/types/selectionReference'
+import type { ComposerFileReference, DocumentAnchor, LineCommentReference } from '@renderer/types/selectionReference'
 
 import type { ComposerDraftToken } from './tokens'
 
@@ -27,18 +27,40 @@ function formatAnchorLabel(anchor: DocumentAnchor, t: TranslateLabel): string {
   }
 }
 
+/** A fence longer than any backtick run in `text`, so quoted code cannot close it. */
+function fenceFor(text: string): string {
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length))
+  return '`'.repeat(Math.max(3, longest + 1))
+}
+
+function createLineCommentToken(reference: LineCommentReference): ComposerDraftToken {
+  const { path, startLine, endLine, excerpt, comment } = reference
+  const lines = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
+  const fence = fenceFor(excerpt)
+  return {
+    id: `line-comment:${path}:${Date.now()}`,
+    kind: 'reference',
+    icon: 'comment',
+    label: `${getPathBasename(path)} · L${startLine === endLine ? startLine : `${startLine}–${endLine}`}`,
+    description: comment,
+    promptText: `\`${path}:${lines}\`\n${fence}\n${excerpt}\n${fence}\n${comment}`
+  }
+}
+
 /**
- * A document selection carried into the composer as a `reference` chip.
- * `promptText` is a fenced `selection-ref` block holding the reference verbatim:
+ * A file-pane reference carried into the composer as a `reference` chip.
+ * For a document, `promptText` is a fenced `selection-ref` block holding the reference verbatim:
  * the office-transform skill parses that JSON back out of the message text, so
  * the fence language and the un-reformatted `JSON.stringify` output are contract.
  */
-export function createSelectionReferenceToken(reference: SelectionReference, t: TranslateLabel): ComposerDraftToken {
+export function createSelectionReferenceToken(reference: ComposerFileReference, t: TranslateLabel): ComposerDraftToken {
+  if (!('anchor' in reference)) return createLineCommentToken(reference)
   return {
     id: `selection-ref:${reference.path}:${Date.now()}`,
     kind: 'reference',
+    icon: reference.comment ? 'comment' : 'quote',
     label: `${getPathBasename(reference.path)} · ${formatAnchorLabel(reference.anchor, t)}`,
-    description: reference.excerpt,
+    description: reference.comment ?? reference.excerpt,
     promptText: `\`\`\`selection-ref\n${JSON.stringify(reference)}\n\`\`\``
   }
 }
