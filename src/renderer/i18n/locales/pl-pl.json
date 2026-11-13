@@ -4146,6 +4146,8 @@
   "settings.data.app_logs.label": "Logi aplikacji",
   "settings.data.backup.skip_file_data_help": "Pomiń tworzenie kopii zapasowej plików danych, takich jak obrazy i bazy wiedzy, tworząc kopię zapasową tylko historii czatów i ustawień. Pozwala to zaoszczędzić miejsce i przyspieszyć tworzenie kopii zapasowej.",
   "settings.data.backup.skip_file_data_title": "Lekka kopia zapasowa",
+  "settings.data.backup.syncStart.help": "Pierwsza kopia zapasowa rozpoczyna się o tej porze dnia; kolejne zgodnie z interwałem kopii. Pozostaw puste, aby używać tylko interwału.",
+  "settings.data.backup.syncStart.label": "Godzina pierwszej kopii zapasowej",
   "settings.data.clear_cache.approximately": "Około {{size}}",
   "settings.data.clear_cache.button": "Wyczyść pamięć podręczną",
   "settings.data.clear_cache.calculating": "Obliczanie…",
