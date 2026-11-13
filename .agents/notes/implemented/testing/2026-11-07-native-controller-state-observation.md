@@ -84,7 +84,7 @@ Adapters remain platform specific and fail when native state cannot be confirmed
 
 ## Verification
 
-- Regression — all three real macOS 27 open-panel fixtures (file, multiple files and directory) pass with exact returned paths after the single Return action. The 26 focused automation/syntax checks pass, with one existing Windows-only skip. The original directory failure occurred during confirmation on hosted macOS 26; that platform still requires a rerun.
+- Regression — all three real macOS 27 open-panel fixtures (file, multiple files and directory) pass with exact returned paths after the single Return action. The 26 focused automation/syntax checks pass, with one existing Windows-only skip. On `a891c0b415`, the [hosted rerun](https://github.com/CherryHQ/cherry-studio/actions/runs/43416578189) passes both native-controller gates, including the original directory-confirmation failure on macOS 26.
 
 - Regression — 99 focused selection, phase, reporter, state, report and mock-provider checks passed, with two existing platform-specific skips. Real Playwright enumeration confirms the combined case union; the smoke shell selects only the settings-search file. The shared-resource test failed with per-phase teardown and passed after moving cleanup back to the workflow boundary. Hosted desktop execution remains separate.
 

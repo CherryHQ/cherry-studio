@@ -84,7 +84,7 @@ macOS 的 HTTPS 与本地 HTML 文件可以使用不同默认应用。若以 HTT
 
 ## 验证
 
-- Regression — 发送单次 Return 后，macOS 27 的三个真实打开面板测试（文件、多文件和目录）均通过，返回路径精确匹配。26 项聚焦的自动化和语法检查通过，保留一项已有的 Windows 专用跳过。原始目录失败发生在托管 macOS 26 的确认阶段，该平台仍需重新执行。
+- Regression — 发送单次 Return 后，macOS 27 的三个真实打开面板测试（文件、多文件和目录）均通过，返回路径精确匹配。26 项聚焦的自动化和语法检查通过，保留一项已有的 Windows 专用跳过。在 `a891c0b415` 上，[托管复测](https://github.com/CherryHQ/cherry-studio/actions/runs/43416578189)的两个原生控制器 gate 均通过，包括原先在 macOS 26 失败的目录确认。
 
 - Regression — 99 项聚焦的选择、阶段、reporter、状态、报告及 mock provider 检查通过，保留两项已有的平台专用跳过。真实 Playwright 枚举确认组合用例并集；smoke Shell 仅选择设置搜索文件。共享资源测试在每阶段清理时失败，将清理恢复到工作流边界后通过。托管桌面执行仍需单独验证。
 
