@@ -2044,11 +2044,11 @@
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "https://ai.topxea.com"
+          "baseUrl": "https://api.topxai.xyz"
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://ai.topxea.com/v1",
+          "baseUrl": "https://api.topxai.xyz/v1",
           "reasoningFormat": {
             "type": "openai-chat"
           }
@@ -2057,10 +2057,10 @@
       "id": "topxai",
       "metadata": {
         "website": {
-          "apiKey": "https://ai.topxea.com/keys",
-          "docs": "https://ai.topxea.com/docs",
-          "models": "https://ai.topxea.com/pricing",
-          "official": "https://ai.topxea.com"
+          "apiKey": "https://api.topxai.xyz/keys",
+          "docs": "https://api.topxai.xyz/docs",
+          "models": "https://api.topxai.xyz/pricing",
+          "official": "https://api.topxai.xyz"
         }
       },
       "name": "TopxAI"
@@ -2965,5 +2965,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "318298f2e9d492a4"
+  "version": "60cc92e863de1f9b"
 }
