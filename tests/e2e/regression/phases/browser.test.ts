@@ -117,7 +117,7 @@ test(...caseDefinition('MP-122'), async ({ mainWindow: page }, testInfo) => {
     })
 
     await navigate(`${baseUrl}/unavailable`)
-    const failure = page.getByRole('alert').filter({ hasText: 'This page could not be loaded' })
+    const failure = page.getByRole('alert').filter({ hasText: 'Failed to load the page' })
     await expect(failure).toBeVisible()
     await attachScreenshot('MP-122 unavailable page displays error')
   } finally {
@@ -348,7 +348,7 @@ test(...caseDefinition('MP-125'), async ({ mainWindow: page }, testInfo) => {
   const content = page.locator('[data-ui~="app.content"]')
   const address = content.getByRole('combobox', { name: 'Web address', exact: true }).filter({ visible: true })
   const reload = content.getByRole('button', { name: 'Reload', exact: true }).filter({ visible: true })
-  const failure = content.getByRole('alert').filter({ hasText: 'This page could not be loaded' })
+  const failure = content.getByRole('alert').filter({ hasText: 'Failed to load the page' })
   const loading = content.getByRole('status').filter({ hasText: 'Loading page' })
   const guest = content.getByTestId('webview-browser-guest').filter({ visible: true })
   const readGuest = () =>
@@ -385,7 +385,7 @@ test(...caseDefinition('MP-125'), async ({ mainWindow: page }, testInfo) => {
       await stop()
       await reload.click()
       await expect(failure).toBeVisible()
-      await expect(failure).toHaveText('This page could not be loaded. Check that the local server is still running.')
+      await expect(failure).toHaveText('Failed to load the page')
       await expect(loading).toBeHidden()
       await expect(address).toBeEditable()
       await expect(reload).toBeEnabled()

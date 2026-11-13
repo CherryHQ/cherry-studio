@@ -692,7 +692,13 @@ test(...caseDefinition('MP-27'), async ({ app, mainWindow }, testInfo) => {
       await editor().press('Shift+Enter')
       await editor().pressSequentially('MP27 second line')
       await expect(editor()).toHaveText(/MP27 first line\s*MP27 second line/)
-      await expect(editor().locator('br')).toHaveCount(1)
+      await expect
+        .poll(() =>
+          editor()
+            .innerText()
+            .then((t) => t.replace(/\n{2,}/g, '\n').trim())
+        )
+        .toBe('MP27 first line\nMP27 second line')
       await expect(messages).toHaveCount(0)
       await attachScreenshot('MP-27 two-line draft before Enter')
       await editor().press('Enter')

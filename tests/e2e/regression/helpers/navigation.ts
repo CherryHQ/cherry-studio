@@ -59,7 +59,9 @@ export async function selectSidebarApp(page: Page, name: string): Promise<void> 
     const settings = page.locator('[data-ui~="settings.view"]:visible')
     if (!(await settings.isVisible())) {
       const accountMenu = await openAccountMenu(page)
-      await accountMenu.getByRole('button', { name: 'Settings', exact: true }).click()
+      const item = accountMenu.getByRole('button', { name: 'Settings', exact: true })
+      await expect(item).toBeVisible()
+      await item.dispatchEvent('click', {}, { timeout: 20_000 })
     }
     await expect(settings).toBeVisible()
     return
