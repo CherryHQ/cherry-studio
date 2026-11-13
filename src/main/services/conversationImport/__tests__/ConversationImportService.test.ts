@@ -255,7 +255,12 @@ describe('local history atomic import', () => {
       expect(input.indexOf(labels[i - 1])).toBeGreaterThanOrEqual(0)
       expect(input.indexOf(labels[i - 1])).toBeLessThan(input.indexOf(labels[i]))
     }
-    expect(Object.keys(requests[0].tools)).toEqual([])
+    expect(requests[0].tools).not.toHaveProperty('inspect')
+    expect(
+      requests[0].messages.every(
+        (message) => typeof message.content === 'string' || message.content.every((part) => part.type === 'text')
+      )
+    ).toBe(true)
     const again = await service.preview('window', scan.scanId, 'pi', [{ ref: valid.ref }])
     expect((await service.commit('window', again.previewId, [valid.ref]))[0].status).toBe('existing')
     const backup = path.join(root, 'workbuddy-backup.sqlite')
