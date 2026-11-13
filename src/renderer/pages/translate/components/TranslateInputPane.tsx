@@ -15,6 +15,7 @@ import { useDrag } from '@renderer/hooks/useDrag'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import type { VoiceReplaceRange } from '@renderer/services/voice'
 import { cn } from '@renderer/utils/style'
+import { textDirection } from '@renderer/utils/textDirection'
 
 import IconButton from './IconButton'
 
@@ -138,6 +139,7 @@ const TranslateInputPane = ({
           contentProps={{ className: 'h-full' }}
           className="h-full">
           <textarea
+            dir={textDirection(text)}
             ref={textareaRef}
             data-voice-target-id={TARGET_ID}
             value={text}
