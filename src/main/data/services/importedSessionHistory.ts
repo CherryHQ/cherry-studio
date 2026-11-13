@@ -18,7 +18,10 @@ const messagePrefix = 'conversation-import:message:'
 const InitializationSchema = z.strictObject({
   nativeSessionId: z.string().uuid(),
   status: z.enum(['pending', 'ready']),
-  messageCount: z.number().int().nonnegative()
+  messageCount: z.number().int().nonnegative(),
+  nativePrefix: z
+    .strictObject({ entryCount: z.number().int().nonnegative(), sha256: z.string().regex(/^[a-f0-9]{64}$/) })
+    .optional()
 })
 const StateSchema = z.strictObject({
   version: z.literal(1),

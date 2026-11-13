@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
@@ -11,6 +12,10 @@ import { appendHistoricalMessage } from './historicalMessage'
 import { loadPiSdk } from './piSdk'
 
 const pending = new Map<string, Promise<void>>()
+
+function fingerprint(entries: readonly unknown[]) {
+  return { entryCount: entries.length, sha256: createHash('sha256').update(JSON.stringify(entries)).digest('hex') }
+}
 
 export function ensureImportedSessionHistory(sessionId: string): Promise<void> {
   if (!getImportedHistoryState(sessionId)) return Promise.resolve()
@@ -59,10 +64,15 @@ async function initialize(sessionId: string): Promise<void> {
       .split('\n')
       .map((line) => JSON.parse(line))
     const existing = sdk.SessionManager.inMemory(history.workspace.path, undefined, entries)
+    if (existing.getSessionId() !== state.nativeSessionId) throw new Error('history_corrupt')
+    if (state.status === 'ready' && state.nativePrefix) {
+      const prefix = existing.getEntries().slice(0, state.nativePrefix.entryCount)
+      if (!isDeepStrictEqual(fingerprint(prefix), state.nativePrefix)) throw new Error('history_corrupt')
+      return
+    }
     const expected = manager.getEntries()
     const prefix = existing.getEntries().slice(0, expected.length)
     if (
-      existing.getSessionId() !== state.nativeSessionId ||
       prefix.length !== expected.length ||
       new Set(prefix.map(({ id }) => id)).size !== prefix.length ||
       expected.some((entry, index) => {
@@ -77,7 +87,14 @@ async function initialize(sessionId: string): Promise<void> {
       })
     )
       throw new Error('history_corrupt')
-    if (state.status === 'ready') return
+    if (state.status === 'ready') {
+      application.get('DbService').withWriteTx((tx) => {
+        const current = getImportedHistoryState(sessionId)
+        if (current?.nativeSessionId === state.nativeSessionId)
+          completeImportedHistoryTx(tx, sessionId, { ...current, nativePrefix: fingerprint(prefix) })
+      })
+      return
+    }
   } catch (error) {
     if (error instanceof SyntaxError) throw new Error('history_corrupt')
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
@@ -111,7 +128,7 @@ async function initialize(sessionId: string): Promise<void> {
       )
         throw new Error('history_changed')
       agentSessionMessageService.setImportedAnchorsTx(tx, sessionId, anchors)
-      completeImportedHistoryTx(tx, sessionId, state)
+      completeImportedHistoryTx(tx, sessionId, { ...state, nativePrefix: fingerprint(manager.getEntries()) })
     })
   } finally {
     await rm(temporary, { force: true })

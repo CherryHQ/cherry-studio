@@ -261,6 +261,45 @@ describe('local history atomic import', () => {
     expect(await readFile(file, 'utf8')).toBe(damaged)
     expect(agentSessionMessageService.listSessionMessages(created.sessionId!).items).toHaveLength(2)
   })
+  it.each(['delete-first', 'delete-middle', 'update', 'legacy-delete-first'] as const)(
+    'allows continuation after a legal %s of the imported display history',
+    async (action) => {
+      await source(
+        'editable',
+        [0, 1, 2, 3].map((second) => new Date(1767225600000 + second * 1000).toISOString())
+      )
+      const p = await preview()
+      const [created] = await service.commit('window', p.previewId, [p.items[0].ref])
+      const sessionId = created.sessionId!
+      const directory = path.join(root, 'feature.agents.pi.sessions')
+      const file = path.join(directory, (await readdir(directory))[0])
+      const manager = SessionManager.open(file, directory)
+      manager.appendMessage({ role: 'user', content: 'Continue the task', timestamp: Date.now() })
+      agentSessionMessageService.saveMessage({
+        sessionId,
+        runtimeResumeToken: manager.getSessionId(),
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Continue the task' }] } }
+      })
+      const before = await readFile(file, 'utf8')
+      if (action === 'legacy-delete-first') {
+        dbh.sqlite
+          .prepare("UPDATE app_state SET value = json_remove(value, '$.initialization.nativePrefix') WHERE key = ?")
+          .run('conversation-import:session:' + sessionId)
+        await ensureImportedSessionHistory(sessionId)
+      }
+      const messages = agentSessionMessageService.listSessionMessages(sessionId).items.reverse()
+      if (action === 'update')
+        agentSessionMessageService.updateSessionMessage(sessionId, messages[1].id, {
+          data: { parts: [{ type: 'text', text: 'Edited display text' }] }
+        })
+      else agentSessionMessageService.deleteSessionMessage(sessionId, messages[action === 'delete-middle' ? 1 : 0].id)
+      await expect(ensureImportedSessionHistory(sessionId)).resolves.toBeUndefined()
+      expect(await readFile(file, 'utf8')).toBe(before)
+      expect(SessionManager.open(file, directory).buildSessionContext().messages).toHaveLength(5)
+      await writeFile(file, before.replace('Message 0', 'Damaged native history'))
+      await expect(ensureImportedSessionHistory(sessionId)).rejects.toThrow('history_corrupt')
+    }
+  )
   it('accepts native continuation after the complete imported prefix', async () => {
     await source()
     const p = await preview()
