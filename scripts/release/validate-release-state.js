@@ -26,8 +26,9 @@ function validateBuildStart({ branchSha, platform, release, remoteTagSha, tag, w
   }
 }
 
-function validateBuildCompletion({ branchSha, release, tag, workflowSha }) {
+function validateDraftUpload({ branchSha, release, tag, workflowSha }) {
   validateReleaseBranchHead({ branchSha, workflowSha })
+  if (!release) throw new Error(`Draft release ${tag} is missing`)
   if (release && release.draft !== true) {
     throw new Error(
       `Release ${tag} was published while its tag was being prepared; refusing any post-publication tag mutation`
@@ -39,8 +40,29 @@ function validateBuildCompletion({ branchSha, release, tag, workflowSha }) {
   if (release && release.target_commitish !== workflowSha) {
     throw new Error(`Draft release ${tag} does not target ${workflowSha}`)
   }
+}
+
+function validateBuildCompletion(state) {
+  validateDraftUpload(state)
+  const { release, tag } = state
   if (release && (!Array.isArray(release.assets) || release.assets.length === 0)) {
     throw new Error(`Draft release ${tag} has no artifacts`)
+  }
+}
+
+function validateDraftArtifacts({ release, files }) {
+  const expected = Object.entries(files)
+    .filter(([name]) => name.startsWith('global/') || name.startsWith('common/'))
+    .map(([name, entry]) => [name.split('/').at(-1), entry.size])
+  const assets = new Map(release.assets.map((asset) => [asset.name, asset.size]))
+  if (
+    expected.length === 0 ||
+    new Set(expected.map(([name]) => name)).size !== expected.length ||
+    expected.length !== release.assets.length ||
+    assets.size !== release.assets.length ||
+    expected.some(([name, size]) => !size || assets.get(name) !== size)
+  ) {
+    throw new Error('GitHub draft attachments do not match the complete COS inventory')
   }
 }
 
@@ -80,7 +102,9 @@ function validatePublishState({
     buildRun.path !== '.github/workflows/release.yml' ||
     buildRun.event !== 'workflow_dispatch' ||
     !jobResults ||
-    ['prepare', 'release', 'finalize-build', 'approve'].some((job) => jobResults[job]?.result !== 'success')
+    ['prepare', 'release', 'release-cn', 'finalize-build', 'approve'].some(
+      (job) => jobResults[job]?.result !== 'success'
+    )
   ) {
     throw new Error(`No successful all-platform Release build exists for ${workflowSha}`)
   }
@@ -112,6 +136,11 @@ function main() {
   const release = parseOptionalJson(process.env.RELEASE_JSON, 'RELEASE_JSON')
   const tag = requiredEnvironment('TAG')
 
+  if (phase === 'draft-artifacts') {
+    validateDraftArtifacts({ release, files: JSON.parse(fs.readFileSync('cos-release.json', 'utf8')).files })
+    return
+  }
+
   if (phase === 'prepare') {
     validatePreparationState({
       // Avoid Node 24.21.0's UTF-8 pipe-read overflow: https://github.com/nodejs/node/issues/66341.
@@ -131,8 +160,9 @@ function main() {
     })
     return
   }
-  if (phase === 'build-completion') {
-    validateBuildCompletion({
+  if (phase === 'build-completion' || phase === 'draft-upload') {
+    const validate = phase === 'draft-upload' ? validateDraftUpload : validateBuildCompletion
+    validate({
       branchSha: requiredEnvironment('BRANCH_SHA'),
       release,
       tag,
@@ -169,4 +199,11 @@ if (require.main === module) {
   }
 }
 
-module.exports = { validateBuildCompletion, validateBuildStart, validatePreparationState, validatePublishState }
+module.exports = {
+  validateBuildCompletion,
+  validateBuildStart,
+  validateDraftArtifacts,
+  validateDraftUpload,
+  validatePreparationState,
+  validatePublishState
+}

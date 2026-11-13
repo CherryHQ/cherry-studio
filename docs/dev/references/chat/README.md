@@ -1,6 +1,8 @@
 ---
 description: Current chat-domain map covering shared renderer modules, page-owned adapters, rich clipboard, the message tree, and ordinary-chat context handling
 sources:
+  - packages/aiCore/src/contextOverflow.ts
+  - packages/aiCore/src/core/context
   - src/renderer/components/chat
   - src/renderer/components/composer
   - src/renderer/pages/home/messages
@@ -16,6 +18,7 @@ sources:
   - src/main/ai/streamManager/context/PersistentChatContextProvider.ts
   - src/main/ai/runtime/aiSdk/params/features/contextBuild.ts
   - src/main/ai/runtime/aiSdk/params/features/inLoopCompaction.ts
+  - src/main/ai/runtime/aiSdk/params/features/contextOverflowRecovery.ts
   - src/main/ai/streamManager/persistence/trimToolOutputs.ts
   - src/main/ai/messages/attachmentBudget.ts
   - src/main/ai/messages/attachmentRouting.ts
@@ -108,7 +111,7 @@ assistant and endpoint limits itself and uses the largest reservation across a m
 in-loop hook additionally sees the call override. Neither compaction path passes the custom output
 parameter.
 
-Compaction is attempted only when estimated history is **strictly greater** than
+Proactive compaction is attempted only when estimated history is **strictly greater** than
 `trigger`, with context building and compression enabled and a compression model
 resolved. The kept-recent fraction is `0.375` in `src/main/ai/constants.ts`.
 `model.maxInputTokens` is not an input to these formulas; filling it alone does not
@@ -136,6 +139,7 @@ With the context-build layer enabled, the following behavior applies:
 |---|---|
 | Turn-start durable compaction | Skipped with a warning log when durable compaction is otherwise eligible and no selected model declares a valid `contextWindow` |
 | In-loop compaction | No compaction hook is installed for the request |
+| Overflow recovery | Available if the selected compressor declares a valid window; otherwise skipped |
 | Window-relative in-flight tool-output truncation | Disabled; the absolute `truncate_threshold` character limit still applies |
 | Sliding-window fallback when no compression model resolves | Absent; it also requires a known window |
 | `max_messages` | Still applies, independently of the master toggle |
@@ -144,8 +148,8 @@ With the context-build layer enabled, the following behavior applies:
 
 There is no hidden default window. If no selected runtime model declares a valid window, that request
 has no window-derived compaction trigger, and it also runs without the in-loop hook. With unlimited
-`max_messages` and no applicable boundary, ordinary text history has no window-derived application cap
-and can grow until the endpoint rejects it.
+`max_messages` and no applicable boundary, ordinary text history has no window-derived application cap.
+If the compressor has its own known window, a recognized provider overflow can still trigger recovery.
 
 A custom row whose window field was left empty can still receive a window at read
 time from the bundled catalog when its API model id matches: `ModelService.ts`
@@ -154,9 +158,24 @@ itself prove that no window is in effect.
 
 ### Recovering from a context-length rejection
 
-`src/shared/utils/errorCategory.ts` maps provider-message patterns such as
+When context building and compression are enabled for a persistent Chat, a recognized context-length
+HTTP 400 before a model step produces output triggers one in-loop compaction and retries that model
+request. Completed tool calls are not replayed. If the request has no foldable history, compaction
+fails, or the retried request also fails, the error is returned instead of retrying indefinitely.
+The original conversation remains intact; this recovery's compacted view lasts for the current request.
+Temporary chats, Agent sessions, and caller-owned contexts do not use this recovery path.
+
+Summarization uses the compression model's window. Long inputs are summarized in ordered chunks,
+including splitting an oversized text message when possible. A context-length rejection reduces the
+chunk budget within a bounded retry limit. If a chunk cannot fit, or a summary is empty or truncated,
+the fold fails without advancing the durable summary boundary. Existing tool-result and attachment
+reduction still applies before summarization.
+
+The shared matcher in `packages/aiCore/src/contextOverflow.ts` recognizes provider-message patterns such as
 `context_length_exceeded`, `too many tokens`, `maximum context length`,
-`context window`, `prompt is too long`, and `input is too long` to `context_length`.
+`context window`, `prompt is too long`, and `input is too long`. Both overflow recovery and
+`src/shared/utils/errorCategory.ts` use it; recovery also requires an AI SDK HTTP 400 error and excludes
+authentication, quota, and rate-limit failures.
 The error toast offers one action for that category: `trimContext`, wired in
 `src/renderer/utils/errorToast.ts` and handled in `useChatRuntimeState.ts`.
 
@@ -176,7 +195,7 @@ a second marker. The error-toast handler refuses to run on an existing boundary.
 assistant message does not pick up the new boundary: `PersistentChatContextProvider.ts`
 rebuilds history from that message's parent anchor, so the retry re-sends the
 pre-boundary history (settings resolution and compaction do run again for it). This
-recovery path has no automatic retry and no one-click compaction.
+manual recovery path does not itself perform an automatic retry or compaction.
 
 ## Documents
 

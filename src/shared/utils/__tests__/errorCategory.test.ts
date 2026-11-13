@@ -33,7 +33,8 @@ describe('classifyErrorCategory HTTP 400', () => {
   it.each([
     ['insufficient balance', 'quota'],
     ['content_filter triggered', 'content'],
-    ['prompt is too long', 'context_length']
+    ['prompt is too long', 'context_length'],
+    ['Input exceeds the context limit (1048568 tokens)', 'context_length']
   ] as const)('preserves the specific diagnosis for %s', (text, category) => {
     expect(classifyErrorCategory({ status: 400, text })).toBe(category)
   })
@@ -51,6 +52,7 @@ describe('classifyErrorCategory HTTP 400', () => {
     "This model's maximum context length is 1048576 tokens",
     "This model's maximum context length is 1,048,576 tokens",
     'The context window was exceeded',
+    'input token count exceeds the maximum',
     "The input is longer than the model's context length"
   ])('recognizes explicit context overflow: %s', (text) => {
     expect(classifyErrorCategory({ status: 400, text })).toBe('context_length')

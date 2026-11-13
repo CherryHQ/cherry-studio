@@ -862,7 +862,7 @@ class ModelService {
   /** Check model existence under a provider available in the current edition. */
   existsByIdTx(tx: Pick<DbType, 'select'>, id: string): boolean {
     const [row] = selectWithProviderIdentity(tx).where(eq(userModelTable.id, id)).limit(1).all()
-    return row !== undefined && isProviderIdentityAvailable(row)
+    return row !== undefined && isProviderIdentityAvailable(row, tx)
   }
 
   /**
