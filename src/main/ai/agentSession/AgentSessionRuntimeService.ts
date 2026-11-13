@@ -1125,12 +1125,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const fastMode = opts.fastMode === true
 
     const turn = this.currentTurn(entry)
-    // Open normal turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
-    // hook): the steer is folded into the current turn — no new turn, no queue entry. If the turn
-    // ends before it's injected, the connection emits `steer-undelivered` and we queue it below.
-    // The gate compares the live turn's frozen model/reasoning/Fast/knowledge config with the incoming
-    // message: a changed effective connection scope must queue as the NEXT turn instead of being
-    // folded into a query already running with different tools.
+    // Submit steer natively into the open turn; `steer-undelivered` queues it if delivery fails.
+    // A changed model/reasoning/service-tier/Fast/knowledge scope must queue as the next turn.
     const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
     const canRedirectOnCurrentConfig =
       turn?.modelId === entry.modelId &&
