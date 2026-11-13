@@ -15,7 +15,7 @@
     },
     {
       "path": "docs/dev/contrib/release-workflow.md",
-      "sources": [".agents/skills/prepare-release/SKILL.md",".github/workflows/auto-release-build.yml",".github/workflows/backport-release-fixes.yml",".github/workflows/ci.yml",".github/workflows/nightly-build.yml",".github/workflows/post-release.yml",".github/workflows/prepare-release.yml",".github/workflows/preview-release.yml",".github/workflows/release.yml","electron-builder.cn.config.cjs"]
+      "sources": [".agents/skills/prepare-release/SKILL.md",".github/workflows/auto-release-build.yml",".github/workflows/backport-release-fixes.yml",".github/workflows/ci.yml",".github/workflows/nightly-build.yml",".github/workflows/post-release.yml",".github/workflows/prepare-release.yml",".github/workflows/preview-release.yml",".github/workflows/release-target.yml",".github/workflows/release.yml","electron-builder.cn.config.cjs","scripts/release/release-cos.py","scripts/release/sync-gitcode.sh","scripts/release/validate-release-state.js"]
     },
     {
       "path": "docs/dev/references/ai/adapter-family.md",
