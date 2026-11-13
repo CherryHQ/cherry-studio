@@ -11,14 +11,23 @@ export const AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY = (sessionId: string) =>
   `agent.session.context_usage.${sessionId}` as const
 
 export interface AgentSessionContextUsageSnapshot {
-  version: 1
   modelId: string
-  agentUpdatedAt: string
   contextId: string
-  backendId: string
-  nativeThreadId: string
   headMessageId: string
   headUpdatedAt: string
   measuredAt: string
   usage: ThreadContextUsage
+}
+
+export function isAgentSessionContextUsageSnapshot(value: unknown): value is AgentSessionContextUsageSnapshot {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  return (
+    ['modelId', 'contextId', 'headMessageId', 'headUpdatedAt', 'measuredAt'].every(
+      (key) => typeof record[key] === 'string' && record[key].length > 0
+    ) &&
+    !!record.usage &&
+    typeof record.usage === 'object' &&
+    !Array.isArray(record.usage)
+  )
 }

@@ -46,6 +46,7 @@ import {
 } from '@shared/ai/agentSessionCompaction'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
+  isAgentSessionContextUsageSnapshot,
   type AgentSessionContextUsage,
   type AgentSessionContextUsageSnapshot
 } from '@shared/ai/agentSessionContextUsage'
@@ -126,7 +127,6 @@ import {
 } from './agentSessionRuntimeState'
 import { AgentSessionUsageAttribution } from './AgentSessionUsageAttribution'
 import { savedChildView } from './ChildThreadProjection'
-import { CONTEXT_USAGE_SNAPSHOTS_KEY, isContextUsageSnapshot, mergeContextUsageSnapshot } from './contextUsageSnapshots'
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
@@ -962,11 +962,8 @@ export class AgentSessionRuntimeService extends BaseService {
    * covered by the pull.
    */
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
-    const cache = application.get('CacheService')
-    const records = cache.getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)
     for (const sessionId of agentSessionService.listIdsByAgent(agentId)) {
-      if (records?.[sessionId] || cache.getShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))?.modelId)
-        this.invalidateSessionContextUsage(sessionId)
+      this.invalidateSessionContextUsage(sessionId)
     }
     const modelEdited = Object.prototype.hasOwnProperty.call(updates, 'model')
     const reconciles: Promise<void>[] = []
@@ -2645,34 +2642,20 @@ export class AgentSessionRuntimeService extends BaseService {
       !identity ||
       identity.headMessageId !== assistantMessageId ||
       identity.modelId !== pending.identity.modelId ||
-      identity.agentUpdatedAt !== pending.identity.agentUpdatedAt ||
-      identity.contextId !== pending.identity.contextId ||
-      identity.backendId !== pending.identity.backendId ||
-      identity.nativeThreadId !== pending.identity.nativeThreadId
+      identity.contextId !== pending.identity.contextId
     )
       return
-    const cache = application.get('CacheService')
-    cache.setPersist(
-      CONTEXT_USAGE_SNAPSHOTS_KEY,
-      mergeContextUsageSnapshot(
-        cache.getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY),
-        entry.sessionId,
-        { ...identity, version: 1, measuredAt: pending.measuredAt, usage: pending.usage },
-        (id) => {
-          try {
-            return !!agentSessionService.getById(id)
-          } catch {
-            return false
-          }
-        }
-      )
-    )
+    agentSessionService.setContextUsageSnapshot(entry.sessionId, {
+      ...identity,
+      measuredAt: pending.measuredAt,
+      usage: pending.usage
+    })
     entry.contextUsageReading = undefined
   }
 
   private captureContextUsageIdentity(
     sessionId: string
-  ): Omit<AgentSessionContextUsageSnapshot, 'version' | 'measuredAt' | 'usage'> | undefined {
+  ): Omit<AgentSessionContextUsageSnapshot, 'measuredAt' | 'usage'> | undefined {
     try {
       const session = agentSessionService.getById(sessionId)
       if (!session.agentId) return
@@ -2684,10 +2667,8 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!context || context.parentContextId || context.bindingState !== 'bound' || !context.nativeThreadId) return
       return {
         modelId: agent.model,
-        agentUpdatedAt: agent.updatedAt,
+        // The context ID identifies its backend and native thread.
         contextId: context.id,
-        backendId: context.backendId,
-        nativeThreadId: context.nativeThreadId,
         headMessageId,
         headUpdatedAt: head.updatedAt
       }
@@ -2698,22 +2679,18 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private restoreContextUsageSnapshot(sessionId: string): void {
     const cache = application.get('CacheService')
-    const records = cache.getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)
-    if (!records || typeof records !== 'object' || Array.isArray(records)) {
-      cache.setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
+    const record = agentSessionService.getContextUsageSnapshot(sessionId)
+    if (record === null) {
+      agentSessionService.setContextUsageSnapshot(sessionId, null)
       return
     }
-    const record = records[sessionId]
-    if (record === undefined) return
     const identity = this.captureContextUsageIdentity(sessionId)
     if (
-      !isContextUsageSnapshot(record) ||
+      !isAgentSessionContextUsageSnapshot(record) ||
       !identity ||
       Object.entries(identity).some(([key, value]) => record[key as keyof typeof identity] !== value)
     ) {
-      const records = { ...cache.getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY) }
-      delete records[sessionId]
-      cache.setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, records)
+      agentSessionService.setContextUsageSnapshot(sessionId, null)
       if (cache.getShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))?.snapshot?.restored)
         cache.deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
       return
@@ -2735,11 +2712,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     const cache = application.get('CacheService')
     cache.deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
-    const records = { ...cache.getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY) }
-    if (Object.hasOwn(records, sessionId)) {
-      delete records[sessionId]
-      cache.setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, records)
-    }
+    agentSessionService.setContextUsageSnapshot(sessionId, null)
   }
 
   private invalidateContextUsage(entry: AgentSessionRuntimeEntry): void {
@@ -2780,10 +2753,7 @@ export class AgentSessionRuntimeService extends BaseService {
       !source ||
       !identity ||
       source.modelId !== entry.modelId ||
-      source.agentUpdatedAt !== identity.agentUpdatedAt ||
       source.contextId !== identity.contextId ||
-      source.backendId !== identity.backendId ||
-      source.nativeThreadId !== identity.nativeThreadId ||
       (connection?.contextId && connection.contextId !== source.contextId)
     )
       return
@@ -2795,21 +2765,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (identity.headMessageId !== source.headMessageId || identity.headMessageId !== turnAssistantMessageId) return
     const head = agentSessionMessageService.getSessionMessage(entry.sessionId, identity.headMessageId)
     if (head.role !== 'assistant' || head.status !== 'success') return
-    cache.setPersist(
-      CONTEXT_USAGE_SNAPSHOTS_KEY,
-      mergeContextUsageSnapshot(
-        cache.getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY),
-        entry.sessionId,
-        { ...identity, version: 1, measuredAt, usage: result.value },
-        (id) => {
-          try {
-            return !!agentSessionService.getById(id)
-          } catch {
-            return false
-          }
-        }
-      )
-    )
+    agentSessionService.setContextUsageSnapshot(entry.sessionId, { ...identity, measuredAt, usage: result.value })
   }
 
   /**

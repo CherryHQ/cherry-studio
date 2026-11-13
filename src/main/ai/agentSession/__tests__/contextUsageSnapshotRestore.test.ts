@@ -12,13 +12,13 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionContextUsageSnapshot } from '@shared/ai/agentSessionContextUsage'
 
 import { AgentSessionRuntimeService } from '../AgentSessionRuntimeService'
 import { createAgentSessionRuntimeState } from '../agentSessionRuntimeState'
-import { CONTEXT_USAGE_SNAPSHOTS_KEY } from '../contextUsageSnapshots'
 
 const freshService = () => {
   BaseService.resetInstances()
@@ -30,9 +30,11 @@ describe('root context snapshot restoration', () => {
   const dbh = setupTestDatabase()
   let snapshot: AgentSessionContextUsageSnapshot
   const cache = () => application.get('CacheService')
+  const read = () => agentSessionService.getContextUsageSnapshot('session')
+  const write = (value: AgentSessionContextUsageSnapshot | null) =>
+    agentSessionService.setContextUsageSnapshot('session', value)
   beforeEach(() => {
     cache().deleteShared(KEY)
-    cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
     dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
     dbh.db
       .insert(userModelTable)
@@ -82,7 +84,6 @@ describe('root context snapshot restoration', () => {
     expect(identity).toBeDefined()
     snapshot = {
       ...identity,
-      version: 1,
       measuredAt: '2026-11-12T00:00:00.000Z',
       usage: {
         model: 'native-model',
@@ -92,7 +93,63 @@ describe('root context snapshot restoration', () => {
         basis: 'current-context'
       }
     }
-    cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, JSON.parse(JSON.stringify({ session: snapshot })))
+    write(snapshot)
+  })
+
+  it('preserves updatedAt and skips identical snapshot writes', () => {
+    const before = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'session')).get()!.updatedAt
+    dbh.sqlite.exec(`CREATE TEMP TABLE snapshot_updates (id TEXT);
+      CREATE TEMP TRIGGER count_snapshot_updates AFTER UPDATE ON agent_session
+      BEGIN INSERT INTO snapshot_updates VALUES (NEW.id); END`)
+    write({ ...snapshot, measuredAt: 'later' })
+    expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'session')).get()!.updatedAt).toBe(
+      before
+    )
+    write({ ...snapshot, measuredAt: 'later' })
+    expect(dbh.sqlite.prepare('SELECT count(*) AS count FROM snapshot_updates').get()).toEqual({ count: 1 })
+    dbh.sqlite.exec('DROP TRIGGER count_snapshot_updates; DROP TABLE snapshot_updates')
+  })
+
+  it.each([null, '', 1, []])('clears invalid snapshot usage %s', (usage) => {
+    write({ ...snapshot, usage } as unknown as AgentSessionContextUsageSnapshot)
+    freshService()['restoreContextUsageSnapshot']('session')
+    expect(read()).toBeNull()
+    expect(cache().getShared(KEY)).toBeUndefined()
+  })
+
+  it.each(['modelId', 'contextId', 'headMessageId', 'headUpdatedAt', 'measuredAt'] as const)(
+    'clears a snapshot with an empty %s',
+    (key) => {
+      write({ ...snapshot, [key]: '' })
+      freshService()['restoreContextUsageSnapshot']('session')
+      expect(read()).toBeNull()
+    }
+  )
+
+  it('updates only sessions with snapshots on agent edits', async () => {
+    dbh.db
+      .insert(agentSessionTable)
+      .values([
+        { id: 'session-2', agentId: 'agent', workspaceId: 'workspace', name: 'Two', orderKey: 'a1' },
+        { id: 'session-3', agentId: 'agent', workspaceId: 'workspace', name: 'Three', orderKey: 'a2' }
+      ])
+      .run()
+    write(null)
+    dbh.sqlite.exec(`CREATE TEMP TABLE snapshot_updates (id TEXT);
+      CREATE TEMP TRIGGER count_snapshot_updates AFTER UPDATE ON agent_session
+      BEGIN INSERT INTO snapshot_updates VALUES (NEW.id); END`)
+    const service = freshService()
+    await service['handleAgentUpdated']('agent', { model: null }, agentService.getAgent('agent')!)
+    expect(dbh.sqlite.prepare('SELECT id FROM snapshot_updates').all()).toEqual([])
+    write(snapshot)
+    agentSessionService.setContextUsageSnapshot('session-3', snapshot)
+    dbh.sqlite.exec('DELETE FROM snapshot_updates')
+    await service['handleAgentUpdated']('agent', { model: null }, agentService.getAgent('agent')!)
+    expect(dbh.sqlite.prepare('SELECT id FROM snapshot_updates ORDER BY id').all()).toEqual([
+      { id: 'session' },
+      { id: 'session-3' }
+    ])
+    dbh.sqlite.exec('DROP TRIGGER count_snapshot_updates; DROP TABLE snapshot_updates')
   })
 
   it('restores in a fresh instance without a driver or connection', async () => {
@@ -114,22 +171,15 @@ describe('root context snapshot restoration', () => {
     expect(cache().getShared(KEY)?.snapshot?.restored).toBe(true)
   })
 
-  it.each([
-    'modelId',
-    'agentUpdatedAt',
-    'contextId',
-    'backendId',
-    'nativeThreadId',
-    'headMessageId',
-    'headUpdatedAt'
-  ] as const)('drops a mismatched %s', (key) => {
-    cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {
-      session: { ...snapshot, [key]: key.endsWith('At') ? '2026-11-11T00:00:00.000Z' : 'different' }
-    })
-    freshService()['restoreContextUsageSnapshot']('session')
-    expect(cache().getShared(KEY)).toBeUndefined()
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
-  })
+  it.each(['modelId', 'contextId', 'headMessageId', 'headUpdatedAt'] as const)(
+    'rejects a reading with a mismatched %s',
+    (key) => {
+      write({ ...snapshot, [key]: 'different' })
+      freshService()['restoreContextUsageSnapshot']('session')
+      expect(cache().getShared(KEY)).toBeUndefined()
+      expect(read()).toBeNull()
+    }
+  )
 
   it('rejects an unbound context', () => {
     dbh.db
@@ -139,7 +189,7 @@ describe('root context snapshot restoration', () => {
       .run()
     freshService()['restoreContextUsageSnapshot']('session')
     expect(cache().getShared(KEY)).toBeUndefined()
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
+    expect(read()).toBeNull()
   })
 
   it('preserves a newer live publication', () => {
@@ -204,7 +254,7 @@ describe('root context snapshot restoration', () => {
       message: { role: 'assistant', status: 'pending', data: { parts: [] } }
     })
     entry.runtimeState.execution = createAgentSessionRuntimeState(turnFor(n.id)).execution
-    cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
+    write(null)
     const before = service['captureContextUsageIdentity']('session')!
     service['refreshContextUsage'](entry as never)
     const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 1000)
@@ -218,7 +268,7 @@ describe('root context snapshot restoration', () => {
       expect((entry as unknown as { contextUsageRefresh?: unknown }).contextUsageRefresh).toBeUndefined()
     )
     expect(cache().getShared(KEY)?.result).toEqual({ status: 'confirmed', value: snapshot.usage })
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY).session).toMatchObject({
+    expect(read()).toMatchObject({
       ...settled,
       usage: snapshot.usage
     })
@@ -241,8 +291,8 @@ describe('root context snapshot restoration', () => {
     const b = turnFor(crypto.randomUUID())
     entry.runtimeState = createAgentSessionRuntimeState(a)
     entry.runtimeState.connection = { kind: 'connected', connection: entry.connection as never, occupancy: {} }
-    cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
-    const writes = vi.spyOn(cache(), 'setPersist')
+    write(null)
+    const writes = vi.spyOn(agentSessionService, 'setContextUsageSnapshot')
     service['refreshContextUsage'](entry as never)
     service['applyRuntimeStateEvent'](entry as never, { type: 'steer-boundary', turn: b as never })
     expect(service['currentTurn'](entry as never)?.assistantMessageId).toBe(b.assistantMessageId)
@@ -252,14 +302,13 @@ describe('root context snapshot restoration', () => {
     )
     expect.soft(entry.contextUsageReading?.turnAssistantMessageId).toBe(a.assistantMessageId)
     await persistAssistant(service, entry, a.assistantMessageId, a)
-    expect.soft(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY).session).toMatchObject({
+    expect.soft(read()).toMatchObject({
       headMessageId: a.assistantMessageId,
       usage: snapshot.usage
     })
     await persistAssistant(service, entry, b.assistantMessageId, b)
-    for (const [key, value] of writes.mock.calls) {
-      if (key === CONTEXT_USAGE_SNAPSHOTS_KEY)
-        expect(value).not.toMatchObject({ session: { headMessageId: b.assistantMessageId, usage: snapshot.usage } })
+    for (const [, value] of writes.mock.calls) {
+      expect(value).not.toMatchObject({ headMessageId: b.assistantMessageId, usage: snapshot.usage })
     }
     expect(entry.connection.getContextUsage).toHaveBeenCalledTimes(1)
   })
@@ -276,13 +325,13 @@ describe('root context snapshot restoration', () => {
     })
     const first = turnFor(n.id, 'attempt-1')
     entry.runtimeState.execution = createAgentSessionRuntimeState(first).execution
-    cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
+    write(null)
     service['refreshContextUsage'](entry as never)
     await vi.waitFor(() => expect(entry.contextUsageReading).toBeDefined())
     const second = turnFor(n.id, 'attempt-2')
     entry.runtimeState.execution = createAgentSessionRuntimeState(second).execution
     await persistAssistant(service, entry, n.id, second)
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
+    expect(read()).toBeNull()
   })
 
   it('settles a reading under its producing turn through the production persistence callback and restores it', async () => {
@@ -294,11 +343,11 @@ describe('root context snapshot restoration', () => {
       message: { role: 'assistant', status: 'pending', data: { parts: [] } }
     })
     entry.runtimeState.execution = createAgentSessionRuntimeState(turnFor(n.id)).execution
-    cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
+    write(null)
     service['refreshContextUsage'](entry as never)
     await vi.waitFor(() => expect(entry.contextUsageReading).toBeDefined())
     const measuredAt = entry.contextUsageReading!.measuredAt
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
+    expect(read()).toBeNull()
     const live = cache().getShared(KEY)
     const calls = getContextUsage.mock.calls.length
     const epoch = (entry as unknown as { contextUsageEpoch?: number }).contextUsageEpoch
@@ -309,7 +358,7 @@ describe('root context snapshot restoration', () => {
     expect(publications).not.toHaveBeenCalled()
     expect((entry as unknown as { contextUsageEpoch?: number }).contextUsageEpoch).toBe(epoch)
     expect(cache().getShared(KEY)).toEqual(live)
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY).session).toMatchObject({
+    expect(read()).toMatchObject({
       usage: snapshot.usage,
       measuredAt,
       headMessageId: n.id,
@@ -332,7 +381,7 @@ describe('root context snapshot restoration', () => {
       sessionId: 'session',
       message: { role: 'assistant', status: 'success', data: { parts: [] } }
     })
-    cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
+    write(null)
     // Even an otherwise matching identity cannot move an A-tagged reading to B.
     entry.contextUsageReading = {
       usage: snapshot.usage,
@@ -344,28 +393,25 @@ describe('root context snapshot restoration', () => {
     await persistAssistant(service, entry, b.id)
     await persistAssistant(service, entry, a)
     await persistAssistant(service, entry, a)
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
+    expect(read()).toBeNull()
     expect(entry.connection.getContextUsage).not.toHaveBeenCalled()
   })
 
-  it.each(['modelId', 'agentUpdatedAt', 'contextId', 'backendId', 'nativeThreadId'] as const)(
-    'does not settle across a changed %s',
-    async (key) => {
-      const service = freshService()
-      const entry = attach(service)
-      entry.contextUsageReading = {
-        usage: snapshot.usage,
-        measuredAt: snapshot.measuredAt,
-        turnAssistantMessageId: snapshot.headMessageId,
-        turnId: turnFor(snapshot.headMessageId).turnId,
-        identity: { ...service['captureContextUsageIdentity']('session')!, [key]: 'changed' }
-      }
-      cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
-      await persistAssistant(service, entry, snapshot.headMessageId)
-      expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
-      expect(entry.connection.getContextUsage).not.toHaveBeenCalled()
+  it.each(['modelId', 'contextId'] as const)('does not settle across a changed %s', async (key) => {
+    const service = freshService()
+    const entry = attach(service)
+    entry.contextUsageReading = {
+      usage: snapshot.usage,
+      measuredAt: snapshot.measuredAt,
+      turnAssistantMessageId: snapshot.headMessageId,
+      turnId: turnFor(snapshot.headMessageId).turnId,
+      identity: { ...service['captureContextUsageIdentity']('session')!, [key]: 'changed' }
     }
-  )
+    write(null)
+    await persistAssistant(service, entry, snapshot.headMessageId)
+    expect(read()).toBeNull()
+    expect(entry.connection.getContextUsage).not.toHaveBeenCalled()
+  })
 
   it.each(['invalidate', 'reset'] as const)('clears pending readings on %s', (action) => {
     const service = freshService()
@@ -383,6 +429,7 @@ describe('root context snapshot restoration', () => {
       service,
       vi.fn(async () => ({ status: 'confirmed', value: snapshot.usage }))
     )
+    write(null)
     service['refreshContextUsage'](entry as never)
     await vi.waitFor(() => expect(entry.contextUsageReading).toBeDefined())
     if (action === 'close') service['closeConnection'](entry as never, false)
@@ -402,7 +449,7 @@ describe('root context snapshot restoration', () => {
       service,
       vi.fn(() => deferred.promise)
     )
-    cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
+    write(null)
     service['refreshContextUsage'](entry as never)
     messages.saveMessage({ sessionId: 'session', message: { role: 'user', data: { parts: [] } } })
     deferred.resolve({ status: 'confirmed', value: snapshot.usage })
@@ -410,7 +457,7 @@ describe('root context snapshot restoration', () => {
       expect((entry as unknown as { contextUsageRefresh?: unknown }).contextUsageRefresh).toBeUndefined()
     )
     expect(cache().getShared(KEY)?.result).toEqual({ status: 'confirmed', value: snapshot.usage })
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
+    expect(read()).toBeNull()
   })
 
   it('cannot restore a published pending reading after the service is lost before persistence', async () => {
@@ -424,24 +471,24 @@ describe('root context snapshot restoration', () => {
       message: { role: 'assistant', status: 'pending', data: { parts: [] } }
     })
     entry.runtimeState.execution = createAgentSessionRuntimeState(turnFor(n.id)).execution
-    cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
+    write(null)
     service['refreshContextUsage'](entry as never)
     await vi.waitFor(() => expect(entry.contextUsageReading).toBeDefined())
     expect(cache().getShared(KEY)?.result.status).toBe('confirmed')
     cache().deleteShared(KEY)
     await freshService().primeConnection('session')
     expect(cache().getShared(KEY)).toBeUndefined()
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
+    expect(read()).toBeNull()
   })
 
   it('publishes without saving a reading that has no producing turn', () => {
     const service = freshService()
     const entry = attach(service)
     entry.runtimeState.execution = { kind: 'idle' }
-    cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
+    write(null)
     service['persistContextUsage'](entry as never, { status: 'confirmed', value: snapshot.usage })
     expect(cache().getShared(KEY)?.result).toEqual({ status: 'confirmed', value: snapshot.usage })
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
+    expect(read()).toBeNull()
     expect(entry.contextUsageReading).toBeUndefined()
   })
 
@@ -451,10 +498,10 @@ describe('root context snapshot restoration', () => {
     const entry = attach(service)
     service['resetConnectionRuntimeState'](entry as never, entry.connection as never)
     expect(cache().getShared(KEY)?.snapshot?.restored).toBe(true)
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY).session).toEqual(snapshot)
+    expect(read()).toEqual(snapshot)
     service.invalidateSessionContextUsage('session')
     expect(cache().getShared(KEY)).toBeUndefined()
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
+    expect(read()).toBeNull()
   })
 
   it.each(['epoch', 'model', 'connection'] as const)('rejects a late read after %s changes', async (change) => {
@@ -478,24 +525,16 @@ describe('root context snapshot restoration', () => {
       expect((entry as unknown as { contextUsageRefresh?: unknown }).contextUsageRefresh).toBeUndefined()
     )
     expect(cache().getShared(KEY)).toBeUndefined()
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY).session?.usage.revision).not.toBe('late')
+    expect(read()?.usage.revision).not.toBe('late')
   })
 
-  it('displays an oversized reading live while dropping the saved fallback', () => {
-    const service = freshService()
-    const entry = attach(service)
-    const usage = { ...snapshot.usage, resources: [{ id: 'r', category: 'skills' as const, name: 'x'.repeat(17000) }] }
-    service['persistContextUsage'](entry as never, { status: 'confirmed', value: usage })
-    expect(cache().getShared(KEY)?.result).toEqual({ status: 'confirmed', value: usage })
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
-  })
   it('publishes and saves a settled live reading without restored metadata', () => {
     const service = freshService()
     const entry = attach(service)
     const usage = { ...snapshot.usage, revision: 'r2' }
     service['persistContextUsage'](entry as never, { status: 'confirmed', value: usage })
     expect(cache().getShared(KEY)).toEqual({ modelId: snapshot.modelId, result: { status: 'confirmed', value: usage } })
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY).session).toMatchObject({
+    expect(read()).toMatchObject({
       usage,
       headMessageId: snapshot.headMessageId
     })
@@ -509,7 +548,7 @@ describe('root context snapshot restoration', () => {
       error: { operation: 'contextUsage', code: 'reset', message: 'Reset' }
     })
     expect(cache().getShared(KEY)?.result.status).toBe('unknown')
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
+    expect(read()).toBeNull()
     freshService()['restoreContextUsageSnapshot']('session')
     expect(cache().getShared(KEY)?.result.status).toBe('unknown')
   })
@@ -521,7 +560,7 @@ describe('root context snapshot restoration', () => {
     })
     freshService()['restoreContextUsageSnapshot']('session')
     expect(cache().getShared(KEY)).toBeUndefined()
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
+    expect(read()).toBeNull()
   })
 
   it('hydrates during a warm-lease acquisition that cancels teardown', () => {
@@ -541,7 +580,7 @@ describe('root context snapshot restoration', () => {
     dbh.db.update(agentTable).set({ model: null }).where(eq(agentTable.id, 'agent')).run()
     await service['handleAgentUpdated']('agent', { model: null }, agentService.getAgent('agent')!)
     expect(cache().getShared(KEY)).toBeUndefined()
-    expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
+    expect(read()).toBeNull()
     dbh.db.update(agentTable).set({ model: 'test::model' }).where(eq(agentTable.id, 'agent')).run()
     service['restoreContextUsageSnapshot']('session')
     expect(cache().getShared(KEY)).toBeUndefined()
@@ -549,7 +588,7 @@ describe('root context snapshot restoration', () => {
 
   it('model edits also remove a shared-only reading after its runtime entry is gone', async () => {
     const service = freshService()
-    cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
+    write(null)
     cache().setShared(KEY, { modelId: snapshot.modelId, result: { status: 'confirmed', value: snapshot.usage } })
     await service['handleAgentUpdated']('agent', { model: null }, agentService.getAgent('agent')!)
     expect(cache().getShared(KEY)).toBeUndefined()

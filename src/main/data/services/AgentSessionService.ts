@@ -161,6 +161,33 @@ export function agentSessionReadModelEffects(
 }
 
 export class AgentSessionService {
+  getContextUsageSnapshot(id: string): SessionRow['contextUsageSnapshot'] {
+    return (
+      application
+        .get('DbService')
+        .getDb()
+        .select({ snapshot: sessionsTable.contextUsageSnapshot })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.id, id))
+        .get()?.snapshot ?? null
+    )
+  }
+
+  setContextUsageSnapshot(id: string, snapshot: SessionRow['contextUsageSnapshot']): void {
+    application
+      .get('DbService')
+      .getDb()
+      .update(sessionsTable)
+      .set({ contextUsageSnapshot: snapshot, updatedAt: sql`${sessionsTable.updatedAt}` })
+      .where(
+        and(
+          eq(sessionsTable.id, id),
+          sql`${sessionsTable.contextUsageSnapshot} IS NOT ${snapshot === null ? null : JSON.stringify(snapshot)}`
+        )
+      )
+      .run()
+  }
+
   createChildArchiveTx(tx: DbOrTx, ownerSessionId: string, name: string): string {
     const owner = tx.select().from(sessionsTable).where(eq(sessionsTable.id, ownerSessionId)).get()
     if (!owner || owner.deletedAt) throw new Error('Child archive owner is unavailable')

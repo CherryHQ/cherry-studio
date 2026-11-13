@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm'
 import { type AnySQLiteColumn, check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
+import type { AgentSessionContextUsageSnapshot } from '@shared/ai/agentSessionContextUsage'
+
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 import { agentWorkspaceTable } from './agentWorkspace'
@@ -27,6 +29,7 @@ export const agentSessionTable = sqliteTable(
     isTaskReuseTarget: integer({ mode: 'boolean' }).notNull().default(false),
     traceId: text(),
     activeNodeId: text(),
+    contextUsageSnapshot: text({ mode: 'json' }).$type<AgentSessionContextUsageSnapshot>(),
     ...orderKeyColumns,
     // Dedicated conversation activity time. Name, owner, workspace and order
     // changes must not move this column.
