@@ -49,7 +49,16 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt, fallba
   }
 
   if (faviconState.status === 'loaded') {
-    return <img src={faviconState.src} alt={alt} onError={handleError} className="h-4 w-4 rounded-[4px] bg-muted" />
+    return (
+      <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] bg-muted dark:bg-[color-mix(in_srgb,Canvas_82%,CanvasText)] dark:p-0.5 dark:[color-scheme:light]">
+        <img
+          src={faviconState.src}
+          alt={alt}
+          onError={handleError}
+          className="h-full w-full rounded-[4px] object-contain"
+        />
+      </span>
+    )
   }
 
   return fallback ?? <span className="inline-block h-4 w-4 rounded-[4px] bg-muted" />

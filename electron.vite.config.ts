@@ -80,7 +80,7 @@ const rendererEdition = resolveRendererEdition(process.env.CHERRY_EDITION)
 const sentryBuildContext = getSentryBuildContext(pkg.name, pkg.version, rendererEdition)
 const { sourceMapUploadEnabled } = resolveSentryBuildSettings(process.env)
 const sentrySourceMap = sourceMapUploadEnabled ? ('hidden' as const) : isDev
-const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer') =>
+export const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer' | 'utility-process') =>
   sourceMapUploadEnabled
     ? sentryVitePlugin({
         authToken: process.env.SENTRY_AUTH_TOKEN,
@@ -188,7 +188,7 @@ export default defineConfig({
         name: 'cherry-selection-panel',
         buildStart() {
           this.addWatchFile(selectionPanelSource)
-          buildSelectionPanel()
+          if (process.env.CHERRY_RELEASE_JS_ONLY !== 'true') buildSelectionPanel()
         }
       },
       {
@@ -196,7 +196,7 @@ export default defineConfig({
         apply: 'build',
         buildStart() {
           for (const file of externalAppSources) this.addWatchFile(file)
-          buildExternalApp()
+          if (process.env.CHERRY_RELEASE_JS_ONLY !== 'true') buildExternalApp()
         }
       },
       chunkExportGuardPlugin(),

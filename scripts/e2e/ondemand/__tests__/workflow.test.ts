@@ -39,7 +39,14 @@ it('keeps unrelated workflow diagnostics blocking the CI gate', () => {
   const lint = ci.jobs.changes.steps.find((step: { name?: string }) => step.name === 'Lint GitHub Actions workflows')
   expect(lint.with?.args ?? '').not.toContain('-ignore')
   const config = parse(readFileSync(resolve(__dirname, '../../../../.github/actionlint.yaml'), 'utf8'))
-  expect(Object.keys(config.paths)).toEqual(['.github/workflows/qa-ondemand.yml'])
+  expect(Object.keys(config.paths).sort()).toEqual([
+    '.github/workflows/backport-release-fixes.yml',
+    '.github/workflows/post-release.yml',
+    '.github/workflows/prepare-release.yml',
+    '.github/workflows/qa-ondemand.yml',
+    '.github/workflows/release-target.yml',
+    '.github/workflows/release.yml'
+  ])
   const filters = config.paths['.github/workflows/qa-ondemand.yml'].ignore
   expect(filters).toHaveLength(1)
   const ignored = new RegExp(filters[0])
