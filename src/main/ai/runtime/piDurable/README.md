@@ -13,8 +13,9 @@ request options and usage callbacks even when their Cherry Provider is the same.
 
 `durableDesktop.ts` installs native coding tools, codemode and tool search, Cherry's
 prompt and selected skills. `durableMcp.ts` connects Cherry-selected MCP servers through
-linked transports. Deferred MCP tools remain discoverable through native codemode;
-nested calls pass the shared approval gate. Replay safety follows the server's explicit
+linked transports. Ordinary MCP tools start deferred; `tool_search` can find and load them
+for direct model calls. Scripts can discover and call them through native codemode before
+and after loading. `automation` stays offered upfront, and nested calls still pass the shared approval gate. Replay safety follows the server's explicit
 read-only annotation; other MCP operations use native unsafe replay semantics.
 
 Approvals, questions, model selection, summaries and large output storage use existing
