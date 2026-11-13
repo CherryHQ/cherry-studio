@@ -8,7 +8,7 @@ English | [中文](2026-11-13-command-approval-policy.zh.md)
 
 Auto command approval currently mixes command risk, runtime permission shortcuts, and built-in Agent safeguards. The general destructive-command detector splits strings; the built-in guard has a stronger tokenizer but loses redirection targets, source ranges, and parse failures. Neither representation is enough for a shared command selector: `git status` and `git reset --hard` have the same executable, while `echo 'git reset --hard'` executes neither Git command.
 
-[PR #24382](https://github.com/CherryHQ/cherry-studio/pull/24382) introduces first-use Shell consent and session-wide Shell grants alongside subagent approval fixes. This proposal deliberately replaces that consent model in auto mode: ordinary commands run automatically, risky invocations ask individually, and forced denials take priority. It retains approval origin and subagent routing. This is a change in consent policy, not a claim that unmatched commands are safe.
+[PR #24382](https://github.com/CherryHQ/cherry-studio/pull/24382) owns subagent permission inheritance, code-mode approval, and approval UI fixes. First-use Shell consent, session-wide Shell grants, and expanded command patterns were removed from its scope at the maintainer's request. This separate proposal defines structured command policy in auto mode: ordinary commands run automatically, risky invocations ask individually, and forced denials take priority. It builds on approval origin and subagent routing without introducing a first-use grant. This is a consent-policy contract, not a claim that unmatched commands are safe.
 
 The [built-in delete-guard decision](../../implemented/bug-fix/2026-11-05-builtin-delete-guard-command-parsing.md) remains the owner of audited false positives, wrapper coverage, and its usability-guard limitation. Implementation must cross-link the two notes and retain those facts while replacing the parser and moving command rules. No existing note is deleted or relabeled by this Spec.
 
@@ -183,6 +183,6 @@ These expected results are for auto with an ordinary Agent unless a row specifie
 
 ## Risks
 
-Default allow intentionally removes first-use Shell consent. An unmatched custom program, alias, hook, encoded payload, or script can perform destructive or external actions without a prompt. This policy is a usability guard, not a security boundary, and it does not add Shell filesystem containment. User-facing documentation and release notes must say so without calling auto safe.
+Default allow intentionally requires no first-use Shell consent. An unmatched custom program, alias, hook, encoded payload, or script can perform destructive or external actions without a prompt. This policy is a usability guard, not a security boundary, and it does not add Shell filesystem containment. User-facing documentation and release notes must say so without calling auto safe.
 
 Conservative incomplete analysis can create extra prompts for valid but unsupported shell constructs. Grammar assets, native parse helpers, and semantic adapters add platform/packaging obligations. The migration must not silently lose existing mandatory denials or claim that a small example rule list replaces the existing regression corpus. Changes to these boundaries require an updated Spec and renewed approval.
