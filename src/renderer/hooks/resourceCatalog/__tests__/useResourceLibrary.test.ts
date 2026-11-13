@@ -120,6 +120,36 @@ describe('useResourceLibrary', () => {
     })
   })
 
+  it('filters only the hidden protected roles that are present', () => {
+    const support = { ...agentListItem, id: 'support', configuration: { builtin_role: 'support' } }
+    mocks.useAgentList.mockReturnValue(listResult([support, agentListItem]))
+    const { result, rerender } = renderHook(
+      ({ hiddenBuiltinRoles }) =>
+        useResourceLibrary({
+          resourceType: 'agent',
+          activeGroupId: null,
+          search: '',
+          sort: 'name',
+          hiddenBuiltinRoles
+        }),
+      { initialProps: { hiddenBuiltinRoles: ['support'] } }
+    )
+    expect(result.current.resources.map((item) => item.id)).toEqual(['agent-1'])
+    expect(result.current.allResources.map((item) => item.id)).toEqual(['agent-1'])
+    rerender({ hiddenBuiltinRoles: ['nope'] })
+    expect(result.current.resources).toHaveLength(2)
+    mocks.useAgentList.mockReturnValue(listResult([agentListItem]))
+    rerender({ hiddenBuiltinRoles: ['support'] })
+    expect(result.current.resources.map((item) => item.id)).toEqual(['agent-1'])
+  })
+
+  it.each(['assistant', 'skill'] as const)('does not filter %s resources', (resourceType) => {
+    mocks.useAssistantList.mockReturnValue(listResult([assistantListItem]))
+    mocks.useSkillList.mockReturnValue(listResult([skillListItem]))
+    const { result } = renderResourceLibrary({ resourceType, hiddenBuiltinRoles: ['support'] })
+    expect(result.current.resources).toHaveLength(1)
+  })
+
   it('uses backend-resolved model names for assistant resource cards', () => {
     mocks.useAssistantList.mockReturnValue(listResult([{ ...assistantListItem, modelName: 'GPT-4o' }]))
 

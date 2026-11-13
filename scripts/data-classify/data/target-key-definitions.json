@@ -27,6 +27,13 @@
       "description": "Allow local agents to observe and control desktop applications through the Computer Use SDK"
     },
     {
+      "targetKey": "agent.builtin.hidden_roles",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Built-in Agent roles hidden from the Agents resource list (presentation only). Values are builtin_role: assistant | support | doctor."
+    },
+    {
       "targetKey": "agent.commit_attribution.enabled",
       "type": "boolean",
       "defaultValue": true,

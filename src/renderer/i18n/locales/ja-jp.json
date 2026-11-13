@@ -16,6 +16,8 @@
   "agent.builtin.cherry_support.description": "設定案内、トラブル診断、FAQ、フィードバックに対応する Cherry Studio 公式サポート Agent",
   "agent.builtin.cherry_support.diagnostics.prepared": "Cherry Support が編集可能な説明を用意しました。診断データを選択して送信する前に確認してください。",
   "agent.builtin.cherry_support.diagnostics.review": "問題報告を確認",
+  "agent.builtin.hide": "一覧から非表示",
+  "agent.builtin.show_hidden": "非表示の内蔵エージェントを表示",
   "agent.channels.add": "追加",
   "agent.channels.bindAgent": "エージェントを関連付け",
   "agent.channels.chatIdsAutoTrackHint": "空欄のままにしておくと、システムが自動的に追跡します：まずプラットフォーム上でボットにメッセージを送信する必要があり、その後システムがチャットIDを記録して今後の通知に使用します。",

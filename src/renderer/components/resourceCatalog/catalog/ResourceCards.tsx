@@ -35,6 +35,7 @@ interface ResourceCardProps {
   onDuplicate: (resource: ResourceItem) => void
   onEdit: (resource: ResourceItem) => void
   onExport: (resource: ResourceItem) => void
+  onHide?: (resource: ResourceItem) => void
   onLaunchSkill?: (resource: ResourceItem) => void
 }
 
@@ -81,6 +82,7 @@ export function ResourceCard({
   onDuplicate,
   onEdit,
   onExport,
+  onHide,
   onLaunchSkill
 }: ResourceCardProps) {
   const { t } = useTranslation()
@@ -183,6 +185,7 @@ export function ResourceCard({
                   resource={r}
                   onDuplicate={onDuplicate}
                   onDelete={onDelete}
+                  onHide={onHide}
                   onExport={onExport}
                   allGroups={allGroups}
                   triggerClassName="text-muted-foreground hover:text-foreground"
@@ -193,6 +196,7 @@ export function ResourceCard({
                 resource={r}
                 onDuplicate={onDuplicate}
                 onDelete={onDelete}
+                onHide={onHide}
                 onExport={onExport}
                 allGroups={allGroups}
                 triggerClassName="text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"

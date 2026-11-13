@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations } from '@renderer/hooks/useAssistant'
@@ -20,7 +21,7 @@ import type {
 } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport, serializeAssistantsForExport } from '@renderer/utils/assistantTransfer'
 import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
-import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { type BuiltinAgentRole, isProtectedBuiltinAgentRole, sanitizeHiddenBuiltinRoles } from '@shared/ai/builtinAgent'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import { ASSISTANTS_MAX_LIMIT } from '@shared/data/api/schemas/assistants'
 import type { InstalledSkill } from '@shared/data/types/agent'
@@ -36,12 +37,37 @@ type ResourceCreateWizardKind = 'assistant' | 'agent'
 type ResourceCatalogControllerType = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 
 const CREATE_DIALOG_EXIT_ANIMATION_MS = 200
+const HIDDEN_ROLES_WRITE_ATTEMPTS = 3
 const logger = loggerService.withContext('useResourceCatalogController')
 
 interface ResourceCatalogControllerOptions {
   onConfirmArchiveAgentSessions?: (agentName: string, action: () => Promise<void>) => Promise<boolean>
   onOpenSkill?: (skill: InstalledSkill) => void
   onLaunchSkill?: (skill: InstalledSkill) => Promise<void>
+}
+
+async function hideBuiltinRole(
+  role: BuiltinAgentRole,
+  fallbackRoles: readonly string[],
+  setHiddenBuiltinRoles: (roles: BuiltinAgentRole[]) => Promise<void>
+): Promise<void> {
+  let roles: BuiltinAgentRole[]
+  try {
+    roles = sanitizeHiddenBuiltinRoles(await window.api.preference.get('agent.builtin.hidden_roles'))
+  } catch {
+    roles = sanitizeHiddenBuiltinRoles(fallbackRoles)
+    if (!roles.includes(role)) await setHiddenBuiltinRoles([...roles, role])
+    return
+  }
+  if (roles.includes(role)) return
+
+  for (let attempt = 0; attempt < HIDDEN_ROLES_WRITE_ATTEMPTS; attempt += 1) {
+    await setHiddenBuiltinRoles(sanitizeHiddenBuiltinRoles([...roles, role]))
+    const committedRoles = sanitizeHiddenBuiltinRoles(await window.api.preference.get('agent.builtin.hidden_roles'))
+    if (committedRoles.includes(role) && roles.every((previousRole) => committedRoles.includes(previousRole))) return
+    roles = committedRoles
+  }
+  throw new Error(`Failed to preserve hidden built-in Agent role "${role}" after ${HIDDEN_ROLES_WRITE_ATTEMPTS} writes`)
 }
 
 /**
@@ -71,6 +97,10 @@ export function useResourceCatalogController(
 ) {
   const { t } = useTranslation()
   const { onConfirmArchiveAgentSessions, onLaunchSkill, onOpenSkill } = options
+  const [hiddenBuiltinRoles, setHiddenBuiltinRoles] = usePreference('agent.builtin.hidden_roles')
+  const hiddenBuiltinRolesList = useMemo(() => sanitizeHiddenBuiltinRoles(hiddenBuiltinRoles), [hiddenBuiltinRoles])
+  // Guard controller reentry while hide merges and verifies committed roles.
+  const hiddenWritePendingRef = useRef(false)
   const [search, setSearch] = useState('')
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
@@ -104,6 +134,7 @@ export function useResourceCatalogController(
     refetch
   } = useResourceLibrary({
     resourceType,
+    hiddenBuiltinRoles: hiddenBuiltinRolesList,
     activeGroupId: isAssistantLibrary ? activeGroupId : null,
     search,
     sort: 'name'
@@ -421,6 +452,33 @@ export function useResourceCatalogController(
     refetch,
     gridProps: {
       resources,
+      hasHiddenBuiltinAgents: hiddenBuiltinRolesList.length > 0,
+      onHide: async (resource: ResourceItem) => {
+        if (hiddenWritePendingRef.current) return
+        if (resource.type !== 'agent') return
+        const role = resource.raw.configuration?.builtin_role
+        if (!isProtectedBuiltinAgentRole(role)) return
+        hiddenWritePendingRef.current = true
+        try {
+          await hideBuiltinRole(role, hiddenBuiltinRolesList, setHiddenBuiltinRoles)
+        } catch (error) {
+          logger.error('Failed to hide built-in Agent', error instanceof Error ? error : new Error(String(error)))
+        } finally {
+          hiddenWritePendingRef.current = false
+        }
+      },
+      onRestoreHiddenBuiltins: async () => {
+        if (hiddenWritePendingRef.current) return
+        hiddenWritePendingRef.current = true
+        try {
+          // Explicitly restoring all built-ins intentionally replaces the whole value.
+          await setHiddenBuiltinRoles([])
+        } catch (error) {
+          logger.error('Failed to restore built-in Agents', error instanceof Error ? error : new Error(String(error)))
+        } finally {
+          hiddenWritePendingRef.current = false
+        }
+      },
       isLoading,
       activeResourceType: resourceType,
       search,

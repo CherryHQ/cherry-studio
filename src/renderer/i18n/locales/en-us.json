@@ -16,6 +16,8 @@
   "agent.builtin.cherry_support.description": "Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback",
   "agent.builtin.cherry_support.diagnostics.prepared": "Cherry Support prepared an editable description. Review it before choosing diagnostic data and submitting.",
   "agent.builtin.cherry_support.diagnostics.review": "Review problem report",
+  "agent.builtin.hide": "Hide from list",
+  "agent.builtin.show_hidden": "Show hidden built-in Agents",
   "agent.channels.add": "Add",
   "agent.channels.bindAgent": "Bind Agent",
   "agent.channels.chatIdsAutoTrackHint": "When left empty, the system will auto-track: you need to send a message to the Bot on the platform first, then the system will record the Chat ID for future notifications.",
