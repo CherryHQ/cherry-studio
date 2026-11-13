@@ -121,7 +121,7 @@ export async function applicationDataMigration(app: RegressionApp, page: Page, t
     await selectSidebarApp(page, 'Chat')
     const group = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await group.hover()
-    await group.getByRole('button', { name: 'New Chat', exact: true }).click()
+    await group.getByRole('button', { name: 'New Chat', exact: true }).press('Enter')
     // Only model inference is mocked; migration, backup and stored history use the real application.
     await Promise.all([
       sendChatMarker(page, 'Remember MP119-ORCHID-731', 'MP119-ORCHID-731 saved'),

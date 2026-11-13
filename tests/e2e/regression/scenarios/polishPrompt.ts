@@ -118,11 +118,11 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     }
     await openEditor()
     const editor = dialog.locator('.cm-content')
-    const polish = dialog.getByRole('button', { name: 'Polish prompt', exact: true })
+    const polish = dialog.getByRole('button', { name: /^Polish prompt · / })
     const rough = '你是测试助手，回答简短'
     await editor.fill(rough)
     await polish.click()
-    await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: /^Cancel · / })).toBeVisible()
     await attachScreenshot('MP-16 real polish running')
     await expect
       .soft(editor, 'Prompt editor must lock while the real request is pending')

@@ -117,7 +117,7 @@ test(...caseDefinition('MP-122'), async ({ mainWindow: page }, testInfo) => {
     })
 
     await navigate(`${baseUrl}/unavailable`)
-    const failure = page.getByRole('alert').filter({ hasText: 'This page could not be loaded' })
+    const failure = page.getByRole('alert').filter({ hasText: 'Failed to load the page' })
     await expect(failure).toBeVisible()
     await attachScreenshot('MP-122 unavailable page displays error')
   } finally {
@@ -127,6 +127,7 @@ test(...caseDefinition('MP-122'), async ({ mainWindow: page }, testInfo) => {
 })
 
 test(...caseDefinition('MP-123'), async ({ mainWindow: page }, testInfo) => {
+  const previousZoom = await page.evaluate(() => window.api.preference.get('app.zoom_factor'))
   test.setTimeout(180_000)
   // Only website content is a fixture; annotation selection, pins, export and clearing use the real app.
   const server = createServer((_request, response) => {
@@ -159,13 +160,15 @@ test(...caseDefinition('MP-123'), async ({ mainWindow: page }, testInfo) => {
     }
     // Electron guest input must go to its own webContents rather than the host's CDP input target.
     await guest.evaluate(
-      (element, point) => {
+      async (element, point) => {
         const webview = element as WebviewTag
-        webview.sendInputEvent({ type: 'mouseMove', ...point })
-        webview.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...point })
-        webview.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...point })
+        const zoom = webview.getZoomFactor()
+        const position = { x: Math.round(point.x * zoom), y: Math.round(point.y * zoom) }
+        await webview.sendInputEvent({ type: 'mouseMove', ...position })
+        await webview.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...position })
+        await webview.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...position })
       },
-      { x: Math.round(rect.x + (pin ? 1 : rect.width / 2)), y: Math.round(rect.y + (pin ? 1 : rect.height / 2)) }
+      { x: rect.x + (pin ? 1 : rect.width / 2), y: rect.y + (pin ? 1 : rect.height / 2) }
     )
   }
   const screenshot = async (name: string) => {
@@ -180,6 +183,10 @@ test(...caseDefinition('MP-123'), async ({ mainWindow: page }, testInfo) => {
   let sessionId: string | undefined
 
   try {
+    await page.evaluate(async () => {
+      await window.api.ipcApi.request('app.adjust_zoom', { reset: true, delta: 0 })
+      await window.api.ipcApi.request('app.adjust_zoom', { delta: 0.1 })
+    })
     const agents = await page.evaluate(() =>
       window.api.dataApi.request({ id: 'MP-123-agents', method: 'GET', path: '/agents', params: { limit: 200 } })
     )
@@ -303,6 +310,10 @@ test(...caseDefinition('MP-123'), async ({ mainWindow: page }, testInfo) => {
     throw error
   } finally {
     await page.keyboard.press('Escape')
+    await page.evaluate(async (zoom) => {
+      await window.api.ipcApi.request('app.adjust_zoom', { reset: true, delta: 0 })
+      await window.api.ipcApi.request('app.adjust_zoom', { delta: zoom - 1 })
+    }, previousZoom)
     await selectSidebarApp(page, 'Chat')
     if (sessionId)
       await page.evaluate(
@@ -348,7 +359,7 @@ test(...caseDefinition('MP-125'), async ({ mainWindow: page }, testInfo) => {
   const content = page.locator('[data-ui~="app.content"]')
   const address = content.getByRole('combobox', { name: 'Web address', exact: true }).filter({ visible: true })
   const reload = content.getByRole('button', { name: 'Reload', exact: true }).filter({ visible: true })
-  const failure = content.getByRole('alert').filter({ hasText: 'This page could not be loaded' })
+  const failure = content.getByRole('alert').filter({ hasText: 'Failed to load the page' })
   const loading = content.getByRole('status').filter({ hasText: 'Loading page' })
   const guest = content.getByTestId('webview-browser-guest').filter({ visible: true })
   const readGuest = () =>

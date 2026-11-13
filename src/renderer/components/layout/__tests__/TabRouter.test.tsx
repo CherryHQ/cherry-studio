@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { useNavigate } from '@tanstack/react-router'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -216,6 +217,25 @@ describe('TabRouter PageSidePanel portal isolation', () => {
 })
 
 describe('TabRouter', () => {
+  it('keeps internal navigation interactive while its tab URL is being persisted', async () => {
+    function NavigatePage() {
+      const navigate = useNavigate()
+      return (
+        <button type="button" onClick={() => void navigate({ to: '/app/chat' })}>
+          Navigate internally
+        </button>
+      )
+    }
+    knobs.renderPage = () => <NavigatePage />
+    const onUrlChange = vi.fn()
+    const { rerender } = render(<TabRouter tab={tab('route-tab', '/a')} isActive onUrlChange={onUrlChange} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Navigate internally' }))
+    await waitFor(() => expect(screen.getByTestId('router-provider')).toHaveAttribute('data-router-url', '/app/chat'))
+    expect(screen.queryByTestId('tab-route-transition-cover')).not.toBeInTheDocument()
+    rerender(<TabRouter tab={tab('route-tab', '/app/chat')} isActive onUrlChange={onUrlChange} />)
+    expect(screen.queryByTestId('tab-route-transition-cover')).not.toBeInTheDocument()
+  })
+
   it('shows the latest external-store value after a hidden tab becomes visible', async () => {
     let targetLanguage = 'en'
     const listeners = new Set<() => void>()

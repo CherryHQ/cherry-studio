@@ -622,6 +622,44 @@ describe('ComposerSurface', () => {
     expect(manager.captureCurrent()).toMatchObject({ targetId: 'composer', sourceEntityId: 'composer-topic' })
   })
 
+  it('retains a requested panel until its launchers register', async () => {
+    mocks.stabilizeEditor = true
+    vi.useFakeTimers()
+    const deferredIntent = { openPanel: {} }
+    const launcher = {
+      id: 'mcp-prompts',
+      kind: 'panel' as const,
+      icon: 'mcp',
+      label: 'MCP Prompts',
+      sources: ['root-panel' as const],
+      order: 1,
+      action: () => {}
+    }
+    const view = render(
+      <ComposerSurface {...baseProps} quickPanelEnabled deferredIntent={deferredIntent} getToolLaunchers={() => []} />
+    )
+    try {
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(deferredIntent.openPanel).toEqual({})
+      view.rerender(
+        <ComposerSurface
+          {...baseProps}
+          quickPanelEnabled
+          deferredIntent={deferredIntent}
+          getToolLaunchers={() => [launcher]}
+          toolLaunchersVersion={1}
+        />
+      )
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(mocks.quickPanelOpen.mock.lastCall?.[0].list).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'mcp-prompts', label: 'MCP Prompts' })])
+      )
+    } finally {
+      view.unmount()
+      vi.useRealTimers()
+    }
+  })
+
   it('delivers a deferred paste once after a render interrupts its pending replay', async () => {
     mocks.stabilizeEditor = true
     const viewDom = mocks.editorViewDom!

@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-composer-deferred-intent-replay.md
-2026-11-07-composer-deferred-intent-replay.md: f4bec8580038c22d63dd4acebd93fe88273489e0
-2026-11-07-composer-deferred-intent-replay.zh.md: ce3a6f134d71db1ed3e8dbbec924905ae538bab6
+2026-11-07-composer-deferred-intent-replay.md: 2a07c0349697ea304b97494e62168010ef85fd13
+2026-11-07-composer-deferred-intent-replay.zh.md: 56dc72b6f482dfa1563ba1191a9d849410a4c0c5

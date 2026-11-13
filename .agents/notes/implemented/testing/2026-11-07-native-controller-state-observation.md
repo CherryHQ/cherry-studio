@@ -20,6 +20,8 @@ Cold Vite dependency optimization reloaded hosted renderers during cases. Phase 
 
 ## Decision
 
+Every new CDP connection runs the existing owned Windows target preparation, including reconnections inside a scenario. Main-window focus selection skips windows without a valid URL. Annotation guest input converts CSS coordinates through the guest zoom factor before dispatch and awaits each native event; MP-123 runs at 110% and restores its prior application zoom.
+
 - Send Unicode PowerShell save scripts through standard input and verify the owned dialog and address-bar focus before typing.
 - Find the visible Windows notification panel through its native shell window handle before querying its UIA tree. Hide metadata-query consoles.
 - Request fixture shutdown through its owned pipe, yield until the child exit event, and escalate only after rechecking process ownership.
@@ -73,6 +75,8 @@ Cold Vite dependency optimization reloaded hosted renderers during cases. Phase 
 Adapters remain platform specific and fail when native state cannot be confirmed. Notification scenarios still require a real system notification click to return to the completed topic. Local execution does not run the hosted permission observer.
 
 ## Verification
+
+- Regression — 37 focused debug-bridge and connection/window-recovery checks pass, including an uninitialized window before the main window and repeated Windows reconnections without restarting the application. A real Electron annotation probe reproduces an empty second note at 110% before coordinate conversion and reopens both saved notes afterward. Native Windows acceptance still requires hosted execution.
 
 - Regression — 41 process, system-automation and permission-observer tests passed; 30 notification and system-automation tests passed, including a panel-content traversal case that failed before the breadth-first repair.
 - Regression — hosted Windows native checks passed all ten adapter cases, including real Unicode/suggested-name saves and fixture cleanup; the native syntax check also passed.

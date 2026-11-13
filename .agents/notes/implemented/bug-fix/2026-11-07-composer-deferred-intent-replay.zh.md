@@ -14,6 +14,8 @@ Status: implemented
 
 重放尚未执行时保留请求。定时器回调确认编辑器仍然存活后，在实际交付前消费请求。effect 清理可以取消并重新安排尚未完成的工作，后续渲染也不能重复交付已经完成的请求。保留现有定时器清理和编辑器事件路径。
 
+面板重放还需等待 QuickPanel 运行时和工具注册完成。编辑器可能先于工具注册挂载；在这段间隔中消费请求，会丢失首次工具栏激活。
+
 通过 TipTap 恢复编辑器选区，然后同步聚焦其 view，再将选区滚动到可视范围。保留其他输入框已激活时的保护，并且只有轻量输入框实际发生过交互才移交焦点。
 
 ## 考虑过的替代方案
@@ -27,6 +29,8 @@ Status: implemented
 保留延迟加载；发生过交互的轻量输入框卸载时同步移交焦点。工具栏和传输请求在交付前经历渲染也不会丢失，不引入持久状态或数据迁移。
 
 ## 验证
+
+- Regression — `ComposerSurface.test.tsx` 延迟工具注册，并验证保留的请求会在注册后打开 MCP 提示词菜单；加入可用性保护之前，该测试失败。
 
 - Regression — 组件测试在重放前触发依赖变化，断言实际粘贴文本在编辑器 DOM 中恰好出现一次，并验证事件没有传到 document 粘贴处理器。修复前失败，修复后通过。
 - `pnpm test:renderer src/renderer/components/composer/__tests__/ComposerSurface.test.tsx src/renderer/components/composer/__tests__/ComposerSurface.lazy.test.tsx`：212 个测试通过。
