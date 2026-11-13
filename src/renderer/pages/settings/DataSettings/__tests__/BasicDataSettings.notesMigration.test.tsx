@@ -43,7 +43,6 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
 }))
 vi.mock('../BackupPopup', () => ({ default: { show: vi.fn() } }))
 vi.mock('../RestorePopup', () => ({ default: { show: vi.fn() } }))
-vi.mock('../V1RemigrationPopup', () => ({ default: { show: vi.fn() } }))
 
 import BasicDataSettings from '../BasicDataSettings'
 

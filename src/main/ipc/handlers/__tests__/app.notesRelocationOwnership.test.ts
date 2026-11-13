@@ -13,7 +13,7 @@ vi.mock('@application', () => ({
 vi.mock('electron', () => ({ app: {}, BrowserWindow: { getAllWindows: () => [...m.windows.values()] } }))
 vi.mock('@main/core/platform', () => ({ isWin: false }))
 vi.mock('@main/services/cacheCleanup', () => ({ cacheCleanupService: {} }))
-vi.mock('@main/services/dataReset', () => ({ requestDataReset: vi.fn(), requestV1Remigration: vi.fn() }))
+vi.mock('@main/services/dataReset', () => ({ requestDataReset: vi.fn() }))
 vi.mock('@main/services/RegionService', () => ({ regionService: {} }))
 vi.mock('@main/services/userDataRelocation', () => ({
   inspectUserDataRelocationTarget: vi.fn(),
