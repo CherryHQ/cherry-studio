@@ -1,0 +1,137 @@
+name: Test v2.2.1 direct COS upload
+on:
+  push:
+    branches: [codex/test-v221-cos-upload]
+    paths: [.github/workflows/test-v221-cos-upload.yml]
+permissions:
+  contents: read
+env:
+  TAG: v2.2.1
+jobs:
+  release:
+    name: Build and verify COS (${{ matrix.edition }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: [global, cn]
+        os: [ubuntu-latest]
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: caa5ee971b7075c9c3161583eb08c33149b2940d
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Clean build output
+        shell: bash
+        run: rm -rf dist
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Enable Linux ARM64 addon builds
+        if: matrix.os == 'ubuntu-latest'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
+          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }} --publish never
+
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+          SENTRY_SOURCE_MAP_UPLOAD: "false"
+
+      - name: Check out trusted release upload scripts
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+          path: release-tools
+          sparse-checkout: scripts/release
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Tencent COS SDK
+        run: python -m pip install cos-python-sdk-v5==1.9.44
+
+      - name: Select and validate release files
+        shell: bash
+        run: |
+          export NODE_PATH="$(node -p "require('node:path').resolve('node_modules')")"
+          node release-tools/scripts/release/select-release-upload.js "${{ matrix.edition }}" "${{ matrix.os == 'windows-latest' && 'windows' || matrix.os == 'macos-latest' && 'mac' || 'linux' }}"
+
+      - name: Upload release files directly to COS
+        env:
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+        run: python release-tools/scripts/release/release-cos.py upload "${{ matrix.edition }}" "${{ matrix.os == 'windows-latest' && 'windows' || matrix.os == 'macos-latest' && 'mac' || 'linux' }}"
+
+      - name: Verify stored COS object sizes
+        env:
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+        shell: bash
+        run: |
+          PYTHONPATH=release-tools/scripts/release python - <<'PY'
+          import importlib
+          import json
+          import os
+          from pathlib import Path
+          from qcloud_cos import CosConfig, CosS3Client
+
+          release = importlib.import_module("release-cos")
+          client = CosS3Client(CosConfig(
+              Region="ap-shanghai", Domain=f"{release.BUCKET}.cos.accelerate.myqcloud.com",
+              SecretId=os.environ["COS_SECRET_ID"], SecretKey=os.environ["COS_SECRET_KEY"],
+          ))
+          prefix = f"releases-sync/{os.environ['TAG']}/{os.environ['GITHUB_RUN_ID']}"
+          inventory = release.read_json(client, f"{prefix}/${{ matrix.edition }}/linux.json")
+          expected = json.loads(Path("release-upload.json").read_text(encoding="utf-8"))
+          if inventory.keys() != expected.keys():
+              raise RuntimeError("COS inventory differs from the selected files")
+          total = 0
+          for relative, source in expected.items():
+              entry = inventory[relative]
+              remote = client.head_object(Bucket=release.BUCKET, Key=entry["key"])
+              size = Path(source).stat().st_size
+              if int(remote["Content-Length"]) != size or entry["size"] != size:
+                  raise RuntimeError(f"Size mismatch: {relative}")
+              total += size
+              print(f"Verified {relative}: {size:,} bytes")
+          result = f"Verified {len(inventory)} COS objects ({total:,} bytes) under {prefix}."
+          print(result)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(result + "\n")
+          PY
