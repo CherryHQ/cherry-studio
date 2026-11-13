@@ -266,6 +266,27 @@
       "when": 1794385698412,
       "tag": "0037_agent_avatar",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1794385698413,
+      "tag": "0038_early_red_ghost",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1794385698414,
+      "tag": "0039_modern_oracle",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1794385698415,
+      "tag": "0040_flawless_turbo",
+      "breakpoints": true
     }
   ],
   "version": "7"

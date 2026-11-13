@@ -20,6 +20,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { followupQueueService } from '@data/services/FollowupQueueService'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -42,6 +43,7 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import { sessionFollowupScopePrefix } from '@shared/data/types/followupQueue'
 
 import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -1543,7 +1545,13 @@ export class AgentSessionService {
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
     }
 
-    return { deletedIds: Array.from(deleted), taskScheduleIds, deliveryResults }
+    const deletedIds = Array.from(deleted)
+    // followup_queue has no FK to conversation tables by design; purge its
+    // rows (and paused state) for every deleted session scope.
+    for (const sessionId of deletedIds) {
+      followupQueueService.purgeForScopePrefixTx(tx, sessionFollowupScopePrefix(sessionId))
+    }
+    return { deletedIds, taskScheduleIds, deliveryResults }
   }
 
   private getTaskScheduleIdsForSessionIdsTx(tx: DbOrTx, sessionIds: readonly string[]): string[] {
