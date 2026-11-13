@@ -208,7 +208,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.create.agent_title': 'New Agent',
           'library.config.dialogs.create.avatar_aria': 'Pick avatar',
           'library.config.dialogs.create.avatar_name_label': 'Avatar and name',
-          'library.config.dialogs.create.description_placeholder': 'Describe this resource',
           'library.config.dialogs.create.name_placeholder': 'Name this resource',
           'library.config.dialogs.create.submit': 'Create',
           'library.config.dialogs.create.submit_failed': 'Create failed',
@@ -375,10 +374,15 @@ function openPopover() {
   fireEvent.click(screen.getByRole('button', { name: 'Open' }))
 }
 
-async function openCreateDialog() {
+async function openCreateDialog(purpose?: string) {
   openPopover()
   fireEvent.click(screen.getByRole('button', { name: 'Create agent' }))
   await screen.findByRole('dialog')
+  if (purpose) {
+    fireEvent.change(screen.getByPlaceholderText('library.config.dialogs.create.auto.purpose_placeholder'), {
+      target: { value: purpose }
+    })
+  }
   // These cases cover the selector's create flow, so step past the auto-create entry.
   fireEvent.click(screen.getByRole('button', { name: 'library.config.dialogs.create.auto.manual' }))
 }
@@ -503,13 +507,10 @@ describe('AgentSelector', () => {
   it('creates an agent, refreshes, reopens the selector, and does not auto-select by default', async () => {
     const user = userEvent.setup()
     const { onChange } = renderSelector()
-    await openCreateDialog()
+    await openCreateDialog('Created from selector')
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    fireEvent.change(screen.getByPlaceholderText('Describe this resource'), {
-      target: { value: 'Created from selector' }
-    })
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
