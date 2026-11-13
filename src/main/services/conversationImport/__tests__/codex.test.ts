@@ -187,6 +187,20 @@ describe('Codex raw rollout contract', () => {
     expect(result.messages[4].role).toBe('system')
     expect(result.messages[4].data.parts).toEqual([{ type: 'text', text: expect.stringContaining('first\nsecond') }])
   })
+  it('preserves a request in the same text block as context before a later user turn', async () => {
+    const mixed = '<environment_context><cwd>D:/project</cwd></environment_context>\nPlease fix the login failure.'
+    const p = await file('rollout-mixed.jsonl', [
+      meta(),
+      message(mixed),
+      message('First answer', 'assistant'),
+      message('Later question')
+    ])
+    const result = await codexAdapter.read({ path: p }, signal())
+    expect(result.diagnostics).toEqual([])
+    expect(result.messages.map(({ role }) => role)).toEqual(['user', 'assistant', 'user'])
+    expect(result.messages[0].data.parts).toEqual([{ type: 'text', text: mixed }])
+    expect(result.title).toContain('Please fix the login failure.')
+  })
   it('filters Guardian by versioned origin even after rename, not by title or ordinary subagent status', async () => {
     const guardian = { cli_version: '0.164.0-alpha.11.1', source: { subagent: { other: 'guardian' } } }
     await file('rollout-guardian.jsonl', [meta('g', guardian), message('synthetic approval request')])

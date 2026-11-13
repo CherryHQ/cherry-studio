@@ -8,6 +8,25 @@ import {
 } from '../importedCodexText'
 
 describe('Codex imported text presentation', () => {
+  it.each([
+    '<environment_context><cwd>D:/project</cwd></environment_context>',
+    '<recommended_plugins>Plugin list</recommended_plugins>',
+    '<external_codex_apps_open_page>{"page_id":null}</external_codex_apps_open_page>',
+    '# AGENTS.md instructions\n\n<INSTRUCTIONS>Project notes</INSTRUCTIONS>'
+  ])('keeps user text outside a context block visible (%#)', (context) => {
+    const question = 'Please fix the login failure.'
+    expect(isCodexContextMessage({ parts: [{ type: 'text', text: context }] })).toBe(true)
+    for (const text of [
+      context + '\n' + question,
+      question + '\n' + context,
+      context + '\n' + question + '\n' + context
+    ]) {
+      const data = { parts: [{ type: 'text' as const, text }] }
+      expect(isCodexContextMessage(data)).toBe(false)
+      expect(isCodexContextMessage(presentCodexHistory(data))).toBe(false)
+      expect(presentCodexHistory(data).parts).toEqual(data.parts)
+    }
+  })
   it('recognizes generated context in old imports without classifying real user text as context', () => {
     const parts = [
       { type: 'text' as const, text: '# AGENTS.md instructions\n\n<INSTRUCTIONS>Project notes</INSTRUCTIONS>' },
