@@ -307,7 +307,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
             message={summary}
             source="skills"
             operation="skill.files.load"
-            recordId={`${skillId}:${rootPath}`}
+            recordId={skillId}
           />
         </div>
       </div>

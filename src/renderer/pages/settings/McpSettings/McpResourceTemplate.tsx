@@ -40,7 +40,7 @@ export default function McpResourceTemplate({ template }: { template: Template }
               error={parsedResult.error}
               source="mcp"
               operation="mcp.resource.template"
-              recordId={template.uriTemplate}
+              recordId={`${template.serverId}:${template.name}`}
             />
           }
         />
