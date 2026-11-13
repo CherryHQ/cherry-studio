@@ -383,7 +383,7 @@ describe('native Pi through the production gateway', () => {
         delegationTools: new Set()
       },
       usageSessionId: async () => input.sessionId,
-      toolCallId: async (call) => call.key,
+      toolCallIdentity: async (call) => ({ toolCallId: call.key }),
       emit: () => {},
       observe: () => {}
     })

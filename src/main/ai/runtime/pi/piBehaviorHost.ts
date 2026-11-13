@@ -31,7 +31,7 @@ type HostOptions = {
   bindModel?: (model: Model) => Promise<Binding>
   approval: PiApprovalContext
   usageSessionId(thread: ThreadId): Promise<string>
-  toolCallId(call: CallRef): Promise<string>
+  toolCallIdentity(call: CallRef): Promise<{ toolCallId: string; parentToolCallId?: string }>
   emit(event: AgentRuntimeEvent): void
   observe(event: BehaviorEvent): void
 }
@@ -161,7 +161,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
 }
 
 export async function createPiInteractionPorts(
-  options: Pick<HostOptions, 'input' | 'approval' | 'emit' | 'toolCallId'>
+  options: Pick<HostOptions, 'input' | 'approval' | 'emit' | 'toolCallIdentity'>
 ): Promise<Pick<HostPorts, 'approvals' | 'questions'>> {
   const { callKeyOf } = await import('@cherrystudio/agent-behavior')
   const { input, approval } = options
@@ -171,7 +171,7 @@ export async function createPiInteractionPorts(
 
   async function ask(call: CallRef, name: string, args: Record<string, JsonValue>, signal: AbortSignal) {
     signal.throwIfAborted()
-    const toolCallId = await options.toolCallId(call)
+    const { toolCallId, parentToolCallId } = await options.toolCallIdentity(call)
     signal.throwIfAborted()
     const presentation = approval.getInteractionState().userResponse
     if (presentation === 'unavailable') return undefined
@@ -196,7 +196,9 @@ export async function createPiInteractionPorts(
             toolName: name,
             input: args,
             presentation,
-            providerMetadata: { cherry: { transport: PI_TRANSPORT, toolName: name } }
+            providerMetadata: {
+              cherry: { transport: PI_TRANSPORT, toolName: name, ...(parentToolCallId ? { parentToolCallId } : {}) }
+            }
           }
         })
     })

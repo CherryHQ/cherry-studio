@@ -166,6 +166,7 @@ export class RootMessageProjection {
           toolName: pending.input.toolName,
           input: pending.input.input,
           providerExecuted: pending.input.providerExecuted,
+          callProviderMetadata: pending.input.providerMetadata,
           state: 'approval-requested',
           approval: { id: pending.approvalId }
         })
@@ -227,7 +228,8 @@ export class RootMessageProjection {
       ...part,
       state: 'approval-requested',
       approval: { id: pending.approvalId },
-      input: pending.input?.input ?? part.input
+      input: pending.input?.input ?? part.input,
+      callProviderMetadata: pending.input?.providerMetadata ?? part.callProviderMetadata
     }
   }
 

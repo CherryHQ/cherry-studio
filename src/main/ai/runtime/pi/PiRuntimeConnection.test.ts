@@ -667,7 +667,12 @@ describe('desktop Pi root connection', () => {
     if (answer !== 'unavailable') {
       const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
       await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
-      expect(approvals()[0].request).toMatchObject({ toolName: tool, toolCallId: 'child-exec', input: args })
+      expect(approvals()[0].request).toMatchObject({
+        toolName: tool,
+        toolCallId: 'child-exec',
+        input: args,
+        providerMetadata: { cherry: { parentToolCallId: 'spawn' } }
+      })
       expect(existsSync(proof)).toBe(false)
       toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: answer === 'approved' })
     }

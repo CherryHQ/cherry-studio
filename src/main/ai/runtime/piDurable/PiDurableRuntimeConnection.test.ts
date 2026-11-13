@@ -1373,7 +1373,11 @@ describe('desktop Pi Durable connection', () => {
     await connection.send({ message: message('delegate') })
     const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
     await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
-    expect(approvals()[0].request).toMatchObject({ toolCallId: 'child-write', toolName: 'write' })
+    expect(approvals()[0].request).toMatchObject({
+      toolCallId: 'child-write',
+      toolName: 'write',
+      providerMetadata: { cherry: { parentToolCallId: 'spawn' } }
+    })
     expect(existsSync(join(directory, 'child-result.txt'))).toBe(false)
     toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: true })
     await done(events, 10_000)

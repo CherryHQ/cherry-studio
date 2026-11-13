@@ -2,6 +2,7 @@ import type { UIMessagePart } from 'ai'
 import { isToolUIPart } from 'ai'
 
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
+import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import {
   APPROVAL_REQUESTED,
   buildToolResponseFromPart,
@@ -17,6 +18,7 @@ export type PermissionRequestComposerRequest = {
   title: string
   toolResponse: ToolResponseLike
   match: MessageToolApprovalMatch
+  source?: { toolCallId: string; title?: string; isBackgrounded?: boolean }
 }
 
 type PermissionToolPart = CherryMessagePart & {
@@ -64,7 +66,8 @@ function getPermissionTitle(part: PermissionToolPart, fallback: string): string 
 
 /** Return the FIFO head from the newest reply that has pending tool permissions. */
 export function findNextPendingPermissionRequest(
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: Record<string, CherryMessagePart[]>,
+  sourcePartsByMessageId = partsByMessageId
 ): PermissionRequestComposerRequest | null {
   const messages = Object.entries(partsByMessageId)
   for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
@@ -88,7 +91,35 @@ export function findNextPendingPermissionRequest(
       const toolResponse = buildToolResponseFromPart(part)
       if (!toolResponse) continue
 
+      const parentToolCallId = getPartParentToolCallId(part)
+      const allParts = Object.values(sourcePartsByMessageId).flat()
+      const parent = parentToolCallId
+        ? allParts.find((candidate) => isToolUIPart(candidate) && candidate.toolCallId === parentToolCallId)
+        : undefined
+      const taskEvents = parentToolCallId
+        ? allParts.flatMap((candidate) =>
+            candidate.type === 'data-agent-task-event' && candidate.data.toolUseId === parentToolCallId
+              ? [candidate.data]
+              : []
+          )
+        : []
+
       return {
+        ...(parentToolCallId
+          ? {
+              source: {
+                toolCallId: parentToolCallId,
+                title:
+                  taskEvents.findLast((event) => event.title)?.title ??
+                  getStringField(parent && 'input' in parent ? parent.input : undefined, [
+                    'description',
+                    'title',
+                    'prompt'
+                  ]),
+                isBackgrounded: taskEvents.findLast((event) => event.isBackgrounded !== undefined)?.isBackgrounded
+              }
+            }
+          : {}),
         messageId,
         toolCallId: toolPart.toolCallId,
         approvalId,

@@ -24,6 +24,23 @@ function makePart(overrides: Partial<Record<string, unknown>> = {}): CherryMessa
 }
 
 describe('findNextPendingPermissionRequest', () => {
+  it('attributes a child approval to its own task across message boundaries', () => {
+    const request = makePart({ callProviderMetadata: { cherry: { parentToolCallId: 'spawn-a' } } })
+    const task = (toolUseId: string, title: string, isBackgrounded: boolean): CherryMessagePart => ({
+      type: 'data-agent-task-event',
+      data: { event: 'started', taskId: toolUseId, toolUseId, title, status: 'in_progress', isBackgrounded }
+    })
+    const result = findNextPendingPermissionRequest(
+      { live: [request] },
+      {
+        history: [task('spawn-a', 'Review changes', true), task('spawn-b', 'Unrelated task', false)],
+        live: [request]
+      }
+    )
+    expect(result?.source).toEqual({ toolCallId: 'spawn-a', title: 'Review changes', isBackgrounded: true })
+    expect(findNextPendingPermissionRequest({ live: [makePart()] })?.source).toBeUndefined()
+  })
+
   it('returns pending permissions in FIFO order', () => {
     const partsByMessageId = {
       'message-1': [makePart()],
