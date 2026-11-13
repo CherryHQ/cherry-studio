@@ -14,7 +14,7 @@ Chat and Agent errors can open error details, run Doctor, and report a problem. 
 - Doctor and AI consultation accept an operation incident in addition to a conversation. Image-only models skip chat probes; model-free operations run only the applicable system checks. Consultation discloses what it reads: an operation incident reads that error context and its diagnostics, a failed message reads that conversation.
 - Diagnostic upload and export add `error-context.json` and, when a matching AI analysis exists for the same fault, `ai-diagnosis.json`. Retries keep the snapshot. No additional database or image-attachment collection is introduced.
 - Error details and About share one update state: channel-aware checks, progress, and installation confirmation. Lightweight windows hand the check off to the main window. A withheld feed is never reported as up to date.
-- Startup, migration, relocation, data-reset, and renderer-crash failures keep localized copy, feedback, export, and an official-download fallback when the normal UI and services are unavailable.
+- Startup, migration, relocation, data-reset, and renderer-crash failures keep localized copy, feedback, and an official-download fallback when the normal UI and services are unavailable. Migration failures and the in-window renderer-crash fallback also offer diagnostics export.
 - Application-authored messages use the locale catalogs. Raw external errors and stacks stay diagnostic evidence. Reporting and installation remain user-triggered.
 
 ## Alternatives considered
@@ -32,7 +32,7 @@ Chat and Agent errors can open error details, run Doctor, and report a problem. 
 - AC4 — AI consultation for an operation discloses that it reads the error context and diagnostics, a failed message discloses the conversation, and with no incident neither sentence is shown. (verification: renderer)
 - AC5 — A verified provider HTTP 5xx hides only the direct report button; AI consultation can still hand off a report, and non-5xx errors stay reportable. (verification: renderer)
 - AC6 — Error details and About share update state, channel-aware checks, progress, and installation confirmation; lightweight windows hand off to the main window, and a withheld feed is never shown as up to date. (verification: unit + renderer)
-- AC7 — Startup, migration, relocation, data-reset, and renderer-crash failures offer localized copy, feedback, export, and an official-download fallback without the normal UI. (verification: unit + Electron)
+- AC7 — Startup, migration, relocation, data-reset, and renderer-crash failures offer localized copy, feedback, and an official-download fallback without the normal UI; migration failures and the in-window renderer-crash fallback also offer diagnostics export. (verification: unit + Electron)
 - AC8 — Application-authored error messages come from the locale catalogs, raw external errors stay diagnostic evidence, and reporting and installation happen only on a user action. (verification: unit + docs gate)
 
 ## Risks
